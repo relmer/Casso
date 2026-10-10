@@ -199,6 +199,7 @@
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
+    <ClCompile Include="DiskMarkPattern.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Directive.cpp" />
     <ClCompile Include="Parser.cpp" />
@@ -253,6 +254,8 @@
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
+    <ClInclude Include="DiskFieldKind.h" />
+    <ClInclude Include="DiskMarkPattern.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Directive.h" />
     <ClInclude Include="Parser.h" />

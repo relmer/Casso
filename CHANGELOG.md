@@ -38,6 +38,15 @@ Entries before versioning was introduced use dates only.
   the 80-column firmware's ROM at $C800-$CFFF, as on a real //e.
 - On the //c, the mouse pointer no longer moves toward the wrong spot while a
   program has switched auxiliary memory in.
+- Writing sectors with the `disk` command changes only those sectors. The rest
+  of each track, its volume number, sync and length, and on a WOZ flux track
+  its recorded timing, remains unchanged.
+- The `disk` command writes to WOZ images in the standard track layout and
+  finds each track through the image's track map.
+- The `disk` command now flushes the new image to the drive before it replaces
+  the old one, so a power loss just after the command finishes can no longer
+  leave the image empty or partly written. Casso now sets the attributes,
+  creation date, and permissions to match the old file.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 

@@ -271,6 +271,11 @@
     <ClCompile Include="Devices\Disk\DiskImage.cpp" />
     <ClCompile Include="Devices\Disk\FluxTrack.cpp" />
     <ClCompile Include="Devices\Disk\FluxBitView.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFieldFormat.cpp" />
+    <ClCompile Include="Devices\Disk\SectorFieldWriter.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FieldLocator.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\LatchFramer.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\TrackCopy.cpp" />
     <ClCompile Include="Devices\Disk\DamagedMountReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
@@ -286,6 +291,7 @@
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
+    <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
@@ -610,6 +616,12 @@
     <ClInclude Include="Devices\Disk\DiskImage.h" />
     <ClInclude Include="Devices\Disk\FluxTrack.h" />
     <ClInclude Include="Devices\Disk\FluxBitView.h" />
+    <ClInclude Include="Devices\Disk\DiskFieldFormat.h" />
+    <ClInclude Include="Devices\Disk\SectorFieldWriter.h" />
+    <ClInclude Include="Devices\Disk\SectorWrite.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FieldLocator.h" />
+    <ClInclude Include="Devices\Disk\Inspector\LatchFramer.h" />
+    <ClInclude Include="Devices\Disk\Inspector\TrackCopy.h" />
     <ClInclude Include="Devices\Disk\DamagedMountReport.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
@@ -628,6 +640,7 @@
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
+    <ClInclude Include="Devices\Disk\DurableCommit.h" />
     <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />

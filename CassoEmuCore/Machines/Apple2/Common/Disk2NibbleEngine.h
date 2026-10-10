@@ -71,6 +71,11 @@ public:
     // ~30% random stream a real drive reads off blank surface.
     static constexpr size_t kUnformattedTrackBits = 51200;
 
+    // The read amplifier's window: with no transition in this many cells it
+    // has no signal to hold its gain on and turns noise into random bits. The
+    // disk inspector marks the same stretches, so the two share the number.
+    static constexpr int    kHeadWindowCells      = 4;
+
     Disk2NibbleEngine();
     ~Disk2NibbleEngine() override;
 
