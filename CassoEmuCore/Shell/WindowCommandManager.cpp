@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -591,7 +592,7 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
         m_shell.m_disks->GetManager()->Eject (6, 1);
     }
 
-    m_shell.ReflowChromeForMachineChange();
+    m_shell.m_chrome->ReflowChromeForMachineChange();
 }
 
 
@@ -722,7 +723,7 @@ void WindowCommandManager::OnMachineCommand (int id)
             }
             else
             {
-                m_shell.PostNotice (L"Start Casso with --trace to record a CPU trace.");
+                m_shell.m_chrome->PostNotice (L"Start Casso with --trace to record a CPU trace.");
             }
 
             break;
@@ -1161,13 +1162,13 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
 
     hr = model.SetFolder (folder);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"Could not open the disk folder.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
     // Boot-payload plumbing: availability answers from the download cache;
     // the download callback runs on the dialog's explicit button click.
-    dialog.Configure (&model, &m_shell.m_chromeTheme,
+    dialog.Configure (&model, &m_shell.m_chrome->GetTheme(),
         [] (BlankDiskContents contents)
         {
             return AssetBootstrap::IsStockBootDiskCached (
@@ -1200,7 +1201,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     hr = dialog.Create (params);
     CHRA (hr);
 
-    dialog.SetTheme (&m_shell.m_chromeTheme);
+    dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
 
     // Cancel / Escape / close box: nothing to do, and no mount started.
@@ -1212,7 +1213,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     if (occupied)
     {
         message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
-        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, message.c_str(),
+        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(), message.c_str(),
                                   L"Create new disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
 
         BAIL_OUT_IF (choice != IDYES, S_OK);
@@ -1233,7 +1234,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
 
         bool  opened = master.good();
 
-        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                                       L"The OS master disk is missing from the download cache.",
                                       L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -1245,7 +1246,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     }
 
     hr = BlankDiskBuilder::Build (dialog.GetOutcome().spec, payload, imageBytes);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"Could not build the new disk image.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -1254,7 +1255,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
 
     hr = m_shell.m_settings->GetFileSystem().WriteAllText (dialog.GetOutcome().targetPath, imageContent);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
                                + FormatSystemError (hr)).c_str(),
                               L"Create new disk", MB_OK | MB_ICONERROR));
@@ -1270,7 +1271,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     }
 
     hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
+    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
                               L"The disk was created but could not be mounted.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
 
@@ -2138,7 +2139,7 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
 
 
-    DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
+    DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
     if (job != nullptr)
     {
@@ -2174,7 +2175,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
     if (FAILED (hr))
     {
-        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), L"Could not copy the printout to the clipboard.",
                      L"Casso printer", MB_OK | MB_ICONWARNING);
     }
 }
@@ -2197,7 +2198,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
 {
     int   choice = DxuiMessageBox (
         m_shell.m_printer->GetPrinterDialogOwner(),
-        &m_shell.m_chromeTheme,
+        &m_shell.m_chrome->GetTheme(),
         L"Tear off and discard the current printout?\n\n"
         L"The page in the printer will be thrown away without saving. "
         L"This cannot be undone.",
@@ -2286,7 +2287,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
                                  : (L"Saved printout to:\n" + file.wstring());
 
         m_shell.m_printer->NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
         m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
@@ -2310,7 +2311,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         m_shell.m_printer->NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
-        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(),
                      L"Casso printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
@@ -2341,13 +2342,13 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 
     if (succeeded)
     {
-        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(),
                         L"Sent the printout to the printer.",
                         L"Casso printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(),
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
                         L"Casso printer", MB_OK | MB_ICONWARNING);

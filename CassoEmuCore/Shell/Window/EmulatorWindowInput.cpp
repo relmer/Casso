@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
@@ -107,15 +108,15 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 
     if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
     {
-        m_mainMenu.SetFocusedMenu ((MainMenuId) index);
+        m_chrome->m_mainMenu.SetFocusedMenu ((MainMenuId) index);
     }
     else
     {
-        m_mainMenu.ClearFocus();
+        m_chrome->m_mainMenu.ClearFocus();
     }
 
-    m_toolbar.SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
-                                 ? index - s_kChromeFocusToolbarFirst : -1);
+    m_chrome->m_toolbar.SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
+                                           ? index - s_kChromeFocusToolbarFirst : -1);
 
     m_disks->GetDriveChrome()[0].SetFocused (index == s_kChromeFocusDrive0);
     m_disks->GetDriveChrome()[1].SetFocused (index == s_kChromeFocusDrive1);
@@ -144,7 +145,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     int   dir         = shift ? -1 : 1;
     int   index       = m_chromeFocusIndex;
     bool  exitVk      = (vk == VK_ESCAPE || vk == VK_F10);
-    bool  menuIsOpen  = m_mainMenu.IsOpen();
+    bool  menuIsOpen  = m_chrome->m_mainMenu.IsOpen();
     bool  onMenuTitle = index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast;
     bool  onToolbar   = index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast;
 
@@ -152,20 +153,20 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 
     // A toolbar picker or a keyboard-opened flyout owns navigation; Escape
     // closes it and leaves the entry focused.
-    if (m_toolbar.OwnsKeyboard())
+    if (m_chrome->m_toolbar.OwnsKeyboard())
     {
-        (void) m_toolbar.HandleKey (vk);
+        (void) m_chrome->m_toolbar.HandleKey (vk);
     }
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
     else if (menuIsOpen)
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
-        int   openIdx   = (int) m_mainMenu.GetOpenMenu();
+        int   openIdx   = (int) m_chrome->m_mainMenu.GetOpenMenu();
 
-        m_mainMenu.HandleKey (vk);
+        m_chrome->m_mainMenu.HandleKey (vk);
 
-        if (m_mainMenu.IsOpen())
+        if (m_chrome->m_mainMenu.IsOpen())
         {
             // Still open: a ring-owned menu tracks the (possibly switched)
             // title. A menu opened outside the ring (Alt mnemonic / mouse)
@@ -173,7 +174,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
             // stranding focus on a title the user never Tab'd to.
             if (ringOwned)
             {
-                SetChromeFocusIndex ((int) m_mainMenu.GetOpenMenu());
+                SetChromeFocusIndex ((int) m_chrome->m_mainMenu.GetOpenMenu());
             }
         }
         else if (exitVk && ringOwned)
@@ -209,7 +210,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     }
     else if (onMenuTitle && (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE))
     {
-        m_mainMenu.Open ((MainMenuId) index, true);
+        m_chrome->m_mainMenu.Open ((MainMenuId) index, true);
     }
 
     // A toolbar entry is focused: Enter, Space or Down activates it, which
@@ -217,7 +218,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     // with the slider taking the keys that follow.
     else if (onToolbar && (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE))
     {
-        m_toolbar.ActivateFocused();
+        m_chrome->m_toolbar.ActivateFocused();
     }
 
     // A toolbar entry or a drive widget is focused. Left/Right walk the whole
@@ -496,22 +497,22 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
     // hovered button's label surfaces as a tooltip (no labels on the strip).
-    if (m_toolbar.OnToolbarMouseMove (x, y))
+    if (m_chrome->m_toolbar.OnToolbarMouseMove (x, y))
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
     {
         RECT             anchor = {};
-        const wchar_t *  tip    = m_toolbar.GetTooltipAt (x, y, anchor);
+        const wchar_t *  tip    = m_chrome->m_toolbar.GetTooltipAt (x, y, anchor);
 
         if (tip != nullptr)
         {
-            m_toolbarTooltip.RequestShow (anchor, tip, nowMs);
+            m_chrome->m_toolbarTooltip.RequestShow (anchor, tip, nowMs);
         }
         else
         {
-            m_toolbarTooltip.RequestHide (nowMs);
+            m_chrome->m_toolbarTooltip.RequestHide (nowMs);
         }
     }
 
@@ -519,9 +520,9 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // keyboard). Inert on non-//c machines (hidden).
     if (MachineHasCaseSwitches())
     {
-        const wchar_t * tip          = m_switchBar.GetTooltipTextAt (x, y);
-        bool            hoverChanged = m_switchBar.SetHovered (m_switchBar.HitTest (x, y));
-        bool            partChanged  = m_switchBar.SetHoverPoint (x, y);
+        const wchar_t * tip          = m_chrome->m_switchBar.GetTooltipTextAt (x, y);
+        bool            hoverChanged = m_chrome->m_switchBar.SetHovered (m_chrome->m_switchBar.HitTest (x, y));
+        bool            partChanged  = m_chrome->m_switchBar.SetHoverPoint (x, y);
 
         // The strip is painted only when a frame is presented, and a static
         // screen presents none; a highlight that moved asks for one.
@@ -532,11 +533,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         if (tip != nullptr)
         {
-            m_switchBarTooltip.RequestShow (m_switchBar.GetBounds(), tip, nowMs);
+            m_chrome->m_switchBarTooltip.RequestShow (m_chrome->m_switchBar.GetBounds(), tip, nowMs);
         }
         else
         {
-            m_switchBarTooltip.RequestHide (nowMs);
+            m_chrome->m_switchBarTooltip.RequestHide (nowMs);
         }
     }
 
@@ -639,11 +640,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         if (!tip.empty())
         {
-            m_driveTooltip.RequestShow (anchor, tip, nowMs);
+            m_chrome->m_driveTooltip.RequestShow (anchor, tip, nowMs);
         }
         else
         {
-            m_driveTooltip.RequestHide (nowMs);
+            m_chrome->m_driveTooltip.RequestHide (nowMs);
         }
     }
 
@@ -695,13 +696,13 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     m_d3dRenderer.MarkRedrawNeeded();
 
-    m_toolbar.OnToolbarMouseLeave();
-    m_toolbarTooltip.RequestHide (nowMs);
-    m_driveTooltip.RequestHide (nowMs);
+    m_chrome->m_toolbar.OnToolbarMouseLeave();
+    m_chrome->m_toolbarTooltip.RequestHide (nowMs);
+    m_chrome->m_driveTooltip.RequestHide (nowMs);
 
     {
-        bool  hoverChanged = m_switchBar.SetHovered (false);
-        bool  pressChanged = m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+        bool  hoverChanged = m_chrome->m_switchBar.SetHovered (false);
+        bool  pressChanged = m_chrome->m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
 
         if (hoverChanged || pressChanged)
         {
@@ -709,7 +710,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
         }
     }
 
-    m_switchBarTooltip.RequestHide (nowMs);
+    m_chrome->m_switchBarTooltip.RequestHide (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
@@ -1296,13 +1297,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // itself toggles / hover-switches via the menu bar's own mouse
     // handling, and the popup-backed dropdown receives row clicks
     // directly; the popup takes no capture, so the owner drives this.
-    if (m_mainMenu.IsOpen())
+    if (m_chrome->m_mainMenu.IsOpen())
     {
-        RECT  strip = m_mainMenu.GetBounds();
+        RECT  strip = m_chrome->m_mainMenu.GetBounds();
 
         if (x < strip.left || x >= strip.right || y < strip.top || y >= strip.bottom)
         {
-            m_mainMenu.Hide();
+            m_chrome->m_mainMenu.Hide();
         }
     }
 
@@ -1315,7 +1316,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     }
 
     // Command toolbar press (button press states + slider drag start).
-    toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
+    toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonDown (x, y);
 
     if (toolbarTook)
     {
@@ -1326,11 +1327,11 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     if (MachineHasCaseSwitches())
     {
-        Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
+        Apple2cSwitchBar::Part  part = m_chrome->m_switchBar.GetPartAt (x, y);
 
         // The strip is painted only when a frame is presented, and a static
         // screen presents none; a key that went down asks for one.
-        if (m_switchBar.SetPressedPart (part))
+        if (m_chrome->m_switchBar.SetPressedPart (part))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1389,7 +1390,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
     // Never in fullscreen, where the desk is not on screen.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-        (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen() &&
+        (wParam & MK_SHIFT) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
         m_scene->BeginSceneOrbit (x, y);
@@ -1403,7 +1404,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // reasons, and like it never in fullscreen. Not on the compass, which
     // has its own Ctrl gestures and is handled below.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-        (wParam & MK_CONTROL) != 0 && !m_mainMenu.IsOpen() &&
+        (wParam & MK_CONTROL) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook && !m_scene->PointOnCompass (x, y))
     {
         m_scene->m_scenePanning    = true;
@@ -1416,7 +1417,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // Pressing on the recorder's volume wheel starts its drag, which handles
     // every move until the release: no orbit, no click.
-    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive())
     {
         float  span  = 0.0f;
         RECT   wheel = m_scene->GetVolumeWheelRect (&span);
@@ -1439,7 +1440,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // waits for the release, like any button. Stop is the exception: it is
     // the key reaching the bottom that trips the latch, so the held keys are
     // released then, with the button still down.
-    if (DeskSceneActive() && !m_mainMenu.IsOpen())
+    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen())
     {
         SceneHitResult  keyHit = m_scene->RecorderHit (x, y);
 
@@ -1462,7 +1463,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // The compass outranks everything on the scene: it is drawn on top,
     // so a press where it sits belongs to it.
-    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->m_sceneCompass.OnPointerDown (x, y))
     {
         result = DxuiMessageResult::Handled;
@@ -1472,7 +1473,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
     // the only other thing a press on the scene begins, and which would
     // otherwise swallow the gesture.
-    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_chrome->m_mainMenu.IsOpen()
         && !IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
         SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
@@ -1515,7 +1516,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // on that alone armed a turn under the command buttons, and the release
     // that would have fired them ended the turn instead.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
-        !m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
+        !m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
         SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
@@ -1701,7 +1702,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
 
     // Command toolbar release: click dispatch / mute toggle / slider drop.
-    toolbarTook = m_toolbar.OnToolbarLButtonUp (x, y);
+    toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonUp (x, y);
 
     if (toolbarTook)
     {
@@ -1714,9 +1715,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // release over a part. Captured before the pressed-part is cleared.
     if (MachineHasCaseSwitches())
     {
-        switchPart = m_switchBar.GetPartAt (x, y);
+        switchPart = m_chrome->m_switchBar.GetPartAt (x, y);
 
-        if (m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
+        if (m_chrome->m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1732,7 +1733,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     {
         // A latched switch is drawn sunk or proud on the next present, and
         // over a static screen this click is the only thing asking for one.
-        HandleSwitchBarClick (switchPart);
+        m_chrome->HandleSwitchBarClick (switchPart);
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -1993,7 +1994,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
-    else if (!m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    else if (!m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive())
     {
         // The drive band and the fullscreen strip have no orbit to share the
         // button with: a right-click there is the device's menu.
@@ -2134,7 +2135,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 
     // The mnemonic arm both TESTS and ACTS -- HandleAltKey opens the menu --
     // so it has to lead the ladder rather than fold into a predicate.
-    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_mainMenu.HandleAltKey ((wchar_t) vk))
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_chrome->m_mainMenu.HandleAltKey ((wchar_t) vk))
     {
         // Claimed by the menu bar.
     }
@@ -2230,9 +2231,9 @@ ShellKeyRouting::State EmulatorShell::GetKeyRoutingState() const
 
 
     state.pointerMode         = m_pointerMode;
-    state.toolbarOwnsKeyboard = m_toolbar.OwnsKeyboard();
+    state.toolbarOwnsKeyboard = m_chrome->m_toolbar.OwnsKeyboard();
     state.isChromeFocused     = m_chromeFocusIndex != s_kChromeFocusNone;
-    state.isMenuOpen          = m_mainMenu.IsOpen();
+    state.isMenuOpen          = m_chrome->m_mainMenu.IsOpen();
 
     return state;
 }
@@ -2270,7 +2271,7 @@ void EmulatorShell::DispatchShellKey (
         // An open picker is modal in practice: it owns arrows, Enter and
         // Escape, so browsing the rows previews rather than typing into
         // the //e. A flyout opened by keyboard owns them the same way.
-        (void) m_toolbar.HandleKey (vk);
+        (void) m_chrome->m_toolbar.HandleKey (vk);
         break;
 
     case ShellKeyOwner::Chrome:
@@ -2370,7 +2371,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     {
         if (!isRepeat && m_capsLock.OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
         {
-            ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
+            m_chrome->ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
         }
 
         BAIL_OUT_IF (true, S_OK);
@@ -3231,9 +3232,9 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         // the capture that follows takes the pointer, so the move that would
         // dismiss it never comes. It would sit there until its lifetime ran
         // out, which is a long time to leave a balloon over a game.
-        m_toolbarTooltip.HideImmediate();
-        m_driveTooltip.HideImmediate();
-        m_switchBarTooltip.HideImmediate();
+        m_chrome->m_toolbarTooltip.HideImmediate();
+        m_chrome->m_driveTooltip.HideImmediate();
+        m_chrome->m_switchBarTooltip.HideImmediate();
 
         StartPaddleCapture();
     }
@@ -3415,22 +3416,22 @@ void EmulatorShell::SyncPaddleSourceList()
     source.knownDescriptions = m_controllerDescriptions;
     source.hasJoyport        = IsJoyportOffered();
 
-    m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
+    m_chrome->m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
 
     // Straight onto the command bar's drop-down rather than a submenu off the
     // Machine menu: this is a list the user picks from while playing.
-    m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
-                                m_mainMenu.GetCommands().GetPaddlePickerItems());
+    m_chrome->m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
+                                          m_chrome->m_mainMenu.GetCommands().GetPaddlePickerItems());
 
     // The picker wears what is playing, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
     // the old one left behind.
     {
-        RECT  bounds = m_toolbar.GetBounds();
+        RECT  bounds = m_chrome->m_toolbar.GetBounds();
 
         if (bounds.right > bounds.left)
         {
-            m_toolbar.Layout (bounds, m_scaler);
+            m_chrome->m_toolbar.Layout (bounds, m_scaler);
         }
     }
 }
@@ -3577,7 +3578,7 @@ void EmulatorShell::ApplyControllerSlotsChange (
 
     for (const std::wstring & notice : notices)
     {
-        ShowNotice (notice);
+        m_chrome->ShowNotice (notice);
     }
 }
 
@@ -3971,7 +3972,7 @@ void EmulatorShell::PasteClipboardText()
 
     if (raisedLetters)
     {
-        ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
+        m_chrome->ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
     }
 }
 
@@ -4065,12 +4066,12 @@ void EmulatorShell::StartPaddleCapture()
     //  of the whole scene plus a synchronous repaint for no change at all --
     //  and one caller of this grab is the fullscreen strip's own tick, which
     //  runs inside the frame the repaint would re-enter.
-    m_captureReflowMs = 0;
+    m_chrome->m_captureReflowMs = 0;
 
     if (!m_d3dRenderer.IsFullscreen())
     {
-        ReflowChromeForChangeBand();
-        m_captureReflowMs = ChangeBannerNowMs();
+        m_chrome->ReflowChromeForChangeBand();
+        m_chrome->m_captureReflowMs = ChangeBannerNowMs();
     }
 
     SetCapture (m_hwnd);
@@ -4131,7 +4132,7 @@ void EmulatorShell::StopPaddleCapture()
     //  up. See StartPaddleCapture for why fullscreen is left alone.
     if (!m_d3dRenderer.IsFullscreen())
     {
-        ReflowChromeForChangeBand();
+        m_chrome->ReflowChromeForChangeBand();
     }
 
 Error:

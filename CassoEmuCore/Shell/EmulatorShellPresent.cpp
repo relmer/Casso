@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -244,8 +245,8 @@ HRESULT EmulatorShell::InitializeRenderer()
                         m_scene->m_deskScene.DrawDebugRect (m_scene->m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
                     }
 
-                    m_scene->m_deskScene.DrawDebugRect (m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
-                    m_scene->m_deskScene.DrawDebugRect (m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
+                    m_scene->m_deskScene.DrawDebugRect (m_chrome->m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
+                    m_scene->m_deskScene.DrawDebugRect (m_chrome->m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
                     m_scene->m_deskScene.DrawDebugRect (m_scene->m_stripRectPx, bbW, bbH, 0xFF30FFFF);
                 }
             }
@@ -548,10 +549,10 @@ bool EmulatorShell::TryPresentUiFrame()
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
     //  composed yet. See SyncStandInBanner for what sets this.
-    if (m_standInBandStale)
+    if (m_chrome->m_standInBandStale)
     {
-        m_standInBandStale = false;
-        ReflowChromeForChangeBand();
+        m_chrome->m_standInBandStale = false;
+        m_chrome->ReflowChromeForChangeBand();
     }
 
     // Copy latest framebuffer under lock, then present with vsync
@@ -607,11 +608,11 @@ bool EmulatorShell::TryPresentUiFrame()
     // THE TOP CHROME FIRST: in fullscreen the capture bar hangs under the
     // toolbar, and bounds the tick has not written yet put the bar where the
     // strip was last frame -- visibly trailing it through the reveal.
-    TickFullscreenTopChrome();
-    SyncStandInBanner();
+    m_chrome->TickFullscreenTopChrome();
+    m_chrome->SyncStandInBanner();
     TraceControllerState();
-    SyncNotice();
-    SyncFrameRateReadout();
+    m_chrome->SyncNotice();
+    m_chrome->SyncFrameRateReadout();
     m_scene->SyncSceneViewReadout();
 
 
@@ -824,7 +825,7 @@ bool EmulatorShell::TryPresentUiFrame()
         inputs.hotkey        = m_scene->m_stripHotkeyPending;
         m_scene->m_stripHotkeyPending = false;
 
-        inputs.pinned        = m_scene->m_stripBrowseOpen || m_driveTooltip.IsVisible();
+        inputs.pinned        = m_scene->m_stripBrowseOpen || m_chrome->m_driveTooltip.IsVisible();
 
         // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
         // owning the pointer. At a BASIC prompt in Mouse mode the host
@@ -866,7 +867,7 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             float  progress = m_scene->m_stripState.SlideProgress (stripNowMs);
             int    bandH    = DeskSceneActive() ? m_scaler.ToPx (s_kStripBandDp)
-                                                : m_scaler.ToPx (m_driveBarThicknessDp);
+                                                : m_scaler.ToPx (m_chrome->m_driveBarThicknessDp);
 
             if (progress > 0.0f)
             {
@@ -908,11 +909,11 @@ bool EmulatorShell::TryPresentUiFrame()
                     // put it this frame, bottom-anchored the way the windowed
                     // bar anchors them, over the band's own surface. They paint
                     // after the picture, so they ride over it.
-                    m_driveBandSurface.SetBounds (m_scene->m_stripRectPx);
-                    m_driveBandSurface.SetVisible (true);
-                    LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bandH, client.right,
-                                                    m_scene->m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
-                                                    m_disks->ShouldShowExternalDrive() ? 2 : 1);
+                    m_chrome->m_driveBandSurface.SetBounds (m_scene->m_stripRectPx);
+                    m_chrome->m_driveBandSurface.SetVisible (true);
+                    m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bandH, client.right,
+                                                              m_scene->m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
+                                                              m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
                     if (!m_disks->ShouldShowExternalDrive())
                     {
@@ -927,7 +928,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
                 if (!DeskSceneActive())
                 {
-                    m_driveBandSurface.SetVisible (false);
+                    m_chrome->m_driveBandSurface.SetVisible (false);
                     m_disks->GetDriveChrome()[0].SetVisible (false);
                     m_disks->GetDriveChrome()[1].SetVisible (false);
                     m_disks->GetDriveChrome()[0].Hide();
@@ -981,13 +982,13 @@ bool EmulatorShell::TryPresentUiFrame()
     // Ctrl-armed reset cue every UI frame so they track live state.
     if (MachineHasCaseSwitches())
     {
-        SyncSwitchBarState();
+        m_chrome->SyncSwitchBarState();
     }
 
     hr = m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_mainMenu.IsOpen())
+    if (m_chrome->m_mainMenu.IsOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1008,9 +1009,9 @@ bool EmulatorShell::TryPresentUiFrame()
     // An open toolbar picker previews live, so it needs the same treatment:
     // a highlight change alters the chrome or the picture, and without a
     // forced present the preview would wait for the next unrelated redraw.
-    SyncToolbarState();
+    m_chrome->SyncToolbarState();
 
-    if (m_toolbar.IsMenuOpen())
+    if (m_chrome->m_toolbar.IsMenuOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1022,10 +1023,10 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        m_toolbarTooltip.Tick   (nowMs);
-        m_switchBarTooltip.Tick (nowMs);
-        m_driveTooltip.Tick     (nowMs);
-        m_captionTooltip.Tick   (nowMs);
+        m_chrome->m_toolbarTooltip.Tick   (nowMs);
+        m_chrome->m_switchBarTooltip.Tick (nowMs);
+        m_chrome->m_driveTooltip.Tick     (nowMs);
+        m_chrome->m_captionTooltip.Tick   (nowMs);
 
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.
@@ -1037,10 +1038,10 @@ bool EmulatorShell::TryPresentUiFrame()
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
         // a present is requested every frame one is armed, as for the compass.
-        if (m_mainMenu.WantsTick() || m_toolbar.WantsTick())
+        if (m_chrome->m_mainMenu.WantsTick() || m_chrome->m_toolbar.WantsTick())
         {
-            m_mainMenu.TickMenus (nowMs);
-            m_toolbar.TickMenus  (nowMs);
+            m_chrome->m_mainMenu.TickMenus (nowMs);
+            m_chrome->m_toolbar.TickMenus  (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1286,259 +1287,6 @@ uint64_t EmulatorShell::ComputeColorSig()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowNotice
-//
-//  Show a notice over the picture for a few seconds. UI thread only.
-//
-//  The text arrives already composed -- by CaptureOutcome::DescribeResult or
-//  WriteProtectChange::DescribeResult -- which is deliberate: every branch of
-//  what to say is decided in core where a test can reach it, and this
-//  function chooses no wording.
-//
-//  A notice already up keeps its full time; this one goes below it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ShowNotice (const std::wstring & text)
-{
-    int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                          std::chrono::steady_clock::now().time_since_epoch()).count();
-
-
-
-    m_notices.Push (text, nowMs);
-
-    SyncNotice();
-
-    m_d3dRenderer.MarkRedrawNeeded();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PostNotice
-//
-//  Hand a notice to the window from any thread. The notice is Dxui and Dxui
-//  asserts UI-thread affinity, so a caller on the CPU thread cannot show it
-//  directly. With no window there is nothing to show it over, and the notice
-//  is dropped: it only confirms a change the indicators already show.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PostNotice (const std::wstring & text)
-{
-    wstring *  carried = nullptr;
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return;
-    }
-
-    carried = new (std::nothrow) wstring (text);
-
-    if (carried != nullptr && !PostMessageW (m_hwnd, WM_APP_SHOW_NOTICE, 0,
-                                             reinterpret_cast<LPARAM> (carried)))
-    {
-        delete carried;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncNotice
-//
-//  Lay the notice out while it is live, and drop it once it expires.
-//
-//  ACROSS THE TOP, UNDER EVERYTHING DOCKED THERE. The chrome at the top of
-//  the window is where this window puts what it has to say about itself, and
-//  a screenshot's filename is exactly that -- the one part of a capture that
-//  is about the application rather than about the machine. Put over the
-//  picture it lands on whatever the user just photographed, and read as a
-//  caption on it.
-//
-//  IT OVERLAYS RATHER THAN DOCKS, which is the one way it differs from the
-//  pointer-capture bar beside it. That bar tracks a state and is worth the
-//  height it takes from the picture; this one is up for four seconds, and a
-//  band that appears and vanishes on a timer would reflow the machine twice
-//  for every screenshot. So it hangs UNDER the last docked band and covers a
-//  strip of picture, dimmed by a scrim rather than hidden behind a panel.
-//
-//  Separate from the pointer-capture bar, not a reuse of it: a screenshot
-//  taken with the paddle captured must not replace the words telling the user
-//  how to get their cursor back.
-//
-//  AN EXPIRY OR A SLIDE ASKS FOR ITS OWN FRAMES. A notice leaving, and the
-//  ones below it moving up, change the picture with nothing else asking for
-//  a present; a paused machine would otherwise leave a stale notice up until
-//  something unrelated repainted. WaitForFrameOrMessage wakes for the next
-//  expiry for the same reason.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncNotice()
-{
-    RECT                 client   = {};
-    RECT                 rc       = {};
-    IDxuiTextRenderer *  text     = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                width    = 0.0f;
-    size_t               countWas = m_notices.GetCount();
-    int64_t              nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                        std::chrono::steady_clock::now().time_since_epoch()).count();
-
-
-
-    //  The system's animation setting is read here and passed in, so the
-    //  stack moves notices at once when the user has turned animations off.
-    m_notices.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreMenuAnimationsEnabled());
-    m_notices.Tick (nowMs);
-
-    if (m_notices.GetCount() != countWas || m_notices.IsAnimating (nowMs))
-    {
-        m_d3dRenderer.MarkRedrawNeeded();
-    }
-
-    if (!m_notices.IsShowing (nowMs) || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
-    {
-        m_notices.SetVisible (false);
-        return;
-    }
-
-    width = (float) (client.right - client.left);
-
-    rc.left  = client.left;
-    rc.right = client.right;
-    rc.top   = ComputeTopOverlayEdgePx (client);
-
-    //  Measured where there is a renderer to ask; the estimate is the
-    //  fallback for the frames before the renderer exists.
-    m_notices.SetDpi (m_scaler.GetDpi());
-
-    rc.bottom = rc.top + (LONG) m_notices.MeasureHeightPx (text, width, m_scaler);
-
-    m_notices.Layout     (rc, m_scaler);
-    m_notices.SetVisible (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComputeTopOverlayEdgePx
-//
-//  Where the picture starts, for something that wants to hang over the top of
-//  it without landing on the chrome.
-//
-//  IT ASKS THE BANDS RATHER THAN ADDING THEM UP. Which bands are at the top,
-//  and which of those are showing, varies by theme, by fullscreen and by
-//  whether the mouse is currently captured -- a count kept here would be a
-//  second copy of the dock's arithmetic, and the copy is the one that goes
-//  wrong. The lowest bottom edge among the bands that are up IS the answer,
-//  and it stays the answer when a band is added.
-//
-//  Fullscreen has no bands at all: the toolbar reveals itself over the
-//  picture and the pointer-capture bar hangs beneath it, and both are in the
-//  list for exactly that case.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
-{
-    const IDxuiControl * const  bands[] = { &m_mainMenu,
-                                            &m_toolbar,
-                                            &m_disks->GetChangeBanner(),
-                                            &m_standInBarSurface,
-                                            &m_standInBar };
-    LONG                        top     = client.top;
-    RECT                        rc      = {};
-
-
-
-    for (const IDxuiControl * band : bands)
-    {
-        rc = band->GetBounds();
-
-        if (band->IsVisible() && rc.bottom > rc.top
-            && rc.top < client.bottom && rc.bottom > top)
-        {
-            top = rc.bottom;
-        }
-    }
-
-    return top;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetStandInOverlaysHidden
-//
-//  HIDE WHAT DESCRIBES THE APPLICATION; CAPTURE WHAT DESCRIBES THE MACHINE.
-//
-//  The compass is a control, the two readouts are diagnostics, and the
-//  pointer-capture bar is a transient piece of state -- none of them are part
-//  of the machine on the desk, and each can sit inside the viewport where a
-//  Scene capture would otherwise collect it.
-//
-//  A useful side effect: a scene capture no longer depends on which
-//  diagnostics happen to be switched on, so two captures of the same view are
-//  the same image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetStandInOverlaysHidden (bool hidden)
-{
-    if (hidden)
-    {
-        m_scene->m_sceneCompass.SetVisible     (false);
-        m_scene->m_compassHint.SetVisible      (false);
-        m_fpsReadout.SetVisible       (false);
-        m_scene->m_sceneViewReadout.SetVisible (false);
-        //  The pointer-capture bar is docked chrome in a window, and a
-        //  Scene capture takes the viewport, so there it is already out of
-        //  frame. In FULLSCREEN there are no bands and the bar hangs off the
-        //  top edge, inside the picture -- which is the case this covers.
-        m_standInBar.SetVisible        (false);
-        m_standInBarSurface.SetVisible (false);
-
-        //  Including the notices. Two captures inside a notice's few seconds
-        //  would otherwise photograph the first one's filename.
-        m_notices.SetVisible (false);
-    }
-    else
-    {
-        //  Restored by the layout pass that owns each one, rather than by
-        //  remembering four booleans here -- the pose readout and the frame
-        //  rate are driven by prefs, the compass by whether a scene is up,
-        //  and the banner by whether the mouse is captured. Re-deriving is
-        //  what keeps this from disagreeing with them.
-        m_scene->LayoutSceneCompass();
-        SyncFrameRateReadout();
-        m_scene->SyncSceneViewReadout();
-        SyncStandInBanner();
-        SyncNotice();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ServiceCaptureRequest
 //
 //  Called from both paint hooks. Fills the pending capture if this is the
@@ -1745,9 +1493,9 @@ void EmulatorShell::TakeScreenshot()
         //  The band's surface runs from its top to the bottom of the client,
         //  so the union takes the switch bar between them as well: those
         //  switches are the machine's too.
-        if (m_driveBandSurface.IsVisible())
+        if (m_chrome->m_driveBandSurface.IsVisible())
         {
-            inputs.machineChromePx = m_driveBandSurface.GetBounds();
+            inputs.machineChromePx = m_chrome->m_driveBandSurface.GetBounds();
         }
     }
 
@@ -1787,13 +1535,13 @@ void EmulatorShell::TakeScreenshot()
                                         ? CapturePoint::AfterChrome
                                         : CapturePoint::AfterPicture;
 
-            SetStandInOverlaysHidden (true);
+            m_chrome->SetStandInOverlaysHidden (true);
 
             m_d3dRenderer.MarkRedrawNeeded();
             InvalidateRect (m_hwnd, nullptr, FALSE);
             UpdateWindow   (m_hwnd);
 
-            SetStandInOverlaysHidden (false);
+            m_chrome->SetStandInOverlaysHidden (false);
 
             if (m_pendingCapture.captured)
             {
@@ -1808,7 +1556,7 @@ void EmulatorShell::TakeScreenshot()
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    ShowNotice (CaptureOutcome::DescribeResult (outcome));
+    m_chrome->ShowNotice (CaptureOutcome::DescribeResult (outcome));
 
     if (picturesRaw != nullptr)
     {

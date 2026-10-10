@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellAudio.h"
@@ -141,7 +142,7 @@ void ShellPrinter::ShowPrinterPanel (bool activate)
                                      m_shell.m_hwnd,     // placement anchor only -- not an owner
                                      m_shell.m_d3dRenderer.GetDevice(),
                                      m_shell.m_d3dRenderer.GetContext(),
-                                     &m_shell.m_chromeTheme);
+                                     &m_shell.m_chrome->GetTheme());
         CHRF (hr, m_printerPanel.reset());
 
         m_shell.ApplyAppIconToWindow (m_printerPanel->GetHwnd());

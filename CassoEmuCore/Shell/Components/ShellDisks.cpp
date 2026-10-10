@@ -4,6 +4,7 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -152,7 +153,7 @@ void ShellDisks::InstallMountReporting()
     m_diskManager->SetWriteProtectChangedCallback (
         [this] (const std::wstring & text)
         {
-            m_shell.PostNotice (text);
+            m_shell.m_chrome->PostNotice (text);
         });
 }
 
@@ -599,7 +600,7 @@ int ShellDisks::ShowSalvageDialog (const DialogDefinition             &  def,
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_shell.m_chromeTheme);
+    dlg.SetTheme (&m_shell.m_chrome->GetTheme());
 
     result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 
@@ -1002,7 +1003,7 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the
     //  notice: the dock does, and this is the pass that runs it.
-    m_shell.ReflowChromeForChangeBand();
+    m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
 }
@@ -1241,7 +1242,7 @@ void ShellDisks::HideChangeBanner()
     m_changeBanner.SetVisible (false);
     m_changeBannerHideAtMs = 0;
 
-    m_shell.ReflowChromeForChangeBand();
+    m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
 }

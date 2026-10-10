@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -378,7 +379,7 @@ void EmulatorShell::SaveTrace()
     hr = WriteTrace (L"request", path);
     CHR (hr);
 
-    PostNotice (L"CPU trace saved to " + path);
+    m_chrome->PostNotice (L"CPU trace saved to " + path);
 
 Error:
     return;

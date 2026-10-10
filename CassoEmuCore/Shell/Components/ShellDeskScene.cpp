@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -395,12 +396,12 @@ void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 
 
 
-    m_shell.m_chromeTheme = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
-    m_shell.ApplyThemeToChrome (m_shell.m_chromeTheme);
+    m_shell.m_chrome->GetTheme() = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+    m_shell.m_chrome->ApplyThemeToChrome (m_shell.m_chrome->GetTheme());
 
     if (needsDeskScene && m_deskSceneFailed)
     {
-        m_shell.ShowNotice (kpszDeskSceneFallbackNotice);
+        m_shell.m_chrome->ShowNotice (kpszDeskSceneFallbackNotice);
     }
 }
 
@@ -807,7 +808,7 @@ void ShellDeskScene::InvalidateSceneComposition()
         return;
     }
 
-    m_shell.UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
+    m_shell.m_chrome->UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
     m_shell.m_d3dRenderer.MarkRedrawNeeded();
 }
 

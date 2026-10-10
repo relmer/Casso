@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/DiskManager.h"
@@ -98,7 +99,7 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
 
     m_tapeDeck->SetRecorderConnected (connected);
 
-    ReflowChromeForMachineChange();
+    m_chrome->ReflowChromeForMachineChange();
     SaveStorageDevices();
 }
 
@@ -192,7 +193,7 @@ Error:
 
 void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 {
-    const EmulatorCommands          & commands = m_mainMenu.GetCommands();
+    const EmulatorCommands          & commands = m_chrome->m_mainMenu.GetCommands();
     std::vector<DxuiPopupMenuItem>    items;
     std::vector<int>                  ids;
 

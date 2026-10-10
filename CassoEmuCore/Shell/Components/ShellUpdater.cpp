@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -87,7 +88,7 @@ void ShellUpdater::OnMouseLeave()
 {
     if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
     {
-        m_shell.m_captionTooltip.HideImmediate();
+        m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
         InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
     }
 }
@@ -300,7 +301,7 @@ void ShellUpdater::StartAutomaticUpdateCheck()
 
     if (m_wasLaunchedByUpdate)
     {
-        m_shell.ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
+        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
     }
     else
     {
@@ -905,7 +906,7 @@ void ShellUpdater::OpenUpdateDialog()
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_shell.m_chromeTheme);
+    dlg.SetTheme (&m_shell.m_chrome->GetTheme());
 
     m_updateDialog = &dlg;
 
@@ -1075,14 +1076,14 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
 
             if (pointer.showTip)
             {
-                m_shell.m_captionTooltip.RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
-                                                                                             m_shell.m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
-                                                      m_updateIndicator.GetToolTipText().c_str(), nowMs);
+                m_shell.m_chrome->GetCaptionTooltip().RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
+                                                                                                          m_shell.m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
+                                                                   m_updateIndicator.GetToolTipText().c_str(), nowMs);
             }
 
             if (pointer.hideTip)
             {
-                m_shell.m_captionTooltip.HideImmediate();
+                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
             }
 
             isTaken = isInside;
@@ -1094,7 +1095,7 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
             if (isInside)
             {
                 m_updateIndicator.SetPressed (true);
-                m_shell.m_captionTooltip.HideImmediate();
+                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
                 InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
             }
 
@@ -1345,7 +1346,7 @@ void ShellUpdater::HandlePendingUpdateAtLaunch()
 
     if (action.showUpdated)
     {
-        m_shell.ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
+        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
     }
 
     if (action.failure != UpdateFailure::None)

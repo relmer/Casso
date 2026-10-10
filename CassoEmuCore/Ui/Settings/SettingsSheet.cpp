@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
@@ -237,7 +238,7 @@ HRESULT SettingsSheet::OpenModeless (
     FitToMaxSize();
     m_openedSizeDip = GetSizeDip();
 
-    SetTheme (&emuShell.m_chromeTheme);
+    SetTheme (&emuShell.GetChrome().GetTheme());
 
     // Stand up the live-preview post-process and install it as the window's
     // compose hook. The base renders the content tree (panel + caption +
@@ -279,7 +280,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
                   [this] ()
                   {
-                      SetTheme (&m_emuShell->m_chromeTheme);
+                      SetTheme (&m_emuShell->GetChrome().GetTheme());
                       m_crt.AdoptThemeDefaults();
                   },
                   &m_catalog);
@@ -317,7 +318,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->SetCrtMonitorEnabled (enabled);
+        m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
     });
 
     // The General page: every control is live and persisted on the click,

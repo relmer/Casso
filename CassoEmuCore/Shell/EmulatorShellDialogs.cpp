@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -476,7 +477,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_chromeTheme);
+    dlg.SetTheme (&m_chrome->m_chromeTheme);
 
     result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 

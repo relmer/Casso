@@ -43,6 +43,17 @@ public:
     // recorder's drop target.
     DeskScene &  GetScene () { return m_deskScene; }
 
+    // Whether the scene came up, and whether the loaded models are the //c's.
+    bool  IsReady    () const { return m_deskSceneReady; }
+    bool  IsMachineC () const { return m_deskSceneMachineIsC; }
+
+    // The overlays drawn over the scene, which the chrome hides and lays out
+    // with the rest of what sits over the picture, and the user's framing.
+    DxuiOrbitControl  & GetCompass     () { return m_sceneCompass; }
+    DxuiShadowedText  & GetCompassHint () { return m_compassHint; }
+    DxuiShadowedText  & GetViewReadout () { return m_sceneViewReadout; }
+    DeskSceneView     & GetView        () { return m_sceneView; }
+
     // The fullscreen strip's hotkey: summons the strip on the next frame.
     void  RequestStripHotkey () { m_stripHotkeyPending = true; }
     // Settings > Theme antialiasing, in SAMPLES (1 / 2 / 4). Applies to the

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -161,7 +162,7 @@ void EmulatorShell::LoadControllerPrefs()
 
     if (!rejected.empty())
     {
-        PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
+        m_chrome->PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
     }
 }
 
@@ -532,7 +533,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
         // manager outlives every other path that can change the active theme
         // (the picker itself, Settings, a fallback activation), so this is
         // the one place that sees all of them.
-        RefreshToolbarThemeList();
+        m_chrome->RefreshToolbarThemeList();
     });
 
     // Tell the theme manager which machine is active BEFORE the

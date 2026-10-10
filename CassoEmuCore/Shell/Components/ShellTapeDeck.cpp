@@ -10,6 +10,7 @@
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -70,7 +71,7 @@ void ShellTapeDeck::Initialize (UserConfigStore & configStore, IFileSystem & fil
                                                    [this] (WORD id, const std::string & payload) { m_shell.PostCommand (id, payload); },
                                                    [this] () { return m_shell.m_machine.GetCurrentMachineName(); },
                                                    [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
-    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { m_shell.PostNotice (text); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { m_shell.m_chrome->PostNotice (text); });
 }
 
 
@@ -103,7 +104,7 @@ void ShellTapeDeck::InsertStartupTape (const std::string & tapePath)
     }
     else
     {
-        m_shell.PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+        m_shell.m_chrome->PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
     }
 }
 
@@ -438,7 +439,7 @@ void ShellTapeDeck::PromptTapePosition()
 
 
 
-    dialog.Configure (&m_shell.m_chromeTheme, view.positionSeconds, view.lengthSeconds);
+    dialog.Configure (&m_shell.m_chrome->GetTheme(), view.positionSeconds, view.lengthSeconds);
 
     params.title                    = L"Tape position";
     params.hInstance                = GetModuleHandle (nullptr);
@@ -453,7 +454,7 @@ void ShellTapeDeck::PromptTapePosition()
     hr = dialog.Create (params);
     CHRA (hr);
 
-    dialog.SetTheme (&m_shell.m_chromeTheme);
+    dialog.SetTheme (&m_shell.m_chrome->GetTheme());
     dialog.ShowModalDialog (IDOK);
 
     BAIL_OUT_IF (!dialog.GetOutcome().confirmed || m_tapeManager == nullptr, S_OK);
