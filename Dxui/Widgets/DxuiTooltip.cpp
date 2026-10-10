@@ -272,7 +272,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // DIFFERENT control is a new tip and starts its own clock.
         //  A tip that follows the pointer is placed where the pointer is when
         //  it shows, so a move to another control takes the old one down and
-        //  shows the new one after the short reshow delay, as Windows' tips do.
+        //  shows the new one after the full delay again, as File Explorer's do.
         if (changed && m_followPointer)
         {
             ReleaseActivePopup();
@@ -281,7 +281,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
             m_pendingAnchor = anchor;
             m_pendingText   = text;
             m_pending       = true;
-            m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs / kReshowDivisor;
+            m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs;
             return;
         }
 

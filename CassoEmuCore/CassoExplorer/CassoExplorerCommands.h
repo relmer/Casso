@@ -339,16 +339,16 @@ private:
     static constexpr ToolbarRow  kCommandBarRows[] =
     {
         { kNew,           DxuiToolbar::Kind::DropDown, 1, s_kpszMdl2Add,    L"New",     L"New",                    false },
-        { kCutItems,      DxuiToolbar::Kind::Command, 2, s_kpszMdl2Cut,     L"Cut",     L"Cut (Ctrl+X)",           true  },
-        { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy (Ctrl+C)",          true  },
-        { kPasteItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Paste,   L"Paste",   L"Paste (Ctrl+V)",         true  },
-        { kRenameItem,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Rename,  L"Rename",  L"Rename (F2)",            true  },
+        { kCutItems,      DxuiToolbar::Kind::Command, 2, s_kpszMdl2Cut,     L"Cut",     L"Cut",                    true  },
+        { kCopyItems,     DxuiToolbar::Kind::Command, 2, s_kpszMdl2Copy,    L"Copy",    L"Copy",                   true  },
+        { kPasteItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Paste,   L"Paste",   L"Paste",                  true  },
+        { kRenameItem,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Rename,  L"Rename",  L"Rename",                 true  },
         { kShareItems,    DxuiToolbar::Kind::Command, 2, s_kpszMdl2Share,   L"Share",   L"Share",                  true  },
-        { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete (Del)",           true  },
+        { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete",                 true  },
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
-        { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer (F1)", false, false, true },
-        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane (Alt+P)",   false, true },
+        { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
+        { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
     };
 

@@ -149,8 +149,6 @@ private:
     //  The room between a tip that follows the pointer and the pointer.
     static constexpr int  kPointerGapDip = 4;
 
-    //  Windows' reshow delay is a fifth of its initial one.
-    static constexpr UINT  kReshowDivisor = 5;
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
