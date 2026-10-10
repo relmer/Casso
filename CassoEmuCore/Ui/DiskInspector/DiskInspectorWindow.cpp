@@ -63,6 +63,10 @@ static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
 static constexpr int      s_kDecodeButtonDip = 140;
 static constexpr int      s_kExportButtonDip = 90;
+static constexpr int      s_kFindButtonDip   = 64;
+static constexpr int      s_kCopySectorDip   = 110;
+static constexpr int      s_kMinFileNameDip  = 200;
+static constexpr int      s_kFocusGapDip    = 3;
 static constexpr int      s_kModeTabDip     = 80;
 static constexpr int      s_kRangeDip       = 120;
 static constexpr double   s_kRanges[]       = { 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25 };
@@ -277,6 +281,9 @@ void DiskInspectorWindow::OnCreate()
     m_diskTabs    = CreateChild<DxuiTabStrip>();
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
     m_exportButton = CreateChild<DxuiButton> (L"Export...");
+    m_goToButton   = CreateChild<DxuiButton> (L"Go to");
+    m_findButton   = CreateChild<DxuiButton> (L"Find");
+    m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_modeTabs     = CreateChild<DxuiTabStrip>();
     m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
@@ -302,6 +309,9 @@ void DiskInspectorWindow::OnCreate()
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
     m_exportButton->SetOnClick ([this] () { OpenExport(); });
+    m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
+    m_findButton->SetOnClick   ([this] () { OpenFind(); });
+    m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
@@ -346,22 +356,27 @@ void DiskInspectorWindow::OnWindowClose()
 
 void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                        margin  = scaler.ToPx (s_kMarginDip);
-    int                        row     = scaler.ToPx (s_kRowDip);
-    int                        tab     = scaler.ToPx (s_kTabWidthDip);
-    int                        button  = scaler.ToPx (s_kButtonDip);
-    int                        width   = boundsDip.right - boundsDip.left;
-    int                        splitX  = boundsDip.left + static_cast<int> (width * m_splitFraction);
-    int                        top     = boundsDip.top + scaler.ToPx (s_kToolbarDip);
-    int                        drives  = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
-    int                        column  = splitX - boundsDip.left - 2 * margin;
-    int                        side    = std::max (0, std::min (column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare)));
-    int                        x       = boundsDip.left + margin;
-    int                        y       = 0;
-    int                        i       = 0;
-    int                        header  = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
-    RECT                       right   = {};
-    RECT                       platter = {};
+    int                        margin    = scaler.ToPx (s_kMarginDip);
+    int                        row       = scaler.ToPx (s_kRowDip);
+    int                        tab       = scaler.ToPx (s_kTabWidthDip);
+    int                        button    = scaler.ToPx (s_kButtonDip);
+    int                        width     = boundsDip.right - boundsDip.left;
+    int                        splitX    = boundsDip.left + static_cast<int> (width * m_splitFraction);
+    int                        drives    = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
+    int                        toolbar   = scaler.ToPx (s_kToolbarDip);
+    int                        rowBottom = boundsDip.top + toolbar;
+    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip) + 6 * margin;
+    bool                       isTwoRows = 2 * margin + drives * tab + scaler.ToPx (s_kMinFileNameDip) + ctlW > width;
+    int                        top       = rowBottom + (isTwoRows ? toolbar : 0);
+    int                        ctlTop    = top - toolbar;
+    int                        column    = splitX - boundsDip.left - 2 * margin;
+    int                        side      = std::max (0, std::min (column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare)));
+    int                        x         = boundsDip.left + margin;
+    int                        y         = 0;
+    int                        i         = 0;
+    int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
+    RECT                       right     = {};
+    RECT                       platter   = {};
     vector<DxuiTabStrip::Tab>  tabs;
 
 
@@ -377,32 +392,41 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     for (i = 0; i < drives; i++)
     {
-        tabs.push_back ({ { x + i * tab, boundsDip.top + margin / 2, x + (i + 1) * tab, top - margin / 2 }, std::format (L"Drive {}", i + 1) });
+        tabs.push_back ({ { x + i * tab, boundsDip.top + margin / 2, x + (i + 1) * tab, rowBottom - margin / 2 }, std::format (L"Drive {}", i + 1) });
     }
 
     m_driveTabs->SetTabs (std::move (tabs));
     m_driveTabs->SetSelected (m_drive);
-    m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, top }, scaler);
+    m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, rowBottom }, scaler);
 
-    m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), static_cast<int> (boundsDip.right)), top };
-    x = boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin - scaler.ToPx (s_kExportButtonDip) - margin - scaler.ToPx (s_kRangeDip) - scaler.ToPx (2 * s_kModeTabDip);
-    m_chipsPx = { m_fileNamePx.right + margin, boundsDip.top, x - margin, top };
+    //  The buttons and the mode controls from the right; on one row with the
+    //  file name when there is room for it, or on a row of their own below.
+    i = boundsDip.right - margin;
+    m_decodeButton->Layout ({ i - scaler.ToPx (s_kDecodeButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kDecodeButtonDip) + margin;
+    m_exportButton->Layout ({ i - scaler.ToPx (s_kExportButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kExportButtonDip) + margin;
+    m_findButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kFindButtonDip) + margin;
+    m_goToButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, top - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kFindButtonDip) + margin;
+
+    m_rangeDown->Layout  ({ i - scaler.ToPx (s_kRangeDip),          ctlTop + margin, i - scaler.ToPx (s_kRangeDip) + button, top - margin }, scaler);
+    m_rangeLabel->Layout ({ i - scaler.ToPx (s_kRangeDip) + button, ctlTop + margin, i - button,                            top - margin }, scaler);
+    m_rangeUp->Layout    ({ i - button,                             ctlTop + margin, i,                                     top - margin }, scaler);
+    i -= scaler.ToPx (s_kRangeDip);
 
     tabs.clear();
-    tabs.push_back ({ { x, boundsDip.top + margin / 2, x + scaler.ToPx (s_kModeTabDip), top - margin / 2 }, L"Structure" });
-    tabs.push_back ({ { x + scaler.ToPx (s_kModeTabDip), boundsDip.top + margin / 2, x + scaler.ToPx (2 * s_kModeTabDip), top - margin / 2 }, L"Timing" });
+    tabs.push_back ({ { i - scaler.ToPx (2 * s_kModeTabDip), ctlTop + margin / 2, i - scaler.ToPx (s_kModeTabDip), top - margin / 2 }, L"Structure" });
+    tabs.push_back ({ { i - scaler.ToPx (s_kModeTabDip),     ctlTop + margin / 2, i,                                top - margin / 2 }, L"Timing" });
     m_modeTabs->SetTabs     (std::move (tabs));
     m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
-    m_modeTabs->Layout      ({ x, boundsDip.top, x + scaler.ToPx (2 * s_kModeTabDip), top }, scaler);
+    m_modeTabs->Layout      ({ i - scaler.ToPx (2 * s_kModeTabDip), ctlTop, i, top }, scaler);
+    i -= scaler.ToPx (2 * s_kModeTabDip) + margin;
 
-    x += scaler.ToPx (2 * s_kModeTabDip);
-    m_rangeDown->Layout  ({ x,                                     boundsDip.top + margin, x + button,                            top - margin }, scaler);
-    m_rangeLabel->Layout ({ x + button,                            boundsDip.top + margin, x + scaler.ToPx (s_kRangeDip) - button, top - margin }, scaler);
-    m_rangeUp->Layout    ({ x + scaler.ToPx (s_kRangeDip) - button, boundsDip.top + margin, x + scaler.ToPx (s_kRangeDip),          top - margin }, scaler);
-    x = boundsDip.left + margin;
-    m_decodeButton->Layout ({ boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip), boundsDip.top + margin / 2, boundsDip.right - margin, top - margin / 2 }, scaler);
-    m_exportButton->Layout ({ boundsDip.right - 2 * margin - scaler.ToPx (s_kDecodeButtonDip) - scaler.ToPx (s_kExportButtonDip), boundsDip.top + margin / 2,
-                              boundsDip.right - 2 * margin - scaler.ToPx (s_kDecodeButtonDip), top - margin / 2 }, scaler);
+    m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), isTwoRows ? static_cast<int> (boundsDip.right) - margin : i),
+                     rowBottom };
+    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, isTwoRows ? static_cast<int> (boundsDip.right) - margin : i, rowBottom };
 
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
@@ -451,6 +475,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     tabs.clear();
 
+    //  The track tabs share their row with "Copy sector", narrowing to fit.
+    i   = std::min (tab, static_cast<int> (right.right - right.left - scaler.ToPx (s_kCopySectorDip) - margin) / 4);
+    tab = i;
+
     for (LPCWSTR label : { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" })
     {
         i = static_cast<int> (tabs.size());
@@ -459,7 +487,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     m_trackTabs->SetTabs (std::move (tabs));
     m_trackTabs->SetSelected (m_trackTab);
-    m_trackTabs->Layout  ({ right.left, y, right.right, y + scaler.ToPx (s_kTabsDip) }, scaler);
+    m_trackTabs->Layout  ({ right.left, y, right.right - scaler.ToPx (s_kCopySectorDip) - margin, y + scaler.ToPx (s_kTabsDip) }, scaler);
+    m_copySector->Layout ({ right.right - scaler.ToPx (s_kCopySectorDip), y + margin / 4, right.right, y + scaler.ToPx (s_kTabsDip) - margin / 4 }, scaler);
     y += scaler.ToPx (s_kTabsDip) + margin;
 
     m_byteView->Layout   ({ right.left, y, right.right, right.bottom }, scaler);
@@ -480,6 +509,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    RECT  focus = {};
+
+
+
     painter.FillRect (static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top),
                       static_cast<float> (m_boundsDip.right - m_boundsDip.left), static_cast<float> (m_boundsDip.bottom - m_boundsDip.top),
                       theme.Background());
@@ -491,6 +524,15 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     PaintToolbar (painter, text, theme);
 
     DxuiWindow::Paint (painter, text, theme);
+
+    //  The view the keys act on, outlined once a key has been used (FR-059).
+    if (m_isFocusShown && m_context.hasDisk)
+    {
+        focus = GetKeyTargetBounds();
+        InflateRect (&focus, m_scaler.ToPx (s_kFocusGapDip), m_scaler.ToPx (s_kFocusGapDip));
+        painter.OutlineRect (static_cast<float> (focus.left), static_cast<float> (focus.top), static_cast<float> (focus.right - focus.left),
+                             static_cast<float> (focus.bottom - focus.top), m_scaler.ToPxf (2.0f), theme.FocusRing());
+    }
 }
 
 
@@ -589,7 +631,15 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        m_keyTarget = GetKeyTarget (p);
+        m_keyTarget    = GetKeyTarget (p);
+        m_isFocusShown = false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_context.hasDisk &&
+        (m_keyTarget == KeyTarget::SectorData || m_keyTarget == KeyTarget::Nibbles || m_keyTarget == KeyTarget::Tracks))
+    {
+        ShowContextMenu (p);
+        isHandled = true;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, p))
@@ -640,7 +690,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 //  wrapping at the index, Home and End go to the first and last (FR-029);
 //  plus and minus zoom, 0 returns to fit (FR-025), and Ctrl with an arrow
 //  pans the zoomed platter. Ctrl+F finds, F3 and Shift+F3 step through the
-//  hits, and Ctrl+G goes to a target. After a press on the strip, plus and minus zoom
+//  hits, and Ctrl+G goes to a target. F6 and Shift+F6 move the keys from
+//  view to view, and once a key is used the view they act on is outlined. After a press on the strip, plus and minus zoom
 //  it, 0 shows the whole track, and Left and Right pan it (FR-034).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -706,11 +757,14 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_RIGHT: StepSector ( 1, false); break;
                 case VK_HOME:  StepSector (-1, true);  break;
                 case VK_F3:    StepFind (ev.shift ? -1 : 1); break;
+                case VK_F6:    StepKeyTarget (ev.shift ? -1 : 1); break;
                 case VK_END:   StepSector ( 1, true);  break;
                 default:       isHandled = false;      break;
             }
         }
     }
+
+    m_isFocusShown = m_isFocusShown || isHandled;
 
     if (!isHandled)
     {
@@ -962,6 +1016,10 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomOut->SetVisible   (m_context.hasDisk);
         m_decodeButton->SetVisible (m_context.hasDisk);
         m_exportButton->SetVisible (m_context.hasDisk);
+        m_goToButton->SetVisible   (m_context.hasDisk);
+        m_findButton->SetVisible   (m_context.hasDisk);
+        m_copySector->SetVisible   (m_context.hasDisk && m_trackTab == kTabSectorData);
+        m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
@@ -1060,6 +1118,11 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
         {
             view->GetTooltip (pointPx, tip, anchor);
         }
+    }
+
+    if (tip.empty() && m_context.hasDisk)
+    {
+        tip = GetButtonTip (pointPx, anchor);
     }
 
     if (tip.empty() && m_context.hasDisk && PtInRect (&m_fileNamePx, pointPx))
@@ -1834,4 +1897,196 @@ void DiskInspectorWindow::OpenExport()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowContextMenu
+//
+//  The Sector data, Nibbles and Tracks tabs' right-click menu: Copy, "Copy
+//  sector" in the Sector data tab, and "Export..." (FR-057, FR-058).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowContextMenu (POINT pointPx)
+{
+    DxuiHwndSource                  * host   = GetPopupHost();
+    std::vector<DxuiPopupMenuItem>    items;
+    std::shared_ptr<DxuiCommand>      copy   = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>      sector = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>      save   = std::make_shared<DxuiCommand>();
+
+
+
+    copy->label          = L"Copy";
+    copy->accelerator    = L"Ctrl+C";
+    copy->dispatch       = [this] () { Copy(); };
+    sector->label        = L"Copy sector";
+    sector->accelerator  = L"Ctrl+Shift+C";
+    sector->dispatch     = [this] () { CopySector(); };
+    sector->isEnabled    = [this] () { return m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0; };
+    save->label          = L"Export...";
+    save->dispatch       = [this] () { OpenExport(); };
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (copy));
+
+    if (m_keyTarget == KeyTarget::SectorData)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (sector));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (save));
+
+    m_menuCommands = { copy, sector, save };
+
+    if (host != nullptr)
+    {
+        DxuiContextMenu::Show (*host, pointPx.x, pointPx.y, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetButtonTip
+//
+//  Every button's tooltip (FR-059), with the key that does the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorPx) const
+{
+    const std::pair<const IDxuiControl *, LPCWSTR>  tips[] =
+    {
+        { m_zoomOut,        L"Zoom the platter out (minus)" },
+        { m_zoomIn,         L"Zoom the platter in (plus)" },
+        { m_fit,            L"Show the whole disk (0)" },
+        { m_alignmentCheck, L"Mark where sector 0 and the longest sync start on each track" },
+        { m_stripOut,       L"Zoom the strip out" },
+        { m_stripIn,        L"Zoom the strip in" },
+        { m_stripWhole,     L"Show the whole track in the strip" },
+        { m_rangeDown,      L"Narrow the timing range" },
+        { m_rangeUp,        L"Widen the timing range" },
+        { m_goToButton,     L"Go to a track, sector, block, nibble or cell (Ctrl+G)" },
+        { m_findButton,     L"Find nibbles, bytes or text (Ctrl+F)" },
+        { m_copySector,     L"Copy the whole sector as a hex dump (Ctrl+Shift+C)" },
+        { m_exportButton,   L"Save sectors, nibbles or this quarter track's bits to a file" },
+        { m_decodeButton,   L"Change the marks and checks used to decode tracks" },
+    };
+
+
+
+    RECT          modes = m_modeTabs->GetBounds();
+    std::wstring  tip;
+
+
+
+    for (const auto & [control, text] : tips)
+    {
+        if (tip.empty() && control != nullptr && control->IsVisible() && IsInside (control->GetBounds(), pointPx))
+        {
+            tip         = text;
+            outAnchorPx = control->GetBounds();
+        }
+    }
+
+    if (tip.empty() && m_modeTabs->IsVisible() && IsInside (modes, pointPx))
+    {
+        tip         = (pointPx.x < (modes.left + modes.right) / 2) ? L"Color the platter by what each cell holds" : L"Color flux tracks by how fast or slow each cell runs";
+        outAnchorPx = modes;
+    }
+
+    return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepKeyTarget
+//
+//  F6 and Shift+F6: the keys move to the next or previous view shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StepKeyTarget (int step)
+{
+    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 9>  order =
+    {{
+        { KeyTarget::Platter,    m_platterView },
+        { KeyTarget::Strip,      m_stripView },
+        { KeyTarget::SectorRow,  m_sectorRow },
+        { KeyTarget::SectorData, m_byteView },
+        { KeyTarget::Nibbles,    m_nibblesTab },
+        { KeyTarget::Fields,     m_fieldsTab },
+        { KeyTarget::FluxTiming, m_fluxTab },
+        { KeyTarget::Tracks,     m_tracksTab },
+        { KeyTarget::Findings,   m_findingsTab },
+    }};
+
+
+
+    int  count = static_cast<int> (order.size());
+    int  at    = 0;
+    int  k     = 0;
+
+
+
+    for (k = 0; k < count; k++)
+    {
+        at = (order[k].first == m_keyTarget) ? k : at;
+    }
+
+    for (k = 1; k < count; k++)
+    {
+        const auto &  next = order[(at + step * k + count * k) % count];
+
+        if (next.second != nullptr && next.second->IsVisible())
+        {
+            m_keyTarget = next.first;
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetKeyTargetBounds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DiskInspectorWindow::GetKeyTargetBounds() const
+{
+    RECT  bounds = m_platterView->GetBounds();
+
+
+
+    switch (m_keyTarget)
+    {
+        case KeyTarget::Strip:      bounds = m_stripView->GetBounds();   break;
+        case KeyTarget::SectorRow:  bounds = m_sectorRow->GetBounds();   break;
+        case KeyTarget::SectorData: bounds = m_byteView->GetBounds();    break;
+        case KeyTarget::Nibbles:    bounds = m_nibblesTab->GetBounds();  break;
+        case KeyTarget::Fields:     bounds = m_fieldsTab->GetBounds();   break;
+        case KeyTarget::FluxTiming: bounds = m_fluxTab->GetBounds();     break;
+        case KeyTarget::Tracks:     bounds = m_tracksTab->GetBounds();   break;
+        case KeyTarget::Findings:   bounds = m_findingsTab->GetBounds(); break;
+        default:                                                         break;
+    }
+
+    return bounds;
 }

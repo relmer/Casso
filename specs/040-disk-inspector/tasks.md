@@ -205,8 +205,8 @@ without the others in its merge.
 - [X] T081 [US4] Create `DD/Inspector/InspectorSearch.h` / `.cpp` and `UI/FindPanel.h` / `.cpp` (Ctrl+F, F3, Shift+F3) and `UI/GoToDialog.h` / `.cpp` (Ctrl+G). The CP/M sector target of FR-055 comes with the CP/M map in T109
 - [X] T082 [US4] Add range selection and the length readout (nibbles, cells, µs) across strip, Nibbles and Sector data (FR-043)
 - [X] T083 [US4] Add Copy formats of contracts/inspector-window.md, Clipboard, and "Copy sector" (FR-057) through a core clipboard text formatter in `DD/Inspector/InspectorClipboard.h` / `.cpp` with tests in `UT/InspectorClipboardTests.cpp`
-- [ ] T084 [US4] Create `DD/Inspector/TrackExport.h` / `.cpp` and the Export dialog in `UI/ExportDialog.h` / `.cpp` with default file names from contracts/inspector-window.md; write through `DurableCommit` (CreateNew; Replace after confirmation)
-- [ ] T085 [US4] Tooltips on every button, visible focus, hints text exactly as FR-007 and FR-034 quote (FR-059)
+- [X] T084 [US4] Create `DD/Inspector/TrackExport.h` / `.cpp` and the Export dialog in `UI/ExportDialog.h` / `.cpp` with default file names from contracts/inspector-window.md; write through `DurableCommit` (CreateNew; Replace after confirmation)
+- [X] T085 [US4] Tooltips on every button, visible focus, hints text exactly as FR-007 and FR-034 quote (FR-059)
 
 ---
 
