@@ -72,8 +72,6 @@ public:
     HRESULT SaveState (StateWriter & writer) const override;
     HRESULT LoadState (StateReader & reader) override;
 
-    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
-
     // What unmapped I/O reads: the source's byte -- on an Apple II, the byte
     // the video scanner fetched on that cycle -- or, with no source, the last
     // value any device drove. Devices whose reads drive no data return
@@ -103,6 +101,9 @@ public:
     void PowerCycleAll (Prng & prng);
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
+
+    // The last byte on the bus: what an address nothing drives reads as.
+    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
 
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to
     // a host buffer; null = read-only / writes ignored. Only used for RAM
@@ -182,8 +183,8 @@ public:
     void SetBankingChangedCallback (BankingChangedFn fn) { m_bankingChanged = move (fn); }
     void NotifyBankingChanged ()
     {
-        // A banking change can swap which buffer (main vs aux) the renderer
-        // reads for the display region without any write landing, so force
+        // The switches that call this -- PAGE2, HIRES and DHIRES -- can
+        // change what the screen shows without any write landing, so force
         // a repaint alongside the callback.
         m_videoDirty = true;
 

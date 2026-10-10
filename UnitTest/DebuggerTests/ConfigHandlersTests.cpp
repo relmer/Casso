@@ -616,7 +616,7 @@ namespace DebuggerTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

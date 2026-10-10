@@ -2501,10 +2501,34 @@ HRESULT DxuiTextRenderer::MeasureString (
     float          & outWidthDip,
     float          & outHeightDip)
 {
-    HRESULT                            hr        = S_OK;
-    ComPtr<IDWriteTextLayout>          layout;
-    IDWriteTextLayout                * rawLayout = nullptr;
-    DWRITE_TEXT_METRICS                metrics   = {};
+    return MeasureStringWeighted (text, fontSizeDip, fontFamily, DxuiFontWeight::Normal, outWidthDip, outHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureStringWeighted
+//
+//  MeasureString in a given weight, through the same cached layout the draw
+//  path uses for that weight, so a bold word measures as wide as it draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureStringWeighted (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    DxuiFontWeight   weight,
+    float          & outWidthDip,
+    float          & outHeightDip)
+{
+    HRESULT                      hr        = S_OK;
+    ComPtr<IDWriteTextLayout>    layout;
+    IDWriteTextLayout          * rawLayout = nullptr;
+    DWRITE_TEXT_METRICS          metrics   = {};
     // A literal FLT_MAX layout box makes DirectWrite report width 0 on
     // some D2D targets; use a large FINITE sentinel instead.
     constexpr float                    s_kUnboundedDip = 1.0e6f;
@@ -2528,7 +2552,7 @@ HRESULT DxuiTextRenderer::MeasureString (
     // Same cached, shaped layout the draw path uses -- keyed here with an
     // unbounded box and default alignment -- so repeated measurements of an
     // unchanged label do no re-shaping.
-    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal,
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, weight,
                        DxuiTextHAlign::Left, DxuiTextVAlign::Top, false,
                        s_kUnboundedDip, s_kUnboundedDip, &rawLayout);
     CHRA (hr);

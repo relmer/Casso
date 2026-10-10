@@ -23,6 +23,7 @@
 #include "Ui/PickerBodyPanel.h"
 #include "Ui/PickerDialog.h"
 #include "Core/UnicodeSymbols.h"
+#include "Net/WinHttpClient.h"
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -30,7 +31,7 @@
 
 
 static constexpr LPCWSTR       s_kpszAppleWinHost = L"raw.githubusercontent.com";
-static constexpr LPCWSTR       s_kpszUserAgent    = L"Casso/1.0";
+static constexpr LPCWSTR       s_kpszUserAgent    = WinHttpClient::kpszUserAgent;
 static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/resource/";
 
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
@@ -79,13 +80,13 @@ struct RomSpec
     string_view  altUrlPath  = {};
     string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 
-    // SHA-256 of a file Casso used to install under this name and no longer
-    // wants. A ROM already on disk is otherwise taken as satisfied whatever
+    // SHA-256 of a file Casso used to install under this name and has since
+    // updated. A ROM already on disk is otherwise taken as satisfied whatever
     // it contains -- the size is checked on download, not on what is already
-    // there -- so a machine provisioned with the wrong part would keep it
-    // forever. An on-disk file matching this hash is treated as absent and
-    // re-fetched; anything else, including a regional variant the user chose,
-    // is left alone.
+    // there -- so a machine provisioned with the earlier file would keep it
+    // forever. An on-disk file matching this hash is offered the updated ROM
+    // in its place; anything else, including a regional variant the user
+    // chose, is left alone.
     string_view  supersededSha256 = {};
 };
 
@@ -1232,7 +1233,7 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
+void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable, MediaFilter isWanted)
 {
     std::vector<fs::path>  demos;
     error_code             ec;
@@ -1288,7 +1289,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
         error_code  ecFile;
 
         if (entry.is_regular_file (ecFile) &&
-            IsSupportedDiskImageExtension (entry.path().wstring()))
+            isWanted (entry.path().wstring()))
         {
             demos.push_back (entry.path().lexically_normal());
         }
@@ -1347,13 +1348,16 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable)
+void AssetBootstrap::AppendSiblingDisksFromMruFolders (
+    std::vector<DiskMru::Entry>       & mountable,
+    const std::vector<DiskMru::Entry> & scanFrom,
+    MediaFilter                         isWanted)
 {
-    std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
+    std::vector<fs::path>  folders = DiskMru::DistinctFolders (scanFrom);
 
 
 
-    AppendSiblingDisksFromFolders (folders, mountable);
+    AppendSiblingDisksFromFolders (folders, mountable, isWanted);
 }
 
 
@@ -1371,7 +1375,8 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
 
 void AssetBootstrap::AppendSiblingDisksFromFolders (
     const std::vector<fs::path>    & folders,
-    std::vector<DiskMru::Entry>    & mountable)
+    std::vector<DiskMru::Entry>    & mountable,
+    MediaFilter                      isWanted)
 {
     std::vector<fs::path>  discovered;
 
@@ -1391,7 +1396,7 @@ void AssetBootstrap::AppendSiblingDisksFromFolders (
             error_code  ecFile;
 
             if (entry.is_regular_file (ecFile) &&
-                IsSupportedDiskImageExtension (entry.path().wstring()) &&
+                isWanted (entry.path().wstring()) &&
                 !IsForeignCheckoutDisk (entry.path()))
             {
                 discovered.push_back (entry.path().lexically_normal());
@@ -1495,107 +1500,29 @@ static HRESULT DownloadHttp (
     std::atomic<std::uint64_t> * progressBytes  = nullptr,
     std::atomic<bool>          * cancelRequested = nullptr)
 {
-    HRESULT      hr           = S_OK;
-    HINTERNET    hConnect     = nullptr;
-    HINTERNET    hRequest     = nullptr;
-    BOOL         fOk          = FALSE;
-    DWORD        statusCode   = 0;
-    DWORD        statusSize   = sizeof (statusCode);
-    DWORD        bytesAvail   = 0;
-    DWORD        bytesRead    = 0;
-    bool         fCanceled    = false;
-    size_t       receivedSize = 0;
-    bool         hasBytes     = false;
-    string       narrowHost;
+    HRESULT       hr           = S_OK;
+    HttpRequest   request;
+    HttpResponse  response;
+    size_t        receivedSize = 0;
+    bool          hasBytes     = false;
 
 
 
     outBytes.clear();
-    outBytes.reserve (expectedSize);
 
-    if (progressBytes != nullptr)
-    {
-        progressBytes->store (0, std::memory_order_relaxed);
-    }
+    request.host            = host;
+    request.path            = urlPath;
+    request.displayName     = displayName;
+    request.progressBytes   = progressBytes;
+    request.cancelRequested = cancelRequested;
 
-    for (LPCWSTR p = host; *p; p++)
-    {
-        narrowHost.push_back (static_cast<char> (*p & 0x7F));
-    }
+    hr = WinHttpClient::GetWithSession (hSession, request, response, outError);
+    CHR (hr);
 
-    hConnect = WinHttpConnect (hSession, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
-    CBRF (hConnect != nullptr,
-          outError = format ("Cannot connect to {}", narrowHost));
+    CBRF (response.statusCode == HTTP_STATUS_OK,
+          outError = format ("HTTP {} fetching {}", response.statusCode, displayName));
 
-    hRequest = WinHttpOpenRequest (hConnect,
-                                   L"GET",
-                                   urlPath,
-                                   nullptr,
-                                   WINHTTP_NO_REFERER,
-                                   WINHTTP_DEFAULT_ACCEPT_TYPES,
-                                   WINHTTP_FLAG_SECURE);
-    CBRF (hRequest != nullptr,
-          outError = format ("Cannot open HTTPS request for {}", displayName));
-
-    fOk = WinHttpSendRequest (hRequest,
-                              WINHTTP_NO_ADDITIONAL_HEADERS,
-                              0,
-                              WINHTTP_NO_REQUEST_DATA,
-                              0,
-                              0,
-                              0);
-    CBRF (fOk,
-          outError = format ("Network send failed for {}", displayName));
-
-    fOk = WinHttpReceiveResponse (hRequest, nullptr);
-    CBRF (fOk,
-          outError = format ("No response from server for {}", displayName));
-
-    fOk = WinHttpQueryHeaders (hRequest,
-                               WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                               WINHTTP_HEADER_NAME_BY_INDEX,
-                               &statusCode,
-                               &statusSize,
-                               WINHTTP_NO_HEADER_INDEX);
-    CBRF (fOk && statusCode == 200,
-          outError = format ("HTTP {} fetching {}", statusCode, displayName));
-
-    while (true)
-    {
-        vector<Byte>  chunk;
-
-        fCanceled = (cancelRequested != nullptr) &&
-                    cancelRequested->load (std::memory_order_relaxed);
-        CBRFEx (!fCanceled, E_ABORT, outError = format ("{} canceled", displayName));
-
-        bytesAvail = 0;
-        fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
-        CBRF (fOk,
-              outError = format ("Read failed for {}", displayName));
-
-        if (bytesAvail == 0)
-        {
-            break;
-        }
-
-        chunk.resize (bytesAvail);
-        bytesRead = 0;
-        fOk = WinHttpReadData (hRequest, chunk.data(), bytesAvail, &bytesRead);
-        CBRF (fOk,
-              outError = format ("Read failed for {}", displayName));
-
-        if (bytesRead == 0)
-        {
-            break;
-        }
-
-        outBytes.insert (outBytes.end(), chunk.begin(), chunk.begin() + bytesRead);
-
-        if (progressBytes != nullptr)
-        {
-            progressBytes->store ((std::uint64_t) outBytes.size(), std::memory_order_relaxed);
-        }
-    }
+    outBytes = std::move (response.body);
 
     // A non-zero `expectedSize` is treated as an integrity check
     // (used for ROM downloads where we know the exact byte count
@@ -1618,16 +1545,6 @@ static HRESULT DownloadHttp (
     }
 
 Error:
-    if (hRequest != nullptr)
-    {
-        WinHttpCloseHandle (hRequest);
-    }
-
-    if (hConnect != nullptr)
-    {
-        WinHttpCloseHandle (hConnect);
-    }
-
     return hr;
 }
 
@@ -2210,6 +2127,7 @@ public:
 
     void  SetText           (const std::wstring & title, const std::wstring & intro) { m_title = title; m_intro = intro; }
     void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
+    void  SetMediaColumn    (const std::wstring & label)                             { m_mediaColumn = label; }
     void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
     void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
     void  SetAnchorRect     (const RECT & anchorRectPx)                             { m_anchorRectPx = anchorRectPx; m_hasAnchor = true; }
@@ -2256,6 +2174,7 @@ private:
     std::string                m_themeName;
     std::wstring               m_title;
     std::wstring               m_intro;
+    std::wstring               m_mediaColumn = L"Disk image";
     std::vector<ModelRow>      m_model;
     std::vector<DialogButton>  m_buttons;
     std::optional<int>         m_closeBoxResult;
@@ -2388,7 +2307,7 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
 
     cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
-    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ m_mediaColumn,  0, false, DxuiTextRenderer::HAlign::Left });
     cols.push_back ({ L"Location",    0, false, DxuiTextRenderer::HAlign::Left });
 
     m_list.SetDpi                    (m_dpi);
@@ -2941,6 +2860,63 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeDiskPickerKind
+//
+//  The words the insert picker has always used for a drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MediaPickerKind AssetBootstrap::MakeDiskPickerKind (int drive)
+{
+    MediaPickerKind  kind;
+
+
+
+    kind.title          = std::wstring (L"Casso ") + s_kchEmDash + format (L" Insert disk in Drive {}", drive);
+    kind.intro          = format (L"Choose a disk image for Drive {}, browse for another, or download a stock master from the Asimov archive.", drive);
+    kind.emptyIntro     = format (L"No recent disks for Drive {}. Browse for an image, or download a stock master from the Asimov archive.", drive);
+    kind.createLabel    = L"<Create new disk...>";
+    kind.mediaColumn    = L"Disk image";
+    kind.offerDownloads = true;
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeTapePickerKind
+//
+//  The same picker for the cassette recorder. No downloads: there is no stock
+//  tape to fetch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MediaPickerKind AssetBootstrap::MakeTapePickerKind()
+{
+    MediaPickerKind  kind;
+
+
+
+    kind.title          = std::wstring (L"Casso ") + s_kchEmDash + L" Insert tape";
+    kind.intro          = L"Choose a tape recording, or browse for another.";
+    kind.emptyIntro     = L"No recent tapes. Browse for a recording, or create a new blank tape.";
+    kind.createLabel    = L"<Create new tape...>";
+    kind.mediaColumn    = L"Tape";
+    kind.offerDownloads = false;
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PromptInsertDiskMru
 //
 //  Runtime-insert sibling of PromptBootDiskMru. Same MRU + DOS 3.3 /
@@ -2956,7 +2932,7 @@ Error:
 HRESULT AssetBootstrap::PromptInsertDiskMru (
     HINSTANCE                      hInstance,
     HWND                           hwndParent,
-    int                            drive,
+    const MediaPickerKind        & kind,
     const RECT                   * anchorRectPx,
     const vector<DiskMru::Entry> & mruEntries,
     const fs::path               & diskDir,
@@ -2998,11 +2974,18 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     mruLabels.assign ((size_t) mruCount, nullptr);
 
+    // Only disks have stock masters to download; for any other kind the
+    // download rows never appear.
     for (const DownloadRow & dr : downloads)
     {
         fs::path           wantPath  = diskDir / dr.spec->cassoName;
         bool               foundAny  = false;
         std::error_code    ecCmp;
+
+        if (!kind.offerDownloads)
+        {
+            break;
+        }
 
         for (int i = 0; i < mruCount; ++i)
         {
@@ -3029,22 +3012,8 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     downloadCount = (int) shownDownloads.size();
     rowCount      = mruCount + downloadCount;
 
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += format (L" Insert disk in Drive {}", drive);
-
-    if (mruCount > 0)
-    {
-        intro  = format (L"Choose a disk image for Drive {}, browse for "
-                         L"another, or download a stock master from the "
-                         L"Asimov archive.", drive);
-    }
-    else
-    {
-        intro  = format (L"No recent disks for Drive {}. Browse for an "
-                         L"image, or download a stock master from the "
-                         L"Asimov archive.", drive);
-    }
+    title = kind.title;
+    intro = mruCount > 0 ? kind.intro : kind.emptyIntro;
 
     models.reserve ((size_t) rowCount + 1);
 
@@ -3055,7 +3024,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     {
         DiskMruPickerSession::ModelRow  row;
 
-        row.name        = L"<Create new disk...>";
+        row.name        = kind.createLabel;
         row.resultCode  = rowCount;
         row.pinnedFirst = true;
         models.push_back (std::move (row));
@@ -3102,6 +3071,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         session.SetText          (title, intro);
         session.SetModelRows     (models);
+        session.SetMediaColumn   (kind.mediaColumn);
         session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
         session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
         session.SetCloseBoxResult (s_kCloseBoxResult);
@@ -3462,7 +3432,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         found   = PathResolver::FindFile (searchPaths, relPath);
 
         // A ROM already on disk is satisfied -- unless it is a file Casso
-        // itself installed here and has since corrected, in which case a
+        // itself installed here and has since updated, in which case a
         // replacement is offered. The machine boots on the old file, so
         // the offer can be skipped, and once skipped it is not repeated.
         if (!found.empty())
@@ -3547,7 +3517,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             StartupAssetEntry  entry;
             size_t             missingCount = 0;
             string             mechStr   (mechanism);
-            wstring            mechW     (mechanism.begin(), mechanism.end());
+            wstring            mechW     = TextEncoding::NarrowToWide (mechStr);
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
             {
@@ -3620,7 +3590,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     BAIL_OUT_IF (cancel.load (std::memory_order_relaxed), E_ABORT);
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
-                    urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
+                    urlPath += TextEncoding::NarrowToWide (string (spec.mechanism));
                     urlPath += L"/";
 
                     for (char ch : spec.oggBasename)

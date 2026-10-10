@@ -11,6 +11,7 @@
 #include "MerlinSubsetBoundary.h"
 #include "HResultAssert.h"
 #include "SubsetBoundary.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -125,7 +126,7 @@ namespace MerlinSubsetBoundaryTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

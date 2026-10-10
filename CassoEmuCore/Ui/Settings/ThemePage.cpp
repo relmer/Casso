@@ -635,7 +635,7 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   previewGap = scaler.ToPx (24);
     // Theme, then edge smoothing, with the CRT opt-in between them only on a
     // skeuomorphic theme -- so the stack above the preview is two rows or
-    // three depending on whether that row is shown.
+    // three depending on whether the CRT row is shown.
     int   rowsAbove  = m_crtRowShown ? 3 : 2;
     int   aaRowIndex = m_crtRowShown ? 2 : 1;
     int   previewTop = y + rowsAbove * rowHeight + (rowsAbove - 1) * rowGap + previewGap;

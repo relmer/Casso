@@ -1,0 +1,255 @@
+newmtl body
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
+d 1
+
+newmtl well_floor
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
+d 1
+
+newmtl grille
+Ka 0 0 0 
+Kd 0.7 0.7 0.69
+d 1
+
+newmtl door_glass
+Ka 0 0 0 
+Kd 0.075 0.095 0.12
+d 1
+
+newmtl door_relief
+Ka 0 0 0 
+Kd 0.28 0.29 0.31
+d 1
+
+newmtl door_print
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
+newmtl cassette
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl cassette_label
+Ka 0 0 0 
+Kd 0.93 0.9 0.8
+d 1
+
+newmtl cassette_window
+Ka 0 0 0 
+Kd 0.42 0.42 0.4
+d 1
+
+newmtl cassette_stripe
+Ka 0 0 0 
+Kd 0.78 0.27 0.15
+d 1
+
+newmtl cassette_lines
+Ka 0 0 0 
+Kd 0.55 0.54 0.5
+d 1
+
+newmtl cassette_title_anchor
+Ka 0 0 0 
+Kd 0.55 0.54 0.5
+d 1
+
+newmtl cassette_tape
+Ka 0 0 0 
+Kd 0.3 0.18 0.1
+d 1
+
+newmtl cassette_hub_0
+Ka 0 0 0 
+Kd 0.92 0.92 0.91
+d 1
+
+newmtl cassette_hub_1
+Ka 0 0 0 
+Kd 0.92 0.92 0.91
+d 1
+
+newmtl spindle_0
+Ka 0 0 0 
+Kd 0.11 0.11 0.115
+d 1
+
+newmtl spindle_cap_0
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl spindle_1
+Ka 0 0 0 
+Kd 0.11 0.11 0.115
+d 1
+
+newmtl spindle_cap_1
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl window_plate
+Ka 0 0 0 
+Kd 0.8 0.79 0.75
+d 1
+
+newmtl cassette_screws
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl transport
+Ka 0 0 0 
+Kd 0.7 0.6 0.38
+d 1
+
+newmtl strip
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl band
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl brand
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
+newmtl mic_slots
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl mic_legend
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl legend
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl keys_0
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl keys_1
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl keys_2
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl keys_3
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl keys_4
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl keys_5
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl chrome_handle
+Ka 0 0 0 
+Kd 0.33 0.335 0.345
+d 1
+
+newmtl wheel_wells
+Ka 0 0 0 
+Kd 0.02 0.02 0.02
+d 1
+
+newmtl wheels
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl volume_wheel
+Ka 0 0 0 
+Kd 0.185 0.185 0.19
+d 1
+
+newmtl volume_wheel_mark
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl wheel_legend
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl bottom_warning
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
+d 1
+
+newmtl bottom_label
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl bottom_label_ink
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl bottom_vents
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl bottom_screw
+Ka 0 0 0 
+Kd 0.26 0.255 0.25
+d 1
+
+newmtl bottom_screw_hole
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl bottom_feet
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
+d 1
+
+newmtl side_jack_rings
+Ka 0 0 0 
+Kd 0.76 0.765 0.77
+d 1
+
+newmtl side_jack_holes
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl side_print
+Ka 0 0 0 
+Kd 0.94 0.94 0.94
+d 1
+
+newmtl grille_perf
+Ka 0 0 0 
+Kd 0.2 0.2 0.205
+d 1
+

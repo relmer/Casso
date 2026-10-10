@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "HandlerTestRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -765,7 +766,7 @@ namespace DebuggerTests
             rig.RunOk ("G");
             lines = SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt"));
             Assert::AreEqual ((size_t) 2, lines.size(), L"the file is written at the stop");
-            Assert::IsTrue   (lines[0].ends_with ("  0300: INX "),      (L"line 0: " + std::wstring (lines[0].begin(), lines[0].end())).c_str());
+            Assert::IsTrue   (lines[0].ends_with ("  0300: INX "),      (L"line 0: " + TextEncoding::NarrowToWide (lines[0])).c_str());
             Assert::IsTrue   (lines[1].find ("X=01") != std::string::npos, L"the registers as they were before the instruction");
             Assert::IsTrue   (lines[1].ends_with ("  0301: LDA #$41"));
 

@@ -41,11 +41,12 @@ public:
                        AppleKeyboard          * * pKeyboardSlot);
     ~ClipboardManager () = default;
 
-    // auxRam is the //e/c auxiliary 64 KiB bank (nullptr on ][/][+). When
-    // present AND the 80-column display is on (RD80VID), the text screen is
-    // read as 80 interleaved columns (aux = even, main = odd); otherwise the
-    // plain 40-column main page is read.
-    void  CopyScreenText     (HWND hwnd, const Byte * auxRam) const;
+    // mainRam and auxRam are the //e/c main and auxiliary banks (both nullptr
+    // on ][/][+, where main is read through the bus). With aux present AND the
+    // 80-column display on (RD80VID), the text screen is read as 80
+    // interleaved columns (aux = even, main = odd); otherwise the plain
+    // 40-column main page is read.
+    void  CopyScreenText     (HWND hwnd, const Byte * mainRam, const Byte * auxRam) const;
 
     // Puts an already-captured image on the clipboard as a CF_DIB. The pixels
     // come IN rather than being read from the framebuffer here, because what a
@@ -73,7 +74,7 @@ public:
     // Screen-text scrape, factored out of CopyScreenText so it can be unit
     // tested without the Win32 clipboard. Returns CRLF-terminated rows with
     // trailing spaces trimmed.
-    std::wstring  BuildScreenText (const Byte * auxRam) const;
+    std::wstring  BuildScreenText (const Byte * mainRam, const Byte * auxRam) const;
 
     // The CF_DIB payload for a captured image: a BITMAPINFOHEADER and the
     // rows bottom-up, which is the order a DIB stores them. Built here rather

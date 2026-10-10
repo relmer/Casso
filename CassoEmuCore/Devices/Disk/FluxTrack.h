@@ -65,6 +65,10 @@ public:
     // The absolute tick of every transition in one revolution, in order.
     void                    GetTransitionTicks      (vector<uint64_t> & outTicks) const;
 
+    // The track rebuilt from absolute transition ticks in (0, revolution],
+    // the inverse of GetTransitionTicks.
+    void                    AssignTransitionTicks   (const vector<uint64_t> & ticks, uint64_t revolution);
+
 private:
     void                    Recount                 ();
     void                    Encode                  (const vector<uint64_t> & ticks, uint64_t revolution);

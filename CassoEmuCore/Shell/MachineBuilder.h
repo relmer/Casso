@@ -119,12 +119,15 @@ public:
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
     void     WirePageTable        ();
     void     WireFloatingBus      ();
+    void     MarkVideoWatchPages  ();
     void     RebuildBankingPages  ();
     void     CreateVideoModes     ();
     HRESULT  CreateCpu            (const MachineConfig & config);
     void     WireJoyport          ();
+    void     WireCassettePort     ();
 
     Byte *   GetAuxRamBuffer      ();
+    Byte *   GetMainRamBuffer     ();
 
     void     SelectVideoMode      ();
 

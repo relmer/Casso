@@ -4,6 +4,7 @@
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 #include "DialectRegistry.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -213,7 +214,7 @@ namespace DialectEquivalenceTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

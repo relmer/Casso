@@ -799,6 +799,11 @@ void EmulatorShell::ApplyPersistedChromePrefs()
         m_mouseConnected = mouseConn;
     }
 
+    // The cassette recorder, connected unless it was disconnected.
+    m_tapeRecorderConnected = true;
+    hrOpt = uiPrefs->GetBool ("tapeRecorderConnected", m_tapeRecorderConnected);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+
 
     // Seed the per-drive user write-protect preference BEFORE the
     // command-line mount so the very first mount already re-asserts it

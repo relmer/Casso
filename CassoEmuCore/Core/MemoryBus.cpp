@@ -108,8 +108,9 @@ Byte MemoryBus::ReadByte (Word address)
     // ($C000-$C0FF) and the //e's slot ROM space ($C100-$CFFF) stay null and
     // fall through to device dispatch so their read side effects run. On the
     // //c, the internal ROM pages $C1-$CF are mapped for reads, except $C3
-    // and $CF, which keep their INTC8ROM side effects. This is the hottest
-    // read in the emulator, so the mapped case stays one branch deep.
+    // and $CF, which keep their INTC8ROM side effects, and any slot page a
+    // registered I/O device owns. This is the hottest read in the emulator,
+    // so the mapped case stays one branch deep.
     //
     // The device dispatch is written out here rather than calling
     // ReadFromDevice, which holds the same code for ReadWatchedPage. Every ROM

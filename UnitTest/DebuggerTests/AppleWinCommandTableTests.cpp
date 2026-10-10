@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/AppleWinCommandTable.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -123,7 +124,7 @@ namespace DebuggerTests
             {
                 const AppleWinCommand * command = AppleWinCommandTable::Find (name);
                 std::string             narrow (name);
-                std::wstring            where  (narrow.begin(), narrow.end());
+                std::wstring            where  = TextEncoding::NarrowToWide (narrow);
 
 
 

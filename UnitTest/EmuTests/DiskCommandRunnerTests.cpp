@@ -12,6 +12,9 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/FieldLocator.h"
+#include "InspectorTrackBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -89,7 +92,7 @@ public:
 
             Assert::IsTrue (line.size() <= 80,
                 (std::wstring (L"line runs past column 80: ")
-                     + std::wstring (line.begin(), line.end())).c_str());
+                     + TextEncoding::NarrowToWide (line)).c_str());
 
             if (lineEnd == std::string::npos)
             {
@@ -1069,6 +1072,57 @@ public:
                         L"and they are the bytes that were written, from the same logical sector");
     }
 
+    //  A WOZ IN THE STANDARD LAYOUT, WITH ITS OWN VOLUME AND ITS RECORDS OUT OF
+    //  TRACK ORDER, takes a sector write and gives the bytes back (GH #170).
+    //  Writes used to refuse the layout, rebuild the track with volume 254, and
+    //  take record N as track N; here track 13 lives in record 21.
+    TEST_METHOD (SectorWrite_OnAStandardLayoutWozKeepsItsVolumeAndReadsBack)
+    {
+        FakeDiskFileIo        io;
+        DiskCommandRunner     runner (io);
+        vector<Byte>          woz;
+        vector<Byte>          written;
+        vector<Byte>          payload (NibblizationLayer::kSectorByteSize, (Byte) 0x3C);
+        DiskCommandResult     result;
+        DiskImage             image;
+        FramedTrack           track;
+        vector<LocatedField>  fields;
+        int                   addresses = 0;
+
+
+
+        AssertSucceeded (InspectorTrackBuilder::MakeStandardWoz (130, false, true, woz));
+
+        io.files["std.woz"]  = woz;
+        io.stamps["std.woz"] = FileStamp { woz.size(), 1 };
+        io.files["one.bin"]  = payload;
+
+        result = runner.Run (MakeSectorWrite ("std.woz", "one.bin", 13, 3, kLogical));
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        result = runner.Run (MakeSectorRead ("std.woz", 13, 3, 1, kLogical));
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.payload == payload, L"the sector reads back from the record that holds track 13");
+
+        AssertSucceeded (io.ReadAllBytes ("std.woz", written));
+        AssertSucceeded (WozLoader::Load (written, image));
+        Assert::AreEqual (21, image.ResolveWholeTrack (13));
+
+        LatchFramer::Frame   (*TrackCopy::MakeFromImage (image, 21), track);
+        FieldLocator::Locate (track, FieldMarks::MakeStandard(), fields);
+
+        for (const LocatedField & f : fields)
+        {
+            if (f.role == FieldRole::Address)
+            {
+                Assert::AreEqual (130, static_cast<int> (f.volume), L"every address field keeps the disk's volume");
+                addresses++;
+            }
+        }
+
+        Assert::AreEqual (16, addresses);
+    }
+
     //  A COUNT IS WHAT A READ HAS INSTEAD OF A LENGTH, and it spans tracks the
     //  same way a write does.
     TEST_METHOD (SectorRead_RunsOnPastTheEndOfATrack)
@@ -1793,7 +1847,7 @@ public:
             std::string         word    = containers[i].name;
             std::string         byName  = "byname." + word;
             std::string         byType  = "bytype." + word;
-            std::wstring        which   = std::wstring (word.begin(), word.end());
+            std::wstring        which   = TextEncoding::NarrowToWide (word);
             CommandLineOptions  options = MakeCreate (byName.c_str());
             DiskCommandResult   result;
 
@@ -1843,7 +1897,7 @@ public:
             std::string         word     = containers[i].name;
             std::string         dosPath  = "dos." + word;
             std::string         proPath  = "prodos." + word;
-            std::wstring        which    = std::wstring (word.begin(), word.end());
+            std::wstring        which    = TextEncoding::NarrowToWide (word);
             CommandLineOptions  options  = MakeCreate (dosPath.c_str());
             DiskCommandResult   dos;
             DiskCommandResult   proDos;

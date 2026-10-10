@@ -144,6 +144,42 @@ public:
     }
 
 
+    TEST_METHOD (UpdateState_DefaultsAndRoundTrip)
+    {
+        static constexpr std::int64_t  kCheckedAt = 1790000000;
+
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     defaults;
+        GlobalUserPrefs     orig;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr       = S_OK;
+
+
+
+        Assert::IsTrue   (defaults.autoUpdateCheck);
+        Assert::AreEqual ((std::int64_t) 0, defaults.lastUpdateCheckUtc);
+        Assert::IsTrue   (defaults.latestKnownVersion.empty());
+        Assert::IsTrue   (defaults.skippedVersion.empty());
+
+        orig.autoUpdateCheck    = false;
+        orig.lastUpdateCheckUtc = kCheckedAt;
+        orig.latestKnownVersion = "1.31.0";
+        orig.skippedVersion     = "1.30.1";
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse  (loaded.autoUpdateCheck);
+        Assert::AreEqual (kCheckedAt,              loaded.lastUpdateCheckUtc);
+        Assert::AreEqual (string ("1.31.0"),       loaded.latestKnownVersion);
+        Assert::AreEqual (string ("1.30.1"),       loaded.skippedVersion);
+        Assert::IsTrue   (loaded.unknownPassthrough.empty(), L"update keys are known keys");
+    }
+
+
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked

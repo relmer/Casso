@@ -37,7 +37,8 @@ std::vector<RamRegion> Apple2e::GetRam() const
 //
 //  Apple2e::GetInternalDevices
 //
-//  The redesigned motherboard. Only the speaker survives from the ][+.
+//  The redesigned motherboard. Only the speaker and the cassette jacks survive
+//  from the ][+, and the //c drops the jacks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,11 @@ std::vector<InternalDevice> Apple2e::GetInternalDevices() const
                                              { .type = "language-card" } };
 
 
+
+    if (HasCassettePort())
+    {
+        devices.push_back ({ .type = "apple2-family-cassette" });
+    }
 
     return (devices);
 }

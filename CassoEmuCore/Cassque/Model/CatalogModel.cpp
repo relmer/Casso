@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Config/IFileSystem.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -135,7 +136,7 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
 
 
 
-    row.name         = std::wstring (entry.name.begin(), entry.name.end());
+    row.name         = TextEncoding::NarrowToWide (entry.name);
     row.typeText     = GetTypeText (entry.type, kind);
     row.sizeBytes    = entry.hasEofBytes ? entry.eofBytes
                                          : (uint64_t) entry.sizeUnits * GetUnitBytes (kind);

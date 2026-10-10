@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "MockExpressionContext.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,8 +38,8 @@ namespace DebuggerTests
 
             hr = DebugExpressionEvaluator::ParseAndEvaluate (text, context, value, error);
 
-            Assert::AreEqual (S_OK,     hr,    std::wstring (text.begin(), text.end()).c_str());
-            Assert::AreEqual (expected, value, std::wstring (text.begin(), text.end()).c_str());
+            Assert::AreEqual (S_OK,     hr,    TextEncoding::NarrowToWide (text).c_str());
+            Assert::AreEqual (expected, value, TextEncoding::NarrowToWide (text).c_str());
         }
 
 
@@ -61,8 +62,8 @@ namespace DebuggerTests
 
             hr = DebugExpressionEvaluator::ParseAndEvaluate (text, context, value, error);
 
-            Assert::IsTrue (FAILED (hr),                             std::wstring (text.begin(), text.end()).c_str());
-            Assert::IsTrue (error.find (fragment) != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue (FAILED (hr),                             TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (error.find (fragment) != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
         }
 
 

@@ -170,6 +170,7 @@
     <ClCompile Include="GuestVisibleJoyportTests.cpp" />
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="GuestVisiblePlacementTests.cpp" />
+    <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />

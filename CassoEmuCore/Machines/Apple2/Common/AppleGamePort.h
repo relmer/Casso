@@ -6,6 +6,7 @@
 
 class HeldInputWatch;
 class IInputEventSink;
+class CassettePort;
 class SiriusJoyport;
 class InputJournal;
 struct InputRecord;
@@ -21,7 +22,8 @@ class MemoryBus;
 //
 //  AppleGamePort
 //
-//  Apple ][/][+ game-I/O strip: pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
+//  Apple ][/][+ game-I/O strip: the cassette input ($C060 and its mirror
+//  $C068, read from the cassette port), pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
 //  pressed), analog paddles PDL0-PDL3 ($C064-$C067) and the PTRIG strobe
 //  ($C070). The original Apple ][/][+ has no game port in its soft-switch
 //  bank (unlike the //e, whose Apple2eSoftSwitchBank owns the paddles and
@@ -42,7 +44,7 @@ public:
 
     Byte Read      (Word address) override;
     void Write     (Word address, Byte value) override;
-    Word GetStart  () const override { return s_kwFirstButtonAddress; }
+    Word GetStart  () const override { return s_kwCassetteInputAddress; }
     Word GetEnd    () const override { return s_kwPaddleTimerStrobe; }
     void Reset     () override;
     void SoftReset () override;
@@ -82,6 +84,9 @@ public:
     // the input held back would change is reported to the watch.
     void SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
 
+    // The cassette port that supplies reads of $C060 and $C068.
+    void SetCassettePort (CassettePort * port) { m_cassettePort = port; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
@@ -95,12 +100,14 @@ public:
     static constexpr uint16_t  kStateVersion = 1;
 
 protected:
-    static constexpr Word     s_kwFirstButtonAddress = 0xC061;
-    static constexpr int      s_knButtonCount        = 3;
-    static constexpr int      s_knHostButtonCount    = 2;
-    static constexpr Word     s_kwPaddle0Address     = 0xC064;
-    static constexpr int      s_knPaddleAxisCount    = 4;
-    static constexpr Word     s_kwPaddleTimerStrobe  = 0xC070;
+    static constexpr Word     s_kwCassetteInputAddress  = 0xC060;
+    static constexpr Word     s_kwCassetteMirrorAddress = 0xC068;
+    static constexpr Word     s_kwFirstButtonAddress    = 0xC061;
+    static constexpr int      s_knButtonCount           = 3;
+    static constexpr int      s_knHostButtonCount       = 2;
+    static constexpr Word     s_kwPaddle0Address        = 0xC064;
+    static constexpr int      s_knPaddleAxisCount       = 4;
+    static constexpr Word     s_kwPaddleTimerStrobe     = 0xC070;
 
     // PREAD's poll loop advances its counter once per ~11 CPU cycles, so an
     // axis holds bit 7 for position*11 cycles to yield a returned count equal
@@ -124,6 +131,7 @@ protected:
 
     IInputEventSink      * m_inputSink                                  = nullptr;
     const SiriusJoyport  * m_joyport                                    = nullptr;
+    CassettePort         * m_cassettePort                               = nullptr;
     const uint64_t       * m_cpuCycleSource                             = nullptr;
     InputJournal         * m_inputJournal                               = nullptr;
     HeldInputWatch       * m_heldInputWatch                             = nullptr;

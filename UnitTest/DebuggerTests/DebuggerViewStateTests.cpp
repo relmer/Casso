@@ -31,6 +31,7 @@
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -1258,7 +1259,7 @@ namespace DebuggerViewStateTests
                 Assert::AreEqual (std::string (expected), definition);
                 std::string  why = definition + ": " + reply.error.detail;
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (why.begin(), why.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (why).c_str());
             }
         }
 
@@ -1848,7 +1849,7 @@ namespace DebuggerViewStateTests
             reply = rig.Run ("eb 300 00", CommandMode::WinDbg);
 
             Assert::AreEqual (std::string ("machine running"), reply.error.label);
-            Assert::IsTrue   (reply.error.detail.starts_with ("eb "), std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue   (reply.error.detail.starts_with ("eb "), TextEncoding::NarrowToWide (reply.error.detail).c_str());
         }
 
 
@@ -3735,8 +3736,8 @@ namespace DebuggerViewStateTests
                 reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
                 snapshot = rig.view.Build (rig.controller.GetSession());
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
-                Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), std::wstring (line.begin(), line.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
+                Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), TextEncoding::NarrowToWide (line).c_str());
             }
         }
 
@@ -3794,7 +3795,7 @@ namespace DebuggerViewStateTests
 
                 reply = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
                 Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
             }
         }

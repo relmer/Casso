@@ -41,12 +41,21 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
     { IDM_DISK_SALVAGE1,            MainMenuId::Disk,    L"Sa&lvage readable sectors...", nullptr    },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attach &drive 2",        nullptr          },
     { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_DISK_SALVAGE2,            MainMenuId::Disk,    L"Salvage readable sec&tors...", nullptr    },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_DISK_OPEN_CASSQUE,        MainMenuId::Disk,    L"Browse disks in Cassq&ue...", nullptr     },
+    { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_STORAGE_RECORDER,         MainMenuId::Disk,    L"Attach ca&ssette recorder", nullptr       },
+    { IDM_TAPE_INSERT,              MainMenuId::Disk,    L"Insert t&ape...",        nullptr          },
+    { IDM_TAPE_PLAY,                MainMenuId::Disk,    L"Pla&y tape",             nullptr          },
+    { IDM_TAPE_STOP,                MainMenuId::Disk,    L"St&op tape",             nullptr          },
+    { IDM_TAPE_REWIND,              MainMenuId::Disk,    L"&Rewind tape",           nullptr          },
+    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"Fast-for&ward tape",     nullptr          },
+    { IDM_TAPE_EJECT,               MainMenuId::Disk,    L"E&ject tape",            nullptr          },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"Ctrl+D"      },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
@@ -55,6 +64,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
     { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
     { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
+    { IDM_HELP_CHECK_UPDATES,       MainMenuId::Help,    L"&Check for updates...",  nullptr          },
     { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
     { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
     { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
@@ -274,7 +284,7 @@ const wchar_t * EmulatorCommands::GetMenuName (MainMenuId menu)
     case MainMenuId::File:    name = L"&File";    break;
     case MainMenuId::Edit:    name = L"&Edit";    break;
     case MainMenuId::Machine: name = L"&Machine"; break;
-    case MainMenuId::Disk:    name = L"&Disk";    break;
+    case MainMenuId::Disk:    name = L"&Storage"; break;
     case MainMenuId::View:    name = L"&View";    break;
     case MainMenuId::Help:    name = L"&Help";    break;
     case MainMenuId::Debug:   name = L"&Debug";   break;

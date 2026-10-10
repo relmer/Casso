@@ -101,7 +101,7 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
+std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte * auxRam) const
 {
     constexpr int   kTextRows          = 24;
     constexpr int   kTextCols          = 40;
@@ -134,21 +134,20 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 
         for (int col = 0; col < cols; col++)
         {
-            Byte  ch = 0;
+            Byte  ch   = 0;
+            Word  addr = static_cast<Word> (eighty ? base + col / 2 : base + col);
 
-            if (eighty)
+            // Even 80-column columns come from aux memory; everything else is
+            // main. Main is read from its buffer when there is one, because
+            // the bus follows the CPU's banking: under RAMRD, or 80STORE with
+            // PAGE2, the text page it serves is aux.
+            if (eighty && (col & 1) == 0)
             {
-                Word  addr = static_cast<Word> (base + col / 2);
-
-                // Even columns come from aux memory, odd from main. The bus
-                // returns main at $0400-$07FF the same way the 40-column path
-                // relies on, so the aux read is the only new access.
-                ch = ((col & 1) == 0) ? auxRam[addr]
-                                      : m_memoryBus.ReadByte (addr);
+                ch = auxRam[addr];
             }
             else
             {
-                ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
+                ch = (mainRam != nullptr) ? mainRam[addr] : m_memoryBus.ReadByte (addr);
             }
 
             text += DecodeScreenByte (ch);
@@ -174,16 +173,16 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 //  CopyScreenText
 //
 //  Scrape the emulated text screen (BuildScreenText) and hand it to the host
-//  clipboard as Unicode. Reads via the memory bus rather than the CPU's
-//  internal memory[] buffer: on the //e the MMU owns its own RAM device(s), so
-//  firmware writes land in the bus-side buffer while the CPU mirror stays
-//  uninitialized.
+//  clipboard as Unicode. Main is read from the MMU's buffer when one is given,
+//  and through the memory bus otherwise -- never the CPU's internal memory[]
+//  buffer: on the //e the MMU owns its own RAM device(s), so firmware writes
+//  land in the bus-side buffer while the CPU mirror stays uninitialized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
+void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * mainRam, const Byte * auxRam) const
 {
-    bool  placed = m_clipboard.SetText (hwnd, BuildScreenText (auxRam));
+    bool  placed = m_clipboard.SetText (hwnd, BuildScreenText (mainRam, auxRam));
 
 
 

@@ -4,6 +4,7 @@
 #include "MockExpressionContext.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -38,7 +39,7 @@ namespace DebuggerTests
             for (const char * line : { "m", "m 8", "x", "x 16" })
             {
                 GSSquaredParseResult  result = GSSquaredParser::Parse (line, context);
-                std::wstring          where  (result.error.begin(), result.error.end());
+                std::wstring          where  = TextEncoding::NarrowToWide (result.error);
 
 
 

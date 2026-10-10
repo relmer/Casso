@@ -4,6 +4,7 @@
 
 #include "FixtureRomSource.h"
 #include "HResultAssert.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -22,8 +23,8 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
 {
     FixtureRomSource  source;
     std::string       error;
-    std::wstring      wideId (machineId.begin(), machineId.end());
-    HRESULT           hr = S_OK;
+    std::wstring      wideId = TextEncoding::NarrowToWide (machineId);
+    HRESULT           hr     = S_OK;
 
 
 
@@ -31,5 +32,5 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
 
     AssertSucceeded (hr, std::format (L"{} must build: {}",
                                       wideId,
-                                      std::wstring (error.begin(), error.end())).c_str());
+                                      TextEncoding::NarrowToWide (error)).c_str());
 }

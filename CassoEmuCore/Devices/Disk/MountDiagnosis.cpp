@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "DiskCommandRunner.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -242,7 +243,7 @@ std::wstring MountDiagnosis::GetPrimaryExtensionText (DiskFormat fmt)
 
 
 
-    return std::wstring (narrow.begin(), narrow.end());
+    return TextEncoding::NarrowToWide (narrow);
 }
 
 

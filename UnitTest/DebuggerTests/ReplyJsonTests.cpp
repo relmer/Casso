@@ -4,6 +4,7 @@
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/ReplyJson.h"
 #include "Core/JsonValue.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,7 +34,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string::npos, line.find ('\n'), L"record holds a raw newline");
             hr = JsonParser::Parse (line, root, error);
-            Assert::AreEqual (S_OK, hr, std::wstring (line.begin(), line.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (line).c_str());
             return root;
         }
 
@@ -43,7 +44,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (value.HasObject (key, member), std::wstring (key.begin(), key.end()).c_str());
+            Assert::IsTrue (value.HasObject (key, member), TextEncoding::NarrowToWide (key).c_str());
             return *member;
         }
 
@@ -53,7 +54,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (value.HasArray (key, member), std::wstring (key.begin(), key.end()).c_str());
+            Assert::IsTrue (value.HasArray (key, member), TextEncoding::NarrowToWide (key).c_str());
             return *member;
         }
 

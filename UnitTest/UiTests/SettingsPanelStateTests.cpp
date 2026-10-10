@@ -48,6 +48,11 @@ public:
         SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
         SettingsColorMode  lastColor                  = SettingsColorMode::Color;
         bool               lastFloppySound            = true;
+        bool               lastFastTapeLoading        = true;
+        float              lastTapeVolume             = 1.0f;
+        bool               lastTapeAutoStop           = true;
+        bool               lastTapeIdleStop           = true;
+        bool               lastTapeEightBit           = false;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]        = { false, false };
         float              lastDriveMotor             = -1.0f;
@@ -63,6 +68,11 @@ public:
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
+        void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
+        void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
+        void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
+        void ApplyTapeIdleStop (bool enabled) override             { lastTapeIdleStop = enabled; }
+        void ApplyTapeEightBit (bool enabled) override             { lastTapeEightBit = enabled; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {
@@ -475,9 +485,37 @@ public:
     }
 
 
-    // The whole round trip the bug ran through: open a machine that has never
-    // saved a color, change something unrelated, hit OK. What the sheet
-    // applies and writes must be the monitor's green, not the struct's color.
+    TEST_METHOD (FastTapeLoading_DefaultsOnAndRoundTrips)
+    {
+        SettingsPanelState  st;
+        JsonValue           v       = ParseOrFail (kFixtureJson);
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsUiPrefs     reloaded;
+
+        st.LoadFromMachine ("X", v, v);
+        Assert::IsTrue (st.GetPrefs().fastTapeLoading, L"on when the machine has never saved it");
+
+        st.SetFastTapeLoading (false);
+        st.SetTapeVolume      (0.25f);
+        st.SetTapeAutoStop    (false);
+        Assert::IsTrue (st.IsDirty());
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsFalse (sink.lastFastTapeLoading, L"Apply hands the setting to the shell");
+
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        Assert::IsFalse (reloaded.fastTapeLoading, L"and writes it");
+        Assert::AreEqual (0.25f, reloaded.tapeVolume);
+        Assert::IsFalse  (reloaded.tapeAutoStop);
+        Assert::AreEqual (0.25f, sink.lastTapeVolume);
+        Assert::IsFalse  (sink.lastTapeAutoStop);
+    }
+
+
+    // The full round trip that exposed the bug: open a machine that has never
+    // saved a color, change something unrelated, and press OK. The sheet must
+    // apply and write the monitor's green, not the struct's default color.
     TEST_METHOD (Apply_WithNoSavedColor_KeepsTheMonitorsPhosphor)
     {
         SettingsPanelState  st;
@@ -944,6 +982,40 @@ public:
 
         reloaded.SetSecondDriveAttached (true);
         Assert::IsTrue (reloaded.SecondDriveAttached(), L"and can be put back");
+    }
+
+
+    // The Storage menu saves the second drive and the recorder while a sheet
+    // may be open. The sheet's OK re-reads the document first, and that has to
+    // include those two, or OK writes the copy read at open and undoes them.
+    TEST_METHOD (Refresh_TakesTheSecondDriveAndRecorderFromDisk)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  menu;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        JsonValue           saved;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        SettingsPanelState  reloaded;
+
+
+
+        st.LoadFromMachine ("X", v, v);
+        Assert::IsTrue (st.SecondDriveAttached());
+        Assert::IsTrue (st.GetPrefs().tapeRecorderConnected, L"the recorder is connected by default");
+
+        menu.LoadFromMachine ("X", v, v);
+        menu.SetSecondDriveAttached (false);
+        menu.SetTapeRecorderConnected (false);
+        saved = menu.BuildCurrentJson();
+
+        st.RefreshMergedJson (saved);
+        AssertSucceeded (st.Apply (sink, outJson));
+
+        reloaded.LoadFromMachine ("X", outJson, outJson);
+        Assert::IsFalse (reloaded.SecondDriveAttached(),               L"the menu's detach survives the sheet's OK");
+        Assert::IsFalse (reloaded.GetPrefs().tapeRecorderConnected,     L"and so does its disconnected recorder");
+        Assert::IsFalse (sink.lastExternalDriveConnected,               L"and OK does not put the drive back live");
     }
 
 

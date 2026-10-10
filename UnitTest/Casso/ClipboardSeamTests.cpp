@@ -99,9 +99,9 @@ public:
         MemoryBus          bus;
         ClipboardManager   manager = MakeManager (clipboard, bus);
 
-        manager.CopyScreenText (nullptr, nullptr);
+        manager.CopyScreenText (nullptr, nullptr, nullptr);
 
-        Assert::AreEqual (manager.BuildScreenText (nullptr), clipboard.placedText,
+        Assert::AreEqual (manager.BuildScreenText (nullptr, nullptr), clipboard.placedText,
                           L"what was placed is exactly the scrape, unchanged");
     }
 

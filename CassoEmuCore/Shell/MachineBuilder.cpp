@@ -31,6 +31,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -114,6 +115,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     WirePageTable();
 
     WireFloatingBus();
+    MarkVideoWatchPages();
 
     // A journal that was on before a machine switch records against the new
     // devices too.
@@ -330,6 +332,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         else if (devCfg.type == "apple2-family-speaker")
         {
             m_host.GetRefs().speaker = static_cast<AppleSpeaker *> (device.get());
+        }
+        else if (devCfg.type == "apple2-family-cassette")
+        {
+            m_host.GetRefs().cassettePort = static_cast<CassettePort *> (device.get());
         }
 
         m_host.GetMemoryBus().AddDevice (device.get());
@@ -558,6 +564,11 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             m_host.GetMouse()->SetBus (&m_host.GetMemoryBus());
+
+            // The firmware's screen holes are main RAM, whatever the CPU's
+            // banking. Without an MMU nothing banks the holes, the buffer is
+            // null and the bus serves them.
+            m_host.GetMouse()->SetMainRam (GetMainRamBuffer());
 
             if (m_host.GetVideoTiming() != nullptr)
             {
@@ -1199,6 +1210,46 @@ void MachineBuilder::WireFloatingBus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MarkVideoWatchPages
+//
+//  Marks the display pages so a write into them raises the bus video-dirty
+//  flag that drives the render-skip gate: text pages 1 and 2 ($0400-$0BFF)
+//  and hi-res pages 1 and 2 ($2000-$5FFF). Aux writes share these page
+//  indices (the //e MMU re-points them), so watching the index covers main
+//  and aux.
+//
+//  The marks belong to the bus, and a machine switch replaces the bus, so
+//  every build makes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::MarkVideoWatchPages()
+{
+    static constexpr int  kTextPageFirst  = 0x04;
+    static constexpr int  kTextPageLast   = 0x0B;
+    static constexpr int  kHiResPageFirst = 0x20;
+    static constexpr int  kHiResPageLast  = 0x5F;
+    int                   page            = 0;
+
+
+
+    for (page = kTextPageFirst; page <= kTextPageLast; page++)
+    {
+        m_host.GetMemoryBus().SetVideoWatchPage (page, true);
+    }
+
+    for (page = kHiResPageFirst; page <= kHiResPageLast; page++)
+    {
+        m_host.GetMemoryBus().SetVideoWatchPage (page, true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAuxRamBuffer
 //
 //  Returns the //e auxiliary 64 KiB buffer (owned by Apple2eMmu) or
@@ -1209,6 +1260,37 @@ void MachineBuilder::WireFloatingBus()
 Byte * MachineBuilder::GetAuxRamBuffer()
 {
     return m_host.GetMmu() != nullptr ? m_host.GetMmu()->GetAuxBuffer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMainRamBuffer
+//
+//  Returns main RAM as the display and the firmware screen holes see it, or
+//  nullptr when no MMU is wired (Apple ][ / ][+). On a //e or //c the bus
+//  pages follow the CPU's banking -- RAMRD, and 80STORE with PAGE2 -- so a
+//  bus read can return aux; this is the buffer the MMU treats as main, which
+//  spans $0000-$BFFF. Without an MMU nothing banks main RAM away, and the bus
+//  serves it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * MachineBuilder::GetMainRamBuffer()
+{
+    Byte *  result = nullptr;
+
+
+
+    if (m_host.GetMmu() != nullptr && m_host.GetRefs().mainRamDev != nullptr)
+    {
+        result = m_host.GetRefs().mainRamDev->GetData();
+    }
+
+    return result;
 }
 
 
@@ -1280,8 +1362,9 @@ void MachineBuilder::RebuildBankingPages()
 //  held.
 //
 //  Aux memory is wired into the two modes that read it -- 80-column text and
-//  double hi-res -- only when an MMU actually provides it, so a ][+ gets the
-//  same objects with nothing aux-backed rather than a shorter list.
+//  double hi-res -- and main RAM into all five, only when an MMU actually
+//  provides them, so a ][+ gets the same objects reading through the bus
+//  rather than a shorter list.
 //
 //  Text mode starts active because that is what a machine displays at power-on
 //  before any program selects otherwise.
@@ -1291,6 +1374,7 @@ void MachineBuilder::RebuildBankingPages()
 void MachineBuilder::CreateVideoModes()
 {
     Byte *                                   auxBuf          = nullptr;
+    Byte *                                   mainBuf         = nullptr;
     std::unique_ptr<AppleTextMode>           textMode;
     std::unique_ptr<AppleLoResMode>          loResMode;
     std::unique_ptr<AppleHiResMode>          hiResMode;
@@ -1313,26 +1397,30 @@ void MachineBuilder::CreateVideoModes()
 
     m_host.GetRefs().activeVideoMode = m_host.GetRefs().text40;
 
-    auxBuf = GetAuxRamBuffer();
+    auxBuf  = GetAuxRamBuffer();
+    mainBuf = GetMainRamBuffer();
 
     if (auxBuf != nullptr)
     {
         text80->SetAuxMemory          (auxBuf);
         doubleHiResMode->SetAuxMemory (auxBuf);
+    }
 
-        // DHR and 80-column text need BOTH banks at once, so they take main
-        // RAM directly too. The bus cannot serve the main half: its pages
-        // follow live banking and point at aux under 80STORE+PAGE2 ($2000-
-        // $3FFF with HIRES, $0400-$07FF always), which made DHR render the
-        // aux bytes into both halves of every pair, and the mixed-mode text
-        // overlay show aux in both columns whenever a frame was scanned while
-        // a program had PAGE2 on. This is the same buffer the MMU treats as
-        // main.
-        if (m_host.GetRefs().mainRamDev != nullptr)
-        {
-            doubleHiResMode->SetMainMemory (m_host.GetRefs().mainRamDev->GetData());
-            text80->SetMainMemory          (m_host.GetRefs().mainRamDev->GetData());
-        }
+    // Every mode reads main RAM directly where an MMU banks the bus. The bus
+    // pages follow the CPU's banking -- RAMRD, and 80STORE with PAGE2
+    // ($0400-$07FF always, $2000-$3FFF with HIRES) -- while the display scans
+    // main for 40-column text, lo-res and hi-res whatever that banking is, and
+    // DHR and 80-column text need both banks at once. Read through the bus,
+    // the 40-column modes showed aux while a program had RAMRD on, DHR
+    // rendered the aux bytes into both halves of every pair, and the
+    // mixed-mode text overlay showed aux in both columns.
+    if (mainBuf != nullptr)
+    {
+        textMode->SetMainMemory        (mainBuf);
+        loResMode->SetMainMemory       (mainBuf);
+        hiResMode->SetMainMemory       (mainBuf);
+        doubleHiResMode->SetMainMemory (mainBuf);
+        text80->SetMainMemory          (mainBuf);
     }
 
     m_host.GetVideoModes().push_back (std::move (textMode));
@@ -1570,6 +1658,8 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         }
     }
 
+    WireCassettePort();
+
 Error:
     return hr;
 }
@@ -1629,6 +1719,54 @@ void MachineBuilder::WireJoyport()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireCassettePort
+//
+//  Connects the cassette jacks to the recorder the host owns, times them off
+//  the CPU's bus-cycle counter, and hands them to whichever device decodes
+//  $C060 and $C068: the game port on the ][ and ][+, the keyboard and the
+//  soft-switch bank on the //e. Machines without the jacks have no port and
+//  nothing here runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireCassettePort()
+{
+    MachineRefs   & refs = m_host.GetRefs();
+    CassettePort  * port = refs.cassettePort;
+
+
+
+    if (port == nullptr)
+    {
+        return;
+    }
+
+    port->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+    port->SetDeck           (&m_host.GetTapeDeck());
+    m_host.GetTapeDeck().SetCpuClock ((double) m_host.GetConfig().clockSpeed);
+
+    if (refs.gamePort != nullptr)
+    {
+        refs.gamePort->SetCassettePort (port);
+    }
+
+    if (refs.iieKeyboard != nullptr)
+    {
+        refs.iieKeyboard->SetCassettePort (port);
+    }
+
+    if (refs.iieSoftSwitches != nullptr)
+    {
+        refs.iieSoftSwitches->SetCassettePort (port);
+    }
 }
 
 

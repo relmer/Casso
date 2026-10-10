@@ -33,6 +33,7 @@ struct SceneHitResult
         Glass,
         Drive,
         BezelTilt,
+        Recorder,      // the cassette recorder beside the stack
     };
 
     Target             target        = Target::None;
@@ -43,6 +44,10 @@ struct SceneHitResult
     // Which tilt mark was grabbed: +1 the up one, -1 the down one. Only
     // meaningful for BezelTilt.
     int                tiltDirection = 0;
+
+    // Which of the recorder's keys, left to right, or -1 for the rest of the
+    // case. Only meaningful for Recorder.
+    int                recorderKey   = -1;
 };
 
 
@@ -69,7 +74,11 @@ public:
                                      const float *                      monitorBoundsMax = nullptr,
                                      const float *                      driveBoundsMin   = nullptr,
                                      const float *                      driveBoundsMax   = nullptr,
-                                     const DeskRegionBox *              driveDoorBoxes   = nullptr);
+                                     const DeskRegionBox *              driveDoorBoxes   = nullptr,
+                                     const float *                      recorderBoundsMin = nullptr,
+                                     const float *                      recorderBoundsMax = nullptr,
+                                     const float *                      recorderKeyBoxes  = nullptr,
+                                     size_t                             recorderKeyCount  = 0);
 
 private:
     // Slab test; reports the entry distance so drives can compete on
@@ -92,4 +101,22 @@ private:
                              const float   boxMin[3],
                              const float   boxMax[3],
                              float       & outTNear);
+
+    // The recorder is one target, its whole bounds box, tested through
+    // comp.recorderWorld. It is in the same nearest-hit test the drives use,
+    // and occluderT is the nearest entry of any other device's body.
+    static void  ClassifyRecorder (const DeskSceneComposition & comp,
+                                   const float                  origin[3],
+                                   const float                  dir[3],
+                                   const float                  boxMin[3],
+                                   const float                  boxMax[3],
+                                   float                        occluderT,
+                                   float                      & bestT,
+                                   SceneHitResult             & result,
+                                   const float *                keyBoxes,
+                                   size_t                       keyCount);
+
+    // A key is a small target on a big case, so its box reaches a little above
+    // the key, so a click aimed at its top still hits it.
+    static constexpr float  kKeyHitPadMm = 2.0f;
 };

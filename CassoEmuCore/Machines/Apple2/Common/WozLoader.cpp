@@ -49,7 +49,6 @@ static constexpr size_t  kInfoCleanedOff      = 4;
 static constexpr size_t  kInfoCreatorOff      = 5;
 static constexpr size_t  kInfoCreatorSize     = 32;
 static constexpr size_t  kInfoDiskSidesOff    = 37;
-static constexpr size_t  kInfoBitTimingOff    = 39;
 static constexpr size_t  kInfoLargestTrackOff = 44;
 
 static constexpr Byte    kInfoVersion2        = 2;
@@ -57,7 +56,6 @@ static constexpr Byte    kInfoVersion3        = 3;
 static constexpr Byte    kDiskType525         = 1;
 static constexpr Byte    kSingleSided         = 1;
 static constexpr Byte    kCleaned             = 1;
-static constexpr Byte    kBitTiming525        = 32;   // 4us, in 125ns units
 
 // Stamped into creator only on a disk Casso authored. A disk Casso merely
 // edited keeps whoever imaged it in that field -- overwriting it is how a
@@ -691,6 +689,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     CBR (sawInfo && sawTmap && sawTrks);
 
+    ReadFileLayout (raw, tmap, sawFlux ? flux : nullptr, isV2, trksData, trksSize, metadata.layout);
+
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
     out.SetWozMetadata         (metadata);
@@ -813,6 +813,86 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ReadFileLayout
+//
+//  Keeps the maps exactly as stored, and for a v2 file every record's fields.
+//  A record that neither map refers to keeps its blocks' bytes too, so a save
+//  can put them back where the track model would otherwise write zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::ReadFileLayout (
+    const vector<Byte>  &  raw,
+    const Byte          *  tmap,
+    const Byte          *  fluxMap,
+    bool                   isV2,
+    const Byte          *  trksData,
+    size_t                 trksSize,
+    WozFileLayout       &  out)
+{
+    static constexpr size_t  kBlockCountOffset = 2;
+    static constexpr size_t  kBitCountOffset   = 4;
+
+
+
+    vector<bool>           referenced (kV2TrkRecordCount, false);
+    const Byte          *  rec        = nullptr;
+    WozTrackRecordFields   fields;
+    size_t                 r          = 0;
+    size_t                 qt         = 0;
+    size_t                 from       = 0;
+    size_t                 length     = 0;
+
+
+
+    out             = WozFileLayout();
+    out.hasMaps     = true;
+    out.hasFluxMap  = fluxMap != nullptr;
+
+    memcpy (out.tmap.data(), tmap, kTmapChunkSize);
+    out.flux.fill (WozFileLayout::kNoTrack);
+
+    if (fluxMap != nullptr)
+    {
+        memcpy (out.flux.data(), fluxMap, kTmapChunkSize);
+    }
+
+    for (qt = 0; qt < kTmapChunkSize; qt++)
+    {
+        for (Byte entry : { out.tmap[qt], out.flux[qt] })
+        {
+            if (entry < kV2TrkRecordCount)
+            {
+                referenced[entry] = true;
+            }
+        }
+    }
+
+    for (r = 0; isV2 && trksSize >= kV2TrkRecordCount * kV2TrkRecordSize && r < kV2TrkRecordCount; r++)
+    {
+        rec                   = trksData + r * kV2TrkRecordSize;
+        fields.startBlock     = Read16LE (rec);
+        fields.blockCount     = Read16LE (rec + kBlockCountOffset);
+        fields.bitOrByteCount = Read32LE (rec + kBitCountOffset);
+
+        out.records.push_back (fields);
+
+        from   = static_cast<size_t> (fields.startBlock) * kV2BlockSize;
+        length = static_cast<size_t> (fields.blockCount) * kV2BlockSize;
+
+        if (!referenced[r] && fields.startBlock >= kV2FirstDataBlock && length > 0 && from + length <= raw.size())
+        {
+            out.unreferenced.push_back ({ static_cast<int> (r), fields.bitOrByteCount, vector<Byte> (raw.begin() + from, raw.begin() + from + length) });
+        }
+    }
 }
 
 
@@ -1019,6 +1099,8 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
             {
                 out.hasBootSectorFormat = true;
                 out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
+                out.hasBitTiming        = true;
+                out.bitTiming           = info[kInfoOffsetBitTiming];
             }
         }
         else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
@@ -1234,7 +1316,7 @@ HRESULT WozLoader::BuildSyntheticV21 (
     info[kInfoDiskTypeOff]      = kDiskType525;
     info[kInfoCleanedOff]       = kCleaned;
     info[kInfoDiskSidesOff]     = kSingleSided;
-    info[kInfoBitTimingOff]     = kBitTiming525;
+    info[kInfoOffsetBitTiming]  = kBitTimingStandard;
     Write16LE (info + kInfoOffsetLargestTrack, static_cast<uint16_t> (largestBits));
     Write16LE (info + kInfoOffsetFluxBlock,    static_cast<uint16_t> (fluxBlock));
     Write16LE (info + kInfoOffsetLargestFlux,  static_cast<uint16_t> (largestFlux));
@@ -1341,10 +1423,11 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
 {
     struct TrkGeom
     {
-        uint16_t   startBlock = 0;
-        uint16_t   blockCount = 0;
-        uint32_t   bitCount   = 0;
-        bool       isFlux     = false;
+        uint16_t               startBlock = 0;
+        uint16_t               blockCount = 0;
+        uint32_t               bitCount   = 0;
+        bool                   isFlux     = false;
+        const vector<Byte>  *  rawBlocks  = nullptr;
     };
 
     HRESULT              hr                      = S_OK;
@@ -1411,6 +1494,29 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         }
     }
 
+    // Records no map refers to go back where they were, with their bytes, in
+    // a record the track model left empty. Only for a file Casso read, never
+    // one it built.
+    for (const WozUnreferencedRecord & kept : meta.layout.unreferenced)
+    {
+        bool  isFree = meta.IsFromSourceFile()
+                    && kept.index >= 0
+                    && kept.index < static_cast<int> (kV2TrkRecordCount)
+                    && geom[kept.index].bitCount == 0;
+
+        if (!isFree)
+        {
+            continue;
+        }
+
+        geom[kept.index].startBlock = nextBlock;
+        geom[kept.index].blockCount = static_cast<uint16_t> (kept.bytes.size() / kV2BlockSize);
+        geom[kept.index].bitCount   = kept.bitOrByteCount;
+        geom[kept.index].rawBlocks  = &kept.bytes;
+
+        nextBlock = static_cast<uint16_t> (nextBlock + geom[kept.index].blockCount);
+    }
+
     // Pass 1 fixed the payload span, so the TRKS chunk size is now known:
     // the record table plus every block assigned above.
     trksSize = trksRecBytes
@@ -1460,9 +1566,9 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         // format, compatible hardware and required RAM.
         if (info[kInfoVersionOff] < kInfoVersion2)
         {
-            info[kInfoVersionOff]   = kInfoVersion2;
-            info[kInfoDiskSidesOff] = kSingleSided;
-            info[kInfoBitTimingOff] = kBitTiming525;
+            info[kInfoVersionOff]      = kInfoVersion2;
+            info[kInfoDiskSidesOff]    = kSingleSided;
+            info[kInfoOffsetBitTiming] = kBitTimingStandard;
         }
 
         // The fields Casso owns, written last so they win over the source.
@@ -1492,15 +1598,21 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     {
         Byte *   tmap = outBytes.data() + pos + 8;
 
-        // Each quarter track goes in the map for its slot's kind and is
-        // empty in the other, so no quarter track is claimed twice.
+        // Each quarter track goes in the map for the kind of the slot it
+        // plays. Where that is a flux track or nothing, the file's own TMAP
+        // entry is kept when it still points at a bit record: the bit record
+        // a FLUX entry overrides, or an empty record, stays as the file had it.
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
             int    resolved = img.ResolveQuarterTrack (qt);
             bool   inRange  = (resolved >= 0 && resolved < slotCount);
             bool   isFlux   = inRange && geom[resolved].isFlux;
+            Byte   stored   = meta.layout.hasMaps ? meta.layout.tmap[qt] : kTmapEmptyTrack;
+            bool   keepBit  = !(inRange && !isFlux)
+                           && stored < kV2TrkRecordCount
+                           && !geom[stored].isFlux;
 
-            tmap[qt]    = (inRange && !isFlux) ? static_cast<Byte> (resolved) : kTmapEmptyTrack;
+            tmap[qt]    = (inRange && !isFlux) ? static_cast<Byte> (resolved) : (keepBit ? stored : kTmapEmptyTrack);
             fluxMap[qt] = isFlux               ? static_cast<Byte> (resolved) : kTmapEmptyTrack;
         }
     }
@@ -1526,7 +1638,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
 
     // Per-track payload at each slot's block offset: packed bits for a bit
     // track, the flux bytes as held for a flux track.
-    for (slot = 0; slot < slotCount; slot++)
+    for (slot = 0; slot < static_cast<int> (kV2TrkRecordCount); slot++)
     {
         const vector<Byte> *  bits      = nullptr;
         size_t                byteCount = 0;
@@ -1537,9 +1649,18 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
             continue;
         }
 
-        bits      = geom[slot].isFlux ? &img.GetFluxTrack (slot).GetBytes() : &img.GetTrackBits (slot);
-        byteCount = geom[slot].isFlux ? geom[slot].bitCount : (geom[slot].bitCount + 7) / 8;
-        dstOff    = static_cast<size_t> (geom[slot].startBlock) * kV2BlockSize;
+        if (geom[slot].rawBlocks != nullptr)
+        {
+            bits      = geom[slot].rawBlocks;
+            byteCount = geom[slot].rawBlocks->size();
+        }
+        else
+        {
+            bits      = geom[slot].isFlux ? &img.GetFluxTrack (slot).GetBytes() : &img.GetTrackBits (slot);
+            byteCount = geom[slot].isFlux ? geom[slot].bitCount : (geom[slot].bitCount + 7) / 8;
+        }
+
+        dstOff = static_cast<size_t> (geom[slot].startBlock) * kV2BlockSize;
 
         if (byteCount > bits->size())
         {

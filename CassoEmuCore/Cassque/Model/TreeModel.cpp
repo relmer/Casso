@@ -182,7 +182,7 @@ std::wstring TreeModel::MakeImageId (bool underCasso, const std::wstring & path)
 std::wstring TreeModel::MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner)
 {
     return std::wstring (kDirectoryPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path
-         + kSeparator + std::wstring (inner.begin(), inner.end());
+         + kSeparator + TextEncoding::NarrowToWide (inner);
 }
 
 
@@ -528,7 +528,7 @@ void TreeModel::ListDirectories (
 
         child.id        = MakeDirectoryId (underCasso, path, childInner);
         child.kind      = TreeNode::Kind::DiskDirectory;
-        child.label     = std::wstring (entry.name.begin(), entry.name.end());
+        child.label     = TextEncoding::NarrowToWide (entry.name);
         child.location  = Location::MakeDiskDirectory (path, childInner);
         child.canExpand = hasSubdir;
 

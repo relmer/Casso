@@ -4,6 +4,7 @@
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
 #include "HandlerTestRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,7 +34,7 @@ namespace DebuggerTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

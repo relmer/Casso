@@ -4,6 +4,7 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Core/TextEncoding.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -29,7 +30,7 @@ public:
     static void AssertParsesTo (ControllerRig & rig, const std::string & line, const DebuggerAction & action)
     {
         AppleWinParseResult  parsed = AppleWinParser::Parse (line, rig.controller.GetSession());
-        std::wstring         what   (line.begin(), line.end());
+        std::wstring         what   = TextEncoding::NarrowToWide (line);
 
 
 

@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Core/TextEncoding.h"
 
 #include "../TestMachine.h"
 #include "../TextScreenScraper.h"
@@ -266,7 +267,7 @@ private:
 
         for (const std::string & row : rows)
         {
-            out += L"|" + std::wstring (row.begin(), row.end());
+            out += L"|" + TextEncoding::NarrowToWide (row);
         }
 
         return (out);

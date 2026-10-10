@@ -335,6 +335,7 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     bool  leftStrip = HasBounds() && (y < m_boundsDip.top - threshold || y >= m_boundsDip.bottom + threshold);
     bool  moved     = std::abs (x - m_pressX) > threshold || std::abs (y - m_pressY) > threshold;
     int   carried   = m_pressed;
+    int   prevHover = m_hover;
 
 
 
@@ -351,6 +352,10 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     if (m_pressed < 0)
     {
         SetMouseHover (x, y);
+
+        //  Handled only when the hovered tab changes, as DxuiButton does: that
+        //  repaints the window at once rather than on its half-second tick.
+        handled = m_hover != prevHover;
     }
     else
     {
@@ -1506,10 +1511,8 @@ void DxuiTabStrip::PaintInternal (
     IDxuiTextRenderer  & text,
     const Palette      & pal) const
 {
-    constexpr float  s_kFontDip        = 13.0f;
     constexpr float  s_kFocusThickDip  = 1.0f;
     constexpr float  s_kFocusInsetDip  = 1.0f;
-    constexpr float  s_kPadXDp         = 8.0f;
     constexpr float  s_kDividerDip     = 16.0f;
     constexpr float  s_kMutedTextScale = 0.8f;    // Explorer's #CCCCCC on an unselected tab
 
@@ -1523,8 +1526,8 @@ void DxuiTabStrip::PaintInternal (
     long      lineAbove  = (m_style == Style::ToolWindow) ? line : 0;
     float     focusThick = m_scaler.ToPxf (s_kFocusThickDip);
     float     focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float     padX       = m_scaler.ToPxf (s_kPadXDp);
-    float     fontDip    = m_scaler.ToPxf (s_kFontDip);
+    float     padX       = m_scaler.ToPxf (kLabelPadXDip);
+    float     fontDip    = m_scaler.ToPxf (kLabelFontDip);
     float     corner     = m_scaler.ToPxf ((float) s_kCornerDip);
     float     iconPx     = m_scaler.ToPxf ((float) s_kIconDip);
     float     dividerH   = m_scaler.ToPxf (s_kDividerDip);
@@ -2119,9 +2122,9 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  per-gesture handlers, which take plain coordinates and are testable without
 //  framework events.
 //
-//  A move only updates hover and is reported unhandled, so the pointer
-//  crossing the strip does not consume moves other widgets want, unless it
-//  is dragging a tab.
+//  A move is reported handled only when it changes which tab is hovered or
+//  armed, as DxuiButton does, or while it drags a tab: a move that changes
+//  nothing passes through to the widgets that handle it.
 //
 //  Only the left button acts; a right-click belongs to the host.
 //

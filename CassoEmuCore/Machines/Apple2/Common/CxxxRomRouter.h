@@ -19,18 +19,17 @@ class Apple2eMmu;
 //    - INTCXROM=1: all $C100-$CFFF reads come from the internal //e ROM
 //      (audit §8 / Sather UTAIIe §5-25). Slot ROMs are shadowed.
 //    - INTCXROM=0 + SLOTC3ROM=0: $C300-$C3FF reads come from internal ROM
-//      (the 80-col firmware lives here). Reading $C3xx in this state also
-//      latches INTC8ROM=1 so the $C800-$CFFF expansion-ROM window also
-//      maps to internal.
+//      (the 80-col firmware lives here).
 //    - INTCXROM=0 + SLOTC3ROM=1: $C300-$C3FF reads come from slot 3.
 //    - INTCXROM=0 (other slot pages): $CS00-$CSFF reads come from the
 //      slot-S ROM (one page each, 256 bytes).
 //    - $C800-$CFFF: routed to internal ROM when INTC8ROM=1, otherwise
-//      floating bus (audit §8). A read of $CFFF clears INTC8ROM
-//      (deactivates the expansion-ROM window).
+//      floating bus (audit §8).
 //
-//  Writes are ignored (ROM space) but still trigger the $CFFF
-//  INTC8ROM-clear side effect for symmetry with reads.
+//  Any access to $C3xx while SLOTC3ROM=0 sets INTC8ROM, whatever INTCXROM
+//  holds, so the $C800-$CFFF expansion-ROM window maps to internal. Any
+//  access to $CFFF clears it. Reads and writes alike apply both; writes
+//  are otherwise ignored (ROM space).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,10 +57,11 @@ public:
     // serves the whole window as static internal ROM, so only there is a
     // pointer returned -- and even then the reactive pages ($C3xx latches
     // INTC8ROM, $CFFF clears it) return null so their read side effects still
-    // run. On the //e the window is arbitrated per access, so every page is
-    // null (handler). The pointer is into m_internal, which SetInternalRom
-    // move-reassigns on a //c $C028 bank flip, so the MMU must re-query after
-    // any AttachInternalCxxxRom.
+    // run, and a slot page with a registered I/O device returns null so its
+    // reads reach the device as its writes do. On the //e the window is
+    // arbitrated per access, so every page is null (handler). The pointer is
+    // into m_internal, which SetInternalRom move-reassigns on a //c $C028
+    // bank flip, so the MMU must re-query after any AttachInternalCxxxRom.
     Byte * GetFastMapReadPtr (int page);
 
     // Apple //c: there are no external card slots, so the whole $C100-$CFFF
@@ -92,8 +92,9 @@ public:
     bool IsInternalRomSelected (Word address) const;
 
 private:
-    Byte           ResolveByte     (Word address) const;
-    MemoryDevice * GetSlotIoDevice (Word address) const;
+    Byte           ResolveByte            (Word address) const;
+    MemoryDevice * GetSlotIoDevice        (Word address) const;
+    void           ApplyAccessSideEffects (Word address);
 
     Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;

@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinParser.h"
 #include "MockExpressionContext.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -24,20 +25,20 @@ namespace DebuggerTests
         static AppleWinParseResult ParseOk (const std::string & line)
         {
             MockExpressionContext  context;
-            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
-            std::wstring           where (line.begin(), line.end());
+            AppleWinParseResult    result  = AppleWinParser::Parse (line, context);
+            std::wstring           where   = TextEncoding::NarrowToWide (line);
 
 
 
-            Assert::AreEqual ((int) ParseStatus::Ok, (int) result.status, (where + L": " + std::wstring (result.error.begin(), result.error.end())).c_str());
+            Assert::AreEqual ((int) ParseStatus::Ok, (int) result.status, (where + L": " + TextEncoding::NarrowToWide (result.error)).c_str());
             return result;
         }
 
         static AppleWinParseResult ParseFails (const std::string & line, ParseStatus status)
         {
             MockExpressionContext  context;
-            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
-            std::wstring           where (line.begin(), line.end());
+            AppleWinParseResult    result  = AppleWinParser::Parse (line, context);
+            std::wstring           where   = TextEncoding::NarrowToWide (line);
 
 
 

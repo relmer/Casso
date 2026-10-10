@@ -554,8 +554,11 @@ public:
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size(),
-            L"Apple2.json internalDevices count must remain exactly 4");
+        Assert::IsTrue  (HasInternalDeviceType (config, "apple2-family-cassette"),
+            L"Apple2.json must include apple2-family-cassette");
+
+        Assert::AreEqual (size_t (5), config.internalDevices.size(),
+            L"Apple2.json internalDevices count must remain exactly 5");
         Assert::AreEqual (size_t (2), config.slots.size(),
             L"Apple2.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
     }
@@ -607,8 +610,11 @@ public:
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-gameport"),
             L"Apple2Plus.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size(),
-            L"Apple2Plus.json internalDevices count must remain exactly 4");
+        Assert::IsTrue (HasInternalDeviceType (config, "apple2-family-cassette"),
+            L"Apple2Plus.json must include apple2-family-cassette");
+
+        Assert::AreEqual (size_t (5), config.internalDevices.size(),
+            L"Apple2Plus.json internalDevices count must remain exactly 5");
         Assert::AreEqual (size_t (3), config.slots.size(),
             L"Apple2Plus.json declares three slots: parallel printer (slot 1), Mockingboard (slot 4), Disk II (slot 6)");
         Assert::IsTrue (HasSlotDevice (config, 1, "parallel-printer"),

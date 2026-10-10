@@ -6,6 +6,7 @@
 #include "Ui/Debugger/MemoryBarCommands.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -278,7 +279,7 @@ namespace DebuggerTests
                 (void) (window.OnKey (key) || window.RouteMappedKey (key));
             }
 
-            Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : std::wstring (host.lines[0].begin(), host.lines[0].end()).c_str());
+            Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : TextEncoding::NarrowToWide (host.lines[0]).c_str());
         }
 
 

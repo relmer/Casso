@@ -5,6 +5,7 @@
 #include "Devices/Disk/MountDiagnosis.h"
 
 class DiskImage;
+struct WozFileLayout;
 
 
 
@@ -96,6 +97,11 @@ public:
         bool                    hasBootSectorFormat = false;
         Byte                    bootSectorFormat    = 0;
 
+        //  Also version 2 and later: the bit cell the imaged disk was written
+        //  at, in 125 ns units, exactly as stored.
+        bool                    hasBitTiming        = false;
+        Byte                    bitTiming           = 0;
+
         std::string             creator;
         std::vector<MetaField>  meta;
 
@@ -174,6 +180,9 @@ public:
     static constexpr size_t  kInfoOffsetCreator          = 5;
     static constexpr size_t  kInfoCreatorLength          = 32;
     static constexpr size_t  kInfoOffsetBootSectorFormat = 38;
+    static constexpr size_t  kInfoOffsetBitTiming        = 39;
+    static constexpr size_t  kInfoOffsetCompatibleHw     = 40;
+    static constexpr size_t  kInfoOffsetRequiredRam      = 42;
     static constexpr size_t  kInfoOffsetLargestTrack     = 44;
     static constexpr size_t  kInfoOffsetFluxBlock        = 46;
     static constexpr size_t  kInfoOffsetLargestFlux      = 48;
@@ -186,6 +195,10 @@ public:
     static constexpr Byte    kBootSector13       = 2;
     static constexpr Byte    kBootSectorBoth     = 3;
 
+    //  A 5.25" disk's standard 4 us bit cell, in INFO's 125 ns units: what an
+    //  image Casso builds gives, and what every bit track plays at.
+    static constexpr Byte    kBitTimingStandard  = 32;
+
 private:
     //  A fixed-width, space-padded field as a string with the padding removed.
     //  INFO stores its creator that way.
@@ -196,4 +209,14 @@ private:
     static void  ParseMetaChunk (const Byte              *  bytes,
                                  size_t                     length,
                                  std::vector<MetaField>  &  out);
+
+    //  The maps and, for a v2 file, the record table and the bytes of records
+    //  no map refers to, as the file holds them. fluxMap is null with no FLUX.
+    static void  ReadFileLayout (const vector<Byte>  &  raw,
+                                 const Byte          *  tmap,
+                                 const Byte          *  fluxMap,
+                                 bool                   isV2,
+                                 const Byte          *  trksData,
+                                 size_t                 trksSize,
+                                 WozFileLayout       &  out);
 };

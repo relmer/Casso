@@ -15,50 +15,57 @@
 //  Whole-image checks first, because they are free and they settle the question
 //  for every track at once.
 //
-//  A sector image maps every quarter-track position to its own whole track. A
-//  bit-stream image installs an explicit map from what was captured, so any
-//  position resolving elsewhere means the disk carries data at half- or
-//  quarter-track positions. Rewriting it as sectors has nowhere to put that,
-//  and the loss would be silent -- exactly what this class exists to prevent.
+//  A quarter track between whole tracks N and N+1 that is unmapped, or that
+//  plays the record of track N or of track N+1, holds nothing of its own: that
+//  covers the standard WOZ layout (N-0.25, N and N+0.25 on track N's record),
+//  images that also map N+0.5 to a neighbor's record, and the layout Casso
+//  writes. A quarter track on any other record holds data of its own between
+//  whole tracks, which a sector write would change underneath it, so the whole
+//  image is refused and the reason gives that quarter track and its record.
 //
 //  Only then is each track judged, and only on what denibblization actually
-//  recovered. A track that decoded to a complete standard set can be re-encoded
-//  losslessly; a blank one can be written because there is nothing to lose; and
-//  a partial one cannot, because the bits that failed to decode are the ones a
-//  rewrite would discard.
+//  recovered. A track that decoded to a complete standard set can be written
+//  in place. A partial one cannot, because the bits that failed to decode are
+//  what a write could damage, and a blank one cannot either: there is no data
+//  field to write into, and no track is laid down to make room.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TrackWritability TrackWritability::Evaluate (const DiskImage & img, const SectorDecodeReport & report)
 {
+    static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
     TrackWritability  result;
     int               trackCount = img.GetTrackCount();
     int               track      = 0;
     int               quarter    = 0;
     int               slot       = 0;
-    int               expected   = 0;
+    int               below      = 0;
+    int               above      = 0;
     bool              mapped     = true;
 
 
 
-    // Whole-image: data between whole tracks cannot be represented as sectors.
     for (quarter = 0; mapped && quarter < DiskImage::kQuarterTrackCount; quarter++)
     {
-        slot     = img.ResolveQuarterTrack (quarter);
-        expected = quarter / DiskImage::kQuarterTracksPerWholeTrack;
-
-        // An unmapped position carries nothing, so it is not evidence either way.
-        if (slot >= 0 && slot != expected)
+        if (quarter % kPerTrack == 0)
         {
-            mapped = false;
+            continue;
         }
-    }
 
-    if (!mapped)
-    {
-        result.m_imageRefusalReason =
-            "the image holds data at half- or quarter-track positions, which cannot be "
-            "represented as standard sectors";
+        slot   = img.ResolveQuarterTrack (quarter);
+        below  = img.ResolveWholeTrack (quarter / kPerTrack);
+        above  = img.ResolveWholeTrack (quarter / kPerTrack + 1);
+        mapped = slot < 0 || slot == below || slot == above;
+
+        if (!mapped)
+        {
+            result.m_imageRefusalReason = std::format ("quarter track {} plays track record {}, which holds data of its own between "
+                                                       "whole tracks that a sector write would change",
+                                                       FormatQuarterTrack (quarter), slot);
+        }
     }
 
     result.m_trackWritable.assign ((size_t) ((trackCount > 0) ? trackCount : 0), false);
@@ -67,11 +74,32 @@ TrackWritability TrackWritability::Evaluate (const DiskImage & img, const Sector
     {
         TrackDecodeOutcome  outcome = report.GetOutcome (track);
 
-        result.m_trackWritable[(size_t) track] = outcome == TrackDecodeOutcome::Complete
-                                              || outcome == TrackDecodeOutcome::Unformatted;
+        result.m_trackWritable[(size_t) track] = outcome == TrackDecodeOutcome::Complete;
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackWritability::FormatQuarterTrack
+//
+//  A quarter track as the track number a user reads: 2, 2.25, 2.5 or 2.75.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TrackWritability::FormatQuarterTrack (int quarterTrack)
+{
+    static constexpr const char *  kpszFractions[] = { "", ".25", ".5", ".75" };
+
+
+
+    return std::to_string (quarterTrack / DiskImage::kQuarterTracksPerWholeTrack)
+         + kpszFractions[quarterTrack % DiskImage::kQuarterTracksPerWholeTrack];
 }
 
 

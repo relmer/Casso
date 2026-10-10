@@ -726,8 +726,8 @@ public:
         // the per-track answer inherits the image verdict, so the write is still
         // refused and only the explanation degrades -- to one that blames a
         // track for a property of the disk. Measured by mutation.
-        Assert::IsTrue (reason.find ("quarter-track") != std::string::npos,
-            L"the refusal must be about the image, not about some track it picked");
+        Assert::IsTrue (reason.find ("quarter track 2.5 plays track record 7") != std::string::npos,
+            L"the refusal must be about the image, giving the quarter track and its record");
 
         Assert::IsTrue (reason.find ("does not decode") == std::string::npos,
             L"and must not blame an individual track: this is settled before any is examined");

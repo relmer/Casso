@@ -116,6 +116,13 @@ public:
     bool       IsUserMaximumSpeed () const noexcept { return GetUserSpeedMode() == SpeedMode::Maximum; }
     void       SetSpeedMode       (SpeedMode mode, SpeedChooser chooser) noexcept;
 
+    //  The speed the emulator actually runs at: Maximum while a fast tape load
+    //  has the override set, the user's choice otherwise. The user's choice
+    //  is never overwritten, so it applies again when the override ends.
+    SpeedMode  GetEffectiveSpeedMode () const noexcept;
+    void       SetMaximumOverride    (bool isOn) noexcept { m_maximumOverride.store (isOn, std::memory_order_release); }
+    bool       IsMaximumOverride     () const noexcept   { return m_maximumOverride.load (std::memory_order_acquire); }
+
     // Shared storage exposed for ClipboardManager wiring. The paste
     // buffer is guarded by the same mutex as the command queue so
     // both UI-thread enqueue paths can take a single lock.
@@ -146,6 +153,7 @@ private:
     std::atomic<bool>             m_isParked   { true };                     // written under m_pauseMutex
     std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
     std::atomic<SpeedMode>        m_userSpeed  { SpeedMode::Authentic };     // the last speed the user chose
+    std::atomic<bool>             m_maximumOverride { false };
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;

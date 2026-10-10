@@ -5,6 +5,7 @@
 #include "InMemoryPipeTransport.h"
 #include "Shell/CpuManager.h"
 #include "UiTests/InMemoryFileSystem.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -329,10 +330,10 @@ namespace DebuggerControllerTests
             rig.files.WriteAllText (L"C:\\syms\\demo.dbg", "Speak=$6067\n");
 
             reply = rig.controller.GetSession().ExecuteLine ("SYM LOAD \"C:\\syms\\demo.dbg\"", CommandMode::AppleWin);
-            Assert::IsTrue (reply.status == CommandStatus::Ok, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue (reply.status == CommandStatus::Ok, TextEncoding::NarrowToWide (reply.error.detail).c_str());
 
             reply = rig.controller.GetSession().ExecuteLine ("BSAVE \"C:\\out\\zp.bin\" 0:F", CommandMode::AppleWin);
-            Assert::IsTrue (reply.status == CommandStatus::Ok, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue (reply.status == CommandStatus::Ok, TextEncoding::NarrowToWide (reply.error.detail).c_str());
             Assert::IsTrue (rig.files.Exists (L"C:\\out\\zp.bin"), L"BSAVE wrote through it");
 
             reply = rig.controller.GetSession().ExecuteLine ("BP Speak", CommandMode::AppleWin);

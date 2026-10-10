@@ -8,6 +8,7 @@
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -251,7 +252,7 @@ namespace DebuggerTests
             text = options.ToText();
             back = HeatMapOptions::FromText (text);
 
-            Assert::IsTrue (back == options, std::wstring (text.begin(), text.end()).c_str());
+            Assert::IsTrue (back == options, TextEncoding::NarrowToWide (text).c_str());
             Assert::IsTrue (HeatMapOptions::FromText ("fade=10 view=all").ignoreSet.empty());
             Assert::IsFalse (HeatMapOptions::FromText ("fade=10 view=all").ignoreSameWrites);
         }

@@ -7,6 +7,7 @@
 #include "EmuTests/FixtureProvider.h"
 #include "TestHelpers.h"
 #include "MockFileReader.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,7 +38,7 @@ namespace DebuggerTests
 
 
 
-        Assert::AreEqual (S_OK, hr, std::wstring (name.begin(), name.end()).c_str());
+        Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (name).c_str());
         return std::string (bytes.begin(), bytes.end());
     }
 

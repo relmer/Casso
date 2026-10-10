@@ -7,6 +7,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -377,6 +378,6 @@ private:
 
 
 
-        return std::wstring (narrow.begin(), narrow.end());
+        return TextEncoding::NarrowToWide (narrow);
     }
 };

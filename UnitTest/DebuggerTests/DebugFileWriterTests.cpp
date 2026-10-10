@@ -7,6 +7,7 @@
 #include "Sha1.h"
 #include "TestHelpers.h"
 #include "MockFileReader.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -112,7 +113,7 @@ namespace DebuggerTests
                     continue;
                 }
 
-                Assert::AreNotEqual (std::string::npos, at, std::wstring (keyword.begin(), keyword.end()).c_str());
+                Assert::AreNotEqual (std::string::npos, at, TextEncoding::NarrowToWide (keyword).c_str());
                 Assert::IsTrue (at > last, L"each kind of record follows the one before it");
                 last = at;
             }

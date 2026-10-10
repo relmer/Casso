@@ -245,6 +245,13 @@ public:
 
 
 
+    static bool  IsBitStream (DiskFormat format)
+    {
+        return format == DiskFormat::Woz || format == DiskFormat::Nib;
+    }
+
+
+
     //  One container, built, written twice, and checked in full each time.
     static void  ExerciseContainer (const ContainerCase & c)
     {
@@ -258,8 +265,11 @@ public:
         SectorDecodeReport  report;
         std::string         refusal;
 
+        //  A bit-stream container needs formatted tracks: a sector write
+        //  changes data fields that exist and never formats a track to make
+        //  room, so an unformatted WOZ or NIB takes no sector writes at all.
         spec.format          = c.format;
-        spec.contents        = BlankDiskContents::Unformatted;
+        spec.contents        = IsBitStream (c.format) ? BlankDiskContents::Dos33 : BlankDiskContents::Unformatted;
         spec.nibbleTrackSize = c.nibbleTrackSize;
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload(), blank),
@@ -323,6 +333,47 @@ public:
         Assert::AreEqual (edited.size(), readBack.size());
         Assert::AreEqual (0, memcmp (edited.data(), readBack.data(), edited.size()),
             L"the volume must match the edit exactly, including the untouched parts");
+    }
+
+
+
+    TEST_METHOD (AnUnformattedBitStreamContainer_TakesNoSectorWrite)
+    {
+        BlankDiskSpec       spec;
+        std::vector<Byte>   blank;
+        std::vector<Byte>   sectors;
+        std::vector<Byte>   written;
+        SectorDecodeReport  report;
+        std::string         refusal;
+        HRESULT             hr = S_OK;
+
+
+
+        for (const ContainerCase & c : AllContainers())
+        {
+            if (!IsBitStream (c.format))
+            {
+                continue;
+            }
+
+            spec                 = BlankDiskSpec();
+            spec.format          = c.format;
+            spec.contents        = BlankDiskContents::Unformatted;
+            spec.nibbleTrackSize = c.nibbleTrackSize;
+
+            AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload(), blank));
+            AssertSucceeded (VolumeImage::Load (blank, c.path, sectors, report));
+
+            sectors[0] = 0x5A;
+            written.clear();
+            refusal.clear();
+
+            hr = VolumeImage::Save (blank, c.path, sectors, written, refusal);
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), hr, L"no track is formatted to make room for a sector");
+            Assert::IsTrue (written.empty());
+            Assert::IsFalse (refusal.empty());
+        }
     }
 
 

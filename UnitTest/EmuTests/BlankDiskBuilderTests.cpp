@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "HResultAssert.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -132,12 +133,12 @@ public:
 
             Assert::IsTrue (BlankDiskVerdict::Ok == BlankDiskBuilder::CheckSpec (spec),
                 (std::wstring (L"the builder refuses a container the command line offers: ")
-                     + std::wstring (which.begin(), which.end())).c_str());
+                     + TextEncoding::NarrowToWide (which)).c_str());
 
             AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload(), bytes));
             Assert::IsFalse (bytes.empty(),
                 (std::wstring (L"and writes nothing for: ")
-                     + std::wstring (which.begin(), which.end())).c_str());
+                     + TextEncoding::NarrowToWide (which)).c_str());
         }
     }
 

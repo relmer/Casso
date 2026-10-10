@@ -108,8 +108,8 @@ public:
             case 0xC01B: f.bank.Read (flag ? 0xC053 : 0xC052); break; // RDMIXED
             case 0xC01C: f.bank.Read (flag ? 0xC055 : 0xC054); break; // RDPAGE2
             case 0xC01D: f.bank.Read (flag ? 0xC057 : 0xC056); break; // RDHIRES
-            case 0xC01E: f.bank.Read (flag ? 0xC00F : 0xC00E); break; // RDALTCHAR
-            case 0xC01F: f.bank.Read (flag ? 0xC00D : 0xC00C); break; // RD80VID
+            case 0xC01E: f.bank.Write (flag ? 0xC00F : 0xC00E, 0); break; // RDALTCHAR
+            case 0xC01F: f.bank.Write (flag ? 0xC00D : 0xC00C, 0); break; // RD80VID
             default:     break;
         }
     }

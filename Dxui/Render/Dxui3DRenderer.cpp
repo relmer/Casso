@@ -429,7 +429,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState()
         // every device in its own model space, so the light positions change
         // with each device rather than once per frame -- and so do the two
         // shadow matrices, which carry that device's placement.
-        cb.ByteWidth = 26 * 4 * sizeof (float);
+        cb.ByteWidth = 31 * 4 * sizeof (float);
 
         hr = m_device->CreateBuffer (&cb, nullptr, m_lightBuffer.GetAddressOf());
         CHR (hr);
@@ -698,6 +698,182 @@ HRESULT Dxui3DRenderer::EnsureShadowMap (int slot, UINT texels)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureEnvironment
+//
+//  The cube a mirror finish reflects, and a depth buffer to capture it with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::EnsureEnvironment (UINT texels)
+{
+    HRESULT                          hr   = S_OK;
+    D3D11_TEXTURE2D_DESC             desc = {};
+    D3D11_RENDER_TARGET_VIEW_DESC    rtv  = {};
+    D3D11_SHADER_RESOURCE_VIEW_DESC  srv  = {};
+
+
+
+    BAIL_OUT_IF (m_envSrv != nullptr && m_envSize == texels, S_OK);
+
+    m_envTex.Reset();
+    m_envSrv.Reset();
+    m_envDepthTex.Reset();
+    m_envDsv.Reset();
+
+    for (ComPtr<ID3D11RenderTargetView> & face : m_envRtv)
+    {
+        face.Reset();
+    }
+
+    desc.Width            = texels;
+    desc.Height           = texels;
+    desc.MipLevels        = 1;
+    desc.ArraySize        = 6;
+    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage            = D3D11_USAGE_DEFAULT;
+    desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    desc.MiscFlags        = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, m_envTex.GetAddressOf());
+    CHR (hr);
+
+    rtv.Format                         = desc.Format;
+    rtv.ViewDimension                  = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+    rtv.Texture2DArray.ArraySize       = 1;
+
+    for (UINT face = 0; face < 6; face++)
+    {
+        rtv.Texture2DArray.FirstArraySlice = face;
+
+        hr = m_device->CreateRenderTargetView (m_envTex.Get(), &rtv, m_envRtv[face].GetAddressOf());
+        CHR (hr);
+    }
+
+    srv.Format                = desc.Format;
+    srv.ViewDimension         = D3D11_SRV_DIMENSION_TEXTURECUBE;
+    srv.TextureCube.MipLevels = 1;
+
+    hr = m_device->CreateShaderResourceView (m_envTex.Get(), &srv, m_envSrv.GetAddressOf());
+    CHR (hr);
+
+    desc.ArraySize = 1;
+    desc.Format    = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    desc.MiscFlags = 0;
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, m_envDepthTex.GetAddressOf());
+    CHR (hr);
+
+    hr = m_device->CreateDepthStencilView (m_envDepthTex.Get(), nullptr, m_envDsv.GetAddressOf());
+    CHR (hr);
+
+    m_envSize = texels;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginEnvironmentFace
+//
+//  Sets the caller's targets aside and binds one face of the cube, cleared to
+//  `clearRgba`, with the cube's own depth buffer, cleared too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::BeginEnvironmentFace (int face, UINT texels, const float clearRgba[4])
+{
+    HRESULT                   hr  = S_OK;
+    ID3D11RenderTargetView *  rtv = nullptr;
+
+
+
+    CBREx (m_device != nullptr && m_context != nullptr, E_UNEXPECTED);
+    CBREx (face >= 0 && face < 6, E_INVALIDARG);
+    CBREx (m_envFace < 0 && m_shadowSlot < 0, E_UNEXPECTED);
+
+    hr = EnsureEnvironment (texels);
+    CHR (hr);
+
+    m_envSavedRtv.Reset();
+    m_envSavedDsv.Reset();
+    m_context->OMGetRenderTargets (1, m_envSavedRtv.GetAddressOf(), m_envSavedDsv.GetAddressOf());
+
+    rtv = m_envRtv[face].Get();
+    m_context->OMSetRenderTargets     (1, &rtv, m_envDsv.Get());
+    m_context->ClearRenderTargetView  (rtv, clearRgba);
+    m_context->ClearDepthStencilView  (m_envDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+    m_envFace = face;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndEnvironmentFace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Dxui3DRenderer::EndEnvironmentFace()
+{
+    ID3D11RenderTargetView *  rtv = nullptr;
+
+
+
+    if (m_envFace < 0)
+    {
+        return;
+    }
+
+    rtv = m_envSavedRtv.Get();
+    m_context->OMSetRenderTargets (1, &rtv, m_envSavedDsv.Get());
+
+    m_envSavedRtv.Reset();
+    m_envSavedDsv.Reset();
+    m_envFace = -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnvironmentViewport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+D3D11_VIEWPORT Dxui3DRenderer::EnvironmentViewport() const
+{
+    D3D11_VIEWPORT  viewport = {};
+
+
+
+    viewport.Width    = (float) m_envSize;
+    viewport.Height   = (float) m_envSize;
+    viewport.MaxDepth = 1.0f;
+
+    return viewport;
 }
 
 
@@ -1301,7 +1477,7 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
     m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     {
-        float  lightCb[104] =
+        float  lightCb[124] =
         {
             m_lighting.light0[0], m_lighting.light0[1], m_lighting.light0[2], 0.0f,
             m_lighting.light1[0], m_lighting.light1[1], m_lighting.light1[2], 0.0f,
@@ -1348,6 +1524,14 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         lightCb[102] = m_lighting.lampCap[2];
         lightCb[103] = 0.0f;
 
+        // The environment, which a capture never reads: the cube is the
+        // target then, and reading it would be a read/write hazard.
+        memcpy (&lightCb[104], m_lighting.envMatrix, 16 * sizeof (float));
+        lightCb[120] = (m_lighting.hasEnvironment && m_envSrv != nullptr && m_envFace < 0) ? 1.0f : 0.0f;
+        lightCb[121] = m_lighting.envEye[0];
+        lightCb[122] = m_lighting.envEye[1];
+        lightCb[123] = m_lighting.envEye[2];
+
         hr = m_context->Map (m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
         CHR (hr);
         memcpy (mapped.pData, lightCb, sizeof (lightCb));
@@ -1365,7 +1549,8 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
 
     // Depth-tested draws re-bind the current RTV together with our DSV (the
     // host bound it without one); depth-off draws leave the bindings alone.
-    if (useDepth)
+    // A cube capture already has its own depth buffer bound.
+    if (useDepth && m_envFace < 0)
     {
         ComPtr<ID3D11RenderTargetView>  rtv;
         ID3D11RenderTargetView       *  rawRtv = nullptr;
@@ -1415,14 +1600,20 @@ HRESULT Dxui3DRenderer::IssueDraw (ID3D11Buffer             * vertexBuffer,
         m_context->PSSetSamplers        (1, 1, m_shadowSampler.GetAddressOf());
     }
 
+    {
+        ID3D11ShaderResourceView *  envSrv = (m_envFace < 0) ? m_envSrv.Get() : nullptr;
+
+        m_context->PSSetShaderResources (2 + kShadowLights, 1, &envSrv);
+    }
+
     m_context->Draw ((UINT) vertexCount, 0);
 
     // Unbind the SRVs so a later frame binding one as a render target -- which
     // the shadow pass genuinely does -- never hits a read/write hazard.
     {
-        ID3D11ShaderResourceView *  nullSrvs[2 + kShadowLights] = {};
+        ID3D11ShaderResourceView *  nullSrvs[3 + kShadowLights] = {};
 
-        m_context->PSSetShaderResources (0, 2 + kShadowLights, nullSrvs);
+        m_context->PSSetShaderResources (0, 3 + kShadowLights, nullSrvs);
     }
 
 Error:

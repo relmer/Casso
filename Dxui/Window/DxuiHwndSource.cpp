@@ -3839,9 +3839,9 @@ void DxuiHwndSource::BuildCaption()
     DXUI_ASSERT_UI_THREAD();
 
     m_caption = std::make_unique<DxuiCaptionBar>();
-    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard
-                                     ? DxuiCaptionBar::Buttons::MinMaxClose
-                                     : DxuiCaptionBar::Buttons::CloseOnly);
+    m_caption->ConfigureButtons (m_params.captionStyle == DxuiCaptionStyle::Standard ? DxuiCaptionBar::Buttons::MinMaxClose
+                               : m_params.captionStyle == DxuiCaptionStyle::MaxClose ? DxuiCaptionBar::Buttons::MaxClose
+                                                                                     : DxuiCaptionBar::Buttons::CloseOnly);
     m_caption->SetSystemHwnd (m_hwnd);
     m_caption->SetTitle      (m_params.title);
     m_caption->SetMaximized  (IsZoomed (m_hwnd) != FALSE);
@@ -3946,6 +3946,100 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionAccessory
+//
+//  Hands the control to the caption and lays the caption out again at once,
+//  so the control has its column before the next paint rather than after
+//  the next resize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessory (IDxuiControl * accessory)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_caption)
+    {
+        return;
+    }
+
+    m_caption->SetAccessory (accessory);
+
+    RelayoutCaptionNow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCaptionAccessoryWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetCaptionAccessoryWidth (int widthDip)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetAccessoryWidthDip (widthDip);
+        RelayoutCaptionNow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCaptionReservedWidthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetCaptionReservedWidthDip() const
+{
+    return m_caption ? m_caption->GetReservedWidthDip() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RelayoutCaptionNow
+//
+//  Lays the caption out against the current client size at once, so a
+//  change to what it holds shows on the next paint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::RelayoutCaptionNow()
+{
+    RECT  clientPx  = {};
+    RECT  clientDip = {};
+
+
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &clientPx))
+    {
+        clientDip        = clientPx;
+        clientDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        clientDip.bottom = MulDiv (clientPx.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+        LayoutCaption (clientDip);
+        InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 }
 

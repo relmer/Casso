@@ -9,6 +9,7 @@
 #include "CommandLineParser.h"
 #include "CommandLineHelp.h"
 #include "Dialect.h"
+#include "Core/TextEncoding.h"
 
 #include "CppUnitTest.h"
 
@@ -65,7 +66,7 @@ namespace CliSwitchCoverageTests
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 

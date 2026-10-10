@@ -4,6 +4,7 @@
 #include "ControllerRig.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -311,7 +312,7 @@ namespace DebuggerTests
 
             lines = Render ("k", data);
 
-            Assert::IsTrue (lines[1].find ("0310 printline ") != std::string::npos, std::wstring (lines[1].begin(), lines[1].end()).c_str());
+            Assert::IsTrue (lines[1].find ("0310 printline ") != std::string::npos, TextEncoding::NarrowToWide (lines[1]).c_str());
         }
 
         //  With OUTPUT WINDBG, a Monitor examine written DA is the byte at $DA,
@@ -328,8 +329,8 @@ namespace DebuggerTests
             reply = rig.Run ("DA", CommandMode::Monitor);
 
             Assert::IsFalse (reply.text.empty());
-            Assert::IsTrue  (reply.text[0].starts_with ("00da  "), std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
-            Assert::IsTrue  (reply.text[0].find ('"') == std::string::npos, std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
+            Assert::IsTrue  (reply.text[0].starts_with ("00da  "), TextEncoding::NarrowToWide (reply.text[0]).c_str());
+            Assert::IsTrue  (reply.text[0].find ('"') == std::string::npos, TextEncoding::NarrowToWide (reply.text[0]).c_str());
         }
 
         TEST_METHOD (Evaluate_AndFormats)

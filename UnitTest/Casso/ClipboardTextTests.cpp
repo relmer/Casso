@@ -105,7 +105,7 @@ public:
         aux[kRow0 + 0] = Screen ('A');   // even display column 0
         aux[kRow0 + 1] = Screen ('C');   // even display column 2
 
-        row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (nullptr, aux.data()));
 
         Assert::AreEqual (std::wstring (L"ABCD"), row,
                           L"80-column scrape must interleave aux(even)+main(odd)");
@@ -123,7 +123,7 @@ public:
         bus.AddDevice (&rd80);
 
         // No aux bank (nullptr) => plain 40-column main-page read.
-        row = FirstRow (clip.BuildScreenText (nullptr));
+        row = FirstRow (clip.BuildScreenText (nullptr, nullptr));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"40-column scrape reads the main text page unchanged");
@@ -145,9 +145,65 @@ public:
         aux[kRow0 + 0] = Screen ('A');
         aux[kRow0 + 1] = Screen ('C');
 
-        row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (nullptr, aux.data()));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"RD80VID clear must gate off the aux interleave");
+    }
+
+    // RAMRD, or 80STORE with PAGE2, re-points the bus's text page at aux. The
+    // scrape reads main from the buffer it is given, not the bank the CPU is
+    // reading.
+    static void  BankTextPageToOther (MemoryBus & bus, std::vector<Byte> & other)
+    {
+        other.assign (0x10000, 0);
+        other[kRow0 + 0] = Screen ('X');
+        other[kRow0 + 1] = Screen ('Y');
+
+        for (int page = 0x04; page <= 0x07; ++page)
+        {
+            bus.SetReadPage (page, other.data() + page * 0x100);
+        }
+    }
+
+    TEST_METHOD (BuildScreenText_FortyColumn_ReadsMainBufferWhileTheBusServesAux)
+    {
+        MemoryBus          bus;
+        std::vector<Byte>  main;
+        std::vector<Byte>  banked;
+        std::wstring       row;
+        Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
+
+        MapMainTextPages (bus, main);
+        bus.AddDevice (&rd80);
+        BankTextPageToOther (bus, banked);
+
+        row = FirstRow (clip.BuildScreenText (main.data(), nullptr));
+
+        Assert::AreEqual (std::wstring (L"BD"), row,
+                          L"the 40-column scrape reads main, not the bank the CPU is reading");
+    }
+
+    TEST_METHOD (BuildScreenText_EightyColumn_ReadsMainBufferWhileTheBusServesAux)
+    {
+        MemoryBus          bus;
+        std::vector<Byte>  main;
+        std::vector<Byte>  banked;
+        std::wstring       row;
+        std::vector<Byte>  aux (0x10000, 0);
+        Rd80VidStub        rd80 (/*on*/ true);
+        ClipboardManager   clip = MakeClipboard (bus);
+
+        MapMainTextPages (bus, main);
+        bus.AddDevice (&rd80);
+        BankTextPageToOther (bus, banked);
+        aux[kRow0 + 0] = Screen ('A');
+        aux[kRow0 + 1] = Screen ('C');
+
+        row = FirstRow (clip.BuildScreenText (main.data(), aux.data()));
+
+        Assert::AreEqual (std::wstring (L"ABCD"), row,
+                          L"the odd 80-column cells come from main, not the bank the CPU is reading");
     }
 };

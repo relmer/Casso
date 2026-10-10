@@ -20,13 +20,13 @@ class AppleSpeaker;
 //  $C000-$C01F to $C000-$C063 so reads of $C061/$C062/$C063 land here.
 //
 //  Logical ownership (Phase 6 / T061):
-//    - Keyboard owns:  $C000-$C00B (data), $C010 (strobe-clear),
-//                      $C061-$C063 (modifier reads).
-//    - Soft-switch bank owns: $C011-$C01F (status reads — bit 7 from
+//    - Keyboard owns:  $C000-$C00F reads (keyboard data), $C010
+//                      (strobe-clear), $C061-$C063 (modifier reads).
+//    - Soft-switch bank owns: $C000-$C00F writes (MMU switches, 80COL,
+//                      ALTCHARSET), $C011-$C01F (status reads — bit 7 from
 //                      MMU/LC/VideoTiming/SoftSwitchBank, bits 0-6 from
 //                      the keyboard latch via GetLatchedKeyDataBits()),
-//                      $C00C-$C00F (80COL/ALTCHARSET), $C050-$C05F
-//                      (display switches).
+//                      $C050-$C05F (display switches).
 //    - Speaker owns:   $C030-$C03F (toggle).
 //
 //  The bus first-match-wins ordering means this device wins for every
@@ -104,6 +104,7 @@ public:
     // The game-port adapter, asked first for every $C061-$C063 read. Null on
     // the //c, which has no annunciators to drive one.
     void SetJoyport (const class SiriusJoyport * joyport) { m_joyport = joyport; }
+    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
 
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
@@ -210,6 +211,7 @@ protected:
     class LanguageCard *           m_lc                = nullptr;
     class IVideoTiming *           m_videoTiming       = nullptr;
     class AppleMouse *             m_mouse             = nullptr;
+    class CassettePort *           m_cassettePort      = nullptr;
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
 

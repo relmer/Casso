@@ -33,6 +33,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -41,6 +42,7 @@
 #include "Config/DiskSettings.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
 #include "Core/JsonParser.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
@@ -65,6 +67,7 @@
 #include "Machines/MachineDefinition.h"
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32ControllerBackend.h"
+#include "Seams/Win32DiskFileIo.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -215,6 +218,10 @@ EmulatorShell::~EmulatorShell()
     SetNotifyFunction (nullptr);
     s_pNotifyShell = nullptr;
 
+    // The update workers next: a download in flight is canceled, and every
+    // worker is joined before anything it posts to or reads from goes.
+    StopUpdateService();
+
     // The window posts to the CPU thread through this shell, so it is cut off
     // before either goes.
     if (m_debuggerWindow != nullptr)
@@ -313,6 +320,10 @@ EmulatorShell::~EmulatorShell()
     // quitting right after a volume nudge would otherwise lose it.
     FlushDeferredGlobalPrefs();
 
+    // An update applied when Casso closes, now that the disks and the
+    // preferences are written.
+    CommitPendingUpdateAtExit();
+
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
@@ -363,12 +374,9 @@ EmulatorShell::~EmulatorShell()
 //  The window is created before the devices because the renderer needs an
 //  HWND, and the devices need the renderer's device / context.
 //
-//  Video watch pages are marked once, here, rather than per machine: a write
-//  into text pages 1/2 ($0400-$0BFF) or hi-res pages 1/2 ($2000-$5FFF) raises
-//  the bus video-dirty flag that drives the render-skip gate. Watching the
-//  PAGE INDEX covers main and aux together, since the //e MMU re-points those
-//  same indices, and the page layout is identical on every Apple II variant --
-//  so this survives an in-session machine switch untouched.
+//  The video watch pages that drive the render-skip gate are not marked here:
+//  MachineBuilder::Build marks them on every build, because a machine switch
+//  replaces the bus and its marks with it.
 //
 //  ReconcileInitialClientSize runs after ShowWindow (the non-client frame is
 //  not fully materialized before that) but before UpdateWindowTitle, so a
@@ -395,9 +403,11 @@ HRESULT EmulatorShell::Initialize (
     const wstring       & machineName,
     const MachineConfig & config,
     const string        & disk1Path,
-    const string        & disk2Path)
+    const string        & disk2Path,
+    const string        & tapePath)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    HRESULT  hrTape = S_OK;
 
 
 
@@ -526,22 +536,6 @@ HRESULT EmulatorShell::Initialize (
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    // Mark the display pages so a write into them raises the bus video-dirty
-    // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
-    // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the
-    // //e MMU re-points them), so watching the index covers main and aux.
-    // The page layout is identical across every Apple II variant, so this is
-    // set once and survives an in-session machine switch.
-    for (int page = 0x04; page <= 0x0B; page++)
-    {
-        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
-    }
-
-    for (int page = 0x20; page <= 0x5F; page++)
-    {
-        m_machine.GetMemoryBus().SetVideoWatchPage (page, true);
-    }
-
     hr = InitializeRenderer();
     CHR (hr);
 
@@ -635,6 +629,22 @@ HRESULT EmulatorShell::Initialize (
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
 
+    // A tape given on the command line goes in instead of the remembered one,
+    // and is remembered in its place, as --disk1 is.
+    if (tapePath.empty())
+    {
+        hrTape = m_tapeManager->RestoreSavedTape();
+        IGNORE_RETURN_VALUE (hrTape, S_OK);
+    }
+    else if (MachineHasCassettePort())
+    {
+        m_tapeManager->Insert (tapePath);
+    }
+    else
+    {
+        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
+    }
+
     ApplyPersistedAudioPrefs();
 
 Error:
@@ -711,6 +721,21 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  gets. --no-image-watch installs one that refuses every watch, so the
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+
+    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
+                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
+    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
+
+    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
+    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
+    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
+                                                   m_uiFs,
+                                                   *m_userConfigStore,
+                                                   m_tapeAudioDecoder,
+                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
+                                                   [this] () { return m_machine.GetCurrentMachineName(); },
+                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
+    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
 }
 
 
@@ -1140,6 +1165,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
                 m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
+
+        RegisterTapeDropTarget();
     }
 
     if (m_fOleInitialized)
@@ -1195,14 +1222,15 @@ void EmulatorShell::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    //  A drop is a hand-off like an insert from another tool: its folder joins
-    //  the known-folder list once the mount succeeds, with nobody to answer.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.GetHitTester(), [this] (int tag, const std::wstring & path)
+    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
+                                          &m_uiShell.GetHitTester(),
+                                          [this] (int tag, const std::wstring & path) { OnFileDropped (tag, path); },
+                                          [] (const std::wstring & path)
                                           {
-                                              m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
-                                              Mount (6, tag, path);
-                                          },
-                                          IsSupportedDiskImageExtension);
+                                              return IsSupportedDiskImageExtension (path) ||
+                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                          });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
 
     // UIPI whitelist. When Casso runs at a higher integrity
@@ -1304,6 +1332,31 @@ bool EmulatorShell::MachineHasBuiltInDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ComposeDriveInfoTooltip
+//
+//  Every presentation's info icon shows the same words, all from the drive's
+//  sampled state: the WOZ requirements and the machine they were checked
+//  against. The machine's config is not read here, because this runs on a
+//  pointer move, outside the machine's lifetime lock, and a machine switch on
+//  the CPU thread can be replacing that config at the same moment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
+{
+    const DriveWidgetState  & st = m_driveWidgetState[drive];
+
+
+
+    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::GetAuxRamBuffer
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1311,6 +1364,21 @@ bool EmulatorShell::MachineHasBuiltInDrive() const
 const Byte * EmulatorShell::GetAuxRamBuffer() const
 {
     return m_machineBuilder != nullptr ? m_machineBuilder->GetAuxRamBuffer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetMainRamBuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Byte * EmulatorShell::GetMainRamBuffer() const
+{
+    return m_machineBuilder != nullptr ? m_machineBuilder->GetMainRamBuffer() : nullptr;
 }
 
 

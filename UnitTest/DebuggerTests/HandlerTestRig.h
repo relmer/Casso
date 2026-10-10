@@ -7,6 +7,7 @@
 #include "UiTests/InMemoryFileSystem.h"
 #include "Debugger/SynchronousRunDriver.h"
 #include "Debugger/MachineDebugTarget.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -79,7 +80,7 @@ public:
     {
         Reply         reply = Run (line);
         std::string   why   = line + ": " + reply.error.label + ", " + reply.error.detail;
-        std::wstring  where (why.begin(), why.end());
+        std::wstring  where = TextEncoding::NarrowToWide (why);
 
 
 
@@ -90,7 +91,7 @@ public:
     Reply RunFails (const std::string & line, const std::string & label)
     {
         Reply         reply = Run (line);
-        std::wstring  where (line.begin(), line.end());
+        std::wstring  where = TextEncoding::NarrowToWide (line);
 
 
 
@@ -174,7 +175,7 @@ public:
     {
         Reply         reply = Run (line);
         std::string   why   = line + ": " + reply.error.label + ", " + reply.error.detail;
-        std::wstring  where (why.begin(), why.end());
+        std::wstring  where = TextEncoding::NarrowToWide (why);
 
 
 
@@ -185,7 +186,7 @@ public:
     Reply RunFails (const std::string & line, const std::string & label)
     {
         Reply         reply = Run (line);
-        std::wstring  where (line.begin(), line.end());
+        std::wstring  where = TextEncoding::NarrowToWide (line);
 
 
 

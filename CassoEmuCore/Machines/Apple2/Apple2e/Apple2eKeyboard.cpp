@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -49,23 +50,29 @@ Byte Apple2eKeyboard::Read (Word address)
 
 
 
-    // Everything the soft-switch bank owns, forwarded identically:
-    //   $C00C-$C00F  80COL / ALTCHARSET
+    // Everything the soft-switch bank owns on a read, forwarded identically:
     //   $C011-$C01F  status reads (T061 ownership split)
     //   $C028        //c ROM-bank flip-flop (ROMBANK), which toggles the
     //                visible firmware bank on any access; unused on the //e,
     //                where the sibling no-ops with no ROM-bank switch attached
     //   $C050-$C05F  video display switches
-    bool  isSoftSwitch = (address >= 0xC00C && address <= 0xC00F)
-                         || (address >= 0xC011 && address <= 0xC01F)
+    // $C00C-$C00F (80COL / ALTCHARSET) are write-only switches. A read of any
+    // address in $C000-$C00F returns the keyboard latch (Sather p. 5-29), so
+    // those reads stay with the base keyboard below.
+    bool  isSoftSwitch = (address >= 0xC011 && address <= 0xC01F)
                          || (address == 0xC028)
                          || (address >= 0xC050 && address <= 0xC05F);
 
 
     // Each arm carries its own sibling test rather than sharing one up front:
-    // with the sibling absent the address must keep falling through, and for
-    // $C00C-$C00F that means reaching the base keyboard below.
-    if (isSoftSwitch && m_softSwitchSibling != nullptr)
+    // with the sibling absent the address must keep falling through. The
+    // cassette output comes first so $C028 toggles it on the //e; the //c,
+    // whose ROM bank flips there, has no cassette port.
+    if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
+    }
+    else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {
         value = m_softSwitchSibling->Read (address);
     }
@@ -85,6 +92,11 @@ Byte Apple2eKeyboard::Read (Word address)
         value = ReadButton (address);
         EmitButtonRead (address, value);
     }
+    else if (address == CassettePort::kInputAddress && m_cassettePort != nullptr)
+    {
+        // Cassette input, bit 7; the rest of the byte reads 0 as before.
+        value = m_cassettePort->ReadInputLevel() ? CassettePort::kInputBit : 0;
+    }
     else if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
     {
         // $C060 (RD80SW): the //c 80/40 case switch, bit 7. A switch pressed
@@ -103,7 +115,7 @@ Byte Apple2eKeyboard::Read (Word address)
     }
     else if (address <= 0xC010)
     {
-        // $C000-$C00B (keyboard data) and $C010 (strobe-clear) belong to the
+        // $C000-$C00F (keyboard data) and $C010 (strobe-clear) belong to the
         // base AppleKeyboard. Other unowned addresses ($C020-$C02F,
         // $C040-$C04F, $C060) keep the 0 — no device behind them on a //e.
         value = AppleKeyboard::Read (address);
@@ -639,6 +651,10 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     if (address == 0xC010)
     {
         AppleKeyboard::Write (address, value);
+    }
+    else if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
     }
     else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {

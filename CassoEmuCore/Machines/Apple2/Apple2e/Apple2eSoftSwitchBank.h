@@ -93,6 +93,9 @@ public:
     // The game-port adapter, asked first for every paddle read.
     void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
 
+    // The cassette port, for the $C068 mirror of its input.
+    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
+
     // Attach the input-debug notification sink.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
 
@@ -170,6 +173,7 @@ private:
     InputJournal         * m_inputJournal                               = nullptr;
     HeldInputWatch       * m_heldInputWatch                             = nullptr;
     Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
+    class CassettePort   * m_cassettePort                               = nullptr;
     uint64_t               m_paddleTriggerCycle                         = 0;
     bool                   m_80colMode                                  = false;
     bool                   m_doubleHiRes                                = false;

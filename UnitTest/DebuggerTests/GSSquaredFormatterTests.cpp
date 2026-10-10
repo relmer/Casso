@@ -7,6 +7,7 @@
 #include "MockDebugTarget.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -36,7 +37,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
         //  The fixture's lines. The file's last newline ends its last line
@@ -373,7 +374,7 @@ namespace DebuggerTests
 
             GSSquaredFormatter::Format (lookup);
             Assert::AreEqual ((size_t) 1, lookup.text.size());
-            Assert::IsTrue   (lookup.text[0].ends_with ("0028: WIDTH (constant)"), std::wstring (lookup.text[0].begin(), lookup.text[0].end()).c_str());
+            Assert::IsTrue   (lookup.text[0].ends_with ("0028: WIDTH (constant)"), TextEncoding::NarrowToWide (lookup.text[0]).c_str());
         }
 
         //  GSSquared's own deposit prints nothing; here it says what it wrote,

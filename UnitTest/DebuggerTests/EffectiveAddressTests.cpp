@@ -4,6 +4,7 @@
 #include "TestCpu65C02.h"
 #include "Debugger/EffectiveAddress.h"
 #include "MockExpressionContext.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -128,8 +129,8 @@ namespace DebuggerTests
                 AccessPrediction       prediction;
                 const Microcode      * table     = c.isCmos ? cmos.GetInstructionSet() : nmos.GetInstructionSet();
                 std::string            narrow (c.name);
-                std::wstring           where (narrow.begin(), narrow.end());
-                HRESULT                hr        = S_OK;
+                std::wstring  where = TextEncoding::NarrowToWide (narrow);
+                HRESULT       hr    = S_OK;
 
 
 

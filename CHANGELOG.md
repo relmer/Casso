@@ -10,12 +10,102 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- An info icon after a mounted WOZ image's name when the models or the minimum
+  RAM the image declares do not match the running machine. Hovering it lists
+  what the image declares and marks whether the running machine meets each
+  requirement. In the flat themes, on the desk and on the fullscreen drive
+  strip.
+
+### Fixed
+
+- Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.
+  In 80-column text mode, a program writing auxiliary memory at $2000-$3FFF
+  wrote main memory instead.
+- The disk head now lands at the same point of the revolution when it steps
+  between tracks of different lengths, which cross-track-synchronized copy
+  protection depends on.
+- The //e and //c screen no longer shows auxiliary memory in 40-column text,
+  lo-res or hi-res while a program has switched auxiliary memory in for the
+  processor. Copy text copies the text the screen shows.
+- After a switch to another machine, the screen updates as the program draws.
+  It had repainted only about four times a second until Casso restarted.
+- On the //c, reading $C07E or $C07F returns the IOUDIS or DHIRES status bit
+  without switching IOU access, so a program that acknowledges the VBL
+  interrupt with LDA $C07E keeps its mouse and VBL interrupt settings.
+- Reading $C00C-$C00F returns the keyboard, as on a real //e or //c, instead of
+  switching the 80-column display or the character set.
+- On the //e, a write to $C3xx, or a read of it with INTCXROM on, now activates
+  the 80-column firmware's ROM at $C800-$CFFF, as on a real //e.
+- On the //c, the mouse pointer no longer moves toward the wrong spot while a
+  program has switched auxiliary memory in.
+- Writing sectors with the `disk` command changes only those sectors. The rest
+  of each track, its volume number, sync and length, and on a WOZ flux track
+  its recorded timing, remains unchanged.
+- The `disk` command writes to WOZ images in the standard track layout and
+  finds each track through the image's track map.
+- The `disk` command now flushes the new image to the drive before it replaces
+  the old one, so a power loss just after the command finishes can no longer
+  leave the image empty or partly written. Casso now sets the attributes,
+  creation date, and permissions to match the old file.
+
+## [1.32.0] - 2026-10-07: The one where Casso updates itself
+
+### Added
+
+- Casso checks for a new release at startup, at most once a day, and shows a
+  title-bar indicator when one is available. Help > Check for updates checks
+  right away.
+- The update dialog shows the new release's highlights and its changelog
+  entries for every version since the one running, newest first, with the
+  release's screenshots.
+- Update now downloads the new version, checks it, installs it and restarts
+  Casso. Update when closed installs it the next time Casso closes. Copies
+  installed from the MSIX package and copies unzipped from the release zip both
+  update in place; a copy built from source does not.
+- Skip this version hides the indicator until a newer release comes out.
+- A General settings page for app-wide options: automatic update checks, with
+  the time of the last check, a Check now button and a way to cancel a skipped
+  version; the download offers at startup (disk drive sounds and updated ROMs),
+  which could not be changed after the first answer; and a link to the settings
+  folder.
+
+### Changed
+
+- A release build fails rather than publishing unsigned files.
+- Settings tabs are sized to their labels.
+
+## [1.31.0] - 2026-10-06: The one with cassette tape support
+
+### Added
+
 - `disk create` appends the default file extension for `--type` if one is not
   specified
+- GH #160: Cassette tape support for the Apple ][, ][+ and //e. Programs load
+  through the machine's own ROM with `LOAD` and save with `SAVE`, from WAV,
+  AIFF, MP3 and FLAC recordings. Tested against the 25 most-downloaded Apple II
+  cassette titles on the Internet Archive.
+- GH #160: A Panasonic RQ-309DS cassette recorder on the desk, with working
+  Record, Rewind, Fast-forward, Play, Stop and Eject keys, a volume wheel, a
+  counter, and the tape's title handwritten on the cassette label. A tape deck
+  also appears in the flat themes and on the fullscreen drive strip.
+- GH #160: Fast tape loading, on by default: loading from tape runs at full
+  speed, with short slices of the tape's audio played at normal pitch.
+- GH #160: Recording onto a blank tape, created from the insert-tape dialog,
+  as a 16-bit or 8-bit WAV (Settings > Storage).
+- GH #160: The `--tape` command-line option inserts a recording at startup.
+- GH #160: Attach and detach the second drive and the cassette recorder from
+  the Storage menu, or by right-clicking a drive or the recorder. The choice is
+  saved per machine.
+- A "Hold Ctrl to pan" hint appears under the scene compass on hover. With
+  Ctrl held, the compass arrows pan the scene, and Ctrl+click on its center is
+  the same as Ctrl+0.
 
 ### Changed
 
 - The usage text lists `--title`, which adds a label to the window title.
+- GH #160: The Disk menu is now the Storage menu.
+- GH #160: The second drive (the external drive on the //c) is attached from
+  the Storage menu instead of Settings > Hardware.
 
 ### Fixed
 

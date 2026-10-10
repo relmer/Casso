@@ -2,6 +2,7 @@
 
 #include "Debugger/RomSymbols.h"
 #include "Debugger/SymbolTable.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,7 +33,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
             Assert::IsTrue   (loaded > 0, L"a shipped table is not empty");
             return loaded;
         }

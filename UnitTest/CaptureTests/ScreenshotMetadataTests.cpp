@@ -2,6 +2,7 @@
 
 #include "Capture/ScreenshotMetadata.h"
 #include "Devices/Printer/PngMetadata.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -352,7 +353,7 @@ namespace ScreenshotMetadataTests
     private:
         static wstring ToWide (const string & s)
         {
-            return wstring (s.begin(), s.end());
+            return TextEncoding::NarrowToWide (s);
         }
     };
 }

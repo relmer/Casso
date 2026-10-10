@@ -302,7 +302,7 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (BusDispatch_C00D_Read_Enables80ColMode)
+    TEST_METHOD (BusDispatch_C00C_Write_Disables80ColMode)
     {
         MemoryBus              bus;
         Apple2eSoftSwitchBank  sw  (&bus);
@@ -312,30 +312,14 @@ public:
         bus.AddDevice (&kbd);
         bus.AddDevice (&sw);
 
-        bus.ReadByte (0xC00D);
-
-        Assert::IsTrue (sw.Is80ColMode(),
-            L"Read of $C00D through bus should enable 80COL mode");
-    }
-
-    TEST_METHOD (BusDispatch_C00C_Read_Disables80ColMode)
-    {
-        MemoryBus              bus;
-        Apple2eSoftSwitchBank  sw  (&bus);
-        Apple2eKeyboard        kbd (&bus);
-
-        kbd.SetSoftSwitchSibling (&sw);
-        bus.AddDevice (&kbd);
-        bus.AddDevice (&sw);
-
-        bus.ReadByte (0xC00D);   // turn on
-        bus.ReadByte (0xC00C);   // turn off
+        bus.WriteByte (0xC00D, 0);   // turn on
+        bus.WriteByte (0xC00C, 0);   // turn off
 
         Assert::IsFalse (sw.Is80ColMode(),
-            L"Read of $C00C through bus should disable 80COL mode");
+            L"Write of $C00C through bus should disable 80COL mode");
     }
 
-    TEST_METHOD (BusDispatch_C00F_Read_EnablesAltCharSet)
+    TEST_METHOD (BusDispatch_C00F_Write_EnablesAltCharSet)
     {
         MemoryBus              bus;
         Apple2eSoftSwitchBank  sw  (&bus);
@@ -345,10 +329,37 @@ public:
         bus.AddDevice (&kbd);
         bus.AddDevice (&sw);
 
-        bus.ReadByte (0xC00F);
+        bus.WriteByte (0xC00F, 0);
 
         Assert::IsTrue (sw.IsAltCharSet(),
-            L"Read of $C00F through bus should enable alt char set");
+            L"Write of $C00F through bus should enable alt char set");
+    }
+
+    // 80COL and ALTCHARSET are write-only. Reading $C00C-$C00F returns the
+    // keyboard latch like the rest of $C000-$C00F (Sather p. 5-29) and leaves
+    // both switches as they were.
+    TEST_METHOD (BusDispatch_C00C_C00F_ReadsReturnKeyboardDataAndSwitchNothing)
+    {
+        MemoryBus              bus;
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        kbd (&bus);
+        Byte                   latch = 0;
+
+        kbd.SetSoftSwitchSibling (&sw);
+        bus.AddDevice (&kbd);
+        bus.AddDevice (&sw);
+
+        bus.WriteByte (0xC00D, 0);   // 80COL on
+        kbd.PressKey ('A');
+        latch = bus.ReadByte (0xC000);
+
+        for (Word address = 0xC00C; address <= 0xC00F; address++)
+        {
+            Assert::AreEqual (latch, bus.ReadByte (address), L"$C00C-$C00F read the keyboard latch");
+        }
+
+        Assert::IsTrue  (sw.Is80ColMode(),  L"a $C00C read must not clear 80COL");
+        Assert::IsFalse (sw.IsAltCharSet(), L"a $C00F read must not set ALTCHARSET");
     }
 
     TEST_METHOD (BusDispatch_C055_Read_NotifiesBankingThroughBus)

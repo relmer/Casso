@@ -5,6 +5,7 @@
 #include "OpcodeTable.h"
 #include "Disassembler.h"
 #include "Debugger/LineAssembler.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -47,8 +48,8 @@ namespace DebuggerTests
 
             status = LineAssembler (opcodes).TryAssemble (address, line, bytes, error);
 
-            Assert::AreEqual ((int) expectedStatus, (int) status, std::wstring (line.begin(), line.end()).c_str());
-            Assert::IsTrue   (std::vector<Byte> (expectedBytes) == bytes, std::wstring (line.begin(), line.end()).c_str());
+            Assert::AreEqual ((int) expectedStatus, (int) status, TextEncoding::NarrowToWide (line).c_str());
+            Assert::IsTrue   (std::vector<Byte> (expectedBytes) == bytes, TextEncoding::NarrowToWide (line).c_str());
             Assert::AreEqual (status == LineAssemblyStatus::Ok, error.empty());
         }
 
@@ -98,7 +99,7 @@ namespace DebuggerTests
                 }
 
                 line   = instruction.mnemonic + " " + instruction.operand;
-                where  = std::wstring (line.begin(), line.end());
+                where  = TextEncoding::NarrowToWide (line);
                 status = assembler.TryAssemble (kAddress, line, bytes, error);
 
                 Assert::AreEqual ((int) LineAssemblyStatus::Ok, (int) status, where.c_str());

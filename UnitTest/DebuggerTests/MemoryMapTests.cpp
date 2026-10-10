@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/MemoryMap.h"
 #include "HandlerTestRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -194,7 +195,7 @@ namespace DebuggerTests
     private:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
     };
 }

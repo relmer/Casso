@@ -34,7 +34,7 @@ std::vector<RamRegion> Apple2::GetRam() const
 //
 //  Apple2::GetInternalDevices
 //
-//  The motherboard: keyboard, speaker, soft switches, game port.
+//  The motherboard: keyboard, speaker, soft switches, game port, cassette jacks.
 //
 //  Everything here is on the board rather than in a slot, which is what makes
 //  it the machine's rather than its owner's. What went into the slots is the
@@ -47,7 +47,8 @@ std::vector<InternalDevice> Apple2::GetInternalDevices() const
     std::vector<InternalDevice>  devices = { { .type = "apple2-family-keyboard" },
                                              { .type = "apple2-family-speaker" },
                                              { .type = "apple2-family-softswitches" },
-                                             { .type = "apple2-family-gameport" } };
+                                             { .type = "apple2-family-gameport" },
+                                             { .type = "apple2-family-cassette" } };
 
 
 

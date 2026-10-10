@@ -45,7 +45,13 @@ public:
 
     static Word GetScanlineAddress (int scanline, Word pageBase);
 
+    // Main RAM, read directly in preference to the bus; see ReadScreenByte.
+    void SetMainMemory (const Byte * mainMem) { m_mainMem = mainMem; }
+
 private:
-    MemoryBus & m_bus;
-    bool        m_monochrome = false;
+    Byte ReadScreenByte (const Byte * videoRam, Word addr) const;
+
+    MemoryBus  & m_bus;
+    const Byte * m_mainMem    = nullptr;
+    bool         m_monochrome = false;
 };

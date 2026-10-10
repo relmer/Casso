@@ -286,13 +286,22 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     DxuiMessageResult  result       = DxuiMessageResult::NotHandled;
     int                x            = ((int) (short) LOWORD (lParam));
     int                y            = ((int) (short) HIWORD (lParam));
+    POINT              pointer      = { x, y };
     bool               leftDown     = (wParam & MK_LBUTTON) != 0;
     bool               shellHandled = false;
     DriveWidget *      wpDrive      = nullptr;
+    DriveWidget *      infoDrive    = nullptr;
     int64_t            nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
+
+    // The update indicator sits in the caption, above every band, so a move
+    // over it is its own and nothing below sees it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // The compass sees every move: armed, it owns the gesture; idle, the
     // call is what keeps its hover highlight honest. Ahead of the drags
@@ -334,6 +343,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_sceneOrbitMoved = true;
 
         UpdateSceneOrbit (x, y);
+        return DxuiMessageResult::Handled;
+    }
+
+    // The recorder's volume wheel, held, follows the pointer across.
+    if (m_volumeDragging && leftDown && !m_paddleCaptured)
+    {
+        DragVolumeWheel (x, nowMs);
+
         return DxuiMessageResult::Handled;
     }
 
@@ -393,16 +410,52 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         UpdateGuestMouseFromHost (x, y);
     }
 
+    // The desk's names scroll under the pointer too; a change re-hangs them so
+    // the one that was scrolling comes back to its start.
+    if (UpdateSceneLabelHover (x, y, nowMs))
+    {
+        SyncSceneDriveLabels();
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // The desk recorder's key under the pointer shows its name over it, and
+    // its volume wheel, held or under the pointer, how loud it is set -- in
+    // the same label, which changes in place rather than reopening.
+    {
+        int    key   = -1;
+        POINT  pt    = { x, y };
+        RECT   wheel = GetVolumeWheelRect();
+
+        if (DeskSceneActive() && (m_volumeDragging || PtInRect (&wheel, pt)))
+        {
+            key = s_kVolumeWheelLabelKey;
+        }
+        else if (DeskSceneActive())
+        {
+            SceneHitResult  hit = RecorderHit (x, y);
+
+            key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
+        }
+
+        if (key != m_recorderHoverKey)
+        {
+            m_recorderHoverKey = key;
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
     for (DriveWidget & drive : m_driveChrome)
     {
-        RECT  outer  = drive.GetOuterRect();
-        bool  inside = x >= outer.left && x < outer.right &&
-                       y >= outer.top  && y < outer.bottom;
+        RECT  outer    = drive.GetOuterRect();
+        RECT  iconRect = drive.GetInfoIconRect();
+        bool  inside   = x >= outer.left && x < outer.right &&
+                         y >= outer.top  && y < outer.bottom;
+        bool  onIcon   = drive.HasWozConflict() && PtInRect (&iconRect, pointer);
 
-        if (drive.UpdateMarqueeHover (inside, nowMs))
+        if (drive.UpdateMarqueeHover (inside, onIcon, nowMs))
         {
             // The band's button treatment appeared or went away. A static
             // emulator picture presents no frames on its own, so without this
@@ -414,6 +467,16 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         {
             wpDrive = &drive;
         }
+
+        if (onIcon)
+        {
+            infoDrive = &drive;
+        }
+    }
+
+    if (m_tapeChrome.UpdateHover (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 
     shellHandled = m_uiShell.OnMouseMove (x, y, leftDown);
@@ -487,7 +550,29 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         std::wstring  tip;
         RECT          anchor = {};
 
-        if (DeskSceneActive())
+        // The info icon answers first wherever it is drawn. Its target sits
+        // inside the label and the widget, which explain other things, and
+        // the pointer resting on the icon is asking about the icon.
+        if (!DeskSceneActive() && infoDrive != nullptr)
+        {
+            anchor = infoDrive->GetInfoIconRect();
+            tip    = ComposeDriveInfoTooltip (infoDrive->GetDrive());
+        }
+
+        if (tip.empty() && DeskSceneActive())
+        {
+            for (int i = 0; i < (int) m_sceneInfoIconRect.size(); i++)
+            {
+                if (m_driveWidgetState[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pointer))
+                {
+                    anchor = m_sceneInfoIconRect[i];
+                    tip    = ComposeDriveInfoTooltip (i);
+                    break;
+                }
+            }
+        }
+
+        if (tip.empty() && DeskSceneActive())
         {
             // The name strip answers for the padlock in BOTH presentations:
             // the strip carries names and locks in fullscreen now, so the
@@ -584,12 +669,33 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     m_uiShell.OnMouseLeave();
 
+    // Leaving the window -- into the caption counts -- from the update
+    // indicator takes its tooltip down at once; nothing else would, since the
+    // indicator is a client-area control under the caption's tooltip.
+    if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
+    {
+        m_captionTooltip.HideImmediate();
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
     for (DriveWidget & drive : m_driveChrome)
     {
-        drive.UpdateMarqueeHover (false, nowMs);
+        drive.UpdateMarqueeHover (false, false, nowMs);
     }
+
+    // Off every control, so the recorder's magnified controls ease back down
+    // and the desk's scrolling name returns to its start.
+    m_tapeChrome.UpdateHover (INT_MIN / 2, INT_MIN / 2);
+    m_recorderHoverKey = -1;
+
+    if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
+    {
+        SyncSceneDriveLabels();
+    }
+
+    m_d3dRenderer.MarkRedrawNeeded();
 
     m_toolbar.OnToolbarMouseLeave();
     m_toolbarTooltip.RequestHide (nowMs);
@@ -781,6 +887,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              pt         = {};
     bool               overGuest  = false;
+    RECT               wheel      = GetVolumeWheelRect();
 
 
 
@@ -810,6 +917,14 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     if (overGuest)
     {
         SetCursor (nullptr);
+        result = DxuiMessageResult::Handled;
+    }
+    else if (hitTest == HTCLIENT && DeskSceneActive() &&
+             (m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
+                                   PtInRect (&wheel, pt))))
+    {
+        // A hand over the volume wheel, which can be taken hold of.
+        SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
@@ -1183,6 +1298,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (m_paddleCaptured, S_OK);
 
+    // The caption's update indicator, ahead of the capture and every band:
+    // nothing else lives in the caption strip's client area.
+    if (OfferMouseToUpdateIndicator (DxuiMouseEventKind::Down, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     SetCapture (m_hwnd);
 
     // A mouse press drops the keyboard chrome-focus ring: clicking anywhere
@@ -1314,6 +1436,68 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
+    // Ctrl turns the press into a pan, the mouse's way to do what the touchpad
+    // does with a two-finger slide. Beside the Shift orbit, for the same
+    // reasons, and like it never in fullscreen. Not on the compass, which
+    // has its own Ctrl gestures and is handled below.
+    if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+        (wParam & MK_CONTROL) != 0 && !m_mainMenu.IsOpen() &&
+        PointInSceneRect (x, y) && !chromeTook && !PointOnCompass (x, y))
+    {
+        m_scenePanning    = true;
+        m_scenePanStartPx = POINT { x, y };
+        m_scenePanStartX  = m_sceneView.panX;
+        m_scenePanStartY  = m_sceneView.panY;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Pressing on the recorder's volume wheel starts its drag, which handles
+    // every move until the release: no orbit, no click.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        float  span  = 0.0f;
+        RECT   wheel = GetVolumeWheelRect (&span);
+        POINT  pt    = { x, y };
+
+        if (PtInRect (&wheel, pt))
+        {
+            m_volumeDragging      = true;
+            m_volumeDragStartX    = x;
+            m_volumeDragStartGain = m_tapeAudioSource.GetVolume();
+            m_volumeDragSpanPx    = span;
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
+    // A desk recorder key starts down the moment it is pressed, as under a
+    // finger, and stays down while the button is held; what it does still
+    // waits for the release, like any button. Stop is the exception: it is
+    // the key reaching the bottom that trips the latch, so the held keys are
+    // released then, with the button still down.
+    if (DeskSceneActive() && !m_mainMenu.IsOpen())
+    {
+        SceneHitResult  keyHit = RecorderHit (x, y);
+
+        if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
+        {
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
+            m_recorderHeldKey                               = keyHit.recorderKey;
+
+            if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
+            {
+                m_recorderReleaseAtMs = nowMs + s_kRecorderKeyDownMs;
+            }
+
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // The compass outranks everything on the scene: it is drawn on top,
     // so a press where it sits belongs to it.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
@@ -1437,6 +1621,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     int                                  x             = ((int) (short) LOWORD (lParam));
     int                                  y             = ((int) (short) HIWORD (lParam));
     DriveWidgetRegion                    region        = DriveWidgetRegion::None;
+    TapeDeckRegion                       tapeRegion    = TapeDeckRegion::None;
     Apple2cSwitchBar::Part               switchPart    = Apple2cSwitchBar::Part::None;
     bool                                 toolbarTook   = false;
     bool                                 shellTook     = false;
@@ -1450,6 +1635,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (wParam);
+
+    // A desk recorder key held under the pointer comes back up with the
+    // button, wherever the pointer has gone since.
+    if (m_recorderHeldKey >= 0)
+    {
+        m_recorderHeldKey = -1;
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
 
     //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
     //  mean. OnLButtonDown takes it unconditionally, so every path out of
@@ -1469,10 +1662,26 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         ReleaseCapture();
     }
 
+    //  The update indicator's own press ends here, and its click is this
+    //  release landing on it.
+    if (!m_paddleCaptured && OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     //  The release is what makes a button fire, so the bar has to see both
     //  halves of the click.
     if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
     {
+        return DxuiMessageResult::Handled;
+    }
+
+    // Letting go of the volume wheel keeps where it was left, and the release
+    // is the drag's, not a click's.
+    if (m_volumeDragging)
+    {
+        m_volumeDragging = false;
+        PersistTapeVolume();
         return DxuiMessageResult::Handled;
     }
 
@@ -1609,12 +1818,54 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             driveTook = true;
         }
+
+        // The labels under the recorder: its counter sets the position and
+        // its name picks a tape, as on the flat deck -- on the strip too,
+        // which a dialog opened from it pins, as a drive's browse does.
+        m_stripBrowseOpen = inStrip;
+
+        if (PtInRect (&m_sceneTapeCounterRect, pt))
+        {
+            HandleTapeClick (TapeDeckRegion::Counter);
+            driveTook = true;
+        }
+        else if (PtInRect (&m_sceneTapeNameRect, pt))
+        {
+            HandleTapeClick (TapeDeckRegion::Name);
+            driveTook = true;
+        }
+
+        // A key does what the flat deck's button of the same name does, and
+        // dips as it is pressed; the rest of the case picks a tape.
+        else if (sceneHit.target == SceneHitResult::Target::Recorder)
+        {
+            if (sceneHit.recorderKey >= 0)
+            {
+                HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
+            }
+            else
+            {
+                HandleTapeClick (TapeDeckRegion::Name);
+            }
+
+            driveTook = true;
+        }
+
+        m_stripBrowseOpen = false;
     }
     else
     {
         for (DriveWidget & drive : m_driveChrome)
         {
             region = drive.HitTest (x, y);
+
+            // The info icon only explains, so a click on it is taken and
+            // nothing happens -- above all, the disk is not ejected.
+            if (region == DriveWidgetRegion::Info)
+            {
+                driveTook = true;
+                break;
+            }
 
             if (region == DriveWidgetRegion::Body || region == DriveWidgetRegion::Eject)
             {
@@ -1635,6 +1886,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 driveTook = true;
                 break;
             }
+        }
+
+        tapeRegion = driveTook ? TapeDeckRegion::None : m_tapeChrome.HitTest (x, y);
+
+        if (tapeRegion != TapeDeckRegion::None)
+        {
+            HandleTapeClick (tapeRegion);
+            driveTook = true;
         }
     }
 
@@ -1754,6 +2013,15 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         m_sceneOrbiting = false;
         ReleaseCapture();
 
+        // A motionless right-click on a drive or the recorder opens its
+        // menu; a drag that began there still turned the scene.
+        if (still && StorageDeviceAt (x, y) >= 0)
+        {
+            ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
+            m_sceneOrbitTapMs = 0;
+            return DxuiMessageResult::Handled;
+        }
+
         // Two motionless right-clicks in double-click time reset the orbit
         // -- the pose home button, without stealing a key.
         if (still)
@@ -1779,8 +2047,83 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
+    else if (!m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    {
+        // The drive band and the fullscreen strip have no orbit to share the
+        // button with: a right-click there is the device's menu.
+        int  x      = (int) (short) LOWORD (lParam);
+        int  y      = (int) (short) HIWORD (lParam);
+        int  device = StorageDeviceAt (x, y);
+
+        if (device >= 0)
+        {
+            ShowStorageContextMenu (device, x, y);
+            result = DxuiMessageResult::Handled;
+        }
+    }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StorageDeviceAt
+//
+//  Which storage device is under a client point, as the left-click chain
+//  finds it: in the desk scene (or on the fullscreen strip) its drives, the
+//  recorder and the recorder's labels; otherwise the flat drive widgets and
+//  the flat tape deck. 0 or 1 for a drive, kStorageMenuRecorder for the
+//  recorder, -1 for neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::StorageDeviceAt (int x, int y) const
+{
+    POINT  pt = { x, y };
+
+
+
+    if (DeskSceneActive())
+    {
+        bool            inStrip  = m_d3dRenderer.IsFullscreen() &&
+                                   m_stripRectPx.bottom > m_stripRectPx.top &&
+                                   PtInRect (&m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+
+        if (sceneHit.target == SceneHitResult::Target::Drive)
+        {
+            return sceneHit.driveIndex;
+        }
+
+        // The recorder has its own hit test, which checks whether it is on
+        // the strip or the desk; the drives' test does not include it.
+        if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
+            PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
+        {
+            return IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
+        }
+
+        return -1;
+    }
+
+    for (const DriveWidget & drive : m_driveChrome)
+    {
+        if (drive.IsVisible() && drive.HitTest (x, y) != DriveWidgetRegion::None)
+        {
+            return drive.GetDrive();
+        }
+    }
+
+    if (IsTapeRecorderShown() && m_tapeChrome.HitTest (x, y) != TapeDeckRegion::None)
+    {
+        return kStorageMenuRecorder;
+    }
+
+    return -1;
 }
 
 

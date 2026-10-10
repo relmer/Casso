@@ -32,11 +32,13 @@ static std::atomic<uint64_t>  s_nextImageId { 0 };
 
 DiskImage::DiskImage()
 {
-    m_trackBits.resize      (kDefaultTrackCount);
-    m_trackBitCounts.resize (kDefaultTrackCount, 0);
-    m_trackDirty.resize     (kDefaultTrackCount, false);
-    m_slotKind.resize       (kDefaultTrackCount, TrackKind::Bits);
-    m_fluxTracks.resize     (kDefaultTrackCount);
+    m_trackBits.resize            (kDefaultTrackCount);
+    m_trackBitCounts.resize       (kDefaultTrackCount, 0);
+    m_trackDirty.resize           (kDefaultTrackCount, false);
+    m_trackChangedByWriter.resize (kDefaultTrackCount, false);
+    m_trackGuestWritten.resize    (kDefaultTrackCount, false);
+    m_slotKind.resize             (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.resize           (kDefaultTrackCount);
     InitWholeTrackMap();
     RenewIdentity();
 }
@@ -126,6 +128,21 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
     }
 
     return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImage::ResolveWholeTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::ResolveWholeTrack (int track) const
+{
+    return ResolveQuarterTrack (track * kQuarterTracksPerWholeTrack);
 }
 
 
@@ -242,6 +259,11 @@ void DiskImage::SpliceFluxWrite (int slot, uint64_t startTick, const vector<uint
     }
 
     SpliceFluxBulk (slot, startTick, bits);
+
+    if (!bits.empty() && GetTrackKind (slot) == TrackKind::Flux)
+    {
+        m_trackGuestWritten[slot] = true;
+    }
 }
 
 
@@ -338,12 +360,14 @@ void DiskImage::EnsureTrackSlots (int slotCount)
     // would orphan the quarter-track map entries pointing past the new end.
     if (slotCount > static_cast<int> (m_trackBits.size()))
     {
-        m_trackBits.resize      (slotCount);
-        m_trackBitCounts.resize (slotCount, 0);
-        m_trackDirty.resize     (slotCount, false);
-        m_trackGeneration.resize (slotCount, 0);
-        m_slotKind.resize       (slotCount, TrackKind::Bits);
-        m_fluxTracks.resize     (slotCount);
+        m_trackBits.resize            (slotCount);
+        m_trackBitCounts.resize       (slotCount, 0);
+        m_trackDirty.resize           (slotCount, false);
+        m_trackChangedByWriter.resize (slotCount, false);
+        m_trackGuestWritten.resize    (slotCount, false);
+        m_trackGeneration.resize      (slotCount, 0);
+        m_slotKind.resize             (slotCount, TrackKind::Bits);
+        m_fluxTracks.resize           (slotCount);
         m_layoutGeneration++;
     }
 }
@@ -500,8 +524,9 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
             m_trackBits[track][byteIdx] = static_cast<Byte> (m_trackBits[track][byteIdx] & ~mask);
         }
 
-        m_trackDirty[track] = true;
-        m_dirty             = true;
+        m_trackDirty[track]        = true;
+        m_trackGuestWritten[track] = true;
+        m_dirty                    = true;
 
         TouchTrack (track);
     }
@@ -635,6 +660,45 @@ void DiskImage::MarkTrackDirty (int track)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImage::MarkTrackChangedByWriter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::MarkTrackChangedByWriter (int slot)
+{
+    if (slot >= 0 && slot < static_cast<int> (m_trackChangedByWriter.size()))
+    {
+        m_trackChangedByWriter[slot] = true;
+        MarkTrackDirty (slot);
+        m_layoutGeneration++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImage::IsTrackChangedOnlyByWriter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::IsTrackChangedOnlyByWriter (int slot) const
+{
+    bool  inRange = slot >= 0 && slot < static_cast<int> (m_trackChangedByWriter.size());
+
+
+
+    return inRange && m_trackChangedByWriter[slot] && !m_trackGuestWritten[slot];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClearDirty
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,7 +711,9 @@ void DiskImage::ClearDirty()
     // vector<bool> hands out a proxy, so a range-for element would have to be
     // auto&& to write through it -- and a plain uto would silently clear a
     // copy. assign says the whole thing in one line and dodges that entirely.
-    m_trackDirty.assign (m_trackDirty.size(), false);
+    m_trackDirty.assign           (m_trackDirty.size(), false);
+    m_trackChangedByWriter.assign (m_trackChangedByWriter.size(), false);
+    m_trackGuestWritten.assign    (m_trackGuestWritten.size(), false);
 }
 
 
@@ -934,11 +1000,13 @@ void DiskImage::Eject()
     m_filePath.clear();
     m_rawSourceBytes.clear();
     m_wozMetadata.Clear();
-    m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
-    m_trackBitCounts.assign (kDefaultTrackCount, 0);
-    m_trackDirty.assign     (kDefaultTrackCount, false);
-    m_slotKind.assign       (kDefaultTrackCount, TrackKind::Bits);
-    m_fluxTracks.assign     (kDefaultTrackCount, FluxTrack());
+    m_trackBits.assign            (kDefaultTrackCount, vector<Byte> ());
+    m_trackBitCounts.assign       (kDefaultTrackCount, 0);
+    m_trackDirty.assign           (kDefaultTrackCount, false);
+    m_trackChangedByWriter.assign (kDefaultTrackCount, false);
+    m_trackGuestWritten.assign    (kDefaultTrackCount, false);
+    m_slotKind.assign             (kDefaultTrackCount, TrackKind::Bits);
+    m_fluxTracks.assign           (kDefaultTrackCount, FluxTrack());
     InitWholeTrackMap();
     RenewIdentity();
     m_loaded              = false;

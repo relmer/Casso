@@ -26,6 +26,16 @@
 //  cycles -- the standard ~250 kbps Disk II data rate at 1.023 MHz. On a bit
 //  track the read pulse is sampled once per bit cell, at LSS clock 4.
 //
+//  Every bit track plays at this cell, whatever optimal bit timing a WOZ
+//  image's INFO gives. A track holds one revolution, so its bit count already
+//  sets how fast a drive turning at 300 RPM passes its bits. Playing a track
+//  faster than the controller's own cell also runs into a limit of the real
+//  sequencer: the wait before a zero is shifted in is a fixed eight clocks,
+//  so at 3.5 us a byte that ends in zeros finishes late but is still cleared
+//  on time. Some bytes then stay in the data register for 12 or 13 clocks,
+//  short of the 14 a seven-cycle polling loop needs, and the Disk II boot ROM
+//  cannot read the disk.
+//
 //  A flux track is played by time instead. Each transition reaches the
 //  sequencer on the clock where its recorded time falls, so cells written
 //  longer or shorter than nominal stay that way -- which is what copy
@@ -33,7 +43,8 @@
 //
 //  References:
 //    - "Understanding the Apple IIe" (Sather), Fig 9.11 (DOS 3.3 / 16-
-//      sector P6 Logic State Sequencer) and Table 9.3 (LSS commands).
+//      sector P6 Logic State Sequencer), Table 9.3 (LSS commands) and
+//      Table 9.5 with p. 9-33 (how long a finished byte stays valid).
 //    - WOZ disk image spec, incl. "Freaking Out Like a MC3470":
 //        https://applesauce.codes/woz/
 //    - Reference LSS stepping loop and P6 sequencer ROM adapted from
@@ -60,6 +71,11 @@ public:
     // (rawBit 0), which the head-window weak-bit model turns into the
     // ~30% random stream a real drive reads off blank surface.
     static constexpr size_t kUnformattedTrackBits = 51200;
+
+    // The read amplifier's window: with no transition in this many cells it
+    // has no signal to hold its gain on and turns noise into random bits. The
+    // disk inspector marks the same stretches, so the two share the number.
+    static constexpr int    kHeadWindowCells      = 4;
 
     Disk2NibbleEngine();
     ~Disk2NibbleEngine() override;
@@ -205,7 +221,7 @@ private:
     void       ResolveSlot();
     void       RefreshSlot();
     double     GetAngle() const;
-    void       PlaceHead (double angle, bool cameFromFlux);
+    void       PlaceHead (double angle);
     void       SeekFlux (double angle);
     uint8_t    StepFluxPulse();
     void       RecordFluxWriteBit (uint8_t bit);

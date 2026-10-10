@@ -3,6 +3,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/LineTable.h"
 #include "EmuTests/FixtureProvider.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -55,7 +56,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (S_OK, DebugFileReader::Read (text, file, error), std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, DebugFileReader::Read (text, file, error), TextEncoding::NarrowToWide (error).c_str());
             return file;
         }
 
@@ -271,7 +272,7 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (S_OK, DebugFileReader::ReadMerlinListing (text, "SAMPLE.LST", file, error),
-                              std::wstring (error.begin(), error.end()).c_str());
+                              TextEncoding::NarrowToWide (error).c_str());
             return file;
         }
 
@@ -395,7 +396,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (S_OK, hr, L"fixture missing: Debugger/Merlin/PI.ADD.LST");
             hr = DebugFileReader::ReadMerlinListing (std::string (bytes.begin(), bytes.end()), "PI.ADD.LST", file, error);
-            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
             return file;
         }
 
@@ -451,7 +452,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (S_OK, hr, L"fixture missing: Debugger/DebugFiles/hello.dbg");
             hr = DebugFileReader::Read (std::string (bytes.begin(), bytes.end()), file, error);
-            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
             return file;
         }
 

@@ -151,6 +151,12 @@ void Apple2eMmu::AttachSlotRom (int slot, vector<Byte> data)
 //  Each setter mutates the flag and remaps the affected page-table region.
 //  No-op if state is unchanged.
 //
+//  RAMRD and RAMWRT re-resolve the hires page as well as the main region.
+//  With 80STORE on, ResolveMain02_BF leaves $2000-$3FFF to ResolveHires20_3F,
+//  but PAGE2 only takes that page over while HIRES is also on. In 80-column
+//  text mode -- 80STORE on, HIRES off -- the page still follows RAMRD and
+//  RAMWRT, and a remap that skipped it would leave aux writes landing in main.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2eMmu::SetRamRd (bool v)
@@ -162,6 +168,7 @@ void Apple2eMmu::SetRamRd (bool v)
 
     m_ramRd = v;
     ResolveMain02_BF();
+    ResolveHires20_3F();
 }
 
 
@@ -183,6 +190,7 @@ void Apple2eMmu::SetRamWrt (bool v)
 
     m_ramWrt = v;
     ResolveMain02_BF();
+    ResolveHires20_3F();
 }
 
 
@@ -445,7 +453,9 @@ void Apple2eMmu::ResolveZeroPage()
 //  carve-outs are re-applied by their own resolvers afterwards (when
 //  80STORE is on). Pages $02-$03 / $08-$1F / $40-$BF are always pure
 //  RAMRD/RAMWRT regions; pages $04-$07 and $20-$3F we touch only when
-//  80STORE is OFF (otherwise the carve-out resolvers own them).
+//  80STORE is OFF (otherwise the carve-out resolvers own them). Any change
+//  to RAMRD or RAMWRT must therefore also run ResolveHires20_3F, which
+//  still routes $20-$3F by them while HIRES is off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

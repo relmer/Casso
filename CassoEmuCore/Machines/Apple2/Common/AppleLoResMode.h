@@ -32,8 +32,14 @@ public:
 
     const char * GetModeName () const override { return "apple2-lores"; }
 
+    // Main RAM, read directly in preference to the bus; see ReadScreenByte.
+    void SetMainMemory (const Byte * mainMem) { m_mainMem = mainMem; }
+
 private:
     static Word GetRowBaseAddress (int row, Word pageBase);
 
-    MemoryBus & m_bus;
+    Byte ReadScreenByte (const Byte * videoRam, Word addr) const;
+
+    MemoryBus  & m_bus;
+    const Byte * m_mainMem = nullptr;
 };

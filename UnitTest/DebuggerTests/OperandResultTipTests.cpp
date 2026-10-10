@@ -8,6 +8,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/ColorKeyButton.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -290,7 +291,7 @@ namespace OperandResultTipTests
 
             joined = GetLineText (layout, 0) + L" " + GetLineText (layout, 1);
 
-            Assert::AreEqual (std::wstring (operand.begin(), operand.end()), joined, L"nothing of the operand is lost at a break");
+            Assert::AreEqual (TextEncoding::NarrowToWide (operand), joined, L"nothing of the operand is lost at a break");
         }
 
 

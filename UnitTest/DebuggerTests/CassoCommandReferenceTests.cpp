@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/CassoCommandReference.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -57,7 +58,7 @@ namespace DebuggerTests
 
 
 
-            return std::wstring (narrow.begin(), narrow.end());
+            return TextEncoding::NarrowToWide (narrow);
         }
 
 

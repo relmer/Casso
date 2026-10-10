@@ -3,6 +3,7 @@
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/SymbolTable.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -66,7 +67,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (isRead, std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue (isRead, TextEncoding::NarrowToWide (error).c_str());
             return { first, last };
         }
 
@@ -267,9 +268,9 @@ namespace DebuggerTests
             read = HeatMapRangeSets::FromText (sets.ToText());
 
             text = sets.ToText();
-            Logger::WriteMessage (std::wstring (text.begin(), text.end()).c_str());
+            Logger::WriteMessage (TextEncoding::NarrowToWide (text).c_str());
             text = read.ToText();
-            Logger::WriteMessage (std::wstring (text.begin(), text.end()).c_str());
+            Logger::WriteMessage (TextEncoding::NarrowToWide (text).c_str());
 
             Assert::IsTrue   (sets == read, L"every set, range, check and the set shown");
             Assert::IsFalse  (sets.ToText().empty());
@@ -411,7 +412,7 @@ namespace DebuggerTests
 
             hr = table.LoadFrom (SymbolTableId::User, content, 0, loaded, error);
 
-            Assert::IsTrue   (SUCCEEDED (hr), std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue   (SUCCEEDED (hr), TextEncoding::NarrowToWide (error).c_str());
             Assert::IsTrue   (table.TryGetSize ("ZP_VARS", size), L"the file's size= for the label");
             Assert::AreEqual ((Word) 32, size);
             Assert::IsFalse  (table.TryGetSize ("FLAG", size), L"none given, none known");

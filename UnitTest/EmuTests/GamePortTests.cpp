@@ -28,12 +28,12 @@ namespace EmuTests
     {
     public:
 
-        TEST_METHOD (Range_CoversButtonsToTrigger)
+        TEST_METHOD (Range_CoversCassetteInputToTrigger)
         {
             AppleGamePort  port;
 
-            Assert::AreEqual (static_cast<Word> (0xC061), port.GetStart(),
-                L"Game port must start at PB0 ($C061)");
+            Assert::AreEqual (static_cast<Word> (0xC060), port.GetStart(),
+                L"Game port must start at the cassette input ($C060), which it forwards");
             Assert::AreEqual (static_cast<Word> (0xC070), port.GetEnd(),
                 L"Game port must end at PTRIG ($C070)");
         }
@@ -141,7 +141,7 @@ namespace EmuTests
             auto device = registry.Create ("apple2-family-gameport", cfg, bus);
 
             Assert::IsNotNull (device.get(), L"Registry must create an apple2-gameport device");
-            Assert::AreEqual (static_cast<Word> (0xC061), device->GetStart(),
+            Assert::AreEqual (static_cast<Word> (0xC060), device->GetStart(),
                 L"Created device must claim the game-port range");
         }
     };

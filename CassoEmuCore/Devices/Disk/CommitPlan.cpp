@@ -102,6 +102,8 @@ bool CommitPlan::IsStale (
 bool CommitPlan::ShouldRemoveTemporary (const Progress & progress)
 {
     bool  couldExist = (progress.furthestAttempted == Step::WriteTemporary)
+                    || (progress.furthestAttempted == Step::CopyMetadata)
+                    || (progress.furthestAttempted == Step::FlushTemporary)
                     || (progress.furthestAttempted == Step::Replace);
 
 

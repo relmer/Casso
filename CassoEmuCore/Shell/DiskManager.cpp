@@ -791,10 +791,11 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller                                     * controller = FindSlot6Controller();
-    int64_t                                               nowMs      = GetNowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                                                   drive      = 0;
+    Disk2Controller                                     * controller   = FindSlot6Controller();
+    int64_t                                               nowMs        = GetNowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents   = m_driveWidgets.ConsumeSyncEvents();
+    WozMachineFacts                                       machineFacts = WozCompatibility::GetMachineFacts (m_machine.GetConfig());
+    int                                                   drive        = 0;
 
 
 
@@ -891,12 +892,23 @@ void DiskManager::UpdateDriveWidgets()
         }
 
         // Sample the mounted image's write-protect breakdown for the
-        // padlock cue + hover tooltip. Empty drive -> no protection.
+        // padlock cue + hover tooltip, and what it declares about the machine
+        // for the info icon. Empty drive -> no protection, nothing declared.
         {
             DiskImage *  image = m_diskStore.GetImage (6, drive);
 
-            st.writeProtect = (image != nullptr) ? image->GetWriteProtectInfo()
-                                                 : WriteProtectInfo();
+            st.writeProtect    = (image != nullptr) ? image->GetWriteProtectInfo()
+                                                    : WriteProtectInfo();
+            st.wozRequirements = (image != nullptr) ? WozCompatibility::ReadRequirements (image->GetWozMetadata())
+                                                    : WozRequirements();
+            st.wozConflict     = WozCompatibility::HasConflict (st.wozRequirements, machineFacts);
+            st.wozMachine      = machineFacts;
+
+            // Copied only when it changes, which is only on a machine switch.
+            if (st.wozMachineName != m_machine.GetConfig().name)
+            {
+                st.wozMachineName = m_machine.GetConfig().name;
+            }
         }
     }
 

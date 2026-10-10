@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Devices/Disk/SectorFieldWriter.h"
 
 
 
@@ -257,6 +258,63 @@ void VolumeImage::CollectChangedTracks (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VolumeImage::CollectSectorWrites
+//
+//  One write per changed sector, by whole track and physical sector. The
+//  buffers are in DOS logical order, so a changed logical sector is written
+//  under the address field the drive presents it at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void VolumeImage::CollectSectorWrites (
+    const vector<Byte>   & priorSectors,
+    const vector<Byte>   & editedSectors,
+    vector<SectorWrite>  & outWrites)
+{
+    size_t       needed   = static_cast<size_t> (NibblizationLayer::kImageByteSize);
+    int          track    = 0;
+    int          physical = 0;
+    size_t       base     = 0;
+    SectorWrite  write;
+
+
+
+    outWrites.clear();
+
+    if (priorSectors.size() != needed || editedSectors.size() != needed)
+    {
+        return;
+    }
+
+    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        for (physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        {
+            base = (static_cast<size_t> (track) * NibblizationLayer::kSectorsPerTrack
+                 + static_cast<size_t> (NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)))
+                 * NibblizationLayer::kSectorByteSize;
+
+            if (std::equal (priorSectors.begin() + base, priorSectors.begin() + base + NibblizationLayer::kSectorByteSize, editedSectors.begin() + base))
+            {
+                continue;
+            }
+
+            write        = SectorWrite();
+            write.track  = track;
+            write.sector = static_cast<Byte> (physical);
+            std::copy (editedSectors.begin() + base, editedSectors.begin() + base + NibblizationLayer::kSectorByteSize, write.bytes.begin());
+
+            outWrites.push_back (write);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VolumeImage::DescribeUnwritableTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,10 +476,15 @@ HRESULT VolumeImage::SerializeBitStream (DiskFormat format, const DiskImage & im
 //
 //  VolumeImage::SaveBitStream
 //
-//  EVERY track the edit needs is judged BEFORE any track is re-encoded, and a
+//  EVERY track the edit needs is judged BEFORE any sector is written, and a
 //  single refusal abandons the whole operation. Refusing only the offending
-//  track and re-encoding the others would hand back an image carrying part of
-//  an edit, indistinguishable from a complete one.
+//  track and writing the others would hand back an image carrying part of an
+//  edit, indistinguishable from a complete one.
+//
+//  Each changed sector goes through the shared sector writer, which rewrites
+//  only its data field inside the existing track. A track is never rebuilt:
+//  its volume, sync runs, length, the place of every sector and, on a flux
+//  track, its recorded timing all stay as they were.
 //
 //  The prior buffer is decoded here rather than taken from the caller so the
 //  two sides of the comparison cannot disagree about what the image held. A
@@ -438,16 +501,18 @@ HRESULT VolumeImage::SaveBitStream (
     vector<Byte>        & outFileBytes,
     std::string         & outRefusalReason)
 {
-    HRESULT             hr         = S_OK;
-    DiskImage           image;
-    vector<Byte>        prior;
-    vector<Byte>        serialized;
-    SectorDecodeReport  report;
-    TrackWritability    writability;
-    vector<int>         changed;
-    bool                imageOk    = false;
-    bool                tracksOk   = false;
-    size_t              i          = 0;
+    HRESULT                   hr         = S_OK;
+    DiskImage                 image;
+    vector<Byte>              prior;
+    vector<Byte>              serialized;
+    SectorDecodeReport        report;
+    TrackWritability          writability;
+    vector<int>               changed;
+    vector<SectorWrite>       writes;
+    vector<SectorWriteError>  errors;
+    bool                      imageOk    = false;
+    bool                      tracksOk   = false;
+    size_t                    i          = 0;
 
 
 
@@ -480,8 +545,10 @@ HRESULT VolumeImage::SaveBitStream (
 
     CBREx (tracksOk, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
-    hr = NibblizationLayer::RenibblizeTracks (editedSectors, DiskFormat::Dsk, changed, image);
-    CHR (hr);
+    CollectSectorWrites (prior, editedSectors, writes);
+
+    hr = SectorFieldWriter::Write (image, writes, SectorWritePolicy::Strict, errors);
+    CHRF (hr, outRefusalReason = errors.empty() ? std::string() : SectorFieldWriter::Describe (errors.front()));
 
     //  Serialized into a local so a failure part-way through cannot leave the
     //  caller holding a fragment that looks like an image.

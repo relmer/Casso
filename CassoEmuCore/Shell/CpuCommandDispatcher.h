@@ -17,6 +17,33 @@ class InputJournal;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeCommand
+//
+//  The tape-deck operations run on the CPU thread. Insert takes the tape the
+//  UI thread has already read and decoded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class TapeCommand
+{
+    Insert,
+    Eject,
+    Play,
+    Stop,
+    Rewind,
+    ArmRecord,
+    ReleaseRecord,
+    Unload,     // out of the deck but still remembered: a machine switch
+    Seek,       // to the position TapeManager::Seek last stored
+    FastForward,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ICpuCommandTarget
 //
 //  What a command from the UI thread can ask the CPU thread to do.
@@ -116,6 +143,7 @@ public:
     //  Saves the whole machine to a state file, or loads one.
     virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
     virtual void     LoadMachineState         (const std::filesystem::path & path)              = 0;
+    virtual void     ControlTape              (TapeCommand command)                             = 0;
 };
 
 

@@ -87,6 +87,13 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "reverseRecording",
     "reverseBudgetMb",
     "reverseIntervalFrames",
+    "autoUpdateCheck",
+    "lastUpdateCheckUtc",
+    "latestKnownVersion",
+    "skippedVersion",
+    "pendingUpdateVersion",
+    "pendingUpdateKind",
+    "pendingUpdateFailure",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder",
@@ -1304,6 +1311,15 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("reverseBudgetMb",       JsonValue ((double) reverseBudgetMb));
     root.emplace_back ("reverseIntervalFrames", JsonValue ((double) reverseIntervalFrames));
 
+    // The update check.
+    root.emplace_back ("autoUpdateCheck",    JsonValue (autoUpdateCheck));
+    root.emplace_back ("lastUpdateCheckUtc", JsonValue ((double) lastUpdateCheckUtc));
+    root.emplace_back ("latestKnownVersion", JsonValue (latestKnownVersion));
+    root.emplace_back ("skippedVersion",     JsonValue (skippedVersion));
+    root.emplace_back ("pendingUpdateVersion", JsonValue (pendingUpdateVersion));
+    root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
+    root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1566,6 +1582,16 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     reverseRecording      = TryGetBoolOpt (v, "reverseRecording", reverseRecording);
     reverseBudgetMb       = std::clamp (GetIntOpt (v, "reverseBudgetMb",       reverseBudgetMb),       kMinReverseBudgetMb, kMaxReverseBudgetMb);
     reverseIntervalFrames = std::clamp (GetIntOpt (v, "reverseIntervalFrames", reverseIntervalFrames), 1,                   kMaxReverseIntervalFrames);
+
+    // The update check; absent keys keep struct defaults.
+    autoUpdateCheck    = TryGetBoolOpt (v, "autoUpdateCheck", autoUpdateCheck);
+    lastUpdateCheckUtc = (std::int64_t) GetNumberOpt (v, "lastUpdateCheckUtc", (double) lastUpdateCheckUtc);
+    latestKnownVersion = GetStringOpt  (v, "latestKnownVersion", latestKnownVersion);
+    skippedVersion     = GetStringOpt  (v, "skippedVersion",     skippedVersion);
+
+    pendingUpdateVersion = GetStringOpt (v, "pendingUpdateVersion", pendingUpdateVersion);
+    pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);
+    pendingUpdateFailure = (int) GetNumberOpt (v, "pendingUpdateFailure", (double) pendingUpdateFailure);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

@@ -5,6 +5,7 @@
 #include "Core/StateWriter.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/InputJournal.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -16,7 +17,8 @@
 //
 //  Read
 //
-//  Dispatches the game-I/O strip: PB0-PB2 status ($C061-$C063), PDL0-PDL3
+//  Dispatches the game-I/O strip: the cassette input ($C060, $C068),
+//  PB0-PB2 status ($C061-$C063), PDL0-PDL3
 //  analog timer reads ($C064-$C067) and the PTRIG strobe ($C070). Any other
 //  address inside the claimed range reads as floating-bus zero.
 //
@@ -28,8 +30,12 @@ Byte AppleGamePort::Read (Word address)
 
 
 
-    if (address >= s_kwFirstButtonAddress &&
-        address <  s_kwFirstButtonAddress + s_knButtonCount)
+    if ((address == s_kwCassetteInputAddress || address == s_kwCassetteMirrorAddress) && m_cassettePort != nullptr)
+    {
+        result = m_cassettePort->ReadInputOverFloatingBus();
+    }
+    else if (address >= s_kwFirstButtonAddress &&
+             address <  s_kwFirstButtonAddress + s_knButtonCount)
     {
         result = ReadButton (address);
 

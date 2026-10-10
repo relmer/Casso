@@ -330,6 +330,7 @@ static HRESULT LoadMachineConfig (
             Win32FileSystem        fs_prefs;
             DiskMru                mru;
             vector<DiskMru::Entry> mruPruned;
+            vector<DiskMru::Entry> mruExisting;
             HRESULT                hrPrefs    = S_OK;
             bool                   userClosed = false;
 
@@ -339,21 +340,30 @@ static HRESULT LoadMachineConfig (
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+            mruExisting = mru.Prune ([] (const fs::path & p)
+                                     {
+                                         return fs::exists (p)
+                                                && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                     });
+
+            // The recent list holds tapes too; a boot disk is a disk.
             mruPruned = mru.Prune ([] (const fs::path & p)
                                    {
                                        return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                                              && !AssetBootstrap::IsForeignCheckoutDisk (p)
+                                              && IsSupportedDiskImageExtension (p.wstring());
                                    });
 
             AssetBootstrap::AppendSiblingDisksFromFolders (
                 KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                     mruPruned,
+                                                     mruExisting,
                                                      (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
                                                          std::chrono::system_clock::now().time_since_epoch()).count()),
-                mruPruned);
+                mruPruned,
+                IsSupportedDiskImageExtension);
 
-            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
-            AssetBootstrap::AppendBundledDemoDisks (mruPruned);
+            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
+            AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
 
             hr = AssetBootstrap::PromptBootDiskMru (
                 hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
@@ -634,6 +644,7 @@ extern "C" int WINAPI wCassoMain (
     wstring                              machineName;
     wstring                              disk1Path;
     wstring                              disk2Path;
+    wstring                              tapePath;
     wstring                              titlePrefix;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
@@ -703,6 +714,7 @@ extern "C" int WINAPI wCassoMain (
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
     disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    tapePath      = TextEncoding::NarrowToWide (parsed.tape);
     titlePrefix   = TextEncoding::NarrowToWide (parsed.titlePrefix);
     traceCapacity = parsed.traceEntries;
     noImageWatch  = parsed.noImageWatch;
@@ -718,6 +730,10 @@ extern "C" int WINAPI wCassoMain (
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
+
+    // --updated / --cleanup-old: a relaunch by a finished zip update, which
+    // removes the old files once the process that ran them has exited.
+    shell->SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
 
     // --trace: size the CPU ring and install the crash-time dump filter
     // before the CPU thread starts, so an illegal-opcode/__debugbreak or
@@ -812,7 +828,8 @@ extern "C" int WINAPI wCassoMain (
     // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
                             fs::path (disk1Path).string(),
-                            fs::path (disk2Path).string());
+                            fs::path (disk2Path).string(),
+                            fs::path (tapePath).string());
     CHRN (hr, L"Failed to initialize emulator");
 
     // Run message loop

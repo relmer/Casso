@@ -69,6 +69,10 @@ public:
     //  no annunciator lines.
     virtual bool  HasAnnunciators () const = 0;
 
+    //  Whether the motherboard has the cassette-in and cassette-out jacks.
+    //  True on the ][, ][+ and //e; the //c dropped them.
+    virtual bool  HasCassettePort () const = 0;
+
     //  Whether the machine's case carries switches the user can reach -- the
     //  //c's 40/80 column and keyboard-layout switches. A presentation
     //  question rather than an emulation one, and the machine is who knows the
@@ -78,4 +82,8 @@ public:
     //  Whether the machine's drive is built into it rather than plugged into a
     //  card. Decides which drive the desk scene draws.
     virtual bool  HasBuiltInDrive () const = 0;
+
+    //  The machine's bit in a WOZ disk image's compatible-hardware field, or
+    //  zero for a machine the format has no bit for.
+    virtual uint16_t  GetWozHardwareFlag () const = 0;
 };

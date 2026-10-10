@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -60,7 +61,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::Fail ((L"no row " + std::wstring (label.begin(), label.end())).c_str());
+            Assert::Fail ((L"no row " + TextEncoding::NarrowToWide (label)).c_str());
             return kMissing;
         }
 
@@ -75,7 +76,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::Fail ((L"no bit " + std::wstring (name.begin(), name.end())).c_str());
+            Assert::Fail ((L"no bit " + TextEncoding::NarrowToWide (name)).c_str());
             return false;
         }
 
@@ -347,7 +348,7 @@ namespace DebuggerTests
 
             for (const DiagnosticsBit & bit : FindRow (none, "IER").bits)
             {
-                Assert::IsFalse (bit.set, std::wstring (bit.name.begin(), bit.name.end()).c_str());
+                Assert::IsFalse (bit.set, TextEncoding::NarrowToWide (bit.name).c_str());
             }
 
             Assert::AreEqual (std::string ("$40"), FindRow (timer1, "IER").value);

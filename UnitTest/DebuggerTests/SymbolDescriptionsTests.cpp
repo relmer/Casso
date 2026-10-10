@@ -2,6 +2,7 @@
 
 #include "Debugger/RomSymbols.h"
 #include "Debugger/SymbolDescriptions.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -42,7 +43,7 @@ namespace DebuggerTests
                         continue;
                     }
 
-                    Assert::IsNotNull (SymbolDescriptions::Find (name), std::wstring (name.begin(), name.end()).c_str());
+                    Assert::IsNotNull (SymbolDescriptions::Find (name), TextEncoding::NarrowToWide (name).c_str());
                 }
             }
         }

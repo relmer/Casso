@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
+#include "Devices/RamDevice.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "HResultAssert.h"
 
@@ -368,10 +369,41 @@ public:
         bank.Read (0xC078);
         Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C078 disables it");
 
-        bank.Read (0xC07F);
+        bank.Write (0xC07F, 0);
         Assert::IsTrue  (mouse.IsIouAccessEnabled(), L"$C07F (CLRIOUDIS) must enable it too");
-        bank.Read (0xC07E);
+        bank.Write (0xC07E, 0);
         Assert::IsFalse (mouse.IsIouAccessEnabled(), L"$C07E (SETIOUDIS) must disable it");
+    }
+
+
+    // Read, $C07E and $C07F are status reads -- RdIOUDis and RdDHIRES, bit 7
+    // -- and must leave the latch alone. Tech Note #9's VBL acknowledge is a
+    // $C07E read; one that switched IOU access off sent the next DISVBL
+    // ($C05A) to the annunciators instead of the mouse. The polarities are
+    // the ones the //c ROM's self-test checks: RdIOUDis is 1 with IOU access
+    // off, and RdDHIRES is 1 with double hi-res OFF.
+    TEST_METHOD (IouDisStatusReads_ReportWithoutMovingTheLatch)
+    {
+        static constexpr Byte  kStatusBit = 0x80;
+
+        Apple2eSoftSwitchBank  bank (nullptr);
+        AppleMouse             mouse;
+
+        bank.SetMouse (&mouse);
+
+        bank.Write (0xC07F, 0);                                   // CLRIOUDIS: access on
+        Assert::AreEqual<Byte> (0, static_cast<Byte> (bank.Read (0xC07E) & kStatusBit), L"RdIOUDis reads IOU access on as 0");
+        Assert::IsTrue (mouse.IsIouAccessEnabled(), L"a $C07E read must not switch IOU access off");
+
+        bank.Write (0xC07E, 0);                                   // SETIOUDIS: access off
+        Assert::AreEqual<Byte> (kStatusBit, static_cast<Byte> (bank.Read (0xC07E) & kStatusBit), L"RdIOUDis reads IOU access off as 1");
+
+        bank.Write (0xC05E, 0);                                   // DHIRES on, with IOU access off
+        Assert::AreEqual<Byte> (0, static_cast<Byte> (bank.Read (0xC07F) & kStatusBit), L"RdDHIRES reads double hi-res on as 0");
+        Assert::IsFalse (mouse.IsIouAccessEnabled(), L"a $C07F read must not switch IOU access on");
+
+        bank.Write (0xC05F, 0);                                   // DHIRES off
+        Assert::AreEqual<Byte> (kStatusBit, static_cast<Byte> (bank.Read (0xC07F) & kStatusBit), L"RdDHIRES reads double hi-res off as 1");
     }
 };
 
@@ -422,6 +454,66 @@ public:
         Assert::AreEqual<Byte> (0x01, machine.GetMemoryBus().ReadByte (0xC70B), L"$C70B signature");
         Assert::AreEqual<Byte> (0x20, machine.GetMemoryBus().ReadByte (0xC70C), L"$C70C device class");
         Assert::AreEqual<Byte> (0xD6, machine.GetMemoryBus().ReadByte (0xC7FB), L"$C7FB mouse id");
+    }
+
+
+    // Absolute targeting reads the firmware's clamp window and position from
+    // the slot-7 screen holes, which the firmware keeps in main RAM. With
+    // 80STORE+PAGE2 on, the CPU's $0400-$07FF is aux, so a read through the
+    // bus finds the aux bytes instead.
+    TEST_METHOD (AbsoluteTargeting_ReadsTheMainHolesWhateverTheCpuBanking)
+    {
+        struct Hole
+        {
+            Word  addr;
+            Byte  value;
+        };
+
+        // A live 0..1023 clamp window on both axes, with the cursor at (0,0).
+        static constexpr Hole  kHoles[] =
+        {
+            { 0x047D, 0x00 }, { 0x057D, 0x00 },     // X min
+            { 0x067D, 0xFF }, { 0x077D, 0x03 },     // X max
+            { 0x04FD, 0x00 }, { 0x05FD, 0x00 },     // Y min
+            { 0x06FD, 0xFF }, { 0x07FD, 0x03 },     // Y max
+            { 0x047F, 0x00 }, { 0x057F, 0x00 },     // X position
+            { 0x04FF, 0x00 }, { 0x05FF, 0x00 },     // Y position
+        };
+
+        TestMachine   machine ("Apple2c", TestMachine::Slots::Empty);
+        MemoryBus   & bus     = machine.GetMemoryBus();
+        Byte        * mainRam = nullptr;
+
+
+
+        machine.PowerCycle();
+        mainRam = machine.GetRefs().mainRamDev->GetData();
+
+        bus.WriteByte (0xC001, 0);                  // 80STORE on
+        bus.ReadByte  (0xC055);                     // PAGE2 on: CPU $0400-$07FF is aux
+
+        // The window lives in main; the aux holes are zero, which no live
+        // window can be.
+        for (const Hole & hole : kHoles)
+        {
+            mainRam[hole.addr] = hole.value;
+            bus.WriteByte (hole.addr, 0x00);
+        }
+
+        Assert::AreEqual<Byte> (0x03, mainRam[0x077D], L"fixture: the window is in main RAM");
+        Assert::AreEqual<Byte> (0x00, bus.ReadByte (0x077D), L"fixture: the bus is banked to aux");
+
+        machine.GetMouse()->SetHostTargetFraction (0x8000, 0x8000);
+
+        for (int i = 0; i < 32; i++)
+        {
+            machine.GetMouse()->Tick (AppleMouse::kSampleQuantum);
+        }
+
+        Assert::AreEqual<Byte> (0x80, machine.GetMouse()->ReadXInterruptStatus(),
+            L"a mid-window target must queue +X motion from the main holes, not the bank PAGE2 gives the CPU");
+        Assert::AreEqual<Byte> (0x80, machine.GetMouse()->ReadMouX1(),
+            L"and the motion is toward +X");
     }
 
 

@@ -4,6 +4,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/Model/TreeModel.h"
 #include "HResultAssert.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -206,10 +207,10 @@ public:
             {
                 const std::string &  parent   = directory.location.innerPath;
                 const std::string &  actual   = child.location.innerPath;
-                std::wstring         expected = std::wstring (parent.begin(), parent.end()) + L"/" + child.label;
+                std::wstring         expected = TextEncoding::NarrowToWide (parent) + L"/" + child.label;
 
                 Assert::IsTrue   (child.kind == TreeNode::Kind::DiskDirectory);
-                Assert::AreEqual (expected, std::wstring (actual.begin(), actual.end()));
+                Assert::AreEqual (expected, TextEncoding::NarrowToWide (actual));
             }
         }
     }
