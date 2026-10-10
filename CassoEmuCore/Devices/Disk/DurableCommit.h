@@ -37,8 +37,9 @@ enum class CommitMode
 //  the old file or the new one, whole, and the new one survives a power
 //  loss once Commit returns. In order: write a temporary beside the target,
 //  give it the target's metadata when replacing an existing file, flush it
-//  to storage, then make it the target in one step. On any failure the
-//  temporary is removed and the target is as it was.
+//  to storage, then make it the target in one step. The metadata is copied
+//  when it can be; a failure of any other step removes the temporary and
+//  leaves the target as it was.
 //
 //  The caller's checks (whether another program holds the file, whether it
 //  changed since it was read) come before this; progress records the step

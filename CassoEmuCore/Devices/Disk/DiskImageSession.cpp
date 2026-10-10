@@ -459,10 +459,6 @@ std::string DiskImageSession::DescribeCommitFailure (HRESULT hr, CommitPlan::Ste
             sentence = DescribeTemporaryWriteFailure (hr);
             break;
 
-        case CommitPlan::Step::CopyMetadata:
-            sentence = "could not have its attributes and permissions given to the new copy. Nothing was written";
-            break;
-
         case CommitPlan::Step::Replace:
             sentence = DescribeReplaceFailure (hr);
             break;
