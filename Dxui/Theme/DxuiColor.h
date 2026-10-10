@@ -165,7 +165,7 @@ private:
     {
         int  from = (int) (a8 & 0xFFu);
         int  to   = (int) (b8 & 0xFFu);
-        int  v    = from + (int) ((to - from) * t + 0.5f);
+        int  v    = from + (int) std::floor ((to - from) * t + 0.5f);
 
         return (uint32_t) std::clamp (v, 0, 255);
     }
