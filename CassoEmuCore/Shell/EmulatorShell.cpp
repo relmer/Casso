@@ -239,6 +239,11 @@ EmulatorShell::~EmulatorShell()
 
     m_cpuManager.Stop();
 
+    // The CPU thread released the disks as it stopped. A shell whose CPU
+    // thread never started still holds them, and claiming again changes
+    // nothing.
+    m_machine.ClaimDiskOwnership();
+
     // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
     // down its ring (and before the controller / audio source itself
     // is destroyed, which happens via the machine's owned devices and
@@ -298,8 +303,9 @@ EmulatorShell::~EmulatorShell()
     // THE SHUTDOWN VARIANT, because this runs after the message loop has
     // exited and the CPU thread has stopped, so a posted question would never
     // be delivered and its answer would never be acted on. It runs on this
-    // thread with OLE still initialized -- OleUninitialize is below -- so the
-    // store asks through a blocking file dialog instead.
+    // thread, which claimed the disks after the stop, with OLE still
+    // initialized -- OleUninitialize is below -- so the store asks through a
+    // blocking file dialog instead.
     hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 

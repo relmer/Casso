@@ -720,6 +720,8 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 
 
 
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = m_disks[drive].Load (path);
@@ -752,6 +754,8 @@ Error:
 
 void Disk2Controller::EjectDisk (int drive)
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     if (drive < 0 || drive >= kDriveCount)
     {
         return;
@@ -785,6 +789,8 @@ DiskImage * Disk2Controller::GetDisk (int drive)
 
 
 
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     return inRange ? m_activeDisk[drive] : nullptr;
 }
 
@@ -805,6 +811,8 @@ DiskImage * Disk2Controller::GetDisk (int drive)
 
 void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     if (drive >= 0 && drive < kDriveCount)
     {
         m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
@@ -824,6 +832,8 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 
 bool Disk2Controller::HasExternalDisk (int drive) const
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     // An out-of-range drive has no disk at all, external or otherwise.
     return drive >= 0
         && drive < kDriveCount
@@ -847,6 +857,8 @@ bool Disk2Controller::HasExternalDisk (int drive) const
 
 void Disk2Controller::NotifyDiskInserted (int drive)
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     if (drive < 0 || drive >= kDriveCount)
     {
         return;
@@ -870,6 +882,8 @@ void Disk2Controller::NotifyDiskInserted (int drive)
 
 void Disk2Controller::NotifyDiskEjected (int drive)
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     if (drive < 0 || drive >= kDriveCount)
     {
         return;
@@ -896,6 +910,8 @@ void Disk2Controller::Reset()
     int   i = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     m_phases       = 0;
     m_phase        = 0;
@@ -931,6 +947,8 @@ void Disk2Controller::Reset()
 
 void Disk2Controller::SoftReset()
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     Reset();
 }
 
@@ -952,6 +970,8 @@ void Disk2Controller::PowerCycle (Prng & prng)
     int   drive = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     UNREFERENCED_PARAMETER (prng);
 
@@ -1002,15 +1022,47 @@ unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, M
 //  through the same sink, keeping the event stream chronologically
 //  interleaved on the dialog's ring.
 //
-//  Safe to call from the UI thread between CPU slices (mirrors the
-//  spec-005 audio-sink attach pattern). Pass nullptr to detach.
+//  Only the thread holding the disk store. Pass nullptr to detach.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::SetEventSink (IDisk2EventSink * sink) noexcept
+void Disk2Controller::SetEventSink (IDisk2EventSink * sink)
 {
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
+
     m_eventSink = sink;
     m_addrMarkWatcher.SetEventSink (sink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Controller::SetThreadOwnership
+//
+//  Points the controller at the token it checks from now on. Both the token it
+//  checks today and the new one must be held by the calling thread: wiring a
+//  drive to a store another thread holds would let two threads use it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::SetThreadOwnership (const ThreadOwnership & ownership)
+{
+    HRESULT  hr            = S_OK;
+    bool     isCurrentMine = m_ownership->IsHeldByCurrentThread();
+    bool     isNewMine     = ownership.IsHeldByCurrentThread();
+    bool     isBothMine    = isCurrentMine && isNewMine;
+
+
+
+    CBRA (isBothMine);
+
+    m_ownership = &ownership;
+
+Error:
+    return;
 }
 
 
@@ -1038,6 +1090,8 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     DiagnosticsGroup              sequencer  { "Sequencer", {} };
 
 
+
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     drive.rows.push_back (MakeTextRow ("Active drive",   std::format ("{}", m_activeDrive + 1)));
     drive.rows.push_back (MakeFlagRow ("Motor",          m_motorOn));
@@ -1080,6 +1134,8 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
     int      drive = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     writer.BeginSection (kStateTag, kStateVersion);
 
@@ -1132,6 +1188,8 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     constexpr Byte  kPhaseMaskLimit = 1 << kPhaseCount;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     HRESULT   hr                      = S_OK;
     uint16_t  version                 = 0;

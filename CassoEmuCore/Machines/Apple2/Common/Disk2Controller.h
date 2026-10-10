@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Core/ThreadOwnership.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Core/IMachineState.h"
@@ -64,6 +65,12 @@ public:
 
     explicit Disk2Controller (int slot);
 
+    //  Which thread may use this controller: the disk store's, once the
+    //  builder wires it, so the drive and its disks change hands together.
+    //  Until then the controller checks a token of its own. The calling
+    //  thread must hold both the current token and the new one.
+    void   SetThreadOwnership (const ThreadOwnership & ownership);
+
     Byte Read (Word address) override;
     void Write (Word address, Byte value) override;
     Word GetStart() const override { return m_ioStart; }
@@ -91,8 +98,8 @@ public:
     // Caller-owned; controller never deletes it. Single sink covers
     // both drives (per-drive routing happens at the source-mixer
     // level via separate IDriveAudioSource instances).
-    void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
+    void          SetAudioSink (IDriveAudioSink * sink) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_audioSink = sink; }
+    IDriveAudioSink * GetAudioSink() const                 { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_audioSink; }
 
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
@@ -101,7 +108,7 @@ public:
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
     // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDisk2EventSink * sink) noexcept;
+    void          SetEventSink (IDisk2EventSink * sink);
 
     // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
     // Machine, not a Disk II card, so it adds a write-only MODE register and a
@@ -111,16 +118,16 @@ public:
     // The //c reset firmware writes the mode register then reads it back via
     // status to confirm the IWM is present. Off by default so a real Disk II
     // card (the //e) is byte-for-byte unchanged.
-    void   SetIwmMode (bool v) { m_iwmMode = v; }
+    void   SetIwmMode (bool v) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_iwmMode = v; }
 
     // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
     // moment the motor spins down (the true->false transition in Tick) --
     // i.e. right after a disk operation completes and ~1 second after the
-    // last access, a naturally debounced, race-free point to persist dirty
-    // images (this thread owns the writes). The shell wires it to
+    // last access, a naturally debounced point to persist dirty images, on
+    // the thread holding the disk store. The shell wires it to
     // DiskImageStore::FlushAll so guest writes survive a crash / kill before
     // the next eject / exit. Caller-owned; null = no-op (tests, headless).
-    void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
+    void          SetMotorOffFlushCallback (std::function<void ()> cb) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_motorOffFlushCallback = std::move (cb); }
     // Idle hook. Invoked on the CPU thread when no disk operation is in
     // flight, which is nearly always -- the motor is off, or on and between
     // accesses.
@@ -135,7 +142,7 @@ public:
     // and "no operation in flight" is true nearly always, so an ungated
     // callback would be an indirect dispatch on essentially every instruction.
     // Caller-owned; null = no-op (tests, headless).
-    void          SetIdleCallback (std::function<void ()> cb) { m_idleCallback = std::move (cb); }
+    void          SetIdleCallback (std::function<void ()> cb) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_idleCallback = std::move (cb); }
 
     // How often the idle callback may fire, in CPU cycles. One emulated frame
     // at 1.0205 MHz -- 60 chances a second to notice a change, which is far
@@ -159,24 +166,24 @@ public:
     // longer advances the engine bit cursor (the catch-up does it on
     // demand). Pass nullptr for tests that drive the controller
     // without a real CPU.
-    void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
+    void   SetCpuCycleSource (const uint64_t * cycleSource) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
 
     // Inspectors used by Phase 9 tests.
-    int    GetActiveDrive() const { return m_activeDrive; }
-    bool   IsMotorOn() const { return m_motorOn; }
-    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
-    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
-    int    GetQuarterTrack() const { return m_quarterTrack; }
-    int    GetCurrentTrack() const { return m_quarterTrack / 4; }
-    bool   IsQ6() const { return m_q6; }
-    bool   IsQ7() const { return m_q7; }
-    uint8_t  GetPhases() const { return m_phases; }
+    int    GetActiveDrive() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_activeDrive; }
+    bool   IsMotorOn() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorOn; }
+    bool   IsMotorAtSpeed() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorOn && m_motorSpinupRemaining == 0; }
+    uint32_t  GetMotorSpinupRemaining() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorSpinupRemaining; }
+    int    GetQuarterTrack() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack; }
+    int    GetCurrentTrack() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack / 4; }
+    bool   IsQ6() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_q6; }
+    bool   IsQ7() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_q7; }
+    uint8_t  GetPhases() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_phases; }
 
     // The Disk II panel: drive, motor, head, phase magnets and the read state.
     std::string  GetDiagnosticsId    () const override { return "disk"; }
     std::string  GetDiagnosticsTitle () const override { return "Disk II"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    Disk2NibbleEngine &  GetEngine (int drive)  { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
@@ -257,6 +264,12 @@ protected:
     // Fired on the CPU thread at most once per emulated frame while no disk
     // operation is in flight (see SetIdleCallback).
     std::function<void ()>    m_idleCallback;
+
+    // The token checked at each guarded entry point: the controller's own until
+    // SetThreadOwnership points it at the disk store's. ThreadOwnership cannot
+    // be copied, so neither can the controller, and the pointer stays valid.
+    ThreadOwnership           m_ownOwnership;
+    const ThreadOwnership *   m_ownership = &m_ownOwnership;
 
     // Cycles since the idle callback last fired, which is what rate-limits it.
     uint32_t                  m_cyclesSinceIdleCallback = 0;

@@ -1302,6 +1302,44 @@ namespace DebuggerTests
         }
 
 
+        //  A replayer's scratch machine belongs to the thread running a
+        //  rebuild, so the next rebuild on another thread takes its disks over
+        //  rather than touching a store the last thread still holds.
+        TEST_METHOD (ACallReplayerReusedOnAnotherThreadTakesItsDisksWithIt)
+        {
+            HistoryRig              rig      (0, true);
+            CallStackRebuildJob     job;
+            CallStackRebuildResult  first;
+            CallStackRebuildResult  second;
+            bool                    hasJob   = false;
+            HRESULT                 hr       = S_OK;
+            HRESULT                 hrWorker = E_FAIL;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+
+            hr = rig.history.MakeJob (false, 0, 0, kAttachAt, job, hasJob);
+            AssertSucceeded (hr, L"MakeJob");
+            Assert::IsTrue  (hasJob, L"history holds the run");
+
+            job.generation = 1;
+
+            {
+                std::thread  worker ([&] { hrWorker = rig.replayer.Rebuild (job, first); });
+
+                worker.join();
+            }
+
+            AssertSucceeded (hrWorker, L"Rebuild on the worker thread");
+
+            job.generation = 2;
+
+            hr = rig.replayer.Rebuild (job, second);
+            AssertSucceeded (hr, L"Rebuild on the test thread");
+        }
+
+
         //  A rebuild continued on the worker shows the share of the whole
         //  rebuild done, the first round counted: neither all of it, while
         //  the rest is replayed, nor only the round in flight.

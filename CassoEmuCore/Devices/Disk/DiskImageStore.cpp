@@ -221,6 +221,8 @@ HRESULT DiskImageStore::MountFromBytes (
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return MountFromBytes (slot, drive, virtualPath, fmt, bytes, ignored);
 }
 
@@ -250,6 +252,8 @@ HRESULT DiskImageStore::MountFromBytes (
     HRESULT   hr = S_OK;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.format       = fmt;
@@ -321,6 +325,8 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
     MountDiagnosis  ignored;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     return Mount (slot, drive, path, ignored);
 }
@@ -591,6 +597,8 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     outDiagnosis = MountDiagnosis();
 
     //  ONE FILE, ONE DRIVE, and refused before a byte is read -- the bytes are
@@ -673,6 +681,8 @@ HRESULT DiskImageStore::MountRestored (
     ImageIdentity  identity;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     CBRAEx (isValid, E_INVALIDARG);
 
@@ -1387,6 +1397,8 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (GetEntry (slot, drive), FlushMoment::Running);
@@ -1429,6 +1441,8 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
     vector<Byte>  bytes;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     bayOk = IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
@@ -1594,6 +1608,8 @@ Error:
 
 bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     if (!IsValidBay (slot, drive))
     {
         return false;
@@ -1631,6 +1647,8 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
     vector<Byte>  sectors;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     out = SalvageAssessment();
 
@@ -1702,6 +1720,8 @@ HRESULT DiskImageStore::SalvageToFile (
     vector<Byte>  bytes;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     bayOk = IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
@@ -1865,6 +1885,8 @@ Error:
 
 HRESULT DiskImageStore::FlushAll()
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return FlushEveryBay (FlushMoment::Running);
 }
 
@@ -1872,6 +1894,8 @@ HRESULT DiskImageStore::FlushAll()
 
 HRESULT DiskImageStore::FlushAllForShutdown()
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return FlushEveryBay (FlushMoment::ShuttingDown);
 }
 
@@ -1896,6 +1920,8 @@ HRESULT DiskImageStore::FlushAllUnlessHeld()
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     BAIL_OUT_IF (m_isFlushHeld || m_isReplaying, S_OK);
 
     hr = FlushAll();
@@ -1919,6 +1945,8 @@ Error:
 
 bool DiskImageStore::HasUnsavedWrites() const
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return CountUnsavedDisks() > 0;
 }
 
@@ -1939,6 +1967,8 @@ int DiskImageStore::CountUnsavedDisks() const
     int  count = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     for (const auto & row : m_entries)
     {
@@ -1969,6 +1999,8 @@ int DiskImageStore::CountUnsavedDisks() const
 
 HRESULT DiskImageStore::CommitHeldWrites()
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return FlushAll();
 }
 
@@ -1995,6 +2027,8 @@ HRESULT DiskImageStore::DiscardHeldWrites()
     vector<Byte>  bytes;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -2036,6 +2070,8 @@ HRESULT DiskImageStore::DiscardHeldWrites()
 
 uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     if (!IsValidBay (slot, drive))
     {
         return 0;
@@ -2060,6 +2096,8 @@ uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
 
 void DiskImageStore::SetMediaRetention (bool isOn)
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     m_isRetaining = isOn;
 
     if (!isOn)
@@ -2083,6 +2121,8 @@ bool DiskImageStore::CanSeatMedia (int slot, int drive, uint64_t mediaId) const
     bool  canSeat = false;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     if (!IsValidBay (slot, drive))
     {
@@ -2122,6 +2162,8 @@ HRESULT DiskImageStore::SeatMedia (int slot, int drive, uint64_t mediaId, bool &
     Entry    kept;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     outChanged = false;
 
@@ -2188,6 +2230,8 @@ void DiskImageStore::ReportSeatedMedia (
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     if (!IsValidBay (slot, drive) || mediaId == previousMediaId)
     {
         return;
@@ -2215,6 +2259,8 @@ void DiskImageStore::ReportSeatedMedia (
 
 void DiskImageStore::PruneRetainedMedia (uint64_t oldestPosition)
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     std::erase_if (m_retained, [oldestPosition] (const Entry & kept) { return kept.retiredAt < oldestPosition; });
 }
 
@@ -2330,6 +2376,8 @@ void DiskImageStore::Eject (int slot, int drive)
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     // An out-of-range bay and an empty one are both nothing to eject.
     if (IsValidBay (slot, drive) && GetEntry (slot, drive).mounted)
     {
@@ -2387,6 +2435,8 @@ void DiskImageStore::SoftReset()
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -2408,6 +2458,8 @@ void DiskImageStore::PowerCycle()
     int   drive = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -2449,6 +2501,8 @@ bool DiskImageStore::IsValidBay (int slot, int drive)
 
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     // Null for a bad bay is the same answer as for an empty one: no image.
     return IsValidBay (slot, drive) ? GetEntry (slot, drive).image.get() : nullptr;
 }
@@ -2465,6 +2519,8 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     return IsValidBay (slot, drive) && GetEntry (slot, drive).mounted;
 }
 
@@ -2480,6 +2536,8 @@ bool DiskImageStore::IsMounted (int slot, int drive) const
 
 const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     // Returns a reference, so a bad bay yields the member empty string rather
     // than a temporary.
     return IsValidBay (slot, drive) ? GetEntry (slot, drive).path : m_emptyPath;
@@ -2506,6 +2564,8 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths
     int                         drive  = 0;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -2578,6 +2638,8 @@ MountedImageState * DiskImageStore::GetSharedState (int slot, int drive)
 
 
 
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
     if (IsValidBay (slot, drive))
     {
         state = &GetEntry (slot, drive).sharedState;
@@ -2603,6 +2665,8 @@ const MountedImageState * DiskImageStore::GetSharedState (int slot, int drive) c
     const MountedImageState *  state = nullptr;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     if (IsValidBay (slot, drive))
     {
@@ -2780,6 +2844,8 @@ void DiskImageStore::ApplyPendingReload()
     int64_t  now                                  = GetNowMs();
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     //  A replay must not take up a changed file: the disk it swaps in is not
     //  the one history recorded. The change stays pending for the live run.
@@ -3112,6 +3178,8 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
     vector<Byte>  bytes;
 
 
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     if (!IsValidBay (slot, drive))
     {

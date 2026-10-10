@@ -34,7 +34,9 @@
 //
 //  SetMachine is called on the thread that builds the running machine;
 //  Submit, TryTakeResult and Cancel on the thread that runs it; Rebuild on
-//  one worker at a time, or by a test.
+//  one worker at a time, or by a test. Each run claims the scratch machine's
+//  disks for its thread and releases them when it ends, so the next run may
+//  be on another thread.
 //
 //  An instance of its own, given no jobs to submit, finds an address's last
 //  access in a stretch of history for the heat map (IHeatAccessFinder), on

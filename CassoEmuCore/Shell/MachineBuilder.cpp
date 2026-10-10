@@ -610,19 +610,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Cache Disk2Controller pointer for the status-bar drive activity
-    // indicator. We pick the first one we find (typically slot 6).
-    m_host.GetRefs().diskController = nullptr;
-    for (auto & dev : m_host.GetOwnedDevices())
-    {
-        Disk2Controller *  dc = dynamic_cast<Disk2Controller *> (dev.get());
-
-        if (dc != nullptr)
-        {
-            m_host.GetRefs().diskController = dc;
-            break;
-        }
-    }
+    WireDiskControllers();
 
     // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
     // FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
@@ -793,6 +781,46 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDiskControllers
+//
+//  Points every Disk II controller at the disk store's thread token, so a
+//  drive and the disks in it change hands together, and keeps the first one
+//  (typically slot 6) in the refs for the status-bar drive indicator.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireDiskControllers()
+{
+    ThreadOwnership  & ownership = m_host.GetDiskStore().GetThreadOwnership();
+
+
+
+    m_host.GetRefs().diskController = nullptr;
+
+    for (auto & dev : m_host.GetOwnedDevices())
+    {
+        Disk2Controller *  dc = dynamic_cast<Disk2Controller *> (dev.get());
+
+        if (dc == nullptr)
+        {
+            continue;
+        }
+
+        dc->SetThreadOwnership (ownership);
+
+        if (m_host.GetRefs().diskController == nullptr)
+        {
+            m_host.GetRefs().diskController = dc;
+        }
+    }
 }
 
 

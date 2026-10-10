@@ -1028,6 +1028,44 @@ public:
     }
 
 
+    //  A replayer's scratch machine belongs to the thread running a rebuild,
+    //  so the next rebuild on another thread takes its disks over rather than
+    //  touching a store the last thread still holds.
+    TEST_METHOD (AReplayerReusedOnAnotherThreadTakesItsDisksWithIt)
+    {
+        constexpr uint64_t                         kBehindLive = 1000;
+        Rig                                        rig         (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+        ScratchHeatReplayer                        replayer;
+        HeatRebuildJob                             job;
+        std::vector<HeatRebuildResult>             first;
+        std::vector<HeatRebuildResult>             second;
+        bool                                       hasWindow   = false;
+        HRESULT                                    hr          = S_OK;
+        HRESULT                                    hrWorker    = E_FAIL;
+
+
+
+        rig.script.RunTo (rig.machine, UINT64_MAX);
+
+        replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
+        rig.Seek (rig.machine.GetPosition() - kBehindLive);
+
+        hr = rig.target.GetHeatHistory().MakeRebuildJob (job, hasWindow);
+        AssertSucceeded (hr, L"MakeRebuildJob");
+
+        {
+            std::thread  worker ([&] { hrWorker = replayer.Rebuild (job, first); });
+
+            worker.join();
+        }
+
+        AssertSucceeded (hrWorker, L"Rebuild on the worker thread");
+
+        hr = replayer.Rebuild (job, second);
+        AssertSucceeded (hr, L"Rebuild on the test thread");
+    }
+
+
     //  A window longer than the newest part's seconds comes back in parts,
     //  the newest first and ending where the machine stands, each older one
     //  ending where the newer begins, and merged they are the heat of a

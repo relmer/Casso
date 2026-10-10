@@ -347,12 +347,21 @@ HRESULT ScratchHeatReplayer::Run (
     const HeatRebuildJob                                 & job,
     const std::function<void (HeatRebuildResult &&)>     & onPart)
 {
-    HRESULT                                hr    = S_OK;
-    size_t                                 part  = 0;
+    HRESULT                                hr      = S_OK;
+    size_t                                 part    = 0;
+    MachineHost                          * machine = m_scratch.GetMachine();
     HeatRebuildResult                      result;
     std::chrono::steady_clock::time_point  began;
 
 
+
+    //  The scratch machine's disks belong to the thread running the rebuild:
+    //  a machine built here is already this thread's, and one built by an
+    //  earlier rebuild was released when that rebuild ended.
+    if (machine != nullptr)
+    {
+        machine->ClaimDiskOwnership();
+    }
 
     for (part = 0; part < job.parts.size(); part++)
     {
@@ -375,6 +384,13 @@ HRESULT ScratchHeatReplayer::Run (
     }
 
 Error:
+    machine = m_scratch.GetMachine();
+
+    if (machine != nullptr)
+    {
+        machine->ReleaseDiskOwnership();
+    }
+
     return hr;
 }
 

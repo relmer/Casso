@@ -1350,6 +1350,14 @@ int EmulatorShell::RunMessageLoop()
     m_cpuManager.SetServiceFunction ([this] { ServiceDebugger(); ServiceHistoryThumbnails(); });
     m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return AllowCommand (id, payload); });
 
+    // Cold-boot mount window is closed once the UI message loop is
+    // ready to deliver user input -- any mount issued from here on
+    // is treated as a real, user-initiated swap and fires the
+    // drive-audio door-close (FR-013). Set here, while this thread still
+    // holds the disks; from the start below the CPU thread holds them.
+    m_diskManager->SetColdBootMountWindow (false);
+    m_machine.ReleaseDiskOwnership();
+
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
         [this] (const EmulatorCommand & cmd) { DispatchCpuCommand (cmd); },
@@ -1363,12 +1371,6 @@ int EmulatorShell::RunMessageLoop()
     {
         OpenDebuggerWindow (false);
     }
-
-    // Cold-boot mount window is closed once the UI message loop is
-    // ready to deliver user input -- any mount issued from here on
-    // is treated as a real, user-initiated swap and fires the
-    // drive-audio door-close (FR-013).
-    m_diskManager->SetColdBootMountWindow (false);
 
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())

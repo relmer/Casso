@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <future>
 #include <regex>
 
 #include <CppUnitTest.h>

@@ -320,6 +320,11 @@ public:
     //  afterwards or an open panel goes quiet against the new machine.
     void  AttachObservers (const MachineObservers & observers);
 
+    //  The disk store and every drive wired to it, between threads: the
+    //  holder releases, then the next thread claims.
+    void  ClaimDiskOwnership   ();
+    void  ReleaseDiskOwnership ();
+
     //  Ctrl+Reset. User RAM survives; every device takes its reset line.
     void  SoftReset();
 

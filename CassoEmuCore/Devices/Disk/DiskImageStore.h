@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/ThreadOwnership.h"
+
 #include "DiskImage.h"
 #include "MountedImageState.h"
 #include "ChangePrompt.h"
@@ -56,6 +58,12 @@
 //  the GUI, stderr headless), so the report reaches the user regardless of
 //  what the caller does with the return.
 //
+//  One thread uses the store at a time: the thread holding its
+//  ThreadOwnership token, which starts as the constructing thread and passes
+//  to the CPU thread while it runs. Every public instance member checks it,
+//  except NoteExternalChange, which any thread may call, and
+//  GetThreadOwnership, which returns the token itself.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 //
@@ -104,6 +112,11 @@ public:
 
     DiskImageStore ();
 
+    //  The token that says which thread may use the store, shared with every
+    //  drive wired to it.
+    ThreadOwnership       & GetThreadOwnership ()       { return m_ownership; }
+    const ThreadOwnership & GetThreadOwnership () const { return m_ownership; }
+
     HRESULT       Mount             (int slot, int drive, const string & path);
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
                                      DiskFormat fmt, const vector<Byte> & bytes);
@@ -142,8 +155,8 @@ public:
     //  disk is machine state then, and the file is written only at the moments
     //  above. Commit writes every bay as it stands now; discard reloads every
     //  bay holding unsaved writes from its file.
-    void          SetFlushHold      (bool isHeld) { m_isFlushHeld = isHeld; }
-    bool          IsFlushHeld       () const      { return m_isFlushHeld; }
+    void          SetFlushHold      (bool isHeld) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_isFlushHeld = isHeld; }
+    bool          IsFlushHeld       () const      { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_isFlushHeld; }
     bool          HasUnsavedWrites  () const;
     int           CountUnsavedDisks () const;
     HRESULT       CommitHeldWrites  ();
@@ -152,8 +165,8 @@ public:
     //  Set while a replay re-runs history. No flush of any kind and no reload
     //  of a changed file happens then: the replay is recomputing a past the
     //  host already saw, and the host file is never written from it.
-    void          SetReplaying      (bool isReplaying) { m_isReplaying = isReplaying; }
-    bool          IsReplaying       () const           { return m_isReplaying; }
+    void          SetReplaying      (bool isReplaying) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_isReplaying = isReplaying; }
+    bool          IsReplaying       () const           { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_isReplaying; }
 
     //  Which medium a bay holds, as DiskImage::GetImageId gives it, or zero
     //  for an empty bay. A machine snapshot holds these, and loading one puts
@@ -164,8 +177,8 @@ public:
     //  any unsaved writes, so a snapshot taken while it was in the drive can
     //  put it back. Turning retention off releases every kept disk.
     void          SetMediaRetention     (bool isOn);
-    bool          IsRetainingMedia      () const { return m_isRetaining; }
-    size_t        GetRetainedMediaCount () const { return m_retained.size(); }
+    bool          IsRetainingMedia      () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_isRetaining; }
+    size_t        GetRetainedMediaCount () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_retained.size(); }
 
     //  Whether SeatMedia could put mediaId in the bay, and putting it there:
     //  the bay's current disk is kept (or dropped, without retention) and the
@@ -184,13 +197,13 @@ public:
     void          PruneRetainedMedia (uint64_t oldestPosition);
 
     //  The machine's instruction count, which stamps when a disk left its bay.
-    void          SetPositionSource (const uint64_t * source) { m_positionSource = source; }
+    void          SetPositionSource (const uint64_t * source) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_positionSource = source; }
 
     //  Told after a disk is mounted, ejected, swapped for a changed file, or
     //  has its write protection changed in its file: the change reverse
     //  execution records as a boundary in history. Not told while replaying,
     //  nor for SeatMedia.
-    void          SetMediaChangeListener (std::function<void ()> listener) { m_mediaChangeListener = std::move (listener); }
+    void          SetMediaChangeListener (std::function<void ()> listener) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_mediaChangeListener = std::move (listener); }
 
     //  Sets a mounted WOZ's write-protect flag in its backing file by patching
     //  the single byte that carries it -- read the file, set INFO's flag byte,
@@ -247,41 +260,41 @@ public:
 
     std::vector<MountedSource>  GetMountedSourcePaths() const;
 
-    void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
+    void          SetFlushSink      (FlushSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_flushSink = std::move (sink); }
 
     //  Read counterpart to SetFlushSink: redirects every backing-file read
     //  (Mount, and the write-protect patch's read-modify-write) to the
     //  caller's buffer, so a test can pair the two and exercise a genuine
     //  read-modify-write cycle without a real file.
-    void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
+    void          SetImageReader    (ImageReader reader) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_imageReader = std::move (reader); }
 
     //  Replaces the filesystem stat behind the mount-time record and the
     //  pre-commit re-check.
-    void          SetIdentityReader (IdentityReader reader) { m_identityReader = std::move (reader); }
+    void          SetIdentityReader (IdentityReader reader) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_identityReader = std::move (reader); }
 
     //  Where notification comes from. The shell builds the platform watcher and
     //  hands it over; REGISTERING AND DROPPING WATCHES IS THIS CLASS'S JOB,
     //  because mount-registers-a-watch is orchestration and orchestration is
     //  testable. Caller-owned and may be null, which is a session with no
     //  notification -- the check before every write still holds.
-    void          SetImageWatcher (IImageWatcher * watcher) { m_watcher = watcher; }
+    void          SetImageWatcher (IImageWatcher * watcher) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_watcher = watcher; }
 
     //  Where "is somebody else writing this right now" is answered. Optional:
     //  without it a pick-up cannot be deferred for a third-party writer, and
     //  the quiet period is the only debounce.
-    void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
+    void          SetFileIo (IDiskFileIo * fileIo) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_fileIo = fileIo; }
 
     //  The machine as the user knows it, for the notices that mention it.
     //  "Apple //e" rather than "the Apple", which is not what is in front of
     //  them. Empty is allowed and the notices fall back to "the machine".
-    void          SetMachineName (const string & name) { m_machineName = name; }
+    void          SetMachineName (const string & name) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_machineName = name; }
 
     //  Restarting the machine.
     //
     //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
     //  machine lifecycle directly is a layering inversion; the decision stays
     //  here and the action belongs to the shell.
-    void          SetMachineRestartCallback (std::function<void ()> cb) { m_restartCallback = std::move (cb); }
+    void          SetMachineRestartCallback (std::function<void ()> cb) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_restartCallback = std::move (cb); }
 
     //  Showing a report that does not block the machine. Given the bay it is
     //  about and everything to draw.
@@ -294,7 +307,7 @@ public:
     //  happened.
     using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
 
-    void          SetChangeReportSink (ReportSink sink) { m_reportSink = std::move (sink); }
+    void          SetChangeReportSink (ReportSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_reportSink = std::move (sink); }
 
     //  Putting a question to the user.
     //
@@ -314,7 +327,7 @@ public:
     //  pending rather than resolving itself by default.
     using AskSink = std::function<bool (int slot, int drive, const ChangePrompt &)>;
 
-    void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
+    void          SetAskSink (AskSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_askSink = std::move (sink); }
 
     //  Asking where to put a disk, and not returning until it is answered.
     //
@@ -328,7 +341,7 @@ public:
     //  Returns false when the user declined or nothing could ask.
     using RescueSink = std::function<bool (const string & imagePath, string & outPath)>;
 
-    void          SetRescueSink (RescueSink sink) { m_rescueSink = std::move (sink); }
+    void          SetRescueSink (RescueSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_rescueSink = std::move (sink); }
 
     //  A bay's disk changed, and the shell should react: re-point the
     //  controller, re-apply write protection, log the debug event, and drive
@@ -340,12 +353,12 @@ public:
     //  when a bay changed; what to do about it on screen is the shell's, and a
     //  fake sink lets a test assert the store fired without a drive on screen.
     //
-    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where every path that can
+    //  FIRES ON THE THREAD HOLDING THE STORE, where every path that can
     //  change a bay already runs. The handler does its controller and audio
     //  work there, exactly as the mount path did before this was central.
     using BayChangeSink = std::function<void (int slot, int drive, BayChange change)>;
 
-    void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
+    void          SetBayChangeSink (BayChangeSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_bayChangeSink = std::move (sink); }
 
     //  What a settled change to a mounted image was decided to be, reported
     //  once per decision so a tool that stated the intent can be told.
@@ -355,15 +368,15 @@ public:
     //  change. A decision that puts a question to the user is not reported;
     //  nothing has been decided yet.
     //
-    //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where the decision is taken.
+    //  FIRES ON THE THREAD HOLDING THE STORE, where the decision is taken.
     using DecisionSink = std::function<void (const string & path, ChangeAction action,
                                              bool guestCopyPreserved, const string & preservedPath)>;
 
-    void          SetDecisionSink (DecisionSink sink) { m_decisionSink = std::move (sink); }
+    void          SetDecisionSink (DecisionSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_decisionSink = std::move (sink); }
 
     //  The user answered a question this store asked.
     //
-    //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
+    //  ON THE THREAD HOLDING THE STORE, like every other entry point that
     //  can swap an image. The shell routes it there rather than acting on the
     //  UI thread where the answer arrived.
     //
@@ -376,7 +389,7 @@ public:
 
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.
-    void          SetClock (std::function<int64_t ()> clock) { m_clock = std::move (clock); }
+    void          SetClock (std::function<int64_t ()> clock) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_clock = std::move (clock); }
 
     //  Where the wall-clock time in a preserved copy's NAME comes from.
     //
@@ -384,7 +397,7 @@ public:
     //  needs a monotonic count of milliseconds and a filename needs a calendar
     //  date; deriving one from the other would tie a timer to the user's clock
     //  changing under it.
-    void          SetTimestampSource (std::function<time_t ()> source) { m_timestamp = std::move (source); }
+    void          SetTimestampSource (std::function<time_t ()> source) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_timestamp = std::move (source); }
 
     //  A change was noticed, from a watcher or stated by a writer.
     //
@@ -393,8 +406,8 @@ public:
     //  acting on a change belongs to the thread that owns disk writes.
     void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
 
-    //  Act on whatever has settled. Called on the CPU thread at a moment with
-    //  no disk operation in flight.
+    //  Act on whatever has settled. On the thread holding the store, at a
+    //  moment with no disk operation in flight.
     void          ApplyPendingReload ();
 
     //  What a bay knows about its image beyond the bytes: the identity read at
@@ -719,6 +732,7 @@ private:
     bool                     m_isFlushHeld    = false;
     bool                     m_isReplaying    = false;
     bool                     m_isRetaining    = false;
+    ThreadOwnership          m_ownership;
 
     //  Guards the pending records alone. A watcher thread records a change
     //  while the CPU thread reads it, and those two fields are the whole of

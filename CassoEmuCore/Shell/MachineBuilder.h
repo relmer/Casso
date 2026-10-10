@@ -114,6 +114,7 @@ public:
     HRESULT  Build                (const MachineConfig & config);
 
     HRESULT  CreateMemoryDevices  (const MachineConfig & config);
+    void     WireDiskControllers  ();
     void     WireLanguageCard     ();
     void     WireBankedRom        ();
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);

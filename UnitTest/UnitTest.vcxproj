@@ -896,6 +896,7 @@
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />
+    <ClCompile Include="EmuTests\DiskOwnershipTests.cpp" />
     <ClCompile Include="EmuTests\IdleHistoryRateTests.cpp" />
     <ClCompile Include="EmuTests\MachineStateFileTests.cpp" />
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
@@ -925,6 +926,8 @@
     <ClCompile Include="EmuTests\WrittenPageTests.cpp" />
     <ClCompile Include="EmuTests\InlineWorkQueue.cpp" />
     <ClCompile Include="EmuTests\ThreadAllocationCounter.cpp" />
+    <ClCompile Include="EmuTests\OwnerThreadStandIn.cpp" />
+    <ClCompile Include="EmuTests\ThreadOwnershipTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
@@ -945,6 +948,7 @@
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
+    <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />

@@ -203,6 +203,10 @@ void EmulatorShell::OnCpuThreadStart()
 
 
 
+    // The disks are this thread's from here until OnCpuThreadStop; the window
+    // released them just before the start.
+    m_machine.ClaimDiskOwnership();
+
     // Initialize WASAPI audio (non-fatal if it fails)
     hr = m_wasapiAudio.Initialize();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -323,6 +327,9 @@ void EmulatorShell::OnCpuThreadStop()
 
     CloseDebugger();
     m_wasapiAudio.Shutdown();
+
+    // Last, so the shutdown flush can claim the disks once the thread is gone.
+    m_machine.ReleaseDiskOwnership();
 }
 
 

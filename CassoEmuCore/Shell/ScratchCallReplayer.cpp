@@ -396,6 +396,7 @@ HRESULT ScratchCallReplayer::Run (
 {
     HRESULT                                hr          = S_OK;
     Replayer                             * replayer    = nullptr;
+    MachineHost                          * machine     = m_scratch.GetMachine();
     uint64_t                               before      = 0;
     size_t                                 first       = 0;
     size_t                                 index       = 0;
@@ -404,6 +405,14 @@ HRESULT ScratchCallReplayer::Run (
     std::chrono::steady_clock::time_point  began       = std::chrono::steady_clock::now();
 
 
+
+    //  The scratch machine's disks belong to the thread running the rebuild:
+    //  a machine built here is already this thread's, and one built by an
+    //  earlier rebuild was released when that rebuild ended.
+    if (machine != nullptr)
+    {
+        machine->ClaimDiskOwnership();
+    }
 
     outResult            = CallStackRebuildResult();
     outResult.generation = job.generation;
@@ -459,6 +468,13 @@ Error:
     }
 
     DetachRecorder();
+
+    machine = m_scratch.GetMachine();
+
+    if (machine != nullptr)
+    {
+        machine->ReleaseDiskOwnership();
+    }
 
     outResult.hr = hr;
     outResult.ms = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - began).count();

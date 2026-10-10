@@ -24,7 +24,9 @@ class MachineHost;
 //
 //  SetMachine is called on the thread that builds the running machine, each
 //  time it does; the scratch machine is built again on the worker before the
-//  next picture. Render runs on one worker thread at a time.
+//  next picture. Render runs on one worker thread at a time; each picture
+//  claims the scratch machine's disks for its thread and releases them when
+//  it is done, so the next may be drawn on another thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

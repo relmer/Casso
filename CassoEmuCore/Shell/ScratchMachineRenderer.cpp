@@ -91,6 +91,14 @@ HRESULT ScratchMachineRenderer::Render (
     outWidth  = 0;
     outHeight = 0;
 
+    //  The scratch machine's disks belong to the thread drawing with it: a
+    //  machine built here is already this thread's, and one built for an
+    //  earlier picture was released when that picture was done.
+    if (m_machine != nullptr)
+    {
+        m_machine->ClaimDiskOwnership();
+    }
+
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
@@ -126,6 +134,11 @@ HRESULT ScratchMachineRenderer::Render (
     outHeight = MachineFrameRenderer::kHeight;
 
 Error:
+    if (m_machine != nullptr)
+    {
+        m_machine->ReleaseDiskOwnership();
+    }
+
     return hr;
 }
 

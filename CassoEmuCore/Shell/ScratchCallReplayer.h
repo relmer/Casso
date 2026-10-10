@@ -54,7 +54,9 @@
 //
 //  SetMachine is called on the thread that builds the running machine;
 //  Submit, TryTakeResult, Cancel and Rebuild on the thread that runs it;
-//  the replay on one worker at a time, or in Rebuild.
+//  the replay on one worker at a time, or in Rebuild. Each replay claims the
+//  scratch machine's disks for its thread and releases them when it ends, so
+//  the next one may be on another thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

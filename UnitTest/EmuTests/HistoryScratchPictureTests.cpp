@@ -88,6 +88,40 @@ public:
     }
 
 
+    //  The renderer's scratch machine belongs to the thread drawing with it,
+    //  so the next picture on another thread takes its disks over rather than
+    //  touching a store the last thread still holds.
+    TEST_METHOD (ARendererReusedOnAnotherThreadTakesItsDisksWithIt)
+    {
+        TestMachine             machine  ("Apple2e");
+        ScratchMachineRenderer  scratch;
+        std::vector<Byte>       state;
+        std::vector<uint32_t>   first;
+        std::vector<uint32_t>   second;
+        int                     width    = 0;
+        int                     height   = 0;
+        HRESULT                 hr       = S_OK;
+        HRESULT                 hrWorker = E_FAIL;
+
+
+
+        Snapshot (machine, state);
+
+        scratch.SetMachine (machine.GetConfig(), machine.GetCurrentMachineName());
+
+        {
+            std::thread  worker ([&] { hrWorker = scratch.Render (state, first, width, height); });
+
+            worker.join();
+        }
+
+        AssertSucceeded (hrWorker, L"Render on the worker thread");
+
+        hr = scratch.Render (state, second, width, height);
+        AssertSucceeded (hr, L"Render on the test thread");
+    }
+
+
     //  Not a pass or fail: what one picture costs, and so what a strip of
     //  them costs, written to the test log.
     TEST_METHOD (OnePictureCostIsMeasured)
