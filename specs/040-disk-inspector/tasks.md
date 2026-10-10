@@ -101,10 +101,10 @@ without the others in its merge.
 
 ## Phase 4: Merge 1 gate
 
-- [ ] T033 Merge `origin/master` again; `git add -A`; `scripts/CheckStyle.ps1 -Mode Tree`
-- [ ] T034 Full unit suite Debug and Release x64; ARM64 Debug and Release builds; `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`; scenario suite
-- [ ] T035 Draft the CHANGELOG `[Unreleased]` entry (GH #170: `disk` command writes keep each track's volume, sync and length, accept standard WOZ layouts and find tracks through the map; sector writes on flux tracks keep the recorded timing) and send the text to the owner before pushing
-- [ ] T036 Merge `040-disk-inspector` to master with `--no-ff` (`merge(disk): ...` subject), push, watch CI to completion, close GH #170, message the 035 session (T713 files on master) and the 041 session (DurableCommit SHA)
+- [X] T033 Merge `origin/master` again; `git add -A`; `scripts/CheckStyle.ps1 -Mode Tree`
+- [X] T034 Full unit suite Debug and Release x64; ARM64 Debug and Release builds; `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`; scenario suite
+- [X] T035 Draft the CHANGELOG `[Unreleased]` entry (GH #170: `disk` command writes keep each track's volume, sync and length, accept standard WOZ layouts and find tracks through the map; sector writes on flux tracks keep the recorded timing) and send the text to the owner before pushing
+- [X] T036 (merged as 7e6addc6e from 040-merge1, which cherry-picked the GH #170 commits onto master so the unfinished inspector stayed off it) Merge `040-disk-inspector` to master with `--no-ff` (`merge(disk): ...` subject), push, watch CI to completion, close GH #170, message the 035 session (T713 files on master) and the 041 session (DurableCommit SHA)
 
 ---
 
