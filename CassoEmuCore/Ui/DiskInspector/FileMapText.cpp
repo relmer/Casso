@@ -457,3 +457,40 @@ wchar_t FileMapText::GetRoleLetter (SectorRole role)
 
     return static_cast<size_t> (role) < std::size (kLetters) ? kLetters[static_cast<size_t> (role)] : L'?';
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapText::BuildSectorItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<HeaderItem> FileMapText::BuildSectorItems (const FileMap & map, int track, int physical)
+{
+    vector<HeaderItem>  items;
+    int                 half = 0;
+    int                 cell = (map.notMapped == NotMappedReason::None) ? map.GetCellOf (track, physical, half) : -1;
+
+
+
+    if (cell >= 0)
+    {
+        if (map.fileSystem == MapFileSystem::Cpm)
+        {
+            items.push_back ({ L"CP/M sector", InspectorFormat::FormatSector (map.GetColumn (cell)) });
+            items.push_back ({ L"Block", std::to_wstring (((track + SectorSource::kTracks - 3) % SectorSource::kTracks) * 4 + map.GetColumn (cell) / 4) });
+        }
+
+        items.push_back ({ L"Role", FormatRole (map.fileSystem, map.cells[cell].role) });
+
+        if (!map.cells[cell].owners.empty())
+        {
+            items.push_back ({ map.cells[cell].owners.size() > 1 ? L"Owners" : L"Owner", FormatOwners (map, cell) });
+        }
+    }
+
+    return items;
+}

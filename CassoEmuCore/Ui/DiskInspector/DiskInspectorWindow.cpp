@@ -69,6 +69,7 @@ static constexpr double   s_kMapGridShare   = 0.62;
 static constexpr int      s_kMapCheckDip    = 190;
 static constexpr int      s_kMapButtonDip   = 170;
 static constexpr int      s_kMapVolumeDip   = 150;
+static constexpr int      s_kOverlayDip     = 130;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 140;
 static constexpr int      s_kExportButtonDip = 90;
@@ -294,6 +295,7 @@ void DiskInspectorWindow::OnCreate()
     m_findButton   = CreateChild<DxuiButton> (L"Find");
     m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
+    m_filesCheck     = CreateChild<DxuiCheckbox> (L"Files");
     m_modeTabs     = CreateChild<DxuiTabStrip>();
     m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
     m_rangeUp      = CreateChild<DxuiButton> (L"+");
@@ -341,6 +343,7 @@ void DiskInspectorWindow::OnCreate()
     m_findButton->SetOnClick   ([this] () { OpenFind(); });
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
+    m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_context.isFilesOverlay = isChecked; });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
     m_rangeUp->SetOnClick    ([this] () { StepRange (1); });
@@ -469,7 +472,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_zoomIn->Layout    ({ x + button,     y, x + 2 * button, y + row }, scaler);
     m_fit->Layout       ({ x + 2 * button, y, x + 4 * button, y + row }, scaler);
     m_zoomLabel->Layout ({ x + 4 * button + margin, y, x + 6 * button, y + row }, scaler);
-    m_alignmentCheck->Layout ({ x + 6 * button + margin, y, splitX - margin, y + row }, scaler);
+    m_alignmentCheck->Layout ({ x + 6 * button + margin, y, x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y + row }, scaler);
+    m_filesCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y, splitX - margin, y + row }, scaler);
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
     if (m_diskTab == kTabFileMap)
@@ -1098,6 +1102,7 @@ void DiskInspectorWindow::UpdateControls()
                                     ? L"    " + InspectorText::FormatSelection (*m_model.GetTrack(), m_model.GetFirstNibble(), m_model.GetNibbleCount()) : L""));
         m_stripHint->SetVisible    (m_context.hasDisk);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
+        m_filesCheck->SetVisible     (m_context.hasDisk);
         m_modeTabs->SetVisible   (m_context.hasDisk);
         m_rangeDown->SetVisible  (m_context.hasDisk && m_context.isTimingMode);
         m_rangeUp->SetVisible    (m_context.hasDisk && m_context.isTimingMode);
@@ -2065,6 +2070,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_zoomIn,         L"Zoom the platter in (plus)" },
         { m_fit,            L"Show the whole disk (0)" },
         { m_alignmentCheck, L"Mark where sector 0 and the longest sync start on each track" },
+        { m_filesCheck,     L"Color each sector's data field by what the file map says it holds" },
         { m_stripOut,       L"Zoom the strip out" },
         { m_stripIn,        L"Zoom the strip in" },
         { m_stripWhole,     L"Show the whole track in the strip" },

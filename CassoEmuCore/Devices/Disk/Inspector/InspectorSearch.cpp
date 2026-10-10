@@ -479,6 +479,7 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
 
     switch (kind)
     {
+        case GoToKind::File:           isRead = true; value = 0;                                       break;
         case GoToKind::Track:          isRead = InspectorFormat::TryParseQuarterTrack (plain, value); break;
         case GoToKind::ProDosBlock:    isRead = InspectorFormat::TryParseDecimal (plain, value);      break;
         case GoToKind::Cell:           isRead = InspectorFormat::TryParseDecimal (plain, value);      break;
@@ -488,6 +489,10 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
     if (!isRead || value < 0)
     {
         outError = (kind == GoToKind::Track) ? L"Enter a track from 0 to 39.75, such as 17.25." : L"Enter a number in the base the inspector shows it in.";
+    }
+    else if (kind == GoToKind::File)
+    {
+        outError = FindFile (analysis, text, outTarget) ? L"" : L"No file on this disk has the path " + text + L".";
     }
     else if (kind == GoToKind::Track)
     {
@@ -562,6 +567,7 @@ LPCWSTR InspectorGoTo::GetLabel (GoToKind kind)
         case GoToKind::ProDosBlock:    label = L"ProDOS block";    break;
         case GoToKind::NibbleOffset:   label = L"Nibble offset";   break;
         case GoToKind::Cell:           label = L"Cell";            break;
+        case GoToKind::File:           label = L"File";            break;
         default:                                                   break;
     }
 
@@ -617,4 +623,61 @@ int InspectorGoTo::FindSector (const TrackAnalysis & track, GoToKind kind, int v
     }
 
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorGoTo::FindFile
+//
+//  A file of any mapped volume whose path matches without regard to case,
+//  and the physical sector that holds its first sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorGoTo::FindFile (const DiskAnalysis & analysis, const std::wstring & path, GoToTarget & outTarget)
+{
+    const TrackAnalysis *  track    = nullptr;
+    bool                   isFound  = false;
+    int                    physical = 0;
+
+
+
+    auto  isSame = [] (const std::wstring & a, const std::wstring & b)
+    {
+        return a.size() == b.size() && std::equal (a.begin(), a.end(), b.begin(), [] (wchar_t x, wchar_t y)
+        {
+            return (x >= L'a' && x <= L'z' ? x - 32 : x) == (y >= L'a' && y <= L'z' ? y - 32 : y);
+        });
+    };
+
+    for (const FileMap & map : analysis.fileMaps)
+    {
+        for (size_t f = 0; !isFound && f < map.files.size(); f++)
+        {
+            const MappedFile &  file = map.files[f];
+
+            if (file.isDeleted || !isSame (file.path, path))
+            {
+                continue;
+            }
+
+            for (const FilePlace & place : file.sectors)
+            {
+                if (!isFound && place.cell >= 0)
+                {
+                    isFound                = true;
+                    outTarget.quarterTrack = map.GetTrack (place.cell) * DiskImage::kQuarterTracksPerWholeTrack;
+                    physical               = map.GetPhysical (place.cell, 0);
+                    track                  = GetTrack (analysis, outTarget.quarterTrack);
+                    outTarget.sectorIndex  = (track != nullptr) ? FindSector (*track, GoToKind::PhysicalSector, physical) : -1;
+                }
+            }
+        }
+    }
+
+    return isFound;
 }

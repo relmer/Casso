@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
 
@@ -93,6 +94,7 @@ wchar_t SectorByteView::GetTextChar (Byte value)
 float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
 {
     vector<HeaderItem>  items  = InspectorText::BuildSectorHeader (sector, track);
+    vector<HeaderItem>  owners;
     float               gap    = m_scaler.ToPxf (s_kHeaderGapDip);
     float               rowH   = m_scaler.ToPxf (static_cast<float> (kHeaderDip));
     float               textPx = m_scaler.ToPxf (kSmallDip);
@@ -102,6 +104,13 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
     std::wstring        line;
 
 
+
+    //  On a whole track of a mapped volume, the sector's role and owners.
+    if (m_context.fileMap != nullptr && m_context.model->GetQuarterTrack() % DiskImage::kQuarterTracksPerWholeTrack == 0)
+    {
+        owners = FileMapText::BuildSectorItems (*m_context.fileMap, m_context.model->GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack, sector.sector);
+        items.insert (items.end(), owners.begin(), owners.end());
+    }
 
     for (const HeaderItem & item : items)
     {

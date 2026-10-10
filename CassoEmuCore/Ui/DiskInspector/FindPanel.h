@@ -41,6 +41,7 @@ private:
     void  OnGoTo      ();
     void  ShowHits    ();
     void  ReadQuery   ();
+    std::wstring  FormatOwner (const SearchHit & hit) const;
 
     const IDxuiTheme *       m_theme        = nullptr;   // non-owning
     InspectorViewContext *   m_context      = nullptr;   // non-owning

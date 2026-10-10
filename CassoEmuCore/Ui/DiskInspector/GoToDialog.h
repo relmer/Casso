@@ -22,7 +22,7 @@
 class GoToDialog : public DxuiDialogWindow
 {
 public:
-    static constexpr int  kKindCount = 6;
+    static constexpr int  kKindCount = 7;
 
     void  Configure (const IDxuiTheme * theme, const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
 
@@ -30,7 +30,7 @@ public:
     GoToKind             GetKind   () const { return m_kind; }
     const GoToTarget &   GetTarget () const { return m_target; }
 
-    static constexpr SIZE  kSizeDip = { 420, 360 };
+    static constexpr SIZE  kSizeDip = { 420, 400 };
 
 protected:
     void  OnCreate () override;

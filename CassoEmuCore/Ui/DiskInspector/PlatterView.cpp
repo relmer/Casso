@@ -23,6 +23,8 @@ static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr double s_kPanStep          = 0.1;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
+static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
+static constexpr double   s_kPiecesPerTurn   = 96.0;
 
 
 
@@ -110,6 +112,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     if (m_isAlignmentShown)
     {
         PaintAlignment (painter, theme, view);
+    }
+
+    if (m_context.isFilesOverlay && m_context.fileMap != nullptr && m_context.fileMap->notMapped == NotMappedReason::None)
+    {
+        PaintFiles (painter, theme, view);
     }
 }
 
@@ -454,6 +461,97 @@ const PlatterView::RingTurns & PlatterView::GetRingTurns (int slot, const TrackA
     }
 
     return m_ringTurns[slot];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintFiles
+//
+//  The "Files" overlay (FR-091): each standard sector's data field across
+//  its whole track in its role's color, and the selected file's sectors
+//  marked with a band along the track's inner edge (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
+{
+    const FileMap &  map   = *m_context.fileMap;
+    int              half  = 0;
+    int              cell  = -1;
+    int              slot  = -1;
+    double           outer = 0;
+    double           inner = 0;
+    double           band  = 0;
+
+
+
+    for (int t = 0; t < map.tracks; t++)
+    {
+        int                    qt    = t * DiskImage::kQuarterTracksPerWholeTrack;
+        const TrackAnalysis *  track = GetRingTrack (qt);
+
+        if (track == nullptr || track->framed.nibbles.empty())
+        {
+            continue;
+        }
+
+        slot  = m_context.analysis->entries[qt].slot;
+        outer = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter (qt + DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        band  = inner + (outer - inner) * s_kTickShare;
+
+        const RingTurns &  turns = GetRingTurns (slot, *track);
+
+        for (const AnalyzedSector & sector : track->sectors)
+        {
+            cell = (sector.dataField >= 0) ? map.GetCellOf (t, sector.sector, half) : -1;
+
+            if (cell < 0)
+            {
+                continue;
+            }
+
+            const LocatedField &  field = track->fields[sector.dataField];
+            double                a     = turns.nibbles[field.firstNibble];
+            double                b     = turns.nibbles[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), turns.nibbles.size() - 1)];
+            const vector<int> &   own   = map.cells[cell].owners;
+
+            ShadeRingArc (painter, view, a, b, inner, outer, (m_context.palette.GetRoleColor (static_cast<MapRole> (map.cells[cell].role)) & 0x00FFFFFFu) | s_kFilesAlpha);
+
+            if (std::find (own.begin(), own.end(), m_context.selectedFile) != own.end())
+            {
+                ShadeRingArc (painter, view, a, b, inner, band, theme.Accent());
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::ShadeRingArc
+//
+//  An arc of a ring, in pieces short enough to follow the curve at fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::ShadeRingArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb)
+{
+    int  pieces = std::max (1, static_cast<int> (std::ceil ((b - a) * s_kPiecesPerTurn)));
+
+
+
+    for (int k = 0; k < pieces; k++)
+    {
+        ShadeArc (painter, view, a + (b - a) * k / pieces, a + (b - a) * (k + 1) / pieces, r0, r1, argb);
+    }
 }
 
 

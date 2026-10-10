@@ -28,6 +28,7 @@ static constexpr float  s_kSeamRuleDip     = 3.0f;
 static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 static constexpr uint32_t  s_kSelectionAlpha = 0x60000000u;
+static constexpr float     s_kFilesShare     = 0.3f;
 
 
 
@@ -160,6 +161,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
         PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
     }
 
+    PaintFiles     (painter, theme, track, g);
     PaintSelection (painter, theme, g);
     PaintSeam      (painter, text, theme, track, g);
     PaintLabels    (painter, text, theme, track, g);
@@ -858,5 +860,64 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
     {
         painter.FillRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 1.0f), static_cast<float> (bar.bottom - bar.top),
                           (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintFiles
+//
+//  With the "Files" overlay on a whole track of a mapped volume, each data
+//  field's role as a band along the bottom of the bar, and the selected
+//  file's fields outlined (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
+{
+    const FileMap *              map    = m_context.fileMap;
+    int                          qt     = m_context.model->GetQuarterTrack();
+    RECT                         bar    = GetBarRect();
+    float                        height = static_cast<float> (bar.bottom - bar.top);
+    std::array<StripSegment, 2>  parts  = {};
+    int                          count  = 0;
+    int                          cell   = -1;
+    int                          half   = 0;
+    bool                         isOn   = m_context.isFilesOverlay && map != nullptr && map->notMapped == NotMappedReason::None &&
+                                          qt % DiskImage::kQuarterTracksPerWholeTrack == 0;
+
+
+
+    for (const AnalyzedSector & sector : isOn ? track.sectors : vector<AnalyzedSector>())
+    {
+        cell = (sector.dataField >= 0) ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector.sector, half) : -1;
+
+        if (cell < 0)
+        {
+            continue;
+        }
+
+        const LocatedField  & field  = track.fields[sector.dataField];
+        double                a      = m_turns[field.firstNibble];
+        double                b      = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
+        const vector<int>   & own    = map->cells[cell].owners;
+        bool                  isMine = std::find (own.begin(), own.end(), m_context.selectedFile) != own.end();
+
+        count = g.GetSegments (a, b - a, parts);
+
+        for (int k = 0; k < count; k++)
+        {
+            painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - height * s_kFilesShare, parts[k].x1 - parts[k].x0, height * s_kFilesShare,
+                              m_context.palette.GetRoleColor (static_cast<MapRole> (map->cells[cell].role)));
+
+            if (isMine)
+            {
+                painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, height, m_scaler.ToPxf (s_kOutlineDip), theme.Accent());
+            }
+        }
     }
 }

@@ -107,7 +107,8 @@ private:
 //
 //  What "Go to" selects (FR-055), each read in the base the inspector shows
 //  it in: a track as 17.25, a physical or DOS 3.3 sector in hex, a ProDOS
-//  block and a cell in decimal, a nibble offset in hex.
+//  block and a cell in decimal, a nibble offset in hex; or a file of a
+//  mapped volume by its path (FR-095).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +120,7 @@ enum class GoToKind
     ProDosBlock,
     NibbleOffset,
     Cell,
+    File,
 };
 
 
@@ -153,5 +155,6 @@ public:
 
 private:
     static const TrackAnalysis *  GetTrack (const DiskAnalysis & analysis, int quarterTrack);
-    static int  FindSector (const TrackAnalysis & track, GoToKind kind, int value);
+    static int   FindSector (const TrackAnalysis & track, GoToKind kind, int value);
+    static bool  FindFile   (const DiskAnalysis & analysis, const std::wstring & path, GoToTarget & outTarget);
 };

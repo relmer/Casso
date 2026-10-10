@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/FindPanel.h"
+#include "Ui/DiskInspector/FileMapText.h"
 
 
 
@@ -262,7 +263,7 @@ void FindPanel::ShowHits()
     {
         TableRow  row;
 
-        row.cells        = { InspectorSearch::FormatHit (m_hits[i]),
+        row.cells        = { InspectorSearch::FormatHit (m_hits[i]) + FormatOwner (m_hits[i]),
                              (m_context->analysis != nullptr && InspectorSearch::IsOutOfDate (m_hits[i], *m_context->analysis)) ? L"Out of date" : L"" };
         row.quarterTrack = m_hits[i].quarterTrack;
         row.finding      = static_cast<int> (i);
@@ -290,4 +291,35 @@ void FindPanel::ReadQuery()
     m_query.text           = m_input.GetText();
     m_query.isWholeDisk    = m_wholeDisk.IsChecked();
     m_query.isAnyBitOffset = m_anyBit.IsChecked() && m_query.kind == SearchKind::Nibbles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPanel::FormatOwner
+//
+//  For a hit in sector data on a mapped volume, the file that owns the
+//  sector (FR-095).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindPanel::FormatOwner (const SearchHit & hit) const
+{
+    const FileMap *  map   = m_context->fileMap;
+    int              half  = 0;
+    int              cell  = -1;
+    std::wstring     owner;
+
+
+
+    if (map != nullptr && hit.sectorIndex >= 0 && hit.track != nullptr && hit.quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == 0)
+    {
+        cell  = map->GetCellOf (hit.quarterTrack / DiskImage::kQuarterTracksPerWholeTrack, hit.track->sectors[hit.sectorIndex].sector, half);
+        owner = (cell >= 0 && !map->cells[cell].owners.empty()) ? L" (" + FileMapText::FormatOwners (*map, cell) + L")" : L"";
+    }
+
+    return owner;
 }

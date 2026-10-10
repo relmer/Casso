@@ -258,9 +258,9 @@ without the others in its merge.
 - [X] T107 [P] [US8] Create `DD/Inspector/FileMap/ProDosMapReader.h` / `.cpp` (volume directory, seedling, sapling, tree, extended key blocks for forks, deleted entries, bitmap checks, and subdirectories at any depth, which needed no stub)
 - [X] T108 [P] [US8] Create `DD/Inspector/FileMap/PascalMapReader.h` / `.cpp` (header test of FR-085, runs of blocks, `.BAD` files, entry order and range findings)
 - [X] T109 [P] [US8] Create `DD/Inspector/FileMap/CpmMapReader.h` / `.cpp` (directory test of FR-085, skew 3n mod 16, allocation blocks, extents, user 31 system entry, deleted entries)
-- [ ] T110 [US8] Add file-system findings (FR-093) and CP/M sector and allocation block to sectors (FR-040) in `DD/Inspector/DiskAnalyzer.cpp`; rebuild the map after each re-analysis without decoding again (FR-083)
+- [X] T110 [US8] Add file-system findings (FR-093) and CP/M sector and allocation block to sectors (FR-040) in `DD/Inspector/DiskAnalyzer.cpp`; rebuild the map after each re-analysis without decoding again (FR-083)
 - [X] T111 [US8] Create `UI/FileMapTab.h` / `.cpp`: grid per system, file list with sorting and "Files touching bad sectors", "Show deleted files", Previous and Next sector in file, "Copy map", volume choice when two are found, tooltips (FR-086 to FR-095)
-- [ ] T112 [US8] "Files" overlay on the platter and strip, Sector data header role and owner ("HELLO, data sector 3 of 5"), Go to a file, owners in Find results (FR-090, FR-091, FR-095)
+- [X] T112 [US8] "Files" overlay on the platter and strip, Sector data header role and owner ("HELLO, data sector 3 of 5"), Go to a file, owners in Find results (FR-090, FR-091, FR-095)
 
 ---
 

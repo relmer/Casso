@@ -6,7 +6,7 @@
 
 
 
-static constexpr int  s_kMaxEntryChars = 12;
+static constexpr int  s_kMaxPathChars = 64;
 
 
 
@@ -121,7 +121,7 @@ void GoToDialog::OnCreate()
 
     m_input.SetTheme        (m_theme);
     m_input.SetHwnd         (GetHwnd());
-    m_input.SetMaxLength    (s_kMaxEntryChars);
+    m_input.SetMaxLength    (s_kMaxPathChars);
     m_input.SetTextRenderer (GetTextRenderer());
 
     m_error.SetTextRole  (DxuiTextRole::Error);

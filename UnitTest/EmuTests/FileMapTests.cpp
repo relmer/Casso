@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
+#include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "FileMapTestImages.h"
 
@@ -392,6 +393,26 @@ public:
 
 
         Assert::IsTrue (FileMapText::FormatNotMapped (zero).starts_with (L"No DOS 3.3, ProDOS, Apple Pascal or CP/M volume was found."));
+    }
+
+
+
+    TEST_METHOD (GoToAFileSelectsItsFirstSector)
+    {
+        DiskAnalysis  analysis;
+        GoToTarget    target;
+        std::wstring  error;
+
+
+
+        Images::Analyze (Images::MakeDos33(), false, analysis);
+
+        Assert::IsTrue   (InspectorGoTo::Resolve (analysis, 0, GoToKind::File, L"hello", target, error), error.c_str());
+        Assert::AreEqual (18 * 4, target.quarterTrack);
+        Assert::AreEqual (SectorSource::GetDos33Physical (15), static_cast<int> (analysis.tracks[analysis.entries[18 * 4].slot]->sectors[target.sectorIndex].sector),
+                          L"its track/sector list");
+        Assert::IsFalse  (InspectorGoTo::Resolve (analysis, 0, GoToKind::File, L"NOSUCH", target, error));
+        Assert::IsFalse  (InspectorGoTo::Resolve (analysis, 0, GoToKind::File, L"OLD", target, error), L"a deleted file is not gone to");
     }
 
 

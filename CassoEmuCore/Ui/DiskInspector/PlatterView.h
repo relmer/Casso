@@ -55,6 +55,8 @@ private:
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
+    void           PaintFiles     (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    static void    ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     bool           IsSelectedNibble (int quarterTrack, int nibble) const;
     static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);

@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Ui/DiskInspector/InspectorText.h"
 
 
 
@@ -38,4 +39,8 @@ public:
     static std::wstring  FormatVolume    (const FileMap & map);
     static std::wstring  FormatMap       (const FileMap & map);
     static wchar_t       GetRoleLetter   (SectorRole role);
+
+    //  The Sector data header's role and owners for a physical sector, and
+    //  on a CP/M volume its CP/M sector and allocation block (FR-040, FR-090).
+    static vector<HeaderItem>  BuildSectorItems (const FileMap & map, int track, int physical);
 };

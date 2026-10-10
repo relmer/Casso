@@ -192,6 +192,7 @@ private:
     DxuiTabStrip                          * m_diskTabs           = nullptr;
     DxuiButton                            * m_decodeButton       = nullptr;
     DxuiCheckbox                          * m_alignmentCheck     = nullptr;
+    DxuiCheckbox                          * m_filesCheck         = nullptr;
     DxuiTabStrip                          * m_modeTabs           = nullptr;
     DxuiButton                            * m_rangeDown          = nullptr;
     DxuiButton                            * m_rangeUp            = nullptr;
