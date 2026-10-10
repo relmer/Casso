@@ -3,6 +3,7 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
 #include "../resource.h"
@@ -412,7 +413,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Reverse execution's history belongs to the machine being left, whose
     // devices are about to go; stopping it also lets the flush below write.
-    m_shell.StopReverseRecording();
+    m_shell.m_debugger->StopReverseRecording();
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
@@ -579,7 +580,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // A debugger attached to the old machine is told it is gone. Its
     // breakpoints named addresses on a machine that no longer exists.
-    m_shell.NotifyDebugMachineChanged (machineNameNarrow);
+    m_shell.m_debugger->NotifyDebugMachineChanged (machineNameNarrow);
 
     m_shell.UpdateWindowTitle();
 
@@ -628,7 +629,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // The new machine's history starts here, built, power cycled and with
     // its disks in.
-    m_shell.StartReverseRecording();
+    m_shell.m_debugger->StartReverseRecording();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.
@@ -666,7 +667,7 @@ Error:
 void MachineManager::SoftReset()
 {
     m_shell.m_machine.SoftReset();
-    m_shell.NotifyDebugReset (false);
+    m_shell.m_debugger->NotifyDebugReset (false);
 
     // Re-zero the Disk II Debug Uptime column on every reset so the user
     // sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
@@ -686,7 +687,7 @@ void MachineManager::SoftReset()
 void MachineManager::PowerCycle()
 {
     m_shell.m_machine.PowerCycle();
-    m_shell.NotifyDebugReset (true);
+    m_shell.m_debugger->NotifyDebugReset (true);
 
     m_shell.ResetUptimeAnchor();
 }

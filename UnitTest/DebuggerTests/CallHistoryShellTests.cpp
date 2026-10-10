@@ -11,6 +11,7 @@
 #include "resource.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -37,14 +38,6 @@ namespace CallHistoryShellTests
     class CallHistoryShell : public EmulatorShell
     {
     public:
-        using EmulatorShell::AttachDebugger;
-        using EmulatorShell::CloseDebugger;
-        using EmulatorShell::GetCallReplayer;
-        using EmulatorShell::IsDebuggerOpen;
-        using EmulatorShell::PrepareFramebuffers;
-        using EmulatorShell::ServiceDebugger;
-        using EmulatorShell::SetDebugWindowShown;
-        using EmulatorShell::TakeDebuggerUpdate;
     };
 
 
@@ -99,8 +92,8 @@ namespace CallHistoryShellTests
             shell->GetMachine().PowerCycle();
             LoadProgram (shell->GetMachine());
 
-            shell->PrepareFramebuffers();
-            shell->GetCallReplayer().SetWorkQueue (&queue);
+            shell->GetDebugger().PrepareFramebuffers();
+            shell->GetDebugger().GetCallReplayer().SetWorkQueue (&queue);
 
             Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
 
@@ -112,16 +105,16 @@ namespace CallHistoryShellTests
             AssertSucceeded (hr, L"the debugger opens");
 
             debugger = controller.get();
-            shell->AttachDebugger (std::move (controller));
+            shell->GetDebugger().AttachDebugger (std::move (controller));
         }
 
 
 
         ~ShellRig()
         {
-            if (shell->IsDebuggerOpen())
+            if (shell->GetDebugger().IsDebuggerOpen())
             {
-                shell->CloseDebugger();
+                shell->GetDebugger().CloseDebugger();
             }
 
             shell.reset();
@@ -189,9 +182,9 @@ namespace CallHistoryShellTests
         //  that takes it in.
         void Rebuild()
         {
-            shell->ServiceDebugger();
+            shell->GetDebugger().ServiceDebugger();
             queue.WaitAll();
-            shell->ServiceDebugger();
+            shell->GetDebugger().ServiceDebugger();
 
             Assert::IsFalse (debugger->GetCallHistory().IsRebuilding(), L"the rebuild was taken in");
         }
@@ -230,7 +223,7 @@ namespace CallHistoryShellTests
 
             do
             {
-                isTaken = shell->TakeDebuggerUpdate (snapshot, lines) && snapshot != nullptr;
+                isTaken = shell->GetDebugger().TakeDebuggerUpdate (snapshot, lines) && snapshot != nullptr;
 
                 if (!isTaken)
                 {
@@ -298,13 +291,13 @@ namespace CallHistoryShellTests
 
             Assert::IsFalse (ShellRig::HasCalls (rig.GetRecord()), L"opened mid-run: the calls before are not recorded");
 
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsTrue   (rig.debugger->GetCallHistory().IsRebuilding(), L"a pass requests the rebuild");
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(),      L"on the rebuilder's worker");
 
             rig.queue.WaitAll();
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsFalse (rig.debugger->GetCallHistory().IsRebuilding(), L"the next pass takes it in");
             Assert::IsTrue  (ShellRig::HasCalls (rig.GetRecord()),          L"with the calls made before the debugger opened");
@@ -332,12 +325,12 @@ namespace CallHistoryShellTests
             Assert::AreNotEqual (generation, rig.GetGeneration(),                L"and the record starts again there");
             Assert::IsFalse     (ShellRig::HasCalls (rig.GetRecord()),           L"holding no call before it");
 
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"the next pass requests its rebuild");
 
             rig.queue.WaitAll();
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsTrue (ShellRig::HasCalls (rig.GetRecord()), L"which brings back the calls");
         }
@@ -394,7 +387,7 @@ namespace CallHistoryShellTests
             Assert::AreEqual (landing, rig.shell->GetMachine().GetPosition(), L"behind live, where the seek landed");
 
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             bottom = rig.debugger->GetSession().GetCallRecordBottom();
             rows   = CallStackPane::GetRows (rig.debugger->GetSession().GetCallStack());
@@ -421,18 +414,18 @@ namespace CallHistoryShellTests
 
 
 
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"a rebuild was requested");
 
-            rig.shell->CloseDebugger();
+            rig.shell->GetDebugger().CloseDebugger();
             rig.debugger = nullptr;
 
-            Assert::IsFalse (rig.shell->IsDebuggerOpen(), L"the debugger is gone");
+            Assert::IsFalse (rig.shell->GetDebugger().IsDebuggerOpen(), L"the debugger is gone");
 
             rig.queue.WaitAll();
 
-            isLeft = rig.shell->GetCallReplayer().TryTakeResult (result);
+            isLeft = rig.shell->GetDebugger().GetCallReplayer().TryTakeResult (result);
 
             Assert::IsFalse (isLeft, L"the rebuild was dropped, not run");
         }
@@ -448,31 +441,31 @@ namespace CallHistoryShellTests
 
 
 
-            rig.shell->SetDebugWindowShown (true);
+            rig.shell->GetDebugger().SetDebugWindowShown (true);
 
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsTrue (rig.debugger->GetCallHistory().IsRebuilding(), L"the rebuild is under way");
             Assert::IsTrue (rig.TryTakeView (kViewWaitMs),                L"the window's first view");
 
             std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsTrue (rig.TryTakeView (kViewWaitMs), L"built again while the rebuild runs");
 
             rig.queue.WaitAll();
             std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsFalse (rig.debugger->GetCallHistory().IsRebuilding(), L"the rebuild was taken in");
             Assert::IsTrue  (rig.TryTakeView (kViewWaitMs),                L"and built again with it");
 
             std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
-            rig.shell->ServiceDebugger();
+            rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsFalse (rig.TryTakeView (kNoViewWaitMs), L"then a stopped machine builds no more");
 
-            rig.shell->SetDebugWindowShown (false);
+            rig.shell->GetDebugger().SetDebugWindowShown (false);
         }
     };
 }

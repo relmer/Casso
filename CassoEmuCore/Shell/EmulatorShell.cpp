@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/Reverse/ReverseHost.h"
@@ -121,6 +122,8 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
+    m_debugger = std::make_unique<ShellDebugger> (*this);
+
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
     // 17,030-cycle frame counter for $C019 (RDVBLBAR) reads.
@@ -224,10 +227,10 @@ EmulatorShell::~EmulatorShell()
 
     // The window posts to the CPU thread through this shell, so it is cut off
     // before either goes.
-    if (m_debuggerWindow != nullptr)
+    if (m_debugger->m_debuggerWindow != nullptr)
     {
-        m_debuggerWindow->DetachHost();
-        m_debuggerWindow.reset();
+        m_debugger->m_debuggerWindow->DetachHost();
+        m_debugger->m_debuggerWindow.reset();
     }
 
     //  THE CONTROLLER STACK GOES BY HAND, HERE, for the same reason. Its
@@ -470,9 +473,9 @@ HRESULT EmulatorShell::Initialize (
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_divergenceGate, [this]
+    m_gamePortSink->SetDivergenceGate (&m_debugger->m_divergenceGate, [this]
     {
-        PublishHeldInput();
+        m_debugger->PublishHeldInput();
     });
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]

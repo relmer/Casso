@@ -471,7 +471,7 @@ public:
 private:
 
     //  A target that writes down what it was asked, one line per call.
-    class Notebook : public ICpuCommandTarget
+    class Notebook : public ICpuCommandTarget, public IDebugCommandTarget
     {
     public:
 
@@ -641,13 +641,13 @@ private:
     };
 
 
-    static void Dispatch (WORD id, const char * payload, ICpuCommandTarget & target)
+    static void Dispatch (WORD id, const char * payload, Notebook & target)
     {
         EmulatorCommand  cmd;
 
         cmd.id      = id;
         cmd.payload = payload;
 
-        CpuCommandDispatcher::Dispatch (cmd, target);
+        CpuCommandDispatcher::Dispatch (cmd, target, target);
     }
 };

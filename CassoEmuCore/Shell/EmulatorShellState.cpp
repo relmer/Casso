@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/MachineStateFile.h"
@@ -180,11 +181,11 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
     hr = MachineStateFile::Check (m_machine, contents, error);
     CHR (hr);
 
-    StopReverseRecording();
+    m_debugger->StopReverseRecording();
 
     hr = MachineStateFile::Apply (m_machine, contents, error);
 
-    StartReverseRecording();
+    m_debugger->StartReverseRecording();
 
     CHR (hr);
 
@@ -196,9 +197,9 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
         speaker->BeginFrame();
     }
 
-    NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string());
+    m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string());
 
-    m_isDebugViewDirty = true;
+    m_debugger->m_isDebugViewDirty = true;
 
     RenderFramebuffer();
     PublishFramebuffer();

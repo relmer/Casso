@@ -3,6 +3,7 @@
 #include "Core/ThreadName.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -1475,8 +1476,8 @@ int EmulatorShell::RunMessageLoop()
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
-    m_cpuManager.SetServiceFunction ([this] { ServiceDebugger(); ServiceHistoryThumbnails(); });
-    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return AllowCommand (id, payload); });
+    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_debugger->ServiceHistoryThumbnails(); });
+    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
@@ -1489,7 +1490,7 @@ int EmulatorShell::RunMessageLoop()
     // The machine's window keeps the foreground Windows gave the launch.
     if (m_openDebuggerAtStart)
     {
-        OpenDebuggerWindow (false);
+        m_debugger->OpenDebuggerWindow (false);
     }
 
     // Cold-boot mount window is closed once the UI message loop is
@@ -1557,7 +1558,7 @@ int EmulatorShell::RunMessageLoop()
 
             if (settingsActive ||
                 m_accelTable == nullptr ||
-                IsDebuggerMessage (msg) ||
+                m_debugger->IsDebuggerMessage (msg) ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
@@ -2263,7 +2264,7 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
     if (timerId == kClickReleaseTimerId)
     {
-        ReleaseGuestMouseAfterClick();
+        m_debugger->ReleaseGuestMouseAfterClick();
         return DxuiMessageResult::Handled;
     }
 
@@ -2390,9 +2391,9 @@ void EmulatorShell::UpdateWindowTitle()
 
     // Behind live, where the replay stands.
     {
-        std::lock_guard<std::mutex>  held (m_replayCaptionMutex);
+        std::lock_guard<std::mutex>  held (m_debugger->m_replayCaptionMutex);
 
-        title += m_replayCaption;
+        title += m_debugger->m_replayCaption;
     }
 
 #if defined (_DEBUG)
@@ -2715,38 +2716,38 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         // A controller's flush can arrive behind live, before the cut a yes
         // queued; what is held waits for the one going live posts.
-        if (IsBehindLiveForUi())
+        if (m_debugger->IsBehindLiveForUi())
         {
             return DxuiMessageResult::Handled;
         }
 
-        m_divergenceGate.OnLive();
+        m_debugger->m_divergenceGate.OnLive();
 
-        if (m_isJoyportSyncOwed)
+        if (m_debugger->m_isJoyportSyncOwed)
         {
-            m_isJoyportSyncOwed = false;
+            m_debugger->m_isJoyportSyncOwed = false;
             SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
         // read before the replay reached live.
-        mouseTarget = m_divergenceGate.GetMouseTarget();
-        m_divergenceGate.TakeHeld (held, heldInputs);
-        PublishHeldInput();
+        mouseTarget = m_debugger->m_divergenceGate.GetMouseTarget();
+        m_debugger->m_divergenceGate.TakeHeld (held, heldInputs);
+        m_debugger->PublishHeldInput();
 
         for (const DxuiKeyEvent & ev : held)
         {
             (void) OnViewportKey (ev);
         }
 
-        ApplyHeldInputs (heldInputs);
+        m_debugger->ApplyHeldInputs (heldInputs);
 
         if (mouseTarget.has_value())
         {
-            ApplyHeldMouseTarget (*mouseTarget);
+            m_debugger->ApplyHeldMouseTarget (*mouseTarget);
         }
 
-        ResumeAfterHeldInput();
+        m_debugger->ResumeAfterHeldInput();
 
         return DxuiMessageResult::Handled;
     }
@@ -2754,7 +2755,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The //c's 80/40 switch behind live waits on this question.
     if (msg == WM_APP_CONFIRM_INPUT)
     {
-        OnConfirmInputDiverge();
+        m_debugger->OnConfirmInputDiverge();
 
         return DxuiMessageResult::Handled;
     }
@@ -2762,7 +2763,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The replay stopped where the guest reads input held behind live.
     if (msg == WM_APP_HELD_INPUT_READ)
     {
-        OnHeldInputRead();
+        m_debugger->OnHeldInputRead();
 
         return DxuiMessageResult::Handled;
     }
@@ -2770,7 +2771,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // A debugger edit behind live waits on this question.
     if (msg == WM_APP_CONFIRM_DIVERGE)
     {
-        OnConfirmDiverge();
+        m_debugger->OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
     }

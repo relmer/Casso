@@ -81,6 +81,32 @@ public:
     virtual void     SetDriveAudioPan         (int drive, float pan)                            = 0;
     virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
 
+    //  Saves the whole machine to a state file, or loads one.
+    virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
+    virtual void     LoadMachineState         (const std::filesystem::path & path)              = 0;
+    virtual void     ControlTape              (TapeCommand command)                             = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IDebugCommandTarget
+//
+//  What a command from the UI thread can ask of the debugger on the CPU
+//  thread. The debugger implements it; the shell passes it to the dispatcher
+//  beside its own target, so the shell need not carry the debugger's calls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IDebugCommandTarget
+{
+public:
+
+    virtual ~IDebugCommandTarget () = default;
+
     //  A debugger command line and the client its reply goes to, run on the
     //  thread that owns the machine, in `mode` when given and otherwise in the
     //  session's own.
@@ -139,11 +165,6 @@ public:
     //  Behind live, the user agreed to discard the history recorded after where
     //  the machine stands, ahead of the change that asked.
     virtual void     DivergeHistory           ()                                                { }
-
-    //  Saves the whole machine to a state file, or loads one.
-    virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
-    virtual void     LoadMachineState         (const std::filesystem::path & path)              = 0;
-    virtual void     ControlTape              (TapeCommand command)                             = 0;
 };
 
 
@@ -168,7 +189,7 @@ class CpuCommandDispatcher
 {
 public:
 
-    static void  Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target);
+    static void  Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target, IDebugCommandTarget & debugTarget);
 
     //  A code view's name: `base` for the first, `base` with 2 to 4 after it
     //  for the others; index is 0 to 3.
@@ -190,7 +211,7 @@ public:
     //  "ignore " and HeatMapRangeSets' span words after "heatmap": the spans
     //  whose reads before written are left out.
     static bool  TryGetHeatMapIgnore (const std::string & where, std::vector<std::pair<Word, Word>> & spans);
-    static void  SetHeatMapIgnore    (const std::string & where, ICpuCommandTarget & target);
+    static void  SetHeatMapIgnore    (const std::string & where, IDebugCommandTarget & target);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
@@ -213,7 +234,7 @@ private:
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchDebugView     (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchReverse       (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target);
+    static void  DispatchDebugView     (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverse       (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target);
 };

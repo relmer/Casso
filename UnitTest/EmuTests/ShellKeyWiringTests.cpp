@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -238,10 +239,10 @@ public:
 
 
 
-        Assert::IsTrue  (EmulatorShell::IsDebuggerMessageRoot (debugger, emulator, debugger), L"the debugger window");
-        Assert::IsTrue  (EmulatorShell::IsDebuggerMessageRoot (floating, debugger, debugger), L"a floating pane");
-        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (emulator, nullptr,  debugger), L"the emulator window");
-        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (emulator, nullptr,  nullptr),  L"no debugger open");
-        Assert::IsFalse (EmulatorShell::IsDebuggerMessageRoot (nullptr,  nullptr,  nullptr),  L"no window at all");
+        Assert::IsTrue  (ShellDebugger::IsDebuggerMessageRoot (debugger, emulator, debugger), L"the debugger window");
+        Assert::IsTrue  (ShellDebugger::IsDebuggerMessageRoot (floating, debugger, debugger), L"a floating pane");
+        Assert::IsFalse (ShellDebugger::IsDebuggerMessageRoot (emulator, nullptr,  debugger), L"the emulator window");
+        Assert::IsFalse (ShellDebugger::IsDebuggerMessageRoot (emulator, nullptr,  nullptr),  L"no debugger open");
+        Assert::IsFalse (ShellDebugger::IsDebuggerMessageRoot (nullptr,  nullptr,  nullptr),  L"no window at all");
     }
 };

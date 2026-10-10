@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -1552,7 +1553,7 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
         case Apple2cSwitchBar::Part::EightyForty:
             // The guest reads this switch, so behind live it asks first.
-            ToggleEightyColumnSwitch (iieKbd);
+            m_debugger->ToggleEightyColumnSwitch (iieKbd);
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:

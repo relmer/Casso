@@ -7,6 +7,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
@@ -1056,7 +1057,7 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_DEBUGGER:
         {
-            m_shell.OpenDebuggerWindow();
+            m_shell.m_debugger->OpenDebuggerWindow();
             break;
         }
 
@@ -1064,7 +1065,7 @@ void WindowCommandManager::OnViewCommand (int id)
         {
             // Both go to the CPU queue in order: the channel opens, which
             // starts the call-stack recorder, before the power cycle runs.
-            m_shell.OpenDebuggerWindow();
+            m_shell.m_debugger->OpenDebuggerWindow();
             m_shell.PostCommand (IDM_MACHINE_POWERCYCLE);
             break;
         }

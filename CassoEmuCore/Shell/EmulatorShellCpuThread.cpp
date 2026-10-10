@@ -3,6 +3,7 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Debugger/CpuManagerRunDriver.h"
@@ -246,16 +247,16 @@ void EmulatorShell::OnCpuThreadStart()
     // Reverse execution records from here, on the thread that runs the
     // machine, which is built and power cycled by now. The settings are read
     // once, here, and hold for every machine built after.
-    m_isReverseOn           = m_globalPrefs.reverseRecording;
-    m_reverseBudgetMb       = m_globalPrefs.reverseBudgetMb;
-    m_reverseIntervalFrames = m_globalPrefs.reverseIntervalFrames;
+    m_debugger->m_isReverseOn           = m_globalPrefs.reverseRecording;
+    m_debugger->m_reverseBudgetMb       = m_globalPrefs.reverseBudgetMb;
+    m_debugger->m_reverseIntervalFrames = m_globalPrefs.reverseIntervalFrames;
 
-    StartReverseRecording();
+    m_debugger->StartReverseRecording();
 
     // On the CPU thread, which is where the debugger lives from here on.
     if (m_openDebuggerAtStart)
     {
-        hr = OpenDebugger();
+        hr = m_debugger->OpenDebugger();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -353,9 +354,9 @@ Error:
 void EmulatorShell::OnCpuThreadStop()
 {
     // First, so the disks' held writes reach their files at shutdown.
-    StopReverseRecording();
+    m_debugger->StopReverseRecording();
 
-    CloseDebugger();
+    m_debugger->CloseDebugger();
     m_wasapiAudio.Shutdown();
 }
 
@@ -388,7 +389,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         m_machine.RecordInput (input.kind, input.value, input.detail, input.payload);
     }
 
-    CpuCommandDispatcher::Dispatch (cmd, *this);
+    CpuCommandDispatcher::Dispatch (cmd, *this, *m_debugger);
 }
 
 
@@ -416,13 +417,13 @@ void EmulatorShell::StepInstruction()
 
 
 
-    if (m_debugSession != nullptr)
+    if (m_debugger->m_debugSession != nullptr)
     {
         stepInto.verb       = DebugVerb::StepInto;
         stepInto.sourceName = "T";
 
-        (void) m_debugSession->Execute (stepInto);
-        m_isDebugViewDirty = true;
+        (void) m_debugger->m_debugSession->Execute (stepInto);
+        m_debugger->m_isDebugViewDirty = true;
         return;
     }
 
@@ -737,281 +738,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RunDebugCommand
-//
-//  A debugger command, run on the CPU thread because that is where the machine
-//  it inspects and changes is safe to touch. With no handler attached nobody is
-//  debugging, so there is no one to reply to and the line is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
-{
-    m_debugCommandClient = clientId;
-
-    if (m_debugCommandHandler)
-    {
-        m_debugCommandHandler (clientId, line, mode);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugPauseChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugPauseChanged (bool paused)
-{
-    // A pause during a debugger run ends that run, so a client hears one stop
-    // with its budget and cycle count rather than a run that never finishes.
-    if (paused && m_debugRunDriver != nullptr)
-    {
-        m_debugRunDriver->EndForUserPause();
-    }
-
-    if (m_debugSession == nullptr)
-    {
-        return;
-    }
-
-    if (paused)
-    {
-        m_debugSession->OnUserPaused();
-    }
-    else
-    {
-        m_debugSession->OnUserResumed();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugReset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugReset (bool isPowerCycle)
-{
-    if (m_debugSession != nullptr)
-    {
-        m_debugSession->OnReset (isPowerCycle);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugMachineChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugMachineChanged (const std::string & machineName)
-{
-    //  A debugger run on the old machine ends with it, announced as a pause,
-    //  and gives back the speed it borrowed.
-    if (m_debugRunDriver != nullptr)
-    {
-        m_debugRunDriver->EndForUserPause();
-    }
-
-    if (m_debugSession != nullptr)
-    {
-        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OpenDebugger
-//
-//  The pipe, the controller, and the shell's debug pointers at them. Nothing
-//  is attached until the channel has actually opened, so a failure -- another
-//  process holding this instance's pipe name -- leaves the shell exactly as it
-//  was and the emulator running with no debugger.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::OpenDebugger()
-{
-    HRESULT                              hr         = S_OK;
-    std::vector<BYTE>                    userSid;
-    std::unique_ptr<Win32NamedPipeApi>   api;
-    std::unique_ptr<Win32PipeTransport>  transport;
-    std::unique_ptr<DebuggerController>  controller;
-    uint32_t                             processId  = GetCurrentProcessId();
-
-
-
-    //  Already built: reopen a channel the window closed. The controller and
-    //  its session were kept, so this is only the pipe.
-    if (m_debugger != nullptr)
-    {
-        BAIL_OUT_IF (m_debugger->IsOpen(), S_OK);
-
-        hr = m_debugger->Open();
-        CHR (hr);
-
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
-    CHR (hr);
-
-    api        = std::make_unique<Win32NamedPipeApi>();
-    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
-    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
-        [this] (ChannelHello & hello)
-        {
-            hello.title   = TextEncoding::WideToNarrow (m_titlePrefix);
-            hello.machine = m_machine.GetConfig().name;
-        },
-        processId);
-
-    hr = controller->Open();
-    CHR (hr);
-
-    m_pipeApi       = std::move (api);
-    m_pipeTransport = std::move (transport);
-
-    AttachDebugger (std::move (controller));
-
-Error:
-    if (FAILED (hr))
-    {
-        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AttachDebugger
-//
-//  The shell's debug pointers at the controller, and the session's requests
-//  routed to the CPU thread's queue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AttachDebugger (std::unique_ptr<DebuggerController> controller)
-{
-    m_debugger = std::move (controller);
-
-    SetDebugRunDriver  (&m_debugger->GetRunDriver());
-    SetDebugSession    (&m_debugger->GetSession());
-    SetReverseStopTest (&m_debugger->GetReverseStopTest());
-
-    m_debugger->GetSession().SetReverseRequester ([this] (ReverseCommand command)
-    {
-        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
-
-
-
-        if (isRecording)
-        {
-            PostReverseCommand (command);
-        }
-
-        return isRecording;
-    });
-
-    //  Loading replaces the machine, so both go to the CPU thread as the
-    //  File menu's commands do, and run there between instructions.
-    m_debugger->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
-    {
-        return GuardHistoryEdit (line, mode);
-    });
-
-    m_debugger->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
-    {
-        PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
-        return true;
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CloseDebugger
-//
-//  Detaches before destroying, so the slice loop and the notifications never
-//  reach a controller that is going away. The controller's call history
-//  unlinks itself from history as it goes, dropping a rebuild under way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CloseDebugger()
-{
-    SyncHeatHistory (false);
-
-    SetDebugRunDriver  (nullptr);
-    SetDebugSession    (nullptr);
-    SetReverseStopTest (nullptr);
-
-    m_debugger.reset();
-    m_pipeTransport.reset();
-    m_pipeApi.reset();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ServiceDebugger
-//
-//  The CPU manager's service tick: once per pass through its loop, paused or
-//  running, so a client gets a reply either way. The call record's rebuild
-//  from history is looked after here too, before the panes are gathered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ServiceDebugger()
-{
-    if (m_debugger != nullptr)
-    {
-        m_debugger->Pump();
-        ServiceCallHistory();
-        PublishDebuggerView();
-    }
-
-    // A debugger edit can make a paused machine live again.
-    if (m_reverseHost != nullptr)
-    {
-        m_reverseHost->SyncInputGate();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyTapeTurbo
 //
 //  Runs a tape load at Maximum speed while the governor returns true, and
@@ -1105,9 +831,9 @@ void EmulatorShell::RunCpuThreadFrame()
 
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
-    if (m_reverseHost != nullptr)
+    if (m_debugger->m_reverseHost != nullptr)
     {
-        hr = m_reverseHost->OnFrame (m_cpuManager.IsUserMaximumSpeed());
+        hr = m_debugger->m_reverseHost->OnFrame (m_cpuManager.IsUserMaximumSpeed());
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1219,15 +945,15 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 
 uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
 {
-    bool      isBehind   = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
-    bool      isWatching = isBehind && m_heldInputWatch.Refresh();
+    bool      isBehind   = m_debugger->m_reverseHost != nullptr && m_debugger->m_reverseHost->IsBehindLive();
+    bool      isWatching = isBehind && m_debugger->m_heldInputWatch.Refresh();
     uint32_t  actual     = 0;
 
 
 
     if (isWatching)
     {
-        m_machine.SetHeldInputWatch (&m_heldInputWatch);
+        m_machine.SetHeldInputWatch (&m_debugger->m_heldInputWatch);
     }
 
     actual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
@@ -1300,7 +1026,7 @@ void EmulatorShell::ExecuteCpuSlices()
     Byte      pasted          = 0;
     bool      isPauseLanding  = false;
     bool      hasRunEnded     = false;
-    bool      isBehindLive    = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    bool      isBehindLive    = m_debugger->m_reverseHost != nullptr && m_debugger->m_reverseHost->IsBehindLive();
 
 
 
@@ -1342,13 +1068,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // A pending pause shortens this pass to the share of the frame that
         // matches how far through the host tick it was asked for.
-        isPauseLanding = m_debugRunDriver != nullptr && m_debugRunDriver->IsPausePending();
+        isPauseLanding = m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->IsPausePending();
 
         if (isPauseLanding)
         {
             targetCycles = FrameCycleBudget::GetPauseTarget (nominalCycles,
                                                              m_machine.GetCpu()->GetTotalCycles(),
-                                                             m_debugRunDriver->GetPauseFraction());
+                                                             m_debugger->m_debugRunDriver->GetPauseFraction());
         }
     }
 
@@ -1395,9 +1121,9 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // Behind live, the slice ended after a read that input held back
         // would change: the machine stops there and the user is asked.
-        if (m_heldInputWatch.HasHit())
+        if (m_debugger->m_heldInputWatch.HasHit())
         {
-            StopForHeldInputRead();
+            m_debugger->StopForHeldInputRead();
             hasRunEnded = true;
             break;
         }
@@ -1415,7 +1141,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // A debugger step is silent: whether this slice belonged to one is
         // read before the run can end, and its speaker toggles are dropped
         // rather than played, here or with the next run's first slice.
-        isSilent = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+        isSilent = m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->IsSilent();
 
         if (audioActive && isSilent)
         {
@@ -1423,7 +1149,7 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().speaker->BeginFrame();
         }
 
-        if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
+        if (m_debugger->m_debugRunDriver != nullptr && m_debugger->m_debugRunDriver->OnSliceExecuted (sliceActual))
         {
             hasRunEnded = true;
             break;
@@ -1477,6 +1203,6 @@ void EmulatorShell::ExecuteCpuSlices()
     // as a breakpoint, ended the pass and the pause along with it.
     if (isPauseLanding && !hasRunEnded)
     {
-        m_debugRunDriver->OnPausePointReached (executed);
+        m_debugger->m_debugRunDriver->OnPausePointReached (executed);
     }
 }

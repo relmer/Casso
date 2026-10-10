@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -855,8 +856,8 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
     if (!isGateOpen)
     {
-        m_divergenceGate.SetMouseTarget (target);
-        PublishHeldInput();
+        m_debugger->m_divergenceGate.SetMouseTarget (target);
+        m_debugger->PublishHeldInput();
     }
     else if (target.has_value())
     {
@@ -1402,7 +1403,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
         if (overDisplay && !isGateOpen)
         {
-            HoldInputBehindLive (HeldInput::MousePress);
+            m_debugger->HoldInputBehindLive (HeldInput::MousePress);
         }
 
         if (overDisplay && isGateOpen)
@@ -1929,8 +1930,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     if (IsGuestMouseActive() && !isGateOpen)
     {
-        m_divergenceGate.ReleaseMousePress();
-        PublishHeldInput();
+        m_debugger->m_divergenceGate.ReleaseMousePress();
+        m_debugger->PublishHeldInput();
     }
 
     if (IsGuestMouseActive() && isGateOpen)
@@ -2720,15 +2721,15 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_divergenceGate.JudgeKey (!isGateOpen, ev);
+    verdict = m_debugger->m_divergenceGate.JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_divergenceGate.HoldKey (ev, latch, isMachineKey);
+        m_debugger->m_divergenceGate.HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
-        PublishHeldInput();
+        m_debugger->PublishHeldInput();
 
         return true;
     }
@@ -3372,7 +3373,7 @@ void EmulatorShell::SyncJoyport()
     }
     else
     {
-        m_isJoyportSyncOwed = true;
+        m_debugger->m_isJoyportSyncOwed = true;
     }
 
     gate.unlock();
@@ -4267,29 +4268,29 @@ void EmulatorShell::PasteClipboardText()
     bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
-    bool    isBehindLive   = IsBehindLiveForUi();
+    bool    isBehindLive   = m_debugger->IsBehindLiveForUi();
     Byte    first          = 0;
     size_t  length         = 0;
 
 
 
-    if (m_clipboardManager == nullptr || !AllowCommand (IDM_EDIT_PASTE, std::string()))
+    if (m_clipboardManager == nullptr || !m_debugger->AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
 
-    if (isBehindLive && !m_divergenceGate.HasHeldPaste())
+    if (isBehindLive && !m_debugger->m_divergenceGate.HasHeldPaste())
     {
-        m_pasteLengthBeforeHold = m_clipboardManager->GetPasteLength (first);
+        m_debugger->m_pasteLengthBeforeHold = m_clipboardManager->GetPasteLength (first);
     }
 
     raisedLetters = m_clipboardManager->PasteFromClipboard (m_hwnd, capsLockOn);
     length        = m_clipboardManager->GetPasteLength (first);
 
-    if (isBehindLive && length > m_pasteLengthBeforeHold && m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_debugger->m_pasteLengthBeforeHold && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_divergenceGate.HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        PublishHeldInput();
+        m_debugger->m_divergenceGate.HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_debugger->PublishHeldInput();
     }
 
     if (raisedLetters)

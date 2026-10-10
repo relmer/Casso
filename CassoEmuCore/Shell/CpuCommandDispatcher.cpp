@@ -44,7 +44,7 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target, IDebugCommandTarget & debugTarget)
 {
     HRESULT  hr = S_OK;
 
@@ -144,46 +144,46 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
             if (DebugCommandPayload::TryDecode (cmd.payload, decoded))
             {
-                target.RunDebugCommand (decoded.clientId, decoded.line, decoded.mode);
+                debugTarget.RunDebugCommand (decoded.clientId, decoded.line, decoded.mode);
             }
 
             break;
         }
 
         case IDM_DEBUG_PAUSE_CHANGED:
-            target.NotifyDebugPauseChanged (cmd.payload == "1");
+            debugTarget.NotifyDebugPauseChanged (cmd.payload == "1");
             break;
 
         case IDM_DEBUG_OPEN:
-            target.OpenDebugChannel();
+            debugTarget.OpenDebugChannel();
             break;
 
         case IDM_DEBUG_CLOSE:
-            target.CloseDebugChannel (cmd.payload == "detach");
+            debugTarget.CloseDebugChannel (cmd.payload == "detach");
             break;
 
         case IDM_DEBUG_PAUSE:
-            target.PauseDebugRun();
+            debugTarget.PauseDebugRun();
             break;
 
         case IDM_DEBUG_ACTION:
-            target.RunDebugActions();
+            debugTarget.RunDebugActions();
             break;
 
         case IDM_DEBUG_VIEW:
-            DispatchDebugView (cmd.payload, target);
+            DispatchDebugView (cmd.payload, debugTarget);
             break;
 
         case IDM_DEBUG_REVERSE:
-            DispatchReverse (cmd.payload, target);
+            DispatchReverse (cmd.payload, debugTarget);
             break;
 
         case IDM_DEBUG_REVERSE_OPTIONS:
-            DispatchReverseOptions (cmd.payload, target);
+            DispatchReverseOptions (cmd.payload, debugTarget);
             break;
 
         case IDM_DEBUG_DIVERGE:
-            target.DivergeHistory();
+            debugTarget.DivergeHistory();
             break;
 
         case IDM_FILE_SAVE_STATE:
@@ -594,7 +594,7 @@ bool CpuCommandDispatcher::TryGetHeatMapIgnore (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, ICpuCommandTarget & target)
+void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCommandTarget & target)
 {
     std::vector<std::pair<Word, Word>>  spans;
 
@@ -630,7 +630,7 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, ICpuComm
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebugCommandTarget & target)
 {
     static constexpr size_t  kMaxEntryDigits = 18;
     size_t                   space           = payload.find (' ');
@@ -858,7 +858,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchReverse (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchReverse (const std::string & payload, IDebugCommandTarget & target)
 {
     ReverseCommand  command  = ReverseCommand::StepBack;
     uint64_t        argument = 0;
@@ -941,7 +941,7 @@ bool CpuCommandDispatcher::TryParseReverseOptionsPayload (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target)
 {
     bool  isRecording = false;
     int   budgetMb    = 0;

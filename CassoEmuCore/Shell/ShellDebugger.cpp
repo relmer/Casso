@@ -1,9 +1,13 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 
 #include "Config/WindowPlacementProfile.h"
 #include "Debugger/DebugCommandPayload.h"
+#include "Debugger/Channel/PipeSecurity.h"
+#include "Debugger/Channel/Win32NamedPipeApi.h"
+#include "Debugger/Channel/Win32PipeTransport.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "resource.h"
@@ -23,6 +27,93 @@ static constexpr uint32_t  s_kWindowClientId = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebugger::ShellDebugger
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDebugger::ShellDebugger (EmulatorShell & shell) :
+    m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::~ShellDebugger
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDebugger::~ShellDebugger() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetHostDialogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
+{
+    return m_shell.GetHostDialogs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::IsBehindLiveForUi
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::IsBehindLiveForUi()
+{
+    return m_shell.m_machine.GetHostInputGate().IsHeld();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::DoesDebuggerFileExist
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::DoesDebuggerFileExist (const std::wstring & path)
+{
+    return m_shell.m_uiFs.Exists (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::PrepareFramebuffers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::PrepareFramebuffers()
+{
+    m_shell.AllocateFramebuffers();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OpenDebuggerWindow
 //
 //  Creates the window the first time and shows it every time, taking the
@@ -33,7 +124,7 @@ static constexpr uint32_t  s_kWindowClientId = 0;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDebuggerWindow (bool activate)
+void ShellDebugger::OpenDebuggerWindow (bool activate)
 {
     HRESULT  hr = S_OK;
 
@@ -43,10 +134,10 @@ void EmulatorShell::OpenDebuggerWindow (bool activate)
     {
         m_debuggerWindow = std::make_unique<DebuggerWindow>();
 
-        hr = m_debuggerWindow->Create (m_hInstance, m_hwnd, &m_chromeTheme, this, activate);
+        hr = m_debuggerWindow->Create (m_shell.m_hInstance, m_shell.m_hwnd, &m_shell.m_chromeTheme, this, activate);
         CHRF (hr, m_debuggerWindow.reset());
 
-        ApplyAppIconToWindow (m_debuggerWindow->GetHwnd());
+        m_shell.ApplyAppIconToWindow (m_debuggerWindow->GetHwnd());
 
         //  While the debugger's title bar is held the OS runs its own move
         //  loop on this thread, so no frame runs for it or for the machine's
@@ -54,14 +145,14 @@ void EmulatorShell::OpenDebuggerWindow (bool activate)
         //  the printer's window does.
         m_debuggerWindow->SetOnModalLoopTick ([this] ()
         {
-            TryPresentUiFrame();
+            m_shell.TryPresentUiFrame();
         });
     }
 
     m_debuggerWindow->Show (activate);
 
     SetDebugWindowShown (true);
-    m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
 
 Error:
     return;
@@ -80,7 +171,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::IsDebuggerMessageRoot (HWND root, HWND rootOwner, HWND debugger)
+bool ShellDebugger::IsDebuggerMessageRoot (HWND root, HWND rootOwner, HWND debugger)
 {
     return debugger != nullptr && (root == debugger || rootOwner == debugger);
 }
@@ -95,7 +186,7 @@ bool EmulatorShell::IsDebuggerMessageRoot (HWND root, HWND rootOwner, HWND debug
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::IsDebuggerMessage (const MSG & msg) const
+bool ShellDebugger::IsDebuggerMessage (const MSG & msg) const
 {
     HWND  debugger = (m_debuggerWindow != nullptr) ? m_debuggerWindow->GetHwnd() : nullptr;
     HWND  root     = (msg.hwnd != nullptr) ? GetAncestor (msg.hwnd, GA_ROOT) : nullptr;
@@ -120,14 +211,14 @@ bool EmulatorShell::IsDebuggerMessage (const MSG & msg) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnDebuggerWindowClosed()
+void ShellDebugger::OnDebuggerWindowClosed()
 {
     bool  isDetach = std::exchange (m_isDetachPending, false);
 
 
 
     SetDebugWindowShown (false);
-    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
 }
 
 
@@ -140,7 +231,7 @@ void EmulatorShell::OnDebuggerWindowClosed()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::DetachDebugger()
+void ShellDebugger::DetachDebugger()
 {
     m_isDetachPending = true;
 }
@@ -155,9 +246,9 @@ void EmulatorShell::DetachDebugger()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerKeyScheme()
+std::string ShellDebugger::GetDebuggerKeyScheme()
 {
-    return m_globalPrefs.debuggerKeyScheme;
+    return m_shell.m_globalPrefs.debuggerKeyScheme;
 }
 
 
@@ -170,10 +261,10 @@ std::string EmulatorShell::GetDebuggerKeyScheme()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerKeyScheme (const std::string & name)
+void ShellDebugger::SetDebuggerKeyScheme (const std::string & name)
 {
-    m_globalPrefs.debuggerKeyScheme = name;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerKeyScheme = name;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -186,9 +277,9 @@ void EmulatorShell::SetDebuggerKeyScheme (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerTheme()
+std::string ShellDebugger::GetDebuggerTheme()
 {
-    return m_globalPrefs.debuggerTheme;
+    return m_shell.m_globalPrefs.debuggerTheme;
 }
 
 
@@ -201,10 +292,10 @@ std::string EmulatorShell::GetDebuggerTheme()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerTheme (const std::string & name)
+void ShellDebugger::SetDebuggerTheme (const std::string & name)
 {
-    m_globalPrefs.debuggerTheme = name;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerTheme = name;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -217,14 +308,14 @@ void EmulatorShell::SetDebuggerTheme (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ReverseOptions EmulatorShell::GetReverseOptions()
+ReverseOptions ShellDebugger::GetReverseOptions()
 {
     ReverseOptions  options;
 
 
 
-    options.isRecording = m_globalPrefs.reverseRecording;
-    options.budgetMb    = m_globalPrefs.reverseBudgetMb;
+    options.isRecording = m_shell.m_globalPrefs.reverseRecording;
+    options.budgetMb    = m_shell.m_globalPrefs.reverseBudgetMb;
     return options;
 }
 
@@ -241,13 +332,13 @@ ReverseOptions EmulatorShell::GetReverseOptions()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetReverseOptions (const ReverseOptions & options)
+void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
 {
-    m_globalPrefs.reverseRecording = options.isRecording;
-    m_globalPrefs.reverseBudgetMb  = options.budgetMb;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.reverseRecording = options.isRecording;
+    m_shell.m_globalPrefs.reverseBudgetMb  = options.budgetMb;
+    m_shell.SaveGlobalPrefsDeferred();
 
-    PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
+    m_shell.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
 }
 
 
@@ -260,9 +351,9 @@ void EmulatorShell::SetReverseOptions (const ReverseOptions & options)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerLayout()
+std::string ShellDebugger::GetDebuggerLayout()
 {
-    return m_globalPrefs.debuggerLayout;
+    return m_shell.m_globalPrefs.debuggerLayout;
 }
 
 
@@ -275,15 +366,15 @@ std::string EmulatorShell::GetDebuggerLayout()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerLayout (const std::string & text)
+void ShellDebugger::SetDebuggerLayout (const std::string & text)
 {
-    if (m_globalPrefs.debuggerLayout == text)
+    if (m_shell.m_globalPrefs.debuggerLayout == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerLayout = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerLayout = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -296,9 +387,9 @@ void EmulatorShell::SetDebuggerLayout (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerClosedPanes()
+std::string ShellDebugger::GetDebuggerClosedPanes()
 {
-    return m_globalPrefs.debuggerClosedPanes;
+    return m_shell.m_globalPrefs.debuggerClosedPanes;
 }
 
 
@@ -311,15 +402,15 @@ std::string EmulatorShell::GetDebuggerClosedPanes()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerClosedPanes (const std::string & text)
+void ShellDebugger::SetDebuggerClosedPanes (const std::string & text)
 {
-    if (m_globalPrefs.debuggerClosedPanes == text)
+    if (m_shell.m_globalPrefs.debuggerClosedPanes == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerClosedPanes = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerClosedPanes = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -332,9 +423,9 @@ void EmulatorShell::SetDebuggerClosedPanes (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerCommandBarDock()
+std::string ShellDebugger::GetDebuggerCommandBarDock()
 {
-    return m_globalPrefs.debuggerCommandBarDock;
+    return m_shell.m_globalPrefs.debuggerCommandBarDock;
 }
 
 
@@ -347,15 +438,15 @@ std::string EmulatorShell::GetDebuggerCommandBarDock()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerCommandBarDock (const std::string & text)
+void ShellDebugger::SetDebuggerCommandBarDock (const std::string & text)
 {
-    if (m_globalPrefs.debuggerCommandBarDock == text)
+    if (m_shell.m_globalPrefs.debuggerCommandBarDock == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerCommandBarDock = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerCommandBarDock = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -368,9 +459,9 @@ void EmulatorShell::SetDebuggerCommandBarDock (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerTimelineDock()
+std::string ShellDebugger::GetDebuggerTimelineDock()
 {
-    return m_globalPrefs.debuggerTimelineDock;
+    return m_shell.m_globalPrefs.debuggerTimelineDock;
 }
 
 
@@ -383,15 +474,15 @@ std::string EmulatorShell::GetDebuggerTimelineDock()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerTimelineDock (const std::string & text)
+void ShellDebugger::SetDebuggerTimelineDock (const std::string & text)
 {
-    if (m_globalPrefs.debuggerTimelineDock == text)
+    if (m_shell.m_globalPrefs.debuggerTimelineDock == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerTimelineDock = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerTimelineDock = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -404,9 +495,9 @@ void EmulatorShell::SetDebuggerTimelineDock (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerFocusedPane()
+std::string ShellDebugger::GetDebuggerFocusedPane()
 {
-    return m_globalPrefs.debuggerFocusedPane;
+    return m_shell.m_globalPrefs.debuggerFocusedPane;
 }
 
 
@@ -419,15 +510,15 @@ std::string EmulatorShell::GetDebuggerFocusedPane()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerFocusedPane (const std::string & text)
+void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
 {
-    if (m_globalPrefs.debuggerFocusedPane == text)
+    if (m_shell.m_globalPrefs.debuggerFocusedPane == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerFocusedPane = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerFocusedPane = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -440,9 +531,9 @@ void EmulatorShell::SetDebuggerFocusedPane (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::GetDebuggerTextZoomPercent()
+int ShellDebugger::GetDebuggerTextZoomPercent()
 {
-    return m_globalPrefs.debuggerTextZoomPercent;
+    return m_shell.m_globalPrefs.debuggerTextZoomPercent;
 }
 
 
@@ -455,15 +546,15 @@ int EmulatorShell::GetDebuggerTextZoomPercent()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerTextZoomPercent (int percent)
+void ShellDebugger::SetDebuggerTextZoomPercent (int percent)
 {
-    if (m_globalPrefs.debuggerTextZoomPercent == percent)
+    if (m_shell.m_globalPrefs.debuggerTextZoomPercent == percent)
     {
         return;
     }
 
-    m_globalPrefs.debuggerTextZoomPercent = percent;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerTextZoomPercent = percent;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -476,9 +567,9 @@ void EmulatorShell::SetDebuggerTextZoomPercent (int percent)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerDisassemblyOptions()
+std::string ShellDebugger::GetDebuggerDisassemblyOptions()
 {
-    return m_globalPrefs.debuggerDisassemblyOptions;
+    return m_shell.m_globalPrefs.debuggerDisassemblyOptions;
 }
 
 
@@ -491,15 +582,15 @@ std::string EmulatorShell::GetDebuggerDisassemblyOptions()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerDisassemblyOptions (const std::string & text)
+void ShellDebugger::SetDebuggerDisassemblyOptions (const std::string & text)
 {
-    if (m_globalPrefs.debuggerDisassemblyOptions == text)
+    if (m_shell.m_globalPrefs.debuggerDisassemblyOptions == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerDisassemblyOptions = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerDisassemblyOptions = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -512,9 +603,9 @@ void EmulatorShell::SetDebuggerDisassemblyOptions (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerHeatMapOptions()
+std::string ShellDebugger::GetDebuggerHeatMapOptions()
 {
-    return m_globalPrefs.debuggerHeatMapOptions;
+    return m_shell.m_globalPrefs.debuggerHeatMapOptions;
 }
 
 
@@ -531,17 +622,17 @@ std::string EmulatorShell::GetDebuggerHeatMapOptions()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerHeatMapOptions (const std::string & text)
+void ShellDebugger::SetDebuggerHeatMapOptions (const std::string & text)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
 
-    if (m_globalPrefs.debuggerHeatMapOptions == text)
+    if (m_shell.m_globalPrefs.debuggerHeatMapOptions == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerHeatMapOptions = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerHeatMapOptions = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -554,9 +645,9 @@ void EmulatorShell::SetDebuggerHeatMapOptions (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ResetDebuggerHeatMap()
+void ShellDebugger::ResetDebuggerHeatMap()
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
 }
 
 
@@ -569,9 +660,9 @@ void EmulatorShell::ResetDebuggerHeatMap()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SendDebuggerHeatMapRequest (const std::string & words)
+void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
 }
 
 
@@ -584,9 +675,9 @@ void EmulatorShell::SendDebuggerHeatMapRequest (const std::string & words)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerHeatMapRanges()
+std::string ShellDebugger::GetDebuggerHeatMapRanges()
 {
-    return m_globalPrefs.debuggerHeatMapRanges;
+    return m_shell.m_globalPrefs.debuggerHeatMapRanges;
 }
 
 
@@ -602,15 +693,15 @@ std::string EmulatorShell::GetDebuggerHeatMapRanges()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerHeatMapRanges (const std::string & text)
+void ShellDebugger::SetDebuggerHeatMapRanges (const std::string & text)
 {
-    if (m_globalPrefs.debuggerHeatMapRanges == text)
+    if (m_shell.m_globalPrefs.debuggerHeatMapRanges == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerHeatMapRanges = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerHeatMapRanges = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -623,9 +714,9 @@ void EmulatorShell::SetDebuggerHeatMapRanges (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerOpenViews()
+std::string ShellDebugger::GetDebuggerOpenViews()
 {
-    return m_globalPrefs.debuggerOpenViews;
+    return m_shell.m_globalPrefs.debuggerOpenViews;
 }
 
 
@@ -638,15 +729,15 @@ std::string EmulatorShell::GetDebuggerOpenViews()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerOpenViews (const std::string & text)
+void ShellDebugger::SetDebuggerOpenViews (const std::string & text)
 {
-    if (m_globalPrefs.debuggerOpenViews == text)
+    if (m_shell.m_globalPrefs.debuggerOpenViews == text)
     {
         return;
     }
 
-    m_globalPrefs.debuggerOpenViews = text;
-    SaveGlobalPrefsDeferred();
+    m_shell.m_globalPrefs.debuggerOpenViews = text;
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -663,7 +754,7 @@ void EmulatorShell::SetDebuggerOpenViews (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetDebuggerPlacementKey() const
+std::string ShellDebugger::GetDebuggerPlacementKey() const
 {
     return WindowPlacementProfile::BuildTopologyKey();
 }
@@ -682,10 +773,10 @@ std::string EmulatorShell::GetDebuggerPlacementKey() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
+bool ShellDebugger::TryGetDebuggerPlacement (RECT & rectPx)
 {
     WindowPlacementProfile::Bounds  bounds;
-    WindowPlacementProfile          profile (m_globalPrefs);
+    WindowPlacementProfile          profile (m_shell.m_globalPrefs);
     std::string                     key      = GetDebuggerPlacementKey();
     RECT                            saved    = {};
 
@@ -736,9 +827,9 @@ bool EmulatorShell::TryGetDebuggerPlacement (RECT & rectPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
+void ShellDebugger::SetDebuggerPlacement (const RECT & rectPx)
 {
-    WindowPlacementProfile          profile (m_globalPrefs);
+    WindowPlacementProfile          profile (m_shell.m_globalPrefs);
     WindowPlacementProfile::Bounds  bounds;
     std::string                     key    = GetDebuggerPlacementKey();
 
@@ -751,7 +842,7 @@ void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
 
     WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key);
     profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
-    SaveGlobalPrefsDeferred();
+    m_shell.SaveGlobalPrefsDeferred();
 }
 
 
@@ -767,18 +858,18 @@ void EmulatorShell::SetDebuggerPlacement (const RECT & rectPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceLookup EmulatorShell::FindDebuggerSource (const DebugSourceFile & record, const std::wstring & debugFilePath,
+SourceLookup ShellDebugger::FindDebuggerSource (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                                 const std::string & programKey)
 {
-    SourcePathList  paths   (m_globalPrefs);
-    SourceService   service (m_uiFs, paths);
+    SourcePathList  paths   (m_shell.m_globalPrefs);
+    SourceService   service (m_shell.m_uiFs, paths);
     SourceLookup    lookup  = service.Find (record, debugFilePath, programKey);
 
 
 
     if (lookup.match == SourceMatch::Exact || lookup.match == SourceMatch::Unverified)
     {
-        SaveGlobalPrefsDeferred();
+        m_shell.SaveGlobalPrefsDeferred();
     }
 
     return lookup;
@@ -794,18 +885,18 @@ SourceLookup EmulatorShell::FindDebuggerSource (const DebugSourceFile & record, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceLookup EmulatorShell::MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
+SourceLookup ShellDebugger::MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
                                                         const std::string & programKey, int & recordIndex)
 {
-    SourcePathList  paths   (m_globalPrefs);
-    SourceService   service (m_uiFs, paths);
+    SourcePathList  paths   (m_shell.m_globalPrefs);
+    SourceService   service (m_shell.m_uiFs, paths);
     SourceLookup    lookup  = service.MatchDropped (files, path, programKey, recordIndex);
 
 
 
     if (recordIndex >= 0)
     {
-        SaveGlobalPrefsDeferred();
+        m_shell.SaveGlobalPrefsDeferred();
     }
 
     return lookup;
@@ -821,9 +912,9 @@ SourceLookup EmulatorShell::MatchDroppedDebuggerSource (const std::vector<DebugS
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebuggerCommand (const std::string & line)
+void ShellDebugger::RunDebuggerCommand (const std::string & line)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line));
 }
 
 
@@ -836,9 +927,9 @@ void EmulatorShell::RunDebuggerCommand (const std::string & line)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebuggerCommandInMode (const std::string & line, CommandMode mode)
+void ShellDebugger::RunDebuggerCommandInMode (const std::string & line, CommandMode mode)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line, mode));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, line, mode));
 }
 
 
@@ -854,7 +945,7 @@ void EmulatorShell::RunDebuggerCommandInMode (const std::string & line, CommandM
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebuggerAction (const DebuggerAction & action)
+void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
 {
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -862,7 +953,7 @@ void EmulatorShell::RunDebuggerAction (const DebuggerAction & action)
         m_debugActionsPending.push_back (action);
     }
 
-    m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
 }
 
 
@@ -875,9 +966,9 @@ void EmulatorShell::RunDebuggerAction (const DebuggerAction & action)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PauseDebugger()
+void ShellDebugger::PauseDebugger()
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_PAUSE);
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_PAUSE);
 }
 
 
@@ -893,9 +984,9 @@ void EmulatorShell::PauseDebugger()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunEmulatorCommand (int commandId)
+void ShellDebugger::RunEmulatorCommand (int commandId)
 {
-    PostMessageW (m_hwnd, WM_COMMAND, MAKEWPARAM (commandId, 0), 0);
+    PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (commandId, 0), 0);
 }
 
 
@@ -911,7 +1002,7 @@ void EmulatorShell::RunEmulatorCommand (int commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string EmulatorShell::GetCodeViewSuffix (int view)
+std::string ShellDebugger::GetCodeViewSuffix (int view)
 {
     return (view <= 0) ? std::string() : std::to_string (view + 1);
 }
@@ -926,30 +1017,15 @@ std::string EmulatorShell::GetCodeViewSuffix (int view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerFollowView (int view)
+void ShellDebugger::SetDebuggerFollowView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
 }
 
 
-void EmulatorShell::CloseDebuggerCodeView (int view)
+void ShellDebugger::CloseDebuggerCodeView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerCodeAddress
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDebuggerCodeLines (int lines, int view)
-{
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
 }
 
 
@@ -962,9 +1038,24 @@ void EmulatorShell::SetDebuggerCodeLines (int lines, int view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address, int view)
+void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerCodeAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int view)
+{
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
                                                                  : std::format ("code{} pc", GetCodeViewSuffix (view)));
 }
 
@@ -978,9 +1069,9 @@ void EmulatorShell::SetDebuggerCodeAddress (std::optional<Word> address, int vie
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerCodeTop (Word top, int view)
+void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
 }
 
 
@@ -996,13 +1087,13 @@ void EmulatorShell::SetDebuggerCodeTop (Word top, int view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerMemoryWindow (int id, std::optional<Word> address)
+void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address)
 {
     std::string  view = (id == 1) ? std::string ("memory") : std::format ("memory{}", id);
 
 
 
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
                                                                  : view + " close");
 }
 
@@ -1016,9 +1107,9 @@ void EmulatorShell::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
+void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
                                                                : std::string ("trace end"));
 }
 
@@ -1032,9 +1123,9 @@ void EmulatorShell::SetDebuggerTraceTop (std::optional<uint64_t> first)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebuggerHeatMapShown (bool shown)
+void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
 }
 
 
@@ -1050,10 +1141,10 @@ void EmulatorShell::SetDebuggerHeatMapShown (bool shown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetBeamOverlayOn (bool on)
+void ShellDebugger::SetBeamOverlayOn (bool on)
 {
     m_isBeamOverlayOn.store (on, memory_order_release);
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
 }
 
 
@@ -1066,9 +1157,9 @@ void EmulatorShell::SetBeamOverlayOn (bool on)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ScrollDebuggerCode (int lines, int view)
+void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
 }
 
 
@@ -1081,9 +1172,9 @@ void EmulatorShell::ScrollDebuggerCode (int lines, int view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::GoToDebuggerMemory (int window, const std::string & text)
+void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
+    m_shell.m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
 }
 
 
@@ -1096,7 +1187,7 @@ void EmulatorShell::GoToDebuggerMemory (int window, const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
+bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                         std::vector<std::string>                     & consoleLines)
 {
     std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -1130,7 +1221,7 @@ bool EmulatorShell::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapsh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenDebugChannel()
+void ShellDebugger::OpenDebugChannel()
 {
     HRESULT  hr = OpenDebugger();
 
@@ -1138,12 +1229,12 @@ void EmulatorShell::OpenDebugChannel()
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_debugger == nullptr)
+    if (m_debugController == nullptr)
     {
         return;
     }
 
-    m_debugger->GetSession().SetAttached (true);
+    m_debugController->GetSession().SetAttached (true);
 
     SetDebugCommandHandler ([this] (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
     {
@@ -1151,7 +1242,7 @@ void EmulatorShell::OpenDebugChannel()
 
 
 
-        if (clientId != s_kWindowClientId || m_debugger == nullptr)
+        if (clientId != s_kWindowClientId || m_debugController == nullptr)
         {
             return;
         }
@@ -1161,7 +1252,7 @@ void EmulatorShell::OpenDebugChannel()
 
 
 
-            lines = m_debugViewState.ExecuteConsoleLine (m_debugger->GetSession(), line, mode);
+            lines = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
         }
 
         DebuggerViewState::AddCommandGap (lines);
@@ -1196,9 +1287,9 @@ void EmulatorShell::OpenDebugChannel()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CloseDebugChannel (bool isDetach)
+void ShellDebugger::CloseDebugChannel (bool isDetach)
 {
-    if (m_debugger == nullptr)
+    if (m_debugController == nullptr)
     {
         return;
     }
@@ -1210,12 +1301,12 @@ void EmulatorShell::CloseDebugChannel (bool isDetach)
             m_debugRunDriver->EndForUserPause();
         }
 
-        m_debugger->GetSession().SetAttached (false);
-        m_cpuManager.SetPaused (false);
-        m_debugger->GetSession().OnUserResumed();
+        m_debugController->GetSession().SetAttached (false);
+        m_shell.m_cpuManager.SetPaused (false);
+        m_debugController->GetSession().OnUserResumed();
     }
 
-    m_debugger->Close();
+    m_debugController->Close();
 }
 
 
@@ -1228,11 +1319,11 @@ void EmulatorShell::CloseDebugChannel (bool isDetach)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PauseDebugRun()
+void ShellDebugger::PauseDebugRun()
 {
-    if (m_debugger != nullptr)
+    if (m_debugController != nullptr)
     {
-        m_debugger->RequestPause();
+        m_debugController->RequestPause();
         m_isDebugViewDirty = true;
     }
 }
@@ -1251,7 +1342,7 @@ void EmulatorShell::PauseDebugRun()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebugActions()
+void ShellDebugger::RunDebugActions()
 {
     std::vector<DebuggerAction>   actions;
     std::vector<std::string>      lines;
@@ -1265,7 +1356,7 @@ void EmulatorShell::RunDebugActions()
         actions.swap (m_debugActionsPending);
     }
 
-    if (m_debugger == nullptr)
+    if (m_debugController == nullptr)
     {
         return;
     }
@@ -1274,7 +1365,7 @@ void EmulatorShell::RunDebugActions()
 
     for (const DebuggerAction & action : actions)
     {
-        std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugger->GetSession(), action);
+        std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugController->GetSession(), action);
 
         DebuggerViewState::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
@@ -1301,7 +1392,7 @@ void EmulatorShell::RunDebugActions()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> address)
+void ShellDebugger::SetDebugView (const std::string & view, std::optional<Word> address)
 {
     int                          index = 0;
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
@@ -1367,7 +1458,7 @@ void EmulatorShell::SetDebugView (const std::string & view, std::optional<Word> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ScrollDebugCode (int lines, int view)
+void ShellDebugger::ScrollDebugCode (int lines, int view)
 {
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
@@ -1387,15 +1478,15 @@ void EmulatorShell::ScrollDebugCode (int lines, int view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::GoToDebugMemory (int window, const std::string & text)
+void ShellDebugger::GoToDebugMemory (int window, const std::string & text)
 {
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
 
 
-    if (m_debugger != nullptr)
+    if (m_debugController != nullptr)
     {
-        m_debugViewState.RequestGoTo (m_debugger->GetSession(), window, text);
+        m_debugViewState.RequestGoTo (m_debugController->GetSession(), window, text);
         m_isDebugViewDirty = true;
     }
 }
@@ -1410,7 +1501,7 @@ void EmulatorShell::GoToDebugMemory (int window, const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
+void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 {
     std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
@@ -1430,7 +1521,7 @@ void EmulatorShell::SetDebugTraceView (std::optional<uint64_t> first)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugHeatMapShown (bool shown)
+void ShellDebugger::SetDebugHeatMapShown (bool shown)
 {
     m_debugViewState.SetHeatMapShown (shown);
     m_isDebugViewDirty = true;
@@ -1446,7 +1537,7 @@ void EmulatorShell::SetDebugHeatMapShown (bool shown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugHeatMapOptions (const std::string & text)
+void ShellDebugger::SetDebugHeatMapOptions (const std::string & text)
 {
     m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
     m_isDebugViewDirty = true;
@@ -1464,11 +1555,11 @@ void EmulatorShell::SetDebugHeatMapOptions (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ResetDebugHeatMap()
+void ShellDebugger::ResetDebugHeatMap()
 {
-    if (m_debugger != nullptr)
+    if (m_debugController != nullptr)
     {
-        m_debugger->GetSession().GetTarget().ResetHeatMap();
+        m_debugController->GetSession().GetTarget().ResetHeatMap();
     }
 
     m_isDebugViewDirty = true;
@@ -1487,11 +1578,11 @@ void EmulatorShell::ResetDebugHeatMap()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Word>> & spans)
+void ShellDebugger::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Word>> & spans)
 {
-    if (m_debugger != nullptr)
+    if (m_debugController != nullptr)
     {
-        m_debugger->GetSession().GetTarget().SetUnwrittenIgnore (spans);
+        m_debugController->GetSession().GetTarget().SetUnwrittenIgnore (spans);
     }
 
     m_isDebugViewDirty = true;
@@ -1509,7 +1600,7 @@ void EmulatorShell::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Wor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDebugHeatMapHover (std::optional<Word> address)
+void ShellDebugger::SetDebugHeatMapHover (std::optional<Word> address)
 {
     m_debugViewState.SetHeatMapHover (address);
     m_isDebugViewDirty = true;
@@ -1531,7 +1622,7 @@ void EmulatorShell::SetDebugHeatMapHover (std::optional<Word> address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunDebugHeatMapAccess (const HeatAccessRequest & request)
+void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 {
     HeatLastAccess   access;
     HeatAccessState  state       = HeatAccessState::None;
@@ -1541,14 +1632,14 @@ void EmulatorShell::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 
 
 
-    if (m_debugger == nullptr)
+    if (m_debugController == nullptr)
     {
         return;
     }
 
-    if (m_debugger->GetSession().GetTarget().FoldHeatMap() != nullptr)
+    if (m_debugController->GetSession().GetTarget().FoldHeatMap() != nullptr)
     {
-        state = m_debugger->GetSession().GetTarget().LookUpHeatMapAccess (HeatMapOptions::GetSpace (request.bank), request.isWrite, request.address, access);
+        state = m_debugController->GetSession().GetTarget().LookUpHeatMapAccess (HeatMapOptions::GetSpace (request.bank), request.isWrite, request.address, access);
     }
 
     if (isRecording)
@@ -1565,9 +1656,9 @@ void EmulatorShell::RunDebugHeatMapAccess (const HeatAccessRequest & request)
         break;
 
     case HeatAccessPlan::Kind::Seek:
-        if (!m_cpuManager.IsPaused())
+        if (!m_shell.m_cpuManager.IsPaused())
         {
-            m_cpuManager.SetPaused (true);
+            m_shell.m_cpuManager.SetPaused (true);
             NotifyDebugPauseChanged (true);
         }
 
@@ -1600,21 +1691,21 @@ void EmulatorShell::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RedrawDebugFrame()
+void ShellDebugger::RedrawDebugFrame()
 {
-    uint64_t  colorSig = ComputeColorSig();
+    uint64_t  colorSig = m_shell.ComputeColorSig();
 
 
 
-    if (colorSig == m_lastRenderColorSig)
+    if (colorSig == m_shell.m_lastRenderColorSig)
     {
         return;
     }
 
-    RenderFramebuffer();
-    PublishFramebuffer();
+    m_shell.RenderFramebuffer();
+    m_shell.PublishFramebuffer();
 
-    m_lastRenderColorSig = colorSig;
+    m_shell.m_lastRenderColorSig = colorSig;
 }
 
 
@@ -1631,7 +1722,7 @@ void EmulatorShell::RedrawDebugFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PublishDebuggerView()
+void ShellDebugger::PublishDebuggerView()
 {
     HRESULT               hr         = S_OK;
     ULONGLONG             now        = GetTickCount64();
@@ -1643,7 +1734,7 @@ void EmulatorShell::PublishDebuggerView()
 
 
 
-    if (m_debugger == nullptr)
+    if (m_debugController == nullptr)
     {
         return;
     }
@@ -1653,13 +1744,13 @@ void EmulatorShell::PublishDebuggerView()
     //  is folded now and then, so its counts never pile up unfolded.
     if (!m_isDebugWindowShown.load())
     {
-        isBreaking = m_debugger->GetSession().HasUnwrittenBreak();
+        isBreaking = m_debugController->GetSession().HasUnwrittenBreak();
 
-        m_debugger->GetSession().GetTarget().SetHeatMapOn (isBreaking);
+        m_debugController->GetSession().GetTarget().SetHeatMapOn (isBreaking);
 
         if (isBreaking && now - m_heatFoldedAt >= kHiddenHeatFoldMs)
         {
-            (void) m_debugger->GetSession().GetTarget().FoldHeatMap();
+            (void) m_debugController->GetSession().GetTarget().FoldHeatMap();
             m_heatFoldedAt = now;
         }
 
@@ -1672,7 +1763,7 @@ void EmulatorShell::PublishDebuggerView()
         isTaken = !m_isDebugViewFresh;
     }
 
-    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
+    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_shell.m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
                                            isTaken, now, m_debugViewBuiltAt);
 
     //  A stopped machine waiting on the heat map's rebuild, or the call
@@ -1687,7 +1778,7 @@ void EmulatorShell::PublishDebuggerView()
 
     //  The clock panel reports the speed, which the CPU manager paces and the
     //  machine does not know.
-    m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
+    m_shell.m_machine.SetSpeedMode (m_shell.m_cpuManager.GetSpeedMode());
 
     //  Anything the window did is shown at once, the heat map included.
     if (m_isDebugViewDirty)
@@ -1717,9 +1808,9 @@ void EmulatorShell::PublishDebuggerView()
     m_debugViewPublisher.Submit (std::move (input), std::move (live));
 
     m_debugViewBuiltAt      = now;
-    m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
-    m_wasHeatRebuilding     = m_debugger->GetSession().GetTarget().IsHeatMapRebuilding();
-    m_wasCallRebuilding     = m_debugger->GetCallHistory().IsRebuilding();
+    m_wasPausedAtDebugBuild = m_shell.m_cpuManager.IsPaused();
+    m_wasHeatRebuilding     = m_debugController->GetSession().GetTarget().IsHeatMapRebuilding();
+    m_wasCallRebuilding     = m_debugController->GetCallHistory().IsRebuilding();
     m_isDebugViewDirty = false;
 }
 
@@ -1741,11 +1832,11 @@ void EmulatorShell::PublishDebuggerView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::GatherDebugView (DebugViewInput & input, DebuggerViewSnapshot & live)
+void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapshot & live)
 {
-    DebugSession              & session  = m_debugger->GetSession();
+    DebugSession              & session  = m_debugController->GetSession();
     IDebugTarget              & target   = session.GetTarget();
-    bool                        isPaused = m_cpuManager.IsPaused();
+    bool                        isPaused = m_shell.m_cpuManager.IsPaused();
     auto                        capture  = std::make_shared<DebugViewCapture>();
     uint64_t                    first    = 0;
     std::vector<TraceRecord>    entries;
@@ -1781,7 +1872,7 @@ void EmulatorShell::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
+void ShellDebugger::PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
 {
     std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -1790,3 +1881,282 @@ void EmulatorShell::PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnap
     m_debugViewSnapshot = std::move (snapshot);
     m_isDebugViewFresh  = true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebugCommand
+//
+//  A debugger command, run on the CPU thread because that is where the machine
+//  it inspects and changes is safe to touch. With no handler attached nobody is
+//  debugging, so there is no one to reply to and the line is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
+{
+    m_debugCommandClient = clientId;
+
+    if (m_debugCommandHandler)
+    {
+        m_debugCommandHandler (clientId, line, mode);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugPauseChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::NotifyDebugPauseChanged (bool paused)
+{
+    // A pause during a debugger run ends that run, so a client hears one stop
+    // with its budget and cycle count rather than a run that never finishes.
+    if (paused && m_debugRunDriver != nullptr)
+    {
+        m_debugRunDriver->EndForUserPause();
+    }
+
+    if (m_debugSession == nullptr)
+    {
+        return;
+    }
+
+    if (paused)
+    {
+        m_debugSession->OnUserPaused();
+    }
+    else
+    {
+        m_debugSession->OnUserResumed();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugReset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::NotifyDebugReset (bool isPowerCycle)
+{
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->OnReset (isPowerCycle);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugMachineChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
+{
+    //  A debugger run on the old machine ends with it, announced as a pause,
+    //  and gives back the speed it borrowed.
+    if (m_debugRunDriver != nullptr)
+    {
+        m_debugRunDriver->EndForUserPause();
+    }
+
+    if (m_debugSession != nullptr)
+    {
+        m_debugSession->OnMachineChanged (machineName, m_shell.m_cpuManager.IsPaused());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenDebugger
+//
+//  The pipe, the controller, and the shell's debug pointers at them. Nothing
+//  is attached until the channel has actually opened, so a failure -- another
+//  process holding this instance's pipe name -- leaves the shell exactly as it
+//  was and the emulator running with no debugger.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDebugger::OpenDebugger()
+{
+    HRESULT                              hr         = S_OK;
+    std::vector<BYTE>                    userSid;
+    std::unique_ptr<Win32NamedPipeApi>   api;
+    std::unique_ptr<Win32PipeTransport>  transport;
+    std::unique_ptr<DebuggerController>  controller;
+    uint32_t                             processId  = GetCurrentProcessId();
+
+
+
+    //  Already built: reopen a channel the window closed. The controller and
+    //  its session were kept, so this is only the pipe.
+    if (m_debugController != nullptr)
+    {
+        BAIL_OUT_IF (m_debugController->IsOpen(), S_OK);
+
+        hr = m_debugController->Open();
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
+    CHR (hr);
+
+    api        = std::make_unique<Win32NamedPipeApi>();
+    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
+    controller = std::make_unique<DebuggerController> (m_shell.m_machine, m_shell.m_cpuManager, *transport, m_debugFiles,
+        [this] (ChannelHello & hello)
+        {
+            hello.title   = TextEncoding::WideToNarrow (m_shell.m_titlePrefix);
+            hello.machine = m_shell.m_machine.GetConfig().name;
+        },
+        processId);
+
+    hr = controller->Open();
+    CHR (hr);
+
+    m_pipeApi       = std::move (api);
+    m_pipeTransport = std::move (transport);
+
+    AttachDebugger (std::move (controller));
+
+Error:
+    if (FAILED (hr))
+    {
+        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseDebugger
+//
+//  Detaches before destroying, so the slice loop and the notifications never
+//  reach a controller that is going away. The controller's call history
+//  unlinks itself from history as it goes, dropping a rebuild under way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::CloseDebugger()
+{
+    SyncHeatHistory (false);
+
+    SetDebugRunDriver  (nullptr);
+    SetDebugSession    (nullptr);
+    SetReverseStopTest (nullptr);
+
+    m_debugController.reset();
+    m_pipeTransport.reset();
+    m_pipeApi.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceDebugger
+//
+//  The CPU manager's service tick: once per pass through its loop, paused or
+//  running, so a client gets a reply either way. The call record's rebuild
+//  from history is looked after here too, before the panes are gathered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServiceDebugger()
+{
+    if (m_debugController != nullptr)
+    {
+        m_debugController->Pump();
+        ServiceCallHistory();
+        PublishDebuggerView();
+    }
+
+    // A debugger edit can make a paused machine live again.
+    if (m_reverseHost != nullptr)
+    {
+        m_reverseHost->SyncInputGate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachDebugger
+//
+//  The shell's debug pointers at the controller, and the session's requests
+//  routed to the CPU thread's queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controller)
+{
+    m_debugController = std::move (controller);
+
+    SetDebugRunDriver  (&m_debugController->GetRunDriver());
+    SetDebugSession    (&m_debugController->GetSession());
+    SetReverseStopTest (&m_debugController->GetReverseStopTest());
+
+    m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
+    {
+        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+
+
+
+        if (isRecording)
+        {
+            PostReverseCommand (command);
+        }
+
+        return isRecording;
+    });
+
+    //  Loading replaces the machine, so both go to the CPU thread as the
+    //  File menu's commands do, and run there between instructions.
+    m_debugController->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
+    {
+        return GuardHistoryEdit (line, mode);
+    });
+
+    m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
+    {
+        m_shell.PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
+        return true;
+    });
+}
+
+
+
+
