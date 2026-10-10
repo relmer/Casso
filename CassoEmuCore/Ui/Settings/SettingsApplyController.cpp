@@ -12,6 +12,7 @@
 #include "SettingsPreviewController.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
 
@@ -645,7 +646,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
 
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {
-        m_emuShell->SetColorModeLive (m_baselineColorMode);
+        m_emuShell->GetRenderer().SetColorModeLive (m_baselineColorMode);
     }
 
     // FR-132: undo an "Apply now" live theme apply by re-activating the

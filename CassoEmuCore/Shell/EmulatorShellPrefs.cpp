@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
@@ -85,7 +86,7 @@
 
 void EmulatorShell::RestoreColorTextPref()
 {
-    SetColorMonitorTextArgbLive (
+    m_renderer->SetColorMonitorTextArgbLive (
         ColorUtil::ResolveColorMonitorTextArgb (m_settings->GetPrefs().colorMonitorTextMode,
                                                 m_settings->GetPrefs().colorMonitorTextCustomArgb));
 }
@@ -602,7 +603,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // up color exactly once: the window position written on the way out gave
     // the block something to hold, and the second launch reached this line
     // and found green.
-    SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
+    m_renderer->SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
 
     // The players' modes are global and apply to a machine with no block of
     // its own too, so the Joyport is settled above the guard below.

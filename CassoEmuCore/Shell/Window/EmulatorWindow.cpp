@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/WindowManager.h"
@@ -984,7 +985,7 @@ Error:
 
 RECT EmulatorShell::GetEmulatorContentScreenRect()
 {
-    return m_d3dRenderer.GetEmulatorContentScreenRect();
+    return m_renderer->m_d3dRenderer.GetEmulatorContentScreenRect();
 }
 
 
@@ -1140,8 +1141,8 @@ int EmulatorShell::GetDriveRowWidthPx()
 void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
 {
     m_viewportBoundsPx = boundsPx;
-    m_d3dRenderer.SetTargetBounds (boundsPx);
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_renderer->m_d3dRenderer.SetTargetBounds (boundsPx);
+    m_renderer->m_d3dRenderer.MarkRedrawNeeded();
 
 }
 
@@ -1298,7 +1299,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 
 void EmulatorShell::OnExitSizeMove()
 {
-    m_windowManager->SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+    m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
 }
 
 
@@ -1457,8 +1458,8 @@ int EmulatorShell::RunMessageLoop()
     // Auto-reset wake signal the CPU thread raises after each published
     // frame, so the idle UI loop can block on it instead of spin-polling.
     // Must exist before the CPU thread starts publishing.
-    m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
-    CWRA (m_frameReadyEvent);
+    m_renderer->m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
+    CWRA (m_renderer->m_frameReadyEvent);
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
@@ -1545,7 +1546,7 @@ int EmulatorShell::RunMessageLoop()
         // sound keep running while the user holds the title bar. When nothing
         // needs presenting, WaitForFrameOrMessage parks the thread until a frame
         // event or a message arrives instead of spin-sleeping.
-        if (!TryPresentUiFrame())
+        if (!m_renderer->TryPresentUiFrame())
         {
             WaitForFrameOrMessage();
         }
@@ -1584,7 +1585,7 @@ Error:
 
 void EmulatorShell::OnModalLoopTick()
 {
-    TryPresentUiFrame();
+    m_renderer->TryPresentUiFrame();
 }
 
 
@@ -1645,7 +1646,7 @@ void EmulatorShell::WaitForFrameOrMessage()
         timeout = (DWORD) std::clamp (*shimmerMs, (int64_t) 0, (int64_t) timeout);
     }
 
-    waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
+    waited = MsgWaitForMultipleObjectsEx (1, &m_renderer->m_frameReadyEvent, timeout,
                                           QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     IGNORE_RETURN_VALUE (waited, 0u);
 }
@@ -1665,10 +1666,10 @@ void EmulatorShell::WaitForFrameOrMessage()
 
 void EmulatorShell::DestroyFrameReadyEvent()
 {
-    if (m_frameReadyEvent != nullptr)
+    if (m_renderer->m_frameReadyEvent != nullptr)
     {
-        CloseHandle (m_frameReadyEvent);
-        m_frameReadyEvent = nullptr;
+        CloseHandle (m_renderer->m_frameReadyEvent);
+        m_renderer->m_frameReadyEvent = nullptr;
     }
 }
 
@@ -1995,13 +1996,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // chain and recreated the back-buffer RTV + D2D target before this
     // OnSize fired. The renderer no longer owns the swap chain; it just
     // needs the new back-buffer dimensions for the CRT post-process.
-    m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
+    m_renderer->m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
         UINT  dpi           = GetDpiForWindow (m_hwnd);
         RECT  menuBarBounds = {};
-        HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                                                       m_d3dRenderer.GetBackBufferHeight(),
+        HRESULT  hrUiR           = m_uiShell.OnResize (m_renderer->m_d3dRenderer.GetBackBufferWidth(),
+                                                       m_renderer->m_d3dRenderer.GetBackBufferHeight(),
                                                        dpi);
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
@@ -2022,7 +2023,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         // windowed path below is the one that restores everything --
         // including the host caption -- when fullscreen exits, because this
         // OnSize runs on both transitions.
-        if (m_d3dRenderer.IsFullscreen())
+        if (m_renderer->m_d3dRenderer.IsFullscreen())
         {
             m_chrome->SetChromeHiddenForFullscreenScene (true);
             m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
@@ -2121,18 +2122,18 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // (Viewport layout already settled above, before the drive widgets.)
 
     {
-        lock_guard<mutex> lock (m_framebufferMutex);
+        lock_guard<mutex> lock (m_renderer->m_framebufferMutex);
 
-        if (!m_uiFramebuffer.empty())
+        if (!m_renderer->m_uiFramebuffer.empty())
         {
             CrtParams  params = {};
 
-            params = MakeCrtParams (ResolveCrtForCurrentMode(),
-                                    (float) m_d3dRenderer.GetBackBufferWidth(),
-                                    (float) m_d3dRenderer.GetBackBufferHeight());
-            m_d3dRenderer.SetCrtParams (params);
+            params = MakeCrtParams (m_renderer->ResolveCrtForCurrentMode(),
+                                    (float) m_renderer->m_d3dRenderer.GetBackBufferWidth(),
+                                    (float) m_renderer->m_d3dRenderer.GetBackBufferHeight());
+            m_renderer->m_d3dRenderer.SetCrtParams (params);
 
-            m_pendingFramebuffer = m_uiFramebuffer.data();
+            m_renderer->m_pendingFramebuffer = m_renderer->m_uiFramebuffer.data();
         }
     }
 
@@ -2151,7 +2152,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     if (m_userStateChange)
     {
         m_userStateChange = false;
-        m_windowManager->SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
+        m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
     }
 
     m_chrome->m_inChromeLayout = false;
@@ -2711,7 +2712,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // changes every override key. This is the UI-thread side of the
         // switch; SwitchMachine runs on the CPU thread and must not do file
         // work or race the render path.
-        RefreshCrtOverrideKeys();
+        m_renderer->RefreshCrtOverrideKeys();
 
         // A switch adopts the machine's own input mapping and may change the
         // default pointer mode, both on the CPU thread, which defers their UI

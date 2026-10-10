@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
@@ -412,7 +413,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_prefs->colorMonitorTextMode = (ColorMonitorTextMode) idx;
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (
                     ColorUtil::ResolveColorMonitorTextArgb (m_prefs->colorMonitorTextMode,
                                                             m_prefs->colorMonitorTextCustomArgb));
             }
@@ -436,7 +437,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (argb);
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (argb);
             }
         }
     });
@@ -448,7 +449,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (argb);
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (argb);
             }
         }
 
@@ -462,7 +463,7 @@ HRESULT SettingsSheet::OpenModeless (
     {
         outW = ChromeMetrics::kFramebufferWidthPx;
         outH = ChromeMetrics::kFramebufferHeightPx;
-        return m_emuShell->GetUiFramebufferPixels();
+        return m_emuShell->GetRenderer().GetUiFramebufferPixels();
     });
     m_themePage->SetMountedPathSource ([this] (int driveIndex) -> std::wstring
     {

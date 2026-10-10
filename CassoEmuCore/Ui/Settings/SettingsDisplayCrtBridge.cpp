@@ -6,6 +6,7 @@
 #include "Ui/ColorUtil.h"
 #include "../ThemeManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 
@@ -221,7 +222,7 @@ std::string SettingsDisplayCrtBridge::ActiveOverrideKey() const
 
     if (m_emuShell != nullptr)
     {
-        key = m_emuShell->m_crtOverrideKeys[(size_t) GetActiveModeIdx()];
+        key = m_emuShell->GetRenderer().GetCrtOverrideKey ((size_t) GetActiveModeIdx());
     }
 
     return key;
@@ -387,7 +388,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
 
         if (m_emuShell != nullptr)
         {
-            m_emuShell->SetColorModeLive (idx);
+            m_emuShell->GetRenderer().SetColorModeLive (idx);
         }
 
         ReseedFromActiveMode();
@@ -451,7 +452,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
 
         if (m_emuShell != nullptr)
         {
-            m_emuShell->SetColorMonitorTextArgbLive (
+            m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (
                 ColorUtil::ResolveColorMonitorTextArgb (ColorMonitorTextMode::White, custom));
         }
     });

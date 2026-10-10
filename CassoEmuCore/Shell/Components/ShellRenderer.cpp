@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -71,6 +72,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellRenderer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellRenderer::ShellRenderer (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellRenderer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellRenderer::~ShellRenderer() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InitializeRenderer
 //
 //  Points the framebuffer renderer at the host's D3D resources and hooks it
@@ -94,7 +122,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::InitializeRenderer()
+HRESULT ShellRenderer::InitializeRenderer()
 {
     HRESULT  hr = S_OK;
 
@@ -106,12 +134,12 @@ HRESULT EmulatorShell::InitializeRenderer()
     // host back buffer from the before-present hook wired below. The
     // initial target rect is the DxuiViewport bounds computed during
     // CreateEmulatorWindow.
-    hr = m_d3dRenderer.Initialize (m_host->GetDevice(),
-                                   m_host->GetContext(),
-                                   m_host->GetSwapChain(),
+    hr = m_d3dRenderer.Initialize (m_shell.m_host->GetDevice(),
+                                   m_shell.m_host->GetContext(),
+                                   m_shell.m_host->GetSwapChain(),
                                    kFramebufferWidth,
                                    kFramebufferHeight,
-                                   m_viewportBoundsPx);
+                                   m_shell.m_viewportBoundsPx);
     CHR (hr);
 
     // Desk scene (spec 018): shares the host device with the framebuffer
@@ -119,11 +147,11 @@ HRESULT EmulatorShell::InitializeRenderer()
     // back to a compact theme, since skeuomorphic drives exist only in the
     // scene.
     {
-        HRESULT  hrScene = m_scene->InitializeDeskScene();
+        HRESULT  hrScene = m_shell.m_scene->InitializeDeskScene();
 
         if (FAILED (hrScene))
         {
-            m_scene->FallBackFromDeskScene();
+            m_shell.m_scene->FallBackFromDeskScene();
         }
     }
 
@@ -134,13 +162,13 @@ HRESULT EmulatorShell::InitializeRenderer()
     // renders to the offscreen scene target and the 3D scene samples it on
     // the monitor glass -- the theme backdrop the host cleared stays visible
     // around the devices. Otherwise the classic direct composite runs.
-    m_host->SetBeforePresentHook ([this] ()
+    m_shell.m_host->SetBeforePresentHook ([this] ()
     {
         HRESULT  hrComposite = S_OK;
 
 
 
-        if (CrtMonitorActive())
+        if (m_shell.CrtMonitorActive())
         {
             // The CRT chain renders the picture into an exact-aspect rect
             // anchored at the texture origin -- sized to the picture's
@@ -151,7 +179,7 @@ HRESULT EmulatorShell::InitializeRenderer()
             // whose keystone slop would shear the texel alignment.
             RECT  glassPx     = m_d3dRenderer.GetTargetBounds();
             int   measuredH   = (int) lroundf (DeskSceneLayout::MeasurePictureHeightPx (
-                                    m_scene->m_deskScene.Composition(), m_scene->m_deskScene.MonitorModel().Surface(),
+                                    m_shell.m_scene->m_deskScene.Composition(), m_shell.m_scene->m_deskScene.MonitorModel().Surface(),
                                     kFramebufferWidth, kFramebufferHeight));
             int   pictureH    = (measuredH > 0) ? measuredH : (int) (glassPx.bottom - glassPx.top);
             int   pictureW    = 0;
@@ -190,19 +218,19 @@ HRESULT EmulatorShell::InitializeRenderer()
 
                 // Calibration mode: swap in the stripe pattern so the glass
                 // texel mapping can be verified end to end.
-                if (m_scene->m_deskSceneDebug >= 2)
+                if (m_shell.m_scene->m_deskSceneDebug >= 2)
                 {
-                    m_scene->EnsureSceneCalibration (fitted);
+                    m_shell.m_scene->EnsureSceneCalibration (fitted);
 
-                    if (m_scene->m_sceneCalibSrv != nullptr)
+                    if (m_shell.m_scene->m_sceneCalibSrv != nullptr)
                     {
-                        displaySrv = m_scene->m_sceneCalibSrv.Get();
+                        displaySrv = m_shell.m_scene->m_sceneCalibSrv.Get();
                     }
                 }
 
-                hrComposite = m_scene->m_deskScene.Render (m_host->GetBackBufferRtv(),
-                                                           displaySrv, uv,
-                                                           kFramebufferWidth, kFramebufferHeight);
+                hrComposite = m_shell.m_scene->m_deskScene.Render (m_shell.m_host->GetBackBufferRtv(),
+                                                                   displaySrv, uv,
+                                                                   kFramebufferWidth, kFramebufferHeight);
 
                 // Fullscreen drive overlay strip: the slid band composed by
                 // TryPresentUiFrame's FSM tick, plus the hidden-state
@@ -212,42 +240,42 @@ HRESULT EmulatorShell::InitializeRenderer()
                     int   bbW = m_d3dRenderer.GetBackBufferWidth();
                     int   bbH = m_d3dRenderer.GetBackBufferHeight();
 
-                    if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top)
+                    if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
                     {
-                        HRESULT  hrStrip = m_scene->m_deskScene.RenderStrip (m_host->GetBackBufferRtv(), m_scene->m_stripComp);
+                        HRESULT  hrStrip = m_shell.m_scene->m_deskScene.RenderStrip (m_shell.m_host->GetBackBufferRtv(), m_shell.m_scene->m_stripComp);
 
                         IGNORE_RETURN_VALUE (hrStrip, S_OK);
                     }
 
-                    if (m_scene->m_stripState.ActivityIndicator())
+                    if (m_shell.m_scene->m_stripState.ActivityIndicator())
                     {
                         RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
 
-                        m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                        m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
                     }
                 }
 
                 // Layout diagnosis overlay: scene viewport red, projected
                 // glass green, drive band yellow, switch band magenta.
-                if (m_scene->m_deskSceneDebug)
+                if (m_shell.m_scene->m_deskSceneDebug)
                 {
                     int   bbW = m_d3dRenderer.GetBackBufferWidth();
                     int   bbH = m_d3dRenderer.GetBackBufferHeight();
 
-                    m_scene->m_deskScene.DrawDebugRect (m_scene->m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
-                    m_scene->m_deskScene.DrawDebugRect (m_scene->m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
 
                     // The projected drive bounds ARE the drop-target rects the
                     // hit registry carries, so drawing them shows whether a
                     // refused drag is a bad rect or something upstream.
-                    for (int i = 0; i < m_scene->m_deskScene.Composition().driveCount; i++)
+                    for (int i = 0; i < m_shell.m_scene->m_deskScene.Composition().driveCount; i++)
                     {
-                        m_scene->m_deskScene.DrawDebugRect (m_scene->m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
+                        m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
                     }
 
-                    m_scene->m_deskScene.DrawDebugRect (m_chrome->m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
-                    m_scene->m_deskScene.DrawDebugRect (m_chrome->m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
-                    m_scene->m_deskScene.DrawDebugRect (m_scene->m_stripRectPx, bbW, bbH, 0xFF30FFFF);
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_chrome->m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_chrome->m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
+                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_stripRectPx, bbW, bbH, 0xFF30FFFF);
                 }
             }
         }
@@ -257,7 +285,7 @@ HRESULT EmulatorShell::InitializeRenderer()
             // as it always did. The 3D drives still render -- from the
             // after-paint hook below, since this composite writes the whole
             // back buffer and the opaque drive-band surface paints after it.
-            hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+            hrComposite = m_d3dRenderer.UploadAndComposite (m_shell.m_host->GetBackBufferRtv(),
                                                             m_pendingFramebuffer);
         }
 
@@ -279,7 +307,7 @@ HRESULT EmulatorShell::InitializeRenderer()
     // composite blacks out the whole back buffer and the drive band's opaque
     // surface would otherwise paint straight over them. The drive row keeps
     // its own depth pass, so it composes onto the finished frame.
-    m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int bbW, int bbH)
+    m_shell.m_host->SetAfterPaintHook ([this] (ID3D11RenderTargetView * rtv, int bbW, int bbH)
     {
         HRESULT  hrDrives = S_OK;
 
@@ -292,7 +320,7 @@ HRESULT EmulatorShell::InitializeRenderer()
         //  see the note in TakeScreenshot.
         ServiceCaptureRequest (CapturePoint::AfterChrome);
 
-        if (CrtMonitorActive() || !DeskSceneActive())
+        if (m_shell.CrtMonitorActive() || !m_shell.DeskSceneActive())
         {
             return;
         }
@@ -302,21 +330,21 @@ HRESULT EmulatorShell::InitializeRenderer()
             // Fullscreen without the monitor: the picture owns the client and
             // the drives live in the slide-up overlay strip, same as they do
             // with the monitor on.
-            if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top)
+            if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
             {
-                hrDrives = m_scene->m_deskScene.RenderStrip (rtv, m_scene->m_stripComp);
+                hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_stripComp);
             }
 
-            if (m_scene->m_stripState.ActivityIndicator())
+            if (m_shell.m_scene->m_stripState.ActivityIndicator())
             {
                 RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
 
-                m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
+                m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
             }
         }
         else
         {
-            hrDrives = m_scene->m_deskScene.RenderStrip (rtv, m_scene->m_deskScene.Composition());
+            hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_deskScene.Composition());
         }
 
         IGNORE_RETURN_VALUE (hrDrives, S_OK);
@@ -332,7 +360,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::RefreshCrtOverrideKeys
+//  ShellRenderer::RefreshCrtOverrideKeys
 //
 //  Rebuilds the four override keys for the monitor now on the desk.
 //
@@ -343,7 +371,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RefreshCrtOverrideKeys()
+void ShellRenderer::RefreshCrtOverrideKeys()
 {
     const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
     size_t               mode    = 0;
@@ -362,7 +390,7 @@ void EmulatorShell::RefreshCrtOverrideKeys()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ResolveCrtForCurrentMode
+//  ShellRenderer::ResolveCrtForCurrentMode
 //
 //  The picture for the monitor and mode showing right now.
 //
@@ -372,12 +400,12 @@ void EmulatorShell::RefreshCrtOverrideKeys()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
+CrtResolved ShellRenderer::ResolveCrtForCurrentMode() const
 {
     const ThemeCrtDefaults *  themeDefaults = nullptr;
     size_t                    mode          = (size_t) m_colorMode.load (std::memory_order_acquire);
     CrtOverrides              overrides;
-    auto                      found         = m_settings->GetPrefs().crtOverrides.end();
+    auto                      found         = m_shell.m_settings->GetPrefs().crtOverrides.end();
 
 
 
@@ -386,8 +414,8 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
         mode = 0;
     }
 
-    found = m_settings->GetPrefs().crtOverrides.find (m_crtOverrideKeys[mode]);
-    if (found != m_settings->GetPrefs().crtOverrides.end())
+    found = m_shell.m_settings->GetPrefs().crtOverrides.find (m_crtOverrideKeys[mode]);
+    if (found != m_shell.m_settings->GetPrefs().crtOverrides.end())
     {
         overrides = found->second;
     }
@@ -395,9 +423,9 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
     // Resolved defaults, never the base theme: the base drops the machine
     // variant overrides, which is what made the picture change brightness
     // depending on which caller set the parameters last.
-    if (m_settings->GetThemeManager() != nullptr && m_settings->GetThemeManager()->GetActiveTheme() != nullptr)
+    if (m_shell.m_settings->GetThemeManager() != nullptr && m_shell.m_settings->GetThemeManager()->GetActiveTheme() != nullptr)
     {
-        themeDefaults = &m_settings->GetThemeManager()->ActiveCrtDefaults();
+        themeDefaults = &m_shell.m_settings->GetThemeManager()->ActiveCrtDefaults();
     }
 
     return CrtResolver::Resolve (CrtPresets::GetPreset (mode), themeDefaults, overrides);
@@ -409,11 +437,11 @@ CrtResolved EmulatorShell::ResolveCrtForCurrentMode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ResolveMonitorForCurrentMachine
+//  ShellRenderer::ResolveMonitorForCurrentMachine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
+const MonitorSpec & ShellRenderer::ResolveMonitorForCurrentMachine()
 {
     JsonValue          doc;
     const JsonValue *  uiPrefs = nullptr;
@@ -423,7 +451,7 @@ const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
     // The merged document, not the shipped one: a machine's monitor is
     // configuration like everything else in there, so a user copy that names a
     // different monitor is answered the same way the machine's own does.
-    m_settings->LoadMachineUiPrefs (doc, uiPrefs);
+    m_shell.m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
     return MonitorCatalog::ForMachineJson (doc);
 }
@@ -434,11 +462,11 @@ const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetColorModeLive
+//  ShellRenderer::SetColorModeLive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
+void ShellRenderer::SetColorModeLive (int settingsColorModeIndex)
 {
     ColorMode  mode = ColorMode::Color;
 
@@ -462,7 +490,7 @@ void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetColorMonitorTextArgbLive
+//  ShellRenderer::SetColorMonitorTextArgbLive
 //
 //  Updates the Color-monitor text color read by RenderFramebuffer on the
 //  next frame. Forces opaque alpha so a stray transparent value can't blank
@@ -470,7 +498,7 @@ void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
+void ShellRenderer::SetColorMonitorTextArgbLive (uint32_t argb)
 {
     m_colorMonitorTextArgb.store (0xFF000000u | (argb & 0x00FFFFFFu), std::memory_order_release);
 }
@@ -516,7 +544,7 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryPresentUiFrame()
+bool ShellRenderer::TryPresentUiFrame()
 {
     HRESULT  hr                        = S_OK;
     bool     didPresent                = false;
@@ -524,7 +552,7 @@ bool EmulatorShell::TryPresentUiFrame()
     bool     framebufferDirtyThisFrame = false;
     bool     badgeMoved                = false;
     uint32_t driveSig                  = 0;
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
 
 
 
@@ -544,15 +572,15 @@ bool EmulatorShell::TryPresentUiFrame()
 
 
 
-    m_disks->ExpireChangeBannerIfDue();
+    m_shell.m_disks->ExpireChangeBannerIfDue();
 
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
     //  composed yet. See SyncStandInBanner for what sets this.
-    if (m_chrome->m_standInBandStale)
+    if (m_shell.m_chrome->m_standInBandStale)
     {
-        m_chrome->m_standInBandStale = false;
-        m_chrome->ReflowChromeForChangeBand();
+        m_shell.m_chrome->m_standInBandStale = false;
+        m_shell.m_chrome->ReflowChromeForChangeBand();
     }
 
     // Copy latest framebuffer under lock, then present with vsync
@@ -595,12 +623,12 @@ bool EmulatorShell::TryPresentUiFrame()
     // hook: advance drive-door animations and force a present while a
     // door is mid-transition so the chrome keeps repainting even when
     // the emulator framebuffer is static.
-    if (m_disks->GetManager() != nullptr)
+    if (m_shell.m_disks->GetManager() != nullptr)
     {
-        m_disks->GetManager()->UpdateDriveWidgets();
+        m_shell.m_disks->GetManager()->UpdateDriveWidgets();
     }
 
-    m_tapeDeck->SyncTapeChrome();
+    m_shell.m_tapeDeck->SyncTapeChrome();
 
     // The capture bar and the fullscreen top chrome's reveal, both per-frame
     // because both answer where the pointer is right now.
@@ -608,15 +636,15 @@ bool EmulatorShell::TryPresentUiFrame()
     // THE TOP CHROME FIRST: in fullscreen the capture bar hangs under the
     // toolbar, and bounds the tick has not written yet put the bar where the
     // strip was last frame -- visibly trailing it through the reveal.
-    m_chrome->TickFullscreenTopChrome();
-    m_chrome->SyncStandInBanner();
-    TraceControllerState();
-    m_chrome->SyncNotice();
-    m_chrome->SyncFrameRateReadout();
-    m_scene->SyncSceneViewReadout();
+    m_shell.m_chrome->TickFullscreenTopChrome();
+    m_shell.m_chrome->SyncStandInBanner();
+    m_shell.TraceControllerState();
+    m_shell.m_chrome->SyncNotice();
+    m_shell.m_chrome->SyncFrameRateReadout();
+    m_shell.m_scene->SyncSceneViewReadout();
 
 
-    for (const DriveWidgetState & st : m_disks->GetDriveWidgetState())
+    for (const DriveWidgetState & st : m_shell.m_disks->GetDriveWidgetState())
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
@@ -674,7 +702,7 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        for (const DriveWidget & drive : m_disks->GetDriveChrome())
+        for (const DriveWidget & drive : m_shell.m_disks->GetDriveChrome())
         {
             if (drive.IsNameRolling (nowMs))
             {
@@ -695,7 +723,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // front of the disk's NAME, which is re-hung below.
     for (int i = 0; i < (int) m_driveWpShown.size(); i++)
     {
-        bool  wp = m_disks->GetDriveWidgetState()[i].writeProtect.Any();
+        bool  wp = m_shell.m_disks->GetDriveWidgetState()[i].writeProtect.Any();
 
         if (wp != m_driveWpShown[i])
         {
@@ -710,7 +738,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // screen nothing else would ask for the frame that shows the change.
     for (int i = 0; i < (int) m_driveInfoShown.size(); i++)
     {
-        bool  info = m_disks->GetDriveWidgetState()[i].wozConflict;
+        bool  info = m_shell.m_disks->GetDriveWidgetState()[i].wozConflict;
 
         if (info != m_driveInfoShown[i])
         {
@@ -723,14 +751,14 @@ bool EmulatorShell::TryPresentUiFrame()
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
-    if (DeskSceneActive())
+    if (m_shell.DeskSceneActive())
     {
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
         for (int i = 0; i < 2; i++)
         {
-            const DriveWidgetState &  st       = m_disks->GetDriveWidgetState()[i];
+            const DriveWidgetState &  st       = m_shell.m_disks->GetDriveWidgetState()[i];
             float                     t        = std::clamp ((float) (nowMs - st.animationStartTimeMs) /
                                                              (float) DriveWidgetState::kDoorAnimationMs, 0.0f, 1.0f);
             float                     progress = 0.0f;
@@ -745,12 +773,12 @@ bool EmulatorShell::TryPresentUiFrame()
                 case DriveWidgetState::Door::Closed:   progress = 0.0f;     break;
             }
 
-            m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+            m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
         // The volume wheel stands where the tape volume is, however it was
         // last set -- dragged, or from the Settings slider.
-        m_scene->m_deskScene.SetRecorderVolumeTurn (m_audio->GetTapeSource().GetVolume() * ShellDeskScene::s_kVolumeWheelTurnRad);
+        m_shell.m_scene->m_deskScene.SetRecorderVolumeTurn (m_shell.m_audio->GetTapeSource().GetVolume() * ShellDeskScene::s_kVolumeWheelTurnRad);
 
         // A mount or eject changes the basename strip under the drive, and so
         // does write-protecting the disk, since the padlock is a glyph at the
@@ -760,34 +788,34 @@ bool EmulatorShell::TryPresentUiFrame()
         {
             bool  labelsMoved = badgeMoved;
 
-            for (int i = 0; i < (int) m_scene->m_sceneLabelPath.size(); i++)
+            for (int i = 0; i < (int) m_shell.m_scene->m_sceneLabelPath.size(); i++)
             {
-                std::string  source = m_machine.GetDiskStore().GetSourcePath (6, i);
+                std::string  source = m_shell.m_machine.GetDiskStore().GetSourcePath (6, i);
 
-                if (source != m_scene->m_sceneLabelPath[i])
+                if (source != m_shell.m_scene->m_sceneLabelPath[i])
                 {
-                    m_scene->m_sceneLabelPath[i] = source;
+                    m_shell.m_scene->m_sceneLabelPath[i] = source;
                     labelsMoved         = true;
                 }
             }
 
             // The recorder's keys follow the transport, and a clicked key's
             // dip needs frames until it is back up.
-            if (m_scene->SyncRecorderKeys ((int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                               std::chrono::steady_clock::now().time_since_epoch()).count()))
+            if (m_shell.m_scene->SyncRecorderKeys ((int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                                       std::chrono::steady_clock::now().time_since_epoch()).count()))
             {
                 m_d3dRenderer.MarkRedrawNeeded();
             }
 
             // A name scrolling under the pointer moves every frame.
-            if (m_scene->m_sceneLabelHover >= 0 && m_scene->m_sceneDiskLabelPeriod[(size_t) m_scene->m_sceneLabelHover] > 0.0f)
+            if (m_shell.m_scene->m_sceneLabelHover >= 0 && m_shell.m_scene->m_sceneDiskLabelPeriod[(size_t) m_shell.m_scene->m_sceneLabelHover] > 0.0f)
             {
                 labelsMoved = true;
             }
 
             if (labelsMoved)
             {
-                m_scene->SyncSceneDriveLabels();
+                m_shell.m_scene->SyncSceneDriveLabels();
                 m_d3dRenderer.MarkRedrawNeeded();
             }
         }
@@ -798,9 +826,9 @@ bool EmulatorShell::TryPresentUiFrame()
     // band the hook will render. The flat themes ride the same FSM with the
     // 2D widgets laid into the band, so fullscreen hides the drives the same
     // way everywhere and brings them back the same way too.
-    bool  stripHasDrives = DeskSceneActive()
-                         ? m_scene->DeskSceneDriveCount() > 0
-                         : (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
+    bool  stripHasDrives = m_shell.DeskSceneActive()
+                         ? m_shell.m_scene->DeskSceneDriveCount() > 0
+                         : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
     if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
     {
@@ -811,53 +839,53 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                        std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        GetClientRect (m_hwnd, &client);
+        GetClientRect (m_shell.m_hwnd, &client);
 
         inputs.nowMs = stripNowMs;
 
-        if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor) && PtInRect (&client, cursor))
+        if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
-            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_scaler.ToPx (s_kStripEdgeZoneDp);
-            inputs.pointerOverStrip    = m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&m_scene->m_stripRectPx, cursor);
+            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
+            inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
+                                         PtInRect (&m_shell.m_scene->m_stripRectPx, cursor);
         }
 
-        inputs.hotkey        = m_scene->m_stripHotkeyPending;
-        m_scene->m_stripHotkeyPending = false;
+        inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
+        m_shell.m_scene->m_stripHotkeyPending = false;
 
-        inputs.pinned        = m_scene->m_stripBrowseOpen || m_chrome->m_driveTooltip.IsVisible();
+        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible();
 
         // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
         // owning the pointer. At a BASIC prompt in Mouse mode the host
         // cursor is the only pointer there is, and the bottom edge must
         // summon the strip -- Active gated the reveal off for the whole
         // session on a machine whose mouse is built in.
-        inputs.guestPointer  = m_paddleCaptured    ? GuestPointerMode::Paddle
-                             : IsGuestMouseLive()    ? GuestPointerMode::Mouse
+        inputs.guestPointer  = m_shell.m_paddleCaptured    ? GuestPointerMode::Paddle
+                             : m_shell.IsGuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
 
-        effects = m_scene->m_stripState.Tick (inputs);
+        effects = m_shell.m_scene->m_stripState.Tick (inputs);
 
         if (effects.releaseCapture)
         {
-            if (m_paddleCaptured)
+            if (m_shell.m_paddleCaptured)
             {
-                StopPaddleCapture();
+                m_shell.StopPaddleCapture();
             }
             else
             {
-                m_scene->m_stripSuppressGuestMouse = true;
+                m_shell.m_scene->m_stripSuppressGuestMouse = true;
             }
         }
 
         if (effects.restoreCapture == GuestPointerMode::Paddle)
         {
-            StartPaddleCapture();
+            m_shell.StartPaddleCapture();
         }
         else if (effects.restoreCapture == GuestPointerMode::Mouse)
         {
-            m_scene->m_stripSuppressGuestMouse = false;
+            m_shell.m_scene->m_stripSuppressGuestMouse = false;
         }
 
         // The band slides up from the bottom edge: only the top
@@ -865,16 +893,16 @@ bool EmulatorShell::TryPresentUiFrame()
         // widgets' band is the windowed drive bar's height; the scene's is
         // the row its drives compose into.
         {
-            float  progress = m_scene->m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = DeskSceneActive() ? m_scaler.ToPx (s_kStripBandDp)
-                                                : m_scaler.ToPx (m_chrome->m_driveBarThicknessDp);
+            float  progress = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
+            int    bandH    = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
+                                                        : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
 
             if (progress > 0.0f)
             {
-                m_scene->m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
-                                           client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
+                m_shell.m_scene->m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
+                                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
 
-                if (DeskSceneActive())
+                if (m_shell.DeskSceneActive())
                 {
                     HRESULT  hrStrip  = S_OK;
                     RECT     driveRow = {};
@@ -885,21 +913,21 @@ bool EmulatorShell::TryPresentUiFrame()
                     // into the whole band would put them off the screen's edge.
                     // The recorder has a second row, its counter, under its
                     // tape name, so it needs one more strip.
-                    driveRow         = m_scene->m_stripRectPx;
-                    driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+                    driveRow         = m_shell.m_scene->m_stripRectPx;
+                    driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
-                    if (m_scene->m_deskScene.HasRecorder() && m_tapeDeck->IsTapeRecorderShown())
+                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
                     {
-                        driveRow.bottom -= m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+                        driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
                     }
 
                     // The drive band's calibrated look-down, not the desk's
                     // near-level default: the band angle is what shows the
                     // drives' tops, and the fullscreen strip is the same
                     // drives-only row the windowed band composes.
-                    hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(),
-                                                             m_scene->DeskSceneDriveCount(),
-                                                             m_scene->m_deskScene.Metrics(), m_scene->m_stripComp,
+                    hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_shell.m_scaler.GetDpi(),
+                                                             m_shell.m_scene->DeskSceneDriveCount(),
+                                                             m_shell.m_scene->m_deskScene.Metrics(), m_shell.m_scene->m_stripComp,
                                                              DeskSceneLayout::kDriveBandGazeDownRad);
                     IGNORE_RETURN_VALUE (hrStrip, S_OK);
                 }
@@ -909,30 +937,30 @@ bool EmulatorShell::TryPresentUiFrame()
                     // put it this frame, bottom-anchored the way the windowed
                     // bar anchors them, over the band's own surface. They paint
                     // after the picture, so they ride over it.
-                    m_chrome->m_driveBandSurface.SetBounds (m_scene->m_stripRectPx);
-                    m_chrome->m_driveBandSurface.SetVisible (true);
-                    m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bandH, client.right,
-                                                              m_scene->m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
-                                                              m_disks->ShouldShowExternalDrive() ? 2 : 1);
+                    m_shell.m_chrome->m_driveBandSurface.SetBounds (m_shell.m_scene->m_stripRectPx);
+                    m_shell.m_chrome->m_driveBandSurface.SetVisible (true);
+                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, client.right,
+                                                                      m_shell.m_scene->m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
+                                                                      m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
-                    if (!m_disks->ShouldShowExternalDrive())
+                    if (!m_shell.m_disks->ShouldShowExternalDrive())
                     {
-                        m_disks->GetDriveChrome()[1].Hide();
+                        m_shell.m_disks->GetDriveChrome()[1].Hide();
                     }
                 }
             }
             else
             {
-                m_scene->m_stripRectPx = {};
-                m_scene->m_stripComp   = {};
+                m_shell.m_scene->m_stripRectPx = {};
+                m_shell.m_scene->m_stripComp   = {};
 
-                if (!DeskSceneActive())
+                if (!m_shell.DeskSceneActive())
                 {
-                    m_chrome->m_driveBandSurface.SetVisible (false);
-                    m_disks->GetDriveChrome()[0].SetVisible (false);
-                    m_disks->GetDriveChrome()[1].SetVisible (false);
-                    m_disks->GetDriveChrome()[0].Hide();
-                    m_disks->GetDriveChrome()[1].Hide();
+                    m_shell.m_chrome->m_driveBandSurface.SetVisible (false);
+                    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
+                    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
+                    m_shell.m_disks->GetDriveChrome()[0].Hide();
+                    m_shell.m_disks->GetDriveChrome()[1].Hide();
                 }
             }
         }
@@ -940,12 +968,12 @@ bool EmulatorShell::TryPresentUiFrame()
         // The strip's names ride its slide: re-hung every pass so they track
         // the band on its way in and out, and retire with it. The flat
         // widgets carry their own names.
-        if (DeskSceneActive())
+        if (m_shell.DeskSceneActive())
         {
-            m_scene->SyncSceneDriveLabels();
+            m_shell.m_scene->SyncSceneDriveLabels();
         }
 
-        if (m_scene->m_stripState.Mode() != StripMode::Hidden || m_scene->m_stripState.ActivityIndicator())
+        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden || m_shell.m_scene->m_stripState.ActivityIndicator())
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -954,8 +982,8 @@ bool EmulatorShell::TryPresentUiFrame()
     {
         // Not presenting the strip (windowed, or fullscreen left): never
         // strand a suppressed guest mouse.
-        m_scene->m_stripSuppressGuestMouse = false;
-        m_scene->m_stripRectPx             = {};
+        m_shell.m_scene->m_stripSuppressGuestMouse = false;
+        m_shell.m_scene->m_stripRectPx             = {};
     }
 
     // Keep presenting while the drives' visible state is CHANGING, plus the
@@ -980,15 +1008,15 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // //c switch strip: refresh the disk-use LED (drive activity) and the
     // Ctrl-armed reset cue every UI frame so they track live state.
-    if (MachineHasCaseSwitches())
+    if (m_shell.MachineHasCaseSwitches())
     {
-        m_chrome->SyncSwitchBarState();
+        m_shell.m_chrome->SyncSwitchBarState();
     }
 
-    hr = m_printer->RenderPanelFrame();
+    hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_chrome->m_mainMenu.IsOpen())
+    if (m_shell.m_chrome->m_mainMenu.IsOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1001,7 +1029,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // sheet decoupled it, so between framebuffer changes (e.g. a cursor
     // blink) a CRT-param edit would otherwise wait for the next
     // NeedsPresent trigger and appear laggy.
-    if (m_settings->GetSheet() != nullptr)
+    if (m_shell.m_settings->GetSheet() != nullptr)
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1009,9 +1037,9 @@ bool EmulatorShell::TryPresentUiFrame()
     // An open toolbar picker previews live, so it needs the same treatment:
     // a highlight change alters the chrome or the picture, and without a
     // forced present the preview would wait for the next unrelated redraw.
-    m_chrome->SyncToolbarState();
+    m_shell.m_chrome->SyncToolbarState();
 
-    if (m_chrome->m_toolbar.IsMenuOpen())
+    if (m_shell.m_chrome->m_toolbar.IsMenuOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1023,14 +1051,14 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        m_chrome->m_toolbarTooltip.Tick   (nowMs);
-        m_chrome->m_switchBarTooltip.Tick (nowMs);
-        m_chrome->m_driveTooltip.Tick     (nowMs);
-        m_chrome->m_captionTooltip.Tick   (nowMs);
+        m_shell.m_chrome->m_toolbarTooltip.Tick   (nowMs);
+        m_shell.m_chrome->m_switchBarTooltip.Tick (nowMs);
+        m_shell.m_chrome->m_driveTooltip.Tick     (nowMs);
+        m_shell.m_chrome->m_captionTooltip.Tick   (nowMs);
 
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.
-        if (m_updater->TickUpdateIndicator ((int64_t) GetTickCount64()))
+        if (m_shell.m_updater->TickUpdateIndicator ((int64_t) GetTickCount64()))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1038,10 +1066,10 @@ bool EmulatorShell::TryPresentUiFrame()
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
         // a present is requested every frame one is armed, as for the compass.
-        if (m_chrome->m_mainMenu.WantsTick() || m_chrome->m_toolbar.WantsTick())
+        if (m_shell.m_chrome->m_mainMenu.WantsTick() || m_shell.m_chrome->m_toolbar.WantsTick())
         {
-            m_chrome->m_mainMenu.TickMenus (nowMs);
-            m_chrome->m_toolbar.TickMenus  (nowMs);
+            m_shell.m_chrome->m_mainMenu.TickMenus (nowMs);
+            m_shell.m_chrome->m_toolbar.TickMenus  (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1049,9 +1077,9 @@ bool EmulatorShell::TryPresentUiFrame()
         // The devices' right-click menu unfolds as it opens, and nothing but
         // a tick moves that along: unticked, it stays on its first frame, a
         // sliver a pixel or two tall.
-        if (m_host != nullptr && m_host->GetContextMenu().WantsTick())
+        if (m_shell.m_host != nullptr && m_shell.m_host->GetContextMenu().WantsTick())
         {
-            m_host->GetContextMenu().Tick (nowMs);
+            m_shell.m_host->GetContextMenu().Tick (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1061,14 +1089,14 @@ bool EmulatorShell::TryPresentUiFrame()
         // condition the repeat exists for. So it votes for a present the
         // whole time it is held, not only on the frames it fires: without
         // that the loop parks and the repeat stops between steps.
-        if (m_scene->m_sceneCompass.WantsTick())
+        if (m_shell.m_scene->m_sceneCompass.WantsTick())
         {
-            m_scene->m_sceneCompass.Tick (nowMs);
+            m_shell.m_scene->m_sceneCompass.Tick (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
-        if (m_scene->StepCompassHint (nowMs))
+        if (m_shell.m_scene->StepCompassHint (nowMs))
         {
             m_d3dRenderer.MarkRedrawNeeded();
         }
@@ -1076,11 +1104,11 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // Refresh the printer status LED; marks a redraw itself on a change so
     // a static screen (e.g. a pending page at the BASIC prompt) repaints.
-    m_printer->UpdatePrinterStatus();
+    m_shell.m_printer->UpdatePrinterStatus();
 
     // Auto-open the print preview when a print begins and stream the strip
     // into it live as the guest prints (non-destructive snapshot).
-    m_printer->UpdatePrinterPreview();
+    m_shell.m_printer->UpdatePrinterPreview();
 
     didPresent = m_d3dRenderer.NeedsPresent (framebufferDirtyThisFrame);
 
@@ -1092,8 +1120,8 @@ bool EmulatorShell::TryPresentUiFrame()
         // synchronous WM_PAINT: the host clears, the hook composites the
         // framebuffer, the chrome paints on top, and the host presents.
         m_pendingFramebuffer = framebufferDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-        UpdateWindow   (m_hwnd);
+        InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_shell.m_hwnd);
     }
 
     return didPresent;
@@ -1114,7 +1142,7 @@ bool EmulatorShell::TryPresentUiFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PublishFramebuffer()
+void ShellRenderer::PublishFramebuffer()
 {
     HRESULT  hr = S_OK;
     BOOL     ok = FALSE;
@@ -1176,9 +1204,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ShouldPublishFrame()
+bool ShellRenderer::ShouldPublishFrame()
 {
-    SpeedMode  speed = m_cpuManager.GetEffectiveSpeedMode();
+    SpeedMode  speed = m_shell.m_cpuManager.GetEffectiveSpeedMode();
 
 
 
@@ -1202,19 +1230,19 @@ bool EmulatorShell::ShouldPublishFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t EmulatorShell::ComputeVideoModeSig()
+uint32_t ShellRenderer::ComputeVideoModeSig()
 {
     uint32_t                  sig = 0;
-    Apple2eSoftSwitchBank *   iie = m_machine.GetRefs().iieSoftSwitches;
+    Apple2eSoftSwitchBank *   iie = m_shell.m_machine.GetRefs().iieSoftSwitches;
 
 
 
-    if (m_machine.GetRefs().softSwitches != nullptr)
+    if (m_shell.m_machine.GetRefs().softSwitches != nullptr)
     {
-        sig |= m_machine.GetRefs().softSwitches->IsGraphicsMode() ? 0x01u : 0u;
-        sig |= m_machine.GetRefs().softSwitches->IsMixedMode()    ? 0x02u : 0u;
-        sig |= m_machine.GetRefs().softSwitches->IsPage2()        ? 0x04u : 0u;
-        sig |= m_machine.GetRefs().softSwitches->IsHiresMode()    ? 0x08u : 0u;
+        sig |= m_shell.m_machine.GetRefs().softSwitches->IsGraphicsMode() ? 0x01u : 0u;
+        sig |= m_shell.m_machine.GetRefs().softSwitches->IsMixedMode()    ? 0x02u : 0u;
+        sig |= m_shell.m_machine.GetRefs().softSwitches->IsPage2()        ? 0x04u : 0u;
+        sig |= m_shell.m_machine.GetRefs().softSwitches->IsHiresMode()    ? 0x08u : 0u;
 
         if (iie != nullptr)
         {
@@ -1243,16 +1271,16 @@ uint32_t EmulatorShell::ComputeVideoModeSig()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ComputeFlashOn()
+bool ShellRenderer::ComputeFlashOn()
 {
-    uint64_t  cyclesPerToggle = 16ull * m_cyclesPerFrame;
+    uint64_t  cyclesPerToggle = 16ull * m_shell.m_cyclesPerFrame;
     bool      flashOn         = true;   // no clock yet: show the glyph
 
 
 
-    if (m_machine.GetCpu() != nullptr && cyclesPerToggle != 0)
+    if (m_shell.m_machine.GetCpu() != nullptr && cyclesPerToggle != 0)
     {
-        flashOn = ((m_machine.GetCpu()->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
+        flashOn = ((m_shell.m_machine.GetCpu()->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
     }
 
     return flashOn;
@@ -1271,7 +1299,7 @@ bool EmulatorShell::ComputeFlashOn()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t EmulatorShell::ComputeColorSig()
+uint64_t ShellRenderer::ComputeColorSig()
 {
     uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
     uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
@@ -1299,7 +1327,7 @@ uint64_t EmulatorShell::ComputeColorSig()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ServiceCaptureRequest (CapturePoint atPoint)
+void ShellRenderer::ServiceCaptureRequest (CapturePoint atPoint)
 {
     HRESULT   hr = S_OK;
 
@@ -1350,7 +1378,7 @@ void EmulatorShell::ServiceCaptureRequest (CapturePoint atPoint)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const
+ScreenshotFacts ShellRenderer::BuildScreenshotFacts (ScreenshotMode mode, const SYSTEMTIME & when) const
 {
     ScreenshotFacts          facts;
     TIME_ZONE_INFORMATION    tz     = {};
@@ -1363,7 +1391,7 @@ ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const 
     facts.mode               = mode;
     facts.versionString      = string ("Casso ") + VERSION_STRING;
     facts.when               = when;
-    facts.machineDisplayName = m_machine.GetConfig().name;
+    facts.machineDisplayName = m_shell.m_machine.GetConfig().name;
 
     //  The offset the timestamp is expressed in. GetTimeZoneInformation
     //  reports Bias as minutes to ADD to local time to reach UTC, which is the
@@ -1388,14 +1416,14 @@ ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const 
         facts.monitorKey = m_crtOverrideKeys[mIndex];
     }
 
-    if (DeskSceneActive())
+    if (m_shell.DeskSceneActive())
     {
         facts.hasScenePose  = true;
-        facts.orbitYawRad   = m_scene->m_sceneView.orbitYawRad;
-        facts.orbitPitchRad = m_scene->m_sceneView.orbitPitchRad;
-        facts.zoom          = m_scene->m_sceneView.zoom;
-        facts.panX          = m_scene->m_sceneView.panX;
-        facts.panY          = m_scene->m_sceneView.panY;
+        facts.orbitYawRad   = m_shell.m_scene->m_sceneView.orbitYawRad;
+        facts.orbitPitchRad = m_shell.m_scene->m_sceneView.orbitPitchRad;
+        facts.zoom          = m_shell.m_scene->m_sceneView.zoom;
+        facts.panX          = m_shell.m_scene->m_sceneView.panX;
+        facts.panY          = m_shell.m_scene->m_sceneView.panY;
     }
 
     facts.crt.brightness        = crt.brightness;
@@ -1437,7 +1465,7 @@ ScreenshotFacts EmulatorShell::BuildScreenshotFacts (ScreenshotMode mode, const 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::TakeScreenshot()
+void ShellRenderer::TakeScreenshot()
 {
     HRESULT                     hr          = S_OK;
     ScreenshotPlanInputs        inputs;
@@ -1461,9 +1489,9 @@ void EmulatorShell::TakeScreenshot()
         inputs.defaultPicturesFolder = fs::path (picturesRaw);
     }
 
-    inputs.mode            = ScreenshotModeToken::Parse (m_settings->GetPrefs().screenshotMode);
-    inputs.saveFile        = m_settings->GetPrefs().screenshotSaveFile;
-    inputs.folder          = fs::path (m_settings->GetPrefs().screenshotFolder);
+    inputs.mode            = ScreenshotModeToken::Parse (m_shell.m_settings->GetPrefs().screenshotMode);
+    inputs.saveFile        = m_shell.m_settings->GetPrefs().screenshotSaveFile;
+    inputs.folder          = fs::path (m_shell.m_settings->GetPrefs().screenshotFolder);
     //  THE TWO RECTS ARE NOT THE SAME THING, and m_viewportBoundsPx is not
     //  either of them under a desk scene. That member is the DxuiViewport
     //  panel's bounds, which the scene layout puts on the GLASS -- measured,
@@ -1476,14 +1504,14 @@ void EmulatorShell::TakeScreenshot()
     //          sub-rect of the offscreen target, recorded by the renderer as
     //          it drew; without one the chain composited straight into the
     //          back buffer at its target bounds.
-    if (DeskSceneActive())
+    if (m_shell.DeskSceneActive())
     {
-        inputs.viewportPx = m_scene->m_deskScene.Composition().viewportPx;
+        inputs.viewportPx = m_shell.m_scene->m_deskScene.Composition().viewportPx;
         inputs.picturePx  = m_d3dRenderer.GetScenePictureRect();
     }
     else
     {
-        inputs.viewportPx = m_viewportBoundsPx;
+        inputs.viewportPx = m_shell.m_viewportBoundsPx;
         inputs.picturePx  = m_d3dRenderer.GetTargetBounds();
 
         //  AND THE DRIVES, which in a flat theme are not in the viewport at
@@ -1493,15 +1521,15 @@ void EmulatorShell::TakeScreenshot()
         //  The band's surface runs from its top to the bottom of the client,
         //  so the union takes the switch bar between them as well: those
         //  switches are the machine's too.
-        if (m_chrome->m_driveBandSurface.IsVisible())
+        if (m_shell.m_chrome->m_driveBandSurface.IsVisible())
         {
-            inputs.machineChromePx = m_chrome->m_driveBandSurface.GetBounds();
+            inputs.machineChromePx = m_shell.m_chrome->m_driveBandSurface.GetBounds();
         }
     }
 
     inputs.framebufferSize = { kFramebufferWidth, kFramebufferHeight };
-    inputs.deskSceneActive = DeskSceneActive();
-    inputs.windowMinimized = (IsIconic (m_hwnd) != FALSE);
+    inputs.deskSceneActive = m_shell.DeskSceneActive();
+    inputs.windowMinimized = (IsIconic (m_shell.m_hwnd) != FALSE);
     inputs.when            = now;
 
     plan = ScreenshotPlan::Resolve (inputs,
@@ -1510,9 +1538,9 @@ void EmulatorShell::TakeScreenshot()
     textChunks = ScreenshotMetadata::Compose (BuildScreenshotFacts (inputs.mode, now));
 
 
-    sources.hwnd             = m_hwnd;
+    sources.hwnd             = m_shell.m_hwnd;
     sources.renderer         = &m_d3dRenderer;
-    sources.clipboard        = m_clipboardManager.get();
+    sources.clipboard        = m_shell.m_clipboardManager.get();
     sources.framebuffer      = m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
     sources.framebufferMutex = &m_framebufferMutex;
     sources.framebufferSize  = { kFramebufferWidth, kFramebufferHeight };
@@ -1535,13 +1563,13 @@ void EmulatorShell::TakeScreenshot()
                                         ? CapturePoint::AfterChrome
                                         : CapturePoint::AfterPicture;
 
-            m_chrome->SetStandInOverlaysHidden (true);
+            m_shell.m_chrome->SetStandInOverlaysHidden (true);
 
             m_d3dRenderer.MarkRedrawNeeded();
-            InvalidateRect (m_hwnd, nullptr, FALSE);
-            UpdateWindow   (m_hwnd);
+            InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+            UpdateWindow   (m_shell.m_hwnd);
 
-            m_chrome->SetStandInOverlaysHidden (false);
+            m_shell.m_chrome->SetStandInOverlaysHidden (false);
 
             if (m_pendingCapture.captured)
             {
@@ -1556,7 +1584,7 @@ void EmulatorShell::TakeScreenshot()
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_chrome->ShowNotice (CaptureOutcome::DescribeResult (outcome));
+    m_shell.m_chrome->ShowNotice (CaptureOutcome::DescribeResult (outcome));
 
     if (picturesRaw != nullptr)
     {
@@ -1609,7 +1637,7 @@ void EmulatorShell::TakeScreenshot()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RenderFramebuffer()
+void ShellRenderer::RenderFramebuffer()
 {
     ColorMode  color   = m_colorMode.load (memory_order_acquire);
     bool       flashOn = ComputeFlashOn();
@@ -1619,7 +1647,7 @@ void EmulatorShell::RenderFramebuffer()
     // Nothing to render before a machine is built, or after one is torn
     // down. The modes are created and cleared together, so text40 answers
     // for all of them and every use below can go straight to the refs.
-    if (m_machine.GetRefs().text40 == nullptr)
+    if (m_shell.m_machine.GetRefs().text40 == nullptr)
     {
         return;
     }
@@ -1634,11 +1662,11 @@ void EmulatorShell::RenderFramebuffer()
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
                                    : s_kMonoSourceTextBgra;
 
-        m_machine.GetRefs().text40->SetOnColor    (textOnColor);
-        m_machine.GetRefs().text40->SetFlashState (flashOn);
+        m_shell.m_machine.GetRefs().text40->SetOnColor    (textOnColor);
+        m_shell.m_machine.GetRefs().text40->SetFlashState (flashOn);
 
-        m_machine.GetRefs().text80->SetOnColor    (textOnColor);
-        m_machine.GetRefs().text80->SetFlashState (flashOn);
+        m_shell.m_machine.GetRefs().text80->SetOnColor    (textOnColor);
+        m_shell.m_machine.GetRefs().text80->SetFlashState (flashOn);
 
         // Both graphics modes decode from the dots differently per monitor,
         // so they need the monitor type rather than a tint of one decode.
@@ -1648,11 +1676,11 @@ void EmulatorShell::RenderFramebuffer()
         // color pair -- so no amount of post-tinting brings it back.
         bool monoMonitor = (color != ColorMode::Color);
 
-        m_machine.GetRefs().hiRes->SetMonochrome       (monoMonitor);
-        m_machine.GetRefs().doubleHiRes->SetMonochrome (monoMonitor);
+        m_shell.m_machine.GetRefs().hiRes->SetMonochrome       (monoMonitor);
+        m_shell.m_machine.GetRefs().doubleHiRes->SetMonochrome (monoMonitor);
     }
 
-    m_machineBuilder->SelectVideoMode();
+    m_shell.m_machineBuilder->SelectVideoMode();
 
     // Dirty-row text cache: force a full re-raster when reusing last frame's
     // rows would be unsafe. (1) A monochrome color mode applies a
@@ -1662,25 +1690,25 @@ void EmulatorShell::RenderFramebuffer()
     // color text hits neither and lets AppleTextMode redraw only changed rows.
     {
         bool forceFullText = (color != ColorMode::Color)
-                          || (m_machine.GetRefs().activeVideoMode != m_prevActiveVideoMode);
+                          || (m_shell.m_machine.GetRefs().activeVideoMode != m_prevActiveVideoMode);
 
         if (forceFullText)
         {
-            m_machine.GetRefs().text40->InvalidateCache();
-            m_machine.GetRefs().text80->InvalidateCache();
+            m_shell.m_machine.GetRefs().text40->InvalidateCache();
+            m_shell.m_machine.GetRefs().text80->InvalidateCache();
         }
     }
 
-    m_prevActiveVideoMode = m_machine.GetRefs().activeVideoMode;
+    m_prevActiveVideoMode = m_shell.m_machine.GetRefs().activeVideoMode;
 
-    if (m_machine.GetRefs().activeVideoMode != nullptr)
+    if (m_shell.m_machine.GetRefs().activeVideoMode != nullptr)
     {
         // No videoRam: the renderer reads its own RAM buffers, or the bus on
         // a machine with no MMU (see the comment above this function).
-        m_machine.GetRefs().activeVideoMode->Render (nullptr,
-                                   m_cpuFramebuffer.data(),
-                                   kFramebufferWidth,
-                                   kFramebufferHeight);
+        m_shell.m_machine.GetRefs().activeVideoMode->Render (nullptr,
+                                           m_cpuFramebuffer.data(),
+                                           kFramebufferWidth,
+                                           kFramebufferHeight);
     }
 
     // Mixed mode: overlay text on the bottom 4 rows (rows 20-23) via the
@@ -1688,31 +1716,31 @@ void EmulatorShell::RenderFramebuffer()
     // we route through Apple80ColTextMode::RenderRowRange; otherwise through
     // AppleTextMode::RenderRowRange. Both share a single composed code path
     // (no branched duplicated render logic).
-    if (m_machine.GetSoftSwitchMirror().mixedMode && m_machine.GetSoftSwitchMirror().graphicsMode)
+    if (m_shell.m_machine.GetSoftSwitchMirror().mixedMode && m_shell.m_machine.GetSoftSwitchMirror().graphicsMode)
     {
         static constexpr int kMixedFirstRow = 20;
         static constexpr int kMixedLastRow  = 24;
 
-        bool  use80Col = m_machine.GetRefs().iieSoftSwitches != nullptr
-                      && m_machine.GetRefs().iieSoftSwitches->Is80ColMode();
+        bool  use80Col = m_shell.m_machine.GetRefs().iieSoftSwitches != nullptr
+                      && m_shell.m_machine.GetRefs().iieSoftSwitches->Is80ColMode();
 
         if (use80Col)
         {
-            m_machine.GetRefs().text80->SetPage2 (false);
-            m_machine.GetRefs().text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                           nullptr,
-                                           m_cpuFramebuffer.data(),
-                                           kFramebufferWidth,
-                                           kFramebufferHeight);
+            m_shell.m_machine.GetRefs().text80->SetPage2 (false);
+            m_shell.m_machine.GetRefs().text80->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                                   nullptr,
+                                                   m_cpuFramebuffer.data(),
+                                                   kFramebufferWidth,
+                                                   kFramebufferHeight);
         }
         else
         {
-            m_machine.GetRefs().text40->SetPage2 (m_machine.GetSoftSwitchMirror().page2);
-            m_machine.GetRefs().text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
-                                           nullptr,
-                                           m_cpuFramebuffer.data(),
-                                           kFramebufferWidth,
-                                           kFramebufferHeight);
+            m_shell.m_machine.GetRefs().text40->SetPage2 (m_shell.m_machine.GetSoftSwitchMirror().page2);
+            m_shell.m_machine.GetRefs().text40->RenderRowRange (kMixedFirstRow, kMixedLastRow,
+                                                   nullptr,
+                                                   m_cpuFramebuffer.data(),
+                                                   kFramebufferWidth,
+                                                   kFramebufferHeight);
         }
     }
 
@@ -1742,4 +1770,26 @@ void EmulatorShell::RenderFramebuffer()
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AllocateFramebuffers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellRenderer::AllocateFramebuffers()
+{
+    size_t  framebufferSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
+
+
+
+    // Create framebuffers (CPU renders to one, UI reads the other)
+    m_cpuFramebuffer.resize (framebufferSize, 0);
+    m_textOverlay.resize (framebufferSize, 0);
+    m_uiFramebuffer.resize (framebufferSize, 0);
 }

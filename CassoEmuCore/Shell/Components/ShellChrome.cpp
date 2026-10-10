@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Config/UserConfigStore.h"
@@ -336,7 +337,7 @@ void ShellChrome::SyncStandInBanner()
         //  would repaint, and a layout pass drives a synchronous WM_PAINT.
         //  TryPresentUiFrame acts on it at the top of the next frame, where
         //  the change band's own expiry already re-docks from.
-        if (m_shell.m_hwnd != nullptr && !m_shell.m_d3dRenderer.IsFullscreen()
+        if (m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen()
             && m_standInBand.GetBounds().bottom > m_standInBand.GetBounds().top)
         {
             m_standInBandStale = true;
@@ -374,7 +375,7 @@ void ShellChrome::SyncStandInBanner()
     //
     //  FLAGGED, NOT DONE HERE, for the same reason the release is: this runs
     //  inside the frame a re-dock would repaint.
-    if (!m_shell.m_d3dRenderer.IsFullscreen()
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen()
         && m_standInBand.GetBounds().bottom <= m_standInBand.GetBounds().top)
     {
         m_standInBandStale = true;
@@ -390,7 +391,7 @@ void ShellChrome::SyncStandInBanner()
     //  so the bar hangs off the top edge instead, following the toolbar's
     //  reveal down and back up so it stays under the command strip wherever
     //  that strip currently is.
-    if (!m_shell.m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         rc = m_standInBand.GetBounds();
     }
@@ -426,7 +427,7 @@ void ShellChrome::SyncStandInBanner()
 
         //  Ask for the dock the rect is waiting on, the same way the band's
         //  own absence is asked for above.
-        if (m_shell.m_hwnd != nullptr && !m_shell.m_d3dRenderer.IsFullscreen())
+        if (m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen())
         {
             m_standInBandStale = true;
         }
@@ -439,7 +440,7 @@ void ShellChrome::SyncStandInBanner()
     //  reserved from the same measurement cannot be short, so this is the
     //  frame after a width change and no more than that.
     if (rc.bottom - rc.top < GetStandInBarHeightPx ((float) (rc.right - rc.left))
-        && m_shell.m_hwnd != nullptr && !m_shell.m_d3dRenderer.IsFullscreen())
+        && m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         m_standInBandStale = true;
     }
@@ -499,7 +500,7 @@ void ShellChrome::SyncFrameRateReadout()
     // either.
     {
         RECT  bar    = m_switchBand.GetBounds();
-        LONG  bottom = (!m_shell.m_d3dRenderer.IsFullscreen() && bar.bottom > bar.top)
+        LONG  bottom = (!m_shell.m_renderer->GetD3D().IsFullscreen() && bar.bottom > bar.top)
                      ? bar.top : client.bottom;
 
         rc.left   = client.left + m_shell.m_scaler.ToPx (s_kFrameRateInsetDp);
@@ -579,7 +580,7 @@ void ShellChrome::TickFullscreenTopChrome()
 
 
 
-    if (!m_shell.m_d3dRenderer.IsFullscreen() || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen() || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
     {
         if (m_fsTopChromeShown)
         {
@@ -625,13 +626,13 @@ void ShellChrome::TickFullscreenTopChrome()
     {
         m_fsTopChromeShown  = false;
         m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
     else if (want && !m_fsTopChromeShown)
     {
         m_fsTopChromeShown  = true;
         m_fsTopChromeAnimMs = MirroredSlideStart (nowMs, m_fsTopChromeAnimMs);
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     // The band SLIDES: it hangs off the top by the part of itself that has
@@ -659,7 +660,7 @@ void ShellChrome::TickFullscreenTopChrome()
 
         if (t < 1.0f)
         {
-            m_shell.m_d3dRenderer.MarkRedrawNeeded();
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
 }
@@ -748,7 +749,7 @@ void ShellChrome::RefreshToolbarThemeList()
 
 void ShellChrome::SyncToolbarState()
 {
-    ColorMode  mode       = m_shell.m_colorMode.load (std::memory_order_acquire);
+    ColorMode  mode       = m_shell.m_renderer->GetColorMode();
     RECT       client     = {};
     int        colorIndex = 0;
     int        themeIndex = -1;
@@ -786,7 +787,7 @@ void ShellChrome::SyncToolbarState()
 
     m_mainMenu.GetCommands().SetMachineDisplayName (std::wstring (m_shell.m_machine.GetConfig().name.begin(), m_shell.m_machine.GetConfig().name.end()));
     m_switchBar.SetMachineDisplayName (std::wstring (m_shell.m_machine.GetConfig().name.begin(), m_shell.m_machine.GetConfig().name.end()));
-    m_mainMenu.GetCommands().SetFullscreen (m_shell.m_d3dRenderer.IsFullscreen());
+    m_mainMenu.GetCommands().SetFullscreen (m_shell.m_renderer->GetD3D().IsFullscreen());
 
     // An OPEN picker is mid-preview and owns its index; see RefreshToolbarThemeList.
     if (!m_toolbar.IsMenuOpen())
@@ -836,7 +837,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     // (the CRT target) becomes the projected glass rect, and the bottom band
     // collapses to the joystick row via SyncChromeBands' scene branch. The
     // settle loop is retained for the band's dock feedback.
-    if (m_shell.CrtMonitorActive() && m_shell.m_d3dRenderer.IsFullscreen())
+    if (m_shell.CrtMonitorActive() && m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         // Fullscreen presentation (FR-014): the glass fills the monitor with
         // a straight-on camera, every chrome band hidden -- the whole client
@@ -888,7 +889,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
 
         m_shell.m_scene->SyncSceneDriveChrome();
     }
-    else if (m_shell.DeskSceneActive() && m_shell.m_d3dRenderer.IsFullscreen())
+    else if (m_shell.DeskSceneActive() && m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         // Monitor opted out, fullscreen: still the immersive presentation --
         // every chrome band hidden and the picture filling the client (the
@@ -940,7 +941,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
 
         m_shell.m_scene->SyncSceneDriveChrome();
     }
-    else if (m_shell.m_d3dRenderer.IsFullscreen())
+    else if (m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         // No scene, fullscreen: the same bargain the desk scene makes. Every
         // chrome band is hidden, the picture fills the client (the renderer
@@ -1104,7 +1105,7 @@ RECT ShellChrome::ComputeViewportRect (int widthPx, int heightPx)
     // show, the overlay across the top -- so whichever ran last won, and the
     // buttons painted at one height while their hit rects sat at the other.
     // A single owner per presentation, or they disagree.
-    if (!m_shell.m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         m_toolbar.Layout (m_toolbarBand.GetBounds(), m_shell.m_scaler);
     }
@@ -1196,7 +1197,7 @@ void ShellChrome::ReflowChromeForMachineChange()
     // windows, where the user explicitly chose the size (mirrors
     // ApplyThemeToChrome). Those just relayout inside the fixed frame.
     if (haveWindow && layoutChanged &&
-        !IsIconic (m_shell.m_hwnd) && !IsZoomed (m_shell.m_hwnd) && !m_shell.m_d3dRenderer.IsFullscreen())
+        !IsIconic (m_shell.m_hwnd) && !IsZoomed (m_shell.m_hwnd) && !m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : 0;
         int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : 0;
@@ -1328,7 +1329,7 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
                 && desiredThicknessDp != priorThicknessDp
                 && !IsIconic (m_shell.m_hwnd)
                 && !IsZoomed (m_shell.m_hwnd)
-                && !m_shell.m_d3dRenderer.IsFullscreen()
+                && !m_shell.m_renderer->GetD3D().IsFullscreen()
                 && GetClientRect (m_shell.m_hwnd, &rcClient)
                 && GetWindowRect (m_shell.m_hwnd, &rcWindow);
 
@@ -1374,7 +1375,7 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
     {
         (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
                                (UINT) (rcClient.bottom - rcClient.top));
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
 
@@ -1420,7 +1421,7 @@ void ShellChrome::SetCrtMonitorEnabled (bool enabled)
     {
         (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
                                (UINT) (rcClient.bottom - rcClient.top));
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
 Error:
@@ -1598,7 +1599,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
 int ShellChrome::GetCaptureBandThicknessPx (int clientWidthPx) const
 {
-    if (m_shell.m_d3dRenderer.IsFullscreen() || clientWidthPx <= 0)
+    if (m_shell.m_renderer->GetD3D().IsFullscreen() || clientWidthPx <= 0)
     {
         return 0;
     }
@@ -1734,7 +1735,7 @@ void ShellChrome::ShowNotice (const std::wstring & text)
 
     SyncNotice();
 
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 
 
@@ -1827,7 +1828,7 @@ void ShellChrome::SyncNotice()
 
     if (m_notices.GetCount() != countWas || m_notices.IsAnimating (nowMs))
     {
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     if (!m_notices.IsShowing (nowMs) || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))

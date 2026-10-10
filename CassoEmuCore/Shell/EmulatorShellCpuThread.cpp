@@ -3,6 +3,7 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
@@ -597,7 +598,7 @@ void EmulatorShell::ControlTape (TapeCommand command)
 void EmulatorShell::RunOneFrame()
 {
     ExecuteCpuSlices();
-    RenderFramebuffer();
+    m_renderer->RenderFramebuffer();
 }
 
 
@@ -628,29 +629,29 @@ void EmulatorShell::RunCpuThreadFrame()
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
 
-    if (ShouldPublishFrame())
+    if (m_renderer->ShouldPublishFrame())
     {
         current.videoDirty = m_machine.GetMemoryBus().IsVideoDirty();
-        current.modeSig    = ComputeVideoModeSig();
-        current.flashOn    = ComputeFlashOn();
-        current.colorSig   = ComputeColorSig();
+        current.modeSig    = m_renderer->ComputeVideoModeSig();
+        current.flashOn    = m_renderer->ComputeFlashOn();
+        current.colorSig   = m_renderer->ComputeColorSig();
 
-        lastRendered.modeSig  = m_lastRenderModeSig;
-        lastRendered.flashOn  = m_lastRenderFlashOn;
-        lastRendered.colorSig = m_lastRenderColorSig;
+        lastRendered.modeSig  = m_renderer->m_lastRenderModeSig;
+        lastRendered.flashOn  = m_renderer->m_lastRenderFlashOn;
+        lastRendered.colorSig = m_renderer->m_lastRenderColorSig;
 
         needsRender = FramePacing::NeedsRender (current, lastRendered);
     }
 
     if (needsRender)
     {
-        RenderFramebuffer();
-        PublishFramebuffer();
+        m_renderer->RenderFramebuffer();
+        m_renderer->PublishFramebuffer();
 
         m_machine.GetMemoryBus().ClearVideoDirty();
-        m_lastRenderModeSig  = current.modeSig;
-        m_lastRenderFlashOn  = current.flashOn;
-        m_lastRenderColorSig = current.colorSig;
+        m_renderer->m_lastRenderModeSig  = current.modeSig;
+        m_renderer->m_lastRenderFlashOn  = current.flashOn;
+        m_renderer->m_lastRenderColorSig = current.colorSig;
     }
 }
 
@@ -697,7 +698,7 @@ void EmulatorShell::TickKeyboardAutoRepeat()
     // than reporting the whole time since the epoch, and a stall is charged
     // once at the device's initial delay: the device caps anything past it at
     // one repeat anyway. Both rules are the clock's, and tested there.
-    elapsed = m_frameClock.TakeKeyRepeatElapsedUs (AppleKeyboard::kKeyRepeatDelayUs);
+    elapsed = m_renderer->m_frameClock.TakeKeyRepeatElapsedUs (AppleKeyboard::kKeyRepeatDelayUs);
 
     if (elapsed == 0)
     {

@@ -30,13 +30,15 @@ class EmulatorShell;
 //
 //  The window's message handlers -- OnSize above all, which is the one
 //  authoritative layout pass -- still read and write the band state
-//  directly, so the shell is a friend.
+//  directly, so the shell is a friend. The renderer's present path lays out,
+//  ticks and paints the chrome over each frame, so it is a friend too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellChrome
 {
     friend class EmulatorShell;
+    friend class ShellRenderer;
 
 public:
     explicit ShellChrome (EmulatorShell & shell);

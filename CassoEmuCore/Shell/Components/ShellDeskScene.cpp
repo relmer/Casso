@@ -2,6 +2,8 @@
 
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Capture/ScreenshotMetadata.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
@@ -114,7 +116,7 @@ ShellDeskScene::~ShellDeskScene() = default;
 
 void ShellDeskScene::ApplySavedBezelTilt()
 {
-    const MonitorSpec &  monitor = m_shell.ResolveMonitorForCurrentMachine();
+    const MonitorSpec &  monitor = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
     auto                 found   = m_shell.m_settings->GetPrefs().monitorTilt.find (std::string (monitor.configName));
     float                radians = (found != m_shell.m_settings->GetPrefs().monitorTilt.end()) ? found->second : 0.0f;
 
@@ -135,7 +137,7 @@ void ShellDeskScene::ApplySavedBezelTilt()
 
 void ShellDeskScene::PersistBezelTilt()
 {
-    const MonitorSpec &  monitor = m_shell.ResolveMonitorForCurrentMachine();
+    const MonitorSpec &  monitor = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
     float                radians = m_deskScene.BezelTiltRad();
 
 
@@ -190,7 +192,7 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     // into.
     HRESULT                    hr          = S_OK;
     bool                       isC         = m_shell.m_disks->MachineHasBuiltInDrive();
-    const MonitorSpec &        monitor     = m_shell.ResolveMonitorForCurrentMachine();
+    const MonitorSpec &        monitor     = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
@@ -424,8 +426,8 @@ void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 void ShellDeskScene::EnsureSceneCalibration (const RECT & fittedRect)
 {
     HRESULT                  hr     = S_OK;
-    int                      bbW    = m_shell.m_d3dRenderer.GetBackBufferWidth();
-    int                      bbH    = m_shell.m_d3dRenderer.GetBackBufferHeight();
+    int                      bbW    = m_shell.m_renderer->GetD3D().GetBackBufferWidth();
+    int                      bbH    = m_shell.m_renderer->GetD3D().GetBackBufferHeight();
     D3D11_TEXTURE2D_DESC     desc   = {};
     D3D11_SUBRESOURCE_DATA   init   = {};
     std::vector<uint32_t>    pixels;
@@ -639,7 +641,7 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 
 
-    if (!m_shell.m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         return DeskSceneHit (xPx, yPx);
     }
@@ -668,7 +670,7 @@ SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 
 RECT ShellDeskScene::GetVolumeWheelRect (float * widthPx) const
 {
-    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     const float *                 box     = m_deskScene.RecorderModel().VolumeWheelBox();
@@ -737,7 +739,7 @@ void ShellDeskScene::DragVolumeWheel (int x, int64_t nowMs)
     UNREFERENCED_PARAMETER (nowMs);
 
     m_shell.SetTapeVolume (gain);
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 
 
@@ -809,7 +811,7 @@ void ShellDeskScene::InvalidateSceneComposition()
     }
 
     m_shell.m_chrome->UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 
 
@@ -1123,7 +1125,7 @@ void ShellDeskScene::LayoutSceneCompass()
     LONG   marginPx = m_shell.m_scaler.ToPx (10);
     LONG   hintH    = m_shell.m_scaler.ToPx (s_kCompassHintHeightDp);
     LONG   hintW    = m_shell.m_scaler.ToPx (s_kCompassHintWidthDp);
-    bool   show     = m_shell.DeskSceneActive() && !m_shell.m_d3dRenderer.IsFullscreen() &&
+    bool   show     = m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() &&
                       (vp.right - vp.left) > sidePx * 3;
     RECT   rc       = {};
     RECT   hint     = {};
@@ -1336,7 +1338,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
     // the only place drives appear there, and a drive worth revealing is
     // worth naming. Its composition is the strip's, and the labels come and
     // go with the slide.
-    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
@@ -1624,7 +1626,7 @@ void ShellDeskScene::SetStripLabelMarquee (DxuiShadowedText & label, int cell, c
 bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 {
     // In fullscreen the names are the strip's, while it is up.
-    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_renderer->GetD3D().IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     POINT                         pt      = { x, y };
@@ -1884,7 +1886,7 @@ bool ShellDeskScene::SyncRecorderKeys (int64_t nowMs)
 void ShellDeskScene::SyncSceneTapeLabel()
 {
     // In fullscreen the recorder is on the strip, while the strip is up.
-    bool                          fs        = m_shell.m_d3dRenderer.IsFullscreen();
+    bool                          fs        = m_shell.m_renderer->GetD3D().IsFullscreen();
     bool                          onStrip   = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
     bool                          visible   = m_shell.DeskSceneActive() && (!fs || onStrip) &&
@@ -1928,7 +1930,7 @@ void ShellDeskScene::SyncSceneTapeLabel()
     {
         m_sceneTapeLabelShown = shown;
         SyncSceneDriveLabels();
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
 
@@ -2923,7 +2925,7 @@ void ShellDeskScene::SetSceneAntiAliasing (int samples)
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 
 Error:
     return;

@@ -4,6 +4,7 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -499,7 +500,7 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
     // animationStartTimeMs. An empty drive rests with its door already
     // Open, so StartDoorTransition is a no-op there.
     pSt->StartDoorTransition (DriveWidgetState::Door::Opening, nowMs());
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 
     // The keep-alive spans the whole modal picker (including its nested
     // IFileOpenDialog when the user clicks Browse...), animating the door
@@ -528,7 +529,7 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
     if (!mountStarted && pSt->IsMounted())
     {
         pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
 

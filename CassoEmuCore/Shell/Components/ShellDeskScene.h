@@ -27,13 +27,16 @@ class EmulatorShell;
 //
 //  The shell's mouse, wheel and gesture handlers still drive the framing and
 //  the drag state directly, so the shell is a friend; the handlers move here
-//  once the input routing they sit in has been taken apart.
+//  once the input routing they sit in has been taken apart. The renderer's
+//  present path composes each frame from the scene's strip, labels and
+//  framing, so it is a friend too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellDeskScene
 {
     friend class EmulatorShell;
+    friend class ShellRenderer;
 
 public:
     explicit ShellDeskScene (EmulatorShell & shell);

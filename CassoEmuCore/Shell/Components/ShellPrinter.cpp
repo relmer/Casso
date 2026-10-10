@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/MachineBuilder.h"
@@ -140,8 +141,8 @@ void ShellPrinter::ShowPrinterPanel (bool activate)
         hr = m_printerPanel->Create (hInstance,
                                      nullptr,
                                      m_shell.m_hwnd,     // placement anchor only -- not an owner
-                                     m_shell.m_d3dRenderer.GetDevice(),
-                                     m_shell.m_d3dRenderer.GetContext(),
+                                     m_shell.m_renderer->GetD3D().GetDevice(),
+                                     m_shell.m_renderer->GetD3D().GetContext(),
                                      &m_shell.m_chrome->GetTheme());
         CHRF (hr, m_printerPanel.reset());
 
@@ -212,7 +213,7 @@ void ShellPrinter::ShowPrinterPanel (bool activate)
         // window -- the same keep-alive the main window uses for its caption.
         m_printerPanel->SetOnModalLoopTick ([this] ()
         {
-            m_shell.TryPresentUiFrame();
+            m_shell.m_renderer->TryPresentUiFrame();
         });
     }
 
@@ -292,7 +293,7 @@ void ShellPrinter::UpdatePrinterStatus()
     {
         m_printerStatusShown = status;
         m_printerLed.SetStatus (status);
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
 
@@ -427,7 +428,7 @@ void ShellPrinter::UpdatePrinterPreview()
     // and that coarse, jittery tick makes the head step across the platen.
     if (m_printerPanel->NeedsAnimationFrame())
     {
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
 Error:

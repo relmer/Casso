@@ -10,6 +10,7 @@
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
@@ -283,14 +284,14 @@ void ShellTapeDeck::SyncTapeChrome()
     if (view.transport != m_shownTapeTransport)
     {
         m_shownTapeTransport = view.transport;
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     if ((view.transport != TapeTransport::Empty && view.transport != TapeTransport::Stopped) ||
         (isShown && m_tapeChrome.GetHover() == TapeDeckRegion::Name) ||
         (isShown && m_tapeChrome.IsMagnifying()))
     {
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     if (!isShown)
@@ -414,7 +415,7 @@ void ShellTapeDeck::HandleTapeClick (TapeDeckRegion region)
         default:                                                                                                      break;
     }
 
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 
 
@@ -508,7 +509,7 @@ bool ShellTapeDeck::ReleaseOtherRecorderKeys (TapeDeckRegion region)
 
     if (any)
     {
-        m_shell.m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     return any;
@@ -578,7 +579,7 @@ void ShellTapeDeck::LatchRecorderKeys (TapeDeckRegion region)
             break;
     }
 
-    m_shell.m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 
 

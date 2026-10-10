@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/WindowManager.h"
@@ -647,7 +648,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_COPY_SCREENSHOT:
         {
-            m_shell.TakeScreenshot();
+            m_shell.m_renderer->TakeScreenshot();
             break;
         }
 
@@ -851,25 +852,25 @@ void WindowCommandManager::OnViewCommand (int id)
     {
         case IDM_VIEW_COLOR:
         {
-            m_shell.m_colorMode.store (ColorMode::Color, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::Color);
             break;
         }
 
         case IDM_VIEW_GREEN:
         {
-            m_shell.m_colorMode.store (ColorMode::GreenMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::GreenMono);
             break;
         }
 
         case IDM_VIEW_AMBER:
         {
-            m_shell.m_colorMode.store (ColorMode::AmberMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::AmberMono);
             break;
         }
 
         case IDM_VIEW_WHITE:
         {
-            m_shell.m_colorMode.store (ColorMode::WhiteMono, std::memory_order_release);
+            m_shell.m_renderer->SetColorMode (ColorMode::WhiteMono);
             break;
         }
 
@@ -877,7 +878,7 @@ void WindowCommandManager::OnViewCommand (int id)
         {
             RECT  rcClient = {};
 
-            m_shell.m_d3dRenderer.ToggleFullscreen (m_shell.m_hwnd);
+            m_shell.m_renderer->GetD3D().ToggleFullscreen (m_shell.m_hwnd);
 
             // The transition's WM_SIZE runs while the fullscreen flag is
             // deliberately still held (placement persistence), so the layout
@@ -888,7 +889,7 @@ void WindowCommandManager::OnViewCommand (int id)
             {
                 (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left),
                                        (UINT) (rcClient.bottom - rcClient.top));
-                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
             }
 
             break;
@@ -922,7 +923,7 @@ void WindowCommandManager::OnViewCommand (int id)
             // at identity, which a themeless scene never leaves.
             m_shell.m_scene->ResetSceneView();
 
-            if (!m_shell.m_d3dRenderer.IsFullscreen())
+            if (!m_shell.m_renderer->GetD3D().IsFullscreen())
             {
                 RECT  rcCurrentClient = {};
                 RECT  rcCurrentWindow = {};
@@ -1031,10 +1032,10 @@ void WindowCommandManager::OnViewCommand (int id)
             // Only meaningful in fullscreen; the FSM consumes the edge on its
             // next tick (releasing a guest capture if one is held). Windowed,
             // the drives are already on screen.
-            if (m_shell.m_d3dRenderer.IsFullscreen())
+            if (m_shell.m_renderer->GetD3D().IsFullscreen())
             {
                 m_shell.m_scene->RequestStripHotkey();
-                m_shell.m_d3dRenderer.MarkRedrawNeeded();
+                m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
             }
 
             break;

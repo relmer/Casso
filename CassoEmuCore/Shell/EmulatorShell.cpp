@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
@@ -132,6 +133,7 @@ EmulatorShell::EmulatorShell()
     m_disks         = std::make_unique<ShellDisks> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
     m_chrome        = std::make_unique<ShellChrome> (*this);
+    m_renderer      = std::make_unique<ShellRenderer> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -142,8 +144,8 @@ EmulatorShell::EmulatorShell()
                                                               m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
-                                                              m_framebufferMutex,
-                                                              m_uiFramebuffer,
+                                                              m_renderer->m_framebufferMutex,
+                                                              m_renderer->m_uiFramebuffer,
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
                                                               &m_machine.GetRefs().keyboard);
@@ -277,7 +279,7 @@ EmulatorShell::~EmulatorShell()
         m_host->GetRoot().ClearAdopted();
     }
 
-    m_d3dRenderer.Shutdown();
+    m_renderer->m_d3dRenderer.Shutdown();
 
     if (m_fOleInitialized)
     {
@@ -374,6 +376,21 @@ ShellDeskScene & EmulatorShell::GetDeskScene()
 ShellChrome & EmulatorShell::GetChrome()
 {
     return *m_chrome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRenderer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellRenderer & EmulatorShell::GetRenderer()
+{
+    return *m_renderer;
 }
 
 
@@ -590,7 +607,7 @@ HRESULT EmulatorShell::Initialize (
 
     m_fOleInitialized = true;
 
-    AllocateFramebuffers();
+    m_renderer->AllocateFramebuffers();
 
     PrimeChromeThemeEarly();
 
@@ -682,7 +699,7 @@ HRESULT EmulatorShell::Initialize (
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = InitializeRenderer();
+    hr = m_renderer->InitializeRenderer();
     CHR (hr);
 
     hr = InitializeUiShell();
@@ -835,28 +852,6 @@ void EmulatorShell::InitAssetPathsAndStores()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AllocateFramebuffers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AllocateFramebuffers()
-{
-    size_t  framebufferSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
-
-
-
-    // Create framebuffers (CPU renders to one, UI reads the other)
-    m_cpuFramebuffer.resize (framebufferSize, 0);
-    m_textOverlay.resize (framebufferSize, 0);
-    m_uiFramebuffer.resize (framebufferSize, 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PrimeChromeThemeEarly
 //
 //  Primes the chrome-affecting theme state BEFORE creating the window so
@@ -979,7 +974,7 @@ HRESULT EmulatorShell::InitializeUiShell()
 
 
 
-    hr = m_uiShell.Initialize (&m_d3dRenderer);
+    hr = m_uiShell.Initialize (&m_renderer->m_d3dRenderer);
     CHR (hr);
 
     hr = WireUiShellChromeAndThemes();
@@ -996,7 +991,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     // rather than inside ApplyPersistedChromePrefs, which returns early for
     // a machine carrying no $cassoUiPrefs object and would leave the keys
     // empty for it.
-    RefreshCrtOverrideKeys();
+    m_renderer->RefreshCrtOverrideKeys();
 
     hr = FinishUiShellLayout();
     CHR (hr);
@@ -1155,12 +1150,12 @@ void EmulatorShell::WireToolbarPickers()
     m_chrome->m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
         [this] (int index)
         {
-            SetColorModeLive (index);
+            m_renderer->SetColorModeLive (index);
         },
         [this] (int index)
         {
             m_chrome->m_mainMenu.GetCommands().SetMonitorColorIndex (index);
-            SetColorModeLive              (index);
+            m_renderer->SetColorModeLive              (index);
             m_settings->PersistColorModeForMachine    (index);
         });
 }
@@ -1212,8 +1207,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // this the initial paint binds at the m_dpi default (0->96)
     // and chrome text renders tiny on high-DPI displays until
     // the user resizes the window.
-    hr = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                             m_d3dRenderer.GetBackBufferHeight(),
+    hr = m_uiShell.OnResize (m_renderer->m_d3dRenderer.GetBackBufferWidth(),
+                             m_renderer->m_d3dRenderer.GetBackBufferHeight(),
                              initialDpi);
     CHR (hr);
 
@@ -1494,7 +1489,7 @@ void EmulatorShell::StepInstructionWhilePaused()
     m_machine.StepOne();
 
     RunOneFrame();
-    PublishFramebuffer();
+    m_renderer->PublishFramebuffer();
 }
 
 
