@@ -10,7 +10,6 @@
 
 static constexpr float  s_kSwatchDip = 10.0f;
 static constexpr float  s_kGapDip    = 6.0f;
-static constexpr float  s_kItemGapDip = 14.0f;
 
 
 
@@ -20,50 +19,42 @@ static constexpr float  s_kItemGapDip = 14.0f;
 //
 //  PlatterLegendView::Paint
 //
-//  Entries flow left to right and onto further rows, then the note.
+//  Entries fill a grid of kColumns columns, row by row, and the note takes
+//  the row after the last, so the legend's height never depends on how
+//  wide its labels are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float         rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip));
-    float         swatch  = m_scaler.ToPxf (s_kSwatchDip);
-    float         gap     = m_scaler.ToPxf (s_kGapDip);
-    float         itemGap = m_scaler.ToPxf (s_kItemGapDip);
-    float         textPx  = m_scaler.ToPxf (kSmallDip);
-    float         x       = static_cast<float> (m_boundsDip.left);
-    float         y       = static_cast<float> (m_boundsDip.top);
-    float         w       = 0;
-    float         h       = 0;
-    std::wstring  note    = GetNote (m_context.isTimingMode);
+    float                rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip));
+    float                swatch  = m_scaler.ToPxf (s_kSwatchDip);
+    float                gap     = m_scaler.ToPxf (s_kGapDip);
+    float                textPx  = m_scaler.ToPxf (kSmallDip);
+    float                columnW = GetWidth() / kColumns;
+    float                left    = static_cast<float> (m_boundsDip.left);
+    float                top     = static_cast<float> (m_boundsDip.top);
+    vector<LegendEntry>  entries = BuildEntries (m_context.palette, m_context.isTimingMode, m_context.timingRange);
+    std::wstring         note    = GetNote (m_context.isTimingMode);
+    int                  rows    = static_cast<int> ((entries.size() + kColumns - 1) / kColumns);
 
 
 
     if (m_context.hasDisk)
     {
-        for (const LegendEntry & entry : BuildEntries (m_context.palette, m_context.isTimingMode, m_context.timingRange))
+        for (size_t i = 0; i < entries.size(); i++)
         {
-            text.MeasureString (entry.label.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+            float  x = left + static_cast<float> (i % kColumns) * columnW;
+            float  y = top  + static_cast<float> (i / kColumns) * rowH;
 
-            if (x + swatch + gap + w > m_boundsDip.right && x > m_boundsDip.left)
-            {
-                x  = static_cast<float> (m_boundsDip.left);
-                y += rowH;
-            }
-
-            painter.FillRect    (x, y + (rowH - swatch) / 2, swatch, swatch, entry.argb);
+            painter.FillRect    (x, y + (rowH - swatch) / 2, swatch, swatch, entries[i].argb);
             painter.OutlineRect (x, y + (rowH - swatch) / 2, swatch, swatch, 1.0f, theme.Border());
-            text.DrawString (entry.label.c_str(), x + swatch + gap, y, w + 1.0f, rowH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
-                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-
-            x += swatch + gap + w + itemGap;
-        }
-
-        if (!note.empty())
-        {
-            text.DrawString (note.c_str(), static_cast<float> (m_boundsDip.left), y + rowH, GetWidth(), rowH, theme.ForegroundMuted(), textPx,
+            text.DrawString (entries[i].label.c_str(), x + swatch + gap, y, columnW - swatch - gap, rowH, theme.ForegroundMuted(), textPx,
                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
+
+        text.DrawString (note.c_str(), left, top + static_cast<float> (rows) * rowH, GetWidth(), rowH, theme.ForegroundMuted(), textPx,
+                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 }
 
@@ -88,7 +79,7 @@ vector<LegendEntry> PlatterLegendView::BuildEntries (const DiskInspectorPalette 
     if (isTimingMode)
     {
         entries.push_back ({ c.timingFast,    L"Fast cells (" + std::wstring (s_kpszMinus) + percent + L")" });
-        entries.push_back ({ c.timingNominal, L"Nominal 3.91" + std::wstring (s_kpszMicro) + L"s" });
+        entries.push_back ({ c.timingNominal, L"Nominal 3.91 " + std::wstring (s_kpszMicro) + L"s" });
         entries.push_back ({ c.timingSlow,    L"Slow cells (+" + percent + L")" });
     }
     else

@@ -29,8 +29,11 @@ struct LegendEntry
 class PlatterLegendView : public InspectorView
 {
 public:
+    //  Twelve Structure mode entries in four columns take three rows, and
+    //  the note takes a fourth.
     static constexpr int  kRowDip    = 18;
-    static constexpr int  kRows      = 3;
+    static constexpr int  kColumns   = 4;
+    static constexpr int  kRows      = 4;
 
     explicit PlatterLegendView (InspectorViewContext & context) : InspectorView (context) {}
 
