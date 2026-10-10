@@ -22,23 +22,28 @@
 //
 //  The machine holds LDA #$41 / STA $0400 / RTS at $0300, with the PC on it.
 //
+//  The controller lives on the heap, so a test holding the rig on its stack
+//  stays inside code analysis's 16 KB stack limit.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ControllerRig
 {
 public:
-    TestMachine            machine;
-    CpuManager             cpuManager;
-    InMemoryPipeTransport  transport;
-    InMemoryFileSystem     files;
-    DebuggerController     controller;
-    DebuggerViewState      view;
+    TestMachine                          machine;
+    CpuManager                           cpuManager;
+    InMemoryPipeTransport                transport;
+    InMemoryFileSystem                   files;
+    std::unique_ptr<DebuggerController>  controllerOwner;
+    DebuggerController                 & controller;
+    DebuggerViewState                    view;
 
 
 
     explicit ControllerRig (const std::string & machineName = "Apple2e") :
-        machine    (machineName, TestMachine::Slots::Empty),
-        controller (machine, Paused (cpuManager), transport, files, nullptr, 1)
+        machine         (machineName, TestMachine::Slots::Empty),
+        controllerOwner (std::make_unique<DebuggerController> (machine, Paused (cpuManager), transport, files, nullptr, 1)),
+        controller      (*controllerOwner)
     {
         machine.GetMemoryBus().WriteByte (0x0300, 0xA9);
         machine.GetMemoryBus().WriteByte (0x0301, 0x41);

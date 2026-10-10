@@ -31,10 +31,11 @@ namespace UiTests
         template <class Panel>
         static void  CheckTheTipFollowsTheTheme (const wchar_t * name)
         {
-            Panel         panel;
-            CassoTheme    skeuo = CassoTheme::MakeSkeuomorphic();
-            CassoTheme    retro = CassoTheme::MakeRetroTerminal();
-            std::wstring  of    = std::wstring (L" of the ") + name + L" panel";
+            std::unique_ptr<Panel>  owner = std::make_unique<Panel>();
+            Panel                 & panel = *owner;
+            CassoTheme              skeuo = CassoTheme::MakeSkeuomorphic();
+            CassoTheme              retro = CassoTheme::MakeRetroTerminal();
+            std::wstring            of    = std::wstring (L" of the ") + name + L" panel";
 
 
 

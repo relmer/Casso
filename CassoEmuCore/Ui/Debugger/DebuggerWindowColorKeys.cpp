@@ -276,6 +276,11 @@ bool DebuggerWindow::RouteColorKeyMouse (const DxuiMouseEvent & ev)
 
     for (const PaneColorKey & key : m_colorKeys)
     {
+        if (key.button == nullptr)
+        {
+            continue;
+        }
+
         if (over == nullptr && m_routingPane == GetBarRoutingPane (key.button->GetPane()) && key.button->Contains (ev.positionDip))
         {
             over = key.button;

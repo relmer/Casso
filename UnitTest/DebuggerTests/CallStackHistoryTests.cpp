@@ -227,14 +227,16 @@ namespace DebuggerTests
         //  A machine with the program loaded, recording history from where
         //  it stands once it has run to historyFrom, and rebuilding its call
         //  record on a scratch machine whose jobs wait on a queue the test
-        //  runs.
+        //  runs. Each rig's machine lives on the heap, so a test holding two
+        //  rigs on its stack stays inside code analysis's 16 KB stack limit.
         struct HistoryRig
         {
-            MachineRig           base       { "Apple2e", TestMachine::Slots::AsShipped };
-            ReverseController    controller { base.machine };
-            InlineWorkQueue      queue;
-            ScratchCallReplayer  replayer;
-            CallStackHistory     history    { base.machine, base.session };
+            std::unique_ptr<MachineRig>  baseOwner  = std::make_unique<MachineRig> ("Apple2e", TestMachine::Slots::AsShipped);
+            MachineRig                 & base       = *baseOwner;
+            ReverseController            controller { base.machine };
+            InlineWorkQueue              queue;
+            ScratchCallReplayer          replayer;
+            CallStackHistory             history    { base.machine, base.session };
 
             explicit HistoryRig (uint64_t historyFrom = 0, bool hasDisk = false, const ReverseSettings & settings = ReverseSettings())
             {
@@ -298,7 +300,8 @@ namespace DebuggerTests
         //  from where it stands once it has run to recordFrom.
         struct RecordRig
         {
-            MachineRig  base { "Apple2e", TestMachine::Slots::AsShipped };
+            std::unique_ptr<MachineRig>  baseOwner = std::make_unique<MachineRig> ("Apple2e", TestMachine::Slots::AsShipped);
+            MachineRig                 & base      = *baseOwner;
 
             explicit RecordRig (uint64_t recordFrom = 0)
             {
@@ -1324,7 +1327,7 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"continued on the worker");
             Assert::IsTrue   (progress.has_value(), L"its progress is shown");
-            Assert::AreEqual (share, *progress, kProgressTolerance, L"the first round's share of the whole");
+            Assert::AreEqual (share, progress.value_or (-1.0f), kProgressTolerance, L"the first round's share of the whole");
 
             rig.Drain();
         }
@@ -1442,16 +1445,17 @@ namespace DebuggerTests
             static constexpr size_t  kRunOnSlices  = 10;    // more than a catch-up's worth
             static constexpr size_t  kLastSlices   = 3;     // within one, after a round on the worker
 
-            MachineRig           rig        ("Apple2e", TestMachine::Slots::AsShipped);
-            MachineRig           reference  ("Apple2e", TestMachine::Slots::AsShipped);
-            ReverseController    controller (rig.machine);
-            InlineWorkQueue      queue;
-            ScratchCallReplayer  replayer;
-            CallStackHistory     history    (rig.machine, rig.session);
-            CallRecord           expected;
-            size_t               slice      = 0;
-            int                  rounds     = 0;
-            HRESULT              hr         = S_OK;
+            MachineRig                   rig        ("Apple2e", TestMachine::Slots::AsShipped);
+            std::unique_ptr<MachineRig>  owner      = std::make_unique<MachineRig> ("Apple2e", TestMachine::Slots::AsShipped);
+            MachineRig                 & reference  = *owner;
+            ReverseController            controller (rig.machine);
+            InlineWorkQueue              queue;
+            ScratchCallReplayer          replayer;
+            CallStackHistory             history    (rig.machine, rig.session);
+            CallRecord                   expected;
+            size_t                       slice      = 0;
+            int                          rounds     = 0;
+            HRESULT                      hr         = S_OK;
 
 
 
