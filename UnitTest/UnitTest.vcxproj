@@ -389,6 +389,7 @@
     <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />
     <ClCompile Include="EmuTests\InspectorRequestQueueTests.cpp" />
     <ClCompile Include="EmuTests\InspectorStatusPublisherTests.cpp" />
+    <ClCompile Include="EmuTests\FollowHeadTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTablesTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTextTests.cpp" />
     <ClCompile Include="EmuTests\InspectorViewModelTests.cpp" />

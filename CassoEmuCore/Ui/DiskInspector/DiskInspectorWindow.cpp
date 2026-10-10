@@ -80,6 +80,8 @@ static constexpr int      s_kExportButtonDip = 90;
 static constexpr int      s_kFindButtonDip   = 64;
 static constexpr int      s_kCopySectorDip   = 110;
 static constexpr int      s_kCompareDip      = 130;
+static constexpr int      s_kFollowDip       = 120;
+static constexpr int      s_kGoToHeadDip     = 100;
 static constexpr int      s_kBarDip          = 36;
 static constexpr int      s_kBarButtonDip    = 136;
 static constexpr int      s_kStopButtonDip   = 116;
@@ -220,6 +222,7 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
     m_drive   = drive;
     m_sourceA = { ComparisonSourceKind::DriveNow, drive };
+    m_host->SetHeadStateWanted (true);
 
     if (m_driveTabs != nullptr)
     {
@@ -262,6 +265,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     TakeResults();
     TakeComparison();
     SyncSideB();
+    TickHead();
     UpdateRings();
     UpdateControls();
     RefreshTables();
@@ -316,6 +320,8 @@ void DiskInspectorWindow::OnCreate()
     m_findButton   = CreateChild<DxuiButton> (L"Find");
     m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
     m_compareButton = CreateChild<DxuiButton> (L"Compare with...");
+    m_followCheck  = CreateChild<DxuiCheckbox> (L"Follow head");
+    m_goToHead     = CreateChild<DxuiButton> (L"Go to head");
     m_prevDiff     = CreateChild<DxuiButton> (L"Previous difference");
     m_nextDiff     = CreateChild<DxuiButton> (L"Next difference");
     m_swapButton   = CreateChild<DxuiButton> (L"Swap A and B");
@@ -372,6 +378,8 @@ void DiskInspectorWindow::OnCreate()
     m_findButton->SetOnClick   ([this] () { OpenFind(); });
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_compareButton->SetOnClick   ([this] () { OpenCompare(); });
+    m_followCheck->SetOnChange    ([this] (bool isChecked) { SetFollowHead (isChecked); });
+    m_goToHead->SetOnClick        ([this] () { GoToHead(); });
     m_prevDiff->SetOnClick        ([this] () { StepDifference (-1); });
     m_nextDiff->SetOnClick        ([this] () { StepDifference (1); });
     m_swapButton->SetOnClick      ([this] () { SwapSides(); });
@@ -405,6 +413,7 @@ void DiskInspectorWindow::OnCreate()
 void DiskInspectorWindow::OnWindowClose()
 {
     m_tooltip.HideImmediate();
+    m_host->SetHeadStateWanted (false);
     Hide();
     m_host->OnInspectorClosed();
 }
@@ -434,7 +443,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        drives    = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
     int                        toolbar   = scaler.ToPx (s_kToolbarDip);
     int                        rowBottom = boundsDip.top + toolbar;
-    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip + s_kCompareDip) + 7 * margin;
+    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip + s_kCompareDip + s_kFollowDip + s_kGoToHeadDip) + 9 * margin;
     bool                       isTwoRows = 2 * margin + drives * tab + scaler.ToPx (s_kMinFileNameDip) + ctlW > width;
     int                        bar       = m_comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
     int                        top       = rowBottom + (isTwoRows ? toolbar : 0) + bar;
@@ -485,6 +494,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     i -= scaler.ToPx (s_kFindButtonDip) + margin;
     m_goToButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
     i -= scaler.ToPx (s_kFindButtonDip) + margin;
+    m_goToHead->Layout     ({ i - scaler.ToPx (s_kGoToHeadDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kGoToHeadDip) + margin;
+    m_followCheck->Layout  ({ i - scaler.ToPx (s_kFollowDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
+    i -= scaler.ToPx (s_kFollowDip) + margin;
 
     m_rangeDown->Layout  ({ i - scaler.ToPx (s_kRangeDip),          ctlTop + margin, i - scaler.ToPx (s_kRangeDip) + button, ctlTop + toolbar - margin }, scaler);
     m_rangeLabel->Layout ({ i - scaler.ToPx (s_kRangeDip) + button, ctlTop + margin, i - button,                            ctlTop + toolbar - margin }, scaler);
@@ -1193,6 +1206,9 @@ void DiskInspectorWindow::UpdateControls()
         m_copySector->SetVisible   (m_context.hasDisk && m_trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
         m_compareButton->SetVisible   (m_context.hasDisk || m_comparison.IsComparing());
+        m_followCheck->SetVisible     (m_context.hasDisk && m_headState != nullptr && IsWindowDiskA());
+        m_goToHead->SetVisible        (m_context.hasDisk && m_headState != nullptr && IsWindowDiskA());
+        m_goToHead->SetEnabled        (m_headState != nullptr && m_headState->hasDisk);
         m_prevDiff->SetVisible        (m_comparison.IsComparing());
         m_nextDiff->SetVisible        (m_comparison.IsComparing());
         m_swapButton->SetVisible      (m_comparison.IsComparing());
@@ -1254,6 +1270,13 @@ void DiskInspectorWindow::OnSelection()
 
     m_nibblesTab->ScrollTo (nibble);
     SyncTables();
+
+    //  A selection made by hand ends Follow head (FR-067).
+    if (!m_isHeadSelecting && m_followHead.IsOn())
+    {
+        m_followHead.OnHandSelection();
+        m_followCheck->SetChecked (false);
+    }
 }
 
 
@@ -2222,6 +2245,8 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_exportButton,   L"Save sectors, nibbles or this quarter track's bits to a file" },
         { m_decodeButton,   L"Change the marks and checks used to decode tracks" },
         { m_compareButton,  L"Compare two disks track by track and file by file" },
+        { m_followCheck,    L"Show the track the head is on" },
+        { m_goToHead,       L"Select the track the head is on now" },
         { m_prevDiff,       L"Go to the previous difference" },
         { m_nextDiff,       L"Go to the next difference" },
         { m_swapButton,     L"Make A the disk B is, and B the disk A is" },
@@ -3171,4 +3196,101 @@ void DiskInspectorWindow::PaintComparisonBar (IDxuiPainter & painter, IDxuiTextR
 bool DiskInspectorWindow::IsWindowDiskA() const
 {
     return m_sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_drive };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TickHead
+//
+//  Once a frame: the drive's head as last published, and with Follow head
+//  on, the head's track once the head has settled on it (FR-067).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TickHead()
+{
+    int  qt = -1;
+
+
+
+    m_headState = m_host->GetHeadState (m_drive);
+
+    if (m_headState != nullptr && m_headState->hasDisk && m_headState->mediaId == m_analysis.mediaId && IsWindowDiskA())
+    {
+        qt = m_followHead.Tick (m_headState->headQuarterTrack, static_cast<int64_t> (GetTickCount64()));
+    }
+
+    if (qt >= 0)
+    {
+        SelectHeadTrack (qt);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SetFollowHead
+//
+//  Turning Follow head on selects the head's track at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SetFollowHead (bool isOn)
+{
+    int  head = (m_headState != nullptr) ? m_headState->headQuarterTrack : m_model.GetQuarterTrack();
+    int  qt   = m_followHead.SetOn (isOn, head, static_cast<int64_t> (GetTickCount64()));
+
+
+
+    if (qt >= 0)
+    {
+        SelectHeadTrack (qt);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GoToHead
+//
+//  "Go to head": the head's track, once, leaving Follow head as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::GoToHead()
+{
+    if (m_headState != nullptr && m_headState->hasDisk)
+    {
+        SelectHeadTrack (m_headState->headQuarterTrack);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectHeadTrack
+//
+//  A selection made for the head rather than by hand, so Follow head stays.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectHeadTrack (int quarterTrack)
+{
+    m_isHeadSelecting = true;
+    m_model.SelectQuarterTrack (quarterTrack);
+    OnSelection();
+    m_isHeadSelecting = false;
 }

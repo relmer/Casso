@@ -76,11 +76,27 @@ void ShellInspectorHost::Service()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellInspectorHost::PublishStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::PublishStatus()
+{
+    m_publisher.Publish (m_machine.GetRefs().diskController, *this);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellInspectorHost::GetImage
 //
 //  The disk in a slot 6 drive, as the CPU thread holds it, with its file's
 //  size and read-only attribute for the Image tab (FR-050); both are left at
-//  zero and clear when the file cannot be read.
+//  zero and clear when the file cannot be read. The file is looked at once
+//  per disk, not on every frame the head state is published.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,18 +106,28 @@ const DiskImage * ShellInspectorHost::GetImage (int drive, InspectorDiskIdentity
     const DiskImage * image      = nullptr;
     std::error_code   error;
     DWORD             attributes = INVALID_FILE_ATTRIBUTES;
+    uint64_t          mediaId    = 0;
 
 
 
     if (drive >= 0 && drive < kDriveCount && store.IsMounted (kDiskSlot, drive))
     {
-        image                  = store.GetImage (kDiskSlot, drive);
-        outIdentity.mediaId    = store.GetMediaId (kDiskSlot, drive);
-        outIdentity.fileName   = store.GetSourcePath (kDiskSlot, drive);
-        outIdentity.fileSize   = std::filesystem::file_size (std::filesystem::path (outIdentity.fileName), error);
-        outIdentity.fileSize   = error ? 0 : outIdentity.fileSize;
-        attributes             = GetFileAttributesW (std::filesystem::path (outIdentity.fileName).c_str());
-        outIdentity.isReadOnly = attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0;
+        image   = store.GetImage (kDiskSlot, drive);
+        mediaId = store.GetMediaId (kDiskSlot, drive);
+
+        if (m_identities[drive].mediaId != mediaId)
+        {
+            InspectorDiskIdentity &  identity = m_identities[drive];
+
+            identity.mediaId    = mediaId;
+            identity.fileName   = store.GetSourcePath (kDiskSlot, drive);
+            identity.fileSize   = std::filesystem::file_size (std::filesystem::path (identity.fileName), error);
+            identity.fileSize   = error ? 0 : identity.fileSize;
+            attributes          = GetFileAttributesW (std::filesystem::path (identity.fileName).c_str());
+            identity.isReadOnly = attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0;
+        }
+
+        outIdentity = m_identities[drive];
     }
 
     return image;

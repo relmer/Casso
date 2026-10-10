@@ -506,6 +506,7 @@
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindingsTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTiming.cpp" />
+    <ClCompile Include="Ui\DiskInspector\FollowHead.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTables.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTableView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorText.cpp" />
@@ -979,6 +980,7 @@
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
     <ClInclude Include="Ui\DiskInspector\FindingsTab.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTiming.h" />
+    <ClInclude Include="Ui\DiskInspector\FollowHead.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTables.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTableView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorText.h" />

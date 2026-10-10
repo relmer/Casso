@@ -38,6 +38,9 @@ public:
     int   GetDriveCount        () const override                               { return 2; }
     void  OnInspectorClosed    () override                                     {}
 
+    std::shared_ptr<const DriveHeadState>  GetHeadState       (int) const override { return nullptr; }
+    void                                   SetHeadStateWanted (bool) override      {}
+
     //  Each request so far answered with its drive's disk.
     void  Answer (ComparisonSession & session)
     {

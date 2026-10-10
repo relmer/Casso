@@ -7,6 +7,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/ComparisonSession.h"
+#include "Ui/DiskInspector/FollowHead.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "Ui/DiskInspector/InspectorView.h"
@@ -96,6 +97,10 @@ private:
     void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
     void  TakeComparison   ();
     void  SyncSideB        ();
+    void  TickHead         ();
+    void  SetFollowHead    (bool isOn);
+    void  GoToHead         ();
+    void  SelectHeadTrack  (int quarterTrack);
     void  OpenCompare      ();
     void  StopComparing    ();
     void  SwapSides        ();
@@ -201,6 +206,11 @@ private:
     DxuiButton                            * m_findButton         = nullptr;
     DxuiButton                            * m_copySector         = nullptr;
     DxuiButton                            * m_compareButton      = nullptr;
+    DxuiCheckbox                          * m_followCheck        = nullptr;
+    DxuiButton                            * m_goToHead           = nullptr;
+    FollowHead                              m_followHead;
+    bool                                    m_isHeadSelecting    = false;
+    std::shared_ptr<const DriveHeadState>   m_headState;
     DxuiButton                            * m_prevDiff           = nullptr;
     DxuiButton                            * m_nextDiff           = nullptr;
     DxuiButton                            * m_swapButton         = nullptr;

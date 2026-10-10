@@ -37,13 +37,20 @@ public:
     int       GetDriveCount        () const                               override { return kDriveCount; }
     void      OnInspectorClosed    ()                                     override {}
 
-    //  CPU thread only.
-    void      Service ();
+    std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const override { return m_publisher.Get (drive); }
+    void                                   SetHeadStateWanted (bool isWanted)  override { m_publisher.SetActive (isWanted); }
+
+    //  CPU thread only: answers the window's requests, and at the end of each
+    //  frame publishes each drive's head and counts.
+    void      Service       ();
+    void      PublishStatus ();
 
 private:
     const DiskImage *  GetImage (int drive, InspectorDiskIdentity & outIdentity) override;
 
-    CpuManager &           m_cpuManager;
-    MachineHost &          m_machine;
-    InspectorRequestQueue  m_queue;
+    CpuManager                                      & m_cpuManager;
+    MachineHost                                     & m_machine;
+    InspectorRequestQueue                             m_queue;
+    InspectorStatusPublisher                          m_publisher;
+    std::array<InspectorDiskIdentity, kDriveCount>    m_identities;
 };
