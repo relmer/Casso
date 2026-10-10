@@ -10,6 +10,11 @@
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/DurableCommit.h"
+#include "Seams/Win32DiskFileIo.h"
+#include "Seams/Win32HostDialogs.h"
+#include "Ui/DiskInspector/ExportDialog.h"
 #include "Ui/DiskInspector/FindPanel.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
@@ -57,6 +62,7 @@ static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
 static constexpr int      s_kDecodeButtonDip = 140;
+static constexpr int      s_kExportButtonDip = 90;
 static constexpr int      s_kModeTabDip     = 80;
 static constexpr int      s_kRangeDip       = 120;
 static constexpr double   s_kRanges[]       = { 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25 };
@@ -270,6 +276,7 @@ void DiskInspectorWindow::OnCreate()
     m_fluxTab     = CreateChild<FluxTimingTab>   (m_context);
     m_diskTabs    = CreateChild<DxuiTabStrip>();
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
+    m_exportButton = CreateChild<DxuiButton> (L"Export...");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_modeTabs     = CreateChild<DxuiTabStrip>();
     m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
@@ -294,6 +301,7 @@ void DiskInspectorWindow::OnCreate()
     m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
+    m_exportButton->SetOnClick ([this] () { OpenExport(); });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
@@ -377,7 +385,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, top }, scaler);
 
     m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), static_cast<int> (boundsDip.right)), top };
-    x = boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin - scaler.ToPx (s_kRangeDip) - scaler.ToPx (2 * s_kModeTabDip);
+    x = boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip) - margin - scaler.ToPx (s_kExportButtonDip) - margin - scaler.ToPx (s_kRangeDip) - scaler.ToPx (2 * s_kModeTabDip);
     m_chipsPx = { m_fileNamePx.right + margin, boundsDip.top, x - margin, top };
 
     tabs.clear();
@@ -393,6 +401,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_rangeUp->Layout    ({ x + scaler.ToPx (s_kRangeDip) - button, boundsDip.top + margin, x + scaler.ToPx (s_kRangeDip),          top - margin }, scaler);
     x = boundsDip.left + margin;
     m_decodeButton->Layout ({ boundsDip.right - margin - scaler.ToPx (s_kDecodeButtonDip), boundsDip.top + margin / 2, boundsDip.right - margin, top - margin / 2 }, scaler);
+    m_exportButton->Layout ({ boundsDip.right - 2 * margin - scaler.ToPx (s_kDecodeButtonDip) - scaler.ToPx (s_kExportButtonDip), boundsDip.top + margin / 2,
+                              boundsDip.right - 2 * margin - scaler.ToPx (s_kDecodeButtonDip), top - margin / 2 }, scaler);
 
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
@@ -951,6 +961,7 @@ void DiskInspectorWindow::UpdateControls()
         m_fit->SetEnabled       (!m_model.IsAtFit());
         m_zoomOut->SetVisible   (m_context.hasDisk);
         m_decodeButton->SetVisible (m_context.hasDisk);
+        m_exportButton->SetVisible (m_context.hasDisk);
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
@@ -1741,4 +1752,86 @@ void DiskInspectorWindow::CopySector()
     {
         (void) m_clipboard.SetText (GetHwnd(), InspectorClipboard::FormatHexDump (track->fields[sector->dataField].data.bytes));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenExport
+//
+//  "Export..." (FR-058): the dialog builds the bytes; a list of what was
+//  written as decoded or as zeros is shown first and can stop it; the save
+//  dialog picks the file, its own prompt confirming a replace; and the
+//  bytes go through DurableCommit. The image is never touched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenExport()
+{
+    HRESULT                   hr        = S_OK;
+    ExportDialog              dialog;
+    DxuiWindow::CreateParams  params;
+    Win32HostDialogs          dialogs;
+    Win32DiskFileIo           fileIo;
+    FileDialogSpec            spec;
+    CommitPlan::Progress      progress;
+    std::filesystem::path     image;
+    std::filesystem::path     target;
+    std::wstring              list;
+    bool                      isPicked  = false;
+    bool                      isGoingOn = false;
+
+
+
+    image = (m_analysis.copy != nullptr) ? std::filesystem::path (TextEncoding::Utf8ToWide (m_analysis.copy->fileName)) : std::filesystem::path (L"Disk");
+    dialog.Configure (m_theme, m_analysis, m_model.GetQuarterTrack(), m_model.GetSectorIndex(), image.stem().wstring());
+
+    params.title                    = L"Export";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = ExportDialog::kSizeDip;
+    params.minSizeDip               = ExportDialog::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    dialog.ShowModalDialog (IDOK);
+    BAIL_OUT_IF (!dialog.IsChosen(), S_OK);
+
+    for (const std::wstring & note : dialog.GetRequest().notes)
+    {
+        list += note + L"\n";
+    }
+
+    isGoingOn = list.empty() || DxuiMessageBox (GetHwnd(), m_theme, (L"The export will hold these as noted:\n\n" + list + L"\nExport anyway?").c_str(),
+                                                L"Export", MB_OKCANCEL | MB_ICONWARNING) == IDOK;
+    BAIL_OUT_IF (!isGoingOn, S_OK);
+
+    spec.filters          = { { dialog.GetRequest().extension == L"woz" ? L"WOZ images" : L"Binary files", L"*." + dialog.GetRequest().extension } };
+    spec.defaultExtension = dialog.GetRequest().extension;
+    spec.defaultFileName  = dialog.GetRequest().fileName;
+    spec.initialFolder    = image.parent_path();
+
+    hr = dialogs.PickFileToSave (GetHwnd(), spec, target, isPicked);
+    CHR (hr);
+    BAIL_OUT_IF (!isPicked, S_OK);
+
+    hr = DurableCommit::Commit (fileIo, TextEncoding::WideToUtf8 (target.wstring()), dialog.GetRequest().bytes, GetTickCount64(),
+                                std::filesystem::exists (target) ? CommitMode::Replace : CommitMode::CreateNew, progress);
+
+    if (FAILED (hr))
+    {
+        (void) DxuiMessageBox (GetHwnd(), m_theme, (L"The export could not be written to " + target.wstring() + L".").c_str(), L"Export", MB_OK | MB_ICONWARNING);
+    }
+
+Error:
+    return;
 }

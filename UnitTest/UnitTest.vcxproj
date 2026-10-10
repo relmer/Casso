@@ -378,6 +378,7 @@
     <ClCompile Include="EmuTests\FluxTimingTabTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />
     <ClCompile Include="EmuTests\InspectorSearchTests.cpp" />
+    <ClCompile Include="EmuTests\TrackExportTests.cpp" />
     <ClCompile Include="EmuTests\FluxTimingTests.cpp" />
     <ClCompile Include="EmuTests\PlatterLegendViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorFormatTests.cpp" />

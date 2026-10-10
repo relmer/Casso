@@ -200,7 +200,7 @@ without the others in its merge.
 
 - [X] T077 [P] [US4] Extend `UT/PlatterGeometryTests.cpp` and create `UT/StripGeometryTests.cpp`: zoom about the pointer to 600×, recenter at fit, pan clamped to the disk, drag threshold as click; strip zoom to about 20 cells, fraction of the turn kept across tracks (FR-025, FR-034, FR-038)
 - [X] T078 [P] [US4] Write `UT/InspectorSearchTests.cpp`: nibble patterns with `?` and `+`, "Any bit offset" finds unaligned matches, sector-data hex and text search with offsets, "No matches", Go to each target kind in its displayed base (FR-055, FR-056)
-- [ ] T079 [P] [US4] Write `UT/TrackExportTests.cpp`: sectors in physical, DOS 3.3 and ProDOS order with the bad and missing list; nibbles one byte each from the index; one-record WOZ 2.1 reopens with cell times equal to the original; image unchanged (FR-058, US4 scenario 10)
+- [X] T079 [P] [US4] Write `UT/TrackExportTests.cpp`: sectors in physical, DOS 3.3 and ProDOS order with the bad and missing list; nibbles one byte each from the index; one-record WOZ 2.1 reopens with cell times equal to the original; image unchanged (FR-058, US4 scenario 10)
 - [X] T080 [US4] Add zoom, pan, level-of-detail labels (nibble values, cell ticks) and keyboard to `UI/PlatterView.cpp` and `UI/TrackStripView.cpp` (FR-025, FR-026, FR-029, FR-034, FR-035, FR-037)
 - [X] T081 [US4] Create `DD/Inspector/InspectorSearch.h` / `.cpp` and `UI/FindPanel.h` / `.cpp` (Ctrl+F, F3, Shift+F3) and `UI/GoToDialog.h` / `.cpp` (Ctrl+G). The CP/M sector target of FR-055 comes with the CP/M map in T109
 - [X] T082 [US4] Add range selection and the length readout (nibbles, cells, µs) across strip, Nibbles and Sector data (FR-043)

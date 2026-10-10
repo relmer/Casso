@@ -285,6 +285,7 @@
     <ClCompile Include="Devices\Disk\Inspector\InspectorClipboard.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorFormat.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorSearch.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\TrackExport.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\StandardTrackDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\TrackAnalyzer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\LatchFramer.cpp" />
@@ -503,6 +504,7 @@
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
+    <ClCompile Include="Ui\DiskInspector\ExportDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTimingTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
@@ -671,6 +673,7 @@
     <ClInclude Include="Devices\Disk\Inspector\InspectorClipboard.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorFormat.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorSearch.h" />
+    <ClInclude Include="Devices\Disk\Inspector\TrackExport.h" />
     <ClInclude Include="Devices\Disk\Inspector\StandardTrackDecoder.h" />
     <ClInclude Include="Devices\Disk\Inspector\TrackAnalysis.h" />
     <ClInclude Include="Devices\Disk\Inspector\TrackAnalyzer.h" />
@@ -958,6 +961,7 @@
     <ClInclude Include="Ui\DiskInspector\TrackStripView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
+    <ClInclude Include="Ui\DiskInspector\ExportDialog.h" />
     <ClInclude Include="Ui\DiskInspector\FindPanel.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTimingTab.h" />
     <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />

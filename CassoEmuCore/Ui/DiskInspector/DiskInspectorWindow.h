@@ -100,6 +100,7 @@ private:
     void  Copy            ();
     void  CopySector      ();
     void  OpenFind  ();
+    void  OpenExport ();
     void  OpenGoTo  ();
     void  StepFind  (int step);
     void  SelectHit (const SearchHit & hit);
@@ -146,6 +147,7 @@ private:
     DxuiButton *                             m_fit            = nullptr;
     DxuiLabel *                              m_zoomLabel      = nullptr;
     DxuiLabel *                              m_hintLabel      = nullptr;
+    DxuiButton *                             m_exportButton   = nullptr;
     DxuiButton *                             m_stripOut       = nullptr;
     DxuiButton *                             m_stripIn        = nullptr;
     DxuiButton *                             m_stripWhole     = nullptr;
