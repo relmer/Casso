@@ -228,6 +228,7 @@
     <ClCompile Include="Machines\Apple2\Common\VolumeIntegrityReport.cpp" />
     <ClCompile Include="Devices\Disk\FilePath.cpp" />
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\AppleFileName.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
@@ -614,6 +615,7 @@
     <ClInclude Include="Devices\Disk\FilePath.h" />
     <ClInclude Include="Devices\Disk\ChainWalkGuard.h" />
     <ClInclude Include="Machines\Apple2\Common\AssembledFilePlacement.h" />
+    <ClInclude Include="Machines\Apple2\Common\AppleFileName.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerShell.h" />

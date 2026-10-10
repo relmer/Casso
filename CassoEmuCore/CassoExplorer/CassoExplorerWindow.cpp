@@ -10187,7 +10187,7 @@ int CassoExplorerWindow::GetDefaultMachineDriveCount()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
-    machine.assign (prefs.lastSelectedMachine.begin(), prefs.lastSelectedMachine.end());
+    machine     = TextEncoding::NarrowToWide (prefs.lastSelectedMachine);
     machine     = MachineScanner::SelectCanonical (MachineScanner::Scan (searchPaths, &MachineScanner::ListDirectory, &MachineScanner::ReadFile),
                                                    machine, s_kPreferredDefaultMachine);
     configPath  = PathResolver::FindFile (searchPaths, fs::path ("Machines") / fs::path (machine) / (fs::path (machine).string() + ".json"));

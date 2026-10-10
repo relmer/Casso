@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -136,7 +137,7 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
 
 
 
-    row.name         = std::wstring (entry.name.begin(), entry.name.end());
+    row.name         = AppleFileName::ToDisplay (entry.name);
     row.typeText     = GetTypeText (entry.type, kind);
     row.sizeBytes    = entry.hasEofBytes ? entry.eofBytes
                                          : (uint64_t) entry.sizeUnits * GetUnitBytes (kind);

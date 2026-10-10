@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -208,7 +209,7 @@ std::wstring TreeModel::MakeImageId (bool underCasso, const std::wstring & path)
 std::wstring TreeModel::MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner, size_t occurrence)
 {
     std::wstring  id = std::wstring (kDirectoryPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path
-                     + kSeparator + std::wstring (inner.begin(), inner.end());
+                     + kSeparator + TextEncoding::NarrowToWide (inner);
 
 
 
@@ -282,15 +283,8 @@ bool TreeModel::TryParseImageOrDirectoryId (
         size_t        thirdBar = id.find (kSeparator, secondBar + 1);
         std::wstring  inner    = id.substr (secondBar + 1, (thirdBar == std::wstring::npos) ? std::wstring::npos : thirdBar - secondBar - 1);
 
-        outPath = id.substr (firstBar + 1, secondBar - firstBar - 1);
-        outInner.clear();
-
-        //  The inner path was widened one byte to one character when the id
-        //  was made, so narrowing each character back is exact.
-        for (wchar_t ch : inner)
-        {
-            outInner.push_back (static_cast<char> (ch));
-        }
+        outPath  = id.substr (firstBar + 1, secondBar - firstBar - 1);
+        outInner = TextEncoding::WideToNarrow (inner);
     }
 
     return !outPath.empty();
@@ -911,7 +905,7 @@ void TreeModel::ListDirectories (
 
         child.id        = MakeDirectoryId (underCasso, path, childInner, seen[entry.name]++);
         child.kind      = TreeNode::Kind::DiskDirectory;
-        child.label     = std::wstring (entry.name.begin(), entry.name.end());
+        child.label     = AppleFileName::ToDisplay (entry.name);
         child.location  = Location::MakeDiskDirectory (path, childInner);
         child.canExpand = hasSubdir;
 
