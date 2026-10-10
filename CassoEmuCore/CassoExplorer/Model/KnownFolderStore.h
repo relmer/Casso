@@ -22,10 +22,12 @@
 //  read on demand and replaced whole by whichever process appends, under a
 //  named mutex so two writers cannot interleave.
 //
-//  A FOLDER THAT NO LONGER EXISTS IS DROPPED by whichever process notices it
+//  A FOLDER THAT WAS DELETED IS DROPPED by whichever process notices it
 //  first, the emulator when it lists folders for a picker and the browser
-//  when it lists them for its Casso root, so neither offers a folder that
-//  cannot be opened.
+//  when it lists them for its Casso root. Deleted means its drive is there
+//  and it is not. A folder whose drive is missing, an unplugged disk, and one
+//  on a network share are kept, listed and dimmed, since they are likely to
+//  come back; Remove from Casso drops them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,9 +53,14 @@ public:
     HRESULT  Append (const std::wstring & folder, int64_t nowUnix);
     HRESULT  Remove (const std::wstring & folder);
 
-    //  Drops every folder the file system no longer has, saying whether any
-    //  went; the file is rewritten only when one did.
+    //  Drops every folder deleted from a drive that is still there, saying
+    //  whether any went; the file is rewritten only when one did.
     HRESULT  RemoveMissing (bool & outRemoved);
+
+    //  Whether a folder is gone for good: its drive is there and it is not.
+    //  A network path is never judged gone, since asking an offline share
+    //  can stall for as long as the network takes to give up.
+    static bool  IsDeleted (IFileSystem & fs, const std::wstring & folder);
 
     //  First-run seeding: the distinct folders of the recent-disks list, only
     //  when no file exists yet. Afterwards the two lists diverge.

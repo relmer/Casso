@@ -1188,9 +1188,11 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         glyphCol = interactive ? s_kCheckGlyph : s_kCheckLocked;
         textCol = interactive ? s_kTextIdle : s_kTextDisabled;
 
+        //  A node for something that is not there, a folder whose drive is
+        //  away, is drawn in the disabled color, plainly apart from the rest.
         if (node != nullptr && node->dimmed && interactive)
         {
-            textCol = s_kTwistyArgb;
+            textCol = s_kTextDisabled;
         }
 
         //  A line between sections, as Explorer draws above This PC: across the
@@ -1291,7 +1293,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             float  iconPx = m_scaler.ToPxf ((float) s_kIconDip);
             float  alpha  = text.GetGlobalAlpha();
 
-            if (node->iconGhosted)
+            if (node->iconGhosted || node->dimmed)
             {
                 text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
             }

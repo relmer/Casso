@@ -107,7 +107,7 @@ public:
 
 
 
-    TEST_METHOD (RemoveMissing_DropsOnlyFoldersThatAreGone)
+    TEST_METHOD (RemoveMissing_DropsOnlyFoldersDeletedFromADriveThatIsThere)
     {
         InMemoryFileSystem                    fs;
         KnownFolderStore                      store (fs, kBase, false);
@@ -117,13 +117,19 @@ public:
         AssertSucceeded (fs.WriteAllText (L"C:\\Kept\\disk.dsk", "x"));
         AssertSucceeded (store.Append (L"C:\\Gone", 1));
         AssertSucceeded (store.Append (L"C:\\Kept", 2));
+        AssertSucceeded (store.Append (L"Q:\\Unplugged", 3));
+        AssertSucceeded (store.Append (L"\\\\server\\share\\Disks", 4));
 
         AssertSucceeded (store.RemoveMissing (removed));
         AssertSucceeded (store.Load (entries));
 
         Assert::IsTrue   (removed);
-        Assert::AreEqual ((size_t) 1, entries.size(), L"A folder that is gone is dropped from the record");
-        Assert::AreEqual (std::wstring (L"C:\\Kept"), entries[0].path);
+        Assert::AreEqual ((size_t) 3, entries.size(), L"Only the folder deleted from a drive that is there is dropped");
+        Assert::IsFalse  (std::any_of (entries.begin(), entries.end(), [] (const KnownFolderStore::Entry & e) { return e.path == L"C:\\Gone"; }));
+        Assert::IsTrue   (std::any_of (entries.begin(), entries.end(), [] (const KnownFolderStore::Entry & e) { return e.path == L"Q:\\Unplugged"; }),
+                          L"A folder whose drive is away is kept");
+        Assert::IsTrue   (std::any_of (entries.begin(), entries.end(), [] (const KnownFolderStore::Entry & e) { return e.path == L"\\\\server\\share\\Disks"; }),
+                          L"and so is one on a network share");
 
         AssertSucceeded (store.RemoveMissing (removed));
         Assert::IsFalse (removed, L"and nothing more goes while every folder is there");

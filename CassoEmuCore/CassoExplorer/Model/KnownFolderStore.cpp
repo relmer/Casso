@@ -243,7 +243,7 @@ std::vector<std::filesystem::path> KnownFolderStore::LoadPickerFolders (
 
     for (const std::filesystem::path & folder : folders)
     {
-        if (fs.DirectoryExists (folder.wstring()))
+        if (!IsDeleted (fs, folder.wstring()))
         {
             present.push_back (folder);
         }
@@ -610,7 +610,7 @@ HRESULT KnownFolderStore::RemoveMissing (bool & outRemoved)
 
     for (const Entry & entry : entries)
     {
-        if (m_fs.DirectoryExists (entry.path))
+        if (!IsDeleted (m_fs, entry.path))
         {
             kept.push_back (entry);
         }
@@ -628,6 +628,30 @@ Error:
     ReleaseLock (lock);
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::IsDeleted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KnownFolderStore::IsDeleted (IFileSystem & fs, const std::wstring & folder)
+{
+    bool  onDrive = folder.size() >= 3 && iswalpha (folder[0]) && folder[1] == L':' && (folder[2] == L'\\' || folder[2] == L'/');
+
+
+
+    if (!onDrive)
+    {
+        return false;
+    }
+
+    return fs.DirectoryExists (folder.substr (0, 3)) && !fs.DirectoryExists (folder);
 }
 
 
