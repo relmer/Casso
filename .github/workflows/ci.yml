@@ -58,8 +58,13 @@ jobs:
           if (-not $vstest) { throw 'vstest.console.exe not found' }
           Add-Content $env:GITHUB_PATH (Split-Path $vstest)
 
-      - name: Build
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+      # The 64-bit compiler and linker (PreferredToolArchitecture=x64), not
+      # the 32-bit ones x86 MSBuild picks by default: link-time code
+      # generation of the larger outputs, the unit-test DLL first, outgrew a
+      # 32-bit process's memory (C1002 "compiler is out of heap space in pass
+      # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
+      # -RunCodeAnalysis does locally, so the two agree.      - name: Build
+        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
       # The ROMs are Apple's and are not in the repository. The suite reads
       # them from UnitTest/Fixtures, so they are fetched from their pinned
@@ -143,8 +148,9 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
+      # 64-bit tools, as the x64 build above uses and for the same reason.
       - name: Build ARM64
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).

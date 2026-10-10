@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Builds the Casso solution using MSBuild.
 
@@ -26,7 +26,7 @@
 .PARAMETER RunCodeAnalysis
     If set, enables C++ Core Check code analysis during build, with analysis
     warnings treated as errors. These are the same three MSBuild properties CI
-    sets, and it compiles on the x86-hosted compiler as CI does, so a clean
+    sets, and it compiles on the 64-bit compiler as CI does, so a clean
     run here is the same verdict CI reaches FOR THE CONFIGURATION AND
     PLATFORM BUILT. Use -Target Rebuild: an incremental build does not
     reanalyze unchanged files.
@@ -215,16 +215,14 @@ if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Sys
 }
 
 #
-#  ANALYSIS RUNS ON THE X86-HOSTED COMPILER, AS CI'S DOES. CI's msbuild is
-#  the x86 one setup-msbuild puts on PATH, so it compiles with
-#  HostX86\x64\CL.exe, and the two hosts' analyzers do not agree: on
-#  b6154afb the x86 host reports three C6011s that the x64 host, at the
-#  same MSVC 14.51.36231 and on a clean Rebuild, does not report at any
-#  level. Matching the host is what makes a local pass mean a CI pass.
+#  EVERY BUILD, ANALYSIS INCLUDED, RUNS ON THE 64-BIT TOOLS, AS CI'S DO
+#  (PreferredToolArchitecture=x64 in ci.yml). Analysis once ran here on the
+#  x86-hosted compiler to match CI's default, since the two hosts' analyzers
+#  can disagree (on b6154afb the x86 host reported three C6011s the x64 host
+#  did not); CI moved to the 64-bit tools when link-time code generation
+#  outgrew a 32-bit process. The same host on both sides is what makes a
+#  local pass mean a CI pass.
 #
-if ($RunCodeAnalysis) {
-    $preferredArch = 'x86'
-}
 
 $scriptExitCode = 0
 
