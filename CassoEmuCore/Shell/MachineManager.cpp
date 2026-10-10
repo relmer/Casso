@@ -6,6 +6,7 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
 #include "../resource.h"
@@ -440,25 +441,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     //
     // Stop the printer drain thread first: its job holds a reference into the
     // card's ring, which clearing the owned devices is about to free.
-    m_shell.m_printerWorker.Stop();
-
-    // Persist the outgoing machine's pending strip before its card is freed --
-    // The host still holds the outgoing machine's name here (FR-026). An empty
-    // strip clears any stale sidecar.
-    if (!m_shell.m_machine.GetCurrentMachineName().empty())
-    {
-        PrinterJob *   printJob = m_shell.m_printerWorker.GetJob();
-
-        if (printJob != nullptr && printJob->HasContent())
-        {
-            HRESULT   hrSave = PrintJobStore::Save (m_shell.GetPendingPrintDir(), printJob->GetRaster());
-            IGNORE_RETURN_VALUE (hrSave, S_OK);
-        }
-        else
-        {
-            PrintJobStore::Clear (m_shell.GetPendingPrintDir());
-        }
-    }
+    //
+    // Persist the outgoing machine's pending strip before its card is freed.
+    m_shell.m_printer->StopAndSavePendingStrip();
 
     {
         // The UI thread reads the machine's devices every frame under the

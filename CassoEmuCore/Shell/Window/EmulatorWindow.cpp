@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Update/UpdateResult.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -747,7 +748,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printerLed, m_volumeFlyout);
+    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, m_printer->GetLed(), m_volumeFlyout);
 
     // Mouse mode routes through the same toggle the band selector used, so
     // the leave-time release of a held guest button runs identically. It is
@@ -1749,25 +1750,10 @@ void EmulatorShell::OnDestroy()
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
-    // Join the printer drain thread before teardown frees the card.
-    m_printerWorker.Stop();
-
-    // Persist the pending strip on clean exit (FR-026); empty clears any stale
+    // Join the printer drain thread before teardown frees the card, and
+    // persist the pending strip on clean exit (FR-026); empty clears any stale
     // sidecar. Loss on abnormal termination is acceptable per the spec.
-    if (!m_machine.GetCurrentMachineName().empty())
-    {
-        PrinterJob *   printJob = m_printerWorker.GetJob();
-
-        if (printJob != nullptr && printJob->HasContent())
-        {
-            HRESULT   hrSave = PrintJobStore::Save (GetPendingPrintDir(), printJob->GetRaster());
-            IGNORE_RETURN_VALUE (hrSave, S_OK);
-        }
-        else
-        {
-            PrintJobStore::Clear (GetPendingPrintDir());
-        }
-    }
+    m_printer->StopAndSavePendingStrip();
 
     m_cpuManager.Stop();
 

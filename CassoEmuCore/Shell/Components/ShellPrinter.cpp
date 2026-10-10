@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -62,7 +64,52 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ShowPrinterPanel
+//  ShellPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellPrinter::ShellPrinter (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellPrinter
+//
+//  Out of line so PrinterPanel is complete where its unique_ptr destroys it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellPrinter::~ShellPrinter() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::BindBuildServices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellPrinter::BindBuildServices (MachineBuildServices & services)
+{
+    services.printerWorker           = &m_printerWorker;
+    services.printerAutoOpenActivity = &m_printerAutoOpenActivity;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::ShowPrinterPanel
 //
 //  Lazily creates the printer panel / print preview window, wires its toolbar
 //  callbacks to the existing delivery commands, pushes a fresh strip snapshot,
@@ -70,7 +117,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowPrinterPanel (bool activate)
+void ShellPrinter::ShowPrinterPanel (bool activate)
 {
     HRESULT     hr        = S_OK;
     HINSTANCE   hInstance = nullptr;
@@ -82,7 +129,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
 
     if (m_printerPanel == nullptr || m_printerPanel->GetHwnd() == nullptr)
     {
-        hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_shell.m_hwnd, GWLP_HINSTANCE));
         m_printerPanel = std::make_unique<PrinterPanel> ();
 
         // No owner window: the preview is a peer of the main window, not an
@@ -90,13 +137,13 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // (always-on-top of Casso); a peer can be sent behind Casso normally.
         hr = m_printerPanel->Create (hInstance,
                                      nullptr,
-                                     m_hwnd,     // placement anchor only -- not an owner
-                                     m_d3dRenderer.GetDevice(),
-                                     m_d3dRenderer.GetContext(),
-                                     &m_chromeTheme);
+                                     m_shell.m_hwnd,     // placement anchor only -- not an owner
+                                     m_shell.m_d3dRenderer.GetDevice(),
+                                     m_shell.m_d3dRenderer.GetContext(),
+                                     &m_shell.m_chromeTheme);
         CHRF (hr, m_printerPanel.reset());
 
-        ApplyAppIconToWindow (m_printerPanel->GetHwnd());
+        m_shell.ApplyAppIconToWindow (m_printerPanel->GetHwnd());
 
         // Toolbar actions route through the existing command path (which
         // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
@@ -105,17 +152,17 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // saved AND copied. Discard is the one tear-off.
         m_printerPanel->SetOnPrint ([this] ()
         {
-            m_windowCommandManager->HandleCommand (IDM_PRINTER_PRINT);
+            m_shell.m_windowCommandManager->HandleCommand (IDM_PRINTER_PRINT);
             SnapshotStripToPanel();
         });
         m_printerPanel->SetOnSaveAs ([this] ()
         {
-            m_windowCommandManager->HandleCommand (IDM_PRINTER_SAVEAS);
+            m_shell.m_windowCommandManager->HandleCommand (IDM_PRINTER_SAVEAS);
             SnapshotStripToPanel();
         });
         m_printerPanel->SetOnCopy ([this] ()
         {
-            m_windowCommandManager->HandleCommand (IDM_PRINTER_COPY);
+            m_shell.m_windowCommandManager->HandleCommand (IDM_PRINTER_COPY);
             SnapshotStripToPanel();
         });
         m_printerPanel->SetOnDiscard ([this] ()
@@ -123,7 +170,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // The tear-off sound fires from the confirmed branch of the discard
             // handler (WindowCommandManager), NOT here -- so canceling the
             // confirmation dialog does not rip a page we are keeping.
-            m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
+            m_shell.m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
             SnapshotStripToPanel();
         });
         m_printerPanel->SetOnFormFeed ([this] ()
@@ -150,7 +197,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // grain). A page that just wrapped feeds a full sheet (unused ~1).
             rowsOnPage = m_printerWorker.GetRowsUsed() % PrinterGrid::kPageRows;
             unused = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
-            m_audio->GetPrinterAudio().PlayFormFeed (unused);
+            m_shell.m_audio->GetPrinterAudio().PlayFormFeed (unused);
 
             m_printerWorker.FormFeed();
         });
@@ -163,7 +210,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // window -- the same keep-alive the main window uses for its caption.
         m_printerPanel->SetOnModalLoopTick ([this] ()
         {
-            TryPresentUiFrame();
+            m_shell.TryPresentUiFrame();
         });
     }
 
@@ -179,7 +226,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
     // clicks / Alt-Tabs it forward whenever they want to watch it.
     if (!activate && m_printerPanel->GetHwnd() != nullptr)
     {
-        SetWindowPos (m_printerPanel->GetHwnd(), m_hwnd, 0, 0, 0, 0,
+        SetWindowPos (m_printerPanel->GetHwnd(), m_shell.m_hwnd, 0, 0, 0, 0,
                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
@@ -193,7 +240,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::UpdatePrinterStatus
+//  ShellPrinter::UpdatePrinterStatus
 //
 //  Samples the worker's thread-safe status signals, recomputes the LED state
 //  through the pure PrinterStatusModel, feeds the toolbar's printer button,
@@ -202,14 +249,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdatePrinterStatus()
+void ShellPrinter::UpdatePrinterStatus()
 {
     int64_t        nowMs  = 0;
     PrinterStatus  status = PrinterStatus::Idle;
 
 
 
-    if (m_machine.GetRefs().printerCard == nullptr)
+    if (m_shell.m_machine.GetRefs().printerCard == nullptr)
     {
         m_printerLed.SetPresent (false);
         return;   // no card: the toolbar's printer button disables
@@ -243,7 +290,7 @@ void EmulatorShell::UpdatePrinterStatus()
     {
         m_printerStatusShown = status;
         m_printerLed.SetStatus (status);
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 }
 
@@ -253,7 +300,7 @@ void EmulatorShell::UpdatePrinterStatus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::UpdatePrinterPreview
+//  ShellPrinter::UpdatePrinterPreview
 //
 //  Per-frame: auto-open the preview the moment the guest starts printing, then
 //  refresh the strip live as bytes flow. The read is non-destructive (see
@@ -261,7 +308,7 @@ void EmulatorShell::UpdatePrinterStatus()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdatePrinterPreview()
+void ShellPrinter::UpdatePrinterPreview()
 {
     static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
 
@@ -272,7 +319,7 @@ void EmulatorShell::UpdatePrinterPreview()
     int64_t    nowMs     = 0;
     bool       previewUp = false;
 
-    BAIL_OUT_IF (m_machine.GetRefs().printerCard == nullptr, S_OK);   // machine has no printer card
+    BAIL_OUT_IF (m_shell.m_machine.GetRefs().printerCard == nullptr, S_OK);   // machine has no printer card
 
     activity = m_printerWorker.GetActivityCount();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -323,15 +370,15 @@ void EmulatorShell::UpdatePrinterPreview()
         bool     inkActive      = false;
         int      sweepWidthDots = PrinterGrid::kDotsPerRow;
         m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive, sweepWidthDots);
-        m_audio->GetPrinterAudio().PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
+        m_shell.m_audio->GetPrinterAudio().PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
     }
 
     // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from
     // prefs each frame so an OK / Cancel in Settings binds on the next update
     // without any live-apply plumbing; the shared "Drive audio" master still
     // gates the whole bus above this.
-    m_audio->GetPrinterAudio().SetVolume (m_globalPrefs.printerAudioVolume);
-    m_audio->GetPrinterAudio().SetMuted  (!m_globalPrefs.printerAudioEnabled);
+    m_shell.m_audio->GetPrinterAudio().SetVolume (m_shell.m_globalPrefs.printerAudioVolume);
+    m_shell.m_audio->GetPrinterAudio().SetMuted  (!m_shell.m_globalPrefs.printerAudioEnabled);
 
     // Position the printer sound in the stereo field. Manual override (Settings >
     // Printing) pins a fixed pan; otherwise it auto-follows where the preview
@@ -343,16 +390,16 @@ void EmulatorShell::UpdatePrinterPreview()
         float  panL = 0.0f;
         float  panR = 0.0f;
 
-        if (m_globalPrefs.printerAudioPanOverride)
+        if (m_shell.m_globalPrefs.printerAudioPanOverride)
         {
-            pan = std::clamp (m_globalPrefs.printerAudioPan, -1.0f, 1.0f);
+            pan = std::clamp (m_shell.m_globalPrefs.printerAudioPan, -1.0f, 1.0f);
         }
         else
         {
             RECT  mainR    = {};
             RECT  printerR = {};
 
-            if (GetWindowRect (m_hwnd, &mainR) &&
+            if (GetWindowRect (m_shell.m_hwnd, &mainR) &&
                 GetWindowRect (m_printerPanel->GetHwnd(), &printerR))
             {
                 float  mainCenter    = (float) (mainR.left    + mainR.right)    * 0.5f;
@@ -369,7 +416,7 @@ void EmulatorShell::UpdatePrinterPreview()
         }
 
         DriveAudioMixer::PanToStereo (pan, panL, panR);
-        m_audio->GetPrinterAudio().SetPan (panL, panR);
+        m_shell.m_audio->GetPrinterAudio().SetPan (panL, panR);
     }
 
     // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom
@@ -378,7 +425,7 @@ void EmulatorShell::UpdatePrinterPreview()
     // and that coarse, jittery tick makes the head step across the platen.
     if (m_printerPanel->NeedsAnimationFrame())
     {
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 
 Error:
@@ -399,20 +446,190 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::GetPrinterBannerMessage() const
+std::wstring ShellPrinter::GetPrinterBannerMessage() const
 {
     std::wstring  message;
 
 
 
-    if (m_machine.GetConfig().HasEnabledSlotDevice ("parallel-printer"))
+    if (m_shell.m_machine.GetConfig().HasEnabledSlotDevice ("parallel-printer"))
     {
         message = L"Emulating an Apple ImageWriter II connected via parallel interface.";
     }
     else
     {
-        message = L"No printer is connected to this " + fs::path (m_machine.GetConfig().name).wstring() + L".";
+        message = L"No printer is connected to this " + fs::path (m_shell.m_machine.GetConfig().name).wstring() + L".";
     }
 
     return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::ClosePrinterPanel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellPrinter::ClosePrinterPanel()
+{
+    m_printerPanel.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::RenderPanelFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellPrinter::RenderPanelFrame()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_printerPanel != nullptr)
+    {
+        hr = m_printerPanel->RenderFrame();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::StopAndSavePendingStrip
+//
+//  Joins the printer drain thread before the card it reads is freed -- its job
+//  holds a reference into the card's ring -- then persists the pending strip
+//  for the outgoing machine (FR-026). An empty strip clears any stale sidecar.
+//  The machine host still holds the outgoing machine's name here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellPrinter::StopAndSavePendingStrip()
+{
+    m_printerWorker.Stop();
+
+    if (!m_shell.m_machine.GetCurrentMachineName().empty())
+    {
+        PrinterJob *   printJob = m_printerWorker.GetJob();
+
+        if (printJob != nullptr && printJob->HasContent())
+        {
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.GetPendingPrintDir(), printJob->GetRaster());
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+        else
+        {
+            PrintJobStore::Clear (m_shell.GetPendingPrintDir());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::NotePrinterDeliveryResult
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellPrinter::NotePrinterDeliveryResult (bool failed)
+{
+    m_printerDeliveryError = failed;
+    m_printerErrorActivity = m_printerWorker.GetActivityCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::SnapshotStripToPanel
+//
+//  Force-refreshes the panel from the drain worker WITHOUT stopping it: the
+//  panel snapshots only its visible viewport span under the worker's raster
+//  lock while the same interpreter keeps running. Fully non-destructive --
+//  previewing (or refreshing) mid-print can never reset the guest's in-flight
+//  state, so it cannot distort the output. (The original path stopped and
+//  re-Start()ed the worker, which rebuilt the interpreter and reset its line
+//  feed from Print Shop's ESC T back to the default, stretching everything
+//  printed after a mid-print preview.)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellPrinter::SnapshotStripToPanel()
+{
+    int64_t   nowMs      = 0;
+    bool      panelIsUp  = m_printerPanel != nullptr && m_printerPanel->IsOpen();
+    bool      hasCard    = m_shell.m_machine.GetRefs().printerCard != nullptr;
+
+
+
+    if (panelIsUp && !hasCard)
+    {
+        PrintRaster   empty;
+
+        m_printerPanel->SetStrip (empty);   // blank sheet
+    }
+    else if (panelIsUp)
+    {
+        nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        // Forced refresh through the panel's viewport: snapshots and renders
+        // only the visible ~1-page span (never the whole strip), same as the
+        // live path.
+        m_printerPanel->RefreshLive (m_printerWorker, nowMs, true /* force */);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellPrinter::GetPrinterDialogOwner
+//
+//  Owner HWND for the printer's confirmation / notice boxes. When the preview
+//  panel is open the user is acting inside it (its Finish / Copy / Discard
+//  buttons, or a menu command while watching it), so own the box by the panel
+//  -- the modal box then centers on the panel and disables it while up. With
+//  the panel closed the command came from the main menu, so own it by the main
+//  window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND ShellPrinter::GetPrinterDialogOwner() const
+{
+    HWND  owner       = m_shell.m_hwnd;
+    bool  panelIsUp   = m_printerPanel != nullptr
+                        && m_printerPanel->IsOpen()
+                        && m_printerPanel->GetHwnd() != nullptr
+                        && IsWindowVisible (m_printerPanel->GetHwnd());
+
+
+
+    if (panelIsUp)
+    {
+        owner = m_printerPanel->GetHwnd();
+    }
+
+    return owner;
 }

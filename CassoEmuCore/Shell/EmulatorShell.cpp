@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
@@ -117,6 +118,7 @@ EmulatorShell::EmulatorShell()
     m_updater  = std::make_unique<ShellUpdater> (*this);
     m_audio    = std::make_unique<ShellAudio>();
     m_tapeDeck = std::make_unique<ShellTapeDeck> (*this);
+    m_printer  = std::make_unique<ShellPrinter> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -141,8 +143,8 @@ EmulatorShell::EmulatorShell()
 
     m_audio->BindBuildServices (services);
 
-    services.printerWorker          = &m_printerWorker;
-    services.printerAutoOpenActivity = &m_printerAutoOpenActivity;
+    m_printer->BindBuildServices (services);
+
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
@@ -221,7 +223,7 @@ EmulatorShell::~EmulatorShell()
     m_cpuManager.Stop();
 
     // The printer panel holds no machine sinks -- just close its window.
-    m_printerPanel.reset();
+    m_printer->ClosePrinterPanel();
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
@@ -299,6 +301,21 @@ ShellUpdater & EmulatorShell::GetUpdater()
 ShellTapeDeck & EmulatorShell::GetTapeDeck()
 {
     return *m_tapeDeck;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellPrinter & EmulatorShell::GetPrinter()
+{
+    return *m_printer;
 }
 
 

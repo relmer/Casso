@@ -19,7 +19,6 @@
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
-#include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Shell/Input/CapsLockTracker.h"
@@ -27,7 +26,6 @@
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/FrameClock.h"
-#include "Shell/ModernPrintDialog.h"
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
@@ -41,7 +39,6 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/PrinterStatusLed.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -67,6 +64,7 @@ class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
 class ShellAudio;
+class ShellPrinter;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
@@ -229,6 +227,9 @@ public:
     // The cassette recorder: its tape manager, flat widget, key latches and
     // tape settings.
     ShellTapeDeck &  GetTapeDeck();
+
+    // The printer drain, print preview, status light and print dialog.
+    ShellPrinter &  GetPrinter();
 
     // Settings > General: the two download offers. Each is saved
     // immediately, like the other live toggles in Settings.
@@ -792,10 +793,6 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  GetCurrentMachineName () const { return m_machine.GetCurrentMachineName(); }
 
-    // One-line printer summary for the Settings > Printing info banner: what
-    // printer this machine emulates and how it connects, or that it has none.
-    std::wstring  GetPrinterBannerMessage () const;
-
     // For the Settings sheet's Controllers page. Null before the shell has
     // initialized its controller stack and after it has torn it down.
     ControllerInputService *  GetControllerService () const { return m_controllerService.get(); }
@@ -1235,51 +1232,10 @@ private:
     // Builds/refreshes the CASSO_SCENE_DEBUG=2 texel-calibration texture.
     void  EnsureSceneCalibration (const RECT & fittedRect);
 
-    // Position the printer status indicator in the command-bar dead space to
-    // the right of the centered drive widgets, or Hide() it when the machine
-    // has no printer card. Does not affect drive centering.
-
-    // Open (creating if needed) the printer panel / print preview window, and
-    // push it a fresh snapshot of the current strip. `activate` false shows it
-    // without stealing focus from the guest (used by the auto-open path).
-    void    ShowPrinterPanel (bool activate = true);
-
-    // Owner HWND for printer confirmation / notice message boxes: the preview
-    // panel when it is open and visible (so the box centers on the dialog the
-    // user is acting in), otherwise the main window.
-    HWND    GetPrinterDialogOwner () const;
-
-    // The operating system's pickers and print experience, behind their
-    // seams. The shell owns the Win32 implementations; whoever needs to put
-    // one up asks for the interface, and a test hands its own in.
+    // The operating system's pickers, behind their seam. The shell owns the
+    // Win32 implementation; whoever needs to put one up asks for the
+    // interface, and a test hands its own in.
     IHostDialogs &  GetHostDialogs () noexcept { return m_hostDialogs; }
-    IPrintDialog &  GetPrintDialog () noexcept { return m_printDialog; }
-
-    // Force-refresh the printer panel from the drain worker (race-free, without
-    // stopping it): the panel snapshots and renders only its visible ~1-page
-    // viewport span. Non-destructive: the live interpreter keeps running, so
-    // refreshing mid-print can never disturb the job's state or the output.
-    void    SnapshotStripToPanel ();
-
-    // Per-frame: sample the worker's status signals, recompute the indicator
-    // state, and mark a redraw only when it changes (so a static screen still
-    // repaints the LED on a transition).
-    void    UpdatePrinterStatus ();
-
-    // Delivery outcome -> the printer status LED: failed=true lights the red
-    // error state until a success / discard clears it or the guest prints
-    // something new. Called from the delivery paths (WindowCommandManager).
-    void    NotePrinterDeliveryResult (bool failed)
-    {
-        m_printerDeliveryError = failed;
-        m_printerErrorActivity = m_printerWorker.GetActivityCount ();
-    }
-
-    // Per-frame: auto-open the preview when a new print begins (activity resuming
-    // after an idle gap) and refresh the strip live as bytes flow, throttled by an
-    // interval that grows with strip height so a busy print does not re-render the
-    // whole strip every frame (nor O(rows^2) over a long banner).
-    void    UpdatePrinterPreview ();
 
     // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
     // Casso motif in Alt-Tab / the taskbar. The borderless Dxui panels do not
@@ -1511,6 +1467,7 @@ private:
     // enough shell state during construction and command dispatch that
     // friend declarations are the pragmatic seam; no new global state is
     // introduced.
+    friend class ShellPrinter;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
@@ -1605,9 +1562,9 @@ private:
     // + Mute / Input / Fullscreen / Screenshot / Reset / Power, filled from
     // the same command table the menu bar reads. The three emulator parts
     // it hosts -- the printer light, the input cluster and the volume
-    // flyout -- are held by pointer from its entries, so they sit beside it.
+    // flyout -- are held by pointer from its entries. The light is the
+    // printer component's.
     DxuiToolbar         m_toolbar;
-    PrinterStatusLed    m_printerLed;
     VolumeFlyout        m_volumeFlyout;
 
     // Theme ids in the toolbar picker's row order, so a picked row resolves
@@ -1622,19 +1579,6 @@ private:
     void  ApplyJoyportToMachine            ();
     void  SyncJoyport                      ();
     bool  IsPlayerOneOnJoyport             () const;
-
-    // The pure model deriving the printer LED state from the worker's live
-    // signals, plus the last state pushed to the toolbar so a transition
-    // repaints exactly once.
-    PrinterStatusModel  m_printerStatus;
-    PrinterStatus       m_printerStatusShown = PrinterStatus::Idle;
-
-    // Delivery-failure latch feeding the status model's error input (the
-    // toolbar LED's red). Set by the delivery paths in WindowCommandManager;
-    // cleared by a successful delivery, a discard, or fresh guest print
-    // activity (the user has moved on -- red must not mask the new print).
-    bool                m_printerDeliveryError = false;
-    uint64_t            m_printerErrorActivity = 0;
 
     // The 3D desk scene (spec 018): Monitor //c + drives rendered from the
     // before-present hook on the host device, with the CRT chain's offscreen
@@ -2198,10 +2142,10 @@ private:
     // actually readable.
     bool                                 m_userStateChange = false;
 
-    // Background printer drain (ring -> interpreter -> raster). Declared
-    // after the machine so it is torn down (thread joined) before the card
-    // it drains.
-    PrinterWorker                 m_printerWorker;
+    // The printer drain, the print preview, the status light and the print
+    // dialog. Declared after the machine so the drain thread is torn down
+    // (joined) before the card it drains.
+    std::unique_ptr<ShellPrinter> m_printer;
 
     // CPU-thread lifecycle, run/pause/step transitions, the UI -> CPU
     // command queue, and the paste buffer all live on CpuManager. The
@@ -2344,17 +2288,6 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
-    std::unique_ptr<class PrinterPanel>       m_printerPanel;
-
-    // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
-    // *new* print begins -- activity resuming after an idle gap -- so it opens even
-    // when a prior pending strip is still loaded, yet a mid-print manual close does
-    // not fight a re-open (activity never goes idle mid-print). Refresh pacing and
-    // change detection live in the panel's viewport (PrinterPanel::RefreshLive).
-    bool                                      m_printerAutoOpenArmed    = true;
-    uint64_t                                  m_printerAutoOpenActivity = 0;
-    int64_t                                   m_printerActiveLastMs     = 0;
-
     // Extracted shell-side managers. WindowManager owns the per-monitor
     // placement persistence (now backed by GlobalUserPrefs JSON).
     // ClipboardManager holds references back to the shared CPU/UI
@@ -2365,7 +2298,6 @@ private:
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;
     Win32HostDialogs                          m_hostDialogs;
-    ModernPrintDialog                         m_printDialog;
 
     // Whether the //e and //c Caps Lock key is down: down until the first
     // Caps Lock press in this window, the host's from then on. Session-scoped,

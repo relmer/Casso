@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -419,51 +420,6 @@ const MonitorSpec & EmulatorShell::ResolveMonitorForCurrentMachine()
     LoadMachineUiPrefs (doc, uiPrefs);
 
     return MonitorCatalog::ForMachineJson (doc);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SnapshotStripToPanel
-//
-//  Force-refreshes the panel from the drain worker WITHOUT stopping it: the
-//  panel snapshots only its visible viewport span under the worker's raster
-//  lock while the same interpreter keeps running. Fully non-destructive --
-//  previewing (or refreshing) mid-print can never reset the guest's in-flight
-//  state, so it cannot distort the output. (The original path stopped and
-//  re-Start()ed the worker, which rebuilt the interpreter and reset its line
-//  feed from Print Shop's ESC T back to the default, stretching everything
-//  printed after a mid-print preview.)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SnapshotStripToPanel()
-{
-    int64_t   nowMs      = 0;
-    bool      panelIsUp  = m_printerPanel != nullptr && m_printerPanel->IsOpen();
-    bool      hasCard    = m_machine.GetRefs().printerCard != nullptr;
-
-
-
-    if (panelIsUp && !hasCard)
-    {
-        PrintRaster   empty;
-
-        m_printerPanel->SetStrip (empty);   // blank sheet
-    }
-    else if (panelIsUp)
-    {
-        nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                    std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        // Forced refresh through the panel's viewport: snapshots and renders
-        // only the visible ~1-page span (never the whole strip), same as the
-        // live path.
-        m_printerPanel->RefreshLive (m_printerWorker, nowMs, true /* force */);
-    }
 }
 
 
@@ -1023,11 +979,8 @@ bool EmulatorShell::TryPresentUiFrame()
         SyncSwitchBarState();
     }
 
-    if (m_printerPanel != nullptr)
-    {
-        hr = m_printerPanel->RenderFrame();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    hr = m_printer->RenderPanelFrame();
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (m_mainMenu.IsOpen())
     {
@@ -1117,11 +1070,11 @@ bool EmulatorShell::TryPresentUiFrame()
 
     // Refresh the printer status LED; marks a redraw itself on a change so
     // a static screen (e.g. a pending page at the BASIC prompt) repaints.
-    UpdatePrinterStatus();
+    m_printer->UpdatePrinterStatus();
 
     // Auto-open the print preview when a print begins and stream the strip
     // into it live as the guest prints (non-destructive snapshot).
-    UpdatePrinterPreview();
+    m_printer->UpdatePrinterPreview();
 
     didPresent = m_d3dRenderer.NeedsPresent (framebufferDirtyThisFrame);
 

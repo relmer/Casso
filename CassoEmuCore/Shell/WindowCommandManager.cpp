@@ -8,6 +8,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -477,7 +478,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::Disk:                OnDiskCommand (id);          break;
         case WindowCommandRoute::View:                OnViewCommand (id);          break;
         case WindowCommandRoute::Printer:             OnPrinterCommand (id);       break;
-        case WindowCommandRoute::PrinterPreview:      m_shell.ShowPrinterPanel();  break;
+        case WindowCommandRoute::PrinterPreview:      m_shell.m_printer->ShowPrinterPanel();  break;
         case WindowCommandRoute::PrinterModernSent:   OnModernPrintResult (true);  break;
         case WindowCommandRoute::PrinterModernFailed: OnModernPrintResult (false); break;
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
@@ -1693,7 +1694,7 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     spec.defaultFileName  = suggested.filename().wstring();
     spec.initialFolder    = folder;
 
-    hr = m_shell.GetHostDialogs().PickFileToSave (m_shell.GetPrinterDialogOwner(), spec, outFile, picked);
+    hr = m_shell.GetHostDialogs().PickFileToSave (m_shell.m_printer->GetPrinterDialogOwner(), spec, outFile, picked);
     CHR (hr);
 
     // A user cancel is not a delivery failure.
@@ -2078,14 +2079,14 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // first and read the job's raster from a quiesced worker (no
         // concurrent mutation). Every arm below is responsible for restarting
         // the worker -- that is why they take the job rather than re-reading it.
-        m_shell.m_printerWorker.Stop();
+        m_shell.m_printer->GetWorker().Stop();
 
         {
             vector<PrinterEvent>   events;
-            m_shell.m_printerWorker.FlushNow (events);
+            m_shell.m_printer->GetWorker().FlushNow (events);
         }
 
-        job = m_shell.m_printerWorker.GetJob();
+        job = m_shell.m_printer->GetWorker().GetJob();
 
         // "No page" also covers a strip whose drained bytes left nothing on the
         // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent
@@ -2133,15 +2134,15 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
 
 
-    DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
+    DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
     if (job != nullptr)
     {
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
     }
 }
 
@@ -2164,12 +2165,12 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
 
 
-    m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
-    m_shell.NotePrinterDeliveryResult (FAILED (hr));
+    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+    m_shell.m_printer->NotePrinterDeliveryResult (FAILED (hr));
 
     if (FAILED (hr))
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
                      L"Casso printer", MB_OK | MB_ICONWARNING);
     }
 }
@@ -2191,7 +2192,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
 {
     int   choice = DxuiMessageBox (
-        m_shell.GetPrinterDialogOwner(),
+        m_shell.m_printer->GetPrinterDialogOwner(),
         &m_shell.m_chromeTheme,
         L"Tear off and discard the current printout?\n\n"
         L"The page in the printer will be thrown away without saving. "
@@ -2203,7 +2204,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
     if (choice != IDYES)
     {
         // Canceled: keep the strip and resume on the same page.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
@@ -2211,9 +2212,9 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
         m_shell.m_audio->GetPrinterAudio().PlayTearOff();
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
-        m_shell.NotePrinterDeliveryResult (false);
+        m_shell.m_printer->NotePrinterDeliveryResult (false);
     }
 }
 
@@ -2253,7 +2254,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
         // hatch for the rare machine whose print stack misbehaves.
         const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
-        HRESULT                  hrShow = m_shell.GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
+        HRESULT                  hrShow = m_shell.m_printer->GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
                                                                               PrintDpiFromPrefs (prefs),
                                                                               PrintDotStyleFromPrefs (prefs));
 
@@ -2272,7 +2273,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
     {
         // Modern session up, or the user canceled the print / save dialog:
         // keep the strip either way, no clear.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else if (SUCCEEDED (hr))
     {
@@ -2280,11 +2281,11 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring());
 
-        m_shell.NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
+        m_shell.m_printer->NotePrinterDeliveryResult (false);
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
     else
     {
@@ -2303,14 +2304,14 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         msg += FormatSystemError (hr);
 
-        m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
+        m_shell.m_printer->NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
                      L"Casso printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
     }
 }
 
@@ -2332,17 +2333,17 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
 void WindowCommandManager::OnModernPrintResult (bool succeeded)
 {
-    m_shell.NotePrinterDeliveryResult (!succeeded);   // toolbar LED tracks the outcome
+    m_shell.m_printer->NotePrinterDeliveryResult (!succeeded);   // toolbar LED tracks the outcome
 
     if (succeeded)
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Sent the printout to the printer.",
                         L"Casso printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        DxuiMessageBox (m_shell.GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
                         L"Casso printer", MB_OK | MB_ICONWARNING);

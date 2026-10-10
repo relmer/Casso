@@ -502,7 +502,7 @@
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
     <ClCompile Include="Shell\Components\ShellAudio.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
-    <ClCompile Include="Shell\EmulatorShellPrinter.cpp" />
+    <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
     <ClCompile Include="Gui\GuiMain.cpp" />
@@ -898,6 +898,7 @@
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
+    <ClInclude Include="Shell\Components\ShellPrinter.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="WasapiAudio.h" />

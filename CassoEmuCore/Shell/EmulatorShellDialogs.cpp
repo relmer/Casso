@@ -489,41 +489,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetPrinterDialogOwner
-//
-//  Owner HWND for the printer's confirmation / notice boxes. When the preview
-//  panel is open the user is acting inside it (its Finish / Copy / Discard
-//  buttons, or a menu command while watching it), so own the box by the panel
-//  -- the modal box then centers on the panel and disables it while up. With
-//  the panel closed the command came from the main menu, so own it by the main
-//  window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HWND EmulatorShell::GetPrinterDialogOwner() const
-{
-    HWND  owner       = m_hwnd;
-    bool  panelIsUp   = m_printerPanel != nullptr
-                        && m_printerPanel->IsOpen()
-                        && m_printerPanel->GetHwnd() != nullptr
-                        && IsWindowVisible (m_printerPanel->GetHwnd());
-
-
-
-    if (panelIsUp)
-    {
-        owner = m_printerPanel->GetHwnd();
-    }
-
-    return owner;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OpenSettings
 //
 //  Opens the Settings dialog (View > Settings / Ctrl+,). The bespoke

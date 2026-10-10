@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
 #include "GeneralPageModel.h"
@@ -606,7 +607,7 @@ HRESULT SettingsSheet::OpenModeless (
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
+    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
 
     m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_shotsPage->SetPrefs (&prefs);
