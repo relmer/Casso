@@ -1341,10 +1341,27 @@ void DxuiTabStrip::PaintExplorer (
 
     //  Explorer's strip ends in a darker line the selected tab breaks, and
     //  which a hovered tab stops short of.
+    //  It is black laid over the strip, which darkens an opaque strip by the
+    //  same amount and darkens a backdrop showing through an empty one too,
+    //  and it stops at the selected tab, whose translucent fill would show it.
     if (HasBounds())
     {
-        painter.FillRect ((float) GetViewLeft(), (float) m_boundsDip.bottom - baseLine,
-                          (float) (GetViewRight() - GetViewLeft()), baseLine, DxuiColor::Darken (stripArgb, s_kBaseLineScale));
+        float     lineTop   = (float) m_boundsDip.bottom - baseLine;
+        float     viewLeft  = (float) GetViewLeft();
+        float     viewRight = (float) GetViewRight();
+        uint32_t  lineArgb  = (uint32_t) std::lround ((1.0f - s_kBaseLineScale) * 255.0f) << 24;
+
+        if (m_selected >= 0 && m_selected < (int) n)
+        {
+            RECT  sel = GetTabScreenRect (m_selected);
+
+            painter.FillRect (viewLeft,          lineTop, (std::max) (0.0f, (float) sel.left - viewLeft),   baseLine, lineArgb);
+            painter.FillRect ((float) sel.right, lineTop, (std::max) (0.0f, viewRight - (float) sel.right), baseLine, lineArgb);
+        }
+        else
+        {
+            painter.FillRect (viewLeft, lineTop, viewRight - viewLeft, baseLine, lineArgb);
+        }
     }
 
     //  Fills first, so no fill covers another tab's label or close button;
@@ -1381,7 +1398,11 @@ void DxuiTabStrip::PaintExplorer (
         float  height = (float) (r.bottom - r.top);
         float  bottom = top + height;
 
+        //  The rounded top is clipped short of the square bottom, so a
+        //  translucent fill is laid down once everywhere.
+        painter.PushClipRect    (left, top, width, height - corner);
         painter.FillRoundedRect (left, top, width, height, corner, fillArgb);
+        painter.PopClipRect();
         painter.FillRect        (left, bottom - corner, width, corner, fillArgb);
     }
 

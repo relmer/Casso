@@ -244,6 +244,11 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
         clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
         clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
 
+        if (m_clearTransparent)
+        {
+            clearColor[0] = clearColor[1] = clearColor[2] = clearColor[3] = 0.0f;
+        }
+
         // Opt-in offscreen compose path: paint the content tree into the offscreen
         // texture, then hand the compose hook that texture's SRV + the back-buffer
         // RTV so it produces the final frame (blur / see-through reveal). The hook

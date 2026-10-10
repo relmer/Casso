@@ -222,6 +222,14 @@ public:
         // flip-discard CreateSwapChainForHwnd path.
         bool                     composited               = false;
 
+        // When true, the window keeps its frame and draws through a
+        // composition swap chain over its system backdrop: the frame is
+        // extended across the whole client area and each frame clears to
+        // transparent, so the backdrop (Mica) shows wherever the content
+        // paints nothing. Unlike composited, the window stays framed,
+        // because the frame is what DWM draws the backdrop into.
+        bool                     drawOverBackdrop         = false;
+
         // When true, the window is created WITHOUT stealing activation:
         // CreateWindowEx activates a new top-level captioned window even
         // when it is created hidden, which yanks keyboard focus off the

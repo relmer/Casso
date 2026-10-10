@@ -126,6 +126,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.classNameOverride        = CassoExplorerShell::kWindowClass;
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
+    params.micaBackdrop             = true;
 
     //  A key or a click paints more than once, and the animation tick paints
     //  on top of that; paced, each of those frames reads the clock one vsync
@@ -849,6 +850,13 @@ void CassoExplorerWindow::AdoptSystemColors()
 
     m_lightTheme.ApplySystemColors (system);
     m_darkTheme.ApplySystemColors  (system);
+
+    //  The caption and the tab row are the window's Mica, and the row under
+    //  the tabs lightens it, as Explorer's do.
+    m_lightTheme.titleBarTop = 0x00000000u;
+    m_darkTheme.titleBarTop  = 0x00000000u;
+    m_lightTheme.navStrip    = 0xB3FFFFFFu;
+    m_darkTheme.navStrip     = 0x0EFFFFFFu;
 }
 
 
@@ -1120,11 +1128,14 @@ void CassoExplorerWindow::RecomputeLayout()
 void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     RECT  bounds = GetBounds();
+    LONG  top    = (std::max) (bounds.top, (std::max) (m_tabBand.GetBounds().bottom, m_toolbarBand.GetBounds().bottom));
 
 
 
-    painter.FillRect ((float) bounds.left, (float) bounds.top,
-                      (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top), theme.Background());
+    //  The tab row and the navigation band are left to the window's Mica,
+    //  which the strips over them tint; everything below them is opaque.
+    painter.FillRect ((float) bounds.left, (float) top,
+                      (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
     //  Every preview draws on the content surface, a message included, which
     //  has no background of its own.

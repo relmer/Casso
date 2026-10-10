@@ -127,6 +127,10 @@ protected:
     std::unique_ptr<DxuiPainter>      m_painter;
     std::unique_ptr<DxuiTextRenderer> m_textRenderer;
 
+    //  Clears each frame to transparent instead of the theme's background, so
+    //  the window's system backdrop shows wherever the content paints nothing.
+    bool                              m_clearTransparent = false;
+
 private:
     HRESULT  EnsureComposeTarget (int widthPx, int heightPx, bool & recreated);
 

@@ -431,10 +431,11 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CBRA (m_hwnd == nullptr);
     CBRA (!m_synthetic);
 
-    m_params    = params;
-    hInstance   = (params.hInstance != nullptr) ? params.hInstance
-                                                : GetModuleHandleW (nullptr);
-    m_hInstance = hInstance;
+    m_params           = params;
+    m_clearTransparent = params.drawOverBackdrop;
+    hInstance          = (params.hInstance != nullptr) ? params.hInstance
+                                                       : GetModuleHandleW (nullptr);
+    m_hInstance        = hInstance;
 
     if (params.classNameOverride != nullptr)
     {
@@ -493,7 +494,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // whatever is behind it via the desktop compositor, so it must opt
     // out of the redirection bitmap (there is no opaque surface to
     // redirect) and drive its swap chain through DirectComposition.
-    if (params.composited)
+    if (params.composited || params.drawOverBackdrop)
     {
         exStyle |= WS_EX_NOREDIRECTIONBITMAP;
     }
@@ -1914,7 +1915,7 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
     scd.Flags            = m_params.paceFrames ? (UINT) DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0u;
     m_swapChainFlags     = scd.Flags;
 
-    if (m_params.composited)
+    if (m_params.composited || m_params.drawOverBackdrop)
     {
         ComPtr<IDCompositionDesktopDevice>  desktopDevice;
         ComPtr<IDCompositionVisual2>        compVisual2;
@@ -2541,7 +2542,7 @@ void DxuiHwndSource::ApplyDwmConfiguration()
 
     // Extend the frame first — Mica is invisible without it, and the
     // OS drop-shadow also depends on this even when backdrop is None.
-    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, s_kExtendFrameInsetPx);
+    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, m_params.drawOverBackdrop ? -1 : s_kExtendFrameInsetPx);
     DxuiDwm::ApplyRoundedCorners       (m_hwnd, m_params.roundedCorners);
     DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica);
     DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, m_params.darkMode);
