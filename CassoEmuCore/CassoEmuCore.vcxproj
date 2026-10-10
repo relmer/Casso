@@ -283,6 +283,7 @@
     <ClCompile Include="Devices\Disk\Inspector\FindingFormatter.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\ImageDetails.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorFormat.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\InspectorSearch.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\StandardTrackDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\TrackAnalyzer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\LatchFramer.cpp" />
@@ -501,7 +502,9 @@
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
+    <ClCompile Include="Ui\DiskInspector\FindPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTimingTab.cpp" />
+    <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
@@ -665,6 +668,7 @@
     <ClInclude Include="Devices\Disk\Inspector\ITrackFormatDecoder.h" />
     <ClInclude Include="Devices\Disk\Inspector\ImageDetails.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorFormat.h" />
+    <ClInclude Include="Devices\Disk\Inspector\InspectorSearch.h" />
     <ClInclude Include="Devices\Disk\Inspector\StandardTrackDecoder.h" />
     <ClInclude Include="Devices\Disk\Inspector\TrackAnalysis.h" />
     <ClInclude Include="Devices\Disk\Inspector\TrackAnalyzer.h" />
@@ -952,7 +956,9 @@
     <ClInclude Include="Ui\DiskInspector\TrackStripView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterCells.h" />
+    <ClInclude Include="Ui\DiskInspector\FindPanel.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTimingTab.h" />
+    <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />

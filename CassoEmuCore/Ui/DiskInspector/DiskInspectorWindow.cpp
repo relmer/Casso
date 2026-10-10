@@ -9,7 +9,9 @@
 #include "Ui/DiskInspector/FindingsTab.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/FindPanel.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
+#include "Ui/DiskInspector/GoToDialog.h"
 #include "Ui/DiskInspector/NibblesTab.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -629,7 +631,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 //  whole track, Left and Right step through the sectors in passing order
 //  wrapping at the index, Home and End go to the first and last (FR-029);
 //  plus and minus zoom, 0 returns to fit (FR-025), and Ctrl with an arrow
-//  pans the zoomed platter. After a press on the strip, plus and minus zoom
+//  pans the zoomed platter. Ctrl+F finds, F3 and Shift+F3 step through the
+//  hits, and Ctrl+G goes to a target. After a press on the strip, plus and minus zoom
 //  it, 0 shows the whole track, and Left and Right pan it (FR-034).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,6 +660,8 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_RIGHT: m_model.PanBy ({ -s_kPanStep, 0.0 }); break;
                 case VK_UP:    m_model.PanBy ({ 0.0,  s_kPanStep }); break;
                 case VK_DOWN:  m_model.PanBy ({ 0.0, -s_kPanStep }); break;
+                case 'F':      OpenFind();                           break;
+                case 'G':      OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
         }
@@ -685,6 +690,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_LEFT:  StepSector (-1, false); break;
                 case VK_RIGHT: StepSector ( 1, false); break;
                 case VK_HOME:  StepSector (-1, true);  break;
+                case VK_F3:    StepFind (ev.shift ? -1 : 1); break;
                 case VK_END:   StepSector ( 1, true);  break;
                 default:       isHandled = false;      break;
             }
@@ -1351,4 +1357,176 @@ void DiskInspectorWindow::StepRange (int delta)
 bool DiskInspectorWindow::IsStripKey (WPARAM vk)
 {
     return vk == VK_OEM_PLUS || vk == VK_ADD || vk == VK_OEM_MINUS || vk == VK_SUBTRACT || vk == VK_LEFT || vk == VK_RIGHT || vk == '0' || vk == VK_NUMPAD0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenFind
+//
+//  The panel opens on the last query and its hits; a hit chosen there is
+//  selected, and the hits stay for F3 either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenFind()
+{
+    HRESULT                   hr     = S_OK;
+    FindPanel                 panel;
+    DxuiWindow::CreateParams  params;
+
+
+
+    panel.Configure (m_theme, m_context, m_model.GetQuarterTrack(), m_findQuery, m_findHits);
+
+    params.title                    = L"Find";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = FindPanel::kSizeDip;
+    params.minSizeDip               = FindPanel::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = panel.Create (params);
+    CHRA (hr);
+
+    panel.SetTheme (m_theme);
+    panel.ShowModalDialog (IDOK);
+
+    m_findQuery = panel.GetQuery();
+    m_findHits  = panel.GetHits();
+    m_findIndex = panel.GetChosen();
+
+    if (m_findIndex >= 0)
+    {
+        SelectHit (m_findHits[m_findIndex]);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenGoTo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenGoTo()
+{
+    HRESULT                   hr     = S_OK;
+    GoToDialog                dialog;
+    DxuiWindow::CreateParams  params;
+    GoToTarget                target;
+
+
+
+    dialog.Configure (m_theme, m_analysis, m_model.GetQuarterTrack(), m_goToKind);
+
+    params.title                    = L"Go to";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.initialSizeDip           = GoToDialog::kSizeDip;
+    params.minSizeDip               = GoToDialog::kSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    dialog.ShowModalDialog (IDOK);
+
+    m_goToKind = dialog.GetKind();
+    target     = dialog.GetTarget();
+
+    if (dialog.IsChosen() && target.firstNibble >= 0)
+    {
+        m_model.SelectNibbles (target.quarterTrack, target.firstNibble, 1);
+        OnSelection();
+    }
+    else if (dialog.IsChosen() && target.sectorIndex >= 0)
+    {
+        m_model.SelectSector (target.quarterTrack, target.sectorIndex);
+        OnSelection();
+    }
+    else if (dialog.IsChosen())
+    {
+        m_model.SelectQuarterTrack (target.quarterTrack);
+        OnSelection();
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepFind
+//
+//  Find next and Find previous, wrapping around the hits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StepFind (int step)
+{
+    int  count = static_cast<int> (m_findHits.size());
+
+
+
+    if (count > 0)
+    {
+        m_findIndex = (m_findIndex < 0) ? (step > 0 ? 0 : count - 1) : (m_findIndex + step + count) % count;
+        SelectHit (m_findHits[m_findIndex]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SelectHit
+//
+//  A sector hit selects its sector; a nibble hit its nibbles, and one off
+//  the framed nibbles the nibble its first cell falls in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SelectHit (const SearchHit & hit)
+{
+    const TrackAnalysis *  track  = nullptr;
+    int                    nibble = hit.firstNibble;
+
+
+
+    if (hit.sectorIndex >= 0)
+    {
+        m_model.SelectSector (hit.quarterTrack, hit.sectorIndex);
+    }
+    else
+    {
+        m_model.SelectQuarterTrack (hit.quarterTrack);
+        track  = m_model.GetTrack();
+        nibble = (!hit.isAligned && track != nullptr) ? PlatterGeometry::GetNibbleAt (*track, hit.cell) : nibble;
+        m_model.SelectNibbles (hit.quarterTrack, nibble, hit.nibbleCount);
+    }
+
+    OnSelection();
 }

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
@@ -74,6 +75,10 @@ private:
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
     static bool  IsStripKey (WPARAM vk);
+    void  OpenFind  ();
+    void  OpenGoTo  ();
+    void  StepFind  (int step);
+    void  SelectHit (const SearchHit & hit);
     void  ShowDiskTab      (int tab);
     void  RefreshTables    ();
     void  SyncTables       ();
@@ -123,6 +128,10 @@ private:
     DxuiLabel *                              m_stripReadout   = nullptr;
     DxuiLabel *                              m_stripHint      = nullptr;
     bool                                     m_isStripKeys    = false;
+    SearchQuery                              m_findQuery;
+    vector<SearchHit>                        m_findHits;
+    int                                      m_findIndex      = -1;
+    GoToKind                                 m_goToKind       = GoToKind::Track;
     PlatterView *                            m_platterView    = nullptr;
     TrackHeaderView *                        m_headerView     = nullptr;
     TrackStripView *                         m_stripView      = nullptr;
