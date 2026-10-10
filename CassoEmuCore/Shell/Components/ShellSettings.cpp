@@ -582,3 +582,34 @@ void ShellSettings::OpenSettings (bool showControllers)
         m_settingsSheet->ShowControllersPage();
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellSettings::PersistSwitchState
+//
+//  Writes one //c case-switch latch into the current machine's per-machine
+//  $cassoUiPrefs block so the position survives across runs. Best-effort: a
+//  missing store / machine name, or a write failure, just leaves the on-disk
+//  state as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellSettings::PersistSwitchState (const char * key, bool value)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_userConfigStore == nullptr || m_shell.m_machine.GetCurrentMachineName().empty())
+    {
+        return;
+    }
+
+    hr = DiskSettings::WriteSavedUiPrefBool (*m_userConfigStore, m_uiFs, key,
+                                             m_shell.m_machine.GetCurrentMachineName(), value);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}

@@ -738,7 +738,7 @@ void ShellDeskScene::DragVolumeWheel (int x, int64_t nowMs)
 
     UNREFERENCED_PARAMETER (nowMs);
 
-    m_shell.SetTapeVolume (gain);
+    m_shell.m_audio->SetTapeVolume (gain);
     m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 }
 

@@ -72,29 +72,19 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyPersistedAudioPrefs
+//  ApplyPersistedMachinePrefs
 //
-//  Seeds the drive-audio mixer, the input mapping, and the //c default
-//  pointer from the per-machine $cassoUiPrefs JSON before the audio thread
-//  first calls SetEnabled / SetMechanism. Default is enabled + Shugart when
-//  nothing is persisted.
+//  Seeds the input mapping, the //c default pointer, the drive sounds, the
+//  tape settings and the //c case switches from the per-machine
+//  $cassoUiPrefs JSON, before the audio thread first opens the output.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyPersistedAudioPrefs()
+void EmulatorShell::ApplyPersistedMachinePrefs()
 {
-    HRESULT            hr         = S_OK;
-    HRESULT            hrOpt      = S_OK;
+    HRESULT            hr      = S_OK;
     JsonValue          doc;
-    const JsonValue  * uiPrefs    = nullptr;
-    bool               enabled    = true;
-    std::string        mechNarrow;
-    double             motorV     = Disk2AudioSource::kMotorVolume;
-    double             headV      = Disk2AudioSource::kHeadVolume;
-    double             doorV      = Disk2AudioSource::kDoorVolume;
-    double             pan0       = DriveAudioMixer::kDefaultDriveOnePan;
-    double             pan1       = DriveAudioMixer::kDefaultDriveTwoPan;
-    double             tapeVolume = 1.0;
+    const JsonValue  * uiPrefs = nullptr;
 
 
 
@@ -115,74 +105,8 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
-    hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_audio->GetDriveMixer().SetEnabled (enabled);
-    }
-
-    hrOpt = uiPrefs->GetBool ("fastTapeLoading", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_tapeDeck->SetFastTapeLoading (enabled);
-    }
-
-    hrOpt = uiPrefs->GetBool ("tapeAutoStop", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_tapeDeck->SetTapeAutoStop (enabled);
-    }
-
-    hrOpt = uiPrefs->GetBool ("tapeIdleStop", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_tapeDeck->SetTapeIdleStop (enabled);
-    }
-
-    hrOpt = uiPrefs->GetBool ("tapeEightBit", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_tapeDeck->SetTapeEightBit (enabled);
-    }
-
-    hrOpt = uiPrefs->GetNumber ("tapeVolume", tapeVolume);
-    if (SUCCEEDED (hrOpt))
-    {
-        SetTapeVolume ((float) tapeVolume);
-    }
-
-    hrOpt = uiPrefs->GetString ("floppyMechanism", mechNarrow);
-    if (SUCCEEDED (hrOpt) && !mechNarrow.empty())
-    {
-        // DriveAudioMixer matches mechanism names case-insensitively, so
-        // the persisted lower-case token ("alps"/"shugart") can be handed
-        // over as-is. A stale/unknown name leaves the mixer on its default
-        // mechanism, which is fine -- not worth aborting startup for.
-        std::wstring  mechWide = TextEncoding::Utf8ToWide (mechNarrow);
-
-        hrOpt = m_audio->GetDriveMixer().SetMechanism (mechWide);
-        IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    }
-
-    // Optional gains + pans: each value is pre-seeded to its built-in
-    // default, and GetNumber leaves that default in place when the key is
-    // absent, so the read result is intentionally discarded -- absence
-    // simply means "keep the default". SetDriveAudio* then applies the
-    // resolved values (default or persisted) uniformly.
-    hrOpt = uiPrefs->GetNumber ("driveMotorVolume", motorV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveHeadVolume",  headV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    m_audio->SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
-
-    hrOpt = uiPrefs->GetNumber ("driveOnePan", pan0);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveTwoPan", pan1);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    m_audio->SetDriveAudioPan (0, (float) pan0);
-    m_audio->SetDriveAudioPan (1, (float) pan1);
+    m_audio->ApplyMachinePrefs (*uiPrefs);
+    m_tapeDeck->ApplyMachinePrefs (*uiPrefs);
 
     // //c case-switch latches: restore the 80/40 and keyboard (Dvorak) switch
     // positions onto the keyboard device. Absent keys leave the hardware
@@ -340,37 +264,6 @@ void EmulatorShell::RequestReset()
     }
 
     PostCommand (IDM_MACHINE_RESET, payload);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::PersistSwitchState
-//
-//  Writes one //c case-switch latch into the current machine's per-machine
-//  $cassoUiPrefs block so the position survives across runs. Best-effort: a
-//  missing store / machine name, or a write failure, just leaves the on-disk
-//  state as it was.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PersistSwitchState (const char * key, bool value)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_settings->GetConfigStore() == nullptr || m_machine.GetCurrentMachineName().empty())
-    {
-        return;
-    }
-
-    hr = DiskSettings::WriteSavedUiPrefBool (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), key,
-                                             m_machine.GetCurrentMachineName(), value);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

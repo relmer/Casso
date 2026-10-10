@@ -143,6 +143,9 @@ public:
     // tape settings.
     ShellTapeDeck &  GetTapeDeck();
 
+    // The audio output and everything mixed into it.
+    ShellAudio &  GetAudio();
+
     // The printer drain, print preview, status light and print dialog.
     ShellPrinter &  GetPrinter();
 
@@ -308,7 +311,7 @@ private:
     HRESULT FinishUiShellLayout             ();
 
     void    ApplyPersistedChromePrefs     ();
-    void    ApplyPersistedAudioPrefs      ();
+    void    ApplyPersistedMachinePrefs    ();
 
     // Truncating wide->narrow of the machine's name (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.
@@ -431,9 +434,6 @@ private:
     // every new machine with a switch panel would need another arm added here.
     bool    MachineHasCaseSwitches () const;
 
-    // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
-    // into the current machine's $cassoUiPrefs so it survives across runs.
-    void    PersistSwitchState     (const char * key, bool value);
 
     // The input mapping, per machine. Adopt seeds the live state from a
     // machine's $cassoUiPrefs block (null for a machine with none, which
@@ -521,7 +521,6 @@ public:
 public:
     void PostCommand (WORD id, const string & payload = "");
 
-    void SetTapeVolume (float gain);
 
     // Single-step the CPU from the UI thread. Only safe when the
     // CPU thread is paused (provably idle on pauseCV.wait); the

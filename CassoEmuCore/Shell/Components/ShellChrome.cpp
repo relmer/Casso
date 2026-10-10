@@ -1552,7 +1552,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
                 bool  newIn = !iieKbd->IsEightyColumnSwitchIn();
 
                 iieKbd->SetEightyColumnSwitchIn (newIn);
-                m_shell.PersistSwitchState ("eightyColumnSwitch", newIn);
+                m_shell.m_settings->PersistSwitchState ("eightyColumnSwitch", newIn);
             }
 
             break;
@@ -1563,7 +1563,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
                 bool  newDvorak = !iieKbd->IsKeyboardSwitchDvorak();
 
                 iieKbd->SetKeyboardSwitchDvorak (newDvorak);
-                m_shell.PersistSwitchState ("keyboardDvorak", newDvorak);
+                m_shell.m_settings->PersistSwitchState ("keyboardDvorak", newDvorak);
             }
 
             break;

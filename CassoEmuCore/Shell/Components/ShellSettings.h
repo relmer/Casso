@@ -75,6 +75,10 @@ public:
     // fatal.
     void  LoadMachineUiPrefs (JsonValue & outDoc, const JsonValue * & outUiPrefs);
 
+    // Writes one //c case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
+    // into the current machine's $cassoUiPrefs so it survives across runs.
+    void  PersistSwitchState (const char * key, bool value);
+
     // Records the active machine so the next launch boots it by default.
     void  RecordActiveMachineSelection ();
 

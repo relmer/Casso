@@ -12,6 +12,7 @@
 
 
 
+class JsonValue;
 class MockingboardCard;
 struct MachineBuildServices;
 
@@ -93,6 +94,15 @@ public:
     void     SetDriveAudioVolumes   (float motor, float head, float door) override;
     void     SetDriveAudioPan       (int drive, float pan) override;
     void     PlayDriveTestSound     (int drive, int kind) override;
+
+    // The tape's playback gain, from Settings and from the recorder's volume
+    // wheel.
+    void  SetTapeVolume (float gain) { m_tapeAudioSource.SetVolume (gain); }
+
+    // Seeds the drive sounds and the tape's gain from the machine's saved
+    // $cassoUiPrefs block. At startup, before the output first opens; a key
+    // that is absent keeps its default.
+    void  ApplyMachinePrefs (const JsonValue & uiPrefs);
 
 private:
     WasapiAudio                           m_wasapiAudio;

@@ -4,6 +4,8 @@
 #include "AssetBootstrap.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/MachineBuilder.h"
+#include "Core/JsonValue.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -323,4 +325,74 @@ void ShellAudio::SetDriveAudioEnabled (bool enabled)
 HRESULT ShellAudio::SetDriveAudioMechanism (const std::wstring & mechanism)
 {
     return m_driveAudioMixer.SetMechanism (mechanism);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellAudio::ApplyMachinePrefs
+//
+//  The drive sounds' switch and mechanism, their gains and pans, and the
+//  tape's gain. The gains and pans are pre-seeded to their built-in defaults,
+//  and GetNumber leaves a default in place when its key is absent, so the
+//  read results are deliberately discarded: absence means keep the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellAudio::ApplyMachinePrefs (const JsonValue & uiPrefs)
+{
+    HRESULT      hrOpt      = S_OK;
+    bool         enabled    = true;
+    std::string  mechNarrow;
+    double       motorV     = Disk2AudioSource::kMotorVolume;
+    double       headV      = Disk2AudioSource::kHeadVolume;
+    double       doorV      = Disk2AudioSource::kDoorVolume;
+    double       pan0       = DriveAudioMixer::kDefaultDriveOnePan;
+    double       pan1       = DriveAudioMixer::kDefaultDriveTwoPan;
+    double       tapeVolume = 1.0;
+
+
+
+    hrOpt = uiPrefs.GetBool ("floppySoundEnabled", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        m_driveAudioMixer.SetEnabled (enabled);
+    }
+
+    hrOpt = uiPrefs.GetString ("floppyMechanism", mechNarrow);
+    if (SUCCEEDED (hrOpt) && !mechNarrow.empty())
+    {
+        // DriveAudioMixer matches mechanism names case-insensitively, so
+        // the persisted lower-case token ("alps"/"shugart") can be handed
+        // over as-is. A stale/unknown name leaves the mixer on its default
+        // mechanism, which is fine -- not worth aborting startup for.
+        std::wstring  mechWide = TextEncoding::Utf8ToWide (mechNarrow);
+
+        hrOpt = m_driveAudioMixer.SetMechanism (mechWide);
+        IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    }
+
+    hrOpt = uiPrefs.GetNumber ("driveMotorVolume", motorV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs.GetNumber ("driveHeadVolume",  headV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs.GetNumber ("driveDoorVolume",  doorV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
+
+    hrOpt = uiPrefs.GetNumber ("driveOnePan", pan0);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs.GetNumber ("driveTwoPan", pan1);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    SetDriveAudioPan (0, (float) pan0);
+    SetDriveAudioPan (1, (float) pan1);
+
+    hrOpt = uiPrefs.GetNumber ("tapeVolume", tapeVolume);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeVolume ((float) tapeVolume);
+    }
 }

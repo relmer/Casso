@@ -96,6 +96,10 @@ public:
     void  SetTapeIdleStop    (bool enabled);
     void  SetTapeEightBit    (bool enabled);
 
+    // Seeds the tape settings from the machine's saved $cassoUiPrefs block.
+    // A key that is absent keeps its default.
+    void  ApplyMachinePrefs  (const JsonValue & uiPrefs);
+
 private:
     void  PromptTapePosition       ();
     void  LatchRecorderKeys        (TapeDeckRegion region);

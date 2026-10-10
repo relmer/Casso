@@ -770,3 +770,45 @@ void ShellTapeDeck::ControlTape (TapeCommand command)
 
     m_tapeManager->Execute (command, m_shell.m_machine.GetTapeDeck(), now);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::ApplyMachinePrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::ApplyMachinePrefs (const JsonValue & uiPrefs)
+{
+    HRESULT  hrOpt   = S_OK;
+    bool     enabled = false;
+
+
+
+    hrOpt = uiPrefs.GetBool ("fastTapeLoading", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetFastTapeLoading (enabled);
+    }
+
+    hrOpt = uiPrefs.GetBool ("tapeAutoStop", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeAutoStop (enabled);
+    }
+
+    hrOpt = uiPrefs.GetBool ("tapeIdleStop", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeIdleStop (enabled);
+    }
+
+    hrOpt = uiPrefs.GetBool ("tapeEightBit", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        SetTapeEightBit (enabled);
+    }
+}

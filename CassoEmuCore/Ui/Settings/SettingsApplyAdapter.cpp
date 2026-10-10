@@ -3,6 +3,7 @@
 #include "SettingsApplyAdapter.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "resource.h"
 
@@ -104,7 +105,7 @@ void SettingsApplyAdapter::ApplyFastTapeLoading (bool enabled)
 
 void SettingsApplyAdapter::ApplyTapeVolume (float gain)
 {
-    m_shell.SetTapeVolume (gain);
+    m_shell.GetAudio().SetTapeVolume (gain);
 }
 
 

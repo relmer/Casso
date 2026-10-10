@@ -407,7 +407,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // the same fallback a machine that has never stored a mapping gets, rather
     // than leaving the mapping of the machine being left in place. This is the
     // launch path's rule (AdoptInputModeForMachine runs ahead of the bail in
-    // ApplyPersistedAudioPrefs) applied to switching.
+    // ApplyPersistedMachinePrefs) applied to switching.
     //
     // State only -- this runs on the CPU thread, and the selector sync asserts
     // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
