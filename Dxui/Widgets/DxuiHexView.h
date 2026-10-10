@@ -197,6 +197,9 @@ public:
     void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }
     void  SetOnSettingsChanged  (SettingsFn fn)  { m_onSettings  = std::move (fn); }
     void  ShowContextMenu       (POINT atDip);
+
+    //  The menu's items, the host's included; ShowContextMenu shows them.
+    void  BuildContextMenu (std::vector<DxuiPopupMenuItem> & items);
     //  The window a copy names as the clipboard's owner.
     void  SetOwnerWindow (HWND hwnd) { m_hwnd = hwnd; }
 

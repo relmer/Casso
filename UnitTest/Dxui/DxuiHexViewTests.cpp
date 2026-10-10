@@ -959,6 +959,63 @@ public:
     }
 
 
+    TEST_METHOD (ContextMenu_IsTheViewsChoicesThenTheHostsItems)
+    {
+        CountingHexSource               source (256);
+        DxuiHexView                     view;
+        std::vector<DxuiPopupMenuItem>  items;
+        std::shared_ptr<DxuiCommand>    goTo = std::make_shared<DxuiCommand>();
+        const DxuiPopupMenuItem *       columns = nullptr;
+
+
+        goTo->label = L"&Go to...";
+        view.SetSource (&source);
+        view.SetOnBuildContextMenu ([&goTo] (std::vector<DxuiPopupMenuItem> & menu) { menu.push_back (DxuiPopupMenuItem::ForCommand (goTo)); });
+
+        view.BuildContextMenu (items);
+
+        for (const DxuiPopupMenuItem & item : items)
+        {
+            columns = (item.kind == DxuiPopupMenuItem::Kind::Submenu) ? &item : columns;
+        }
+
+        Assert::IsFalse  (items.empty());
+        Assert::AreEqual (std::wstring (L"Show &text only"), items.front().command->label, L"The view's own choices come first");
+        Assert::AreEqual (std::wstring (L"&Go to..."),       items.back().command->label,  L"and the host's items after them");
+        Assert::IsNotNull (columns);
+        Assert::AreEqual ((size_t) 6, columns->children.size(), L"Columns offers Auto, 1, 2, 4, 8 and 16");
+    }
+
+
+    TEST_METHOD (ContextMenu_AChoiceAppliesAndTellsTheHost)
+    {
+        CountingHexSource               source (256);
+        DxuiHexView                     view;
+        std::vector<DxuiPopupMenuItem>  items;
+        int                             reports = 0;
+        bool                            found   = false;
+
+
+        view.SetSource (&source);
+        view.SetOnSettingsChanged ([&reports]() { reports++; });
+        view.BuildContextMenu (items);
+
+        for (const DxuiPopupMenuItem & item : items)
+        {
+            if (!found && item.command != nullptr && item.command->label == L"&2-byte integer")
+            {
+                item.command->dispatch();
+                found = true;
+            }
+        }
+
+        Assert::IsTrue   (found);
+        Assert::AreEqual (2, view.GetGrouping(), L"Choosing 2-byte integers groups the bytes in pairs");
+        Assert::IsTrue   (view.IsShowingValues(), L"and shows values");
+        Assert::AreEqual (1, reports, L"and the host hears of it once, to keep it");
+    }
+
+
     TEST_METHOD (GoToOffset_PutsTheCaretThereAndScrollsToIt)
     {
         CountingHexSource  source (16 * 100);

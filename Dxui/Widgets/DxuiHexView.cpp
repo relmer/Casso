@@ -15,14 +15,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHexView::ShowContextMenu
+//  DxuiHexView::BuildContextMenu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHexView::ShowContextMenu (POINT atDip)
+void DxuiHexView::BuildContextMenu (std::vector<DxuiPopupMenuItem> & items)
 {
-    DxuiHwndSource *                host = DxuiHwndSource::FromHwnd (m_hwnd);
-    std::vector<DxuiPopupMenuItem>  items;
     std::vector<DxuiPopupMenuItem>  columns;
     std::shared_ptr<DxuiCommand>    parent;
 
@@ -48,11 +46,6 @@ void DxuiHexView::ShowContextMenu (POINT atDip)
 
         return DxuiPopupMenuItem::ForCommand (command);
     };
-
-    if (host == nullptr)
-    {
-        return;
-    }
 
     items.push_back (choice (L"Show &text only", [this]() { return !m_showValues; },
                                                  [this]() { SetShowValues (!m_showValues); }));
@@ -105,7 +98,31 @@ void DxuiHexView::ShowContextMenu (POINT atDip)
     {
         m_onBuildMenu (items);
     }
+}
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::ShowContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::ShowContextMenu (POINT atDip)
+{
+    DxuiHwndSource *                host = DxuiHwndSource::FromHwnd (m_hwnd);
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    if (host == nullptr)
+    {
+        return;
+    }
+
+    BuildContextMenu (items);
     DxuiContextMenu::Show (*host, atDip.x, atDip.y, std::move (items));
 }
 
