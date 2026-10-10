@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -311,7 +312,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // call is what keeps its hover highlight honest. Ahead of the drags
     // below because a press the compass took must never feed the orbit's
     // own anchor math as well.
-    if (!m_paddleCaptured && m_sceneCompass.OnPointerMove (x, y))
+    if (!m_paddleCaptured && m_scene->m_sceneCompass.OnPointerMove (x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -328,32 +329,32 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // it would cause is a game whose paddles stop responding.
     // An orbit in flight owns the move the same way a pan does, whichever
     // button is driving it.
-    if (m_sceneOrbiting && !m_paddleCaptured &&
-        ((m_sceneOrbitLeftBtn && leftDown) ||
-         (!m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
+    if (m_scene->m_sceneOrbiting && !m_paddleCaptured &&
+        ((m_scene->m_sceneOrbitLeftBtn && leftDown) ||
+         (!m_scene->m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
     {
         // Under the slop this is still a click in the making, so the scene
         // must not stir: a picture that shifts a pixel under a press and
         // shifts back is worse than one that does not move at all. The
         // right-button orbit has no click to protect and turns at once.
-        if (!m_sceneOrbitMoved &&
-            m_sceneOrbitLeftBtn &&
-            std::abs (x - m_sceneOrbitStartPx.x) <= s_kSceneOrbitSlopPx &&
-            std::abs (y - m_sceneOrbitStartPx.y) <= s_kSceneOrbitSlopPx)
+        if (!m_scene->m_sceneOrbitMoved &&
+            m_scene->m_sceneOrbitLeftBtn &&
+            std::abs (x - m_scene->m_sceneOrbitStartPx.x) <= ShellDeskScene::s_kSceneOrbitSlopPx &&
+            std::abs (y - m_scene->m_sceneOrbitStartPx.y) <= ShellDeskScene::s_kSceneOrbitSlopPx)
         {
             return DxuiMessageResult::Handled;
         }
 
-        m_sceneOrbitMoved = true;
+        m_scene->m_sceneOrbitMoved = true;
 
-        UpdateSceneOrbit (x, y);
+        m_scene->UpdateSceneOrbit (x, y);
         return DxuiMessageResult::Handled;
     }
 
     // The recorder's volume wheel, held, follows the pointer across.
-    if (m_volumeDragging && leftDown && !m_paddleCaptured)
+    if (m_scene->m_volumeDragging && leftDown && !m_paddleCaptured)
     {
-        DragVolumeWheel (x, nowMs);
+        m_scene->DragVolumeWheel (x, nowMs);
 
         return DxuiMessageResult::Handled;
     }
@@ -363,18 +364,18 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // on -- the marks say which way the control goes, they are not two
     // separate handles that move in opposite senses. Screen y grows downward,
     // so the travel is negated to get "up is up".
-    if (m_bezelTilting && leftDown && !m_paddleCaptured)
+    if (m_scene->m_bezelTilting && leftDown && !m_paddleCaptured)
     {
-        m_deskScene.SetBezelTilt (m_bezelTiltStartRad
-                                  + ((float) (m_bezelTiltStartPx.y - y)) * kBezelTiltRadPerPx);
-        InvalidateSceneComposition();
+        m_scene->m_deskScene.SetBezelTilt (m_scene->m_bezelTiltStartRad
+                                           + ((float) (m_scene->m_bezelTiltStartPx.y - y)) * ShellDeskScene::kBezelTiltRadPerPx);
+        m_scene->InvalidateSceneComposition();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (m_scenePanning && leftDown && !m_paddleCaptured)
+    if (m_scene->m_scenePanning && leftDown && !m_paddleCaptured)
     {
-        RECT   box    = m_deskScene.Composition().viewportPx;
+        RECT   box    = m_scene->m_deskScene.Composition().viewportPx;
         float  width  = (float) (box.right - box.left);
         float  height = (float) (box.bottom - box.top);
 
@@ -382,13 +383,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         {
             // A pixel of cursor travel is two NDC units across the whole
             // viewport, and NDC y runs opposite client y.
-            m_sceneView.panX = m_scenePanStartX
-                             + ((float) (x - m_scenePanStartPx.x) / width)  * 2.0f;
-            m_sceneView.panY = m_scenePanStartY
-                             - ((float) (y - m_scenePanStartPx.y) / height) * 2.0f;
+            m_scene->m_sceneView.panX = m_scene->m_scenePanStartX
+                                      + ((float) (x - m_scene->m_scenePanStartPx.x) / width)  * 2.0f;
+            m_scene->m_sceneView.panY = m_scene->m_scenePanStartY
+                                      - ((float) (y - m_scene->m_scenePanStartPx.y) / height) * 2.0f;
 
-            ClampSceneView();
-            InvalidateSceneComposition();
+            m_scene->ClampSceneView();
+            m_scene->InvalidateSceneComposition();
         }
 
         return DxuiMessageResult::Handled;
@@ -416,9 +417,9 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // The desk's names scroll under the pointer too; a change re-hangs them so
     // the one that was scrolling comes back to its start.
-    if (UpdateSceneLabelHover (x, y, nowMs))
+    if (m_scene->UpdateSceneLabelHover (x, y, nowMs))
     {
-        SyncSceneDriveLabels();
+        m_scene->SyncSceneDriveLabels();
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -428,22 +429,22 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     {
         int    key   = -1;
         POINT  pt    = { x, y };
-        RECT   wheel = GetVolumeWheelRect();
+        RECT   wheel = m_scene->GetVolumeWheelRect();
 
-        if (DeskSceneActive() && (m_volumeDragging || PtInRect (&wheel, pt)))
+        if (DeskSceneActive() && (m_scene->m_volumeDragging || PtInRect (&wheel, pt)))
         {
-            key = s_kVolumeWheelLabelKey;
+            key = ShellDeskScene::s_kVolumeWheelLabelKey;
         }
         else if (DeskSceneActive())
         {
-            SceneHitResult  hit = RecorderHit (x, y);
+            SceneHitResult  hit = m_scene->RecorderHit (x, y);
 
             key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
         }
 
-        if (key != m_recorderHoverKey)
+        if (key != m_scene->m_recorderHoverKey)
         {
-            m_recorderHoverKey = key;
+            m_scene->m_recorderHoverKey = key;
             m_d3dRenderer.MarkRedrawNeeded();
         }
     }
@@ -565,11 +566,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         if (tip.empty() && DeskSceneActive())
         {
-            for (int i = 0; i < (int) m_sceneInfoIconRect.size(); i++)
+            for (int i = 0; i < (int) m_scene->m_sceneInfoIconRect.size(); i++)
             {
-                if (m_disks->GetDriveWidgetState()[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pointer))
+                if (m_disks->GetDriveWidgetState()[i].wozConflict && PtInRect (&m_scene->m_sceneInfoIconRect[i], pointer))
                 {
-                    anchor = m_sceneInfoIconRect[i];
+                    anchor = m_scene->m_sceneInfoIconRect[i];
                     tip    = m_disks->ComposeDriveInfoTooltip (i);
                     break;
                 }
@@ -581,15 +582,15 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             // The name strip answers for the padlock in BOTH presentations:
             // the strip carries names and locks in fullscreen now, so the
             // lock explains itself there the same way it does on the desk.
-            for (int i = 0; i < (int) m_sceneDriveLabelRect.size(); i++)
+            for (int i = 0; i < (int) m_scene->m_sceneDriveLabelRect.size(); i++)
             {
                 POINT  lp = { x, y };
 
-                if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
-                    PtInRect (&m_sceneDriveLabelRect[i], lp) &&
+                if (m_scene->m_sceneDriveLabelRect[i].right > m_scene->m_sceneDriveLabelRect[i].left &&
+                    PtInRect (&m_scene->m_sceneDriveLabelRect[i], lp) &&
                     m_disks->GetDriveWidgetState()[i].writeProtect.Any())
                 {
-                    anchor = m_sceneDriveLabelRect[i];
+                    anchor = m_scene->m_sceneDriveLabelRect[i];
                     tip    = ComposeWriteProtectTooltip (
                                  i + 1,
                                  std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i))
@@ -604,17 +605,17 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         {
             POINT  pt = { x, y };
 
-            if (m_stripRectPx.bottom > m_stripRectPx.top &&
-                PtInRect (&m_stripRectPx, pt))
+            if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                PtInRect (&m_scene->m_stripRectPx, pt))
             {
-                SceneHitResult  sceneHit = StripHit (x, y);
+                SceneHitResult  sceneHit = m_scene->StripHit (x, y);
 
                 if (sceneHit.target == SceneHitResult::Target::Drive)
                 {
                     std::wstring  imageName = std::filesystem::path (
                         m_machine.GetDiskStore().GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
 
-                    anchor = m_stripComp.driveRectPx[sceneHit.driveIndex];
+                    anchor = m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex];
                     tip    = ComposeWriteProtectTooltip (
                                  sceneHit.driveIndex + 1, imageName,
                                  m_disks->GetDriveWidgetState()[sceneHit.driveIndex].writeProtect);
@@ -685,11 +686,11 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // Off every control, so the recorder's magnified controls ease back down
     // and the desk's scrolling name returns to its start.
     m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
-    m_recorderHoverKey = -1;
+    m_scene->m_recorderHoverKey = -1;
 
-    if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
+    if (m_scene->UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
     {
-        SyncSceneDriveLabels();
+        m_scene->SyncSceneDriveLabels();
     }
 
     m_d3dRenderer.MarkRedrawNeeded();
@@ -735,7 +736,7 @@ bool EmulatorShell::IsGuestMouseActive() const
     // The fullscreen drive strip's hotkey summon "releases" the guest mouse
     // for the interaction; the FSM restores it when the strip hides.
     return m_pointerMode == InputMappingMode::Mouse && m_machine.GetMouse() != nullptr
-        && m_mouseConnected && !m_stripSuppressGuestMouse;
+        && m_mouseConnected && !m_scene->m_stripSuppressGuestMouse;
 }
 
 
@@ -811,7 +812,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
         // inverse projection through the glass, so only the picture counts
         // -- pointer positions off the glass (including what used to be
         // letterbox bars) release the guest mouse.
-        SceneHitResult  hit = DeskSceneHit (xPx, yPx);
+        SceneHitResult  hit = m_scene->DeskSceneHit (xPx, yPx);
 
         if (hit.target == SceneHitResult::Target::Glass)
         {
@@ -865,7 +866,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              pt         = {};
     bool               overGuest  = false;
-    RECT               wheel      = GetVolumeWheelRect();
+    RECT               wheel      = m_scene->GetVolumeWheelRect();
 
 
 
@@ -882,7 +883,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     {
         // With the desk scene, "over the display" means over the curved
         // glass itself, not the bounding rect around it.
-        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+        SceneHitResult  hit = m_scene->DeskSceneHit (pt.x, pt.y);
 
         overGuest = hit.target == SceneHitResult::Target::Glass;
     }
@@ -898,15 +899,15 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() &&
-             (m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
-                                   PtInRect (&wheel, pt))))
+             (m_scene->m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
+                                            PtInRect (&wheel, pt))))
     {
         // A hand over the volume wheel, which can be taken hold of.
         SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() && !m_d3dRenderer.IsFullscreen()
-             && m_deskScene.MaxBezelTiltRad() > 0.0f
+             && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f
              && GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt))
     {
         // A HAND OVER THE TILT MARKS, because they are the one thing on the
@@ -914,9 +915,9 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         // the press uses, so the cursor changes exactly where the drag would
         // actually start -- a hand offered anywhere else would be a promise
         // the press does not keep.
-        SceneHitResult  hit = DeskSceneHit (pt.x, pt.y);
+        SceneHitResult  hit = m_scene->DeskSceneHit (pt.x, pt.y);
 
-        if (hit.target == SceneHitResult::Target::BezelTilt || m_bezelTilting)
+        if (hit.target == SceneHitResult::Target::BezelTilt || m_scene->m_bezelTilting)
         {
             SetCursor (LoadCursorW (nullptr, IDC_HAND));
             result = DxuiMessageResult::Handled;
@@ -1027,11 +1028,11 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
         // moment the scene was spun side to side.
         if (horizontal)
         {
-            OrbitSceneBy (notch * s_kOrbitRadPerNotch, 0.0f);
+            m_scene->OrbitSceneBy (notch * ShellDeskScene::s_kOrbitRadPerNotch, 0.0f);
         }
         else
         {
-            OrbitSceneBy (0.0f, notch * s_kOrbitRadPerNotch);
+            m_scene->OrbitSceneBy (0.0f, notch * ShellDeskScene::s_kOrbitRadPerNotch);
         }
 
         return DxuiMessageResult::Handled;
@@ -1039,7 +1040,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 
     if (!pinch && !detent)
     {
-        return PanSceneByNotch (notch, horizontal);
+        return m_scene->PanSceneByNotch (notch, horizontal);
     }
 
     // A horizontal wheel that got this far is a tilt wheel, which has no
@@ -1049,9 +1050,9 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
         return DxuiMessageResult::NotHandled;
     }
 
-    factor = std::pow (s_kSceneZoomStep, notch);
+    factor = std::pow (ShellDeskScene::s_kSceneZoomStep, notch);
 
-    ZoomSceneAt (pt, factor);
+    m_scene->ZoomSceneAt (pt, factor);
 
     return DxuiMessageResult::Handled;
 }
@@ -1117,17 +1118,17 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
     {
         case GID_ZOOM:
         {
-            if ((info.dwFlags & GF_BEGIN) != 0 || m_gestureZoomLast == 0)
+            if ((info.dwFlags & GF_BEGIN) != 0 || m_scene->m_gestureZoomLast == 0)
             {
-                m_gestureZoomLast = info.ullArguments;
+                m_scene->m_gestureZoomLast = info.ullArguments;
                 handled           = true;
                 break;
             }
 
             if (info.ullArguments > 0)
             {
-                ZoomSceneAt (pt, (float) info.ullArguments / (float) m_gestureZoomLast);
-                m_gestureZoomLast = info.ullArguments;
+                m_scene->ZoomSceneAt (pt, (float) info.ullArguments / (float) m_scene->m_gestureZoomLast);
+                m_scene->m_gestureZoomLast = info.ullArguments;
             }
 
             handled = true;
@@ -1136,7 +1137,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
         case GID_PAN:
         {
-            RECT   box    = m_deskScene.Composition().viewportPx;
+            RECT   box    = m_scene->m_deskScene.Composition().viewportPx;
             float  width  = (float) (box.right - box.left);
             float  height = (float) (box.bottom - box.top);
 
@@ -1149,15 +1150,15 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             {
                 if ((info.dwFlags & GF_BEGIN) != 0)
                 {
-                    m_gesturePanLastPx = pt;
+                    m_scene->m_gesturePanLastPx = pt;
                     handled            = true;
                     break;
                 }
 
-                OrbitSceneBy (-(float) (pt.x - m_gesturePanLastPx.x) * OrbitRadPerPx(),
-                              (float) (pt.y - m_gesturePanLastPx.y) * OrbitRadPerPx());
+                m_scene->OrbitSceneBy (-(float) (pt.x - m_scene->m_gesturePanLastPx.x) * m_scene->OrbitRadPerPx(),
+                                       (float) (pt.y - m_scene->m_gesturePanLastPx.y) * m_scene->OrbitRadPerPx());
 
-                m_gesturePanLastPx = pt;
+                m_scene->m_gesturePanLastPx = pt;
                 handled            = true;
                 break;
             }
@@ -1171,7 +1172,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             // Declined for the same reason while the guest mouse is live: a
             // one-finger drag then is someone pointing, and the promotion to
             // mouse input is exactly what has to keep happening.
-            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
+            if (m_scene->m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
                 IsGuestMouseLive())
             {
                 break;
@@ -1179,18 +1180,18 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
             if ((info.dwFlags & GF_BEGIN) != 0)
             {
-                m_gesturePanLastPx = pt;
+                m_scene->m_gesturePanLastPx = pt;
                 handled            = true;
                 break;
             }
 
-            m_sceneView.panX += ((float) (pt.x - m_gesturePanLastPx.x) / width)  * 2.0f;
-            m_sceneView.panY -= ((float) (pt.y - m_gesturePanLastPx.y) / height) * 2.0f;
+            m_scene->m_sceneView.panX += ((float) (pt.x - m_scene->m_gesturePanLastPx.x) / width)  * 2.0f;
+            m_scene->m_sceneView.panY -= ((float) (pt.y - m_scene->m_gesturePanLastPx.y) / height) * 2.0f;
 
-            ClampSceneView();
-            InvalidateSceneComposition();
+            m_scene->ClampSceneView();
+            m_scene->InvalidateSceneComposition();
 
-            m_gesturePanLastPx = pt;
+            m_scene->m_gesturePanLastPx = pt;
             handled            = true;
             break;
         }
@@ -1201,7 +1202,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
     if ((info.dwFlags & GF_END) != 0)
     {
-        m_gestureZoomLast = 0;
+        m_scene->m_gestureZoomLast = 0;
     }
 
     return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
@@ -1356,7 +1357,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
         if (CrtMonitorActive())
         {
-            SceneHitResult  hit = DeskSceneHit (x, y);
+            SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
 
             overDisplay = hit.target == SceneHitResult::Target::Glass;
         }
@@ -1389,10 +1390,10 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Never in fullscreen, where the desk is not on screen.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
         (wParam & MK_SHIFT) != 0 && !m_mainMenu.IsOpen() &&
-        PointInSceneRect (x, y) && !chromeTook)
+        m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
-        BeginSceneOrbit (x, y);
-        m_sceneOrbitLeftBtn = true;
+        m_scene->BeginSceneOrbit (x, y);
+        m_scene->m_sceneOrbitLeftBtn = true;
         result = DxuiMessageResult::Handled;
         BAIL_OUT_IF (true, S_OK);
     }
@@ -1403,12 +1404,12 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // has its own Ctrl gestures and is handled below.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
         (wParam & MK_CONTROL) != 0 && !m_mainMenu.IsOpen() &&
-        PointInSceneRect (x, y) && !chromeTook && !PointOnCompass (x, y))
+        m_scene->PointInSceneRect (x, y) && !chromeTook && !m_scene->PointOnCompass (x, y))
     {
-        m_scenePanning    = true;
-        m_scenePanStartPx = POINT { x, y };
-        m_scenePanStartX  = m_sceneView.panX;
-        m_scenePanStartY  = m_sceneView.panY;
+        m_scene->m_scenePanning    = true;
+        m_scene->m_scenePanStartPx = POINT { x, y };
+        m_scene->m_scenePanStartX  = m_scene->m_sceneView.panX;
+        m_scene->m_scenePanStartY  = m_scene->m_sceneView.panY;
         result = DxuiMessageResult::Handled;
         BAIL_OUT_IF (true, S_OK);
     }
@@ -1418,15 +1419,15 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     if (DeskSceneActive() && !m_mainMenu.IsOpen() && !IsGuestMouseLive())
     {
         float  span  = 0.0f;
-        RECT   wheel = GetVolumeWheelRect (&span);
+        RECT   wheel = m_scene->GetVolumeWheelRect (&span);
         POINT  pt    = { x, y };
 
         if (PtInRect (&wheel, pt))
         {
-            m_volumeDragging      = true;
-            m_volumeDragStartX    = x;
-            m_volumeDragStartGain = m_audio->GetTapeSource().GetVolume();
-            m_volumeDragSpanPx    = span;
+            m_scene->m_volumeDragging      = true;
+            m_scene->m_volumeDragStartX    = x;
+            m_scene->m_volumeDragStartGain = m_audio->GetTapeSource().GetVolume();
+            m_scene->m_volumeDragSpanPx    = span;
 
             result = DxuiMessageResult::Handled;
             BAIL_OUT_IF (true, S_OK);
@@ -1440,15 +1441,15 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // released then, with the button still down.
     if (DeskSceneActive() && !m_mainMenu.IsOpen())
     {
-        SceneHitResult  keyHit = RecorderHit (x, y);
+        SceneHitResult  keyHit = m_scene->RecorderHit (x, y);
 
         if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
         {
             int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now().time_since_epoch()).count();
 
-            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
-            m_recorderHeldKey                               = keyHit.recorderKey;
+            m_scene->m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
+            m_scene->m_recorderHeldKey                               = keyHit.recorderKey;
 
             if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
             {
@@ -1462,7 +1463,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // The compass outranks everything on the scene: it is drawn on top,
     // so a press where it sits belongs to it.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen() &&
-        m_sceneCompass.OnPointerDown (x, y))
+        m_scene->m_sceneCompass.OnPointerDown (x, y))
     {
         result = DxuiMessageResult::Handled;
         BAIL_OUT_IF (true, S_OK);
@@ -1472,15 +1473,15 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // the only other thing a press on the scene begins, and which would
     // otherwise swallow the gesture.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() && !m_mainMenu.IsOpen()
-        && !IsGuestMouseLive() && m_deskScene.MaxBezelTiltRad() > 0.0f)
+        && !IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
-        SceneHitResult  hit = DeskSceneHit (x, y);
+        SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
 
         if (hit.target == SceneHitResult::Target::BezelTilt)
         {
-            m_bezelTilting      = true;
-            m_bezelTiltStartPx  = POINT { x, y };
-            m_bezelTiltStartRad = m_deskScene.BezelTiltRad();
+            m_scene->m_bezelTilting      = true;
+            m_scene->m_bezelTiltStartPx  = POINT { x, y };
+            m_scene->m_bezelTiltStartRad = m_scene->m_deskScene.BezelTiltRad();
 
             result = DxuiMessageResult::Handled;
             BAIL_OUT_IF (true, S_OK);
@@ -1515,16 +1516,16 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // that would have fired them ended the turn instead.
     if (DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
         !m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
-        PointInSceneRect (x, y) && !chromeTook)
+        m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
-        SceneHitResult  hit    = DeskSceneHit (x, y);
+        SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
         bool            onDoor = hit.target == SceneHitResult::Target::Drive
                                  && hit.region == DriveWidgetRegion::Eject;
 
         if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
         {
-            BeginSceneOrbit (x, y);
-            m_sceneOrbitLeftBtn = true;
+            m_scene->BeginSceneOrbit (x, y);
+            m_scene->m_sceneOrbitLeftBtn = true;
         }
     }
 
@@ -1597,9 +1598,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // A desk recorder key held under the pointer comes back up with the
     // button, wherever the pointer has gone since.
-    if (m_recorderHeldKey >= 0)
+    if (m_scene->m_recorderHeldKey >= 0)
     {
-        m_recorderHeldKey = -1;
+        m_scene->m_recorderHeldKey = -1;
         m_d3dRenderer.MarkRedrawNeeded();
     }
 
@@ -1637,26 +1638,26 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // Letting go of the volume wheel keeps where it was left, and the release
     // is the drag's, not a click's.
-    if (m_volumeDragging)
+    if (m_scene->m_volumeDragging)
     {
-        m_volumeDragging = false;
-        PersistTapeVolume();
+        m_scene->m_volumeDragging = false;
+        m_scene->PersistTapeVolume();
         return DxuiMessageResult::Handled;
     }
 
     // Ending a pan consumes the release. The press it began with never
     // reached a widget, so letting the release run the click chain would fire
     // whatever the cursor happened to land on after the drag.
-    if (m_scenePanning)
+    if (m_scene->m_scenePanning)
     {
-        m_scenePanning = false;
+        m_scene->m_scenePanning = false;
         return DxuiMessageResult::Handled;
     }
 
     // The compass's release fires its click or ends its drag, and either
     // way the press never reached a widget, so the click chain stays out
     // of it.
-    if (m_sceneCompass.OnPointerUp (x, y))
+    if (m_scene->m_sceneCompass.OnPointerUp (x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1665,12 +1666,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // armed one and never travelled is a click, and swallowing its release
     // would make every press on the machine do nothing at all. Fall through
     // and let the chain below read it as the click it was.
-    if (m_sceneOrbiting && m_sceneOrbitLeftBtn)
+    if (m_scene->m_sceneOrbiting && m_scene->m_sceneOrbitLeftBtn)
     {
-        bool  turned = m_sceneOrbitMoved;
+        bool  turned = m_scene->m_sceneOrbitMoved;
 
-        m_sceneOrbiting   = false;
-        m_sceneOrbitMoved = false;
+        m_scene->m_sceneOrbiting   = false;
+        m_scene->m_sceneOrbitMoved = false;
 
         if (turned)
         {
@@ -1682,10 +1683,10 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // on release rather than on every step of the drag: the tilt is a
     // preference, not an animation, and a file rewritten per mouse-move is a
     // file rewritten a hundred times a second.
-    if (m_bezelTilting)
+    if (m_scene->m_bezelTilting)
     {
-        m_bezelTilting = false;
-        PersistBezelTilt();
+        m_scene->m_bezelTilting = false;
+        m_scene->PersistBezelTilt();
         return DxuiMessageResult::Handled;
     }
 
@@ -1754,9 +1755,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     {
         POINT           pt      = { x, y };
         bool            inStrip = m_d3dRenderer.IsFullscreen() &&
-                                  m_stripRectPx.bottom > m_stripRectPx.top &&
-                                  PtInRect (&m_stripRectPx, pt);
-        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+                                  m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                                  PtInRect (&m_scene->m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
 
         // ONLY THE DOOR ACTS. The body region stays for hover -- the
         // tooltip that names the disk -- but a click there does nothing:
@@ -1769,11 +1770,11 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).
-            m_stripBrowseOpen = inStrip;
+            m_scene->m_stripBrowseOpen = inStrip;
             m_disks->BrowseForDisk (sceneHit.driveIndex,
-                                    inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
-                                            : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
-            m_stripBrowseOpen = false;
+                                    inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
+                                            : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
+            m_scene->m_stripBrowseOpen = false;
 
             driveTook = true;
         }
@@ -1781,14 +1782,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         // The labels under the recorder: its counter sets the position and
         // its name picks a tape, as on the flat deck -- on the strip too,
         // which a dialog opened from it pins, as a drive's browse does.
-        m_stripBrowseOpen = inStrip;
+        m_scene->m_stripBrowseOpen = inStrip;
 
-        if (PtInRect (&m_sceneTapeCounterRect, pt))
+        if (PtInRect (&m_scene->m_sceneTapeCounterRect, pt))
         {
             m_tapeDeck->HandleTapeClick (TapeDeckRegion::Counter);
             driveTook = true;
         }
-        else if (PtInRect (&m_sceneTapeNameRect, pt))
+        else if (PtInRect (&m_scene->m_sceneTapeNameRect, pt))
         {
             m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
             driveTook = true;
@@ -1810,7 +1811,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
-        m_stripBrowseOpen = false;
+        m_scene->m_stripBrowseOpen = false;
     }
     else
     {
@@ -1838,9 +1839,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 // auto-hide under the dialog).
                 RECT  driveRect = drive.GetOuterRect();
 
-                m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
+                m_scene->m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
                 m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
-                m_stripBrowseOpen = false;
+                m_scene->m_stripBrowseOpen = false;
 
                 driveTook = true;
                 break;
@@ -1920,8 +1921,8 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         // and orbit is useful at any zoom. Not in fullscreen, where the desk
         // is not on screen and there is no camera to swing.
         SetCapture (m_hwnd);
-        BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
-        m_sceneOrbitLeftBtn = false;
+        m_scene->BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
+        m_scene->m_sceneOrbitLeftBtn = false;
         result = DxuiMessageResult::Handled;
     }
 
@@ -1946,16 +1947,16 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
-    if (m_sceneOrbiting && !m_sceneOrbitLeftBtn)
+    if (m_scene->m_sceneOrbiting && !m_scene->m_sceneOrbitLeftBtn)
     {
         int      x     = (int) (short) LOWORD (lParam);
         int      y     = (int) (short) HIWORD (lParam);
-        bool     still = std::abs (x - m_sceneOrbitStartPx.x) <= 3 &&
-                         std::abs (y - m_sceneOrbitStartPx.y) <= 3;
+        bool     still = std::abs (x - m_scene->m_sceneOrbitStartPx.x) <= 3 &&
+                         std::abs (y - m_scene->m_sceneOrbitStartPx.y) <= 3;
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        m_sceneOrbiting = false;
+        m_scene->m_sceneOrbiting = false;
         ReleaseCapture();
 
         // A motionless right-click on a drive or the recorder opens its
@@ -1963,7 +1964,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         if (still && StorageDeviceAt (x, y) >= 0)
         {
             ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
-            m_sceneOrbitTapMs = 0;
+            m_scene->m_sceneOrbitTapMs = 0;
             return DxuiMessageResult::Handled;
         }
 
@@ -1971,16 +1972,16 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         // -- the pose home button, without stealing a key.
         if (still)
         {
-            if (nowMs - m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
+            if (nowMs - m_scene->m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
             {
-                m_sceneView.orbitYawRad   = 0.0f;
-                m_sceneView.orbitPitchRad = 0.0f;
-                m_sceneOrbitTapMs         = 0;
-                InvalidateSceneComposition();
+                m_scene->m_sceneView.orbitYawRad   = 0.0f;
+                m_scene->m_sceneView.orbitPitchRad = 0.0f;
+                m_scene->m_sceneOrbitTapMs         = 0;
+                m_scene->InvalidateSceneComposition();
             }
             else
             {
-                m_sceneOrbitTapMs = nowMs;
+                m_scene->m_sceneOrbitTapMs = nowMs;
             }
         }
 
@@ -2035,9 +2036,9 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
     if (DeskSceneActive())
     {
         bool            inStrip  = m_d3dRenderer.IsFullscreen() &&
-                                   m_stripRectPx.bottom > m_stripRectPx.top &&
-                                   PtInRect (&m_stripRectPx, pt);
-        SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                                   PtInRect (&m_scene->m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
@@ -2046,8 +2047,8 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
         // The recorder has its own hit test, which checks whether it is on
         // the strip or the desk; the drives' test does not include it.
-        if (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
-            PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
+        if (m_scene->RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
+            PtInRect (&m_scene->m_sceneTapeCounterRect, pt) || PtInRect (&m_scene->m_sceneTapeNameRect, pt))
         {
             return m_tapeDeck->IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
         }

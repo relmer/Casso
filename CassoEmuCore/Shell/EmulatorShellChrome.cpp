@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
@@ -818,14 +819,14 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         hrLayout = DeskSceneLayout::ComputeGlassFill (full, m_scaler.GetDpi(),
                                                       kFramebufferWidth, kFramebufferHeight,
-                                                      m_deskScene.Metrics(), comp);
+                                                      m_scene->m_deskScene.Metrics(), comp);
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
-        m_deskScene.SetComposition (comp);
+        m_scene->m_deskScene.SetComposition (comp);
         m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
         viewportRect       = full;
 
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (CrtMonitorActive())
     {
@@ -844,20 +845,20 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
             sceneBox          = center;
             sceneBox.bottom   = std::max (center.top, center.bottom - labelStripPx);
 
-            hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.GetDpi(), DeskSceneDriveCount(),
-                                                 m_deskScene.Metrics(), comp,
+            hrLayout = DeskSceneLayout::Compute (sceneBox, m_scaler.GetDpi(), m_scene->DeskSceneDriveCount(),
+                                                 m_scene->m_deskScene.Metrics(), comp,
                                                  m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp),
-                                                 m_sceneView);
+                                                 m_scene->m_sceneView);
             BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
-            m_deskScene.SetComposition (comp);
+            m_scene->m_deskScene.SetComposition (comp);
             m_chromeSceneScale = comp.sceneScale * s_kDeskDriveScale;
 
         }
 
-        viewportRect = m_deskScene.Composition().glassRectPx;
+        viewportRect = m_scene->m_deskScene.Composition().glassRectPx;
 
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (DeskSceneActive() && m_d3dRenderer.IsFullscreen())
     {
@@ -869,9 +870,9 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         m_chromeSceneScale = 1.0f;
         viewportRect       = { 0, 0, widthPx, heightPx };
 
-        m_deskScene.SetComposition (DeskSceneComposition{});
+        m_scene->m_deskScene.SetComposition (DeskSceneComposition{});
 
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (DeskSceneActive())
     {
@@ -900,16 +901,16 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
         // A machine with no Disk ][ controller composes no row at all, and a
         // band too small to solve leaves the scene empty rather than stale.
-        if (DeskSceneDriveCount() > 0)
+        if (m_scene->DeskSceneDriveCount() > 0)
         {
-            composed = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(), DeskSceneDriveCount(),
-                                                      m_deskScene.Metrics(), comp,
+            composed = DeskSceneLayout::ComputeStrip (driveRow, m_scaler.GetDpi(), m_scene->DeskSceneDriveCount(),
+                                                      m_scene->m_deskScene.Metrics(), comp,
                                                       DeskSceneLayout::kDriveBandGazeDownRad) == S_OK;
         }
 
-        m_deskScene.SetComposition (composed ? comp : DeskSceneComposition{});
+        m_scene->m_deskScene.SetComposition (composed ? comp : DeskSceneComposition{});
 
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (m_d3dRenderer.IsFullscreen())
     {
@@ -935,7 +936,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
 
-        LayoutSceneCompass();
+        m_scene->LayoutSceneCompass();
     }
 
     m_viewport->Layout (viewportRect, m_scaler);
@@ -1142,24 +1143,24 @@ void EmulatorShell::ReflowChromeForMachineChange()
     // machine with cassette jacks adds or removes the recorder, which is a
     // reload too. Attaching or detaching the recorder is not: its model stays
     // loaded while the machine has the jacks, and is only shown or hidden.
-    if (m_deskSceneReady &&
-        (MachineHasCaseSwitches() != m_deskSceneMachineIsC ||
-         m_tapeDeck->MachineHasCassettePort() != m_deskScene.IsRecorderLoaded()))
+    if (m_scene->m_deskSceneReady &&
+        (MachineHasCaseSwitches() != m_scene->m_deskSceneMachineIsC ||
+         m_tapeDeck->MachineHasCassettePort() != m_scene->m_deskScene.IsRecorderLoaded()))
     {
-        HRESULT  hrModels = LoadDeskSceneModelsForMachine();
+        HRESULT  hrModels = m_scene->LoadDeskSceneModelsForMachine();
 
         if (SUCCEEDED (hrModels))
         {
-            m_deskScene.SetPowerLampOn (true);
+            m_scene->m_deskScene.SetPowerLampOn (true);
         }
 
         IGNORE_RETURN_VALUE (hrModels, S_OK);
     }
 
-    if (m_deskSceneReady)
+    if (m_scene->m_deskSceneReady)
     {
-        m_deskScene.SetRecorderShown (m_tapeDeck->IsTapeRecorderShown());
-        InvalidateSceneComposition();
+        m_scene->m_deskScene.SetRecorderShown (m_tapeDeck->IsTapeRecorderShown());
+        m_scene->InvalidateSceneComposition();
     }
 
     // Resize the window by the total bottom-band delta -- the drive band

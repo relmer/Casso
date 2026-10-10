@@ -10,6 +10,7 @@
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 
@@ -270,7 +271,7 @@ void ShellTapeDeck::SyncTapeChrome()
 
 
     m_tapeChrome.SyncFromView (view);
-    m_shell.SyncSceneTapeLabel();
+    m_shell.m_scene->SyncSceneTapeLabel();
 
     // A static guest screen presents no frames, and a program loading from
     // tape is exactly that: so while the tape moves, and while a long name may
@@ -329,7 +330,7 @@ void ShellTapeDeck::RegisterTapeDropTarget()
 
     if (m_shell.DeskSceneActive())
     {
-        rect = m_shell.m_deskScene.Composition().recorderRectPx;
+        rect = m_shell.m_scene->GetScene().Composition().recorderRectPx;
     }
     else
     {

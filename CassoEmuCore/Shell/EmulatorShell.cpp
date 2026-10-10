@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -128,6 +129,7 @@ EmulatorShell::EmulatorShell()
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
+    m_scene         = std::make_unique<ShellDeskScene> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -340,6 +342,40 @@ ShellPrinter & EmulatorShell::GetPrinter()
 ShellDisks & EmulatorShell::GetDisks()
 {
     return *m_disks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDeskScene
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDeskScene & EmulatorShell::GetDeskScene()
+{
+    return *m_scene;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneActive
+//
+//  The 3D scene renders whenever a skeuo theme is active and the models
+//  loaded. The DRIVES are not optional -- they are 3D objects in every skeuo
+//  presentation; compact themes keep their flat widgets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DeskSceneActive() const
+{
+    return !m_chromeTheme.compactDrives && m_scene->m_deskSceneReady;
 }
 
 
@@ -865,7 +901,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     }
 
 Error:
-    ApplyChromeThemeByName (m_settings->GetPrefs().activeTheme);
+    m_scene->ApplyChromeThemeByName (m_settings->GetPrefs().activeTheme);
     return;
 }
 
@@ -1173,7 +1209,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     {
         // The 3D scene owns the drives: widgets hidden, drop-target rects
         // from the composition's projected drive bounds.
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (!fHasDisk)
     {

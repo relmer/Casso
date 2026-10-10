@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
@@ -525,7 +526,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // user re-picked the theme in Settings.
     m_settings->GetThemeManager()->AddChangeListener ([this] (const LoadedTheme & t)
     {
-        ApplyChromeThemeByName (t.name);
+        m_scene->ApplyChromeThemeByName (t.name);
 
         // The command bar's theme picker is built from this catalog, and the
         // manager outlives every other path that can change the active theme

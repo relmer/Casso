@@ -494,7 +494,7 @@
     <ClCompile Include="Shell\Window\EmulatorWindow.cpp" />
     <ClCompile Include="Shell\Window\EmulatorWindowInput.cpp" />
     <ClCompile Include="Shell\EmulatorShellChrome.cpp" />
-    <ClCompile Include="Shell\EmulatorShellScene.cpp" />
+    <ClCompile Include="Shell\Components\ShellDeskScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellPresent.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\Components\ShellDisks.cpp" />
@@ -899,6 +899,7 @@
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
+    <ClInclude Include="Shell\Components\ShellDeskScene.h" />
     <ClInclude Include="Shell\Components\ShellDisks.h" />
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />

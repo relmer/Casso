@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
@@ -70,7 +71,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ApplySavedBezelTilt
+//  ShellDeskScene
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDeskScene::ShellDeskScene (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellDeskScene
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDeskScene::~ShellDeskScene() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ApplySavedBezelTilt
 //
 //  Restores the tilt this MONITOR was left at. Keyed by the monitor rather
 //  than by the machine, because the tilt is a property of the thing standing
@@ -83,11 +111,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplySavedBezelTilt()
+void ShellDeskScene::ApplySavedBezelTilt()
 {
-    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
-    auto                 found   = m_settings->GetPrefs().monitorTilt.find (std::string (monitor.configName));
-    float                radians = (found != m_settings->GetPrefs().monitorTilt.end()) ? found->second : 0.0f;
+    const MonitorSpec &  monitor = m_shell.ResolveMonitorForCurrentMachine();
+    auto                 found   = m_shell.m_settings->GetPrefs().monitorTilt.find (std::string (monitor.configName));
+    float                radians = (found != m_shell.m_settings->GetPrefs().monitorTilt.end()) ? found->second : 0.0f;
 
 
 
@@ -100,13 +128,13 @@ void EmulatorShell::ApplySavedBezelTilt()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PersistBezelTilt
+//  ShellDeskScene::PersistBezelTilt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PersistBezelTilt()
+void ShellDeskScene::PersistBezelTilt()
 {
-    const MonitorSpec &  monitor = ResolveMonitorForCurrentMachine();
+    const MonitorSpec &  monitor = m_shell.ResolveMonitorForCurrentMachine();
     float                radians = m_deskScene.BezelTiltRad();
 
 
@@ -118,16 +146,16 @@ void EmulatorShell::PersistBezelTilt()
     // it back.
     if (radians == 0.0f)
     {
-        m_settings->GetPrefs().monitorTilt.erase (std::string (monitor.configName));
+        m_shell.m_settings->GetPrefs().monitorTilt.erase (std::string (monitor.configName));
     }
     else
     {
-        m_settings->GetPrefs().monitorTilt[std::string (monitor.configName)] = radians;
+        m_shell.m_settings->GetPrefs().monitorTilt[std::string (monitor.configName)] = radians;
     }
 
-    if (m_settings->GetConfigStore() != nullptr)
+    if (m_shell.m_settings->GetConfigStore() != nullptr)
     {
-        HRESULT  hr = m_settings->GetConfigStore()->SaveAll (m_settings->GetPrefs(), m_settings->GetFileSystem());
+        HRESULT  hr = m_shell.m_settings->GetConfigStore()->SaveAll (m_shell.m_settings->GetPrefs(), m_shell.m_settings->GetFileSystem());
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -153,15 +181,15 @@ void EmulatorShell::PersistBezelTilt()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
+HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
 {
     // WHICH MONITOR IS A PROPERTY OF THE MACHINE'S CONFIG, not a question
     // asked about its name. The drives still follow the machine, because a
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
     HRESULT                    hr          = S_OK;
-    bool                       isC         = m_disks->MachineHasBuiltInDrive();
-    const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
+    bool                       isC         = m_shell.m_disks->MachineHasBuiltInDrive();
+    const MonitorSpec &        monitor     = m_shell.ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
@@ -176,7 +204,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
 
     // The cassette recorder sits beside the stack only on a machine with
     // cassette jacks to plug it into.
-    if (m_tapeDeck->MachineHasCassettePort())
+    if (m_shell.m_tapeDeck->MachineHasCassettePort())
     {
         recorderMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_CASSETTE_RECORDER_MESH);
         haveTape     = !recorderMesh.empty();
@@ -201,7 +229,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::InitializeDeskScene
+//  ShellDeskScene::InitializeDeskScene
 //
 //  Loads the model pair the ACTIVE MACHINE wore and stands the scene renderer
 //  up on the host device. Missing or unparseable model text is a build defect
@@ -210,13 +238,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::InitializeDeskScene()
+HRESULT ShellDeskScene::InitializeDeskScene()
 {
     HRESULT   hr = S_OK;
 
 
 
-    hr = m_deskScene.Initialize (m_host->GetDevice(), m_host->GetContext());
+    hr = m_deskScene.Initialize (m_shell.m_host->GetDevice(), m_shell.m_host->GetContext());
     CHRA (hr);
 
     // Whether the recorder is attached controls whether its model loads, and
@@ -227,18 +255,18 @@ HRESULT EmulatorShell::InitializeDeskScene()
         const JsonValue  * uiPrefs = nullptr;
         HRESULT            hrOpt   = S_OK;
 
-        m_settings->LoadMachineUiPrefs (doc, uiPrefs);
+        m_shell.m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
         if (uiPrefs != nullptr)
         {
-            m_tapeDeck->LoadRecorderConnected (*uiPrefs);
+            m_shell.m_tapeDeck->LoadRecorderConnected (*uiPrefs);
         }
     }
 
     hr = LoadDeskSceneModelsForMachine();
     CHRA (hr);
 
-    m_deskScene.SetRecorderShown (m_tapeDeck->IsTapeRecorderShown());
+    m_deskScene.SetRecorderShown (m_shell.m_tapeDeck->IsTapeRecorderShown());
 
     // A powered monitor's lamp is lit for as long as the machine exists;
     // drive activity arrives per frame from the drive state sync.
@@ -318,7 +346,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::FallBackFromDeskScene
+//  ShellDeskScene::FallBackFromDeskScene
 //
 //  A skeuomorphic theme draws its drives only as 3D objects in the desk
 //  scene, so with the scene unavailable it would show no drives at all. The
@@ -330,17 +358,17 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::FallBackFromDeskScene()
+void ShellDeskScene::FallBackFromDeskScene()
 {
-    std::string  themeName = m_settings->GetPrefs().activeTheme;
+    std::string  themeName = m_shell.m_settings->GetPrefs().activeTheme;
 
 
 
     m_deskSceneFailed = true;
 
-    if (m_settings->GetThemeManager() != nullptr)
+    if (m_shell.m_settings->GetThemeManager() != nullptr)
     {
-        themeName = m_settings->GetThemeManager()->GetActiveThemeName();
+        themeName = m_shell.m_settings->GetThemeManager()->GetActiveThemeName();
     }
 
     ApplyChromeThemeByName (themeName);
@@ -352,7 +380,7 @@ void EmulatorShell::FallBackFromDeskScene()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ApplyChromeThemeByName
+//  ShellDeskScene::ApplyChromeThemeByName
 //
 //  Builds the chrome theme for a theme name and applies it, standing in a
 //  compact theme when the named one needs the desk scene and the scene has
@@ -361,18 +389,18 @@ void EmulatorShell::FallBackFromDeskScene()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyChromeThemeByName (const std::string & themeName)
+void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 {
     bool  needsDeskScene = !CassoTheme::MakeByName (themeName).compactDrives;
 
 
 
-    m_chromeTheme = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
-    ApplyThemeToChrome (m_chromeTheme);
+    m_shell.m_chromeTheme = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+    m_shell.ApplyThemeToChrome (m_shell.m_chromeTheme);
 
     if (needsDeskScene && m_deskSceneFailed)
     {
-        ShowNotice (kpszDeskSceneFallbackNotice);
+        m_shell.ShowNotice (kpszDeskSceneFallbackNotice);
     }
 }
 
@@ -382,7 +410,7 @@ void EmulatorShell::ApplyChromeThemeByName (const std::string & themeName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::EnsureSceneCalibration
+//  ShellDeskScene::EnsureSceneCalibration
 //
 //  Builds the CASSO_SCENE_DEBUG=2 stripe texture: back-buffer sized, with a
 //  pattern in the fitted picture region expressed in FRAMEBUFFER columns --
@@ -392,11 +420,11 @@ void EmulatorShell::ApplyChromeThemeByName (const std::string & themeName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::EnsureSceneCalibration (const RECT & fittedRect)
+void ShellDeskScene::EnsureSceneCalibration (const RECT & fittedRect)
 {
     HRESULT                  hr     = S_OK;
-    int                      bbW    = m_d3dRenderer.GetBackBufferWidth();
-    int                      bbH    = m_d3dRenderer.GetBackBufferHeight();
+    int                      bbW    = m_shell.m_d3dRenderer.GetBackBufferWidth();
+    int                      bbH    = m_shell.m_d3dRenderer.GetBackBufferHeight();
     D3D11_TEXTURE2D_DESC     desc   = {};
     D3D11_SUBRESOURCE_DATA   init   = {};
     std::vector<uint32_t>    pixels;
@@ -442,11 +470,11 @@ void EmulatorShell::EnsureSceneCalibration (const RECT & fittedRect)
     init.pSysMem     = pixels.data();
     init.SysMemPitch = (UINT) bbW * 4;
 
-    hr = m_host->GetDevice()->CreateTexture2D (&desc, &init, m_sceneCalibTex.GetAddressOf());
+    hr = m_shell.m_host->GetDevice()->CreateTexture2D (&desc, &init, m_sceneCalibTex.GetAddressOf());
     CHR (hr);
 
-    hr = m_host->GetDevice()->CreateShaderResourceView (m_sceneCalibTex.Get(), nullptr,
-                                                        m_sceneCalibSrv.GetAddressOf());
+    hr = m_shell.m_host->GetDevice()->CreateShaderResourceView (m_sceneCalibTex.Get(), nullptr,
+                                                                m_sceneCalibSrv.GetAddressOf());
     CHR (hr);
 
     m_sceneCalibRect = fittedRect;
@@ -461,7 +489,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::DeskSceneHit
+//  ShellDeskScene::DeskSceneHit
 //
 //  One frame of truth: resolves against the composition the scene last
 //  rendered with, so hover, clicks, and pixels can never disagree with what
@@ -471,7 +499,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
+SceneHitResult ShellDeskScene::DeskSceneHit (int xPx, int yPx) const
 {
     float          tiltWorld[16]               = {};
     float          monLo[3]                    = {};
@@ -500,7 +528,7 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
                                          (float) yPx,
                                          kFramebufferWidth,
                                          kFramebufferHeight,
-                                         CrtMonitorActive(),
+                                         m_shell.CrtMonitorActive(),
                                          &m_deskScene.MonitorModel().TiltGrips(),
                                          tiltWorld,
                                          monLo, monHi, drvLo, drvHi,
@@ -517,7 +545,7 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::BuildDriveDoorBoxes
+//  ShellDeskScene::BuildDriveDoorBoxes
 //
 //  THE DOOR IS THE ONE PART OF A DRIVE THAT MOVES, so its click target is
 //  built per frame from where the door actually is rather than read off the
@@ -528,7 +556,7 @@ SceneHitResult EmulatorShell::DeskSceneHit (int xPx, int yPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const
+void ShellDeskScene::BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]) const
 {
     for (int drive = 0; drive < s_kSceneDriveMax; drive++)
     {
@@ -554,11 +582,11 @@ void EmulatorShell::BuildDriveDoorBoxes (DeskRegionBox (& out)[s_kSceneDriveMax]
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StripHit
+//  ShellDeskScene::StripHit
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
+SceneHitResult ShellDeskScene::StripHit (int xPx, int yPx) const
 {
     float          drvLo[3]                     = {};
     float          drvHi[3]                     = {};
@@ -597,20 +625,20 @@ SceneHitResult EmulatorShell::StripHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::RecorderHit
+//  ShellDeskScene::RecorderHit
 //
 //  In fullscreen the recorder exists only on the strip, and only while the
 //  strip is up; the desk composition there holds the glass alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
+SceneHitResult ShellDeskScene::RecorderHit (int xPx, int yPx) const
 {
     POINT  pt = { xPx, yPx };
 
 
 
-    if (!m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_d3dRenderer.IsFullscreen())
     {
         return DeskSceneHit (xPx, yPx);
     }
@@ -629,7 +657,7 @@ SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetVolumeWheelRect
+//  ShellDeskScene::GetVolumeWheelRect
 //
 //  The volume wheel's box through the recorder's placement to the screen,
 //  grown a little so a wheel only a few pixels tall is still easy to take
@@ -637,16 +665,16 @@ SceneHitResult EmulatorShell::RecorderHit (int xPx, int yPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT EmulatorShell::GetVolumeWheelRect (float * widthPx) const
+RECT ShellDeskScene::GetVolumeWheelRect (float * widthPx) const
 {
-    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     const float *                 box     = m_deskScene.RecorderModel().VolumeWheelBox();
     float                         lo[2]   = { FLT_MAX, FLT_MAX };
     float                         hi[2]   = { -FLT_MAX, -FLT_MAX };
-    int                           grow    = m_scaler.ToPx (s_kVolumeWheelSlopDp);
-    bool                          isShown = DeskSceneActive() && (!fs || onStrip) && comp.hasRecorder != 0 &&
+    int                           grow    = m_shell.m_scaler.ToPx (s_kVolumeWheelSlopDp);
+    bool                          isShown = m_shell.DeskSceneActive() && (!fs || onStrip) && comp.hasRecorder != 0 &&
                                             m_deskScene.HasRecorder() && box[3] > box[0];
     RECT                          rect    = {};
 
@@ -674,7 +702,7 @@ RECT EmulatorShell::GetVolumeWheelRect (float * widthPx) const
 
     if (isShown)
     {
-        float  half = (float) m_scaler.ToPx (s_kVolumeWheelMinDp) * 0.5f;
+        float  half = (float) m_shell.m_scaler.ToPx (s_kVolumeWheelMinDp) * 0.5f;
         float  cx   = (lo[0] + hi[0]) * 0.5f;
         float  cy   = (lo[1] + hi[1]) * 0.5f;
 
@@ -691,14 +719,14 @@ RECT EmulatorShell::GetVolumeWheelRect (float * widthPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::DragVolumeWheel
+//  ShellDeskScene::DragVolumeWheel
 //
 //  The volume follows the pointer's travel since the press, across the
 //  whole range in one drag, and its tooltip follows the volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::DragVolumeWheel (int x, int64_t nowMs)
+void ShellDeskScene::DragVolumeWheel (int x, int64_t nowMs)
 {
     float  span = std::max (m_volumeDragSpanPx, 1.0f);
     float  gain = std::clamp (m_volumeDragStartGain + (float) (x - m_volumeDragStartX) / span, 0.0f, 1.0f);
@@ -707,8 +735,8 @@ void EmulatorShell::DragVolumeWheel (int x, int64_t nowMs)
 
     UNREFERENCED_PARAMETER (nowMs);
 
-    SetTapeVolume (gain);
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.SetTapeVolume (gain);
+    m_shell.m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -717,11 +745,11 @@ void EmulatorShell::DragVolumeWheel (int x, int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::FormatTapeVolumeTip
+//  ShellDeskScene::FormatTapeVolumeTip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::FormatTapeVolumeTip (float gain)
+std::wstring ShellDeskScene::FormatTapeVolumeTip (float gain)
 {
     return std::format (L"Volume: {}%", (int) std::lround (gain * 100.0f));
 }
@@ -732,7 +760,7 @@ std::wstring EmulatorShell::FormatTapeVolumeTip (float gain)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PersistTapeVolume
+//  ShellDeskScene::PersistTapeVolume
 //
 //  The wheel's setting is the Settings slider's, saved under the same key, so
 //  either one shows what the other set. Best-effort, like the other
@@ -740,21 +768,21 @@ std::wstring EmulatorShell::FormatTapeVolumeTip (float gain)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PersistTapeVolume()
+void ShellDeskScene::PersistTapeVolume()
 {
     HRESULT                                         hr = S_OK;
     std::vector<std::pair<std::string, JsonValue>>  entries;
 
 
 
-    if (m_settings->GetConfigStore() == nullptr || m_machine.GetCurrentMachineName().empty())
+    if (m_shell.m_settings->GetConfigStore() == nullptr || m_shell.m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
 
-    entries.emplace_back ("tapeVolume", JsonValue ((double) m_audio->GetTapeSource().GetVolume()));
+    entries.emplace_back ("tapeVolume", JsonValue ((double) m_shell.m_audio->GetTapeSource().GetVolume()));
 
-    hr = DiskSettings::WriteSavedUiPrefs (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_machine.GetCurrentMachineName(), entries);
+    hr = DiskSettings::WriteSavedUiPrefs (*m_shell.m_settings->GetConfigStore(), m_shell.m_settings->GetFileSystem(), m_shell.m_machine.GetCurrentMachineName(), entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -764,23 +792,23 @@ void EmulatorShell::PersistTapeVolume()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::InvalidateSceneComposition
+//  ShellDeskScene::InvalidateSceneComposition
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::InvalidateSceneComposition()
+void ShellDeskScene::InvalidateSceneComposition()
 {
     RECT  client = {};
 
 
 
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    if (m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
     {
         return;
     }
 
-    UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.UpdateViewportLayout (client.right - client.left, client.bottom - client.top);
+    m_shell.m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -789,7 +817,7 @@ void EmulatorShell::InvalidateSceneComposition()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ClampSceneView
+//  ShellDeskScene::ClampSceneView
 //
 //  Keeps the framing somewhere a user can get back from.
 //
@@ -801,7 +829,7 @@ void EmulatorShell::InvalidateSceneComposition()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ClampSceneView()
+void ShellDeskScene::ClampSceneView()
 {
     float  slack = 0.0f;
 
@@ -831,8 +859,8 @@ void EmulatorShell::ClampSceneView()
 
         if (vh > 0)
         {
-            extra = 2.0f * (float) m_scaler.ToPx (s_kSceneDriveLabelStripDp +
-                                                  s_kSceneDriveLabelGapDp) / (float) vh;
+            extra = 2.0f * (float) m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp +
+                                                          s_kSceneDriveLabelGapDp) / (float) vh;
         }
 
         m_sceneView.panY = std::clamp (m_sceneView.panY, -slack - extra, slack + extra);
@@ -845,7 +873,7 @@ void EmulatorShell::ClampSceneView()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ZoomSceneAt
+//  ShellDeskScene::ZoomSceneAt
 //
 //  Zooms about a client point rather than about the viewport center, so what
 //  is under the cursor stays under it. Center-anchored zoom would push the
@@ -861,7 +889,7 @@ void EmulatorShell::ClampSceneView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
+void ShellDeskScene::ZoomSceneAt (POINT clientPt, float factor)
 {
     // The box the composition was SOLVED into -- not the client rect and not
     // the glass rect. NDC is defined against this one, so anchoring the zoom
@@ -906,11 +934,11 @@ void EmulatorShell::ZoomSceneAt (POINT clientPt, float factor)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ResetSceneView
+//  ShellDeskScene::ResetSceneView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ResetSceneView()
+void ShellDeskScene::ResetSceneView()
 {
     // THE BEZEL LEANS TOO, and it is part of how the scene is posed even
     // though it does not live in DeskSceneView -- it is a property of the
@@ -949,7 +977,7 @@ void EmulatorShell::ResetSceneView()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::DeskSceneDriveCount
+//  ShellDeskScene::DeskSceneDriveCount
 //
 //  The same gates the 2D widgets use: no Disk II controller means no drives
 //  at all; a //c with the external drive disconnected shows only the
@@ -964,9 +992,9 @@ void EmulatorShell::ResetSceneView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::DeskSceneDriveCount() const
+int ShellDeskScene::DeskSceneDriveCount() const
 {
-    bool  hasDisk = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
+    bool  hasDisk = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
 
 
@@ -978,14 +1006,14 @@ int EmulatorShell::DeskSceneDriveCount() const
     // The //c's drives are not carded -- one is soldered in and the second
     // hangs off the back-panel disk port -- so its slot list says nothing
     // about them and the internal drive is always there.
-    if (m_machine.GetConfig().slots.empty())
+    if (m_shell.m_machine.GetConfig().slots.empty())
     {
-        return m_disks->ShouldShowExternalDrive() ? 2 : 1;
+        return m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1;
     }
 
     // A card with every port empty reports zero, which is the point of being
     // able to detach a drive at all.
-    return m_machine.GetConfig().AttachedDiskIiDriveCount();
+    return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount();
 }
 
 
@@ -994,7 +1022,7 @@ int EmulatorShell::DeskSceneDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncSceneViewReadout
+//  ShellDeskScene::SyncSceneViewReadout
 //
 //  The scene pose -- orbit, zoom and pan -- written across the middle of the
 //  picture.
@@ -1021,7 +1049,7 @@ int EmulatorShell::DeskSceneDriveCount() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneViewReadout()
+void ShellDeskScene::SyncSceneViewReadout()
 {
     const DeskSceneComposition &  comp      = m_deskScene.Composition();
     RECT                          rc        = {};
@@ -1031,7 +1059,7 @@ void EmulatorShell::SyncSceneViewReadout()
 
 
 
-    if (!m_settings->GetPrefs().showSceneView || m_host == nullptr || !posed || !DeskSceneActive())
+    if (!m_shell.m_settings->GetPrefs().showSceneView || m_shell.m_host == nullptr || !posed || !m_shell.DeskSceneActive())
     {
         m_sceneViewReadout.SetVisible (false);
         return;
@@ -1040,8 +1068,8 @@ void EmulatorShell::SyncSceneViewReadout()
     {
         LONG  cx = (comp.monitorRectPx.left + comp.monitorRectPx.right) / 2;
         LONG  cy = (comp.monitorRectPx.top + comp.monitorRectPx.bottom) / 2;
-        LONG  hw = m_scaler.ToPx (s_kScenePoseWidthDp) / 2;
-        LONG  hh = m_scaler.ToPx (s_kScenePoseHeightDp) / 2;
+        LONG  hw = m_shell.m_scaler.ToPx (s_kScenePoseWidthDp) / 2;
+        LONG  hh = m_shell.m_scaler.ToPx (s_kScenePoseHeightDp) / 2;
 
         rc.left   = cx - hw;
         rc.right  = cx + hw;
@@ -1066,8 +1094,8 @@ void EmulatorShell::SyncSceneViewReadout()
 
     m_sceneViewReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
     m_sceneViewReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    m_sceneViewReadout.SetDpi         (m_scaler.GetDpi());
-    m_sceneViewReadout.Layout         (rc, m_scaler);
+    m_sceneViewReadout.SetDpi         (m_shell.m_scaler.GetDpi());
+    m_sceneViewReadout.Layout         (rc, m_shell.m_scaler);
     m_sceneViewReadout.SetVisible     (true);
 }
 
@@ -1077,7 +1105,7 @@ void EmulatorShell::SyncSceneViewReadout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::LayoutSceneCompass
+//  ShellDeskScene::LayoutSceneCompass
 //
 //  The compass sits in the scene viewport's BOTTOM-RIGHT corner, inset far
 //  enough that it reads as furniture of the window rather than part of the
@@ -1087,14 +1115,14 @@ void EmulatorShell::SyncSceneViewReadout()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::LayoutSceneCompass()
+void ShellDeskScene::LayoutSceneCompass()
 {
     RECT   vp       = m_deskScene.Composition().viewportPx;
-    LONG   sidePx   = m_scaler.ToPx (72);
-    LONG   marginPx = m_scaler.ToPx (10);
-    LONG   hintH    = m_scaler.ToPx (s_kCompassHintHeightDp);
-    LONG   hintW    = m_scaler.ToPx (s_kCompassHintWidthDp);
-    bool   show     = DeskSceneActive() && !m_d3dRenderer.IsFullscreen() &&
+    LONG   sidePx   = m_shell.m_scaler.ToPx (72);
+    LONG   marginPx = m_shell.m_scaler.ToPx (10);
+    LONG   hintH    = m_shell.m_scaler.ToPx (s_kCompassHintHeightDp);
+    LONG   hintW    = m_shell.m_scaler.ToPx (s_kCompassHintWidthDp);
+    bool   show     = m_shell.DeskSceneActive() && !m_shell.m_d3dRenderer.IsFullscreen() &&
                       (vp.right - vp.left) > sidePx * 3;
     RECT   rc       = {};
     RECT   hint     = {};
@@ -1113,7 +1141,7 @@ void EmulatorShell::LayoutSceneCompass()
     rc.left   = rc.right  - sidePx;
     rc.top    = rc.bottom - sidePx;
 
-    m_sceneCompass.SetDpi     (m_scaler.GetDpi());
+    m_sceneCompass.SetDpi     (m_shell.m_scaler.GetDpi());
     m_sceneCompass.SetRect    (rc);
     m_sceneCompass.SetVisible (true);
 
@@ -1127,9 +1155,9 @@ void EmulatorShell::LayoutSceneCompass()
     m_compassHint.SetText        (L"Hold Ctrl to pan");
     m_compassHint.SetFontSizeDip (DxuiShadowedText::kFontDip);
     m_compassHint.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    m_compassHint.SetDpi         (m_scaler.GetDpi());
+    m_compassHint.SetDpi         (m_shell.m_scaler.GetDpi());
     m_compassHint.SetOpacity     (m_compassHintOpacity);
-    m_compassHint.Layout         (hint, m_scaler);
+    m_compassHint.Layout         (hint, m_shell.m_scaler);
     m_compassHint.SetVisible     (true);
 }
 
@@ -1139,7 +1167,7 @@ void EmulatorShell::LayoutSceneCompass()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StepCompassHint
+//  ShellDeskScene::StepCompassHint
 //
 //  Fades the compass's hint toward shown while the pointer is over the
 //  compass and toward hidden once it leaves. Returns whether it is still
@@ -1147,7 +1175,7 @@ void EmulatorShell::LayoutSceneCompass()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::StepCompassHint (int64_t nowMs)
+bool ShellDeskScene::StepCompassHint (int64_t nowMs)
 {
     float  target  = (m_sceneCompass.IsVisible() && m_sceneCompass.IsHovered()) ? 1.0f : 0.0f;
     float  elapsed = (m_compassHintStepMs == 0) ? 0.0f : std::clamp ((float) (nowMs - m_compassHintStepMs), 0.0f, 100.0f);
@@ -1175,11 +1203,11 @@ bool EmulatorShell::StepCompassHint (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PointOnCompass
+//  ShellDeskScene::PointOnCompass
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::PointOnCompass (int x, int y) const
+bool ShellDeskScene::PointOnCompass (int x, int y) const
 {
     RECT   rc = m_sceneCompass.GetBounds();
     POINT  pt = { x, y };
@@ -1195,7 +1223,7 @@ bool EmulatorShell::PointOnCompass (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PanSceneByCompass
+//  ShellDeskScene::PanSceneByCompass
 //
 //  A Ctrl+compass gesture moved into the scene's pan, in the pan's own units
 //  (-1..1 across the viewport), with down positive as the pointer's is. The
@@ -1204,7 +1232,7 @@ bool EmulatorShell::PointOnCompass (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PanSceneByCompass (float dx, float dy)
+void ShellDeskScene::PanSceneByCompass (float dx, float dy)
 {
     m_sceneView.panX += dx;
     m_sceneView.panY -= dy;
@@ -1219,7 +1247,7 @@ void EmulatorShell::PanSceneByCompass (float dx, float dy)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncSceneDriveChrome
+//  ShellDeskScene::SyncSceneDriveChrome
 //
 //  The scene owns the drives: the 2D widgets hide (still syncing state for
 //  the //c switch strip and the door FSM), the drag-drop hit registry is
@@ -1229,7 +1257,7 @@ void EmulatorShell::PanSceneByCompass (float dx, float dy)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneDriveChrome()
+void ShellDeskScene::SyncSceneDriveChrome()
 {
     const DeskSceneComposition &  comp = m_deskScene.Composition();
 
@@ -1242,22 +1270,22 @@ void EmulatorShell::SyncSceneDriveChrome()
     // visible panel with empty bounds is one stray Layout away from painting:
     // a resize arranges the docked bands before this runs, so the retired 2D
     // widgets flashed along the bottom edge for a frame under the 3D drives.
-    m_disks->GetDriveChrome()[0].SetVisible (false);
-    m_disks->GetDriveChrome()[1].SetVisible (false);
-    m_disks->GetDriveChrome()[0].Hide();
-    m_disks->GetDriveChrome()[1].Hide();
+    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
+    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
+    m_shell.m_disks->GetDriveChrome()[0].Hide();
+    m_shell.m_disks->GetDriveChrome()[1].Hide();
 
-    m_uiShell.GetHitTester().Clear();
+    m_shell.m_uiShell.GetHitTester().Clear();
 
     for (int i = 0; i < comp.driveCount; i++)
     {
         if (comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            m_uiShell.GetHitTester().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
+            m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
         }
     }
 
-    m_tapeDeck->RegisterTapeDropTarget();
+    m_shell.m_tapeDeck->RegisterTapeDropTarget();
 }
 
 
@@ -1266,7 +1294,7 @@ void EmulatorShell::SyncSceneDriveChrome()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncSceneDriveLabels
+//  ShellDeskScene::SyncSceneDriveLabels
 //
 //  Hangs the mounted image's basename in a strip under each 3D drive, where
 //  the 2D widget's label sat -- the name belongs on screen, not buried in a
@@ -1301,17 +1329,17 @@ void EmulatorShell::SyncSceneDriveChrome()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneDriveLabels()
+void ShellDeskScene::SyncSceneDriveLabels()
 {
     // FULLSCREEN LABELS THE STRIP'S DRIVES, not the desk's: the overlay is
     // the only place drives appear there, and a drive worth revealing is
     // worth naming. Its composition is the strip's, and the labels come and
     // go with the slide.
-    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top &&
                                             m_stripComp.driveCount > 0;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible = DeskSceneActive() && (!fs || onStrip);
+    bool                          visible = m_shell.DeskSceneActive() && (!fs || onStrip);
     float                         fontDip = s_kSceneDriveLabelFontDip;
     // The strip has nothing in front of its drives, so it keeps the chrome
     // label; the desk hands its names to the scene instead.
@@ -1319,11 +1347,11 @@ void EmulatorShell::SyncSceneDriveLabels()
     std::array<std::wstring, 2>                   names;
     std::array<std::wstring, s_kSceneLabelCount>  fullNames;
     int                                           halfW     = GetSceneLabelHalfWidthPx (comp);
-    int                                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    int                                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    int                                           stripH    = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                                           gapPx     = m_shell.m_scaler.ToPx (s_kSceneDriveLabelGapDp);
     SIZE                                          cellPx    = { halfW * 2, stripH };
-    IDxuiTextRenderer                           * text      = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                                         fontPx    = fontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    IDxuiTextRenderer                           * text      = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
+    float                                         fontPx    = fontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
 
 
 
@@ -1338,7 +1366,7 @@ void EmulatorShell::SyncSceneDriveLabels()
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            name = std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
+            name = std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
 
             // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
             // badge stamped on the faceplate -- on a case whose whole job is
@@ -1349,7 +1377,7 @@ void EmulatorShell::SyncSceneDriveLabels()
             // Ahead of the truncation on purpose. Truncation eats the TAIL,
             // so a badge at the head survives however long the name is, and
             // nothing downstream has to keep it out of the ellipsis by hand.
-            if (!name.empty() && m_disks->GetDriveWidgetState()[i].writeProtect.Any())
+            if (!name.empty() && m_shell.m_disks->GetDriveWidgetState()[i].writeProtect.Any())
             {
                 name = std::wstring (s_kpszLock) + L" " + name;
             }
@@ -1383,7 +1411,7 @@ void EmulatorShell::SyncSceneDriveLabels()
         // its own share of the strip and, on the desk, its own baked cell and
         // quad.
         nameRc   = rc;
-        showIcon = !name.empty() && m_disks->GetDriveWidgetState()[i].wozConflict && text != nullptr;
+        showIcon = !name.empty() && m_shell.m_disks->GetDriveWidgetState()[i].wozConflict && text != nullptr;
 
         if (showIcon)
         {
@@ -1412,16 +1440,16 @@ void EmulatorShell::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetText        (name);
         m_sceneDriveLabel[i].SetFontSizeDip (fontDip);
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        m_sceneDriveLabel[i].SetDpi         (m_scaler.GetDpi());
-        m_sceneDriveLabel[i].Layout         (nameRc, m_scaler);
+        m_sceneDriveLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
+        m_sceneDriveLabel[i].Layout         (nameRc, m_shell.m_scaler);
         m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene);
 
         m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
         m_sceneDriveInfoIcon[i].SetFontFace    (DriveWidget::kInfoIconFamily);
         m_sceneDriveInfoIcon[i].SetFontSizeDip (fontDip);
         m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        m_sceneDriveInfoIcon[i].SetDpi         (m_scaler.GetDpi());
-        m_sceneDriveInfoIcon[i].Layout         (iconRc, m_scaler);
+        m_sceneDriveInfoIcon[i].SetDpi         (m_shell.m_scaler.GetDpi());
+        m_sceneDriveInfoIcon[i].Layout         (iconRc, m_shell.m_scaler);
         m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene);
 
         // The icon's own tooltip target, ahead of the name's.
@@ -1437,9 +1465,9 @@ void EmulatorShell::SyncSceneDriveLabels()
     // The recorder's labels work like the drives' labels: the same bake, the
     // same halo, quads and scroll under the pointer -- its tape name,
     // the counter under it, and the name of the key under the pointer.
-    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && m_tapeDeck->IsTapeRecorderShown())
+    if (visible && comp.hasRecorder != 0 && m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
     {
-        TapeDeckView  view = m_tapeDeck->GetTapeView();
+        TapeDeckView  view = m_shell.m_tapeDeck->GetTapeView();
 
         fullNames[s_kSceneTapeNameCell] = TapeDeckWidget::GetDisplayName (view);
 
@@ -1458,7 +1486,7 @@ void EmulatorShell::SyncSceneDriveLabels()
         }
         else if (m_recorderHoverKey == s_kVolumeWheelLabelKey)
         {
-            fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_audio->GetTapeSource().GetVolume());
+            fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_shell.m_audio->GetTapeSource().GetVolume());
         }
     }
 
@@ -1480,7 +1508,7 @@ void EmulatorShell::SyncSceneDriveLabels()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncStripTapeLabels
+//  ShellDeskScene::SyncStripTapeLabels
 //
 //  The recorder's names on the fullscreen strip, where they are chrome as
 //  the drives' are: the tape name under the recorder's front edge with the
@@ -1489,14 +1517,14 @@ void EmulatorShell::SyncSceneDriveLabels()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition                       & comp,
-                                         bool                                               onStrip,
-                                         const std::array<std::wstring, s_kSceneLabelCount> & names)
+void ShellDeskScene::SyncStripTapeLabels (const DeskSceneComposition                       & comp,
+                                          bool                                               onStrip,
+                                          const std::array<std::wstring, s_kSceneLabelCount> & names)
 {
     static constexpr int  kCells[3] = { s_kSceneTapeNameCell, s_kSceneCounterCell, s_kSceneKeyCell };
     int                   halfW     = GetSceneLabelHalfWidthPx (comp);
-    int                   stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    int                   gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    int                   stripH    = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                   gapPx     = m_shell.m_scaler.ToPx (s_kSceneDriveLabelGapDp);
 
 
 
@@ -1530,8 +1558,8 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
         m_stripTapeLabel[i].SetText        (name);
         m_stripTapeLabel[i].SetFontSizeDip (s_kSceneDriveLabelFontDip);
         m_stripTapeLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-        m_stripTapeLabel[i].SetDpi         (m_scaler.GetDpi());
-        m_stripTapeLabel[i].Layout         (rc, m_scaler);
+        m_stripTapeLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
+        m_stripTapeLabel[i].Layout         (rc, m_shell.m_scaler);
         m_stripTapeLabel[i].SetVisible     (!name.empty());
     }
 }
@@ -1542,7 +1570,7 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetStripLabelMarquee
+//  ShellDeskScene::SetStripLabelMarquee
 //
 //  A strip label whose name is too long for its rect is shown whole and
 //  scrolled while the pointer is on it, by the same clock and the same
@@ -1551,11 +1579,11 @@ void EmulatorShell::SyncStripTapeLabels (const DeskSceneComposition             
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetStripLabelMarquee (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc)
+void ShellDeskScene::SetStripLabelMarquee (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc)
 {
     HRESULT              hr     = E_FAIL;
-    IDxuiTextRenderer *  text   = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
-    float                fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    IDxuiTextRenderer *  text   = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
+    float                fontPx = s_kSceneDriveLabelFontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
     float                textW  = 0.0f;
     float                textH  = 0.0f;
     float                period = 0.0f;
@@ -1571,7 +1599,7 @@ void EmulatorShell::SetStripLabelMarquee (DxuiShadowedText & label, int cell, co
 
     if (SUCCEEDED (hr) && textW > (float) (rc.right - rc.left) - 2.0f * DxuiShadowedText::kGlowReachPx)
     {
-        period = ceilf (textW + (float) m_scaler.ToPx (s_kSceneLabelScrollGapDp));
+        period = ceilf (textW + (float) m_shell.m_scaler.ToPx (s_kSceneLabelScrollGapDp));
     }
 
     m_sceneDiskLabelPeriod[(size_t) cell] = period;
@@ -1585,17 +1613,17 @@ void EmulatorShell::SetStripLabelMarquee (DxuiShadowedText & label, int cell, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::UpdateSceneLabelHover
+//  ShellDeskScene::UpdateSceneLabelHover
 //
 //  Which desk drive the pointer is on, by its face or its name, so that
 //  drive's name can scroll. Returns whether that changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
+bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 {
     // In fullscreen the names are the strip's, while it is up.
-    bool                          fs      = m_d3dRenderer.IsFullscreen();
+    bool                          fs      = m_shell.m_d3dRenderer.IsFullscreen();
     bool                          onStrip = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp    = onStrip ? m_stripComp : m_deskScene.Composition();
     POINT                         pt      = { x, y };
@@ -1604,7 +1632,7 @@ bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 
 
-    if (DeskSceneActive() && (!fs || onStrip))
+    if (m_shell.DeskSceneActive() && (!fs || onStrip))
     {
         for (int i = 0; i < comp.driveCount && i < (int) m_sceneDriveLabelRect.size(); i++)
         {
@@ -1638,17 +1666,17 @@ bool EmulatorShell::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetSceneLabelScrollPx
+//  ShellDeskScene::GetSceneLabelScrollPx
 //
 //  How far along its double bake a desk name's window has slid: zero for a
 //  name that fits or a drive the pointer is not on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
+float ShellDeskScene::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 {
     float    period   = m_sceneDiskLabelPeriod[(size_t) drive];
-    float    speed    = (float) m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
+    float    speed    = (float) m_shell.m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
     int64_t  scrollMs = 0;
 
 
@@ -1675,7 +1703,7 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncRecorderKeys
+//  ShellDeskScene::SyncRecorderKeys
 //
 //  Positions the desk recorder's keys as they are latched (LatchRecorderKeys):
 //  Record, Rewind, Fast-forward and Play stay down from the press until Stop,
@@ -1684,12 +1712,12 @@ float EmulatorShell::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
+bool ShellDeskScene::SyncRecorderKeys (int64_t nowMs)
 {
     constexpr float                                       kTravelMm = 6.0f;   // how far a key goes down
     constexpr int64_t                                     kDipMs    = 160;   // held down long enough to reach the bottom
     constexpr size_t                                      kRecord   = 0, kRewind = 1, kForward = 2, kPlay = 3;
-    TapeDeckView                                          view      = m_tapeDeck->GetTapeView();
+    TapeDeckView                                          view      = m_shell.m_tapeDeck->GetTapeView();
     TapeTransport                                         transport = view.transport;
     std::array<float, DeskSceneModel::kRecorderKeyCount>  depths    = {};
     bool                                                  dipping   = false;
@@ -1698,12 +1726,12 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
     // A reset, a power cycle or an empty deck releases every key, and so does
     // a Stop or Eject press once the key has reached the bottom of its stroke.
-    if (m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
-        (m_tapeDeck->GetKeyReleaseAtMs() != 0 && nowMs >= m_tapeDeck->GetKeyReleaseAtMs()))
+    if (m_shell.m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
+        (m_shell.m_tapeDeck->GetKeyReleaseAtMs() != 0 && nowMs >= m_shell.m_tapeDeck->GetKeyReleaseAtMs()))
     {
-        m_seenTapeResets      = m_machine.GetTapeResetCount();
-        m_tapeDeck->SetKeyReleaseAtMs (0);
-        m_tapeDeck->GetKeyLatches().fill (false);
+        m_seenTapeResets      = m_shell.m_machine.GetTapeResetCount();
+        m_shell.m_tapeDeck->SetKeyReleaseAtMs (0);
+        m_shell.m_tapeDeck->GetKeyLatches().fill (false);
     }
 
     // A key is released when the deck stops by itself -- auto stop, or the
@@ -1712,9 +1740,9 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
     {
         bool  wasMoving = m_seenTransport != TapeTransport::Empty && m_seenTransport != TapeTransport::Stopped;
 
-        if (wasMoving && transport == TapeTransport::Stopped && m_tapeDeck->GetKeyReleaseAtMs() == 0)
+        if (wasMoving && transport == TapeTransport::Stopped && m_shell.m_tapeDeck->GetKeyReleaseAtMs() == 0)
         {
-            m_tapeDeck->GetKeyLatches().fill (false);
+            m_shell.m_tapeDeck->GetKeyLatches().fill (false);
         }
 
         m_seenTransport = transport;
@@ -1722,22 +1750,22 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
     // The Rewind or Fast-forward key is released once the tape has reached
     // the end it was moving toward and stopped there.
-    if (m_tapeDeck->GetKeyLatches()[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
+    if (m_shell.m_tapeDeck->GetKeyLatches()[kRewind] && transport != TapeTransport::Rewinding && view.positionSeconds <= 0.0)
     {
-        m_tapeDeck->GetKeyLatches()[kRewind] = false;
+        m_shell.m_tapeDeck->GetKeyLatches()[kRewind] = false;
     }
 
-    if (m_tapeDeck->GetKeyLatches()[kForward] && transport != TapeTransport::FastForwarding &&
+    if (m_shell.m_tapeDeck->GetKeyLatches()[kForward] && transport != TapeTransport::FastForwarding &&
         view.positionSeconds >= view.lengthSeconds)
     {
-        m_tapeDeck->GetKeyLatches()[kForward] = false;
+        m_shell.m_tapeDeck->GetKeyLatches()[kForward] = false;
     }
 
-    dipping = m_tapeDeck->GetKeyReleaseAtMs() != 0 || m_recorderHeldKey >= 0;
+    dipping = m_shell.m_tapeDeck->GetKeyReleaseAtMs() != 0 || m_recorderHeldKey >= 0;
 
     for (size_t key = 0; key < depths.size(); key++)
     {
-        depths[key] = (m_tapeDeck->GetKeyLatches()[key] || (int) key == m_recorderHeldKey) ? kTravelMm : 0.0f;
+        depths[key] = (m_shell.m_tapeDeck->GetKeyLatches()[key] || (int) key == m_recorderHeldKey) ? kTravelMm : 0.0f;
     }
 
     for (size_t key = 0; key < depths.size(); key++)
@@ -1843,7 +1871,7 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncSceneTapeLabel
+//  ShellDeskScene::SyncSceneTapeLabel
 //
 //  The desk recorder's tape name, with its counter under it, hung below the
 //  recorder's front edge as the drives' names hang below theirs: the name
@@ -1852,21 +1880,21 @@ bool EmulatorShell::SyncRecorderKeys (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneTapeLabel()
+void ShellDeskScene::SyncSceneTapeLabel()
 {
     // In fullscreen the recorder is on the strip, while the strip is up.
-    bool                          fs        = m_d3dRenderer.IsFullscreen();
+    bool                          fs        = m_shell.m_d3dRenderer.IsFullscreen();
     bool                          onStrip   = fs && m_stripRectPx.bottom > m_stripRectPx.top;
     const DeskSceneComposition &  comp      = onStrip ? m_stripComp : m_deskScene.Composition();
-    bool                          visible   = DeskSceneActive() && (!fs || onStrip) &&
+    bool                          visible   = m_shell.DeskSceneActive() && (!fs || onStrip) &&
                                               comp.hasRecorder != 0 && m_deskScene.HasRecorder() &&
-                                              m_tapeDeck->IsTapeRecorderShown();
-    TapeDeckView                  view      = m_tapeDeck->GetTapeView();
+                                              m_shell.m_tapeDeck->IsTapeRecorderShown();
+    TapeDeckView                  view      = m_shell.m_tapeDeck->GetTapeView();
     float                         anchor[3] = {};
     float                         screen[2] = {};
     int                           halfW     = GetSceneLabelHalfWidthPx (comp);
-    int                           stripH    = m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-    int                           gapPx     = m_scaler.ToPx (s_kSceneDriveLabelGapDp);
+    int                           stripH    = m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    int                           gapPx     = m_shell.m_scaler.ToPx (s_kSceneDriveLabelGapDp);
     std::wstring                  shown;
 
 
@@ -1892,14 +1920,14 @@ void EmulatorShell::SyncSceneTapeLabel()
         shown = TapeDeckWidget::GetDisplayName (view) + L"|" +
                 TapeDeckWidget::FormatTime (view.positionSeconds) + L"|" +
                 std::to_wstring (m_recorderHoverKey) + L"|" + std::to_wstring ((int) view.transport) + L"|" +
-                FormatTapeVolumeTip (m_audio->GetTapeSource().GetVolume());
+                FormatTapeVolumeTip (m_shell.m_audio->GetTapeSource().GetVolume());
     }
 
     if (shown != m_sceneTapeLabelShown)
     {
         m_sceneTapeLabelShown = shown;
         SyncSceneDriveLabels();
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_d3dRenderer.MarkRedrawNeeded();
     }
 }
 
@@ -1909,7 +1937,7 @@ void EmulatorShell::SyncSceneTapeLabel()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetRecorderLabelAnchor
+//  ShellDeskScene::GetRecorderLabelAnchor
 //
 //  The world point a recorder label hangs from: the middle of the recorder's
 //  front edge at the desk for its tape name (key -1), or the front of a key
@@ -1917,7 +1945,7 @@ void EmulatorShell::SyncSceneTapeLabel()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3])
+bool ShellDeskScene::GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3])
 {
     float  lo[3]    = {};
     float  hi[3]    = {};
@@ -1965,7 +1993,7 @@ bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetSceneLabelHalfWidthPx
+//  ShellDeskScene::GetSceneLabelHalfWidthPx
 //
 //  Half the width every name under the devices gets: the full label width,
 //  but never more than half the space between two neighbors' names, so a
@@ -1974,13 +2002,13 @@ bool EmulatorShell::GetRecorderLabelAnchor (const DeskSceneComposition & comp, i
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
+int ShellDeskScene::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
 {
     std::vector<float>  centers;
     float               anchor[3] = {};
     float               screen[2] = {};
-    int                 halfW     = m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
-    int                 margin    = m_scaler.ToPx (s_kSceneLabelNeighborGapDp);
+    int                 halfW     = m_shell.m_scaler.ToPx (s_kSceneDriveLabelWidthDp) / 2;
+    int                 margin    = m_shell.m_scaler.ToPx (s_kSceneLabelNeighborGapDp);
 
 
 
@@ -2011,7 +2039,7 @@ int EmulatorShell::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TryMakeSceneLabelQuad
+//  ShellDeskScene::TryMakeSceneLabelQuad
 //
 //  Where a baked label stands: a drive's under the drive, the recorder's tape
 //  name under its front edge with the counter under that, and a key's name
@@ -2019,14 +2047,14 @@ int EmulatorShell::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, int cell, const SIZE & cellPx,
-                                           int gapPx, float corners[4][3])
+bool ShellDeskScene::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, int cell, const SIZE & cellPx,
+                                            int gapPx, float corners[4][3])
 {
     float  anchor[3] = {};
     bool   isIcon    = (cell >= kSceneInfoIconCell);
     int    drive     = isIcon ? cell - kSceneInfoIconCell : cell;
     SIZE   size      = { GetSceneLabelCellWidthPx (cell, cellPx), cellPx.cy };
-    float  fontPx    = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    float  fontPx    = s_kSceneDriveLabelFontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
     int    dropPx    = isIcon ? (int) lroundf (fontPx * DriveWidget::kInfoIconDropEm) : 0;
 
 
@@ -2061,7 +2089,7 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TryMakeCassetteTitleQuad
+//  ShellDeskScene::TryMakeCassetteTitleQuad
 //
 //  The cassette's title lies flat on its label, in the recorder's own frame,
 //  so it turns and foreshortens with the cassette as anything written on it
@@ -2072,7 +2100,7 @@ bool EmulatorShell::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, in
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3])
+bool ShellDeskScene::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3])
 {
     const float *  box    = m_deskScene.RecorderModel().CassetteTitleBox();
     float          areaW  = box[3] - box[0];
@@ -2112,7 +2140,7 @@ bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SyncSceneDiskLabelQuads
+//  ShellDeskScene::SyncSceneDiskLabelQuads
 //
 //  Puts both names in the scene: one baked texture, two camera-facing quads.
 //
@@ -2127,12 +2155,12 @@ bool EmulatorShell::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kSceneLabelCount> & names,
-                                             const SIZE                                         & cellPx,
-                                             int                                                  gapPx)
+void ShellDeskScene::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kSceneLabelCount> & names,
+                                              const SIZE                                         & cellPx,
+                                              int                                                  gapPx)
 {
     const DeskSceneComposition  & comp  = m_deskScene.Composition();
-    IDxuiTextRenderer           * text  = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    IDxuiTextRenderer           * text  = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
     UINT                          texW  = 0;
     UINT                          texH  = 0;
     int64_t                       nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -2202,7 +2230,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetSceneLabelCellTopPx
+//  ShellDeskScene::GetSceneLabelCellTopPx
 //
 //  Where a label's cell starts in the baked texture. The cells are stacked
 //  with a glow's reach of empty texture above and below each: a name's glow
@@ -2211,7 +2239,7 @@ void EmulatorShell::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_kS
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
+LONG ShellDeskScene::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
 {
     LONG  pad = (LONG) ceilf (DxuiShadowedText::kGlowReachPx);
     LONG  top = pad;
@@ -2232,7 +2260,7 @@ LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PaintHandwritten
+//  ShellDeskScene::PaintHandwritten
 //
 //  Writes `name` across a cell as a hand would, in two rows: on the upper
 //  row when it fits there comfortably, otherwise broken across both at the
@@ -2241,8 +2269,8 @@ LONG EmulatorShell::GetSceneLabelCellTopPx (int cell, const SIZE & cellPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
-                                      float width, float height)
+void ShellDeskScene::PaintHandwritten (IDxuiTextRenderer & text, const std::wstring & name, float top,
+                                       float width, float height)
 {
     std::vector<InkGlyph>               glyphs;
     std::vector<std::vector<InkGlyph>>  rows;
@@ -2290,7 +2318,7 @@ void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::LayOutInk
+//  ShellDeskScene::LayOutInk
 //
 //  Each letter as a hand writes it: a little larger or smaller than the
 //  last, a little above or below the line, a little further or closer, at
@@ -2300,8 +2328,8 @@ void EmulatorShell::PaintHandwritten (IDxuiTextRenderer & text, const std::wstri
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::LayOutInk (IDxuiTextRenderer & text, const std::wstring & name, float basePx, uint32_t & seed,
-                               std::vector<InkGlyph> & glyphs)
+void ShellDeskScene::LayOutInk (IDxuiTextRenderer & text, const std::wstring & name, float basePx, uint32_t & seed,
+                                std::vector<InkGlyph> & glyphs)
 {
     for (wchar_t ch : name)
     {
@@ -2341,11 +2369,11 @@ void EmulatorShell::LayOutInk (IDxuiTextRenderer & text, const std::wstring & na
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetInkWidth
+//  ShellDeskScene::GetInkWidth
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float EmulatorShell::GetInkWidth (const std::vector<InkGlyph> & glyphs)
+float ShellDeskScene::GetInkWidth (const std::vector<InkGlyph> & glyphs)
 {
     float  total = 0.0f;
 
@@ -2365,7 +2393,7 @@ float EmulatorShell::GetInkWidth (const std::vector<InkGlyph> & glyphs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SplitInk
+//  ShellDeskScene::SplitInk
 //
 //  Breaks a line in two at the space that leaves the longer half shortest,
 //  dropping the space. A title with no space breaks where the halves come
@@ -2373,8 +2401,8 @@ float EmulatorShell::GetInkWidth (const std::vector<InkGlyph> & glyphs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SplitInk (const std::vector<InkGlyph> & glyphs, std::vector<InkGlyph> & first,
-                              std::vector<InkGlyph> & second)
+void ShellDeskScene::SplitInk (const std::vector<InkGlyph> & glyphs, std::vector<InkGlyph> & first,
+                               std::vector<InkGlyph> & second)
 {
     float   total    = GetInkWidth (glyphs);
     float   before   = 0.0f;
@@ -2409,7 +2437,7 @@ void EmulatorShell::SplitInk (const std::vector<InkGlyph> & glyphs, std::vector<
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::FillInk
+//  ShellDeskScene::FillInk
 //
 //  Breaks a line at the last space that leaves the first row within
 //  `width`, dropping the space -- or, if no word fits, at the last letter
@@ -2417,8 +2445,8 @@ void EmulatorShell::SplitInk (const std::vector<InkGlyph> & glyphs, std::vector<
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::FillInk (const std::vector<InkGlyph> & glyphs, float width, std::vector<InkGlyph> & first,
-                             std::vector<InkGlyph> & second)
+void ShellDeskScene::FillInk (const std::vector<InkGlyph> & glyphs, float width, std::vector<InkGlyph> & first,
+                              std::vector<InkGlyph> & second)
 {
     float   used    = 0.0f;
     size_t  fits    = 0;
@@ -2451,15 +2479,15 @@ void EmulatorShell::FillInk (const std::vector<InkGlyph> & glyphs, float width, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::FitInk
+//  ShellDeskScene::FitInk
 //
 //  A row too long for the cell loses letters from its end, and any space
 //  left there, until it and an ellipsis fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::FitInk (IDxuiTextRenderer & text, std::vector<InkGlyph> & row, float width, float basePx,
-                            uint32_t & seed)
+void ShellDeskScene::FitInk (IDxuiTextRenderer & text, std::vector<InkGlyph> & row, float width, float basePx,
+                             uint32_t & seed)
 {
     std::vector<InkGlyph>  ellipsis;
 
@@ -2486,7 +2514,7 @@ void EmulatorShell::FitInk (IDxuiTextRenderer & text, std::vector<InkGlyph> & ro
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::DrawInkRow
+//  ShellDeskScene::DrawInkRow
 //
 //  One row of letters, centered across the cell, each at its own size,
 //  rise, lean and pressure. A heavy letter is gone over twice, a hair apart,
@@ -2494,8 +2522,8 @@ void EmulatorShell::FitInk (IDxuiTextRenderer & text, std::vector<InkGlyph> & ro
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::DrawInkRow (IDxuiTextRenderer & text, const std::vector<InkGlyph> & row, float top, float width,
-                                float height)
+void ShellDeskScene::DrawInkRow (IDxuiTextRenderer & text, const std::vector<InkGlyph> & row, float top, float width,
+                                 float height)
 {
     float  x     = (width - GetInkWidth (row)) * 0.5f;
     float  pivot = top + height * 0.75f;
@@ -2532,13 +2560,13 @@ void EmulatorShell::DrawInkRow (IDxuiTextRenderer & text, const std::vector<InkG
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::NextWobble
+//  ShellDeskScene::NextWobble
 //
 //  The next of a seeded run of values from -1 to 1 (xorshift).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float EmulatorShell::NextWobble (uint32_t & seed)
+float ShellDeskScene::NextWobble (uint32_t & seed)
 {
     seed ^= seed << 13;
     seed ^= seed >> 17;
@@ -2553,7 +2581,7 @@ float EmulatorShell::NextWobble (uint32_t & seed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetSceneLabelCellHeightPx
+//  ShellDeskScene::GetSceneLabelCellHeightPx
 //
 //  Every cell is a name strip tall, except the cassette's title, which is
 //  written larger across the label and gets a taller cell so its letters
@@ -2561,7 +2589,7 @@ float EmulatorShell::NextWobble (uint32_t & seed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
+LONG ShellDeskScene::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 {
     return (cell == s_kSceneCassetteCell) ? cellPx.cy * s_kCassetteCellTall : cellPx.cy;
 }
@@ -2572,7 +2600,7 @@ LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetSceneLabelCellWidthPx
+//  ShellDeskScene::GetSceneLabelCellWidthPx
 //
 //  The cassette's title cell takes the writing area's aspect ratio, its height
 //  times the area's width over its depth, so the quad laid over the area
@@ -2581,7 +2609,7 @@ LONG EmulatorShell::GetSceneLabelCellHeightPx (int cell, const SIZE & cellPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) const
+LONG ShellDeskScene::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) const
 {
     const float *  box   = m_deskScene.RecorderModel().CassetteTitleBox();
     float          areaW = box[3] - box[0];
@@ -2609,7 +2637,7 @@ LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TryBakeSceneDiskLabels
+//  ShellDeskScene::TryBakeSceneDiskLabels
 //
 //  Draws every label into one off-screen texture, stacked, and keeps the view.
 //
@@ -2627,13 +2655,13 @@ LONG EmulatorShell::GetSceneLabelCellWidthPx (int cell, const SIZE & cellPx) con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSceneLabelCount> & names,
-                                            const SIZE                                         & cellPx)
+bool ShellDeskScene::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSceneLabelCount> & names,
+                                             const SIZE                                         & cellPx)
 {
     // Baked white, which is what the chrome label has always defaulted to;
     // the glow behind it is what separates it from the case.
     constexpr uint32_t           kLabelArgb = 0xFFFFFFFF;
-    IDxuiTextRenderer         *  text       = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    IDxuiTextRenderer         *  text       = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
     ID3D11ShaderResourceView  *  srv        = nullptr;
     float                        fontPx     = 0.0f;
     LONG                         bakeW      = cellPx.cx;
@@ -2647,7 +2675,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
     }
 
     // The same DIP-to-pixel the chrome label paints at.
-    fontPx = s_kSceneDriveLabelFontDip * (float) m_scaler.GetDpi() / (float) s_kBaseDpi;
+    fontPx = s_kSceneDriveLabelFontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
 
     // A name too long for its cell is baked whole, twice, a gap apart, so the
     // quad can slide its window along it and come back to the start without a
@@ -2670,7 +2698,7 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
         if (SUCCEEDED (hrMeasure) && textW > (float) GetSceneLabelCellWidthPx (i, cellPx) - 2.0f * DxuiShadowedText::kGlowReachPx)
         {
-            m_sceneDiskLabelPeriod[i] = ceilf (textW + (float) m_scaler.ToPx (s_kSceneLabelScrollGapDp));
+            m_sceneDiskLabelPeriod[i] = ceilf (textW + (float) m_shell.m_scaler.ToPx (s_kSceneLabelScrollGapDp));
             bakeW = max (bakeW, GetSceneLabelCellWidthPx (i, cellPx) + (LONG) m_sceneDiskLabelPeriod[i]);
         }
     }
@@ -2753,14 +2781,14 @@ bool EmulatorShell::TryBakeSceneDiskLabels (const std::array<std::wstring, s_kSc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ClearSceneDiskLabels
+//  ShellDeskScene::ClearSceneDiskLabels
 //
 //  Retires both quads and forgets what was baked, so the next name that needs
 //  one bakes rather than reusing a texture drawn for a different cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ClearSceneDiskLabels()
+void ShellDeskScene::ClearSceneDiskLabels()
 {
     for (int i = 0; i < (int) m_sceneDiskLabelText.size(); i++)
     {
@@ -2778,7 +2806,7 @@ void EmulatorShell::ClearSceneDiskLabels()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PlaceSceneNameAndIcon
+//  ShellDeskScene::PlaceSceneNameAndIcon
 //
 //  Laid out on the ink, inside the halo's reach at either end of the strip,
 //  and each part's rect then gets its own halo back. That way the name and
@@ -2793,7 +2821,7 @@ void EmulatorShell::ClearSceneDiskLabels()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PlaceSceneNameAndIcon (
+void ShellDeskScene::PlaceSceneNameAndIcon (
     IDxuiTextRenderer   & text,
     const std::wstring  & name,
     float                 fontPx,
@@ -2805,12 +2833,12 @@ void EmulatorShell::PlaceSceneNameAndIcon (
     HRESULT             hr      = S_OK;
     HRESULT             hrGlyph = S_OK;
     float               halo    = (float) DxuiShadowedText::kGlowReachPx;
-    float               gap     = (float) m_scaler.ToPx (s_kSceneInfoIconGapDp);
+    float               gap     = (float) m_shell.m_scaler.ToPx (s_kSceneInfoIconGapDp);
     float               textW   = 0.0f;
     float               textH   = 0.0f;
     float               glyphW  = 0.0f;
     float               glyphH  = 0.0f;
-    float               iconW   = (float) m_scaler.ToPx (s_kSceneInfoIconWidthDp);
+    float               iconW   = (float) m_shell.m_scaler.ToPx (s_kSceneInfoIconWidthDp);
     LONG                dropPx  = (LONG) lroundf (fontPx * DriveWidget::kInfoIconDropEm);
     DriveNameRowLayout  row;
 
@@ -2862,7 +2890,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetSceneAntiAliasing
+//  ShellDeskScene::SetSceneAntiAliasing
 //
 //  The scene's multisampling, in samples (1 / 2 / 4). Applies to the very next
 //  frame -- the renderer drops its offscreen targets and rebuilds them at the
@@ -2870,31 +2898,31 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetSceneAntiAliasing (int samples)
+void ShellDeskScene::SetSceneAntiAliasing (int samples)
 {
     HRESULT  hr     = S_OK;
     int      wanted = (samples >= 4) ? 4 : ((samples >= 2) ? 2 : 1);
 
 
 
-    BAIL_OUT_IF (m_settings->GetPrefs().sceneAntiAliasing == wanted, S_OK);
+    BAIL_OUT_IF (m_shell.m_settings->GetPrefs().sceneAntiAliasing == wanted, S_OK);
 
-    m_settings->GetPrefs().sceneAntiAliasing = wanted;
+    m_shell.m_settings->GetPrefs().sceneAntiAliasing = wanted;
 
     ApplySceneAntiAliasing();
 
-    if (m_settings->GetConfigStore() != nullptr)
+    if (m_shell.m_settings->GetConfigStore() != nullptr)
     {
-        hr = m_settings->GetConfigStore()->SaveAll (m_settings->GetPrefs(), m_settings->GetFileSystem());
+        hr = m_shell.m_settings->GetConfigStore()->SaveAll (m_shell.m_settings->GetPrefs(), m_shell.m_settings->GetFileSystem());
     }
     else
     {
-        hr = m_settings->GetPrefs().Save (m_machine.GetAssetBaseDir(), m_settings->GetFileSystem());
+        hr = m_shell.m_settings->GetPrefs().Save (m_shell.m_machine.GetAssetBaseDir(), m_shell.m_settings->GetFileSystem());
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_d3dRenderer.MarkRedrawNeeded();
 
 Error:
     return;
@@ -2906,7 +2934,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ApplySceneAntiAliasing
+//  ShellDeskScene::ApplySceneAntiAliasing
 //
 //  Pushes the stored count at every renderer that draws the scene. Separate
 //  from the setter because startup has to apply it too, without re-saving the
@@ -2914,9 +2942,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplySceneAntiAliasing()
+void ShellDeskScene::ApplySceneAntiAliasing()
 {
-    m_deskScene.SetSampleCount ((UINT) m_settings->GetPrefs().sceneAntiAliasing);
+    m_deskScene.SetSampleCount ((UINT) m_shell.m_settings->GetPrefs().sceneAntiAliasing);
 }
 
 
@@ -2932,7 +2960,7 @@ void EmulatorShell::ApplySceneAntiAliasing()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PanSceneByNotch
+//  ShellDeskScene::PanSceneByNotch
 //
 //  A touchpad slide, in wheel notches, moved into the scene's pan.
 //
@@ -2957,7 +2985,7 @@ void EmulatorShell::ApplySceneAntiAliasing()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
+DxuiMessageResult ShellDeskScene::PanSceneByNotch (float notch, bool horizontal)
 {
     if (m_sceneView.zoom <= 1.0f)
     {
@@ -2985,7 +3013,7 @@ DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OrbitSceneBy / BeginSceneOrbit / UpdateSceneOrbit
+//  ShellDeskScene::OrbitSceneBy / BeginSceneOrbit / UpdateSceneOrbit
 //
 //  The inspection orbit: the camera swings about its gaze target so every
 //  side of the devices can be looked at. The signs follow the touch drag's
@@ -3002,7 +3030,7 @@ DxuiMessageResult EmulatorShell::PanSceneByNotch (float notch, bool horizontal)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OrbitSceneBy (float yawRad, float pitchRad)
+void ShellDeskScene::OrbitSceneBy (float yawRad, float pitchRad)
 {
     constexpr float  kTwoPi = 6.2831853f;
 
@@ -3031,14 +3059,14 @@ void EmulatorShell::OrbitSceneBy (float yawRad, float pitchRad)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::BeginSceneOrbit
+//  ShellDeskScene::BeginSceneOrbit
 //
 //  Arms an orbit drag at the press: everything after is absolute from this
 //  anchor, so the drag tracks the pointer exactly and cannot creep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::BeginSceneOrbit (int x, int y)
+void ShellDeskScene::BeginSceneOrbit (int x, int y)
 {
     m_sceneOrbiting      = true;
     m_sceneOrbitMoved    = false;
@@ -3053,7 +3081,7 @@ void EmulatorShell::BeginSceneOrbit (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OrbitRadPerPx
+//  ShellDeskScene::OrbitRadPerPx
 //
 //  Radians per pixel of drag, FROM THE VIEWPORT, not a constant. The
 //  coordinates the handlers see are DPI-scaled, so a fixed radians-per-pixel
@@ -3065,7 +3093,7 @@ void EmulatorShell::BeginSceneOrbit (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float EmulatorShell::OrbitRadPerPx() const
+float ShellDeskScene::OrbitRadPerPx() const
 {
     RECT   box = m_deskScene.Composition().viewportPx;
     float  w   = (float) (box.right - box.left);
@@ -3081,14 +3109,14 @@ float EmulatorShell::OrbitRadPerPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::UpdateSceneOrbit
+//  ShellDeskScene::UpdateSceneOrbit
 //
 //  Absolute from the press's anchor, like the pan: a long drag tracks the
 //  cursor exactly and cannot creep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdateSceneOrbit (int x, int y)
+void ShellDeskScene::UpdateSceneOrbit (int x, int y)
 {
     float  radPerPx = OrbitRadPerPx();
 

@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -918,7 +919,7 @@ void WindowCommandManager::OnViewCommand (int id)
             // no size to reset but the scene can still be turned around.
             // Harmless where no scene exists: ResetSceneView returns early
             // at identity, which a themeless scene never leaves.
-            m_shell.ResetSceneView();
+            m_shell.m_scene->ResetSceneView();
 
             if (!m_shell.m_d3dRenderer.IsFullscreen())
             {
@@ -1031,7 +1032,7 @@ void WindowCommandManager::OnViewCommand (int id)
             // the drives are already on screen.
             if (m_shell.m_d3dRenderer.IsFullscreen())
             {
-                m_shell.m_stripHotkeyPending = true;
+                m_shell.m_scene->RequestStripHotkey();
                 m_shell.m_d3dRenderer.MarkRedrawNeeded();
             }
 

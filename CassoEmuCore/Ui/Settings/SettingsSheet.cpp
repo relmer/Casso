@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
@@ -357,7 +358,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetAntiAliasingSamples (prefs.sceneAntiAliasing);
     m_themePage->SetOnAntiAliasingChanged ([this] (int samples)
     {
-        m_emuShell->SetSceneAntiAliasing (samples);
+        m_emuShell->m_scene->SetSceneAntiAliasing (samples);
     });
 
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
@@ -1210,12 +1211,12 @@ HRESULT SettingsSheet::LoadPreviewSceneModels()
     CBRA (m_emuShell != nullptr);
 
     {
-        bool  shellHasModels = m_emuShell->m_deskScene.HasModels();
+        bool  shellHasModels = m_emuShell->GetDeskScene().GetScene().HasModels();
 
         CBRA (shellHasModels);
     }
 
-    hr = m_previewScene.AdoptModelsFrom (m_emuShell->m_deskScene);
+    hr = m_previewScene.AdoptModelsFrom (m_emuShell->GetDeskScene().GetScene());
     CHRA (hr);
 
     m_previewScene.SetPowerLampOn (true);

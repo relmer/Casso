@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
@@ -544,16 +545,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_fpsReadout);
-    m_host->GetRoot().Adopt (m_sceneViewReadout);
-    m_host->GetRoot().Adopt (m_sceneDriveLabel[0]);
-    m_host->GetRoot().Adopt (m_sceneDriveLabel[1]);
-    m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[0]);
-    m_host->GetRoot().Adopt (m_sceneDriveInfoIcon[1]);
-    m_host->GetRoot().Adopt (m_stripTapeLabel[0]);
-    m_host->GetRoot().Adopt (m_stripTapeLabel[1]);
-    m_host->GetRoot().Adopt (m_stripTapeLabel[2]);
-    m_host->GetRoot().Adopt (m_sceneCompass);
-    m_host->GetRoot().Adopt (m_compassHint);
+    m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
+    m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[0]);
+    m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[1]);
+    m_host->GetRoot().Adopt (m_scene->m_sceneDriveInfoIcon[0]);
+    m_host->GetRoot().Adopt (m_scene->m_sceneDriveInfoIcon[1]);
+    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[0]);
+    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[1]);
+    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[2]);
+    m_host->GetRoot().Adopt (m_scene->m_sceneCompass);
+    m_host->GetRoot().Adopt (m_scene->m_compassHint);
 
     // The compass reports gestures; the shell owns what they mean. The signs
     // follow the drag's bargain -- the CONTENT goes where the arrow points --
@@ -561,18 +562,18 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // With Ctrl held the compass pans instead, as Ctrl does to a drag on the
     // scene itself: an arrow click moves the scene a pan step its way, and a
     // drag moves it with the pointer.
-    m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
+    m_scene->m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
     {
-        float  step = s_kScenePanStep;
+        float  step = ShellDeskScene::s_kScenePanStep;
 
         if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
         {
             switch (part)
             {
-                case DxuiOrbitControl::Part::Left:   PanSceneByCompass (-step, 0.0f); break;
-                case DxuiOrbitControl::Part::Right:  PanSceneByCompass ( step, 0.0f); break;
-                case DxuiOrbitControl::Part::Up:     PanSceneByCompass (0.0f, -step); break;
-                case DxuiOrbitControl::Part::Down:   PanSceneByCompass (0.0f,  step); break;
+                case DxuiOrbitControl::Part::Left:   m_scene->PanSceneByCompass (-step, 0.0f); break;
+                case DxuiOrbitControl::Part::Right:  m_scene->PanSceneByCompass ( step, 0.0f); break;
+                case DxuiOrbitControl::Part::Up:     m_scene->PanSceneByCompass (0.0f, -step); break;
+                case DxuiOrbitControl::Part::Down:   m_scene->PanSceneByCompass (0.0f,  step); break;
                 default: break;
             }
 
@@ -581,26 +582,26 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         switch (part)
         {
-            case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
-            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-kCompassStepYawRad,   0.0f); break;
-            case DxuiOrbitControl::Part::Up:     OrbitSceneBy (0.0f, -kCompassStepPitchRad); break;
-            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  kCompassStepPitchRad); break;
+            case DxuiOrbitControl::Part::Left:   m_scene->OrbitSceneBy ( ShellDeskScene::kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Right:  m_scene->OrbitSceneBy (-ShellDeskScene::kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Up:     m_scene->OrbitSceneBy (0.0f, -ShellDeskScene::kCompassStepPitchRad); break;
+            case DxuiOrbitControl::Part::Down:   m_scene->OrbitSceneBy (0.0f,  ShellDeskScene::kCompassStepPitchRad); break;
             default: break;
         }
     });
 
-    m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
+    m_scene->m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
     {
-        float  rate = OrbitRadPerPx();
+        float  rate = m_scene->OrbitRadPerPx();
 
         if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
         {
-            const RECT &  vp = m_deskScene.Composition().viewportPx;
+            const RECT &  vp = m_scene->m_deskScene.Composition().viewportPx;
 
             if (vp.right > vp.left && vp.bottom > vp.top)
             {
-                PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
-                                   dyPx / (float) (vp.bottom - vp.top) * 2.0f);
+                m_scene->PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
+                                            dyPx / (float) (vp.bottom - vp.top) * 2.0f);
             }
 
             return;
@@ -612,16 +613,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         switch (part)
         {
             case DxuiOrbitControl::Part::Left:
-            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-dxPx * rate, 0.0f); break;
+            case DxuiOrbitControl::Part::Right:  m_scene->OrbitSceneBy (-dxPx * rate, 0.0f); break;
             case DxuiOrbitControl::Part::Up:
-            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  dyPx * rate); break;
+            case DxuiOrbitControl::Part::Down:   m_scene->OrbitSceneBy (0.0f,  dyPx * rate); break;
             default: break;
         }
     });
 
     // Ctrl+click on the center is Ctrl+0: the whole view reset, zoom and
     // window size included, with the window's placement saved.
-    m_sceneCompass.SetOnHome ([this] ()
+    m_scene->m_sceneCompass.SetOnHome ([this] ()
     {
         if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
         {
@@ -629,9 +630,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             return;
         }
 
-        m_sceneView.orbitYawRad   = 0.0f;
-        m_sceneView.orbitPitchRad = 0.0f;
-        InvalidateSceneComposition();
+        m_scene->m_sceneView.orbitYawRad   = 0.0f;
+        m_scene->m_sceneView.orbitPitchRad = 0.0f;
+        m_scene->InvalidateSceneComposition();
     });
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_switchBar);
@@ -939,7 +940,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         if (DeskSceneActive())
         {
-            SyncSceneDriveChrome();
+            m_scene->SyncSceneDriveChrome();
         }
         else
         {
@@ -1054,8 +1055,8 @@ SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int f
     if (CrtMonitorActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_scaler.GetDpi(), DeskSceneDriveCount(),
-                                                                     m_deskScene.Metrics(),
+                                                                     m_scaler.GetDpi(), m_scene->DeskSceneDriveCount(),
+                                                                     m_scene->m_deskScene.Metrics(),
                                                                      m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
         float  savedScale = m_chromeSceneScale;
 
@@ -1622,8 +1623,8 @@ void EmulatorShell::WaitForFrameOrMessage()
     if (m_switchBarTooltip.WantsTick() ||
         m_driveTooltip.WantsTick()     ||
         m_captionTooltip.WantsTick()   ||
-        m_sceneCompass.WantsTick()     ||
-        m_compassHintOpacity != (m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
+        m_scene->m_sceneCompass.WantsTick()     ||
+        m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
         m_mainMenu.WantsTick()         ||
         (m_host != nullptr && m_host->GetContextMenu().WantsTick()) ||
         m_toolbar.WantsTick())
@@ -2095,7 +2096,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             if (DeskSceneActive())
             {
-                SyncSceneDriveChrome();
+                m_scene->SyncSceneDriveChrome();
             }
             else
             {
