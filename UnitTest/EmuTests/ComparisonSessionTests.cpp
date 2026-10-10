@@ -47,16 +47,24 @@ public:
 
             reply.requestId = id;
             reply.drive     = request.drive;
-            reply.disk      = drives[request.drive];
+            reply.disk      = (request.kind == InspectorRequestKind::CopyDisk) ? drives[request.drive] : nullptr;
+            reply.fileName  = "inserted.woz";
+
+            if (request.kind == InspectorRequestKind::CopyAsInserted && inserted[request.drive] != nullptr)
+            {
+                reply.sourceBytes = inserted[request.drive];
+            }
+
             Assert::IsTrue (session.OfferReply (reply), L"the session takes the reply to its own request");
         }
 
         requests.clear();
     }
 
-    vector<std::pair<uint64_t, InspectorRequest>>    requests;
-    std::array<std::shared_ptr<const DiskCopy>, 2>   drives;
-    uint64_t                                         nextId = 0;
+    vector<std::pair<uint64_t, InspectorRequest>>       requests;
+    std::array<std::shared_ptr<const DiskCopy>, 2>      drives;
+    std::array<std::shared_ptr<const vector<Byte>>, 2>  inserted;
+    uint64_t                                            nextId   = 0;
 };
 
 
@@ -252,6 +260,31 @@ public:
         Assert::IsFalse (session.IsComparing());
         Assert::IsFalse (session.HasResult());
         Assert::IsNull  (session.GetB().copy.get());
+    }
+
+
+
+    TEST_METHOD (TheDiskAsInsertedIsReadFromItsBytes)
+    {
+        Pairs::TrackSpec    changed;
+        FakeComparisonHost  host;
+        ComparisonSession   session;
+        DiskAnalysis        a;
+
+
+
+        changed.changedSector = 2;
+        Pairs::AnalyzeDisk (-1, {}, a);
+        host.inserted[0] = std::make_shared<const vector<Byte>> (Pairs::BuildWoz (kChanged, changed));
+
+        session.Begin ({ ComparisonSourceKind::DriveNow, 0 }, { ComparisonSourceKind::AsInserted, 0 }, false, DecodeSettings::MakeStandard(), host);
+        Assert::IsTrue (host.requests[0].second.kind == InspectorRequestKind::CopyAsInserted);
+
+        host.Answer (session);
+        WaitForResult (session, a);
+
+        Assert::AreEqual (static_cast<int> (TrackVerdict::SectorsDiffer), static_cast<int> (session.GetResult().tracks[kChanged * 4].verdict),
+                          L"what the guest wrote since");
     }
 
 

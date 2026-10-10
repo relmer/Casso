@@ -101,7 +101,8 @@ void ComparisonSession::End()
 //  ComparisonSession::OfferReply
 //
 //  A drive's disk as it is now is the side's disk; for "Its file" the copy
-//  gives the file's path, and the file is read next.
+//  gives the file's path, and the file is read next; the disk as inserted
+//  is its bytes, loaded on the background thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +126,12 @@ bool ComparisonSession::OfferReply (const InspectorReply & reply)
         read.hostRequest = 0;
         loaded.side      = side;
 
-        if (reply.disk == nullptr)
+        if (read.source.kind == ComparisonSourceKind::AsInserted && reply.sourceBytes != nullptr && !reply.sourceBytes->empty())
+        {
+            ReadBytes (side, reply.sourceBytes, reply.fileName);
+            continue;
+        }
+        else if (reply.disk == nullptr || read.source.kind == ComparisonSourceKind::AsInserted)
         {
             loaded.reason = std::format (L"There is no disk in drive {}.", read.source.drive + 1);
         }
@@ -325,9 +331,9 @@ bool ComparisonSession::IsBusy() const
 //
 //  ComparisonSession::StartRead
 //
-//  A drive's disk now and its file both start with a copy from the host;
-//  an image file is read on the background thread. The disk as inserted is
-//  not kept yet, so that source says so.
+//  A drive's disk now and its file both start with a copy from the host,
+//  and the disk as inserted with its file's bytes as they went in; an
+//  image file is read on the background thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -357,12 +363,10 @@ void ComparisonSession::StartRead (int side, IDiskInspectorHost & host)
             break;
 
         case ComparisonSourceKind::AsInserted:
-        {
-            std::scoped_lock  lock (m_lock);
-
-            m_fileLoads.push_back ({ m_generation, { side, nullptr, std::format (L"Drive {}'s disk as inserted is not kept yet.", read.source.drive + 1) } });
+            request.kind     = InspectorRequestKind::CopyAsInserted;
+            request.drive    = read.source.drive;
+            read.hostRequest = host.PostInspectorRequest (request);
             break;
-        }
     }
 }
 
@@ -405,7 +409,38 @@ void ComparisonSession::ReadFile (int side, const std::string & utf8Path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ComparisonSession::Deliver
+//  ComparisonSession::ReadBytes
+//
+//  A disk's bytes as it went in, loaded the way its file loads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonSession::ReadBytes (int side, std::shared_ptr<const vector<Byte>> bytes, const std::string & utf8Path)
+{
+    uint64_t  generation = m_generation;
+
+
+
+    m_queue.Post ([this, side, bytes, utf8Path, generation] ()
+    {
+        LoadedDisk  loaded;
+        HRESULT     hr     = S_OK;
+
+
+
+        loaded.side = side;
+        hr          = InspectorImageLoader::LoadBytes (*bytes, utf8Path, false, loaded.copy, loaded.reason);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        std::scoped_lock  lock (m_lock);
+
+        m_fileLoads.push_back ({ generation, std::move (loaded) });
+    });
+}
+
+
+
+
 //
 //  B's disk starts its analysis here; A's goes to the window.
 //

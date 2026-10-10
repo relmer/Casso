@@ -166,6 +166,11 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
     {
         reply.disk = DiskCopy::MakeFromImage (*image, identity.mediaId, identity.fileName, identity.fileSize, identity.isReadOnly);
     }
+    else if (request.kind == InspectorRequestKind::CopyAsInserted)
+    {
+        reply.sourceBytes = std::make_shared<const vector<Byte>> (image->GetSourceBytes());
+        reply.fileName    = identity.fileName;
+    }
     else if (request.kind == InspectorRequestKind::CopyTracks)
     {
         for (int s : request.slots)

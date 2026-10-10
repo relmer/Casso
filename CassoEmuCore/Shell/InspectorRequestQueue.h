@@ -56,6 +56,9 @@ enum class InspectorRequestKind
     CopyDisk,
     CopyTracks,
     Export,
+
+    //  The file's bytes as the disk went in, for a comparison (FR-117).
+    CopyAsInserted,
 };
 
 
@@ -89,6 +92,8 @@ struct InspectorReply
     uint64_t                                    mediaId   = 0;
     std::shared_ptr<const DiskCopy>             disk;
     vector<std::shared_ptr<const TrackCopy>>    tracks;
+    std::shared_ptr<const vector<Byte>>         sourceBytes;
+    std::string                                 fileName;
     std::wstring                                reason;
 };
 

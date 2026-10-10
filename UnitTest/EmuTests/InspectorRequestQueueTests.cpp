@@ -91,8 +91,31 @@ public:
 
 
 
-    TEST_METHOD (AnotherDiskOrNoDiskDoesNothing)
+    TEST_METHOD (AsInsertedGivesTheBytesTheDiskWentInWith)
     {
+        FakeSource              source;
+        InspectorRequestQueue   queue;
+        vector<InspectorReply>  replies;
+        vector<Byte>            sectors (NibblizationLayer::kImageByteSize, 0x22);
+
+
+
+        source.image.LoadFromBytes (DiskFormat::Dsk, sectors, "fake.dsk");
+        source.image.ClearDirty();
+
+        queue.Post ({ InspectorRequestKind::CopyAsInserted, 0, 0, {}, -1 });
+        queue.Drain (source);
+        queue.TakeReplies (replies);
+
+        Assert::IsNotNull (replies[0].sourceBytes.get());
+        Assert::IsTrue (*replies[0].sourceBytes == sectors, L"the bytes as loaded, a save notwithstanding");
+        Assert::AreEqual (std::string ("fake.dsk"), replies[0].fileName);
+        Assert::IsNull (replies[0].disk.get(), L"no copy of the disk now");
+    }
+
+
+
+    TEST_METHOD (AnotherDiskOrNoDiskDoesNothing)    {
         FakeSource              source;
         InspectorRequestQueue   queue;
         vector<InspectorReply>  replies;

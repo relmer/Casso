@@ -109,6 +109,7 @@ private:
 
     void  StartRead   (int side, IDiskInspectorHost & host);
     void  ReadFile    (int side, const std::string & utf8Path);
+    void  ReadBytes   (int side, std::shared_ptr<const vector<Byte>> bytes, const std::string & utf8Path);
     void  Deliver     (LoadedDisk loaded, vector<LoadedDisk> & outLoadsForA);
     void  StartB      (std::shared_ptr<const DiskCopy> copy);
     void  TakeBResults ();

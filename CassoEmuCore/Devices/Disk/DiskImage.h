@@ -197,6 +197,10 @@ public:
     void             CountGuestWrite     (int slot);
     uint64_t         GetGuestWriteCount  (int slot) const;
 
+    //  The file's bytes as the disk was inserted or last reloaded. A save
+    //  leaves them, so they give the disk as it went in.
+    const vector<Byte> &  GetSourceBytes () const { return m_rawSourceBytes; }
+
     //  Records that a track's bits were replaced wholesale, which the bulk
     //  writers below must do because they bypass WriteBit and so bypass the
     //  bookkeeping it does. A consumer that copies clean tracks and re-derives
