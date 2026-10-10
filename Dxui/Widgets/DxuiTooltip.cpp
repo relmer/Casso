@@ -296,6 +296,15 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         return;
     }
 
+    //  A move over the same control keeps the clock it started, as Windows'
+    //  tips do: restarting it on every move held the tip back until the
+    //  pointer had stopped for the whole dwell.
+    if (m_pending && text == m_pendingText)
+    {
+        m_pendingAnchor = anchor;
+        return;
+    }
+
     m_pendingAnchor = anchor;
     m_pendingText   = text;
     m_pending       = true;

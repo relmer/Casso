@@ -2538,13 +2538,13 @@ void DxuiHwndSource::ApplyDwmConfiguration()
         return;
     }
 
-    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica);
+    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica || m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
 
     // Extend the frame first — Mica is invisible without it, and the
     // OS drop-shadow also depends on this even when backdrop is None.
     DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, m_params.drawOverBackdrop ? -1 : s_kExtendFrameInsetPx);
     DxuiDwm::ApplyRoundedCorners       (m_hwnd, m_params.roundedCorners);
-    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica);
+    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica, m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
     DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, m_params.darkMode);
 
 #ifdef _DEBUG

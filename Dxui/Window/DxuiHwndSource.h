@@ -100,6 +100,7 @@ enum class DxuiHwndSourceBackdrop
 {
     None,
     Mica,
+    MicaAlt,   // the tabbed-window backdrop, more strongly tinted; File Explorer's
 };
 
 

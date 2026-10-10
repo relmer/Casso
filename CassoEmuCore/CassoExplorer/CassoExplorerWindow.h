@@ -578,6 +578,7 @@ private:
     void  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
     void  SizeListIcons          ();
+    void  ShowViewOnButton       ();
     bool  IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
     bool  IsToolbarEntryAvailable (int index) const;
     bool  IsCommandBarEntryAvailable (int index) const;

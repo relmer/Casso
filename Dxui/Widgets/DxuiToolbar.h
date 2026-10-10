@@ -229,6 +229,10 @@ public:
     bool  IsLabeled        (int commandId) const;
     bool  TryGetEntryRect  (int commandId, RECT & outRect) const;
 
+    //  Changes the icon an entry draws, as Explorer's View button shows the
+    //  current view's.
+    void  SetEntryVectorIcon (int commandId, const DxuiVectorIcon * icon);
+
     //  The span between the last leading entry and the first trailing one, a
     //  group gap from each, for a host control such as an address bar. Empty
     //  when there is no room.

@@ -127,6 +127,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
     params.micaBackdrop             = true;
+    params.micaAlt                  = true;
 
     //  A key or a click paints more than once, and the animation tick paints
     //  on top of that; paced, each of those frames reads the clock one vsync
@@ -579,6 +580,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     });
 
     m_list->SetView (m_listView);
+    ShowViewOnButton();
 
     m_list->SetOnSortColumn ([this] (int column)
     {
@@ -853,12 +855,14 @@ void CassoExplorerWindow::AdoptSystemColors()
     m_lightTheme.ApplySystemColors (system);
     m_darkTheme.ApplySystemColors  (system);
 
-    //  The caption and the tab row are the window's Mica, and the row under
+    //  The caption and the tab row are the window's Mica Alt, and the row under
     //  the tabs lightens it, as Explorer's do.
-    m_lightTheme.titleBarTop = 0x00000000u;
-    m_darkTheme.titleBarTop  = 0x00000000u;
-    m_lightTheme.navStrip    = 0xB3FFFFFFu;
-    m_darkTheme.navStrip     = 0x0EFFFFFFu;
+    m_lightTheme.titleBarTop    = 0x00000000u;
+    m_darkTheme.titleBarTop     = 0x00000000u;
+    m_lightTheme.titleBarBottom = 0x00000000u;
+    m_darkTheme.titleBarBottom  = 0x00000000u;
+    m_lightTheme.navStrip       = 0xB3FFFFFFu;
+    m_darkTheme.navStrip        = 0x0EFFFFFFu;
 }
 
 
@@ -3982,6 +3986,7 @@ void CassoExplorerWindow::Dispatch (int id)
         m_listViewKey = GetFolderViewKey (nullptr);
         m_prefs.folderViews.Remember (m_listViewKey, m_listView);
         m_list->SetView (m_listView);
+        ShowViewOnButton();
         SizeListIcons();
         FillList();
         Invalidate();
@@ -6260,6 +6265,26 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ShowViewOnButton
+//
+//  The View button shows the current view's icon, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowViewOnButton()
+{
+    if (m_commandBar != nullptr)
+    {
+        m_commandBar->SetEntryVectorIcon (CassoExplorerCommands::kView, CassoExplorerCommands::GetViewButtonIcon (m_listView));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::SizeListIcons
 //
 //  The list's icons are drawn at its view's size, so they are fetched at that
@@ -6491,6 +6516,7 @@ void CassoExplorerWindow::ApplyFolderView()
     m_listViewKey = key;
     m_listView    = m_prefs.folderViews.GetView (key, type);
     m_list->SetView (m_listView);
+    ShowViewOnButton();
     SizeListIcons();
 
     //  Each folder keeps its own sort and grouping, as Explorer's do; one

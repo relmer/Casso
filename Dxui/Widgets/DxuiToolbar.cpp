@@ -2056,3 +2056,24 @@ bool DxuiToolbar::TryGetEntryRect (int commandId, RECT & outRect) const
 
     return slot != nullptr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::SetEntryVectorIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::SetEntryVectorIcon (int commandId, const DxuiVectorIcon * icon)
+{
+    for (Slot & slot : m_slots)
+    {
+        if (slot.entry.command != nullptr && slot.entry.command->id == commandId)
+        {
+            slot.entry.vectorIcon = icon;
+        }
+    }
+}

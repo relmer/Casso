@@ -45,7 +45,9 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.resizable             = params.resizable;
     hostParams.roundedCorners        = true;
     hostParams.darkMode              = true;
-    hostParams.backdrop              = params.micaBackdrop ? DxuiHwndSourceBackdrop::Mica : DxuiHwndSourceBackdrop::None;
+    hostParams.backdrop              = !params.micaBackdrop ? DxuiHwndSourceBackdrop::None
+                                     : params.micaAlt       ? DxuiHwndSourceBackdrop::MicaAlt
+                                                            : DxuiHwndSourceBackdrop::Mica;
     hostParams.drawOverBackdrop      = params.micaBackdrop;
     hostParams.createSwapChain       = true;
     hostParams.captionStyle          = params.captionStyle;

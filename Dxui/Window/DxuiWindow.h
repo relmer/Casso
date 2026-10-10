@@ -60,6 +60,7 @@ public:
         DxuiCaptionStyle  captionStyle             = DxuiCaptionStyle::Standard;
         bool              composited               = false;   // composited-transparent window (enables SetComposedOpacity)
         bool              micaBackdrop             = false;   // framed window drawn over Mica, which shows where nothing paints
+        bool              micaAlt                  = false;   // with micaBackdrop, Mica Alt, the tabbed-window backdrop
         LPCWSTR           classNameOverride        = nullptr;
         HICON             appIconBig               = nullptr;
         HICON             appIconSmall             = nullptr;

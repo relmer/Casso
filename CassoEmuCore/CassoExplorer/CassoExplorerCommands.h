@@ -150,6 +150,9 @@ public:
     //  The icon a menu row draws beside a command's label, or none.
     static const DxuiVectorIcon    * GetMenuIcon (int id);
 
+    //  The View button's icon, which is the current view's, as Explorer's is.
+    static const DxuiVectorIcon    * GetViewButtonIcon (DxuiListView::View view);
+
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;

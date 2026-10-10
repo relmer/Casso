@@ -443,6 +443,22 @@ const DxuiVectorIcon * CassoExplorerCommands::GetMenuIcon (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerCommands::GetViewButtonIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiVectorIcon * CassoExplorerCommands::GetViewButtonIcon (DxuiListView::View view)
+{
+    //  Details keeps the bars drawn to Explorer's button, closer than the menu's.
+    return (view == DxuiListView::View::Details) ? &CassoExplorerIcons::s_kView : GetMenuIcon (kViewFirst + (int) view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerCommands::BuildEntries
 //
 ////////////////////////////////////////////////////////////////////////////////

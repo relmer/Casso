@@ -88,6 +88,21 @@ public:
             L"Hide before the show dwell fires must abort the pending show.");
     }
 
+    TEST_METHOD (Request_MovesOverTheSameControlKeepTheDwell)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.RequestShow (MakeRect (2, 0, 52, 20), L"x", 300);
+        t.RequestShow (MakeRect (4, 0, 54, 20), L"x", 450);
+        t.Tick (500);
+
+        Assert::IsTrue (t.IsVisible(),
+            L"The dwell runs from the first request, not the last move, as Windows' tips do.");
+        Assert::AreEqual ((LONG) 4, t.GetAnchor().left, L"and the tip shows at the latest anchor");
+    }
+
     TEST_METHOD (Request_SwapAnchorWhileVisible)
     {
         DxuiTooltip  t;
