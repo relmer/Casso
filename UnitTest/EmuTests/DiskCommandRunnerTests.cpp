@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -87,7 +88,7 @@ public:
 
             Assert::IsTrue (line.size() <= 80,
                 (std::wstring (L"line runs past column 80: ")
-                     + std::wstring (line.begin(), line.end())).c_str());
+                     + TextEncoding::NarrowToWide (line)).c_str());
 
             if (lineEnd == std::string::npos)
             {
@@ -1470,7 +1471,7 @@ public:
             std::string         word    = containers[i].name;
             std::string         byName  = "byname." + word;
             std::string         byType  = "bytype." + word;
-            std::wstring        which   = std::wstring (word.begin(), word.end());
+            std::wstring        which   = TextEncoding::NarrowToWide (word);
             CommandLineOptions  options = MakeCreate (byName.c_str());
             DiskCommandResult   result;
 
@@ -1520,7 +1521,7 @@ public:
             std::string         word     = containers[i].name;
             std::string         dosPath  = "dos." + word;
             std::string         proPath  = "prodos." + word;
-            std::wstring        which    = std::wstring (word.begin(), word.end());
+            std::wstring        which    = TextEncoding::NarrowToWide (word);
             CommandLineOptions  options  = MakeCreate (dosPath.c_str());
             DiskCommandResult   dos;
             DiskCommandResult   proDos;
