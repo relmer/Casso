@@ -76,6 +76,12 @@ public:
     void          SetExternalDisk (int drive, DiskImage * external);
     bool          HasExternalDisk (int drive) const;
 
+    //  What the guest did with each drive since its disk went in, for the
+    //  disk inspector: arrivals of the head at each quarter track, and
+    //  whether its last write was dropped because the disk cannot be written.
+    uint32_t      GetVisitCount   (int drive, int quarterTrack) const;
+    bool          IsWriteBlocked  (int drive) const;
+
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
     // MountDisk / EjectDisk), the controller's own load path never
@@ -175,6 +181,7 @@ public:
 private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
+    void   OnLatchLoad ();
     void   UpdateEngineSelection();
     Byte   HandleReadDispatch();
     void   CatchUpToCpu();
@@ -202,6 +209,9 @@ private:
     // Constant kMotorSpindownCycles lives in the public section
     // for test access.
     uint32_t             m_motorSpindownCycles = 0;
+
+    std::array<std::array<uint32_t, kMaxQuarterTrack + 1>, kDriveCount>  m_visits         = {};
+    std::array<bool, kDriveCount>                                         m_isWriteBlocked = {};
 
     // Issue #67 deliverable 1: motor spin-up window remainder.
     // Constant kMotorSpinupCycles lives in the public section

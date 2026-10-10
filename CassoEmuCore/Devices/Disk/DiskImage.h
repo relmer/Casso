@@ -192,6 +192,11 @@ public:
     bool             IsTrackDirty        (int track) const;
     void             ClearDirty          ();
 
+    //  Nibbles the guest loaded into the write latch over each record since
+    //  the disk was inserted or reloaded; a save leaves them.
+    void             CountGuestWrite     (int slot);
+    uint64_t         GetGuestWriteCount  (int slot) const;
+
     //  Records that a track's bits were replaced wholesale, which the bulk
     //  writers below must do because they bypass WriteBit and so bypass the
     //  bookkeeping it does. A consumer that copies clean tracks and re-derives
@@ -283,6 +288,7 @@ private:
     vector<bool>                 m_trackDirty;
     vector<bool>                 m_trackChangedByWriter;
     vector<bool>                 m_trackGuestWritten;
+    vector<uint64_t>             m_guestWriteCounts;
     vector<int>                  m_quarterTrackMap;
     vector<TrackKind>            m_slotKind;
     vector<FluxTrack>            m_fluxTracks;

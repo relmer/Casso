@@ -126,6 +126,7 @@ void Disk2Controller::Write (Word address, Byte value)
         else
         {
             m_engine[m_activeDrive].WriteLatch (value);
+            OnLatchLoad();
         }
     }
 }
@@ -432,6 +433,13 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     }
 
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+
+    //  Each arrival at a quarter track counts once per drive, for the
+    //  inspector's Reads marks.
+    if (m_quarterTrack != prevQt)
+    {
+        m_visits[m_activeDrive][m_quarterTrack]++;
+    }
 
     // Audio sink (FR-003 / FR-004). Fire only when the head actually
     // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
@@ -803,11 +811,97 @@ DiskImage * Disk2Controller::GetDisk (int drive)
 
 void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 {
+    DiskImage *  next = nullptr;
+
+
+
     if (drive >= 0 && drive < kDriveCount)
     {
-        m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
+        next = (external != nullptr) ? external : &m_disks[drive];
+
+        //  Another disk, or the same file reloaded, starts the counts over.
+        if (next != m_activeDisk[drive])
+        {
+            m_visits[drive].fill (0);
+            m_isWriteBlocked[drive] = false;
+        }
+
+        m_activeDisk[drive] = next;
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLatchLoad
+//
+//  The CPU loaded the write latch. With the motor running, spin-down
+//  included, the nibble goes to the record under the head and counts there;
+//  on a disk that cannot be written it goes nowhere, counts nothing, and
+//  the drive shows the write blocked. With the motor stopped nothing reaches
+//  the disk, and the //c's mode-register load never comes here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnLatchLoad()
+{
+    DiskImage *  disk = m_activeDisk[m_activeDrive];
+
+
+
+    if (m_motorOn && disk != nullptr && disk->IsLoaded())
+    {
+        m_isWriteBlocked[m_activeDrive] = disk->IsWriteProtected();
+
+        if (!m_isWriteBlocked[m_activeDrive])
+        {
+            disk->CountGuestWrite (m_engine[m_activeDrive].GetSlot());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetVisitCount
+//
+//  How many times the head arrived at a quarter track of a drive since its
+//  disk went in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t Disk2Controller::GetVisitCount (int drive, int quarterTrack) const
+{
+    bool  isIn = drive >= 0 && drive < kDriveCount && quarterTrack >= 0 && quarterTrack <= kMaxQuarterTrack;
+
+
+
+    return isIn ? m_visits[drive][quarterTrack] : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsWriteBlocked
+//
+//  True once the guest's last write to the drive was dropped because the
+//  disk cannot be written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::IsWriteBlocked (int drive) const
+{
+    return drive >= 0 && drive < kDriveCount && m_isWriteBlocked[drive];
 }
 
 

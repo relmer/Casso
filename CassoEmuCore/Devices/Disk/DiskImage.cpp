@@ -27,6 +27,7 @@ DiskImage::DiskImage()
     m_trackDirty.resize           (kDefaultTrackCount, false);
     m_trackChangedByWriter.resize (kDefaultTrackCount, false);
     m_trackGuestWritten.resize    (kDefaultTrackCount, false);
+    m_guestWriteCounts.resize     (kDefaultTrackCount, 0);
     m_slotKind.resize             (kDefaultTrackCount, TrackKind::Bits);
     m_fluxTracks.resize           (kDefaultTrackCount);
     InitWholeTrackMap();
@@ -352,6 +353,7 @@ void DiskImage::EnsureTrackSlots (int slotCount)
         m_trackDirty.resize           (slotCount, false);
         m_trackChangedByWriter.resize (slotCount, false);
         m_trackGuestWritten.resize    (slotCount, false);
+        m_guestWriteCounts.resize     (slotCount, 0);
         m_slotKind.resize             (slotCount, TrackKind::Bits);
         m_fluxTracks.resize           (slotCount);
         m_layoutGeneration++;
@@ -681,6 +683,42 @@ bool DiskImage::IsTrackChangedOnlyByWriter (int slot) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CountGuestWrite
+//
+//  One nibble the guest loaded into the write latch over this record. The
+//  counts start over when a disk is inserted or reloaded, never on a save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::CountGuestWrite (int slot)
+{
+    if (slot >= 0 && slot < static_cast<int> (m_guestWriteCounts.size()))
+    {
+        m_guestWriteCounts[slot]++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGuestWriteCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DiskImage::GetGuestWriteCount (int slot) const
+{
+    return (slot >= 0 && slot < static_cast<int> (m_guestWriteCounts.size())) ? m_guestWriteCounts[slot] : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClearDirty
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -854,6 +892,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_damagedQuarterTracks.clear();
     m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
     m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
+    m_guestWriteCounts.assign (m_guestWriteCounts.size(), 0);
     InitWholeTrackMap();
 
     switch (fmt)
@@ -983,6 +1022,7 @@ void DiskImage::Eject()
     m_trackDirty.assign           (kDefaultTrackCount, false);
     m_trackChangedByWriter.assign (kDefaultTrackCount, false);
     m_trackGuestWritten.assign    (kDefaultTrackCount, false);
+    m_guestWriteCounts.assign     (kDefaultTrackCount, 0);
     m_slotKind.assign             (kDefaultTrackCount, TrackKind::Bits);
     m_fluxTracks.assign           (kDefaultTrackCount, FluxTrack());
     InitWholeTrackMap();
