@@ -3,6 +3,8 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
@@ -296,7 +298,7 @@ void EmulatorShell::StepInstruction()
 
 void EmulatorShell::RemountDisks()
 {
-    m_diskManager->RemountSlot6Disks();
+    m_disks->GetManager()->RemountSlot6Disks();
 }
 
 
@@ -311,7 +313,7 @@ void EmulatorShell::RemountDisks()
 
 HRESULT EmulatorShell::MountDisk (int drive, const std::string & path)
 {
-    return m_diskManager->MountDiskInSlot6 (drive, path);
+    return m_disks->GetManager()->MountDiskInSlot6 (drive, path);
 }
 
 
@@ -326,7 +328,7 @@ HRESULT EmulatorShell::MountDisk (int drive, const std::string & path)
 
 void EmulatorShell::EjectDisk (int drive)
 {
-    m_diskManager->EjectDiskInSlot6 (drive);
+    m_disks->GetManager()->EjectDiskInSlot6 (drive);
 }
 
 
@@ -343,7 +345,7 @@ HRESULT EmulatorShell::ToggleImageWriteProtect (int drive)
 {
     // On the CPU thread like mount and eject, so the flush never races the
     // drive engine; failures are already reported inside.
-    return m_diskManager->ToggleImageWriteProtect (drive);
+    return m_disks->GetManager()->ToggleImageWriteProtect (drive);
 }
 
 

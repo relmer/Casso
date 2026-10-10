@@ -29,7 +29,6 @@
 #include "Shell/ScreenshotCapture.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/CpuManager.h"
-#include "Shell/DiskManager.h"
 #include "Shell/BackgroundWorkQueue.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -38,14 +37,10 @@
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
-#include "Ui/DriveWidgetController.h"
-#include "Ui/DriveWidgetState.h"
-#include "Ui/IDriveCommandSink.h"
 #include "Ui/Scene/DeskScene.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/Scene/FullscreenStripState.h"
@@ -55,15 +50,15 @@
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Video/VideoOutput.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
-#include "Devices/Disk/ChangePrompt.h"
 
 
 
 class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
-class SalvageDialogContent;
+class DriveWidget;
 class ShellAudio;
+class ShellDisks;
 class ShellPrinter;
 class ShellTapeDeck;
 class ShellUpdater;
@@ -118,12 +113,11 @@ public:
 //  The application: window, chrome, devices, and the CPU thread that runs the
 //  emulated machine.
 //
-//  It implements three framework interfaces rather than owning three
+//  It implements two framework interfaces rather than owning two
 //  collaborators, and each is a different conversation. IDxuiHostClient is the
-//  window's message and paint lifecycle; IDriveCommandSink is what the drive
-//  chrome calls to mount and eject; IDxuiViewportInputSink is where guest
-//  keystrokes arrive after the framework has routed them. Implementing them
-//  here is what keeps the shell the single place those three meet.
+//  window's message and paint lifecycle; IDxuiViewportInputSink is where guest
+//  keystrokes arrive after the framework has routed them. What the drive
+//  chrome calls to mount and eject is the disks component's.
 //
 //  TWO THREADS run against this object. The CPU thread executes instructions
 //  and publishes frames; the UI thread drains messages, renders, and presents.
@@ -142,7 +136,6 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class EmulatorShell : public IDxuiHostClient,
-                      public IDriveCommandSink,
                       public IDxuiViewportInputSink,
                       private ICpuCommandTarget
 {
@@ -231,6 +224,10 @@ public:
     // The printer drain, print preview, status light and print dialog.
     ShellPrinter &  GetPrinter();
 
+    // The Disk II drives: the DiskManager, the drive widgets and their state,
+    // the recent-disks list, salvage and the external-change notice.
+    ShellDisks &  GetDisks();
+
     // Settings > General: the two download offers. Each is saved
     // immediately, like the other live toggles in Settings.
     void SetAudioDownloadConsent (const std::string & consent);
@@ -254,24 +251,6 @@ public:
     void PowerCycle();
 
     void OpenSettings (bool showControllers = false);
-
-    // IDriveCommandSink
-    // UI-thread entry points the drive widgets call into when the user
-    // drops a file, clicks-to-browse, or clicks the eject affordance.
-    // Both forms route through the existing IDM_DISK_* command queue so
-    // the actual mount/eject runs on the CPU thread same as the menu
-    // path. `Mount` accepts only slot 6 (the integrated Disk II);
-    // unknown slots are E_INVALIDARG and the mount is dropped.
-    HRESULT Mount  (int slot, int drive, const std::wstring & path) override;
-    void    Eject  (int slot, int drive) override;
-
-    // UI helper: open the drive door for visual feedback, show the
-    // file-open dialog, then close the door again. Mount-on-success
-    // is handled by the existing PromptForDiskImage path; this
-    // method just owns the door visual. `anchorClientPx` is the clicked
-    // drive in client pixels, which the picker opens below; null (the menu
-    // and accelerator path) centers the picker on the window.
-    void    BrowseForDisk (int drive, const RECT * anchorClientPx = nullptr);
 
 private:
 
@@ -506,20 +485,12 @@ private:
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
     void    ReflowChromeForMachineChange  ();
 
-    // Whether the second (external) drive-mount widget should be visible.
-    // Always true for machines whose second drive is fixed hardware; on the
-    // //c (banked system ROM) the external drive is an optional add-on, shown
-    // only when m_externalDriveConnected. The drive-layout paths consult this
-    // to hide m_driveChrome[1] and skip its hit rect when disconnected.
-    bool    ShouldShowExternalDrive       () const;
-
     // Connecting and disconnecting storage devices, from the Storage menu and
     // the devices' right-click menus. Both are live, and saved with the
     // machine as Settings saves them.
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
-    bool    IsSecondDriveOffered      () const;
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
@@ -670,12 +641,6 @@ private:
     // in, and the machine is who knows that. Asking the model directly meant
     // every new machine with a switch panel would need another arm added here.
     bool    MachineHasCaseSwitches () const;
-    bool    MachineHasBuiltInDrive () const;
-
-    // The info icon's tooltip for a drive: what its WOZ image declares about
-    // the machine, and what conflicts with the one running. Empty when nothing
-    // does.
-    std::wstring  ComposeDriveInfoTooltip (int drive) const;
 
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
@@ -814,61 +779,6 @@ private:
     const uint32_t *  GetUiFramebufferPixels () const
     {
         return m_uiFramebuffer.empty() ? nullptr : m_uiFramebuffer.data();
-    }
-
-    // Accessor for the Settings → Theme preview so it can render the
-    // basename label with the actual filename of whatever disk image is
-    // currently mounted in each drive (or an empty string if the drive
-    // is empty). Index 0 is drive 1, index 1 is drive 2.
-    const std::wstring &  GetMountedImagePath (int driveIndex) const
-    {
-        static const std::wstring  s_kEmpty;
-
-        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
-        {
-            return s_kEmpty;
-        }
-
-        return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
-    }
-
-    // Write-protect breakdown for a drive, read from the live per-drive
-    // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
-    // Used by the Settings → Theme preview so its sample drive shows the
-    // padlock cue for whatever is actually mounted. Index 0 is drive 1.
-    WriteProtectInfo  GetDriveWriteProtect (int driveIndex) const
-    {
-        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
-        {
-            return WriteProtectInfo();
-        }
-
-        return m_driveWidgetState[(size_t) driveIndex].writeProtect;
-    }
-
-    // Head position and activity for the Settings -> Theme preview, copied
-    // into the caller's state rather than returned, because the live state
-    // holds atomics and cannot be copied whole. Without it the preview's
-    // drives are built from a default-constructed state, whose head position
-    // is the "unknown" -1 that PaintCompactHeadBar deliberately refuses to
-    // draw a core for -- so a 2D theme's activity indicator showed the bare
-    // rail and nothing else. Index 0 is drive 1.
-    void  SampleDriveActivity (int driveIndex, DriveWidgetState & outState) const
-    {
-        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
-        {
-            return;
-        }
-
-        const DriveWidgetState &  st = m_driveWidgetState[(size_t) driveIndex];
-
-        outState.headQuarterTrack.store (st.headQuarterTrack.load (std::memory_order_relaxed),
-                                         std::memory_order_relaxed);
-        outState.motorOn.store    (st.motorOn.load    (std::memory_order_relaxed),
-                                   std::memory_order_relaxed);
-        outState.diskActive.store (st.diskActive.load (std::memory_order_relaxed),
-                                   std::memory_order_relaxed);
-        outState.lastActiveMs = st.lastActiveMs;
     }
 
     // Base directory for user preferences. SettingsPanel.CommitApply
@@ -1293,65 +1203,6 @@ private:
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
-    // Whether the Disk menu offers the write-protect toggle for a drive.
-    bool    IsWriteProtectToggleOffered (int drive);
-
-    // Whether the Disk menu offers salvage for a drive: only a damaged image
-    // with ordinary 16-sector structure can be rebuilt from its sectors.
-    bool    IsSalvageOffered (int drive);
-
-    // Shows a dialog whose body is a caller-built panel rather than text runs,
-    // for content a string cannot carry (here: an aligned figures table and a
-    // warning banner).
-    int     ShowSalvageDialog (const DialogDefinition & def,
-                               std::unique_ptr<SalvageDialogContent> content);
-
-    // The whole salvage interaction: assess, show the figures, write the copy
-    // on confirmation, then offer to insert it.
-    void    RunSalvageFlow (int drive);
-
-    // What one bay's external change wants said, carried from the thread that
-    // owns disk writes to the one that owns the screen.
-    struct ChangeNotice
-    {
-        int           slot  = 0;
-        int           drive = 0;
-        ChangePrompt  prompt;
-    };
-
-    // Installs the two sinks the image store reports through: the non-blocking
-    // banner, and the question. Both bounce to the UI thread.
-    void    InstallChangeReporting ();
-
-    // Raises the non-modal banner over the running machine for a bay.
-    void    ShowChangeBanner  (const ChangeNotice & notice);
-
-    // Puts the store's question to the user and routes the answer back to the
-    // thread that owns disk writes.
-    void    AskAboutChange    (const ChangeNotice & notice);
-
-    // Lays the notice into the band the dock gave it.
-    void    LayoutChangeBanner ();
-
-    // Offers a mouse event to the message bar, if one is up.
-    //
-    // THE SHELL HIT-TESTS ITS CHROME BY NAME rather than walking the panel
-    // tree -- the toolbar, the joystick selector and the //c switch strip are
-    // each asked in turn -- so a control that is not on that list is painted
-    // and never clicked. Measured: the bar drew correctly and its button could
-    // not be pressed.
-    bool    OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y);
-
-    //  Closes the change band and gives its height back to the picture.
-    void    HideChangeBanner ();
-
-    //  Closes it once its time is up, unless the pointer is resting on it.
-    void    ExpireChangeBannerIfDue ();
-
-    // How tall the notice's band is right now: zero when nothing is being
-    // reported, and the height its wrapped text needs when something is.
-    int     GetChangeBandThicknessPx (int clientWidthPx) const;
-
     // How tall the capture bar's band is right now: zero unless the pointer is
     // held, and zero in fullscreen, where there are no bands at all and the
     // bar rides under the toolbar reveal instead.
@@ -1372,51 +1223,6 @@ private:
     // Casso would be dropped by the system without a word. Installing it here
     // as well costs a call and removes the dependency.
     void    InstallIntentMessageFilter ();
-
-    // Asks where to save the contents of a disk whose file has gone.
-    //
-    // THE SAVE DIALOG, NOT THE DISK PICKER. The user is saving a disk here,
-    // not choosing one to mount, and the two look similar enough that reaching
-    // for the wrong one would be easy and baffling.
-    //
-    // Returns false where the user cancelled, which is the same outcome as
-    // declining: the drive is emptied either way and nothing is written.
-    bool    AskWhereToSaveLostDisk (const std::string & imagePath, std::wstring & outPath);
-
-    // Reports a freshly mounted image that failed its stored checksum, with
-    // salvage offered inline. Raised here rather than by the loader because a
-    // dialog with an action on it is the shell's business, and EhmNotifyUser
-    // carries a string and nothing else.
-    void    ReportDamagedMount (int drive);
-
-    // One attempted mount's outcome, carried from the thread that ran the
-    // mount to the UI thread that reacts to it. Plain data, and used only as
-    // a parameter, so it rides along in this header.
-    //
-    // The path stays in the narrow form the store and the DiskManager use.
-    // Widening it here and narrowing it again for the message would be a
-    // round-trip through the platform encoding for no gain, and that is the
-    // trip that mangles a non-ASCII filename.
-    struct MountCompletion
-    {
-        std::string     path;
-        MountDiagnosis  diagnosis;
-        HRESULT         result = S_OK;
-        int             drive  = 0;
-    };
-
-    // The DiskManager mount-completion hook. Runs on whichever thread ran the
-    // mount -- the CPU thread for anything the user started, the UI thread for
-    // the command-line disks -- and does nothing but get the outcome onto the
-    // UI thread, where the MRU and the dialogs live.
-    void    OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
-                              const MountDiagnosis & diagnosis);
-
-    // The UI-thread half: a successful mount enters the recent-disks list and
-    // is checked for damage, a failed one is reported to the user. Posting to
-    // get here is also what keeps a failed --disk1 from raising a modal inside
-    // Initialize, before the message loop that would service it is running.
-    void    HandleMountCompletion (const MountCompletion & completion);
 
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
@@ -1453,12 +1259,6 @@ private:
     // def.closeBoxResult / -1 on a close gesture).
     int          ShowSimpleDialogViaDxui (const DialogDefinition & def);
 
-    // Push a freshly mounted disk image onto the recent-disks MRU
-    // and persist user prefs. Best-effort; never propagates failures
-    // back into the mount path. Takes the mount's own HRESULT and hands
-    // it to DiskMru, which drops anything that did not actually mount.
-    void    RecordRecentDisk     (const std::wstring & path, HRESULT mountResult);
-
     // The shell's components, each owned here and reached through its
     // getter. Held by pointer so this header needs only their names.
     std::unique_ptr<ShellUpdater>    m_updater;
@@ -1467,6 +1267,7 @@ private:
     // enough shell state during construction and command dispatch that
     // friend declarations are the pragmatic seam; no new global state is
     // introduced.
+    friend class ShellDisks;
     friend class ShellPrinter;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
@@ -1555,7 +1356,6 @@ private:
     // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu                    m_mainMenu;
     CassoTheme                  m_chromeTheme   = CassoTheme::MakeSkeuomorphic();
-    std::array<DriveWidget, 2>  m_driveChrome;
 
     // The command toolbar: the strip below the menu bar with Settings /
     // theme + monitor-color pickers / Printer (+status LED) / master Volume
@@ -1643,12 +1443,8 @@ protected:
     // The flat drive band's row, for the band layout tests: lay the row out
     // in a client of the given size with no band below it, and read back
     // where the drives and the recorder landed.
-    void  LayoutDriveRowForTest   (int clientW, int clientH, UINT dpi, int visibleCount)
-    {
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, 0, clientW, clientH, dpi, 1.0f, visibleCount);
-    }
-
-    RECT  GetDriveRectForTest     (size_t drive) const { return m_driveChrome[drive].GetOuterRect(); }
+    void  LayoutDriveRowForTest   (int clientW, int clientH, UINT dpi, int visibleCount);
+    RECT  GetDriveRectForTest     (size_t drive) const;
     RECT  GetTapeAnchorForTest    () const;
     void  SetRecorderAttachedForTest (bool attached);
 
@@ -1685,25 +1481,6 @@ private:
     // only on the UI thread.
     const uint32_t *                 m_pendingFramebuffer = nullptr;
 
-    // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
-    // centered in the drive bar above the drive widgets, with its own
-    // hover tooltip.
-    // Non-modal notice over the running machine: a disk changed outside Casso.
-    //
-    // IT DOES NOT CLEAR ITSELF, and that is the design rather than an
-    // oversight: the action it carries is the restart, which is what the user
-    // reaches for once the program starts misbehaving, and a notice that faded
-    // would take that action with it.
-    DxuiActionBanner            m_changeBanner;
-
-    //  When the change band closes itself, and the frame that last looked.
-    //  Zero means it stands until dismissed. Hovering does not extend the
-    //  wait, it suspends it: the deadline moves with the clock while the
-    //  pointer is over the band, so what is left when the pointer leaves is
-    //  what was left when it arrived.
-    int64_t                     m_changeBannerHideAtMs = 0;
-    int64_t                     m_changeBannerTickMs   = 0;
-
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
@@ -1725,14 +1502,6 @@ private:
     // The stock system tooltip for those is suppressed at the host, so this
     // is the only one, and it matches every other tooltip in the window.
     DxuiTooltip               m_captionTooltip;
-
-    // Live per-drive user write-protect preference (Settings > Disk
-    // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
-    // startup and re-applied to each freshly mounted image so the guest
-    // sees the disk as protected and dirty writes never flush. Distinct
-    // from the image's own embedded flag and from the backing file's
-    // read-only state; all three are surfaced independently in the UI.
-    std::array<bool, 2>   m_userWriteProtect { { false, false } };
 
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome
@@ -2065,14 +1834,6 @@ private:
     ULONGLONG                m_gestureZoomLast  = 0;
     POINT                    m_gesturePanLastPx = {};
 
-    // //c only: whether the optional external drive is "connected". Mirrors
-    // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
-    // machine build and flipped live by IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT.
-    // Gates the second drive-mount widget (m_driveChrome[1]) via
-    // ShouldShowExternalDrive(). No effect on machines whose second drive is
-    // fixed hardware (they have no banked ROM, so the gate is always open).
-    bool                     m_externalDriveConnected = false;
-
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
     // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
@@ -2081,14 +1842,8 @@ private:
     // from an unplugged DB-9 on real hardware.
     bool                     m_mouseConnected = true;
 
-    // Drive widget state pump. The controller channel publishes
-    // per-drive door/spin sync events the chrome painter will consume
-    // once reintroduced. The drag-drop target registers a single
-    // IDropTarget on the main HWND. Per-drive UI/CPU bridge state
-    // lives in m_driveWidgetState; the CPU thread's motor + nibble
-    // counters are sampled once per UI frame and pushed through the
-    // controller.
-    DriveWidgetController  m_driveWidgets;
+    // The drag-drop target registers a single IDropTarget on the main HWND,
+    // for the drives and the recorder.
     DxuiDragDropTarget     m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
@@ -2122,8 +1877,6 @@ private:
     // destroys it at a safe point (not from inside its own EndDialog handler).
     std::unique_ptr<SettingsSheet>       m_settingsSheet;
     bool                                 m_settingsSheetClosePending = false;
-
-    std::array<DriveWidgetState, 2>      m_driveWidgetState;
 
     // Set true once OleInitialize has succeeded on the UI thread so
     // shutdown can pair the call with OleUninitialize. RegisterDragDrop
@@ -2305,7 +2058,7 @@ private:
     CapsLockTracker                           m_capsLock;
 
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
-    std::unique_ptr<DiskManager>              m_diskManager;
+    std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;

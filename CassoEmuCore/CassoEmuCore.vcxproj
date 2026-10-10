@@ -497,7 +497,7 @@
     <ClCompile Include="Shell\EmulatorShellScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellPresent.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
-    <ClCompile Include="Shell\EmulatorShellDisks.cpp" />
+    <ClCompile Include="Shell\Components\ShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
     <ClCompile Include="Shell\Components\ShellAudio.cpp" />
@@ -898,6 +898,7 @@
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
+    <ClInclude Include="Shell\Components\ShellDisks.h" />
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />

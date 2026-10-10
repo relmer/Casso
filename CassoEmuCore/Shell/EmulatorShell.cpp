@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
@@ -119,6 +121,7 @@ EmulatorShell::EmulatorShell()
     m_audio    = std::make_unique<ShellAudio>();
     m_tapeDeck = std::make_unique<ShellTapeDeck> (*this);
     m_printer  = std::make_unique<ShellPrinter> (*this);
+    m_disks    = std::make_unique<ShellDisks> (*this);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -248,7 +251,7 @@ EmulatorShell::~EmulatorShell()
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
-    m_driveWidgets.UnloadDocument();
+    m_disks->GetDriveWidgets().UnloadDocument();
     m_mainMenu.Hide();
     m_mainMenu.SetPopupHost (nullptr);
 
@@ -316,6 +319,54 @@ ShellTapeDeck & EmulatorShell::GetTapeDeck()
 ShellPrinter & EmulatorShell::GetPrinter()
 {
     return *m_printer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDisks & EmulatorShell::GetDisks()
+{
+    return *m_disks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutDriveRowForTest
+//
+//  The flat drive band's row, for the band layout tests: lays the row out in
+//  a client of the given size with no band below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutDriveRowForTest (int clientW, int clientH, UINT dpi, int visibleCount)
+{
+    LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), 0, clientW, clientH, dpi, 1.0f, visibleCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDriveRectForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::GetDriveRectForTest (size_t drive) const
+{
+    return m_disks->GetDriveChrome()[drive].GetOuterRect();
 }
 
 
@@ -608,26 +659,11 @@ HRESULT EmulatorShell::Initialize (
 
     PowerCycle();
 
-    // Every mount reports its outcome through here, not just this one:
-    // the recent-disks entry, the damage check, and the failure report all
-    // hang off it. Installed before the command-line disks go in so those
-    // are covered too.
-    m_diskManager->SetMountCompletedCallback (
-        [this] (int drive, const std::string & path, HRESULT mountResult,
-                const MountDiagnosis & diagnosis)
-        {
-            OnMountCompleted (drive, path, mountResult, diagnosis);
-        });
+    // Every mount reports its outcome through the disks, not just these:
+    // installed before the command-line disks go in so those are covered too.
+    m_disks->InstallMountReporting();
 
-    // The toggle runs on the CPU thread and the notice is Dxui, so the text
-    // is posted to the window rather than shown here.
-    m_diskManager->SetWriteProtectChangedCallback (
-        [this] (const std::wstring & text)
-        {
-            PostNotice (text);
-        });
-
-    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
+    m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
 
     m_tapeDeck->InsertStartupTape (tapePath);
 
@@ -690,23 +726,7 @@ void EmulatorShell::InitAssetPathsAndStores()
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
 
-    m_diskManager = std::make_unique<DiskManager> (m_machine,
-                                                   m_machine.GetDiskStore(),
-                                                   m_audio->GetDiskSources(),
-                                                   m_audio->GetOutput(),
-                                                   m_driveWidgets,
-                                                   m_driveWidgetState,
-                                                   m_driveChrome,
-                                                   m_cpuManager,
-                                                   m_machine.GetCurrentMachineName(),
-                                                   *m_userConfigStore,
-                                                   m_uiFs,
-                                                   m_userWriteProtect);
-
-    //  The store owns the watch lifecycle; this only decides which watcher it
-    //  gets. --no-image-watch installs one that refuses every watch, so the
-    //  check made before every write can be measured on its own.
-    m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+    m_disks->Initialize (*m_userConfigStore, m_uiFs, m_imageWatchDisabled);
 
     m_audio->AttachTape (&m_machine.GetTapeDeck(),
                          [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
@@ -1087,7 +1107,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
 {
     HRESULT  hr         = S_OK;
     UINT     initialDpi = GetDpiForWindow (m_hwnd);
-    bool     fHasDisk   = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool     fHasDisk   = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
 
 
@@ -1119,15 +1139,15 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         // and the bottom command bar is clear of drive UI.
         // The joystick-mode button still paints, since
         // joystick input is independent of disk presence.
-        m_driveChrome[0].Hide();
-        m_driveChrome[1].Hide();
+        m_disks->GetDriveChrome()[0].Hide();
+        m_disks->GetDriveChrome()[1].Hide();
     }
-    else if (!ShouldShowExternalDrive())
+    else if (!m_disks->ShouldShowExternalDrive())
     {
         // //c with the optional external drive not connected: the
         // internal drive (widget 0) shows, the external (widget 1)
         // stays collapsed until the user connects it in Settings.
-        m_driveChrome[1].Hide();
+        m_disks->GetDriveChrome()[1].Hide();
     }
 
     if (!DeskSceneActive())
@@ -1135,10 +1155,10 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_uiShell.GetHitTester().Clear();
         if (fHasDisk)
         {
-            m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-            if (ShouldShowExternalDrive())
+            m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+            if (m_disks->ShouldShowExternalDrive())
             {
-                m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+                m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
 
@@ -1150,7 +1170,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         InstallDragDropTarget();
     }
 
-    InstallChangeReporting();
+    m_disks->InstallChangeReporting();
     InstallIntentMessageFilter();
 
 Error:
@@ -1277,53 +1297,6 @@ bool EmulatorShell::MachineHasCaseSwitches() const
 
 
     return (definition != nullptr && definition->hasCaseSwitches);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::MachineHasBuiltInDrive
-//
-//  Whether the machine's drive is soldered in rather than plugged into a card,
-//  which is what decides the drive the desk scene draws.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::MachineHasBuiltInDrive() const
-{
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
-
-
-
-    return (definition != nullptr && definition->hasBuiltInDrive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ComposeDriveInfoTooltip
-//
-//  Every presentation's info icon shows the same words, all from the drive's
-//  sampled state: the WOZ requirements and the machine they were checked
-//  against. The machine's config is not read here, because this runs on a
-//  pointer move, outside the machine's lifetime lock, and a machine switch on
-//  the CPU thread can be replacing that config at the same moment.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
-{
-    const DriveWidgetState  & st = m_driveWidgetState[drive];
-
-
-
-    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
 }
 
 

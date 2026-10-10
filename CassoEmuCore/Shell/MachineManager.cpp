@@ -6,6 +6,7 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
@@ -326,7 +327,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         }
                     }
 
-                    m_shell.m_externalDriveConnected = connected;
+                    m_shell.m_disks->SetExternalDriveConnected (connected);
 
                     // //c mouse peripheral: adopt the switched-to machine's
                     // persisted connected state (default CONNECTED).
@@ -544,13 +545,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // non-Apple-II family), drop the carry rather than silently relying
     // on MountDiskInSlot6's nullptr CBR. The disk in DiskImageStore
     // was already flushed above, so no user data is lost.
-    if (!m_shell.m_diskManager->HasSlot6Controller())
+    if (!m_shell.m_disks->GetManager()->HasSlot6Controller())
     {
         carryDisk1.clear();
         carryDisk2.clear();
     }
 
-    m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+    m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     // Each machine keeps its own tape, as it keeps its own disks.
     m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();

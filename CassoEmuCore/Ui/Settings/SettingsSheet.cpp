@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
@@ -462,15 +463,15 @@ HRESULT SettingsSheet::OpenModeless (
     });
     m_themePage->SetMountedPathSource ([this] (int driveIndex) -> std::wstring
     {
-        return m_emuShell->GetMountedImagePath (driveIndex);
+        return m_emuShell->GetDisks().GetMountedImagePath (driveIndex);
     });
     m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
     {
-        return m_emuShell->GetDriveWriteProtect (driveIndex);
+        return m_emuShell->GetDisks().GetDriveWriteProtect (driveIndex);
     });
     m_themePage->SetDriveActivitySource ([this] (int driveIndex, DriveWidgetState & outState)
     {
-        m_emuShell->SampleDriveActivity (driveIndex, outState);
+        m_emuShell->GetDisks().SampleDriveActivity (driveIndex, outState);
     });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
@@ -1136,7 +1137,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_emuShell != nullptr && m_emuShell->MachineHasBuiltInDrive() != m_previewSceneIsC)
+    if (m_emuShell != nullptr && m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
     {
         hr = LoadPreviewSceneModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1198,7 +1199,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 HRESULT SettingsSheet::LoadPreviewSceneModels()
 {
     HRESULT  hr  = S_OK;
-    bool     isC = (m_emuShell != nullptr) && m_emuShell->MachineHasBuiltInDrive();
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().MachineHasBuiltInDrive();
 
 
 

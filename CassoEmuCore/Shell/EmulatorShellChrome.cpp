@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -237,13 +239,13 @@ void EmulatorShell::SetChromeHiddenForFullscreenScene (bool hidden)
 
     // Leaving fullscreen must not hand the flat widgets back to a scene that
     // has already retired them.
-    m_driveChrome[0].SetVisible (!hidden && !DeskSceneActive());
-    m_driveChrome[1].SetVisible (!hidden && !DeskSceneActive());
+    m_disks->GetDriveChrome()[0].SetVisible (!hidden && !DeskSceneActive());
+    m_disks->GetDriveChrome()[1].SetVisible (!hidden && !DeskSceneActive());
 
     if (hidden)
     {
-        m_driveChrome[0].Hide();
-        m_driveChrome[1].Hide();
+        m_disks->GetDriveChrome()[0].Hide();
+        m_disks->GetDriveChrome()[1].Hide();
     }
 }
 
@@ -964,7 +966,7 @@ void EmulatorShell::SyncChromeBands()
     // Which bands exist, and how tall, is ChromeBandLayout's to decide from
     // what the machine has and how it is shown; this reads those facts off
     // the shell and stamps the answers onto the bands' docked heights.
-    inputs.hasDiskController   = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    inputs.hasDiskController   = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
     inputs.crtMonitorActive    = CrtMonitorActive();
     inputs.hasCaseSwitches     = MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
@@ -974,7 +976,7 @@ void EmulatorShell::SyncChromeBands()
     // Measured against the CLIENT width, which is what the band will be given.
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
-    inputs.changeBandPx        = GetChangeBandThicknessPx (m_lastClientWidthPx);
+    inputs.changeBandPx        = m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx);
     inputs.captureBandPx       = GetCaptureBandThicknessPx (m_lastClientWidthPx);
 
     px = ChromeBandLayout::Compute (inputs, m_scaler);
@@ -1077,7 +1079,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
     //  The notice rides its band the way the toolbar rides its own, so a
     //  resize or a DPI change reflows it with everything else.
-    LayoutChangeBanner();
+    m_disks->LayoutChangeBanner (m_changeBand.GetBounds());
 
     //  AND SO DOES THE INPUT-MODE BAR. It was laid out only from the present
     //  path, which runs on the frame's cadence rather than the resize's, so
@@ -1125,7 +1127,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
     if (haveWindow)
     {
-        newHasDisk    = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+        newHasDisk    = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
         newIsApple2c  = MachineHasCaseSwitches();
         layoutChanged = (newHasDisk != m_chromeSizedForHasDisk) ||
                         (newIsApple2c != m_chromeSizedForApple2c);
@@ -1205,43 +1207,6 @@ void EmulatorShell::ReflowChromeForMachineChange()
                            static_cast<UINT> (rcClient.bottom - rcClient.top));
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ShouldShowExternalDrive
-//
-//  The //c's second drive is an optional external unit that plugs into the
-//  disk port, so it appears only when the user has marked it connected
-//  (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected). The //c is
-//  the only machine with a banked system ROM, so romBankSize is the
-//  discriminator -- the same signal that gates the built-in IWM drive.
-//
-//  Everywhere else the second drive is whatever is attached to the Disk ][
-//  card's second connector. That used to be unconditionally true, on the
-//  reasoning that the card is two-drive hardware -- but the CARD having two
-//  connectors was never the same claim as both of them having a drive on the
-//  end, and this is the question the 2D widgets and the desk scene both ask,
-//  so answering it from the config is what keeps them agreeing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::ShouldShowExternalDrive() const
-{
-    bool  externalIsOptional = (m_machine.GetConfig().systemRom.romBankSize != 0);
-
-
-
-    if (externalIsOptional)
-    {
-        return m_externalDriveConnected;
-    }
-
-    return m_machine.GetConfig().AttachedDiskIiDriveCount() >= kDiskIiPortCount;
 }
 
 
@@ -1489,7 +1454,7 @@ void EmulatorShell::SyncSwitchBarState()
         m_switchBar.SetKeyboardIn    (iieKbd->IsKeyboardSwitchDvorak());
     }
 
-    for (const DriveWidget & drive : m_driveChrome)
+    for (const DriveWidget & drive : m_disks->GetDriveChrome())
     {
         diskOn = diskOn || (drive.GetLed() == LedState::Active);
     }
@@ -1656,4 +1621,53 @@ int EmulatorShell::GetStandInBarHeightPx (float widthPx) const
     }
 
     return (int) measure.GetPreferredHeightPx (widthPx, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReflowChromeForChangeBand
+//
+//  Re-docks everything after the notice appears or goes.
+//
+//  THE WINDOW KEEPS ITS SIZE. The machine-change reflow beside this one grows
+//  and shrinks the window, because a machine with no disk drives genuinely
+//  needs less of it and the user keeps that size for the session. A notice is
+//  transient: the picture gives up the height while it is up and takes it back
+//  when it goes, which is what makes the strip read as sliding in over the
+//  scene rather than shoving the window about.
+//
+//  RUN THROUGH OnSize, which is the one authoritative layout pass. A second
+//  path that re-docked some of the chrome would be a second answer to where
+//  everything goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflowChromeForChangeBand()
+{
+    RECT  client = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
+    //  NEVER FROM INSIDE THE PASS IT RUNS. Losing the pointer capture re-docks,
+    //  and the capture is dropped from OnCancelMode / OnKillFocus, which a
+    //  resize itself can raise -- so the layout would call itself.
+    if (m_inChromeLayout || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
+    {
+        return;
+    }
+
+    {
+        DxuiMessageResult  sized = OnSize (client.right - client.left,
+                                           client.bottom - client.top);
+
+        IGNORE_RETURN_VALUE (sized, DxuiMessageResult::Handled);
+    }
+
+    return;
 }

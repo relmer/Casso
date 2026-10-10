@@ -8,6 +8,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
@@ -557,9 +558,9 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
 
 
 
-    if (connected != m_shell.m_externalDriveConnected)
+    if (connected != m_shell.m_disks->IsExternalDriveConnected())
     {
-        m_shell.m_externalDriveConnected = connected;
+        m_shell.m_disks->SetExternalDriveConnected (connected);
         fChanged = true;
     }
 
@@ -582,9 +583,9 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
     // unwritten changes in an image the user can no longer reach -- and it
     // routes through the CPU command queue like every other eject, rather
     // than tearing state out from under the running machine.
-    if (!connected && m_shell.m_diskManager != nullptr)
+    if (!connected && m_shell.m_disks->GetManager() != nullptr)
     {
-        m_shell.m_diskManager->Eject (6, 1);
+        m_shell.m_disks->GetManager()->Eject (6, 1);
     }
 
     m_shell.ReflowChromeForMachineChange();
@@ -1084,7 +1085,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStar
     // mount happened.
     BAIL_OUT_IF (!picked, S_OK);
 
-    hr = m_shell.Mount (6, drive - 1, chosen.wstring());
+    hr = m_shell.m_disks->Mount (6, drive - 1, chosen.wstring());
     CHR (hr);
 
     outMountStarted = true;
@@ -1265,7 +1266,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
         m_shell.SaveGlobalPrefs();
     }
 
-    hr = m_shell.Mount (6, drive - 1, dialog.GetOutcome().targetPath);
+    hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
     CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme,
                               L"The disk was created but could not be mounted.",
                               L"Create new disk", MB_OK | MB_ICONERROR));
@@ -1484,7 +1485,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * ancho
     }
     else if (!chosenPath.empty())
     {
-        hr = m_shell.Mount (6, drive - 1, chosenPath);
+        hr = m_shell.m_disks->Mount (6, drive - 1, chosenPath);
         CHR (hr);
 
         outMountStarted = true;
@@ -1526,7 +1527,7 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            m_shell.BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
+            m_shell.m_disks->BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
             break;
         }
 
@@ -1550,7 +1551,7 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_SALVAGE2:
         {
             // Stays on the UI thread: the flow opens Dxui modals.
-            m_shell.RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            m_shell.m_disks->RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
         }
 
@@ -1565,8 +1566,8 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_TAPE_FASTFORWARD: m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::FastForward);  break;
 
         // Each flips its device, connected to disconnected or back.
-        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.ShouldShowExternalDrive());         break;
-        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected()); break;
+        case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
+        case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
     }
 }
 
@@ -2255,8 +2256,8 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         // hatch for the rare machine whose print stack misbehaves.
         const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
         HRESULT                  hrShow = m_shell.m_printer->GetPrintDialog().ShowAsync (m_shell.m_hwnd, job->GetRaster(),
-                                                                              PrintDpiFromPrefs (prefs),
-                                                                              PrintDotStyleFromPrefs (prefs));
+                                                                                         PrintDpiFromPrefs (prefs),
+                                                                                         PrintDotStyleFromPrefs (prefs));
 
         // The async session owns the outcome from here; resume and let its
         // completion callback post the result.

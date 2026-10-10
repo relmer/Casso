@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellPrinter.h"
@@ -536,8 +538,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the host owns the caption strip itself.
     m_host->GetRoot().Adopt (m_mainMenu);
     m_host->GetRoot().Adopt (m_driveBandSurface);
-    m_host->GetRoot().Adopt (m_driveChrome[0]);
-    m_host->GetRoot().Adopt (m_driveChrome[1]);
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_fpsReadout);
     m_host->GetRoot().Adopt (m_sceneViewReadout);
@@ -631,7 +633,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_host->GetRoot().Adopt (m_toolbar);
     m_host->GetRoot().Adopt (m_switchBar);
-    m_host->GetRoot().Adopt (m_changeBanner);
+    m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
@@ -820,14 +822,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_DISK_WP1:      return IsWriteProtectToggleOffered (0);
-            case IDM_DISK_WP2:      return IsWriteProtectToggleOffered (1);
-            case IDM_DISK_SALVAGE1: return IsSalvageOffered (0);
-            case IDM_DISK_SALVAGE2: return IsSalvageOffered (1);
-            case IDM_STORAGE_DRIVE2:   return IsSecondDriveOffered();
+            case IDM_DISK_WP1:      return m_disks->IsWriteProtectToggleOffered (0);
+            case IDM_DISK_WP2:      return m_disks->IsWriteProtectToggleOffered (1);
+            case IDM_DISK_SALVAGE1: return m_disks->IsSalvageOffered (0);
+            case IDM_DISK_SALVAGE2: return m_disks->IsSalvageOffered (1);
+            case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
-            case IDM_DISK_INSERT2:     return ShouldShowExternalDrive();
-            case IDM_DISK_EJECT2:      return ShouldShowExternalDrive();
+            case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();
+            case IDM_DISK_EJECT2:      return m_disks->ShouldShowExternalDrive();
             case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
@@ -850,7 +852,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 bool  isC = m_machine.GetConfig().systemRom.romBankSize != 0;
 
-                if (ShouldShowExternalDrive())
+                if (m_disks->ShouldShowExternalDrive())
                 {
                     return isC ? std::wstring (L"Detach &external drive") : std::wstring (L"Detach &drive 2");
                 }
@@ -918,8 +920,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    m_driveChrome[0].Initialize (6, 0, this);
-    m_driveChrome[1].Initialize (6, 1, this);
+    m_disks->GetDriveChrome()[0].Initialize (6, 0, m_disks.get());
+    m_disks->GetDriveChrome()[1].Initialize (6, 1, m_disks.get());
 
     // Settle the desk-scene scale (monitor fit + band heights) BEFORE laying
     // the drive widgets, so they are born at the settled scale rather than
@@ -939,8 +941,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
         else
         {
-            LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale,
-                                            ShouldShowExternalDrive() ? 2 : 1);
+            LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale,
+                                            m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
         m_driveBandSurface.SetVisible (!DeskSceneActive());
@@ -1090,7 +1092,7 @@ int EmulatorShell::GetDriveRowWidthPx()
 {
     UINT            dpi    = m_scaler.GetDpi();
     int             gap    = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int             count  = ShouldShowExternalDrive() ? 2 : 1;
+    int             count  = m_disks->ShouldShowExternalDrive() ? 2 : 1;
     DxuiDpiScaler   scaler;
     DriveWidget     drive;
     TapeDeckWidget  tape;
@@ -1465,7 +1467,7 @@ int EmulatorShell::RunMessageLoop()
     // ready to deliver user input -- any mount issued from here on
     // is treated as a real, user-initiated swap and fires the
     // drive-audio door-close (FR-013).
-    m_diskManager->SetColdBootMountWindow (false);
+    m_disks->GetManager()->SetColdBootMountWindow (false);
 
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
@@ -2023,7 +2025,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         {
             SetChromeHiddenForFullscreenScene (true);
             UpdateViewportLayout (static_cast<int> (width), renderH);
-            m_chromeSizedForHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            m_chromeSizedForHasDisk = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
             m_chromeSizedForApple2c = MachineHasCaseSwitches();
         }
         else
@@ -2045,7 +2047,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
             RECT  driveRect     = m_driveBand.GetBounds();
             int   bottomInsetPx = renderH - driveRect.top;   // drive band height only
-            bool  fHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            bool  fHasDisk      = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
             (void) vr;                                        // dock side-effect: bands arranged
 
@@ -2056,16 +2058,16 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
             else if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi,
-                                                m_chromeSceneScale, ShouldShowExternalDrive() ? 2 : 1);
+                LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
+                                                m_chromeSceneScale, m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional
                 // //c drive the user has not connected, so only the internal
                 // drive shows.
-                if (!ShouldShowExternalDrive())
+                if (!m_disks->ShouldShowExternalDrive())
                 {
-                    m_driveChrome[1].Hide();
+                    m_disks->GetDriveChrome()[1].Hide();
                 }
             }
             else
@@ -2076,8 +2078,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 // path treats the whole window as the drop target. The
                 // joystick-mode button still paints -- joystick input is
                 // independent of disk presence.
-                m_driveChrome[0].Hide();
-                m_driveChrome[1].Hide();
+                m_disks->GetDriveChrome()[0].Hide();
+                m_disks->GetDriveChrome()[1].Hide();
             }
 
             // OnSize is the authoritative layout (only fires on a real WM_SIZE,
@@ -2101,10 +2103,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_uiShell.GetHitTester().Clear();
                 if (fHasDisk)
                 {
-                    m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-                    if (ShouldShowExternalDrive())
+                    m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+                    if (m_disks->ShouldShowExternalDrive())
                     {
-                        m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+                        m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
                     }
                 }
 
@@ -2574,11 +2576,11 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // disk writes; both of these build UI, so they land here.
     if (msg == WM_APP_CHANGE_REPORT)
     {
-        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+        ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
         if (carried != nullptr)
         {
-            ShowChangeBanner (*carried);
+            m_disks->ShowChangeBanner (*carried);
             delete carried;
         }
 
@@ -2587,11 +2589,11 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     if (msg == WM_APP_CHANGE_ASK)
     {
-        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+        ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
         if (carried != nullptr)
         {
-            AskAboutChange (*carried);
+            m_disks->AskAboutChange (*carried);
             delete carried;
         }
 
@@ -2664,7 +2666,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // where a modal can be built.
     if (msg == WM_APP_REPORT_DAMAGE)
     {
-        ReportDamagedMount ((int) wParam);
+        m_disks->ReportDamagedMount ((int) wParam);
 
         return DxuiMessageResult::Handled;
     }
@@ -2674,11 +2676,11 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // there was a pump to run it.
     if (msg == WM_APP_MOUNT_COMPLETED)
     {
-        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
+        ShellDisks::MountCompletion *  carried = reinterpret_cast<ShellDisks::MountCompletion *> (lParam);
 
         if (carried != nullptr)
         {
-            HandleMountCompletion (*carried);
+            m_disks->HandleMountCompletion (*carried);
             delete carried;
         }
 

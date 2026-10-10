@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"

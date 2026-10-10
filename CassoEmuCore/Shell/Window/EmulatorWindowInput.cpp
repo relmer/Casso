@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
@@ -114,8 +115,8 @@ void EmulatorShell::UpdateChromeFocusVisuals()
     m_toolbar.SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
                                  ? index - s_kChromeFocusToolbarFirst : -1);
 
-    m_driveChrome[0].SetFocused (index == s_kChromeFocusDrive0);
-    m_driveChrome[1].SetFocused (index == s_kChromeFocusDrive1);
+    m_disks->GetDriveChrome()[0].SetFocused (index == s_kChromeFocusDrive0);
+    m_disks->GetDriveChrome()[1].SetFocused (index == s_kChromeFocusDrive1);
 }
 
 
@@ -231,11 +232,11 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     {
         if (index == s_kChromeFocusDrive0)
         {
-            BrowseForDisk (m_driveChrome[0].GetDrive());
+            m_disks->BrowseForDisk (m_disks->GetDriveChrome()[0].GetDrive());
         }
         else if (index == s_kChromeFocusDrive1)
         {
-            BrowseForDisk (m_driveChrome[1].GetDrive());
+            m_disks->BrowseForDisk (m_disks->GetDriveChrome()[1].GetDrive());
         }
     }
 
@@ -449,7 +450,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
-    for (DriveWidget & drive : m_driveChrome)
+    for (DriveWidget & drive : m_disks->GetDriveChrome())
     {
         RECT  outer    = drive.GetOuterRect();
         RECT  iconRect = drive.GetInfoIconRect();
@@ -558,17 +559,17 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         if (!DeskSceneActive() && infoDrive != nullptr)
         {
             anchor = infoDrive->GetInfoIconRect();
-            tip    = ComposeDriveInfoTooltip (infoDrive->GetDrive());
+            tip    = m_disks->ComposeDriveInfoTooltip (infoDrive->GetDrive());
         }
 
         if (tip.empty() && DeskSceneActive())
         {
             for (int i = 0; i < (int) m_sceneInfoIconRect.size(); i++)
             {
-                if (m_driveWidgetState[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pointer))
+                if (m_disks->GetDriveWidgetState()[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pointer))
                 {
                     anchor = m_sceneInfoIconRect[i];
-                    tip    = ComposeDriveInfoTooltip (i);
+                    tip    = m_disks->ComposeDriveInfoTooltip (i);
                     break;
                 }
             }
@@ -585,14 +586,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
                 if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
                     PtInRect (&m_sceneDriveLabelRect[i], lp) &&
-                    m_driveWidgetState[i].writeProtect.Any())
+                    m_disks->GetDriveWidgetState()[i].writeProtect.Any())
                 {
                     anchor = m_sceneDriveLabelRect[i];
                     tip    = ComposeWriteProtectTooltip (
                                  i + 1,
                                  std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i))
                                      .filename().wstring(),
-                                 m_driveWidgetState[i].writeProtect);
+                                 m_disks->GetDriveWidgetState()[i].writeProtect);
                     break;
                 }
             }
@@ -615,7 +616,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                     anchor = m_stripComp.driveRectPx[sceneHit.driveIndex];
                     tip    = ComposeWriteProtectTooltip (
                                  sceneHit.driveIndex + 1, imageName,
-                                 m_driveWidgetState[sceneHit.driveIndex].writeProtect);
+                                 m_disks->GetDriveWidgetState()[sceneHit.driveIndex].writeProtect);
 
                     if (tip.empty())
                     {
@@ -675,7 +676,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
-    for (DriveWidget & drive : m_driveChrome)
+    for (DriveWidget & drive : m_disks->GetDriveChrome())
     {
         drive.UpdateMarqueeHover (false, false, nowMs);
     }
@@ -1306,7 +1307,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     //  Before the rest of the chrome: the bar sits in its own band and
     //  overlaps nothing, so an event inside it belongs to it and to nothing
     //  else.
-    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Down, x, y))
+    if (m_disks->OfferMouseToChangeBanner (DxuiMouseEventKind::Down, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1628,7 +1629,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     //  The release is what makes a button fire, so the bar has to see both
     //  halves of the click.
-    if (OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
+    if (m_disks->OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1763,14 +1764,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         if (sceneHit.target == SceneHitResult::Target::Drive &&
             sceneHit.region == DriveWidgetRegion::Eject)
         {
-            Eject (6, sceneHit.driveIndex);
+            m_disks->Eject (6, sceneHit.driveIndex);
 
             // A browse opened from the strip pins it (the FSM must not
             // auto-hide under the dialog).
             m_stripBrowseOpen = inStrip;
-            BrowseForDisk (sceneHit.driveIndex,
-                           inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
-                                   : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
+            m_disks->BrowseForDisk (sceneHit.driveIndex,
+                                    inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
+                                            : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
             m_stripBrowseOpen = false;
 
             driveTook = true;
@@ -1812,7 +1813,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     }
     else
     {
-        for (DriveWidget & drive : m_driveChrome)
+        for (DriveWidget & drive : m_disks->GetDriveChrome())
         {
             region = drive.HitTest (x, y);
 
@@ -1828,7 +1829,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             {
                 if (region == DriveWidgetRegion::Eject)
                 {
-                    Eject (6, drive.GetDrive());
+                    m_disks->Eject (6, drive.GetDrive());
                 }
 
                 // In fullscreen the widget is riding the overlay strip, and a
@@ -1837,7 +1838,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 RECT  driveRect = drive.GetOuterRect();
 
                 m_stripBrowseOpen = m_d3dRenderer.IsFullscreen();
-                BrowseForDisk (drive.GetDrive(), &driveRect);
+                m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
                 m_stripBrowseOpen = false;
 
                 driveTook = true;
@@ -2053,7 +2054,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
         return -1;
     }
 
-    for (const DriveWidget & drive : m_driveChrome)
+    for (const DriveWidget & drive : m_disks->GetDriveChrome())
     {
         if (drive.IsVisible() && drive.HitTest (x, y) != DriveWidgetRegion::None)
         {

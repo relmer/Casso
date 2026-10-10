@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -780,14 +781,14 @@ void EmulatorShell::ApplyPersistedChromePrefs()
 
         if (diskPort != nullptr)
         {
-            m_externalDriveConnected = !diskPort->device.empty();
+            m_disks->SetExternalDriveConnected (!diskPort->device.empty());
         }
         else
         {
             hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
             if (SUCCEEDED (hrOpt))
             {
-                m_externalDriveConnected = extConnected;
+                m_disks->SetExternalDriveConnected (extConnected);
             }
         }
     }
@@ -809,13 +810,13 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetArray ("writeProtect", wpArr);
     if (SUCCEEDED (hrOpt) && wpArr != nullptr)
     {
-        for (size_t wi = 0; wi < wpArr->GetArraySize() && wi < m_userWriteProtect.size(); ++wi)
+        for (size_t wi = 0; wi < wpArr->GetArraySize() && wi < m_disks->GetUserWriteProtect().size(); ++wi)
         {
             const JsonValue &  entry = wpArr->GetArrayElement (wi);
 
             if (entry.GetType() == JsonType::Bool)
             {
-                m_userWriteProtect[wi] = entry.GetBool();
+                m_disks->GetUserWriteProtect()[wi] = entry.GetBool();
             }
         }
     }

@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/TapeManager.h"
@@ -36,43 +38,8 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
     }
     else if (IsSupportedDiskImageExtension (path))
     {
-        Mount (6, tag, path);
+        m_disks->Mount (6, tag, path);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::IsSecondDriveOffered
-//
-//  Whether this machine has anywhere to plug a second drive: the //c's disk
-//  port, or the second connector of an enabled Disk ][ card.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsSecondDriveOffered() const
-{
-    const MachineConfig  & config = m_machine.GetConfig();
-
-
-
-    if (config.systemRom.romBankSize != 0)
-    {
-        return true;
-    }
-
-    for (const SlotConfig & slot : config.slots)
-    {
-        if (slot.enabled && slot.device == kpszDiskIiDevice)
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 
@@ -91,7 +58,7 @@ bool EmulatorShell::IsSecondDriveOffered() const
 
 void EmulatorShell::SetSecondDriveConnected (bool connected)
 {
-    if (!IsSecondDriveOffered() || connected == ShouldShowExternalDrive())
+    if (!m_disks->IsSecondDriveOffered() || connected == m_disks->ShouldShowExternalDrive())
     {
         return;
     }
@@ -188,9 +155,9 @@ void EmulatorShell::SaveStorageDevices()
     hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
     CHR (hr);
 
-    if (IsSecondDriveOffered())
+    if (m_disks->IsSecondDriveOffered())
     {
-        state.SetSecondDriveAttached (ShouldShowExternalDrive());
+        state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
     }
 
     state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
@@ -243,7 +210,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     {
         // Drive 1 is always there, so its menu is where a detached drive 2 or
         // recorder is attached again: neither is on screen to be clicked.
-        bool  drive2Away   = IsSecondDriveOffered() && !ShouldShowExternalDrive();
+        bool  drive2Away   = m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive();
         bool  recorderAway = m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown();
 
         ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1 };
@@ -274,4 +241,21 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
 
     DxuiContextMenu::Show (*m_host, x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetDriveUserWriteProtect
+//
+//  The user's per-drive write-protect preference. CPU thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
+{
+    m_disks->SetDriveUserWriteProtect (drive, wp);
 }

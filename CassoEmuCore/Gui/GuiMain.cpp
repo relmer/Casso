@@ -14,6 +14,7 @@
 #include "Core/PathResolver.h"
 #include "Config/DiskSettings.h"
 #include "Shell/EmulatorShell.h"
+#include "Ui/DriveWidgetState.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"

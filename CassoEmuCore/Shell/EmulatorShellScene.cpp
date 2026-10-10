@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -155,7 +157,7 @@ HRESULT EmulatorShell::LoadDeskSceneModelsForMachine()
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
     HRESULT                    hr          = S_OK;
-    bool                       isC         = MachineHasBuiltInDrive();
+    bool                       isC         = m_disks->MachineHasBuiltInDrive();
     const MonitorSpec &        monitor     = ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
@@ -961,7 +963,7 @@ void EmulatorShell::ResetSceneView()
 
 int EmulatorShell::DeskSceneDriveCount() const
 {
-    bool  hasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool  hasDisk = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
 
 
@@ -975,7 +977,7 @@ int EmulatorShell::DeskSceneDriveCount() const
     // about them and the internal drive is always there.
     if (m_machine.GetConfig().slots.empty())
     {
-        return ShouldShowExternalDrive() ? 2 : 1;
+        return m_disks->ShouldShowExternalDrive() ? 2 : 1;
     }
 
     // A card with every port empty reports zero, which is the point of being
@@ -1237,10 +1239,10 @@ void EmulatorShell::SyncSceneDriveChrome()
     // visible panel with empty bounds is one stray Layout away from painting:
     // a resize arranges the docked bands before this runs, so the retired 2D
     // widgets flashed along the bottom edge for a frame under the 3D drives.
-    m_driveChrome[0].SetVisible (false);
-    m_driveChrome[1].SetVisible (false);
-    m_driveChrome[0].Hide();
-    m_driveChrome[1].Hide();
+    m_disks->GetDriveChrome()[0].SetVisible (false);
+    m_disks->GetDriveChrome()[1].SetVisible (false);
+    m_disks->GetDriveChrome()[0].Hide();
+    m_disks->GetDriveChrome()[1].Hide();
 
     m_uiShell.GetHitTester().Clear();
 
@@ -1344,7 +1346,7 @@ void EmulatorShell::SyncSceneDriveLabels()
             // Ahead of the truncation on purpose. Truncation eats the TAIL,
             // so a badge at the head survives however long the name is, and
             // nothing downstream has to keep it out of the ellipsis by hand.
-            if (!name.empty() && m_driveWidgetState[i].writeProtect.Any())
+            if (!name.empty() && m_disks->GetDriveWidgetState()[i].writeProtect.Any())
             {
                 name = std::wstring (s_kpszLock) + L" " + name;
             }
@@ -1378,7 +1380,7 @@ void EmulatorShell::SyncSceneDriveLabels()
         // its own share of the strip and, on the desk, its own baked cell and
         // quad.
         nameRc   = rc;
-        showIcon = !name.empty() && m_driveWidgetState[i].wozConflict && text != nullptr;
+        showIcon = !name.empty() && m_disks->GetDriveWidgetState()[i].wozConflict && text != nullptr;
 
         if (showIcon)
         {

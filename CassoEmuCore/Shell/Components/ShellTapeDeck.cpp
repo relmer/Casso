@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Core/JsonValue.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Seams/Win32DiskFileIo.h"
@@ -259,7 +260,7 @@ TapeDeckView ShellTapeDeck::GetTapeView() const
 
 void ShellTapeDeck::SyncTapeChrome()
 {
-    RECT           drive   = m_shell.m_driveChrome[0].GetOuterRect();
+    RECT           drive   = m_shell.m_disks->GetDriveChrome()[0].GetOuterRect();
     bool           isShown = IsTapeRecorderShown() && !m_shell.DeskSceneActive() && !IsRectEmpty (&drive) &&
                              m_tapeAnchorDpi != 0;
     DxuiDpiScaler  scaler;
@@ -680,7 +681,7 @@ void ShellTapeDeck::CreateBlankTape()
     m_shell.SaveGlobalPrefs();
 
     m_tapeManager->CreateBlank (picked.string());
-    m_shell.RecordRecentDisk (picked.wstring(), S_OK);
+    m_shell.m_disks->RecordRecentDisk (picked.wstring(), S_OK);
 
 Error:
     return;
@@ -740,7 +741,7 @@ void ShellTapeDeck::InsertTape (const std::wstring & path)
     }
 
     m_tapeManager->Insert (std::filesystem::path (path).string());
-    m_shell.RecordRecentDisk (path, S_OK);
+    m_shell.m_disks->RecordRecentDisk (path, S_OK);
 }
 
 

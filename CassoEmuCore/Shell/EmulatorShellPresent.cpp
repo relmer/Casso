@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellPrinter.h"
@@ -538,7 +540,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
 
 
-    ExpireChangeBannerIfDue();
+    m_disks->ExpireChangeBannerIfDue();
 
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
@@ -589,9 +591,9 @@ bool EmulatorShell::TryPresentUiFrame()
     // hook: advance drive-door animations and force a present while a
     // door is mid-transition so the chrome keeps repainting even when
     // the emulator framebuffer is static.
-    if (m_diskManager != nullptr)
+    if (m_disks->GetManager() != nullptr)
     {
-        m_diskManager->UpdateDriveWidgets();
+        m_disks->GetManager()->UpdateDriveWidgets();
     }
 
     m_tapeDeck->SyncTapeChrome();
@@ -610,7 +612,7 @@ bool EmulatorShell::TryPresentUiFrame()
     SyncSceneViewReadout();
 
 
-    for (const DriveWidgetState & st : m_driveWidgetState)
+    for (const DriveWidgetState & st : m_disks->GetDriveWidgetState())
     {
         bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
                             st.doorState == DriveWidgetState::Door::Closing);
@@ -668,7 +670,7 @@ bool EmulatorShell::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        for (const DriveWidget & drive : m_driveChrome)
+        for (const DriveWidget & drive : m_disks->GetDriveChrome())
         {
             if (drive.IsNameRolling (nowMs))
             {
@@ -689,7 +691,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // front of the disk's NAME, which is re-hung below.
     for (int i = 0; i < (int) m_driveWpShown.size(); i++)
     {
-        bool  wp = m_driveWidgetState[i].writeProtect.Any();
+        bool  wp = m_disks->GetDriveWidgetState()[i].writeProtect.Any();
 
         if (wp != m_driveWpShown[i])
         {
@@ -704,7 +706,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // screen nothing else would ask for the frame that shows the change.
     for (int i = 0; i < (int) m_driveInfoShown.size(); i++)
     {
-        bool  info = m_driveWidgetState[i].wozConflict;
+        bool  info = m_disks->GetDriveWidgetState()[i].wozConflict;
 
         if (info != m_driveInfoShown[i])
         {
@@ -724,7 +726,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
         for (int i = 0; i < 2; i++)
         {
-            const DriveWidgetState &  st       = m_driveWidgetState[i];
+            const DriveWidgetState &  st       = m_disks->GetDriveWidgetState()[i];
             float                     t        = std::clamp ((float) (nowMs - st.animationStartTimeMs) /
                                                              (float) DriveWidgetState::kDoorAnimationMs, 0.0f, 1.0f);
             float                     progress = 0.0f;
@@ -794,7 +796,7 @@ bool EmulatorShell::TryPresentUiFrame()
     // way everywhere and brings them back the same way too.
     bool  stripHasDrives = DeskSceneActive()
                          ? DeskSceneDriveCount() > 0
-                         : (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+                         : (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
     if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
     {
@@ -905,13 +907,13 @@ bool EmulatorShell::TryPresentUiFrame()
                     // after the picture, so they ride over it.
                     m_driveBandSurface.SetBounds (m_stripRectPx);
                     m_driveBandSurface.SetVisible (true);
-                    LayoutDriveWidgetsInCommandBar (m_driveChrome, bandH, client.right,
+                    LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bandH, client.right,
                                                     m_stripRectPx.bottom, m_scaler.GetDpi(), 1.0f,
-                                                    ShouldShowExternalDrive() ? 2 : 1);
+                                                    m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
-                    if (!ShouldShowExternalDrive())
+                    if (!m_disks->ShouldShowExternalDrive())
                     {
-                        m_driveChrome[1].Hide();
+                        m_disks->GetDriveChrome()[1].Hide();
                     }
                 }
             }
@@ -923,10 +925,10 @@ bool EmulatorShell::TryPresentUiFrame()
                 if (!DeskSceneActive())
                 {
                     m_driveBandSurface.SetVisible (false);
-                    m_driveChrome[0].SetVisible (false);
-                    m_driveChrome[1].SetVisible (false);
-                    m_driveChrome[0].Hide();
-                    m_driveChrome[1].Hide();
+                    m_disks->GetDriveChrome()[0].SetVisible (false);
+                    m_disks->GetDriveChrome()[1].SetVisible (false);
+                    m_disks->GetDriveChrome()[0].Hide();
+                    m_disks->GetDriveChrome()[1].Hide();
                 }
             }
         }
@@ -1451,7 +1453,7 @@ LONG EmulatorShell::ComputeTopOverlayEdgePx (const RECT & client) const
 {
     const IDxuiControl * const  bands[] = { &m_mainMenu,
                                             &m_toolbar,
-                                            &m_changeBanner,
+                                            &m_disks->GetChangeBanner(),
                                             &m_standInBarSurface,
                                             &m_standInBar };
     LONG                        top     = client.top;
