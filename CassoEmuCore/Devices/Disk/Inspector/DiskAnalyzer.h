@@ -47,6 +47,7 @@ private:
     static void  AddLengthFindings    (DiskAnalysis & inOut);
     static void  AddDamageFindings    (DiskAnalysis & inOut);
     static void  AddImageFindings     (DiskAnalysis & inOut);
+    static void  AddFileSystemFindings (DiskAnalysis & inOut);
     static void  Summarize            (DiskAnalysis & inOut);
     static int   GetHomeQuarterTrack  (const DiskCopy & copy, int slot);
 };

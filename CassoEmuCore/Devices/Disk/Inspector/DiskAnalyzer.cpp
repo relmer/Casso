@@ -242,6 +242,7 @@ void DiskAnalyzer::Assemble (DiskAnalysis & inOut)
     AddLengthFindings (inOut);
     AddDamageFindings (inOut);
     AddImageFindings  (inOut);
+    AddFileSystemFindings (inOut);
 
     std::stable_sort (inOut.findings.begin(), inOut.findings.end(), [] (const Finding & a, const Finding & b)
     {
@@ -755,4 +756,46 @@ void DiskAnalyzer::Summarize (DiskAnalysis & inOut)
     }
 
     inOut.summary = summary;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskAnalyzer::AddFileSystemFindings
+//
+//  The file and sector map of every volume found, built again from the
+//  analysis whenever it is assembled (FR-083), and its findings (FR-093).
+//  Until every whole track's record is analyzed, a map would read sectors
+//  still being analyzed as missing, so none is built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskAnalyzer::AddFileSystemFindings (DiskAnalysis & inOut)
+{
+    bool  isReady = true;
+    int   qt      = 0;
+    int   slot    = -1;
+
+
+
+    inOut.fileMaps.clear();
+
+    for (qt = 0; isReady && qt < DiskImage::kQuarterTrackCount; qt += DiskImage::kQuarterTracksPerWholeTrack)
+    {
+        slot    = inOut.entries[qt].slot;
+        isReady = slot < 0 || (slot < static_cast<int> (inOut.tracks.size()) && inOut.tracks[slot] != nullptr);
+    }
+
+    if (isReady)
+    {
+        inOut.fileMaps = FileMapBuilder::Build (inOut);
+
+        for (const FileMap & map : inOut.fileMaps)
+        {
+            inOut.findings.insert (inOut.findings.end(), map.findings.begin(), map.findings.end());
+        }
+    }
 }

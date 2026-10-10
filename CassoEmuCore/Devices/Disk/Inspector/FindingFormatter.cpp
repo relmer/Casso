@@ -23,9 +23,10 @@ std::wstring FindingFormatter::Format (const Finding & finding)
 
     switch (finding.category)
     {
-        case FindingCategory::Field:     text = FormatFieldFinding (finding); break;
-        case FindingCategory::ImageFile: text = FormatImageFinding (finding); break;
-        default:                         text = FormatTrackFinding (finding); break;
+        case FindingCategory::Field:      text = FormatFieldFinding (finding);                  break;
+        case FindingCategory::ImageFile:  text = FormatImageFinding (finding);                  break;
+        case FindingCategory::FileSystem: text = TextEncoding::Utf8ToWide (finding.detail);        break;
+        default:                          text = FormatTrackFinding (finding);                  break;
     }
 
     return text;

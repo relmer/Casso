@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/ImageDetails.h"
 #include "Devices/Disk/Inspector/TrackAnalysis.h"
 
@@ -84,5 +85,6 @@ struct DiskAnalysis
     vector<Finding>                                               findings;
     DiskSummary                                                   summary;
     ImageDetails                                                  image;
+    vector<FileMap>                                               fileMaps;
     int                                                           headLimit = 0;
 };

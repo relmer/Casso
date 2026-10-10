@@ -282,6 +282,13 @@
     <ClCompile Include="Devices\Disk\Inspector\DiskCopy.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FindingFormatter.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\ImageDetails.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\CpmMapReader.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\Dos33MapReader.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\FileMap.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\FileMapWriter.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\PascalMapReader.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\ProDosMapReader.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\FileMap\SectorSource.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorClipboard.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorFormat.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\InspectorSearch.cpp" />
@@ -670,6 +677,13 @@
     <ClInclude Include="Devices\Disk\Inspector\FindingFormatter.h" />
     <ClInclude Include="Devices\Disk\Inspector\ITrackFormatDecoder.h" />
     <ClInclude Include="Devices\Disk\Inspector\ImageDetails.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\CpmMapReader.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\Dos33MapReader.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\FileMap.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\FileMapWriter.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\PascalMapReader.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\ProDosMapReader.h" />
+    <ClInclude Include="Devices\Disk\Inspector\FileMap\SectorSource.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorClipboard.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorFormat.h" />
     <ClInclude Include="Devices\Disk\Inspector\InspectorSearch.h" />

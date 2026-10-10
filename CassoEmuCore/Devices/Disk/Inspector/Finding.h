@@ -64,6 +64,20 @@ enum class FindingKind
     UnreferencedRecord,
     MapEntryToEmptyRecord,
     NibTrackWithoutSync,
+
+    //  File system (FR-093); each carries its sentence in the detail.
+    FileCrossLinked,
+    FileAllocatedUnowned,
+    FileOwnedMarkedFree,
+    FileChainBroken,
+    FileTouchesBadSectors,
+    FileMapUnchecked,
+    FileCountDiffers,
+    PascalEntryOutOfOrder,
+    PascalEntryOutOfRange,
+    PascalFileCountDiffers,
+    CpmInvalidEntry,
+    CpmDuplicateEntry,
 };
 
 
