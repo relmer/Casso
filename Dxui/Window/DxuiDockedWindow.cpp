@@ -2,6 +2,7 @@
 
 #include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Theme/DxuiDwm.h"
 
 
 

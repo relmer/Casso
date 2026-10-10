@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

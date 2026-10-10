@@ -5,6 +5,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Render/DxuiShadow.h"
 #include "Core/WindowTrace.h"
+#include "Core/DxuiThread.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")

@@ -2,6 +2,7 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Reverse/InputJournal.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

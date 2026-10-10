@@ -9,6 +9,7 @@
 #include "Assembler.h"
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
+#include "HResultAssert.h"
 
 
 

@@ -3,6 +3,8 @@
 
 #include "DxuiTextInput.h"
 #include "Core/DxuiClipboard.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
 
 
 static constexpr float     s_kPadRightDip         = 6.0f;

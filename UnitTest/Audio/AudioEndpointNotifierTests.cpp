@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Audio/AudioEndpointNotifier.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

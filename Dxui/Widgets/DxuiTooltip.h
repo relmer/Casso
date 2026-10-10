@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/DxuiShadow.h"
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiTheme.h"
 
 
 class DxuiHwndSource;

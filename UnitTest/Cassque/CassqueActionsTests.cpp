@@ -8,6 +8,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -3,6 +3,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

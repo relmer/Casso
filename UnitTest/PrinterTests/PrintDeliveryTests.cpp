@@ -3,6 +3,7 @@
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintRaster.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

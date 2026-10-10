@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "HResultAssert.h"
 
 // Disk2Controller carries two DiskImage instances; per-test heap allocation
 // keeps the C6262 stack-frame budget happy.

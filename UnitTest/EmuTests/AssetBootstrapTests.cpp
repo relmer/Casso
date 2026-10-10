@@ -6,6 +6,7 @@
 #include "resource.h"
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -2,6 +2,7 @@
 
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/RgbaImage.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

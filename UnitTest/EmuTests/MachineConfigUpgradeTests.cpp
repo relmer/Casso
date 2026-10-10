@@ -3,6 +3,7 @@
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

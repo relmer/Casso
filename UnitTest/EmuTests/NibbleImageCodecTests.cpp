@@ -9,6 +9,7 @@
 #include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

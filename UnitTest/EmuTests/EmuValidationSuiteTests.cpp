@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

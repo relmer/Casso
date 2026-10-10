@@ -7,6 +7,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Render/IDxuiPainter.h"
 
 
 

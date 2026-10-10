@@ -9,6 +9,7 @@
 #include "IDxuiHostClient.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/IDxuiTheme.h"
+#include "Core/DxuiThread.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")

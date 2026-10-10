@@ -2,6 +2,7 @@
 #include "EhmTestHelper.h"
 #include "ApplesoftTokenizer.h"
 #include "EmuTests/DemoAssets.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EmuTests/ReverseSessionRig.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

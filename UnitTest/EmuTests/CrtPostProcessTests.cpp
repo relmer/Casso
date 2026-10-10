@@ -4,6 +4,7 @@
 #include "WarpRenderHarness.h"
 
 #include "CrtPostProcess.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/NtscColorTable.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;

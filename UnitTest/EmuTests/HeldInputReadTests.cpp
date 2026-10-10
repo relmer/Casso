@@ -4,6 +4,7 @@
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

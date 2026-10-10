@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "EhmTestHelper.h"
 #include "ApplesoftTokenizer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

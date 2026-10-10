@@ -5,6 +5,7 @@
 #include "MerlinCorpus/MerlinFixture.h"
 #include "MerlinCorpus/CorpusHarness.h"
 #include "EmuTests/FixtureProvider.h"
+#include "HResultAssert.h"
 
 
 

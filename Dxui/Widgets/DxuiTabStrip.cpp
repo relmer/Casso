@@ -6,6 +6,7 @@
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiTextElide.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Render/IDxuiTextRenderer.h"
 
 
 

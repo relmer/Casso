@@ -3,6 +3,7 @@
 #include "Config/MonitorCatalog.h"
 
 #include "Core/JsonParser.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

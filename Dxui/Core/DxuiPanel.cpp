@@ -2,6 +2,8 @@
 
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiThread.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Render/IDxuiPainter.h"
 
 
 

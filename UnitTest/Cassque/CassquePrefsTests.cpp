@@ -3,6 +3,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/Model/CassquePrefs.h"
 #include "Config/GlobalUserPrefs.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

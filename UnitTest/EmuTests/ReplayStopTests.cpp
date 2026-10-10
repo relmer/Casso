@@ -3,6 +3,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/ReverseHost.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

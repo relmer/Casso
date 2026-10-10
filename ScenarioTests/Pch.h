@@ -23,5 +23,3 @@
 #include <regex>
 
 #include <CppUnitTest.h>
-
-#include "../UnitTest/HResultAssert.h"

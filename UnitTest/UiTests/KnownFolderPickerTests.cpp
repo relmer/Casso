@@ -5,6 +5,7 @@
 #include "Cassque/Model/LaunchCommand.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "../Cassque/FakeProcessLauncher.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

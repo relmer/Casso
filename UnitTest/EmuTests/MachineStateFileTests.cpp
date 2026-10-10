@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Shell/MachineStateFile.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

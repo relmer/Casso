@@ -5,6 +5,7 @@
 #include "Render/CurvedDisplayMath.h"
 #include "Render/SceneCamera.h"
 #include "Ui/Scene/DeskSceneLayout.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

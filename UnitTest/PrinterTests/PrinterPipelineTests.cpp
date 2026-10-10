@@ -4,6 +4,7 @@
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintJobSerializer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

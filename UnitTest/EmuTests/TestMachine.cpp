@@ -3,6 +3,7 @@
 #include "TestMachine.h"
 
 #include "FixtureRomSource.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

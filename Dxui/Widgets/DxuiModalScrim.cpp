@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiModalScrim.h"
+#include "Render/IDxuiPainter.h"
 
 
 

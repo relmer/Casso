@@ -3,6 +3,7 @@
 #include "InMemoryFileSystem.h"
 
 #include "Ui/ThemeManager.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

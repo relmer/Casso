@@ -8,6 +8,7 @@
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Render/IDxuiPainter.h"
 
 
 

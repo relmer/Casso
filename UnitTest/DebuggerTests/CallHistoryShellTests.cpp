@@ -15,6 +15,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "UiTests/InMemoryFileSystem.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

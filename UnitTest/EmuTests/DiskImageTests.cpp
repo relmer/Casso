@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextRenderer.h"
+#include "Core/DxuiThread.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")

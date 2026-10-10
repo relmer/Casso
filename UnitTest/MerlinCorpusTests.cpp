@@ -11,6 +11,7 @@
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
 #include "MerlinSubsetBoundary.h"
+#include "HResultAssert.h"
 
 
 

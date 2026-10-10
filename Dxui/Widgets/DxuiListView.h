@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiIconImage.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Theme/DxuiTheme.h"
 #include "DxuiScrollbar.h"
 
 

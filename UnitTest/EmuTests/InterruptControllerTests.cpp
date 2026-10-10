@@ -3,6 +3,7 @@
 #include "Core/InterruptController.h"
 #include "ICpu.h"
 #include "MockIrqAsserter.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

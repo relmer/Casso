@@ -3,6 +3,7 @@
 #include "Capture/CapturedImage.h"
 
 #include "../EhmTestHelper.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

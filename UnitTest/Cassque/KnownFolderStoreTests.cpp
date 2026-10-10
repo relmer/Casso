@@ -3,6 +3,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Core/JsonParser.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

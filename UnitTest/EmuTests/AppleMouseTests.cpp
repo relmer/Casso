@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Core/InterruptController.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
+#include "HResultAssert.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

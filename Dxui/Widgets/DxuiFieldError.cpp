@@ -3,6 +3,7 @@
 #include "Widgets/DxuiFieldError.h"
 #include "Render/DxuiStroke.h"
 #include "Theme/DxuiTheme.h"
+#include "Render/IDxuiTextRenderer.h"
 
 
 

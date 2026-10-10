@@ -2,6 +2,7 @@
 
 #include "TestHelpers.h"
 #include "Assembler.h"
+#include "HResultAssert.h"
 
 
 

@@ -6,6 +6,7 @@
 #include "Devices/Printer/MeshNormals.h"
 #include "Devices/Printer/ObjMeshParser.h"
 #include "Ui/Scene/DeskSceneModel.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

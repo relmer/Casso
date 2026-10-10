@@ -4,6 +4,7 @@
 #include "Render/SceneCamera.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

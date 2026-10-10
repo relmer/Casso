@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "MachineIdle.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

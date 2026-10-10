@@ -4,6 +4,7 @@
 #include "CppUnitTest.h"
 
 #include "Ui/DriveWidgetState.h"
+#include "HResultAssert.h"
 
 
 

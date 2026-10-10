@@ -8,6 +8,7 @@
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

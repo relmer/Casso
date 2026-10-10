@@ -2,6 +2,7 @@
 
 #include "Devices/Printer/PrintJobSerializer.h"
 #include "Devices/Printer/PrintRaster.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

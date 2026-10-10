@@ -3,6 +3,7 @@
 #include "Core/MemoryDevice.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

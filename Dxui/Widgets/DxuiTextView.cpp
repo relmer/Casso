@@ -6,6 +6,8 @@
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Render/IDxuiPainter.h"
 
 
 

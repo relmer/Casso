@@ -9,6 +9,7 @@
 #include "Debugger/HeatKeyframeSide.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Shell/ScratchHeatReplayer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

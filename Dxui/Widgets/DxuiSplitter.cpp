@@ -3,6 +3,7 @@
 #include "DxuiSplitter.h"
 
 #include "Theme/IDxuiTheme.h"
+#include "Render/IDxuiPainter.h"
 
 
 

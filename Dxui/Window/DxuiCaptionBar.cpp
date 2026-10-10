@@ -4,6 +4,7 @@
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
+#include "Core/DxuiThread.h"
 
 
 
