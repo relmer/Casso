@@ -2,10 +2,6 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/Disk2AudioSource.h"
-#include "Audio/DriveAudioMixer.h"
-#include "Audio/PrinterAudioSource.h"
-#include "Audio/TapeAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Devices/Tape/MfTapeAudioDecoder.h"
@@ -26,7 +22,6 @@
 #include "Print/PrinterWorker.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
-#include "Shell/AudioSampleBudget.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/ClipboardManager.h"
@@ -65,7 +60,6 @@
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Video/VideoOutput.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
-#include "WasapiAudio.h"
 #include "Devices/Disk/ChangePrompt.h"
 
 
@@ -74,6 +68,7 @@ class DxuiHwndSource;
 class SettingsSheet;
 class JsonValue;
 class SalvageDialogContent;
+class ShellAudio;
 class ShellUpdater;
 struct MonitorSpec;
 
@@ -411,7 +406,6 @@ private:
 
     // Decodes the drive, printer and PSG sounds to the host device's sample
     // rate. CPU thread only.
-    void LoadAudioAssetsForDeviceRate();
 
     void OnCpuThreadStart();
     void OnCpuThreadStop();
@@ -775,7 +769,7 @@ public:
     // Whether tape loads run at Maximum speed. Read by the CPU thread each
     // slice; written by Settings and at startup.
     void SetFastTapeLoading (bool enabled) { m_fastTapeLoading.store (enabled, std::memory_order_relaxed); }
-    void SetTapeVolume      (float gain)   { m_tapeAudioSource.SetVolume (gain); }
+    void SetTapeVolume      (float gain);
     void SetTapeAutoStop    (bool enabled) { m_machine.GetTapeDeck().SetAutoStop (enabled); }
     void SetTapeIdleStop    (bool enabled) { m_machine.GetTapeDeck().SetIdleStop (enabled); }
     void SetTapeEightBit    (bool enabled) { if (m_tapeManager) { m_tapeManager->SetBlankEightBit (enabled); } }
@@ -1608,7 +1602,9 @@ private:
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
-    WasapiAudio            m_wasapiAudio;
+
+    // The host audio output and every source mixed into it.
+    std::unique_ptr<ShellAudio>  m_audio;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
@@ -2238,41 +2234,6 @@ private:
     // actually readable.
     bool                                 m_userStateChange = false;
 
-    // Drive audio. Mixer is always allocated; per-drive sources are
-    // populated only when the active machine config carries a
-    // Disk II controller (FR-015).
-    DriveAudioMixer                      m_driveAudioMixer;
-    vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
-
-    // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
-    // on-screen carriage, not the raw guest stream). A single persistent source
-    // on the shared drive-audio bus (FR-016), re-registered by MachineManager on
-    // every build. Its grains load once in OnCpuThreadStart.
-    PrinterAudioSource                   m_printerAudio;
-
-    // Mockingboard audio. Its own mixer so the "Mockingboard" Options
-    // toggle is independent of the Drive audio toggle. The PSG audio
-    // sources are owned by the MockingboardCard device; the mixer holds
-    // borrowed pointers, re-registered by MachineManager on every build.
-    DriveAudioMixer                      m_mockingboardAudioMixer;
-    DriveAudioMixer                      m_tapeAudioMixer;
-    TapeAudioSource                      m_tapeAudioSource;
-
-    // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
-    // at startup and updated via SetDriveAudioVolumes. Stored on the shell
-    // so they survive machine resets (MachineManager re-seeds fresh
-    // sources from these).
-    float                                m_driveMotorVolume = Disk2AudioSource::kMotorVolume;
-    float                                m_driveHeadVolume  = Disk2AudioSource::kHeadVolume;
-    float                                m_driveDoorVolume  = Disk2AudioSource::kDoorVolume;
-
-    // Live per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
-    // right), index 0 = Drive 1, 1 = Drive 2. Seeded from $cassoUiPrefs at
-    // startup and updated via SetDriveAudioPan; survives machine resets
-    // (MachineManager re-seeds fresh sources from these).
-    float                                m_drivePan[2] = { DriveAudioMixer::kDefaultDriveOnePan,
-                                                           DriveAudioMixer::kDefaultDriveTwoPan };
-
     // Background printer drain (ring -> interpreter -> raster). Declared
     // after the machine so it is torn down (thread joined) before the card
     // it drains.
@@ -2341,15 +2302,6 @@ private:
     bool                          m_driveSigSettling = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
-
-    // The fraction of a sample each slice leaves owing, carried into the next
-    // so the audio never drifts from the picture. CPU-thread-only.
-    AudioSampleBudget             m_sampleBudget;
-
-    // Host sample rate the loaded sounds were decoded at, 0 before the first
-    // load. Compared against the live device rate each frame so a reopen onto
-    // a device with a different mix format re-decodes them.
-    uint32_t                      m_audioAssetSampleRate = 0;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a

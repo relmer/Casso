@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -746,7 +747,7 @@ void EmulatorShell::PersistTapeVolume()
         return;
     }
 
-    entries.emplace_back ("tapeVolume", JsonValue ((double) m_tapeAudioSource.GetVolume()));
+    entries.emplace_back ("tapeVolume", JsonValue ((double) m_audio->GetTapeSource().GetVolume()));
 
     hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1452,7 +1453,7 @@ void EmulatorShell::SyncSceneDriveLabels()
         }
         else if (m_recorderHoverKey == s_kVolumeWheelLabelKey)
         {
-            fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
+            fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_audio->GetTapeSource().GetVolume());
         }
     }
 
@@ -1886,7 +1887,7 @@ void EmulatorShell::SyncSceneTapeLabel()
         shown = TapeDeckWidget::GetDisplayName (view) + L"|" +
                 TapeDeckWidget::FormatTime (view.positionSeconds) + L"|" +
                 std::to_wstring (m_recorderHoverKey) + L"|" + std::to_wstring ((int) view.transport) + L"|" +
-                FormatTapeVolumeTip (m_tapeAudioSource.GetVolume());
+                FormatTapeVolumeTip (m_audio->GetTapeSource().GetVolume());
     }
 
     if (shown != m_sceneTapeLabelShown)

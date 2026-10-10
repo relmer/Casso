@@ -3,6 +3,7 @@
 #include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -110,7 +111,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
     if (SUCCEEDED (hrOpt))
     {
-        m_driveAudioMixer.SetEnabled (enabled);
+        m_audio->GetDriveMixer().SetEnabled (enabled);
     }
 
     hrOpt = uiPrefs->GetBool ("fastTapeLoading", enabled);
@@ -152,7 +153,7 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
         // mechanism, which is fine -- not worth aborting startup for.
         std::wstring  mechWide = TextEncoding::Utf8ToWide (mechNarrow);
 
-        hrOpt = m_driveAudioMixer.SetMechanism (mechWide);
+        hrOpt = m_audio->GetDriveMixer().SetMechanism (mechWide);
         IGNORE_RETURN_VALUE (hrOpt, S_OK);
     }
 
@@ -215,102 +216,13 @@ Error:
 //
 //  CPU-thread-side initialization callback invoked by CpuManager once
 //  the worker thread is alive and COM is initialized. Brings up the
-//  WASAPI client and seeds the drive-audio mixer with the per-machine
-//  sample set so subsequent SetMechanism() switches reload from disk.
+//  audio output, which has to open on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnCpuThreadStart()
 {
-    HRESULT  hr = S_OK;
-
-
-
-    // Initialize WASAPI audio (non-fatal if it fails)
-    hr = m_wasapiAudio.Initialize();
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    LoadAudioAssetsForDeviceRate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadAudioAssetsForDeviceRate
-//
-//  Decodes every sound that has to arrive at the host device's sample rate,
-//  and records the rate it decoded at.
-//
-//  Drive-audio sample loading (spec 005-disk-ii-audio FR-009, NFR-005,
-//  FR-019, FR-006). The mixer holds the asset-load context, so any later
-//  runtime mechanism switch reloads every registered source through one entry
-//  point. Default mechanism is Shugart unless the per-machine registry
-//  already overrode it during Initialize.
-//
-//  The ImageWriter mechanical sound set is the embedded CC BY 4.0 grains that
-//  EnsureImageWriterSounds extracted to the asset base, decoded from MP3
-//  through the same Media Foundation path as the Disk II WAVs. A missing
-//  grain is silent.
-//
-//  The Mockingboard PSGs are seeded here because the initial machine is built
-//  before WASAPI comes up; machine switches after this point pick the rate up
-//  at build time in MachineManager.
-//
-//  ExecuteCpuSlices re-runs this whenever the device rate moves. A change of
-//  the default output device can land on a device with a different mix format
-//  (GH #137), and grains decoded at the old rate would play at the wrong
-//  pitch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LoadAudioAssetsForDeviceRate()
-{
-    HRESULT   hr          = S_OK;
-    bool      isAudioUp   = false;
-    uint32_t  sampleRate  = 0;
-    fs::path  baseDir;
-    wstring   devicesDir;
-    fs::path  soundsDir;
-    HRESULT   hrLoad      = S_OK;
-    HRESULT   hrSnd       = S_OK;
-
-
-
-    isAudioUp = m_wasapiAudio.IsInitialized();
-    BAIL_OUT_IF (!isAudioUp, S_OK);
-
-    sampleRate = m_wasapiAudio.GetSampleRate();
-
-    if (!m_diskAudioSources.empty())
-    {
-        // Use the same user-writable asset root that Main.cpp /
-        // AssetBootstrap used when writing the WAVs so the read
-        // path agrees with the write path.
-        baseDir     = AssetBootstrap::GetAssetBaseDirectory();
-        devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
-
-        m_driveAudioMixer.SetSampleLoadContext (devicesDir, sampleRate);
-
-        hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
-        IGNORE_RETURN_VALUE (hrLoad, S_OK);
-    }
-
-    soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
-    hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(), sampleRate);
-    IGNORE_RETURN_VALUE (hrSnd, S_OK);
-
-    if (m_machine.GetRefs().mockingboard != nullptr)
-    {
-        m_machine.GetRefs().mockingboard->SetSampleRate (sampleRate);
-    }
-
-    m_audioAssetSampleRate = sampleRate;
-
-Error:
-    return;
+    m_audio->Start (m_machine.GetRefs().mockingboard);
 }
 
 
@@ -325,7 +237,7 @@ Error:
 
 void EmulatorShell::OnCpuThreadStop()
 {
-    m_wasapiAudio.Shutdown();
+    m_audio->Stop();
 }
 
 
@@ -459,7 +371,7 @@ void EmulatorShell::ResolvePendingChange (int slot, int drive, int action, const
 
 void EmulatorShell::SetDriveAudioEnabled (bool enabled)
 {
-    m_driveAudioMixer.SetEnabled (enabled);
+    m_audio->GetDriveMixer().SetEnabled (enabled);
 }
 
 
@@ -474,7 +386,7 @@ void EmulatorShell::SetDriveAudioEnabled (bool enabled)
 
 HRESULT EmulatorShell::SetDriveAudioMechanism (const std::wstring & mechanism)
 {
-    return m_driveAudioMixer.SetMechanism (mechanism);
+    return m_audio->GetDriveMixer().SetMechanism (mechanism);
 }
 
 
@@ -569,22 +481,13 @@ void EmulatorShell::PersistSwitchState (const char * key, bool value)
 //
 //  SetDriveAudioVolumes
 //
-//  Stores the live drive-audio gains and pushes them to every registered
-//  Disk2AudioSource. Runs on the CPU thread (the mixing thread), so it is
-//  safe to mutate the sources' gains here without synchronization.
+//  The live drive-audio gains. CPU thread, the mixing thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
 {
-    m_driveMotorVolume = motor;
-    m_driveHeadVolume  = head;
-    m_driveDoorVolume  = door;
-
-    for (auto & src : m_diskAudioSources)
-    {
-        src->SetVolumes (motor, head, door);
-    }
+    m_audio->SetDriveVolumes (motor, head, door);
 }
 
 
@@ -595,33 +498,13 @@ void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
 //
 //  SetDriveAudioPan
 //
-//  Stores a live per-drive stereo pan and applies it to the matching
-//  Disk2AudioSource via equal-power panning. Runs on the CPU thread (the
-//  mixing thread), so mutating the source's pan here needs no locking.
+//  A live per-drive stereo pan. CPU thread, the mixing thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SetDriveAudioPan (int drive, float pan)
 {
-    HRESULT  hr   = S_OK;
-    float    panL = DriveAudioMixer::kSpeakerCenter;
-    float    panR = DriveAudioMixer::kSpeakerCenter;
-
-
-
-    BAIL_OUT_IF (drive < 0 || drive >= (int) std::size (m_drivePan), S_OK);
-
-    m_drivePan[drive] = std::clamp (pan, -1.0f, 1.0f);
-
-    DriveAudioMixer::PanToStereo (m_drivePan[drive], panL, panR);
-
-    if (drive < (int) m_diskAudioSources.size())
-    {
-        m_diskAudioSources[(size_t) drive]->SetPan (panL, panR);
-    }
-
-Error:
-    return;
+    m_audio->SetDrivePan (drive, pan);
 }
 
 
@@ -632,35 +515,13 @@ Error:
 //
 //  PlayDriveTestSound
 //
-//  Auditions a single drive sound on demand. Runs on the CPU thread (the
-//  mixing thread), so triggering the source's test channel is lock-free.
+//  Auditions a single drive sound on demand. CPU thread, the mixing thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PlayDriveTestSound (int drive, int kind)
 {
-    HRESULT                          hr       = S_OK;
-    Disk2AudioSource::TestSoundKind  testKind = Disk2AudioSource::TestSoundKind::Motor;
-    bool                             valid    = true;
-
-
-
-    BAIL_OUT_IF (drive < 0 || drive >= (int) m_diskAudioSources.size(), S_OK);
-
-    switch (kind)
-    {
-        case 0:  testKind = Disk2AudioSource::TestSoundKind::Motor; break;
-        case 1:  testKind = Disk2AudioSource::TestSoundKind::Head;  break;
-        case 2:  testKind = Disk2AudioSource::TestSoundKind::Door;  break;
-        default: valid    = false;                                  break;
-    }
-
-    BAIL_OUT_IF (!valid, S_OK);
-
-    m_diskAudioSources[(size_t) drive]->PlayTestSound (testKind);
-
-Error:
-    return;
+    m_audio->PlayDriveTestSound (drive, kind);
 }
 
 
@@ -903,20 +764,20 @@ void EmulatorShell::ExecuteCpuSlices()
     // audioActive gate rather than inside SubmitFrame: a teardown clears
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
-    m_wasapiAudio.ServiceEndpointChanges();
+    m_audio->ServiceEndpointChanges();
 
     // Real time, not the cycle budget below: the keyboard's repeat cadence is
     // the one thing in this frame that must not follow the emulated clock.
     TickKeyboardAutoRepeat();
 
-    audioActive = (m_machine.GetRefs().speaker != nullptr && m_wasapiAudio.IsInitialized());
+    audioActive = (m_machine.GetRefs().speaker != nullptr && m_audio->IsOutputUp());
 
     // A reopen can land on a device with a different mix format, and every
     // drive, printer and PSG sound was decoded to the rate of the device that
     // is gone. Re-decode before this frame's samples are generated.
-    if (audioActive && m_wasapiAudio.GetSampleRate() != m_audioAssetSampleRate)
+    if (audioActive && m_audio->HasDeviceRateChanged())
     {
-        LoadAudioAssetsForDeviceRate();
+        m_audio->LoadAssetsForDeviceRate (m_machine.GetRefs().mockingboard);
     }
 
     if (speed == SpeedMode::Double)
@@ -927,7 +788,7 @@ void EmulatorShell::ExecuteCpuSlices()
     if (audioActive)
     {
         cyclesPerSample = static_cast<double> (m_machine.GetConfig().clockSpeed) /
-                          static_cast<double> (m_wasapiAudio.GetSampleRate());
+                          static_cast<double> (m_audio->GetSampleRate());
         m_machine.GetRefs().speaker->BeginFrame();
     }
 
@@ -975,16 +836,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         if (audioActive)
         {
-            numSamples = m_sampleBudget.SamplesFor (sliceActual, cyclesPerSample);
+            numSamples = m_audio->TakeSamplesFor (sliceActual, cyclesPerSample);
 
-            hr = m_wasapiAudio.SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
-                                            sliceActual,
-                                            m_machine.GetRefs().speaker->GetFrameInitialState(),
-                                            numSamples,
-                                            &m_driveAudioMixer,
-                                            m_machine.GetCpu()->GetTotalCycles(),
-                                            &m_mockingboardAudioMixer,
-                                            &m_tapeAudioMixer);
+            hr = m_audio->SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
+                                       sliceActual,
+                                       m_machine.GetRefs().speaker->GetFrameInitialState(),
+                                       numSamples,
+                                       m_machine.GetCpu()->GetTotalCycles());
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             m_machine.GetRefs().speaker->ClearTimestamps();

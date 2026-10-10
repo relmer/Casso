@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
@@ -2208,7 +2209,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
-        m_shell.m_printerAudio.PlayTearOff();
+        m_shell.m_audio->GetPrinterAudio().PlayTearOff();
         m_shell.m_printerWorker.Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
         m_shell.NotePrinterDeliveryResult (false);

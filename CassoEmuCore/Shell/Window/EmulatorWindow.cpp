@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Update/UpdateResult.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -759,7 +760,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         m_globalPrefs.masterVolume = volume01;
         m_globalPrefs.masterMuted  = muted;
-        m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+        m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
         m_mainMenu.GetCommands().SetMuted (muted);
 
         // Deferred, not immediate: the slider reports every intermediate
@@ -769,7 +770,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_volumeFlyout.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_mainMenu.GetCommands().SetMuted (m_globalPrefs.masterMuted);
-    m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
+    m_audio->GetOutput().SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
 
     // The theme + monitor-color pickers, and the catalog behind the first of
     // them. Both option lists render through the host popup pool for the same

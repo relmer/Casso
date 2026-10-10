@@ -3,6 +3,7 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
 #include "../resource.h"
@@ -468,7 +469,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // among the owned devices, so the mixer's borrowed pointers must be dropped
         // before that collection is cleared below (CreateMemoryDevices
         // re-registers fresh ones for the new machine).
-        m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
+        m_shell.m_audio->GetMockingboardMixer().UnregisterAllSources();
 
         // Reclaim IRQ source tokens before the devices that hold them are
         // destroyed; the rebuilt machine re-registers from a fresh pool.
@@ -517,8 +518,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // source. Without this re-poke, the new machine's drive plays in eerie
     // silence (FR-009).
     {
-        std::wstring  currentMechanism = m_shell.m_driveAudioMixer.GetMechanism();
-        HRESULT       hrMech           = m_shell.m_driveAudioMixer.SetMechanism (currentMechanism);
+        std::wstring  currentMechanism = m_shell.m_audio->GetDriveMixer().GetMechanism();
+        HRESULT       hrMech           = m_shell.m_audio->GetDriveMixer().SetMechanism (currentMechanism);
         IGNORE_RETURN_VALUE (hrMech, S_OK);
     }
 

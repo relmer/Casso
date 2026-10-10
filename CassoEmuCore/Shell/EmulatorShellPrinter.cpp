@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -149,7 +150,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // grain). A page that just wrapped feeds a full sheet (unused ~1).
             rowsOnPage = m_printerWorker.GetRowsUsed() % PrinterGrid::kPageRows;
             unused = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
-            m_printerAudio.PlayFormFeed (unused);
+            m_audio->GetPrinterAudio().PlayFormFeed (unused);
 
             m_printerWorker.FormFeed();
         });
@@ -322,15 +323,15 @@ void EmulatorShell::UpdatePrinterPreview()
         bool     inkActive      = false;
         int      sweepWidthDots = PrinterGrid::kDotsPerRow;
         m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive, sweepWidthDots);
-        m_printerAudio.PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
+        m_audio->GetPrinterAudio().PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
     }
 
     // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from
     // prefs each frame so an OK / Cancel in Settings binds on the next update
     // without any live-apply plumbing; the shared "Drive audio" master still
     // gates the whole bus above this.
-    m_printerAudio.SetVolume (m_globalPrefs.printerAudioVolume);
-    m_printerAudio.SetMuted  (!m_globalPrefs.printerAudioEnabled);
+    m_audio->GetPrinterAudio().SetVolume (m_globalPrefs.printerAudioVolume);
+    m_audio->GetPrinterAudio().SetMuted  (!m_globalPrefs.printerAudioEnabled);
 
     // Position the printer sound in the stereo field. Manual override (Settings >
     // Printing) pins a fixed pan; otherwise it auto-follows where the preview
@@ -368,7 +369,7 @@ void EmulatorShell::UpdatePrinterPreview()
         }
 
         DriveAudioMixer::PanToStereo (pan, panL, panR);
-        m_printerAudio.SetPan (panL, panR);
+        m_audio->GetPrinterAudio().SetPan (panL, panR);
     }
 
     // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -1421,7 +1422,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         {
             m_volumeDragging      = true;
             m_volumeDragStartX    = x;
-            m_volumeDragStartGain = m_tapeAudioSource.GetVolume();
+            m_volumeDragStartGain = m_audio->GetTapeSource().GetVolume();
             m_volumeDragSpanPx    = span;
 
             result = DxuiMessageResult::Handled;

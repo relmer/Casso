@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -113,6 +114,7 @@ EmulatorShell::EmulatorShell()
     SetPrngSeed (seed);
 
     m_updater = std::make_unique<ShellUpdater> (*this);
+    m_audio   = std::make_unique<ShellAudio>();
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -135,17 +137,10 @@ EmulatorShell::EmulatorShell()
 
     MachineBuildServices  services;
 
-    services.diskAudioSources       = &m_diskAudioSources;
-    services.driveAudioMixer        = &m_driveAudioMixer;
-    services.mockingboardAudioMixer = &m_mockingboardAudioMixer;
-    services.printerAudio           = &m_printerAudio;
-    services.wasapiAudio            = &m_wasapiAudio;
+    m_audio->BindBuildServices (services);
+
     services.printerWorker          = &m_printerWorker;
     services.printerAutoOpenActivity = &m_printerAutoOpenActivity;
-    services.drivePan               = m_drivePan;
-    services.driveMotorVolume       = &m_driveMotorVolume;
-    services.driveHeadVolume        = &m_driveHeadVolume;
-    services.driveDoorVolume        = &m_driveDoorVolume;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
@@ -287,6 +282,21 @@ EmulatorShell::~EmulatorShell()
 ShellUpdater & EmulatorShell::GetUpdater()
 {
     return *m_updater;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTapeVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetTapeVolume (float gain)
+{
+    m_audio->GetTapeSource().SetVolume (gain);
 }
 
 
@@ -633,8 +643,8 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     m_diskManager = std::make_unique<DiskManager> (m_machine,
                                                    m_machine.GetDiskStore(),
-                                                   m_diskAudioSources,
-                                                   m_wasapiAudio,
+                                                   m_audio->GetDiskSources(),
+                                                   m_audio->GetOutput(),
                                                    m_driveWidgets,
                                                    m_driveWidgetState,
                                                    m_driveChrome,
@@ -649,9 +659,8 @@ void EmulatorShell::InitAssetPathsAndStores()
     //  check made before every write can be measured on its own.
     m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
 
-    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
-                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
-    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
+    m_audio->AttachTape (&m_machine.GetTapeDeck(),
+                         [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
     m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
     m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();

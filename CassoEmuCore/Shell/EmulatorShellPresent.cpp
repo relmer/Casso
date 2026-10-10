@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
@@ -786,7 +787,7 @@ bool EmulatorShell::TryPresentUiFrame()
 
         // The volume wheel stands where the tape volume is, however it was
         // last set -- dragged, or from the Settings slider.
-        m_deskScene.SetRecorderVolumeTurn (m_tapeAudioSource.GetVolume() * s_kVolumeWheelTurnRad);
+        m_deskScene.SetRecorderVolumeTurn (m_audio->GetTapeSource().GetVolume() * s_kVolumeWheelTurnRad);
 
         // A mount or eject changes the basename strip under the drive, and so
         // does write-protecting the disk, since the padlock is a glyph at the
