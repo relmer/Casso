@@ -50,6 +50,10 @@
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 
+//  Writing the salvaged copy the user confirmed: "<drive> <mediaId> <path>".
+//  Posted to the CPU queue by the salvage dialog and never sent as WM_COMMAND.
+#define IDM_DISK_SALVAGE_WRITE      40081
+
 // Start the disk browser beside this executable.
 #define IDM_DISK_OPEN_CASSQUE       40080
 

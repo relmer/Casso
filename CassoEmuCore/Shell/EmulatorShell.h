@@ -441,6 +441,8 @@ private:
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     AssessSalvage           (int drive) override;
+    void     WriteSalvagedCopy       (int drive, uint64_t mediaId, const std::string & path) override;
     void     SetDriveAudioEnabled    (bool enabled) override;
     HRESULT  SetDriveAudioMechanism  (const std::wstring & mechanism) override;
 
@@ -1472,6 +1474,23 @@ private:
     // The whole salvage interaction: assess, show the figures, write the copy
     // on confirmation, then offer to insert it.
     void    RunSalvageFlow (int drive);
+
+    // Salvage's two results, carried from the CPU thread, which reads the
+    // damaged disk, to the UI thread, which asks the user: the assessment to
+    // offer, and then what writing the copy did.
+    struct SalvageOffer
+    {
+        int                drive = 0;
+        SalvageAssessment  assessment;
+    };
+
+    struct SalvageOutcome
+    {
+        int               drive = 0;
+        HRESULT           hr    = S_OK;
+        DenibblizeReport  report;
+        std::string       path;
+    };
 
     // What one bay's external change wants said, carried from the thread that
     // owns disk writes to the one that owns the screen.

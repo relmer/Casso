@@ -45,6 +45,13 @@ public:
     virtual HRESULT  ToggleImageWriteProtect  (int drive)                                       = 0;
     virtual void     ResolvePendingChange     (int slot, int drive, int action,
                                                const std::string & savePath)                   = 0;
+
+    //  Salvage of a damaged disk: assess the drive and offer the copy, then
+    //  write the copy the user confirmed, while the drive still holds the
+    //  medium that was assessed.
+    virtual void     AssessSalvage            (int drive)                                       = 0;
+    virtual void     WriteSalvagedCopy        (int drive, uint64_t mediaId,
+                                               const std::string & path)                       = 0;
     virtual void     SetDriveAudioEnabled     (bool enabled)                                    = 0;
     virtual HRESULT  SetDriveAudioMechanism   (const std::wstring & mechanism)                  = 0;
     virtual void     SetDriveAudioVolumes     (float motor, float head, float door)             = 0;
@@ -181,6 +188,7 @@ private:
     static bool  DispatchDiskCommand   (const EmulatorCommand & cmd, ICpuCommandTarget & target);
     static bool  DispatchDebugCommand  (const EmulatorCommand & cmd, ICpuCommandTarget & target);
     static void  DispatchResolveChange (const std::string & payload, ICpuCommandTarget & target);
+    static void  DispatchSalvageWrite  (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);

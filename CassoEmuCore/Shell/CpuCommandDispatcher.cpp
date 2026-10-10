@@ -134,9 +134,9 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 //
 //  DispatchDiskCommand
 //
-//  The disk commands: insert, eject, the two write-protect commands and the
-//  answer to a question about a changed image. Gives back whether the id was
-//  one of them.
+//  The disk commands: insert, eject, the two write-protect commands, the
+//  answer to a question about a changed image, and salvage. Gives back
+//  whether the id was one of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +176,14 @@ bool CpuCommandDispatcher::DispatchDiskCommand (const EmulatorCommand & cmd, ICp
             DispatchResolveChange (cmd.payload, target);
             break;
 
+        case IDM_DISK_SALVAGE1:
+        case IDM_DISK_SALVAGE2:
+            target.AssessSalvage ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            break;
+
+        case IDM_DISK_SALVAGE_WRITE:
+            DispatchSalvageWrite (cmd.payload, target);
+            break;
 
         default:
             isHandled = false;
@@ -382,6 +390,51 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
     }
 
     target.ResolvePendingChange (slot, drive, action, savePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchSalvageWrite
+//
+//  "<drive> <mediaId> <path>", confirmed in the salvage dialog and written
+//  here. The path is last and takes the rest of the line, since it may
+//  contain spaces; a payload with no path writes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, ICpuCommandTarget & target)
+{
+    std::istringstream  reader (payload);
+    int                 drive   = 0;
+    uint64_t            mediaId = 0;
+    std::string         path;
+
+
+
+    reader >> drive >> mediaId;
+
+    if (reader.fail())
+    {
+        return;
+    }
+
+    std::getline (reader, path);
+
+    while (!path.empty() && path.front() == ' ')
+    {
+        path.erase (path.begin());
+    }
+
+    if (path.empty())
+    {
+        return;
+    }
+
+    target.WriteSalvagedCopy (drive, mediaId, path);
 }
 
 

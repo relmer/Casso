@@ -76,6 +76,23 @@ public:
     }
 
 
+    //  Salvage reads the damaged disk and writes a new file beside it, so it
+    //  passes behind live; inserting the copy it wrote is what changes the
+    //  machine.
+    TEST_METHOD (SalvageLeavesTheMachineAloneAndInsertingTheCopyChangesIt)
+    {
+        for (WORD id : { IDM_DISK_SALVAGE1, IDM_DISK_SALVAGE2, IDM_DISK_SALVAGE_WRITE })
+        {
+            Assert::IsFalse (DivergenceGate::IsStateChangingCommand (id), std::format (L"command {}", id).c_str());
+        }
+
+        for (WORD id : { IDM_DISK_INSERT1, IDM_DISK_INSERT2 })
+        {
+            Assert::IsTrue (DivergenceGate::IsStateChangingCommand (id), std::format (L"command {}", id).c_str());
+        }
+    }
+
+
     TEST_METHOD (AChangeIsAskedAboutOnlyBehindLive)
     {
         Assert::IsTrue (DivergenceGate::Judge (true,  true)  == DivergenceVerdict::Ask);

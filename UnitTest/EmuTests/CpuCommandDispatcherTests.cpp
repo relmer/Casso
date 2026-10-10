@@ -194,6 +194,46 @@ public:
     }
 
 
+    TEST_METHOD (SalvageAssessesTheDriveItsIdSelects)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DISK_SALVAGE1, "", target);
+        Dispatch (IDM_DISK_SALVAGE2, "", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("AssessSalvage 0"), target.calls[0]);
+        Assert::AreEqual (std::string ("AssessSalvage 1"), target.calls[1]);
+    }
+
+
+    TEST_METHOD (ASalvageWriteKeepsTheMediaIdAndThePathWithItsSpaces)
+    {
+        Notebook  target;
+
+        //  "<drive> <mediaId> <path>": the path is last and takes the rest of
+        //  the line, and the media id keeps all 64 bits.
+        Dispatch (IDM_DISK_SALVAGE_WRITE, "1 18446744073709551615 C:\\My Disks\\lost copy.salvaged.woz", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("WriteSalvagedCopy 1 18446744073709551615 C:\\My Disks\\lost copy.salvaged.woz"),
+                          target.calls[0]);
+    }
+
+
+    TEST_METHOD (ASalvageWriteThatDoesNotParseDispatchesNothing)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DISK_SALVAGE_WRITE, "one 7 C:\\x.woz", target);
+        Dispatch (IDM_DISK_SALVAGE_WRITE, "0 seven C:\\x.woz", target);
+        Dispatch (IDM_DISK_SALVAGE_WRITE, "0 7", target);
+        Dispatch (IDM_DISK_SALVAGE_WRITE, "", target);
+
+        Assert::IsTrue (target.calls.empty(), L"garbage is dropped, not guessed at");
+    }
+
+
     TEST_METHOD (DriveAudioSettingsArriveAsUnitValues)
     {
         Notebook  target;
@@ -493,6 +533,13 @@ private:
         void     ResolvePendingChange (int slot, int drive, int action, const std::string & savePath) override
         {
             calls.push_back (std::format ("ResolvePendingChange {} {} {} {}", slot, drive, action, savePath));
+        }
+
+        void     AssessSalvage (int drive) override { calls.push_back (std::format ("AssessSalvage {}", drive)); }
+
+        void     WriteSalvagedCopy (int drive, uint64_t mediaId, const std::string & path) override
+        {
+            calls.push_back (std::format ("WriteSalvagedCopy {} {} {}", drive, mediaId, path));
         }
 
         void     SetDriveAudioEnabled (bool enabled) override

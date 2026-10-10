@@ -494,6 +494,93 @@ void EmulatorShell::ResolvePendingChange (int slot, int drive, int action, const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssessSalvage
+//
+//  Reads the damaged disk here, where the store is held, and posts what a
+//  salvaged copy would hold to the window, which shows it. A drive with
+//  nothing to salvage posts nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AssessSalvage (int drive)
+{
+    HRESULT         hr       = S_OK;
+    SalvageOffer *  offer    = nullptr;
+    bool            hasHwnd  = m_hwnd != nullptr;
+    bool            isPosted = false;
+
+
+
+    BAIL_OUT_IF (!hasHwnd, S_OK);
+
+    offer = new (std::nothrow) SalvageOffer();
+    CPR (offer);
+
+    offer->drive = drive;
+
+    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, offer->assessment);
+    CHR (hr);
+
+    BAIL_OUT_IF (!offer->assessment.isOffered, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_APP_SALVAGE_OFFER, 0, reinterpret_cast<LPARAM> (offer)) != FALSE;
+    CWR (isPosted);
+
+Error:
+    if (!isPosted)
+    {
+        delete offer;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSalvagedCopy
+//
+//  Writes the copy the user confirmed, while the drive still holds the
+//  medium that was assessed, and posts the result to the window, which
+//  reports it and offers to insert the copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WriteSalvagedCopy (int drive, uint64_t mediaId, const std::string & path)
+{
+    HRESULT           hr       = S_OK;
+    SalvageOutcome *  outcome  = nullptr;
+    bool              hasHwnd  = m_hwnd != nullptr;
+    bool              isPosted = false;
+
+
+
+    outcome = new (std::nothrow) SalvageOutcome();
+    CPR (outcome);
+
+    outcome->drive = drive;
+    outcome->path  = path;
+    outcome->hr    = m_machine.GetDiskStore().SalvageToFile (6, drive, mediaId, path, outcome->report);
+
+    BAIL_OUT_IF (!hasHwnd, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_APP_SALVAGE_DONE, 0, reinterpret_cast<LPARAM> (outcome)) != FALSE;
+    CWR (isPosted);
+
+Error:
+    if (!isPosted)
+    {
+        delete outcome;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDriveAudioEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
