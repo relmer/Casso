@@ -2789,8 +2789,10 @@ without the scrolling stalling.
 - **FR-217**: Before FR-213 and FR-214 are built, every feature of the
   emulator's Disk II and Input debug windows MUST be listed from their code,
   tests and spec 006, and each kept, changed or dropped with the owner's
-  approval. When the panes ship, those two windows, the emulator's code that
-  opens and wires them, and their menu items MUST be removed.
+  approval. *(Amended 2026-10-10)*: the two windows, the emulator's code that
+  opens and wires them, and their menu items are removed ahead of the panes,
+  by the refactor of the emulator's shell on master, so the inventory MUST be
+  read from the last commit that holds them; the device feeds they used stay.
 - **FR-218**: The debugger MUST be one component the emulator's shell holds
   through a narrow interface, the shell's header including none of the
   debugger's own headers; the shell's input handling MUST be one component held the same
