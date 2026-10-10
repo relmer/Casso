@@ -6,6 +6,7 @@
 #include "Shell/MachineHost.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -185,7 +186,7 @@ public:
 
         Assert::IsTrue (rows[0].find ("Apple //e") != std::string::npos,
             std::format (L"row 0 must show the banner, got '{}'",
-                         std::wstring (rows[0].begin(), rows[0].end())).c_str());
+                         TextEncoding::NarrowToWide (rows[0])).c_str());
     }
 
 

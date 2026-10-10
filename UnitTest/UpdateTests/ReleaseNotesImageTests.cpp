@@ -215,6 +215,23 @@ public:
 
 
 
+    //  Release notes are UTF-8, so a path outside ASCII has to arrive as the
+    //  character it encodes. Widening byte by byte sign-extended each byte of
+    //  the e-acute into U+FFC3 U+FFA9.
+    TEST_METHOD (ResolveImageUrl_DecodesUtf8Paths)
+    {
+        std::wstring  url;
+
+
+
+        Assert::IsTrue   (UpdateService::TryResolveImageUrl ("Assets/Caf\xC3\xA9.png", "v1.30.0", url));
+        Assert::AreEqual (std::wstring (L"https://raw.githubusercontent.com/relmer/Casso/v1.30.0/Assets/Caf\u00E9.png"), url);
+        Assert::IsTrue   (UpdateService::TryResolveImageUrl ("https://example.com/Caf\xC3\xA9.png", "v1.30.0", url));
+        Assert::AreEqual (std::wstring (L"https://example.com/Caf\u00E9.png"), url);
+    }
+
+
+
     //  Layout
 
     static FormattedLine MakeImageLine (int widthPercent, const std::string & caption)

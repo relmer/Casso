@@ -3,6 +3,7 @@
 #include "TestMachine.h"
 
 #include "Core/Prng.h"
+#include "Core/TextEncoding.h"
 #include "EmbeddedMachineConfigs.h"
 
 #include "EmbeddedMachineJson.h"
@@ -25,8 +26,8 @@ namespace fs = std::filesystem;
 TestMachine::TestMachine (const std::string & machineId, Slots slots)
     : m_builder (*this, m_nothingListening)
 {
-    std::wstring  wide (machineId.begin(), machineId.end());
-    HRESULT       hr = S_OK;
+    std::wstring  wide = TextEncoding::NarrowToWide (machineId);
+    HRESULT       hr   = S_OK;
 
 
 
@@ -96,7 +97,7 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
 
     Assert::AreNotEqual (0, resourceId,
         std::format (L"'{}' is not a machine Casso ships",
-                     std::wstring (machineId.begin(), machineId.end())).c_str());
+                     TextEncoding::NarrowToWide (machineId)).c_str());
 
     jsonText = EmbeddedMachineJson::Load (resourceId);
 
@@ -117,6 +118,6 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
 
     AssertSucceeded (hr,
         std::format (L"{} config must load: {}",
-                     std::wstring (machineId.begin(), machineId.end()),
-                     std::wstring (error.begin(), error.end())).c_str());
+                     TextEncoding::NarrowToWide (machineId),
+                     TextEncoding::NarrowToWide (error)).c_str());
 }
