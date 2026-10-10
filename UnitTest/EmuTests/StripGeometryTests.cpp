@@ -88,9 +88,39 @@ public:
 
         for (i = 0; i < analysis.framed.nibbles.size(); i += 97)
         {
-            Assert::AreEqual (TrackAnalyzer::GetAngle (analysis, analysis.framed.nibbles[i].startCell), turns[i], 1e-9);
+            Assert::AreEqual (TrackAnalyzer::GetAngle (analysis, analysis.framed.nibbles[i].startCell), turns[i] - std::floor (turns[i]), 1e-9);
         }
 
         Assert::AreEqual (turns.front() + 1.0, turns.back(), 1e-12);
+    }
+
+
+
+    TEST_METHOD (NibbleTurnsKeepRisingPastTheIndex)
+    {
+        TrackAnalysis   analysis;
+        vector<double>  turns;
+        size_t          i = 0;
+
+
+
+        //  The framer's first nibble starts before the index, as it does on
+        //  a track whose bits run on across it.
+        analysis.framed.cellCount = 100;
+
+        for (uint32_t start : { 95u, 3u, 11u, 19u, 27u })
+        {
+            analysis.framed.nibbles.push_back (FramedNibble { 0xFF, start, 0, false });
+        }
+
+        StripGeometry::BuildNibbleTurns (analysis, turns);
+
+        for (i = 1; i < turns.size(); i++)
+        {
+            Assert::IsTrue (turns[i] > turns[i - 1], L"a nibble never ends before it starts");
+        }
+
+        Assert::AreEqual (1.03, turns[1], 1e-12);
+        Assert::AreEqual (1.95, turns.back(), 1e-12);
     }
 };

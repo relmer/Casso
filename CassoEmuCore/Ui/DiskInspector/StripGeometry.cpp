@@ -135,6 +135,7 @@ void StripGeometry::BuildNibbleTurns (const TrackAnalysis & track, vector<double
     const FramedTrack &  framed  = track.framed;
     vector<double>       cellTurn;
     double               elapsed = 0;
+    double               turn    = 0;
     uint32_t             cell    = 0;
 
 
@@ -156,7 +157,16 @@ void StripGeometry::BuildNibbleTurns (const TrackAnalysis & track, vector<double
 
         for (const FramedNibble & n : framed.nibbles)
         {
-            outTurns.push_back (cellTurn.empty() ? static_cast<double> (n.startCell % framed.cellCount) / framed.cellCount : cellTurn[n.startCell % framed.cellCount]);
+            turn = cellTurn.empty() ? static_cast<double> (n.startCell % framed.cellCount) / framed.cellCount : cellTurn[n.startCell % framed.cellCount];
+
+            //  The first nibble can start before the index, so a later one
+            //  that wraps past it moves on a turn and the list keeps rising.
+            while (!outTurns.empty() && turn < outTurns.back())
+            {
+                turn += 1.0;
+            }
+
+            outTurns.push_back (turn);
         }
 
         if (!outTurns.empty())

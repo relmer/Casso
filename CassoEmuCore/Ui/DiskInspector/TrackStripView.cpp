@@ -373,6 +373,11 @@ int TrackStripView::GetNibbleAtX (const TrackAnalysis & track, float xPx) const
 
     if (m_turns.size() > 1)
     {
+        //  The turns rise from the first nibble's, which can be just before
+        //  the index, so the turn is brought into the same lap.
+        turn -= std::floor (turn);
+        turn += (turn < m_turns.front()) ? 1.0 : 0.0;
+
         auto  after = std::upper_bound (m_turns.begin(), m_turns.end() - 1, turn);
 
         nibble = (after == m_turns.begin()) ? static_cast<int> (m_turns.size()) - 2 : static_cast<int> (after - m_turns.begin()) - 1;
