@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
@@ -146,7 +147,7 @@ void ShellPrinter::ShowPrinterPanel (bool activate)
                                      &m_shell.m_chrome->GetTheme());
         CHRF (hr, m_printerPanel.reset());
 
-        m_shell.ApplyAppIconToWindow (m_printerPanel->GetHwnd());
+        m_shell.m_window->ApplyAppIconToWindow (m_printerPanel->GetHwnd());
 
         // Toolbar actions route through the existing command path (which
         // quiesces the worker, delivers/clears, and resumes), then re-snapshot.

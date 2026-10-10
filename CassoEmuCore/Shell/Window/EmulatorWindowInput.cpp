@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -1744,7 +1745,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // a WM_LBUTTONUP that lands here on top of the drive. Swallow it
     // so the user doesn't see the file-open dialog pop up immediately
     // after the dropped image mounts.
-    wasSuppressed = m_dragDropTarget.ConsumeSuppressedClick();
+    wasSuppressed = m_window->m_dragDropTarget.ConsumeSuppressedClick();
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 

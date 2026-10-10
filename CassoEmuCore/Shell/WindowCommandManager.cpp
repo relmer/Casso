@@ -6,6 +6,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -710,7 +711,7 @@ void WindowCommandManager::OnMachineCommand (int id)
         case IDM_MACHINE_PAUSE:
         {
             m_shell.m_cpuManager.TogglePaused();
-            m_shell.UpdateWindowTitle();
+            m_shell.m_window->UpdateWindowTitle();
             break;
         }
 
@@ -952,7 +953,7 @@ void WindowCommandManager::OnViewCommand (int id)
                 // policy -- see it for the one-line toggle to switch to
                 // integer-only scaling.
                 {
-                    SIZE  desired = m_shell.GetClientSizeForFramebufferPx (
+                    SIZE  desired = m_shell.m_window->GetClientSizeForFramebufferPx (
                                         kFramebufferWidthPx,
                                         kFramebufferHeightPx);
                     desiredClientW = (int) desired.cx;
@@ -1008,7 +1009,7 @@ void WindowCommandManager::OnViewCommand (int id)
                     // only at the end of the OS drag loop or on a user maximize or
                     // restore, precisely so a programmatic SetWindowPos cannot
                     // stomp it. This one is the user's, so it has to say so.
-                    m_shell.m_windowManager->SaveWindowPlacement (m_shell.m_hwnd, false);
+                    m_shell.m_window->GetWindowManager().SaveWindowPlacement (m_shell.m_hwnd, false);
                 }
             }
 

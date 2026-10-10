@@ -3,6 +3,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Config/UserConfigStore.h"
 #include "Ui/ThemeManager.h"
@@ -42,7 +43,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
-#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -125,7 +125,7 @@ EmulatorShell::EmulatorShell()
     SetPrngSeed (seed);
 
     m_settings      = std::make_unique<ShellSettings> (*this);
-    m_windowManager = std::make_unique<WindowManager> (m_settings->GetPrefs(), [this] { m_settings->SaveGlobalPrefs(); });
+    m_window        = std::make_unique<ShellWindow> (*this);
     m_updater       = std::make_unique<ShellUpdater> (*this);
     m_audio         = std::make_unique<ShellAudio>();
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
@@ -262,7 +262,7 @@ EmulatorShell::~EmulatorShell()
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
-    m_dragDropTarget.Shutdown();
+    m_window->m_dragDropTarget.Shutdown();
     m_disks->GetDriveWidgets().UnloadDocument();
     m_chrome->m_mainMenu.Hide();
     m_chrome->m_mainMenu.SetPopupHost (nullptr);
@@ -281,10 +281,10 @@ EmulatorShell::~EmulatorShell()
 
     m_renderer->m_d3dRenderer.Shutdown();
 
-    if (m_fOleInitialized)
+    if (m_window->m_fOleInitialized)
     {
         OleUninitialize();
-        m_fOleInitialized = false;
+        m_window->m_fOleInitialized = false;
     }
 }
 
@@ -391,6 +391,51 @@ ShellChrome & EmulatorShell::GetChrome()
 ShellRenderer & EmulatorShell::GetRenderer()
 {
     return *m_renderer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellWindow & EmulatorShell::GetWindow()
+{
+    return *m_window;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetStartupShowCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetStartupShowCommand (int nCmdShow)
+{
+    m_window->SetStartupShowCommand (nCmdShow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWindowTitlePrefix
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
+{
+    m_window->SetWindowTitlePrefix (prefix);
 }
 
 
@@ -605,7 +650,7 @@ HRESULT EmulatorShell::Initialize (
     hr = OleInitialize (nullptr);
     CHRA (hr);
 
-    m_fOleInitialized = true;
+    m_window->m_fOleInitialized = true;
 
     m_renderer->AllocateFramebuffers();
 
@@ -727,9 +772,9 @@ HRESULT EmulatorShell::Initialize (
     // particular, and the remembered placement -- which knows whether the
     // window was maximized -- is the better answer for it.
     {
-        int   show = m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
+        int   show = m_window->m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
 
-        switch (m_startShowCmd)
+        switch (m_window->m_startShowCmd)
         {
             case SW_HIDE:
             case SW_MINIMIZE:
@@ -737,7 +782,7 @@ HRESULT EmulatorShell::Initialize (
             case SW_SHOWMINNOACTIVE:
             case SW_SHOWNOACTIVATE:
             case SW_SHOWNA:
-                show = m_startShowCmd;
+                show = m_window->m_startShowCmd;
                 break;
 
             default:
@@ -753,9 +798,9 @@ HRESULT EmulatorShell::Initialize (
     // client now that the window is shown and its NC frame has fully
     // materialized. Done before UpdateWindowTitle so the user never sees
     // the wrong-size window flash.
-    ReconcileInitialClientSize();
+    m_window->ReconcileInitialClientSize();
 
-    UpdateWindowTitle();
+    m_window->UpdateWindowTitle();
 
     // / FR-034. Cold power-on: seed DRAM via the shared Prng and
     // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
@@ -1256,86 +1301,16 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_tapeDeck->RegisterTapeDropTarget();
     }
 
-    if (m_fOleInitialized)
+    if (m_window->m_fOleInitialized)
     {
-        InstallDragDropTarget();
+        m_window->InstallDragDropTarget();
     }
 
     m_disks->InstallChangeReporting();
-    InstallIntentMessageFilter();
+    m_window->InstallIntentMessageFilter();
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InstallDragDropTarget
-//
-//  Registers the window as an OLE drop target for disk images, and opens the
-//  UIPI holes that make dropping work across an integrity-level boundary.
-//
-//  A failed registration is survivable and deliberately non-fatal: File > Open
-//  and the drive widgets' click-to-browse mount the same images, so losing
-//  drag-and-drop costs a convenience, not a capability, and must not prevent
-//  launch.
-//
-//  The message filters are the non-obvious half. When Casso runs at a HIGHER
-//  integrity level than the drag source -- the common case being an elevated
-//  Casso and a normal Explorer window -- UIPI silently drops the messages OLE
-//  uses to marshal the payload across the boundary, and the drop simply does
-//  nothing with no error anywhere. Allowing the three messages OLE actually
-//  uses for drop targets (WM_DROPFILES, WM_COPYDATA, and the undocumented but
-//  real WM_COPYGLOBALDATA) makes Explorer-to-elevated-Casso drags work without
-//  lowering Casso's own integrity level.
-//
-//  Only m_hwnd needs the filter: the window is a single top-level HWND now
-//  that the legacy CassoRenderSurface child is gone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::InstallDragDropTarget()
-{
-    HRESULT     hrDrop            = S_OK;
-    const UINT  kWmCopyGlobalData = 0x0049;   // undocumented but real
-
-
-
-    // Drag-drop is an optional convenience -- File > Open and the drive
-    // widgets' click-to-browse cover the same mounts -- so a failed
-    // registration disables drop but must not prevent launch.
-    // Disks and tapes both; OnFileDropped sends each only to what can take it.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
-                                          &m_uiShell.GetHitTester(),
-                                          [this] (int tag, const std::wstring & path) { OnFileDropped (tag, path); },
-                                          [] (const std::wstring & path)
-                                          {
-                                              return IsSupportedDiskImageExtension (path) ||
-                                                     TapeImageLoader::IsTapeFileExtension (path);
-                                          });
-    IGNORE_RETURN_VALUE (hrDrop, S_OK);
-
-    // UIPI whitelist. When Casso runs at a higher integrity
-    // level than the source (e.g. user launched Casso
-    // elevated and is dragging from a non-elevated Explorer),
-    // UIPI silently blocks the messages OLE uses to marshal
-    // the dragged payload across the IL boundary. The fix
-    // is ChangeWindowMessageFilterEx for the three messages
-    // OLE actually uses for drop targets:
-    //   WM_DROPFILES       (0x0233)
-    //   WM_COPYDATA        (0x004A)
-    //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
-    // Allowing these lets Explorer -> elevated-Casso drag
-    // work without lowering Casso's IL. The window is now a
-    // single top-level HWND (the legacy CassoRenderSurface
-    // child is gone), so only m_hwnd needs the filter.
-    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,      MSGFLT_ALLOW, nullptr);
-    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,       MSGFLT_ALLOW, nullptr);
-    (void) ChangeWindowMessageFilterEx (m_hwnd, kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
 }
 
 

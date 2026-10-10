@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -67,193 +68,6 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetCursorMonitorWorkArea
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
-{
-    POINT          pt       = {};
-    HMONITOR       hMon     = nullptr;
-    MONITORINFOEXW mi       = { sizeof (mi) };
-    bool           hasWork  = false;
-
-
-
-    if (!GetCursorPos (&pt))
-    {
-        pt.x = 0;
-        pt.y = 0;
-    }
-
-    hMon    = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
-    hasWork = hMon != nullptr && GetMonitorInfoW (hMon, &mi);
-
-    if (hasWork)
-    {
-        outWork    = mi.rcWork;
-        outMonitor = hMon;
-    }
-
-    return hasWork;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::CenterInWorkArea
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CenterInWorkArea (
-    const RECT & work,
-    int          windowW,
-    int          windowH,
-    LONG       & outX,
-    LONG       & outY)
-{
-    outX = work.left + (work.right - work.left - windowW) / 2;
-    outY = work.top  + (work.bottom - work.top - windowH) / 2;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::LoadIconAsPremulBgra
-//
-//  Loads an HICON resource into a CPU-side premultiplied BGRA8
-//  pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
-//  path. Uses a GDI memory DC + 32-bit DIB section to capture the
-//  icon's alpha-channelled pixels (LoadImageW preserves alpha when
-//  LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
-//  pixels in place because D2D's DrawBitmap expects premultiplied
-//  sources.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::LoadIconAsPremulBgra (
-    HINSTANCE               hInstance,
-    int                     iconResourceId,
-    int                     sizePx,
-    std::vector<uint32_t> & outPixels,
-    int                   & outW,
-    int                   & outH)
-{
-    HRESULT     hr          = S_OK;
-    HICON       hIcon       = nullptr;
-    HDC         screenDc    = nullptr;
-    HDC         memDc       = nullptr;
-    HBITMAP     dib         = nullptr;
-    HBITMAP     oldBitmap   = nullptr;
-    void      * dibBits     = nullptr;
-    BITMAPINFO  bmi         = {};
-    BOOL        drawn       = FALSE;
-    uint32_t  * src         = nullptr;
-    size_t      i           = 0;
-    size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
-    HRESULT     hrGle       = E_FAIL;
-
-
-
-    // Every failure here is a Win32 one with a real reason behind it -- a
-    // missing resource id reads differently from an exhausted GDI heap -- so
-    // the OS code is carried out rather than flattened to "no icon". The
-    // handles are released at Error:, which every bail below routes through.
-    //
-    // GetLastError is read into hrGle BEFORE the check, never inside it: a
-    // call in a macro condition is forbidden, and any intervening call could
-    // clobber the thread's error code anyway.
-    hIcon = (HICON) LoadImageW (hInstance,
-                                MAKEINTRESOURCEW (iconResourceId),
-                                IMAGE_ICON,
-                                sizePx, sizePx,
-                                LR_DEFAULTCOLOR);
-
-    if (hIcon == nullptr)
-    {
-        hrGle = HRESULT_FROM_WIN32 (GetLastError());
-    }
-
-    CBREx (hIcon != nullptr, hrGle);
-
-    screenDc = GetDC (nullptr);
-    memDc    = CreateCompatibleDC (screenDc);
-    CPR (memDc);
-
-    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth       = sizePx;
-    bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
-    bmi.bmiHeader.biPlanes      = 1;
-    bmi.bmiHeader.biBitCount    = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
-    CPR (dib);
-    CPR (dibBits);
-
-    oldBitmap = (HBITMAP) SelectObject (memDc, dib);
-
-    // Clear the DIB to transparent so the icon's alpha channel composites
-    // against zero instead of the screen DC's garbage contents.
-    memset (dibBits, 0, pixelCount * sizeof (uint32_t));
-
-    drawn = DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL);
-
-    if (!drawn)
-    {
-        hrGle = HRESULT_FROM_WIN32 (GetLastError());
-    }
-
-    CBREx (drawn, hrGle);
-
-    src = (uint32_t *) dibBits;
-    outPixels.assign (pixelCount, 0);
-
-    // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB in little-endian
-    // uint32 (B,G,R,A in memory order).
-    for (i = 0; i < pixelCount; i++)
-    {
-        uint32_t  px = src[i];
-        uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
-        uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
-        uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
-        uint8_t   b  = (uint8_t) ( px        & 0xFF);
-
-        r = (uint8_t) ((r * a) / 255);
-        g = (uint8_t) ((g * a) / 255);
-        b = (uint8_t) ((b * a) / 255);
-
-        outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
-                       ((uint32_t) g <<  8) |  (uint32_t) b;
-    }
-
-    outW = sizePx;
-    outH = sizePx;
-
-Error:
-    // Unwound in reverse acquisition order, each guarded: a bail from any of
-    // the checks above lands here with only some of them owned.
-    if (oldBitmap != nullptr) { SelectObject (memDc, oldBitmap); }
-    if (dib != nullptr)       { DeleteObject (dib); }
-    if (memDc != nullptr)     { DeleteDC (memDc); }
-    if (screenDc != nullptr)  { ReleaseDC (nullptr, screenDc); }
-    if (hIcon != nullptr)     { DestroyIcon (hIcon); }
-
-    return hr;
-}
 
 
 
@@ -350,7 +164,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // 560-px logical means we get a 560-physical-pixel window that
     // looks half-size next to anything else on that display. Resolve
     // the destination monitor's DPI up front and pre-scale.
-    if (TryGetCursorMonitorWorkArea (work, activeMon))
+    if (m_window->TryGetCursorMonitorWorkArea (work, activeMon))
     {
         UINT     dpiX  = 0;
         UINT     dpiY  = 0;
@@ -378,7 +192,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_scaler.SetDpi (dpi);
 
     {
-        SIZE  client = GetClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
+        SIZE  client = m_window->GetClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
 
         clientW = (int) client.cx;
         clientH = (int) client.cy;
@@ -420,7 +234,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     windowW = rc.right - rc.left;
     windowH = rc.bottom - rc.top;
 
-    haveWork = TryGetCursorMonitorWorkArea (work, activeMon);
+    haveWork = m_window->TryGetCursorMonitorWorkArea (work, activeMon);
 
     if (haveWork)
     {
@@ -431,10 +245,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         // otherwise.
         windowW = std::min (windowW, (int) (work.right  - work.left));
         windowH = std::min (windowH, (int) (work.bottom - work.top));
-        CenterInWorkArea (work, windowW, windowH, windowX, windowY);
+        m_window->CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_windowManager->TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_startMaximized);
+    hadSavedPlacement = m_window->m_windowManager->TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH, m_window->m_startMaximized);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition
@@ -701,7 +515,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // shrink the window to match the (wrong) measurement. The flag
     // tells ReconcileInitialClientSize whether to run; saved
     // placement deliberately bypasses the reset-to-default sizing.
-    m_initialSizeReconciled = hadSavedPlacement;
+    m_window->m_initialSizeReconciled = hadSavedPlacement;
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
     // commands now route through `MainMenu` + the native nav strip;
@@ -917,7 +731,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int                    iconH      = 0;
         HRESULT                hrIcon     = S_OK;
 
-        hrIcon = LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH);
+        hrIcon = m_window->LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH);
 
         if (SUCCEEDED (hrIcon))
         {
@@ -957,169 +771,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
 
     // Load accelerator table
-    m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
-    CWRA (m_accelTable);
+    m_window->m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
+    CWRA (m_window->m_accelTable);
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetEmulatorContentScreenRect
-//
-//  The emulator IMAGE rect in screen pixels, for the Settings live-preview
-//  compositor's see-through reveal (#8). Answered from the renderer's cache
-//  (recorded at the last CRT frame): that is the aspect-FITTED image rect, not
-//  the whole center band, so the reveal hole hugs the picture instead of also
-//  punching through over the letterbox. The cache is at most one frame stale
-//  -- while the settings sheet is open TryPresentUiFrame force-presents every
-//  UI frame -- and empty until the window + swap chain have produced a frame,
-//  which callers read as "no reveal".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT EmulatorShell::GetEmulatorContentScreenRect()
-{
-    return m_renderer->m_d3dRenderer.GetEmulatorContentScreenRect();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetClientSizeForCenterPx
-//
-//  Inverse of ComputeViewportRect: given a desired center (emulator
-//  viewport) size in physical pixels, return the client size that hosts
-//  it with the current chrome-band thicknesses.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE EmulatorShell::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
-{
-    //  THE SAME BANDS ComputeViewportRect DOCKS, or this is not its inverse
-    //  -- so it reads the same list rather than restating it. The two notice
-    //  bands were once missing from the copy that lived here: with either
-    //  one up, every client size answered here (the minimum tracking size,
-    //  the window a machine or theme change resizes to) came out short by
-    //  the notice's height, and the viewport it exists to preserve shrank by
-    //  exactly that.
-    IDxuiControl *  bands[ShellChrome::kDockedBandCount] = {};
-
-
-
-    m_chrome->CollectDockedBands (bands);
-
-
-
-    m_chrome->SyncChromeBands();
-
-    return m_chrome->m_chromeDock.GetContainerSizeForFill (SIZE{ centerWidthPx, centerHeightPx }, bands);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetClientSizeForFramebufferPx
-//
-//  Framebuffer scale policy: linear DPI scaling. The Apple ][ pixel grid
-//  (given in DIPs) scales at the same rate as the chrome dp, so the
-//  framebuffer and chrome insets stay in proportion at every DPI. Both
-//  the initial window size and Ctrl+0 reset go through here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE EmulatorShell::GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
-{
-    SIZE  client         = {};
-    int   framebufferWpx = m_scaler.ToPx (framebufferWidthDp);
-    int   framebufferHpx = m_scaler.ToPx (framebufferHeightDp);
-
-
-
-    // With the desk scene on, size the window so the monitor's screen RECESS
-    // -- not the bare center -- equals the framebuffer, i.e. the emulator
-    // image sits at 100% zoom inside the housing, with the bezel, desk margin
-    // and chrome bands sized around it. This inverse defines the 100% scene,
-    // where the drives sit at s_kDeskDriveScale, so the band math must run at
-    // that scale regardless of the current window's. Scene off: the center is
-    // the framebuffer directly at classic sizes.
-    if (CrtMonitorActive())
-    {
-        SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_scaler.GetDpi(), m_scene->DeskSceneDriveCount(),
-                                                                     m_scene->m_deskScene.Metrics(),
-                                                                     m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
-        float  savedScale = m_chrome->m_chromeSceneScale;
-
-        m_chrome->m_chromeSceneScale = s_kDeskDriveScale;
-        client             = GetClientSizeForCenterPx (center.cx, center.cy);
-        m_chrome->m_chromeSceneScale = savedScale;
-    }
-    else
-    {
-        client = GetClientSizeForCenterPx (framebufferWpx, framebufferHpx);
-
-        // Never narrower than the drive row. With the recorder beside the
-        // drives the row outgrows a 100% screen, and a window wrapped tightly
-        // around the screen cut the recorder off at its right edge.
-        client.cx = max (client.cx, (LONG) GetDriveRowWidthPx());
-    }
-
-    return client;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetDriveRowWidthPx
-//
-//  How wide the flat drive row is -- the drives that show, the recorder when
-//  the machine has one, the gaps between them and a gap at either end --
-//  measured on throwaway widgets so the live ones keep their layout.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int EmulatorShell::GetDriveRowWidthPx()
-{
-    UINT            dpi    = m_scaler.GetDpi();
-    int             gap    = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int             count  = m_disks->ShouldShowExternalDrive() ? 2 : 1;
-    DxuiDpiScaler   scaler;
-    DriveWidget     drive;
-    TapeDeckWidget  tape;
-    RECT            outer  = {};
-    int             width  = 0;
-
-
-
-    scaler.SetDpi (dpi);
-
-    drive.Layout (RECT {}, scaler);
-    outer = drive.GetOuterRect();
-    width = count * (outer.right - outer.left) + (count + 1) * gap;
-
-    if (m_tapeDeck->IsTapeRecorderShown())
-    {
-        tape.Layout (RECT {}, scaler);
-        outer  = tape.GetOuterRect();
-        width += (outer.right - outer.left) + gap;
-    }
-
-    return width;
 }
 
 
@@ -1144,114 +800,6 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
     m_renderer->m_d3dRenderer.SetTargetBounds (boundsPx);
     m_renderer->m_d3dRenderer.MarkRedrawNeeded();
 
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReconcileInitialClientSize
-//
-//  Run once after ShowWindow to size the window so its client area
-//  matches what the chrome-band dock wants for the framebuffer. Must
-//  run POST-ShowWindow because the NC frame (DefWindowProc border carve-
-//  out + DWM rounded corners) doesn't materialize until the window
-//  is visible; measuring NC overhead before that returns 0 and the
-//  reconcile would shrink the window to match the (wrong) measurement.
-//  Idempotent via m_initialSizeReconciled.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ReconcileInitialClientSize()
-{
-    HRESULT      hr             = S_OK;
-    SIZE         desired        = {};
-    RECT         rcActualClient = {};
-    RECT         rcActualWindow = {};
-    HMONITOR     hMon           = nullptr;
-    MONITORINFO  mi             = { sizeof (mi) };
-    int          ncOverheadW    = 0;
-    int          ncOverheadH    = 0;
-    int          desiredClientW = 0;
-    int          desiredClientH = 0;
-    int          fixedW         = 0;
-    int          fixedH         = 0;
-    bool         needsReconcile = !m_initialSizeReconciled && m_hwnd != nullptr;
-    bool         haveRects      = false;
-    bool         haveWork       = false;
-
-
-
-    BAIL_OUT_IF (!needsReconcile, S_OK);
-
-    m_initialSizeReconciled = true;
-
-    desired         = GetClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
-    desiredClientW  = (int) desired.cx;
-    desiredClientH  = (int) desired.cy;
-
-    // Force a fresh WM_NCCALCSIZE so DefWindowProc carves the actual
-    // thick-frame borders into the client rect. Without this, the
-    // post-ShowWindow GetClientRect returns the full window rect
-    // (NC overhead = 0) and the reconcile math thinks no resize is
-    // needed -- leaving the emulator pixel grid undersized by the
-    // border width on the eventual first NCCALCSIZE.
-    SetWindowPos (m_hwnd, nullptr, 0, 0, 0, 0,
-                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-
-    haveRects = GetClientRect (m_hwnd, &rcActualClient) && GetWindowRect (m_hwnd, &rcActualWindow);
-
-    BAIL_OUT_IF (!haveRects, S_OK);
-
-    ncOverheadW = (rcActualWindow.right  - rcActualWindow.left)
-                  - (rcActualClient.right  - rcActualClient.left);
-    ncOverheadH = (rcActualWindow.bottom - rcActualWindow.top)
-                  - (rcActualClient.bottom - rcActualClient.top);
-
-    fixedW = desiredClientW + ncOverheadW;
-    fixedH = desiredClientH + ncOverheadH;
-
-    // The 100%-emulator + full monitor framing can want a window bigger than
-    // the display; never size past the work area. When clamped, the monitor
-    // frame re-fits its housing into the smaller client (emulator drops below
-    // 100%), which beats a window whose menu/drives fall off-screen.
-    hMon     = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-    haveWork = (hMon != nullptr && GetMonitorInfo (hMon, &mi));
-
-    if (haveWork)
-    {
-        fixedW = std::min (fixedW, (int) (mi.rcWork.right  - mi.rcWork.left));
-        fixedH = std::min (fixedH, (int) (mi.rcWork.bottom - mi.rcWork.top));
-    }
-
-    if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
-        fixedH != (rcActualWindow.bottom - rcActualWindow.top))
-    {
-        // Recenter on the current monitor's work area using the final size. The
-        // initial Create centered using a pre-reconcile estimate; without this
-        // re-center the reconcile resize would grow the window from its
-        // top-left and leave it off center vs the Ctrl+0 reset.
-        int   x     = 0;
-        int   y     = 0;
-        UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
-
-        if (haveWork)
-        {
-            x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - fixedW) / 2;
-            y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - fixedH) / 2;
-        }
-        else
-        {
-            flags |= SWP_NOMOVE;
-        }
-
-        SetWindowPos (m_hwnd, nullptr, x, y, fixedW, fixedH, flags);
-    }
-
-Error:
-    return;
 }
 
 
@@ -1299,7 +847,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 
 void EmulatorShell::OnExitSizeMove()
 {
-    m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
+    m_window->m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
 }
 
 
@@ -1318,7 +866,7 @@ void EmulatorShell::OnExitSizeMove()
 
 void EmulatorShell::OnUserWindowStateCommand()
 {
-    m_userStateChange = true;
+    m_window->m_userStateChange = true;
 }
 
 
@@ -1337,55 +885,6 @@ DxuiMessageResult EmulatorShell::OnNotify (WPARAM wParam, LPARAM lParam)
     UNREFERENCED_PARAMETER (lParam);
 
     return DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ApplyAppIconToWindow
-//
-//  Give a child DxuiWindow the Casso icon so Alt-Tab / the taskbar show the
-//  Casso motif rather than a generic window icon. The borderless Dxui panels do
-//  not inherit the WNDCLASS icon and Alt-Tab reads the window's WM_GETICON, so
-//  the big + small icons are attached explicitly. LR_SHARED handles are managed
-//  by the system, so there is nothing to free.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyAppIconToWindow (HWND target)
-{
-    HINSTANCE   hInstance = nullptr;
-    HICON       iconBig   = nullptr;
-    HICON       iconSmall = nullptr;
-
-
-
-    if (target == nullptr)
-    {
-        return;
-    }
-
-    hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
-
-    iconBig   = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
-                                    GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON),
-                                    LR_DEFAULTCOLOR | LR_SHARED);
-    iconSmall = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
-                                    GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON),
-                                    LR_DEFAULTCOLOR | LR_SHARED);
-
-    if (iconBig != nullptr)
-    {
-        SendMessageW (target, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
-    }
-
-    if (iconSmall != nullptr)
-    {
-        SendMessageW (target, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
-    }
 }
 
 
@@ -1527,8 +1026,8 @@ int EmulatorShell::RunMessageLoop()
                                     m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
             if (settingsActive ||
-                m_accelTable == nullptr ||
-                !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
+                m_window->m_accelTable == nullptr ||
+                !TranslateAccelerator (m_hwnd, m_window->m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
                 DispatchMessage (&msg);
@@ -1752,7 +1251,7 @@ void EmulatorShell::OnDestroy()
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
-    m_dragDropTarget.Shutdown();
+    m_window->m_dragDropTarget.Shutdown();
 
     // Join the printer drain thread before teardown frees the card, and
     // persist the pending strip on clean exit (FR-026); empty clears any stale
@@ -1898,8 +1397,8 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 
     // Client size for the minimum center: the chrome-band dock adds the
     // live title / nav / drive-bar insets around the requested viewport.
-    minClient = GetClientSizeForCenterPx (m_scaler.ToPx (s_kMinCenterWidthDp),
-                                          m_scaler.ToPx (s_kMinCenterHeightDp));
+    minClient = m_chrome->GetClientSizeForCenterPx (m_scaler.ToPx (s_kMinCenterWidthDp),
+                                                    m_scaler.ToPx (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
     // on-strip. The width is physical client px, the same space as minClient.
@@ -2149,10 +1648,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // enter the OS drag loop, so OnExitSizeMove cannot see them; the flag
     // is what says this one was theirs rather than a programmatic
     // ShowWindow, which produces an identical WM_SIZE.
-    if (m_userStateChange)
+    if (m_window->m_userStateChange)
     {
-        m_userStateChange = false;
-        m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
+        m_window->m_userStateChange = false;
+        m_window->m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
     }
 
     m_chrome->m_inChromeLayout = false;
@@ -2225,119 +1724,6 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
     m_settings->FlushDeferredGlobalPrefs();
 
     return DxuiMessageResult::Handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateWindowTitle
-//
-//  Composes the caption, and marshals itself to the UI thread when needed.
-//
-//  The thread check is not defensive coding -- SwitchMachine legitimately
-//  calls this from the CPU thread, while DxuiHwndSource::SetTitle mutates the
-//  caption bar and asserts the UI thread. An off-thread call therefore posts
-//  WM_APP_DXUI_UPDATE_TITLE and returns; the message loop calls back here on
-//  the right thread. (That same message doubles as the machine-switch signal
-//  to reflow the chrome -- see RunMessageLoop.)
-//
-//  The caption is deliberately quiet. Running is the expected state and gets
-//  no tag at all, so a healthy window reads simply "Casso - <machine>" and
-//  only speaks up when something is off: Paused and Stopped are tagged in
-//  every build, because those states leave the window looking identical to a
-//  running one.
-//
-//  Debug builds append the full binary identity (version, architecture,
-//  compile timestamp) so a window can never be mistaken for a stale rebuild
-//  still sitting on screen. It uses the same " - " separator as the machine
-//  name so the whole caption reads as one list rather than two grammars.
-//
-//  An undocumented --title puts a launcher's own label in front of all of it,
-//  which is what lets several windows running the same machine be told apart.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateWindowTitle()
-{
-    HRESULT  hr          = S_OK;
-    wstring  title;
-    wstring  wideName;
-    bool     isOffThread = false;
-
-
-
-    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
-
-    // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
-    // mutates the caption bar and asserts the UI thread. Bounce off-thread
-    // callers through the message loop (WM_APP_DXUI_UPDATE_TITLE handler above).
-    isOffThread = GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId();
-
-    if (isOffThread)
-    {
-        PostMessageW (m_hwnd, WM_APP_DXUI_UPDATE_TITLE, 0, 0);
-    }
-
-    BAIL_OUT_IF (isOffThread, S_OK);
-
-    //  The launcher's label, ahead of everything the emulator has to say about
-    //  itself. FIRST because that is the half of a caption a taskbar button or
-    //  an Alt+Tab thumbnail still has room for once it truncates, and the whole
-    //  reason the label was passed in is to tell one window from several
-    //  identical ones.
-    if (!m_titlePrefix.empty())
-    {
-        title += m_titlePrefix;
-        title += L" - ";
-    }
-
-    title += L"Casso";
-
-    if (!m_machine.GetConfig().name.empty())
-    {
-        wideName = fs::path (m_machine.GetConfig().name).wstring();
-        title += L" - ";
-        title += wideName;
-    }
-
-#if defined (_DEBUG)
-    // Say it outright. The build-identity stamp below appears on debug builds
-    // ONLY, so its presence was already the signal -- but that is a fact about
-    // the code, not something a caption reading "v1.17.0 x64 (...)" conveys to
-    // anyone looking at it. A debug build is ~6x the CPU of a release one for
-    // identical work, so mistaking one for the other sends you measuring the
-    // wrong binary.
-    title += L" [Debug]";
-#endif
-
-    // Flag a paused / stopped emulator in every build -- those states are worth
-    // surfacing because the window looks the same either way. Running is the
-    // expected state and gets no tag at all, so the caption stays a clean
-    // "Casso - <machine>" and only says something when something is off.
-    if (m_cpuManager.IsPaused())
-    {
-        title += L" [Paused]";
-    }
-    else if (!m_cpuManager.IsRunning())
-    {
-        title += L" [Stopped]";
-    }
-
-#if defined (_DEBUG)
-    // Dev builds stamp the exact binary identity (version, arch, compile
-    // timestamp) so a window is never mistaken for a stale rebuild. Same " - "
-    // separator the machine name uses, so the caption reads as one list.
-    title += L" - ";
-    title += GetCassoBuildInfo();
-#endif
-
-    m_host->SetTitle (title);
-
-Error:
-    return;
 }
 
 
@@ -2509,45 +1895,6 @@ DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, in
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::InstallIntentMessageFilter
-//
-//  Lets a stated intent cross an integrity boundary.
-//
-//  THE RECEIVER'S JOB, NOT THE SENDER'S. The filter takes the receiving window,
-//  and the sender runs inside CassoCli.exe with no window at all -- so there is
-//  nowhere else this could live.
-//
-//  THE FILTER TAKES A WINDOW MESSAGE, so it is installed for WM_COPYDATA as a
-//  whole. The registered id that distinguishes this project's messages lives in
-//  `dwData`, which the filter cannot see; it is checked in the handler instead.
-//
-//  BEST EFFORT. Where the call fails there is nothing useful to do: an intent
-//  that does not arrive falls back to asking, which is correct behavior.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::InstallIntentMessageFilter()
-{
-    BOOL  allowed = FALSE;
-
-
-
-    if (m_hwnd == nullptr)
-    {
-        return;
-    }
-
-    allowed = ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
-
-    IGNORE_RETURN_VALUE (allowed, TRUE);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  EmulatorShell::OnAppMessage
 //
 //  The messages this shell posts to its own window.
@@ -2705,7 +2052,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     if (msg == WM_APP_DXUI_UPDATE_TITLE)
     {
-        UpdateWindowTitle();
+        m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();
 
         // The machine may now sit in front of a different monitor, which

@@ -3,6 +3,7 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
@@ -513,7 +514,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         IGNORE_RETURN_VALUE (hrMech, S_OK);
     }
 
-    m_shell.UpdateWindowTitle();
+    m_shell.m_window->UpdateWindowTitle();
 
     // Record the new active machine in GlobalUserPrefs so the next
     // launch boots it by default. SaveGlobalPrefs flushes the change

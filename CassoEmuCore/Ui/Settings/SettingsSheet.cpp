@@ -4,6 +4,7 @@
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -1265,7 +1266,7 @@ void SettingsSheet::UpdatePreviewCompose()
         // client pixels. No overlap => empty rect => blur + dim only (still
         // focuses attention on the control), no see-through zone.
         RECT  winRect   = {};
-        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetEmulatorContentScreenRect() : RECT{};
+        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetWindow().GetEmulatorContentScreenRect() : RECT{};
         RECT  inter     = {};
         if (GetWindowRect (hwnd, &winRect) && IntersectRect (&inter, &winRect, &emuScreen))
         {

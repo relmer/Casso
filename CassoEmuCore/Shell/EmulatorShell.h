@@ -38,12 +38,12 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
-class WindowManager;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
 class ShellChrome;
 class ShellRenderer;
+class ShellWindow;
 class ShellDeskScene;
 class ShellDisks;
 class ShellPrinter;
@@ -97,11 +97,6 @@ public:
     EmulatorShell();
     ~EmulatorShell();
 
-    // The show state Windows handed wWinMain. Set before Initialize; the
-    // first ShowWindow honors it when the launcher asked for something
-    // particular, and falls back to the saved placement when it did not.
-    void  SetStartupShowCommand (int nCmdShow) { m_startShowCmd = nCmdShow; }
-
     HRESULT Initialize (
         HINSTANCE              hInstance,
         const wstring        & machineName,
@@ -150,12 +145,6 @@ public:
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
 
-    // Text put in front of the window caption, so one of several open windows
-    // can be told from the others at a glance. Undocumented; set from --title
-    // and read by UpdateWindowTitle. Set before the window exists, so it does
-    // not refresh the caption itself.
-    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
-
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
     ShellUpdater &  GetUpdater();
@@ -181,6 +170,21 @@ public:
     // The picture: the framebuffer renderer, the framebuffers, the present,
     // the color mode and screenshots.
     ShellRenderer &  GetRenderer();
+
+    // The main window's placement and size, title, icon, accelerators and
+    // drag-drop target.
+    ShellWindow &  GetWindow();
+
+    // The show state Windows handed wWinMain. Set before Initialize; the
+    // first ShowWindow honors it when the launcher asked for something
+    // particular, and falls back to the saved placement when it did not.
+    void  SetStartupShowCommand (int nCmdShow);
+
+    // Text put in front of the window caption, so one of several open windows
+    // can be told from the others at a glance. Undocumented; set from --title
+    // and read by UpdateWindowTitle. Set before the window exists, so it does
+    // not refresh the caption itself.
+    void  SetWindowTitlePrefix (const wstring & prefix);
 
     // The preferences and the Settings dialog: the global preferences, the
     // config store, the theme catalog and the Settings sheet.
@@ -325,11 +329,9 @@ private:
     void OnCpuThreadStop();
     void WaitForFrameOrMessage();
     void DestroyFrameReadyEvent();
-    void UpdateWindowTitle();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
-    void    ReconcileInitialClientSize ();
 
     // Initialize() decomposition -- one single-purpose step each, called
     // in order from Initialize. HRESULT-returning steps propagate genuine
@@ -347,7 +349,6 @@ private:
     void    RestoreColorTextPref            ();
     void    SubscribeAndActivateTheme       ();
     HRESULT FinishUiShellLayout             ();
-    void    InstallDragDropTarget           ();
 
     void    ApplyPersistedChromePrefs     ();
     void    ApplyPersistedAudioPrefs      ();
@@ -355,13 +356,6 @@ private:
     // Truncating wide->narrow of the machine's name (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.
     std::string GetCurrentMachineNameNarrow () const;
-
-    // The emulator viewport (CRT output area) in *screen* pixels: the middle
-    // rect from ComputeViewportRect at the current back-buffer size, mapped
-    // through the main window's client origin. The Settings live-preview
-    // compositor (#8) intersects this with the (composited) sheet window to
-    // punch a see-through hole revealing the running emulator behind the sheet.
-    RECT    GetEmulatorContentScreenRect  ();
 
     // Connecting and disconnecting storage devices, from the Storage menu and
     // the devices' right-click menus. Both are live, and saved with the
@@ -375,9 +369,6 @@ private:
     static constexpr int  kStorageMenuRecorder = 2;
     void    ShowStorageContextMenu    (int device, int x, int y);
     int     StorageDeviceAt           (int x, int y) const;
-
-    SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
-    SIZE    GetClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp);
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
     // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
@@ -468,23 +459,6 @@ private:
     bool             IsJoyportInEffect  () const;
 
 private:
-
-    static bool  TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
-
-    static void  CenterInWorkArea (
-        const RECT & work,
-        int          windowW,
-        int          windowH,
-        LONG       & outX,
-        LONG       & outY);
-
-    static HRESULT  LoadIconAsPremulBgra (
-        HINSTANCE               hInstance,
-        int                     iconResourceId,
-        int                     sizePx,
-        std::vector<uint32_t> & outPixels,
-        int                   & outW,
-        int                   & outH);
 
     void    SyncInputModeUi();
     void    SyncSelectorState();
@@ -658,20 +632,13 @@ private:
     // pointer mapping, the Ctrl+0 solve -- follows this, not DeskSceneActive.
     bool    CrtMonitorActive     () const;
 
-    // The drive row's width, and a file dropped on a drive or the recorder.
-    int     GetDriveRowWidthPx ();
+    // A file dropped on a drive or the recorder.
     void    OnFileDropped      (int tag, const std::wstring & path);
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
     // interface, and a test hands its own in.
     IHostDialogs &  GetHostDialogs () noexcept { return m_hostDialogs; }
-
-    // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
-    // Casso motif in Alt-Tab / the taskbar. The borderless Dxui panels do not
-    // inherit the WNDCLASS icon, and Alt-Tab reads WM_GETICON, so the big+small
-    // icons are handed over explicitly (as the main window does).
-    void    ApplyAppIconToWindow (HWND target);
 
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
@@ -705,15 +672,6 @@ private:
     // shown via ShowModalDialog). Returns the resultCode of the chosen button,
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
-
-    // Opens the integrity-level hole a stated intent arrives through.
-    //
-    // SEPARATE FROM InstallDragDropTarget, WHICH ALSO INSTALLS IT. That one is
-    // called only where OLE initialization succeeded, so on a machine where it
-    // did not, every intent from a normal-integrity CassoCli to an elevated
-    // Casso would be dropped by the system without a word. Installing it here
-    // as well costs a call and removes the dependency.
-    void    InstallIntentMessageFilter ();
 
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
@@ -760,6 +718,7 @@ private:
     // introduced.
     friend class ShellChrome;
     friend class ShellRenderer;
+    friend class ShellWindow;
     friend class ShellDeskScene;
     friend class ShellDisks;
     friend class ShellPrinter;
@@ -773,12 +732,8 @@ private:
     friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;
 
-    HACCEL     m_accelTable            = nullptr;
     HINSTANCE  m_hInstance             = nullptr;
     HWND       m_hwnd                  = nullptr;
-    bool       m_initialSizeReconciled = false;
-
-    bool       m_startMaximized        = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHwndSource; updated from OnDpiChanged and seeded after
@@ -795,7 +750,6 @@ private:
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
-    wstring                m_titlePrefix;                 // --title (undocumented)
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
 
@@ -815,6 +769,10 @@ private:
     // gate and frame clock, the color mode, the present and screenshots.
     // Declared ahead of the host and the CPU manager, so it outlives both.
     std::unique_ptr<ShellRenderer>  m_renderer;
+
+    // The window's placement and size, title, icon, accelerators, OLE and
+    // drag-drop target.
+    std::unique_ptr<ShellWindow>  m_window;
 
     void  WireToolbarPickers               ();
     void  MigrateJoyportAtLaunch           (const JsonValue * uiPrefs);
@@ -887,32 +845,12 @@ private:
     // from an unplugged DB-9 on real hardware.
     bool                     m_mouseConnected = true;
 
-    // The drag-drop target registers a single IDropTarget on the main HWND,
-    // for the drives and the recorder.
-    DxuiDragDropTarget     m_dragDropTarget;
-
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
     // onto D3DRenderer's after-blit hook so chrome composites every
     // frame between the emulator blit and Present.
     UiShell                    m_uiShell;
 
-    // Set true once OleInitialize has succeeded on the UI thread so
-    // shutdown can pair the call with OleUninitialize. RegisterDragDrop
-    // requires OLE (STA) on the registering thread.
-    bool                                 m_fOleInitialized = false;
-
-    // SW_SHOWDEFAULT means "the launcher expressed no preference", which is
-    // what a normal double-click amounts to.
-    int                                  m_startShowCmd    = SW_SHOWDEFAULT;
-
-    // Whether the window is maximized as far as the last SAVED placement
-    // is concerned. A change here is a user maximizing or restoring, which
-    // is worth persisting even though it never enters the OS drag loop.
-    // Set when the user issues a maximize / restore and cleared by the
-    // OnSize that carries it out, which is where the new placement is
-    // actually readable.
-    bool                                 m_userStateChange = false;
 
     // The printer drain, the print preview, the status light and the print
     // dialog. Declared after the machine so the drain thread is torn down
@@ -1005,12 +943,6 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
-    // Extracted shell-side managers. WindowManager owns the per-monitor
-    // placement persistence (now backed by GlobalUserPrefs JSON).
-    // ClipboardManager holds references back to the shared CPU/UI
-    // state it operates on plus a pointer-to-pointer for the active
-    // keyboard so machine switches do not require re-wiring.
-    std::unique_ptr<WindowManager>            m_windowManager;
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;

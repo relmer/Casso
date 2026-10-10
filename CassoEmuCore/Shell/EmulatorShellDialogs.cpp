@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -393,7 +394,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         HRESULT                hrIcon  = S_OK;
 
 
-        hrIcon = LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH);
+        hrIcon = m_window->LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH);
 
         if (SUCCEEDED (hrIcon))
         {

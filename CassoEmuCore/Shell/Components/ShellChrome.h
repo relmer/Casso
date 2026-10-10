@@ -73,6 +73,12 @@ public:
     // framebuffer grid first, then adds the chrome insets.
     void    SyncChromeBands               ();
     RECT    ComputeViewportRect           (int widthPx, int heightPx);
+    SIZE    GetClientSizeForCenterPx      (int centerWidthPx, int centerHeightPx);
+
+    // The scale the drives are drawn at in the scene. The window's 100% size
+    // is computed at the drives' own scale, whatever the current one is.
+    float  GetSceneScale () const       { return m_chromeSceneScale; }
+    void   SetSceneScale (float scale)  { m_chromeSceneScale = scale; }
 
     // Re-run the chrome layout at the current client size after a machine
     // switch: adding/removing the Disk ][ controller changes the drive band +
