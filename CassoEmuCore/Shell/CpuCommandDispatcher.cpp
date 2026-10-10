@@ -83,6 +83,72 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.SaveTrace();
             break;
 
+        case IDM_AUDIO_DRIVE_ENABLE:
+        case IDM_AUDIO_DRIVE_DISABLE:
+            target.SetDriveAudioEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
+            break;
+
+        case IDM_AUDIO_DRIVE_MECHANISM:
+            // "shugart" or "alps", canonical lower-case from the settings
+            // state; the mixer matches case-insensitively anyway.
+            hr = target.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            break;
+
+        case IDM_AUDIO_DRIVE_VOLUMES:
+            DispatchDriveVolumes (cmd.payload, target);
+            break;
+
+        case IDM_AUDIO_DRIVE_PAN:
+            DispatchDrivePan (cmd.payload, target);
+            break;
+
+        case IDM_AUDIO_DRIVE_TEST:
+            DispatchDriveTest (cmd.payload, target);
+            break;
+
+
+        case IDM_FILE_SAVE_STATE:
+            target.SaveMachineState (PayloadToPath (cmd.payload));
+            break;
+
+        case IDM_FILE_LOAD_STATE:
+            target.LoadMachineState (PayloadToPath (cmd.payload));
+            break;
+
+        default:
+            if (!DispatchDiskCommand (cmd, target))
+            {
+                DispatchDebugCommand (cmd, target);
+            }
+
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchDiskCommand
+//
+//  The disk commands: insert, eject, the two write-protect commands and the
+//  answer to a question about a changed image. Gives back whether the id was
+//  one of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::DispatchDiskCommand (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+{
+    HRESULT  hr        = S_OK;
+    bool     isHandled = true;
+
+
+
+    switch (cmd.id)
+    {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
             hr = target.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
@@ -110,30 +176,36 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             DispatchResolveChange (cmd.payload, target);
             break;
 
-        case IDM_AUDIO_DRIVE_ENABLE:
-        case IDM_AUDIO_DRIVE_DISABLE:
-            target.SetDriveAudioEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
-            break;
 
-        case IDM_AUDIO_DRIVE_MECHANISM:
-            // "shugart" or "alps", canonical lower-case from the settings
-            // state; the mixer matches case-insensitively anyway.
-            hr = target.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
-            IGNORE_RETURN_VALUE (hr, S_OK);
+        default:
+            isHandled = false;
             break;
+    }
 
-        case IDM_AUDIO_DRIVE_VOLUMES:
-            DispatchDriveVolumes (cmd.payload, target);
-            break;
+    return isHandled;
+}
 
-        case IDM_AUDIO_DRIVE_PAN:
-            DispatchDrivePan (cmd.payload, target);
-            break;
 
-        case IDM_AUDIO_DRIVE_TEST:
-            DispatchDriveTest (cmd.payload, target);
-            break;
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchDebugCommand
+//
+//  The debugger's commands, from a console line to a divergence from
+//  history. Gives back whether the id was one of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::DispatchDebugCommand (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+{
+    bool  isHandled = true;
+
+
+
+    switch (cmd.id)
+    {
         case IDM_DEBUG_COMMAND:
         {
             //  A payload that cannot be read names no client to answer, so it
@@ -184,17 +256,12 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             target.DivergeHistory();
             break;
 
-        case IDM_FILE_SAVE_STATE:
-            target.SaveMachineState (PayloadToPath (cmd.payload));
-            break;
-
-        case IDM_FILE_LOAD_STATE:
-            target.LoadMachineState (PayloadToPath (cmd.payload));
-            break;
-
         default:
+            isHandled = false;
             break;
     }
+
+    return isHandled;
 }
 
 

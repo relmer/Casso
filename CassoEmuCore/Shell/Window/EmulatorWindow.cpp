@@ -2493,32 +2493,18 @@ void EmulatorShell::InstallIntentMessageFilter()
 
 DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    // A disk changed outside Casso. The store decided on the thread that owns
-    // disk writes; both of these build UI, so they land here.
-    if (msg == WM_APP_CHANGE_REPORT)
+    DxuiMessageResult  result = OnDiskAppMessage (msg, wParam, lParam);
+
+
+
+    if (result == DxuiMessageResult::NotHandled)
     {
-        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
-
-        if (carried != nullptr)
-        {
-            ShowChangeBanner (*carried);
-            delete carried;
-        }
-
-        return DxuiMessageResult::Handled;
+        result = OnInputAppMessage (msg);
     }
 
-    if (msg == WM_APP_CHANGE_ASK)
+    if (result == DxuiMessageResult::Handled)
     {
-        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
-
-        if (carried != nullptr)
-        {
-            AskAboutChange (*carried);
-            delete carried;
-        }
-
-        return DxuiMessageResult::Handled;
+        return result;
     }
 
     if (msg == WM_APP_NOTIFY_USER)
@@ -2547,6 +2533,117 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // An answer for a tool that asked, known on another thread or inside the
+    // tool's own send.
+    if (msg == WM_APP_INTENT_REPLY)
+    {
+        IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
+
+        if (carried != nullptr)
+        {
+            SendIntentReply (carried->target, carried->reply);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    {
+        ReflectMachineChange();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnDiskAppMessage
+//
+//  The disk messages: a change made outside Casso, its question, a damaged
+//  mount and a mount's outcome. Each builds UI, so it lands on this thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    // A disk changed outside Casso. The store decided on the thread that owns
+    // disk writes; both of these build UI, so they land here.
+    if (msg == WM_APP_CHANGE_REPORT)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            ShowChangeBanner (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == WM_APP_CHANGE_ASK)
+    {
+        ChangeNotice *  carried = reinterpret_cast<ChangeNotice *> (lParam);
+
+        if (carried != nullptr)
+        {
+            AskAboutChange (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // A mount that ran on the CPU thread wants its damage report raised here,
+    // where a modal can be built.
+    if (msg == WM_APP_REPORT_DAMAGE)
+    {
+        ReportDamagedMount ((int) wParam);
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // One mount's outcome, from whichever thread ran it. Startup mounts land
+    // here too, which is what keeps a bad --disk1 from raising a dialog before
+    // there was a pump to run it.
+    if (msg == WM_APP_MOUNT_COMPLETED)
+    {
+        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
+
+        if (carried != nullptr)
+        {
+            HandleMountCompletion (*carried);
+            delete carried;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnInputAppMessage
+//
+//  The input messages: game-port input written on this thread, the questions
+//  about diverging from history, and a change to the players' controllers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnInputAppMessage (UINT msg)
+{
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to the input debug panel, which is UI-thread only. Going live
@@ -2554,49 +2651,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // of behind live are released here first.
     if (msg == WM_APP_GAMEPORT_FLUSH)
     {
-        std::vector<DxuiKeyEvent>  held;
-        std::vector<HeldInput>     heldInputs;
-        std::optional<uint32_t>    mouseTarget;
-
-
-
-        ReleaseInputsLetGoBehindLive();
-        m_gamePortMixer.FlushPending();
-
-        // A controller's flush can arrive behind live, before the cut a yes
-        // queued; what is held waits for the one going live posts.
-        if (IsBehindLiveForUi())
-        {
-            return DxuiMessageResult::Handled;
-        }
-
-        m_divergenceGate.OnLive();
-
-        if (m_isJoyportSyncOwed)
-        {
-            m_isJoyportSyncOwed = false;
-            SyncJoyport();
-        }
-
-        // Input held behind live lands now: told yes at a read, or never
-        // read before the replay reached live.
-        mouseTarget = m_divergenceGate.GetMouseTarget();
-        m_divergenceGate.TakeHeld (held, heldInputs);
-        PublishHeldInput();
-
-        for (const DxuiKeyEvent & ev : held)
-        {
-            (void) OnViewportKey (ev);
-        }
-
-        ApplyHeldInputs (heldInputs);
-
-        if (mouseTarget.has_value())
-        {
-            ApplyHeldMouseTarget (*mouseTarget);
-        }
-
-        ResumeAfterHeldInput();
+        ApplyPostedGamePortInput();
 
         return DxuiMessageResult::Handled;
     }
@@ -2651,67 +2706,101 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // A mount that ran on the CPU thread wants its damage report raised here,
-    // where a modal can be built.
-    if (msg == WM_APP_REPORT_DAMAGE)
-    {
-        ReportDamagedMount ((int) wParam);
-
-        return DxuiMessageResult::Handled;
-    }
-
-    // One mount's outcome, from whichever thread ran it. Startup mounts land
-    // here too, which is what keeps a bad --disk1 from raising a dialog before
-    // there was a pump to run it.
-    if (msg == WM_APP_MOUNT_COMPLETED)
-    {
-        MountCompletion *  carried = reinterpret_cast<MountCompletion *> (lParam);
-
-        if (carried != nullptr)
-        {
-            HandleMountCompletion (*carried);
-            delete carried;
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    // An answer for a tool that asked, known on another thread or inside the
-    // tool's own send.
-    if (msg == WM_APP_INTENT_REPLY)
-    {
-        IntentReplyPost *  carried = reinterpret_cast<IntentReplyPost *> (lParam);
-
-        if (carried != nullptr)
-        {
-            SendIntentReply (carried->target, carried->reply);
-            delete carried;
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == WM_APP_DXUI_UPDATE_TITLE)
-    {
-        UpdateWindowTitle();
-        ReflowChromeForMachineChange();
-
-        // The machine may now sit in front of a different monitor, which
-        // changes every override key. This is the UI-thread side of the
-        // switch; SwitchMachine runs on the CPU thread and must not do file
-        // work or race the render path.
-        RefreshCrtOverrideKeys();
-
-        // A switch adopts the machine's own input mapping and may change the
-        // default pointer mode, both on the CPU thread, which defers their UI
-        // reflection here. Sync the selector state on the UI thread; it is
-        // idempotent when nothing changed.
-        SyncSelectorState();
-
-        return DxuiMessageResult::Handled;
-    }
-
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyPostedGamePortInput
+//
+//  Writes the game-port input posted from off this thread, and lands the
+//  input held behind live once the machine is live again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyPostedGamePortInput()
+{
+    HRESULT                    hr           = S_OK;
+    bool                       isBehindLive = false;
+    std::vector<DxuiKeyEvent>  held;
+    std::vector<HeldInput>     heldInputs;
+    std::optional<uint32_t>    mouseTarget;
+
+
+
+    ReleaseInputsLetGoBehindLive();
+    m_gamePortMixer.FlushPending();
+
+    // A controller's flush can arrive behind live, before the cut a yes
+    // queued; what is held waits for the one going live posts.
+    isBehindLive = IsBehindLiveForUi();
+    BAIL_OUT_IF (isBehindLive, S_OK);
+
+    m_divergenceGate.OnLive();
+
+    if (m_isJoyportSyncOwed)
+    {
+        m_isJoyportSyncOwed = false;
+        SyncJoyport();
+    }
+
+    // Input held behind live lands now: told yes at a read, or never
+    // read before the replay reached live.
+    mouseTarget = m_divergenceGate.GetMouseTarget();
+    m_divergenceGate.TakeHeld (held, heldInputs);
+    PublishHeldInput();
+
+    for (const DxuiKeyEvent & ev : held)
+    {
+        (void) OnViewportKey (ev);
+    }
+
+    ApplyHeldInputs (heldInputs);
+
+    if (mouseTarget.has_value())
+    {
+        ApplyHeldMouseTarget (*mouseTarget);
+    }
+
+    ResumeAfterHeldInput();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReflectMachineChange
+//
+//  The window's side of a machine switch: the title, the chrome, the CRT
+//  override keys and the input selectors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflectMachineChange()
+{
+    UpdateWindowTitle();
+    ReflowChromeForMachineChange();
+
+    // The machine may now sit in front of a different monitor, which
+    // changes every override key. This is the UI-thread side of the
+    // switch; SwitchMachine runs on the CPU thread and must not do file
+    // work or race the render path.
+    RefreshCrtOverrideKeys();
+
+    // A switch adopts the machine's own input mapping and may change the
+    // default pointer mode, both on the CPU thread, which defers their UI
+    // reflection here. Sync the selector state on the UI thread; it is
+    // idempotent when nothing changed.
+    SyncSelectorState();
 }
 
 

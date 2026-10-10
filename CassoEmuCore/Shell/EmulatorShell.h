@@ -1581,6 +1581,14 @@ private:
     // Initialize, before the message loop that would service it is running.
     void    HandleMountCompletion (const MountCompletion & completion);
 
+    // The posted messages OnAppMessage hands on by kind: the disk messages,
+    // the input messages and the game-port input among them, and the window's
+    // side of a machine switch.
+    DxuiMessageResult  OnDiskAppMessage         (UINT msg, WPARAM wParam, LPARAM lParam);
+    DxuiMessageResult  OnInputAppMessage        (UINT msg);
+    void               ApplyPostedGamePortInput ();
+    void               ReflectMachineChange     ();
+
     // An answer to a tool that asked, carried to the UI thread when the
     // outcome was known on another one.
     struct IntentReplyPost

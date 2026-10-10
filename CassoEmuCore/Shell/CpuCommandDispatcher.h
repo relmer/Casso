@@ -178,6 +178,8 @@ public:
 
 private:
 
+    static bool  DispatchDiskCommand   (const EmulatorCommand & cmd, ICpuCommandTarget & target);
+    static bool  DispatchDebugCommand  (const EmulatorCommand & cmd, ICpuCommandTarget & target);
     static void  DispatchResolveChange (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuCommandTarget & target);
     static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
