@@ -606,6 +606,30 @@ public:
     }
 
 
+    //  A search's result that is a file on the disk previews as it does in its
+    //  own folder: a disk image shows its catalog.
+    TEST_METHOD (SearchResultOnTheDisk_PreviewsAsInItsFolder)
+    {
+        Host                              host;
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  image;
+
+
+        image.id     = L"C:\\Disks\\dos33.dsk";
+        image.name   = L"dos33.dsk";
+        image.path   = L"C:\\Disks\\dos33.dsk";
+        image.folder = kDisks;
+        shell.shellItems.push_back (image);
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"dos"), SearchQuery::GetLabel (kDisks)));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
+
+        Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog, L"The image shows its catalog");
+        Assert::IsFalse (host.browser.GetPreview().lines.empty());
+    }
+
+
     TEST_METHOD (SelectingFiles_PreviewsByType)
     {
         Host          host;

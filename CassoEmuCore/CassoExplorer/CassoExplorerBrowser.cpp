@@ -1186,6 +1186,7 @@ void CassoExplorerBrowser::UpdatePreview()
     VolumeListing             listing;
     VolumeKind                kind        = VolumeKind::Unknown;
     std::wstring              imagePath;
+    std::wstring              folder      = location.path;
 
 
 
@@ -1212,7 +1213,12 @@ void CassoExplorerBrowser::UpdatePreview()
         return;
     }
 
-    if (m_isImage || location.kind != Location::Kind::HostFolder || m_selectedRows.size() != 1)
+    //  A search's result on the disk previews as it does in its own folder.
+    if (!m_isImage && m_selectedRows.size() == 1 && SearchQuery::IsId (location.path) && !m_rows[m_selectedRows[0]].folderPath.empty())
+    {
+        folder = m_rows[m_selectedRows[0]].folderPath;
+    }
+    else if (m_isImage || location.kind != Location::Kind::HostFolder || m_selectedRows.size() != 1)
     {
         return;
     }
@@ -1221,7 +1227,7 @@ void CassoExplorerBrowser::UpdatePreview()
     //  from the file as it draws them rather than loading them here.
     if (!m_rows[m_selectedRows[0]].isDiskImage)
     {
-        if (!m_rows[m_selectedRows[0]].isDirectory && TryPreviewAppleSingle (location.path, m_rows[m_selectedRows[0]]))
+        if (!m_rows[m_selectedRows[0]].isDirectory && TryPreviewAppleSingle (folder, m_rows[m_selectedRows[0]]))
         {
             return;
         }
@@ -1229,7 +1235,7 @@ void CassoExplorerBrowser::UpdatePreview()
         if (!m_rows[m_selectedRows[0]].isDirectory)
         {
             m_preview.kind     = PreviewContent::Kind::Hex;
-            m_preview.hostPath = location.path;
+            m_preview.hostPath = folder;
 
             if (!m_preview.hostPath.empty() && m_preview.hostPath.back() != L'\\')
             {
@@ -1242,7 +1248,7 @@ void CassoExplorerBrowser::UpdatePreview()
         return;
     }
 
-    imagePath = location.path;
+    imagePath = folder;
 
     if (!imagePath.empty() && imagePath.back() != L'\\')
     {
