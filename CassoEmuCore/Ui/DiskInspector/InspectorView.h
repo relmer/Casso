@@ -23,18 +23,20 @@
 
 struct InspectorViewContext
 {
-    const DiskAnalysis    * analysis       = nullptr;
-    InspectorViewModel    * model          = nullptr;
-    DiskInspectorPalette    palette        = DiskInspectorPalette::MakeFallback (true);
-    bool                    hasDisk        = false;
-    bool                    isTimingMode   = false;
-    double                  timingRange    = 0.05;
-    const FileMap         * fileMap        = nullptr;
-    int                     selectedFile   = -1;
-    bool                    isFilesOverlay = false;
-    bool                    isDiffsOverlay = false;
-    const DiskComparison  * comparison     = nullptr;
-    const DiskAnalysis    * analysisB      = nullptr;
+    const DiskAnalysis        * analysis       = nullptr;
+    InspectorViewModel        * model          = nullptr;
+    DiskInspectorPalette        palette        = DiskInspectorPalette::MakeFallback (true);
+    bool                        hasDisk        = false;
+    bool                        isTimingMode   = false;
+    double                      timingRange    = 0.05;
+    const FileMap             * fileMap        = nullptr;
+    int                         selectedFile   = -1;
+    bool                        isFilesOverlay = false;
+    bool                        isDiffsOverlay = false;
+    const DiskComparison      * comparison     = nullptr;
+    const DiskAnalysis        * analysisB      = nullptr;
+    const TrackAnalysis       * trackB         = nullptr;
+    const vector<Difference>  * nibbleDiffs    = nullptr;
     std::function<void ()>    onSelectionChanged;
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }

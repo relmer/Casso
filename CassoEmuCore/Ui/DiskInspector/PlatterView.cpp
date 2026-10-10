@@ -25,6 +25,7 @@ static constexpr double s_kPanStep          = 0.1;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
+static constexpr double   s_kMinDiffTurn     = 0.004;
 
 
 
@@ -117,6 +118,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     if (m_context.isFilesOverlay && m_context.fileMap != nullptr && m_context.fileMap->notMapped == NotMappedReason::None)
     {
         PaintFiles (painter, theme, view);
+    }
+
+    if (m_context.isDiffsOverlay && m_context.comparison != nullptr)
+    {
+        PaintDiffs (painter, view);
     }
 }
 
@@ -526,6 +532,116 @@ void PlatterView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, 
             {
                 ShadeRingArc (painter, view, a, b, inner, band, theme.Accent());
             }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintDiffs
+//
+//  The "Differences" overlay (FR-121): where each difference lies on A's
+//  ring, across the whole track for a whole track as the Files overlay
+//  marks it; a track only one disk holds, or a volume number that differs,
+//  marks its whole ring.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintDiffs (IDxuiPainter & painter, const PlatterPlacement & view)
+{
+    uint32_t  color = (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kFilesAlpha;
+
+
+
+    for (const Difference & d : m_context.comparison->differences)
+    {
+        int                    qt    = d.quarterTrack;
+        int                    span  = (qt % DiskImage::kQuarterTracksPerWholeTrack == 0) ? DiskImage::kQuarterTracksPerWholeTrack : 1;
+        const TrackAnalysis *  track = GetRingTrack (qt);
+        double                 outer = 0;
+        double                 inner = 0;
+        double                 a     = 0;
+        double                 b     = 1;
+
+        if (qt < 0)
+        {
+            continue;
+        }
+
+        outer = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter (std::min (qt + span, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
+
+        if (track != nullptr && !track->framed.nibbles.empty())
+        {
+            GetDiffTurns (d, *track, GetRingTurns (m_context.analysis->entries[qt].slot, *track), a, b);
+        }
+
+        ShadeRingArc (painter, view, a, std::max (b, a + s_kMinDiffTurn), inner, outer, color);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetDiffTurns
+//
+//  Where a difference starts and ends on A's ring, as turns: its nibbles,
+//  its sector from the address field to the end of the data field, or its
+//  cells; the whole ring for a difference about the whole track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::GetDiffTurns (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB)
+{
+    const Difference &  d      = difference;
+    size_t              last   = turns.nibbles.size() - 1;
+    size_t              lastC  = turns.cells.empty() ? 0 : turns.cells.size() - 1;
+    int                 first  = -1;
+    int                 end    = -1;
+
+
+
+    outA = 0;
+    outB = 1;
+
+    if (d.kind == DifferenceKind::Nibbles && d.firstNibbleA >= 0)
+    {
+        outA = turns.nibbles[std::min<size_t> (static_cast<size_t> (d.firstNibbleA), last)];
+        outB = turns.nibbles[std::min<size_t> (static_cast<size_t> (d.firstNibbleA + d.nibbleCountA), last)];
+    }
+    else if (d.kind == DifferenceKind::Timing && !turns.cells.empty())
+    {
+        outA = turns.cells[std::min<size_t> (d.cell, lastC)];
+        outB = turns.cells[std::min<size_t> (static_cast<size_t> (d.cell) + static_cast<size_t> (d.count), lastC)];
+    }
+    else if (d.sector >= 0)
+    {
+        for (const AnalyzedSector & s : track.sectors)
+        {
+            if (first < 0 && s.sector == d.sector)
+            {
+                first = (s.addressField >= 0) ? track.fields[s.addressField].firstNibble : track.fields[s.dataField].firstNibble;
+                end   = (s.dataField >= 0) ? track.fields[s.dataField].firstNibble + track.fields[s.dataField].nibbleCount
+                                           : track.fields[s.addressField].firstNibble + track.fields[s.addressField].nibbleCount;
+            }
+        }
+
+        if (first >= 0)
+        {
+            outA = turns.nibbles[std::min<size_t> (static_cast<size_t> (first), last)];
+            outB = turns.nibbles[std::min<size_t> (static_cast<size_t> (end), last)];
+        }
+        else if (!turns.cells.empty())
+        {
+            outA = turns.cells[std::min<size_t> (d.cell, lastC)];
+            outB = outA;
         }
     }
 }

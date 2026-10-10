@@ -385,6 +385,58 @@ public:
 
 
 
+    TEST_METHOD (SectorsPairByNumberOnARotatedTrack)
+    {
+        Pairs::TrackSpec       rotated;
+        DiskAnalysis           a;
+        DiskAnalysis           b;
+        const TrackAnalysis *  trackA = nullptr;
+        const TrackAnalysis *  trackB = nullptr;
+        int                    paired = -1;
+
+
+
+        rotated.rotation = 3000;
+        Pairs::AnalyzeDisk (-1, {}, a);
+        Pairs::AnalyzeDisk (kChanged, rotated, b);
+        trackA = a.tracks[a.entries[kChanged * 4].slot].get();
+        trackB = b.tracks[b.entries[kChanged * 4].slot].get();
+
+        for (int i = 0; i < static_cast<int> (trackA->sectors.size()); i++)
+        {
+            paired = DiskComparer::FindPairedSector (*trackA, i, *trackB);
+
+            Assert::IsTrue (paired >= 0, std::to_wstring (i).c_str());
+            Assert::AreEqual (trackA->sectors[i].sector, trackB->sectors[paired].sector);
+        }
+
+        Assert::AreNotEqual (trackA->sectors[0].sector, trackB->sectors[0].sector, L"the rotation moved the first sector");
+        Assert::AreEqual (-1, DiskComparer::FindPairedSector (*trackA, -1, *trackB));
+    }
+
+
+
+    TEST_METHOD (ANibbleInAHunkGivesBsNibble)
+    {
+        vector<Difference>  hunks;
+        int                 nibbleB = 0;
+
+
+
+        hunks.push_back ({ DifferenceKind::Nibbles, 0 });
+        hunks.back().firstNibbleA = 100;
+        hunks.back().nibbleCountA = 4;
+        hunks.back().firstNibbleB = 210;
+        hunks.back().nibbleCountB = 2;
+
+        Assert::IsTrue  (ComparisonText::FindInHunk (hunks, 101, nibbleB));
+        Assert::AreEqual (211, nibbleB);
+        Assert::IsTrue  (ComparisonText::FindInHunk (hunks, 103, nibbleB));
+        Assert::AreEqual (-1, nibbleB, L"past B's side of the hunk");
+        Assert::IsFalse (ComparisonText::FindInHunk (hunks, 104, nibbleB));
+    }
+
+
     TEST_METHOD (CompareDialogListsEachDrivesSourcesThenAFile)
     {
         vector<ComparisonSource>  sources = CompareDialog::BuildSources (2);

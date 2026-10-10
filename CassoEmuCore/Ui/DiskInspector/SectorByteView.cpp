@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/SectorByteView.h"
+#include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
@@ -17,6 +18,8 @@ static constexpr float  s_kTextGapDip      = 12.0f;
 static constexpr float  s_kCharDip         = 8.0f;
 static constexpr float  s_kHeaderGapDip    = 20.0f;
 static constexpr uint32_t  s_kSelectionAlpha = 0x50000000u;
+static constexpr uint32_t  s_kDiffAlpha      = 0x50000000u;
+static constexpr float     s_kDiffLineDip    = 2.0f;
 
 
 
@@ -139,59 +142,143 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
 //
 //  SectorByteView::PaintBytes
 //
+//  The sector's bytes; while comparing, B's paired sector below them, both
+//  grids sized to fit, with each byte that differs marked in both (FR-121).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
 {
     const DataFieldDecode &  data    = track.fields[sector.dataField].data;
+    std::span<const Byte>    bytesB  = GetPairedBytes (track);
+    bool                     isB     = m_context.trackB != nullptr;
     float                    needed  = s_kOffsetCharsDip + kBytesPerRow * (s_kByteDip + s_kCharDip) + s_kTextGapDip;
     float                    fit     = std::min (1.0f, GetWidth() / m_scaler.ToPxf (needed));
     float                    rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip)) * std::max (fit, 0.75f);
-    float                    textPx  = m_scaler.ToPxf (kTextDip) * fit;
-    float                    byteW   = m_scaler.ToPxf (s_kByteDip) * fit;
-    float                    charW   = m_scaler.ToPxf (s_kCharDip) * fit;
+    float                    textPx  = 0;
     float                    left    = static_cast<float> (m_boundsDip.left);
-    float                    hexLeft = left + m_scaler.ToPxf (s_kOffsetCharsDip) * fit;
-    float                    txtLeft = hexLeft + kBytesPerRow * byteW + m_scaler.ToPxf (s_kTextGapDip) * fit;
     bool                     isBad   = sector.isDataCheck && !sector.isDataGood;
-    size_t                   i       = 0;
-    int                      row     = 0;
-    int                      col     = 0;
-    uint32_t                 color   = 0;
-    wchar_t                  ch[2]   = {};
+    int                      rows    = static_cast<int> (data.bytes.size() + kBytesPerRow - 1) / kBytesPerRow;
+    ByteGrid                 grid;
 
 
+
+    //  Both grids and B's title share the height.
+    if (isB)
+    {
+        rowH = std::min (rowH, (static_cast<float> (m_boundsDip.bottom) - y) / (2.0f * rows + 2.5f));
+        fit  = std::min (fit, rowH / m_scaler.ToPxf (static_cast<float> (kRowDip)) / 0.75f);
+    }
+
+    textPx = m_scaler.ToPxf (kTextDip) * fit;
+    grid   = { y, rowH, left + m_scaler.ToPxf (s_kOffsetCharsDip) * fit, 0.0f, m_scaler.ToPxf (s_kByteDip) * fit, m_scaler.ToPxf (s_kCharDip) * fit, true };
+    grid.textLeft = grid.hexLeft + kBytesPerRow * grid.byteW + m_scaler.ToPxf (s_kTextGapDip) * fit;
 
     if (isBad)
     {
         painter.FillRect (left, y, GetWidth(), rowH, (m_context.palette.colors.failedChecksum & 0x00FFFFFF) | 0x40000000);
         text.DrawString (L"Data field checksum failed; these bytes are as decoded", left, y, GetWidth(), rowH, theme.ErrorForeground(),
                          m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-        y += rowH * 1.25f;
+        grid.top += rowH * 1.25f;
     }
 
-    m_grid = { y, rowH, hexLeft, txtLeft, byteW, charW, true };
+    m_grid = grid;
     PaintSelection (painter, theme);
+    PaintGrid      (painter, text, theme, grid, data.bytes, bytesB, textPx);
 
-    for (i = 0; i < data.bytes.size(); i++)
+    if (isB)
     {
-        row   = static_cast<int> (i) / kBytesPerRow;
-        col   = static_cast<int> (i) % kBytesPerRow;
-        color = (data.bytes[i] == 0) ? theme.ForegroundMuted() : ((data.bytes[i] & s_kHighBit) ? theme.Accent() : theme.Foreground());
+        grid.top += rows * rowH + rowH * 0.5f;
+        text.DrawString (!bytesB.empty() ? L"B" : L"B holds no sector to pair with this one", left, grid.top, GetWidth(), rowH, theme.HeadingForeground(),
+                         m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+        grid.top += rowH;
+
+        if (!bytesB.empty())
+        {
+            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, textPx);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::PaintGrid
+//
+//  Rows of 16 under their offsets, hex then text. A byte that differs from
+//  the other side's is tinted and underlined, so it shows without color;
+//  with no other side, nothing is marked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
+                                std::span<const Byte> other, float textPx)
+{
+    float     left   = static_cast<float> (m_boundsDip.left);
+    float     line   = m_scaler.ToPxf (s_kDiffLineDip);
+    size_t    i      = 0;
+    int       row    = 0;
+    int       col    = 0;
+    float     rowTop = 0;
+    uint32_t  color  = 0;
+    wchar_t   ch[2]  = {};
+
+
+
+    for (i = 0; i < bytes.size(); i++)
+    {
+        row    = static_cast<int> (i) / kBytesPerRow;
+        col    = static_cast<int> (i) % kBytesPerRow;
+        rowTop = grid.top + row * grid.rowH;
+        color  = (bytes[i] == 0) ? theme.ForegroundMuted() : ((bytes[i] & s_kHighBit) ? theme.Accent() : theme.Foreground());
 
         if (col == 0)
         {
-            text.DrawString (std::format (L"{:02X}", i).c_str(), left, y + row * rowH, hexLeft - left, rowH, theme.ForegroundMuted(), textPx,
+            text.DrawString (std::format (L"{:02X}", i).c_str(), left, rowTop, grid.hexLeft - left, grid.rowH, theme.ForegroundMuted(), textPx,
                              DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
-        text.DrawString (std::format (L"{:02X}", data.bytes[i]).c_str(), hexLeft + col * byteW, y + row * rowH, byteW, rowH, color, textPx,
+        if (!other.empty() && (i >= other.size() || other[i] != bytes[i]))
+        {
+            painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kDiffAlpha);
+            painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop + grid.rowH - line, grid.byteW * 0.8f, line, m_context.palette.colors.difference);
+            painter.FillRect (grid.textLeft + col * grid.charW, rowTop + grid.rowH - line, grid.charW, line, m_context.palette.colors.difference);
+        }
+
+        text.DrawString (std::format (L"{:02X}", bytes[i]).c_str(), grid.hexLeft + col * grid.byteW, rowTop, grid.byteW, grid.rowH, color, textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
 
-        ch[0] = GetTextChar (data.bytes[i]);
-        text.DrawString (ch, txtLeft + col * charW, y + row * rowH, charW, rowH, color, textPx,
+        ch[0] = GetTextChar (bytes[i]);
+        text.DrawString (ch, grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, color, textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::GetPairedBytes
+//
+//  B's bytes for the selected sector while comparing: the sector B pairs
+//  with it on the same quarter track, when that sector has data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const Byte> SectorByteView::GetPairedBytes (const TrackAnalysis & track) const
+{
+    const TrackAnalysis *  trackB = m_context.trackB;
+    int                    paired = (trackB != nullptr) ? DiskComparer::FindPairedSector (track, m_context.model->GetSectorIndex(), *trackB) : -1;
+    int                    field  = (paired >= 0) ? trackB->sectors[paired].dataField : -1;
+
+
+
+    return (field >= 0) ? std::span<const Byte> (trackB->fields[field].data.bytes) : std::span<const Byte>();
 }
 
 

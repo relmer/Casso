@@ -3,7 +3,9 @@
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Ui/DiskInspector/CompareDialog.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
@@ -124,6 +126,7 @@ DiskInspectorWindow::DiskInspectorWindow() :
     m_context.analysis           = &m_analysis;
     m_context.model              = &m_model;
     m_context.onSelectionChanged = [this] () { OnSelection(); };
+    m_contextB.model             = &m_modelB;
 }
 
 
@@ -258,6 +261,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     TakeReplies();
     TakeResults();
     TakeComparison();
+    SyncSideB();
     UpdateRings();
     UpdateControls();
     RefreshTables();
@@ -293,6 +297,7 @@ void DiskInspectorWindow::OnCreate()
     m_hintLabel   = CreateChild<DxuiLabel> (s_kpszHint,  DxuiTextRole::Muted  , DxuiTextHAlign::Left);
     m_headerView  = CreateChild<TrackHeaderView> (m_context);
     m_stripView   = CreateChild<TrackStripView>  (m_context);
+    m_stripB      = CreateChild<TrackStripView>  (m_contextB);
     m_stripOut    = CreateChild<DxuiButton> (s_kpszMinus);
     m_stripIn     = CreateChild<DxuiButton> (L"+");
     m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
@@ -373,6 +378,7 @@ void DiskInspectorWindow::OnCreate()
     m_bSettingsButton->SetOnClick ([this] () { OpenBSettings(); });
     m_stopButton->SetOnClick      ([this] () { StopComparing(); });
     m_diffsCheck->SetOnChange     ([this] (bool isChecked) { m_context.isDiffsOverlay = isChecked; });
+    m_stripB->SetSide (ComparisonSession::kSideB);
     m_diffsTab->SetOnSelect       ([this] (const TableRow & row) { if (const Difference * d = m_diffsTab->GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_context.isFilesOverlay = isChecked; });
@@ -569,6 +575,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     y += header;
     m_stripView->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kStripDip) }, scaler);
     y += scaler.ToPx (s_kStripDip) + margin / 2;
+
+    //  While comparing, B's strip under A's (FR-121).
+    m_stripB->Layout ({ right.left, y, right.right, y + (m_comparison.IsComparing() ? scaler.ToPx (s_kStripDip) : 0) }, scaler);
+    y += m_comparison.IsComparing() ? scaler.ToPx (s_kStripDip) + margin / 2 : 0;
     m_stripOut->Layout     ({ right.left,          y, right.left + button,     y + row }, scaler);
     m_stripIn->Layout      ({ right.left + button, y, right.left + 2 * button, y + row }, scaler);
     m_stripWhole->Layout   ({ right.left + 2 * button, y, right.left + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
@@ -1284,7 +1294,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     std::wstring                          tip;
     RECT                                  anchor = {};
     int64_t                               now    = static_cast<int64_t> (GetTickCount64());
-    const std::array<InspectorView *, 6>  views  = { m_platterView, m_stripView, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
+    const std::array<InspectorView *, 7>  views  = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
 
 
 
@@ -1844,7 +1854,7 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
 
 
 
-    if (IsInside (m_stripView->GetBounds(), pointPx) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
+    if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
         IsInside (m_stripWhole->GetBounds(), pointPx))
     {
         target = KeyTarget::Strip;
@@ -2733,6 +2743,102 @@ void DiskInspectorWindow::TakeComparison()
         m_diffIndex         = std::min (m_diffIndex, static_cast<int> (m_comparison.GetListed().size()) - 1);
         m_isTablesDirty     = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SyncSideB
+//
+//  Once a frame while comparing: B's view of the selected quarter track,
+//  the nibble hunks and alignment of that track (again whenever either
+//  side's record changes), and the two strips' zoom and pan linked, the
+//  strip moved since the last frame leading (FR-121).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SyncSideB()
+{
+    const DiskAnalysis &   b        = m_comparison.GetB();
+    int                    qt       = m_model.GetQuarterTrack();
+    const TrackAnalysis *  trackA   = m_context.hasDisk ? m_model.GetTrack() : nullptr;
+    const TrackAnalysis *  trackB   = nullptr;
+    bool                   isShown  = m_comparison.IsComparing() && b.copy != nullptr;
+    bool                   isBMoved = false;
+    int                    rotation = 0;
+
+
+
+    m_contextB.palette      = m_context.palette;
+    m_contextB.isTimingMode = m_context.isTimingMode;
+    m_contextB.timingRange  = m_context.timingRange;
+    m_contextB.hasDisk      = isShown;
+    m_contextB.analysis     = &b;
+    m_contextB.comparison   = m_context.comparison;
+
+    if (isShown)
+    {
+        if (m_modelBDisk != b.mediaId)
+        {
+            m_modelB.SetDisk (b.mediaId);
+            m_modelBDisk = b.mediaId;
+            m_linkStartB = -1.0;
+        }
+
+        m_modelB.SetAnalysis (&b);
+
+        if (m_modelB.GetQuarterTrack() != qt)
+        {
+            m_modelB.SelectQuarterTrack (qt);
+        }
+
+        trackB = m_modelB.GetTrack();
+    }
+
+    if (trackA != m_diffsOfA || trackB != m_diffsOfB)
+    {
+        m_nibbleDiffs.clear();
+        m_bOffset = 0.0;
+
+        if (trackA != nullptr && trackB != nullptr && !trackA->framed.nibbles.empty() && !trackB->framed.nibbles.empty())
+        {
+            DiskComparer::ListNibbles (*trackA, *trackB, qt, m_nibbleDiffs);
+
+            rotation  = DiskComparer::Align (*trackA, *trackB);
+            m_bOffset = TrackAnalyzer::GetAngle (*trackB, trackB->framed.nibbles[static_cast<size_t> (rotation) % trackB->framed.nibbles.size()].startCell) -
+                        TrackAnalyzer::GetAngle (*trackA, trackA->framed.nibbles[0].startCell);
+        }
+
+        m_diffsOfA   = trackA;
+        m_diffsOfB   = trackB;
+        m_linkStartB = -1.0;
+    }
+
+    m_context.trackB       = trackB;
+    m_context.nibbleDiffs  = (trackB != nullptr) ? &m_nibbleDiffs : nullptr;
+    m_contextB.nibbleDiffs = m_context.nibbleDiffs;
+
+    if (isShown)
+    {
+        isBMoved = m_linkStartB >= 0.0 && (m_modelB.GetStripStart() != m_linkStartB || m_modelB.GetStripSpan() != m_linkSpanB);
+
+        if (isBMoved)
+        {
+            m_model.SetStrip (m_modelB.GetStripStart() - m_bOffset, m_modelB.GetStripSpan());
+        }
+        else
+        {
+            m_modelB.SetStrip (m_model.GetStripStart() + m_bOffset, m_model.GetStripSpan());
+        }
+
+        m_linkStartB = m_modelB.GetStripStart();
+        m_linkSpanB  = m_modelB.GetStripSpan();
+    }
+
+    m_stripB->SetVisible (isShown);
 }
 
 

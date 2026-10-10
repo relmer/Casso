@@ -95,6 +95,7 @@ private:
     void  RequestCopy      ();
     void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
     void  TakeComparison   ();
+    void  SyncSideB        ();
     void  OpenCompare      ();
     void  StopComparing    ();
     void  SwapSides        ();
@@ -164,6 +165,15 @@ private:
     bool                                                                                         m_isTracksCompared  = false;
     int                                                                                          m_diffIndex         = -1;
     RECT                                                                                         m_barPx             = {};
+    InspectorViewModel                                                                           m_modelB;
+    InspectorViewContext                                                                         m_contextB;
+    uint64_t                                                                                     m_modelBDisk        = 0;
+    vector<Difference>                                                                           m_nibbleDiffs;
+    const TrackAnalysis                                                                        * m_diffsOfA          = nullptr;
+    const TrackAnalysis                                                                        * m_diffsOfB          = nullptr;
+    double                                                                                       m_bOffset           = 0.0;
+    double                                                                                       m_linkStartB        = -1.0;
+    double                                                                                       m_linkSpanB         = 0.0;
     DxuiTooltip                                                                                  m_tooltip;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_levels;
     std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_timingLevels;
@@ -213,6 +223,7 @@ private:
     PlatterView                           * m_platterView        = nullptr;
     TrackHeaderView                       * m_headerView         = nullptr;
     TrackStripView                        * m_stripView          = nullptr;
+    TrackStripView                        * m_stripB             = nullptr;
     SectorRowView                         * m_sectorRow          = nullptr;
     SectorByteView                        * m_byteView           = nullptr;
     NibblesTab                            * m_nibblesTab         = nullptr;

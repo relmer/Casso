@@ -85,6 +85,10 @@ public:
     //  track's verdict, or "Comparing" while a comparison is under way.
     static void  AddVerdictColumn (vector<std::wstring> & inOutColumns, vector<TableRow> & inOutRows, const DiskComparison & comparison, bool isComparing);
 
+    //  Whether A's nibble lies in a hunk that differs, with the nibble of B
+    //  aligned with it, or -1 where B has none.
+    static bool  FindInHunk (const vector<Difference> & hunks, int nibbleA, int & outNibbleB);
+
 private:
     static std::wstring  FormatNibbles (int first, int count);
 };

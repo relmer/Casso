@@ -468,6 +468,42 @@ void ComparisonText::AddVerdictColumn (vector<std::wstring> & inOutColumns, vect
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComparisonText::FindInHunk
+//
+//  A nibble inside a hunk pairs with B's nibble as far into B's side of the
+//  hunk; past B's side, B has no nibble for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ComparisonText::FindInHunk (const vector<Difference> & hunks, int nibbleA, int & outNibbleB)
+{
+    bool  isIn = false;
+    int   into = 0;
+
+
+
+    outNibbleB = -1;
+
+    for (const Difference & h : hunks)
+    {
+        into = nibbleA - h.firstNibbleA;
+
+        if (!isIn && h.kind == DifferenceKind::Nibbles && into >= 0 && into < h.nibbleCountA)
+        {
+            isIn       = true;
+            outNibbleB = (into < h.nibbleCountB) ? h.firstNibbleB + into : -1;
+        }
+    }
+
+    return isIn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComparisonText::FormatNibbles
 //
 ////////////////////////////////////////////////////////////////////////////////

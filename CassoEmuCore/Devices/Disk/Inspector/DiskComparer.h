@@ -47,6 +47,14 @@ public:
 
     static bool  Diff (std::span<const Byte> a, std::span<const Byte> b, vector<Hunk> & outHunks);
 
+    //  The nibble hunks that differ on one track once aligned, for the views
+    //  of the selected track whatever its verdict.
+    static void  ListNibbles (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, vector<Difference> & inOutDiffs);
+
+    //  B's sector paired with A's, by sector number and encoding with repeats
+    //  in passing order (FR-120), or -1.
+    static int  FindPairedSector (const TrackAnalysis & a, int sectorIndex, const TrackAnalysis & b);
+
 private:
     static bool            IsStandardLayout (const DiskAnalysis & disk, int quarterTrack);
     static void            CompareTrack     (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, TrackComparison & inOut, vector<Difference> & inOutDiffs);
@@ -54,7 +62,6 @@ private:
     static bool            IsSameNibbles    (const TrackAnalysis & a, const TrackAnalysis & b);
     static int             CompareSectors   (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, vector<Difference> & inOutDiffs);
     static uint32_t        GetSectorCell    (const TrackAnalysis & track, const AnalyzedSector & sector);
-    static void            ListNibbles      (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, vector<Difference> & inOutDiffs);
     static void            ListTiming       (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, int rotation, vector<Difference> & inOutDiffs);
     static void            CompareFiles     (const DiskAnalysis & a, const DiskAnalysis & b, DiskComparison & inOut);
     static bool            ReadContents     (const FileMap & map, const SectorSource & source, const MappedFile & file, vector<Byte> & outBytes);

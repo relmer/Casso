@@ -39,12 +39,16 @@ public:
     void          ShowWholeTrack  ();
     std::wstring  GetReadout      () const;
 
+    //  Which side of a comparison the strip shows: 0 for A, 1 for B.
+    void          SetSide         (int side) { m_side = side; }
+
 private:
     void           PaintTrack   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
     void           PaintFiles      (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
+    void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
@@ -65,4 +69,5 @@ private:
     POINT                          m_pressAt     = {};
     POINT                          m_lastAt      = {};
     int64_t                        m_lastClickMs = 0;
+    int                            m_side        = 0;
 };

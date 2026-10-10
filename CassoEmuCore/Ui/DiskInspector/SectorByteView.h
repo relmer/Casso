@@ -14,8 +14,9 @@
 //
 //  The Sector data tab: the selected sector's header, then its 256 bytes as
 //  16 rows of 16 with hex offsets and a text column, zero bytes and bytes of
-//  $80 or more in their own colors, and bad data marked (FR-040). Read-only;
-//  editing comes with the sector editor.
+//  $80 or more in their own colors, and bad data marked (FR-040); while
+//  comparing, B's paired sector below, the bytes that differ marked in both.
+//  Read-only; editing comes with the sector editor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +53,10 @@ private:
         float  charW    = 1.0f;
         bool   isShown  = false;
     };
+
+    void                   PaintGrid      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
+                                           std::span<const Byte> other, float textPx);
+    std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
 
     ByteGrid  m_grid;
     bool      m_isDragging = false;

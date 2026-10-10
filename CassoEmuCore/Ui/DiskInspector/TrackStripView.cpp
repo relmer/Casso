@@ -29,6 +29,7 @@ static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 static constexpr uint32_t  s_kSelectionAlpha = 0x60000000u;
 static constexpr float     s_kFilesShare     = 0.3f;
+static constexpr float     s_kDiffBandDip    = 4.0f;
 
 
 
@@ -162,6 +163,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     PaintFiles     (painter, theme, track, g);
+    PaintDiffs     (painter, track, g);
     PaintSelection (painter, theme, g);
     PaintSeam      (painter, text, theme, track, g);
     PaintLabels    (painter, text, theme, track, g);
@@ -826,6 +828,54 @@ std::wstring TrackStripView::GetReadout() const
     }
 
     return (track != nullptr && track->framed.cellCount > 0) ? InspectorText::FormatStripReadout (span, first, last) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintDiffs
+//
+//  While comparing, a band along the bottom of the bar under each run of
+//  this side's nibbles that differs from the other side's (FR-121).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintDiffs (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g)
+{
+    RECT                         bar    = GetBarRect();
+    float                        h      = m_scaler.ToPxf (s_kDiffBandDip);
+    int                          size   = static_cast<int> (track.framed.nibbles.size());
+    std::array<StripSegment, 2>  parts  = {};
+    int                          count  = 0;
+    int                          first  = 0;
+    int                          length = 0;
+    double                       a      = 0;
+    double                       b      = 0;
+
+
+
+    for (const Difference & d : (m_context.nibbleDiffs != nullptr && size > 0) ? *m_context.nibbleDiffs : vector<Difference>())
+    {
+        first  = (m_side == 0) ? d.firstNibbleA : d.firstNibbleB;
+        length = std::max ((m_side == 0) ? d.nibbleCountA : d.nibbleCountB, 1);
+
+        if (first < 0)
+        {
+            continue;
+        }
+
+        a     = m_turns[static_cast<size_t> (first % size)];
+        b     = m_turns[static_cast<size_t> ((first + length) % size)];
+        count = g.GetSegments (a, (b > a) ? b - a : b + 1.0 - a, parts);
+
+        for (int k = 0; k < count; k++)
+        {
+            painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - h, std::max (parts[k].x1 - parts[k].x0, 1.0f), h, m_context.palette.colors.difference);
+        }
+    }
 }
 
 

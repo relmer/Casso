@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/NibblesTab.h"
 #include "Devices/Disk/DiskFieldFormat.h"
+#include "Ui/DiskInspector/ComparisonText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 
@@ -10,6 +11,7 @@
 
 
 static constexpr uint32_t  s_kRangeAlpha = 0x60000000u;
+static constexpr uint32_t  s_kDiffAlpha  = 0x50000000u;
 static constexpr int    s_kWheelRows   = 3;
 static constexpr float  s_kSelectDip   = 2.0f;
 static constexpr Byte   s_kSyncValue   = 0xFF;
@@ -43,6 +45,7 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     int                    count   = 0;
     uint32_t               color   = 0;
     bool                   failed  = false;
+    int                    nibbleB = -1;
     std::wstring           extra;
 
 
@@ -83,6 +86,13 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                 if (IsInRange (n))
                 {
                     painter.FillRect (x, y, cellW, rowH, (theme.Accent() & 0x00FFFFFFu) | s_kRangeAlpha);
+                }
+
+                //  While comparing, a nibble that differs from B's (FR-121).
+                if (m_context.nibbleDiffs != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, n, nibbleB))
+                {
+                    painter.FillRect    (x, y, cellW, rowH, (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kDiffAlpha);
+                    painter.OutlineRect (x + 1, y + 1, cellW - 2, rowH - 2, m_scaler.ToPxf (1.0f), m_context.palette.colors.difference);
                 }
 
                 painter.FillRect (x + 1, y + rowH - m_scaler.ToPxf (3.0f), cellW - 2, m_scaler.ToPxf (2.0f), color);
@@ -209,14 +219,25 @@ bool NibblesTab::OnMouse (const DxuiMouseEvent & ev)
 
 bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
-    const TrackAnalysis *  track  = m_context.GetTrack();
-    int                    nibble = (track != nullptr) ? HitTest (pointPx) : -1;
+    const TrackAnalysis *  track   = m_context.GetTrack();
+    const TrackAnalysis *  trackB  = m_context.trackB;
+    int                    nibble  = (track != nullptr) ? HitTest (pointPx) : -1;
+    int                    nibbleB = -1;
 
 
 
     if (nibble >= 0)
     {
-        outText     = InspectorText::FormatNibbleTooltip (*track, nibble);
+        outText = InspectorText::FormatNibbleTooltip (*track, nibble);
+
+        //  A nibble that differs gives B's value (FR-121).
+        if (m_context.nibbleDiffs != nullptr && trackB != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, nibble, nibbleB))
+        {
+            outText += (nibbleB >= 0 && !trackB->framed.nibbles.empty())
+                     ? std::format (L"\nB: {:02X}", trackB->framed.nibbles[static_cast<size_t> (nibbleB) % trackB->framed.nibbles.size()].value)
+                     : std::wstring (L"\nB has no nibble here");
+        }
+
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 

@@ -438,6 +438,47 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskComparer::FindPairedSector
+//
+//  The nth sector of A with a number and encoding pairs with the nth of B.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskComparer::FindPairedSector (const TrackAnalysis & a, int sectorIndex, const TrackAnalysis & b)
+{
+    int     paired = -1;
+    int     nth    = 0;
+    size_t  i      = 0;
+
+
+
+    if (sectorIndex >= 0 && sectorIndex < static_cast<int> (a.sectors.size()))
+    {
+        const AnalyzedSector &  sa = a.sectors[sectorIndex];
+
+        for (i = 0; i < static_cast<size_t> (sectorIndex); i++)
+        {
+            nth += (a.sectors[i].sector == sa.sector && a.sectors[i].kind == sa.kind) ? 1 : 0;
+        }
+
+        for (i = 0; paired < 0 && i < b.sectors.size(); i++)
+        {
+            if (b.sectors[i].sector == sa.sector && b.sectors[i].kind == sa.kind && nth-- == 0)
+            {
+                paired = static_cast<int> (i);
+            }
+        }
+    }
+
+    return paired;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskComparer::GetSectorCell
 //
 //  Where a sector starts: its address field's first cell, or its data

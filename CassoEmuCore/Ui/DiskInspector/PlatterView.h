@@ -56,6 +56,8 @@ private:
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
     void           PaintFiles     (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void           PaintDiffs     (IDxuiPainter & painter, const PlatterPlacement & view);
+    static void    GetDiffTurns   (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB);
     static void    ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     bool           IsSelectedNibble (int quarterTrack, int nibble) const;
