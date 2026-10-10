@@ -75,21 +75,21 @@ static constexpr int      s_kMapButtonDip   = 170;
 static constexpr int      s_kMapVolumeDip   = 150;
 static constexpr int      s_kOverlayDip     = 130;
 static constexpr int      s_kMinTableDip    = 200;
-static constexpr int      s_kDecodeButtonDip = 140;
-static constexpr int      s_kExportButtonDip = 90;
-static constexpr int      s_kFindButtonDip   = 64;
+static constexpr int      s_kDecodeButtonDip = 132;
+static constexpr int      s_kExportButtonDip = 80;
+static constexpr int      s_kFindButtonDip   = 60;
 static constexpr int      s_kCopySectorDip   = 110;
-static constexpr int      s_kCompareDip      = 130;
-static constexpr int      s_kFollowDip       = 120;
-static constexpr int      s_kGoToHeadDip     = 100;
+static constexpr int      s_kCompareDip      = 122;
+static constexpr int      s_kFollowDip       = 110;
+static constexpr int      s_kGoToHeadDip     = 94;
 static constexpr int64_t  s_kRecopyMs        = 500;
 static constexpr int      s_kBarDip          = 36;
 static constexpr int      s_kBarButtonDip    = 136;
 static constexpr int      s_kStopButtonDip   = 116;
 static constexpr int      s_kMinFileNameDip  = 200;
 static constexpr int      s_kFocusGapDip    = 3;
-static constexpr int      s_kModeTabDip     = 80;
-static constexpr int      s_kRangeDip       = 120;
+static constexpr int      s_kModeTabDip     = 76;
+static constexpr int      s_kRangeDip       = 110;
 static constexpr double   s_kRanges[]       = { 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25 };
 
 enum TrackTab
@@ -444,11 +444,12 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        drives    = std::max (1, m_host != nullptr ? m_host->GetDriveCount() : 1);
     int                        toolbar   = scaler.ToPx (s_kToolbarDip);
     int                        rowBottom = boundsDip.top + toolbar;
-    int                        ctlW      = scaler.ToPx (2 * s_kModeTabDip + s_kRangeDip + 2 * s_kFindButtonDip + s_kExportButtonDip + s_kDecodeButtonDip + s_kCompareDip + s_kFollowDip + s_kGoToHeadDip) + 9 * margin;
-    bool                       isTwoRows = 2 * margin + drives * tab + scaler.ToPx (s_kMinFileNameDip) + ctlW > width;
+    int                        nameLeft  = boundsDip.left + 2 * margin + drives * tab;
+    vector<ToolItem>           items     = GetToolItems (scaler);
+    int                        rows      = FlowToolItems (items, boundsDip.left + margin, nameLeft + scaler.ToPx (s_kMinFileNameDip) + margin, boundsDip.right - margin, boundsDip.top, toolbar, margin / 2);
     int                        bar       = m_comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
-    int                        top       = rowBottom + (isTwoRows ? toolbar : 0) + bar;
-    int                        ctlTop    = top - bar - toolbar;
+    int                        top       = boundsDip.top + rows * toolbar + bar;
+    int                        ctlLeft   = static_cast<int> (boundsDip.right) - margin;
     int                        column    = splitX - boundsDip.left - 2 * margin;
     int                        below     = 4 * margin + 2 * scaler.ToPx (s_kRowDip) + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows + s_kTabsDip + s_kMinTableDip);
     int                        side      = std::max (0, std::min ({ column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare), static_cast<int> (boundsDip.bottom - top) - below }));
@@ -464,7 +465,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 
     SetBounds (boundsDip);
-    m_scaler = scaler;
+    m_scaler  = scaler;
+    m_toolSig = GetToolSig();
     m_tooltip.SetDpi (scaler.GetDpi());
     m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
 
@@ -482,41 +484,16 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_driveTabs->SetSelected (m_drive);
     m_driveTabs->Layout  ({ x, boundsDip.top, x + drives * tab, rowBottom }, scaler);
 
-    //  The buttons and the mode controls from the right; on one row with the
-    //  file name when there is room for it, or on a row of their own below.
-    i = boundsDip.right - margin;
-    m_decodeButton->Layout ({ i - scaler.ToPx (s_kDecodeButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kDecodeButtonDip) + margin;
-    m_compareButton->Layout ({ i - scaler.ToPx (s_kCompareDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kCompareDip) + margin;
-    m_exportButton->Layout ({ i - scaler.ToPx (s_kExportButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kExportButtonDip) + margin;
-    m_findButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kFindButtonDip) + margin;
-    m_goToButton->Layout   ({ i - scaler.ToPx (s_kFindButtonDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kFindButtonDip) + margin;
-    m_goToHead->Layout     ({ i - scaler.ToPx (s_kGoToHeadDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kGoToHeadDip) + margin;
-    m_followCheck->Layout  ({ i - scaler.ToPx (s_kFollowDip), ctlTop + margin / 2, i, ctlTop + toolbar - margin / 2 }, scaler);
-    i -= scaler.ToPx (s_kFollowDip) + margin;
+    //  The controls after the file name when they fit beside it, or on rows
+    //  of their own below (FR-007).
+    for (const ToolItem & item : items)
+    {
+        PlaceToolItem (item, scaler);
+        ctlLeft = (item.rect.top == boundsDip.top) ? std::min (ctlLeft, static_cast<int> (item.rect.left) - margin) : ctlLeft;
+    }
 
-    m_rangeDown->Layout  ({ i - scaler.ToPx (s_kRangeDip),          ctlTop + margin, i - scaler.ToPx (s_kRangeDip) + button, ctlTop + toolbar - margin }, scaler);
-    m_rangeLabel->Layout ({ i - scaler.ToPx (s_kRangeDip) + button, ctlTop + margin, i - button,                            ctlTop + toolbar - margin }, scaler);
-    m_rangeUp->Layout    ({ i - button,                             ctlTop + margin, i,                                     ctlTop + toolbar - margin }, scaler);
-    i -= scaler.ToPx (s_kRangeDip);
-
-    tabs.clear();
-    tabs.push_back ({ { i - scaler.ToPx (2 * s_kModeTabDip), ctlTop + margin / 2, i - scaler.ToPx (s_kModeTabDip), ctlTop + toolbar - margin / 2 }, L"Structure" });
-    tabs.push_back ({ { i - scaler.ToPx (s_kModeTabDip),     ctlTop + margin / 2, i,                                ctlTop + toolbar - margin / 2 }, L"Timing" });
-    m_modeTabs->SetTabs     (std::move (tabs));
-    m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
-    m_modeTabs->Layout      ({ i - scaler.ToPx (2 * s_kModeTabDip), ctlTop, i, ctlTop + toolbar }, scaler);
-    i -= scaler.ToPx (2 * s_kModeTabDip) + margin;
-
-    m_fileNamePx = { x + drives * tab + margin, boundsDip.top, std::min (x + drives * tab + margin + scaler.ToPx (s_kFileNameDip), isTwoRows ? static_cast<int> (boundsDip.right) - margin : i),
-                     rowBottom };
-    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, isTwoRows ? static_cast<int> (boundsDip.right) - margin : i, rowBottom };
-
+    m_fileNamePx = { nameLeft, boundsDip.top, std::min (nameLeft + scaler.ToPx (s_kFileNameDip), ctlLeft), rowBottom };
+    m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, ctlLeft, rowBottom };
     //  The comparison bar's buttons from the right, its sources on the left.
     i = boundsDip.right - margin;
 
@@ -1215,6 +1192,12 @@ void DiskInspectorWindow::UpdateRings()
 
 void DiskInspectorWindow::UpdateControls()
 {
+    //  A control shown or hidden moves the others along the toolbar.
+    if (m_zoomLabel != nullptr && m_scaler.GetDpi() != 0 && GetToolSig() != m_toolSig)
+    {
+        Layout (m_boundsDip, m_scaler);
+    }
+
     if (m_zoomLabel != nullptr)
     {
         m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
@@ -1227,8 +1210,8 @@ void DiskInspectorWindow::UpdateControls()
         m_copySector->SetVisible   (m_context.hasDisk && m_trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
         m_compareButton->SetVisible   (m_context.hasDisk || m_comparison.IsComparing());
-        m_followCheck->SetVisible     (m_context.hasDisk && m_headState != nullptr && IsWindowDiskA());
-        m_goToHead->SetVisible        (m_context.hasDisk && m_headState != nullptr && IsWindowDiskA());
+        m_followCheck->SetVisible     (IsHeadShown());
+        m_goToHead->SetVisible        (IsHeadShown());
         m_goToHead->SetEnabled        (m_headState != nullptr && m_headState->hasDisk);
         m_prevDiff->SetVisible        (m_comparison.IsComparing());
         m_nextDiff->SetVisible        (m_comparison.IsComparing());
@@ -3408,4 +3391,206 @@ void DiskInspectorWindow::TakeWrittenTracks (const InspectorReply & reply)
         m_scheduler->Update (copy, slots);
         m_isTablesDirty = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetToolItems
+//
+//  The toolbar's controls after the file name in FR-007's order, each with
+//  its width; a control not shown takes no room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<DiskInspectorWindow::ToolItem> DiskInspectorWindow::GetToolItems (const DxuiDpiScaler & scaler) const
+{
+    vector<ToolItem>  items;
+    bool              hasDisk = m_context.hasDisk;
+
+
+
+    if (hasDisk)
+    {
+        items.push_back ({ ToolId::Modes, scaler.ToPx (2 * s_kModeTabDip) });
+    }
+
+    if (hasDisk && m_context.isTimingMode)
+    {
+        items.push_back ({ ToolId::Range, scaler.ToPx (s_kRangeDip) });
+    }
+
+    if (IsHeadShown())
+    {
+        items.push_back ({ ToolId::Follow,   scaler.ToPx (s_kFollowDip) });
+        items.push_back ({ ToolId::GoToHead, scaler.ToPx (s_kGoToHeadDip) });
+    }
+
+    if (hasDisk)
+    {
+        items.push_back ({ ToolId::GoTo, scaler.ToPx (s_kFindButtonDip) });
+        items.push_back ({ ToolId::Find, scaler.ToPx (s_kFindButtonDip) });
+    }
+
+    if (hasDisk || m_comparison.IsComparing())
+    {
+        items.push_back ({ ToolId::Compare, scaler.ToPx (s_kCompareDip) });
+    }
+
+    if (hasDisk)
+    {
+        items.push_back ({ ToolId::Export, scaler.ToPx (s_kExportButtonDip) });
+        items.push_back ({ ToolId::Decode, scaler.ToPx (s_kDecodeButtonDip) });
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::FlowToolItems
+//
+//  On the first row, right-aligned after the file name, when every control
+//  fits there; otherwise left to right on rows of their own below, a new
+//  row taken whenever the next control would not fit. Returns the rows the
+//  toolbar takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::FlowToolItems (vector<ToolItem> & inOutItems, int left, int firstLeft, int right, int top, int rowHeight, int gap)
+{
+    int  total = 0;
+    int  rows  = 1;
+    int  x     = 0;
+    int  y     = top;
+
+
+
+    for (const ToolItem & item : inOutItems)
+    {
+        total += item.widthPx + ((total > 0) ? gap : 0);
+    }
+
+    if (firstLeft + total <= right)
+    {
+        x = right - total;
+    }
+    else if (!inOutItems.empty())
+    {
+        x     = left;
+        y    += rowHeight;
+        rows += 1;
+    }
+
+    for (ToolItem & item : inOutItems)
+    {
+        if (y != top && x > left && x + item.widthPx > right)
+        {
+            x     = left;
+            y    += rowHeight;
+            rows += 1;
+        }
+
+        item.rect = { x, y, x + item.widthPx, y + rowHeight };
+        x        += item.widthPx + gap;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PlaceToolItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PlaceToolItem (const ToolItem & item, const DxuiDpiScaler & scaler)
+{
+    int                        inset  = scaler.ToPx (s_kMarginDip) / 2;
+    int                        button = scaler.ToPx (s_kButtonDip);
+    RECT                       r      = item.rect;
+    RECT                       inner  = { r.left, r.top + inset, r.right, r.bottom - inset };
+    vector<DxuiTabStrip::Tab>  tabs;
+
+
+
+    switch (item.id)
+    {
+        case ToolId::Modes:
+            tabs.push_back ({ { r.left,                               inner.top, r.left + scaler.ToPx (s_kModeTabDip), inner.bottom }, L"Structure" });
+            tabs.push_back ({ { r.left + scaler.ToPx (s_kModeTabDip), inner.top, r.right,                              inner.bottom }, L"Timing" });
+            m_modeTabs->SetTabs     (std::move (tabs));
+            m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
+            m_modeTabs->Layout      (r, scaler);
+            break;
+
+        case ToolId::Range:
+            m_rangeDown->Layout  ({ r.left,          r.top + 2 * inset, r.left + button,  r.bottom - 2 * inset }, scaler);
+            m_rangeLabel->Layout ({ r.left + button, r.top + 2 * inset, r.right - button, r.bottom - 2 * inset }, scaler);
+            m_rangeUp->Layout    ({ r.right - button, r.top + 2 * inset, r.right,         r.bottom - 2 * inset }, scaler);
+            break;
+
+        case ToolId::Follow:   m_followCheck->Layout   (inner, scaler); break;
+        case ToolId::GoToHead: m_goToHead->Layout      (inner, scaler); break;
+        case ToolId::GoTo:     m_goToButton->Layout    (inner, scaler); break;
+        case ToolId::Find:     m_findButton->Layout    (inner, scaler); break;
+        case ToolId::Compare:  m_compareButton->Layout (inner, scaler); break;
+        case ToolId::Export:   m_exportButton->Layout  (inner, scaler); break;
+        case ToolId::Decode:   m_decodeButton->Layout  (inner, scaler); break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetToolSig
+//
+//  Which toolbar controls are shown, so a change lays the toolbar out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskInspectorWindow::GetToolSig() const
+{
+    uint32_t  sig = 0;
+
+
+
+    for (const ToolItem & item : GetToolItems (m_scaler))
+    {
+        sig |= 1u << static_cast<int> (item.id);
+    }
+
+    return sig;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsHeadShown
+//
+//  "Follow head" and "Go to head" are offered while Casso publishes the
+//  head of the window's own drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsHeadShown() const
+{
+    return m_context.hasDisk && m_headState != nullptr && IsWindowDiskA();
 }

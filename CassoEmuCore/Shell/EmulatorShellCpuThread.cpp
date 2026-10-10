@@ -367,6 +367,9 @@ void EmulatorShell::RunCpuThreadFrame()
         m_renderer->m_lastRenderFlashOn  = current.flashOn;
         m_renderer->m_lastRenderColorSig = current.colorSig;
     }
+
+    //  Each drive's head and counts for the disk inspector, while it is shown.
+    m_inspectorHost.PublishStatus();
 }
 
 

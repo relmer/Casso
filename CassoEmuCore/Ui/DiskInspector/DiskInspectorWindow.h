@@ -93,6 +93,33 @@ protected:
     void  OnWindowClose () override;
 
 private:
+    //  The toolbar's controls after the file name, in FR-007's order.
+    enum class ToolId
+    {
+        Modes,
+        Range,
+        Follow,
+        GoToHead,
+        GoTo,
+        Find,
+        Compare,
+        Export,
+        Decode,
+    };
+
+    struct ToolItem
+    {
+        ToolId  id      = ToolId::Modes;
+        int     widthPx = 0;
+        RECT    rect    = {};
+    };
+
+    vector<ToolItem>  GetToolItems  (const DxuiDpiScaler & scaler) const;
+    static int        FlowToolItems (vector<ToolItem> & inOutItems, int left, int firstLeft, int right, int top, int rowHeight, int gap);
+    void              PlaceToolItem (const ToolItem & item, const DxuiDpiScaler & scaler);
+    uint32_t          GetToolSig    () const;
+    bool              IsHeadShown   () const;
+
     void  RequestCopy      ();
     void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
     void  TakeComparison   ();
@@ -171,6 +198,7 @@ private:
     uint64_t                                                                                     m_comparisonVersion = 0;
     bool                                                                                         m_isTracksCompared  = false;
     int                                                                                          m_diffIndex         = -1;
+    uint32_t                                                                                     m_toolSig           = 0;
     RECT                                                                                         m_barPx             = {};
     InspectorViewModel                                                                           m_modelB;
     InspectorViewContext                                                                         m_contextB;
