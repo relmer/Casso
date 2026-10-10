@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/TrackAnalyzer.h"
 
 
 
@@ -13,6 +14,7 @@ static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
 static constexpr float  s_kHoverOutlineDip  = 1.0f;
 static constexpr float  s_kSelectOutlineDip = 2.0f;
+static constexpr float  s_kAlignmentDotDip = 2.5f;
 
 
 
@@ -97,6 +99,68 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     }
 
     OutlineRing (painter, view, m_context.model->GetQuarterTrack(), m_scaler.ToPxf (s_kSelectOutlineDip), theme.Accent());
+
+    if (m_isAlignmentShown)
+    {
+        PaintAlignment (painter, theme, view);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintAlignment
+//
+//  The "Alignment" overlay (FR-031): on each whole track, a dot where sector
+//  0's address field starts and another where the longest sync run starts,
+//  so their angles line up, or not, from track to track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
+{
+    static constexpr double  kTwoPi = 6.283185307179586;
+
+
+
+    float                  dot   = m_scaler.ToPxf (s_kAlignmentDotDip);
+    int                    qt    = 0;
+    const TrackAnalysis *  track = nullptr;
+    double                 r     = 0;
+    double                 turn  = 0;
+
+
+
+    for (qt = 0; qt < PlatterRenderer::kRingCount; qt += DiskImage::kQuarterTracksPerWholeTrack)
+    {
+        int  slot = m_context.analysis->entries[qt].slot;
+
+        track = (slot >= 0 && slot < static_cast<int> (m_context.analysis->tracks.size())) ? m_context.analysis->tracks[slot].get() : nullptr;
+
+        if (track == nullptr)
+        {
+            continue;
+        }
+
+        r = PlatterGeometry::GetRingMiddle (qt) * view.outerRadiusPx;
+
+        if (track->measurements.longestSync.count > 0)
+        {
+            turn = TrackAnalyzer::GetAngle (*track, track->measurements.longestSync.startCell) + view.rotation;
+            painter.FillCircle (view.centerXPx + static_cast<float> (r * std::sin (kTwoPi * turn)), view.centerYPx - static_cast<float> (r * std::cos (kTwoPi * turn)),
+                                dot, theme.ForegroundMuted());
+        }
+
+        if (track->measurements.sector0Angle >= 0)
+        {
+            turn = track->measurements.sector0Angle + view.rotation;
+            painter.FillCircle (view.centerXPx + static_cast<float> (r * std::sin (kTwoPi * turn)), view.centerYPx - static_cast<float> (r * std::cos (kTwoPi * turn)),
+                                dot, theme.Accent());
+        }
+    }
 }
 
 

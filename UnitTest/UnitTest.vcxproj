@@ -382,6 +382,7 @@
     <ClCompile Include="EmuTests\InspectorViewModelTests.cpp" />
     <ClCompile Include="EmuTests\PlatterCellsTests.cpp" />
     <ClCompile Include="EmuTests\PlatterGeometryTests.cpp" />
+    <ClCompile Include="EmuTests\PlatterViewTests.cpp" />
     <ClCompile Include="EmuTests\StripGeometryTests.cpp" />
     <ClCompile Include="EmuTests\PlatterRendererTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />

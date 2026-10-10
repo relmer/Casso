@@ -174,7 +174,7 @@ without the others in its merge.
 - [X] T069 [US2] Create `UI/TracksTab.h` / `.cpp` (FR-047 columns without the Casso-only marks)
 - [X] T070 [US2] Create `UI/FieldsTab.h` / `.cpp` (FR-042, "Address field, checksum failed" wording per FR-023)
 - [X] T071 [US2] Create `UI/DecodeSettingsDialog.h` / `.cpp`: marks with `??`, checks, track range, "Match standard marks too", "Reset to standard"; a change re-analyzes every track it covers; settings chip (FR-019, FR-020)
-- [ ] T071a [US2] "Alignment" overlay marking each track's sector 0 address field and longest sync run on the platter, with the overlay switch saved in preferences (FR-031)
+- [X] T071a (the switch is saved with the window's preferences in T080's work) [US2] "Alignment" overlay marking each track's sector 0 address field and longest sync run on the platter, with the overlay switch saved in preferences (FR-031)
 - [X] T072 [US2] Show "not checked" sectors with their own color and symbol in the sector row, header, Fields tab and strip labels (FR-020)
 
 ---

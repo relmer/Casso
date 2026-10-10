@@ -120,6 +120,7 @@ private:
     NibblesTab *                             m_nibblesTab     = nullptr;
     DxuiTabStrip *                           m_diskTabs       = nullptr;
     DxuiButton *                             m_decodeButton   = nullptr;
+    DxuiCheckbox *                           m_alignmentCheck = nullptr;
     InspectorTableView *                     m_tracksTab      = nullptr;
     FindingsTab *                            m_findingsTab    = nullptr;
     InspectorTableView *                     m_fieldsTab      = nullptr;

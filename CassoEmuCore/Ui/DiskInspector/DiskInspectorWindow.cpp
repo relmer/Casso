@@ -250,6 +250,7 @@ void DiskInspectorWindow::OnCreate()
     m_fieldsTab   = CreateChild<InspectorTableView> (m_context);
     m_diskTabs    = CreateChild<DxuiTabStrip>();
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
+    m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
 
@@ -265,6 +266,7 @@ void DiskInspectorWindow::OnCreate()
     m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
+    m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -354,7 +356,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_zoomOut->Layout   ({ x,              y, x + button,     y + row }, scaler);
     m_zoomIn->Layout    ({ x + button,     y, x + 2 * button, y + row }, scaler);
     m_fit->Layout       ({ x + 2 * button, y, x + 4 * button, y + row }, scaler);
-    m_zoomLabel->Layout ({ x + 4 * button + margin, y, splitX - margin, y + row }, scaler);
+    m_zoomLabel->Layout ({ x + 4 * button + margin, y, x + 6 * button, y + row }, scaler);
+    m_alignmentCheck->Layout ({ x + 6 * button + margin, y, splitX - margin, y + row }, scaler);
     m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
 
     y += 2 * row;
@@ -858,6 +861,7 @@ void DiskInspectorWindow::UpdateControls()
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
         m_hintLabel->SetVisible (m_context.hasDisk);
+        m_alignmentCheck->SetVisible (m_context.hasDisk);
     }
 }
 

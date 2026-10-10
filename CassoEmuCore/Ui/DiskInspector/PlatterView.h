@@ -41,22 +41,25 @@ public:
     void               ZoomAboutCenter (double factor);
     double             GetRotation () const { return m_rotation; }
     void               SetRotation (double rotation) { m_rotation = rotation; }
+    void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
 private:
     void           Draw           (const DxuiCustomDrawArgs & args);
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
     PlatterPlacement  MakeView       () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 
     PlatterRenderer  m_renderer;
-    bool             m_isRendererReady = false;
-    bool             m_isPressed       = false;
-    bool             m_isPanning       = false;
-    POINT            m_pressAt         = {};
-    POINT            m_lastAt          = {};
-    int64_t          m_lastClickMs     = 0;
-    int              m_hoverRing       = -1;
-    double           m_rotation        = 0.0;
+    bool             m_isRendererReady  = false;
+    bool             m_isAlignmentShown = false;
+    bool             m_isPressed        = false;
+    bool             m_isPanning        = false;
+    POINT            m_pressAt          = {};
+    POINT            m_lastAt           = {};
+    int64_t          m_lastClickMs      = 0;
+    int              m_hoverRing        = -1;
+    double           m_rotation         = 0.0;
 };
