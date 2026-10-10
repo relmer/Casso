@@ -66,6 +66,12 @@ std::wstring SearchQuery::GetLabel (const std::wstring & scope)
 
 
 
+    //  Several folders are Casso's own, searched from its root.
+    if (scope.find (kScopeSeparator) != std::wstring::npos)
+    {
+        return L"Search results in Casso";
+    }
+
     while (trimmed.size() > 3 && (trimmed.back() == L'\\' || trimmed.back() == L'/'))
     {
         trimmed.pop_back();
@@ -74,6 +80,69 @@ std::wstring SearchQuery::GetLabel (const std::wstring & scope)
     slash = trimmed.find_last_of (L"\\/");
 
     return L"Search results in " + ((slash == std::wstring::npos || slash + 1 == trimmed.size()) ? trimmed : trimmed.substr (slash + 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::JoinScopes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SearchQuery::JoinScopes (const std::vector<std::wstring> & folders)
+{
+    std::wstring  scope;
+
+
+
+    for (const std::wstring & folder : folders)
+    {
+        if (!scope.empty())
+        {
+            scope += kScopeSeparator;
+        }
+
+        scope += folder;
+    }
+
+    return scope;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::SplitScopes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> SearchQuery::SplitScopes (const std::wstring & scope)
+{
+    std::vector<std::wstring>  folders;
+    size_t                     start = 0;
+    size_t                     at    = 0;
+
+
+
+    while (start <= scope.size())
+    {
+        at = scope.find (kScopeSeparator, start);
+        at = (at == std::wstring::npos) ? scope.size() : at;
+
+        if (at > start)
+        {
+            folders.push_back (scope.substr (start, at - start));
+        }
+
+        start = at + 1;
+    }
+
+    return folders;
 }
 
 

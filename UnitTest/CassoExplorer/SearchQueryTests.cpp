@@ -37,4 +37,19 @@ public:
         Assert::IsTrue   (SearchQuery::MatchesName (L"HELLO DOS 3.3 MASTER.dsk", words));
         Assert::IsFalse  (SearchQuery::MatchesName (L"HELLO.dsk", words), L"Every word must appear");
     }
+
+    TEST_METHOD (Scopes_JoinAndSplitAndCasso)
+    {
+        std::wstring               scope   = SearchQuery::JoinScopes ({ L"C:\\Casso\\Disks", L"D:\\Apple" });
+        std::vector<std::wstring>  folders = SearchQuery::SplitScopes (scope);
+        std::wstring               parsed;
+        std::wstring               query;
+
+        Assert::AreEqual ((size_t) 2, folders.size());
+        Assert::AreEqual (std::wstring (L"D:\\Apple"), folders[1]);
+        Assert::AreEqual ((size_t) 1, SearchQuery::SplitScopes (L"C:\\Disks").size(), L"One folder is one scope");
+        Assert::IsTrue   (SearchQuery::TryParseId (SearchQuery::MakeId (scope, L"hello"), parsed, query));
+        Assert::AreEqual (scope, parsed, L"Several folders survive the id");
+        Assert::AreEqual (std::wstring (L"Search results in Casso"), SearchQuery::GetLabel (scope));
+    }
 };

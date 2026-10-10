@@ -68,6 +68,7 @@ public:
         bool          shownByShell  = true;    // File Explorer's pane shows it
         std::wstring  folder;                  // a search result's folder
         std::wstring  imagePath;               // a search result inside this disk image
+        size_t        catalogIndex  = 0;       // and where it is in that image's catalog
         std::wstring  iconId;                  // the namespace entry whose icon it shows, as OneDrive's cloud
     };
 

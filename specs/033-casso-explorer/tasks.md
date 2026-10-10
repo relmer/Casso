@@ -335,7 +335,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [x] T136 Search box per File Explorer: query syntax over the location and below, from the Windows search index where indexed and a background folder walk where not, results with their folders in the list, sortable and groupable, stoppable, and an empty-result message, per FR-059, US7/AC6 and Edge Cases (missing)
 - [x] T137 Add the navigation pane's empty-area menu: Show This PC, Show Network, Show libraries, Show all folders (checked, kept in prefs) and Expand to current folder, per FR-057 and US7/AC4 (missing)
 - [x] T138 Show the current location's icon at the address bar's left with a chevron that drops the shell's desktop roots, then the user's desktop folders, each with its icon, navigating on choice, per FR-058 and US7/AC5 (missing)
-- [ ] T139 Extend search results with name matches inside disk images in the searched location, and in Casso's own folders from Casso's root, each opening, previewing and copying as in its image, per FR-060 (missing)
+- [X] T139 Extend search results with name matches inside disk images in the searched location, and in Casso's own folders from Casso's root, each opening, previewing and copying as in its image, per FR-060 (missing)
 - [ ] T140 Record SC-016 (navigation sections and pins side by side with File Explorer) and SC-017 (first results within 2 s over 1,000 indexed files, same host files as File Explorer) in `validation.md`, per SC-016 and SC-017 (missing)
 
 

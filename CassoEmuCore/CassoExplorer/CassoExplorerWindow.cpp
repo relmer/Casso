@@ -3244,7 +3244,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
         case CassoExplorerCommands::kUndo:              return !m_undo.empty();
         case CassoExplorerCommands::kCutItems:          return IsListVerbOffered (CassoExplorerActions::Verb::Cut);
-        case CassoExplorerCommands::kCopyItems:         return IsListVerbOffered (CassoExplorerActions::Verb::Copy) || IsListVerbOffered (CassoExplorerActions::Verb::Get);
+        case CassoExplorerCommands::kCopyItems:         return IsListVerbOffered (CassoExplorerActions::Verb::Copy) || IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_browser.AreSelectedRowsSearchMatches();
         case CassoExplorerCommands::kPasteItems:        return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder
                                                          && m_shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
@@ -4058,7 +4058,7 @@ void CassoExplorerWindow::Dispatch (int id)
         //  the shell, an entry in an image as the file a paste would write,
         //  in the style the Options dialog sets.
         case CassoExplorerCommands::kCopyItems:
-            if (m_browser.IsImageLocation())
+            if (m_browser.IsImageLocation() || m_browser.AreSelectedRowsSearchMatches())
             {
                 CopyEntriesToClipboard (GetNamingStyle());
             }
@@ -9611,6 +9611,39 @@ bool CassoExplorerWindow::OnFindBoxKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetCassoSearchScope
+//
+//  A search from Casso's root covers each of Casso's own folders on the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetCassoSearchScope()
+{
+    std::vector<TreeNode>      nodes;
+    std::vector<std::wstring>  folders;
+    HRESULT                    hr = m_browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
+        {
+            folders.push_back (node.location.path);
+        }
+    }
+
+    return SearchQuery::JoinScopes (folders);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::SearchLocation
 //
 //  The folder shown and everything below it; a search from a search's
@@ -9642,6 +9675,10 @@ void CassoExplorerWindow::SearchLocation (const std::wstring & query)
     else if (at.kind == Location::Kind::ShellFolder && !at.path.empty() && !Location::IsShellName (at.path))
     {
         scope = at.path;
+    }
+    else if (at.kind == Location::Kind::Root && at.path == TreeModel::kCassoRootId)
+    {
+        scope = GetCassoSearchScope();
     }
 
     if (scope.empty())

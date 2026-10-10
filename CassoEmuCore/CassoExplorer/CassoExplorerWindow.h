@@ -425,6 +425,7 @@ private:
     void  ShowAddressRootsMenu    (const RECT & anchor);
     void  OpenSelectedEntries     ();
     void  SearchLocation          (const std::wstring & query);
+    std::wstring  GetCassoSearchScope();
     bool  OnFindBoxKey            (const DxuiKeyEvent & ev);
     void  ShowAddressHistoryMenu  (const RECT & anchor);
 

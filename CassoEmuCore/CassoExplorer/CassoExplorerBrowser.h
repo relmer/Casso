@@ -198,6 +198,19 @@ public:
     //  folder; empty otherwise.
     void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
 
+    //  The files the selected rows are when they are a search's matches inside
+    //  disk images, each with its image, found again in that image's catalog.
+    struct SearchMatch
+    {
+        std::wstring  imagePath;
+        VolumeKind    kind = VolumeKind::Unknown;
+        FileEntry     entry;
+    };
+
+    void  GetSelectedSearchMatches (std::vector<SearchMatch> & outMatches);
+    bool  AreSelectedRowsSearchMatches () const;
+    bool  TryFindSearchMatch       (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError);
+
     //  Whether the selected rows are all disk images in a host folder.
     bool  AreSelectedRowsImages() const;
 
@@ -312,6 +325,8 @@ private:
     bool     CanListImage   (const std::wstring & imagePath);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
+    void     PreviewEntry          (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
+    void     PreviewSearchMatch    (const CatalogRow & row);
     void     SortRows();
     void     GroupRows();
     void     ResortKeepingSelection();

@@ -62,8 +62,9 @@ struct CatalogRow
     //  image it is in.
     std::wstring  folderPath;
     std::wstring  imagePath;
-    int64_t       deletedUnix  = 0;
-    bool          hasDeleted   = false;
+    size_t        imageCatalogIndex = 0;
+    int64_t       deletedUnix       = 0;
+    bool          hasDeleted        = false;
 
     //  A shell folder's row: the shell's own name for the item, which opens it
     //  whether or not it is a file; hostPath holds its path when it has one.

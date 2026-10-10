@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/Win32DiskFileIo.h"
 
@@ -1611,20 +1612,24 @@ HRESULT Win32ShellItemVerbs::RunSearch (const std::wstring & id, std::vector<She
 
     CBREx (parsed, E_INVALIDARG);
 
-    indexed = IsIndexed (scope);
-
-    if (indexed)
+    //  A search from Casso's root covers each of its folders.
+    for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        hr = QueryIndex (scope, query, paths);
-    }
+        std::vector<std::wstring>  found;
 
-    //  A folder the index leaves out, or an index that cannot answer, is
-    //  searched by walking it.
-    if (!indexed || FAILED (hr))
-    {
-        paths.clear();
-        WalkForNames (scope, SearchQuery::GetNameWords (query), paths);
-        hr = S_OK;
+        indexed = IsIndexed (folder);
+        hr      = indexed ? QueryIndex (folder, query, found) : S_OK;
+
+        //  A folder the index leaves out, or an index that cannot answer, is
+        //  searched by walking it.
+        if (!indexed || FAILED (hr))
+        {
+            found.clear();
+            WalkForNames (folder, SearchQuery::GetNameWords (query), found);
+            hr = S_OK;
+        }
+
+        paths.insert (paths.end(), found.begin(), found.end());
     }
 
     for (const std::wstring & path : paths)
@@ -1646,7 +1651,10 @@ HRESULT Win32ShellItemVerbs::RunSearch (const std::wstring & id, std::vector<She
     }
 
     //  Files inside the disk images there match by name too.
-    SearchImages (scope, SearchQuery::GetNameWords (query), outItems);
+    for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
+    {
+        SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
+    }
 
 Error:
     return hr;
@@ -1697,7 +1705,7 @@ void Win32ShellItemVerbs::SearchImages (const std::wstring & scope, const std::v
         {
             ShellFolderItem  entry;
 
-            entry.name = std::wstring (file.name.begin(), file.name.end());
+            entry.name = AppleFileName::ToDisplay (file.name);
 
             if (!SearchQuery::MatchesName (entry.name, words) || outItems.size() >= s_kMaxResults)
             {
@@ -1710,6 +1718,7 @@ void Win32ShellItemVerbs::SearchImages (const std::wstring & scope, const std::v
             entry.isFolder  = file.isDirectory;
             entry.folder    = image;
             entry.imagePath = image;
+            entry.catalogIndex = file.catalogIndex;
             outItems.push_back (std::move (entry));
         }
     }

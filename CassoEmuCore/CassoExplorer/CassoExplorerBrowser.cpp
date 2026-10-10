@@ -415,6 +415,7 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
         row.shellId      = items[index].id;
         row.folderPath   = items[index].folder;
         row.imagePath    = items[index].imagePath;
+        row.imageCatalogIndex = items[index].catalogIndex;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
         row.sourceIndex  = index;
 
@@ -1180,11 +1181,8 @@ void CassoExplorerBrowser::UpdatePreview()
     const FileEntry         * entry       = nullptr;
     Location                  location    = GetLocation();
     DiskOperations::Result    result;
-    FilePayload               payload;
     VolumeListing             listing;
     VolumeKind                kind        = VolumeKind::Unknown;
-    HRESULT                   hr          = S_OK;
-    bool                      disassemble = m_model.HasTabs() && m_model.GetActiveTab().disassemble;
     std::wstring              imagePath;
 
 
@@ -1201,29 +1199,14 @@ void CassoExplorerBrowser::UpdatePreview()
             return;
         }
 
-        result = m_operations.Read (TextEncoding::WideToNarrow (location.path), GetEntryPath (*entry), payload, entry->catalogIndex);
+        PreviewEntry (location.path, GetEntryPath (*entry), *entry, m_kind);
+        return;
+    }
 
-        if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
-        {
-            m_preview.kind = PreviewContent::Kind::Details;
-            return;
-        }
-
-        if (!result.Succeeded())
-        {
-            m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = FormatImageError (location.path, result.message);
-            return;
-        }
-
-        hr = PreviewDecoder::Render (*entry, m_kind, payload, disassemble, m_bus, m_preview);
-
-        if (FAILED (hr) && m_preview.message.empty())
-        {
-            m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = L"This file could not be previewed.";
-        }
-
+    //  A search's match inside a disk image previews as it does in its image.
+    if (m_selectedRows.size() == 1 && m_selectedRows[0] >= 0 && (size_t) m_selectedRows[0] < m_rows.size() && !m_rows[(size_t) m_selectedRows[0]].imagePath.empty())
+    {
+        PreviewSearchMatch (m_rows[(size_t) m_selectedRows[0]]);
         return;
     }
 
@@ -1287,6 +1270,204 @@ void CassoExplorerBrowser::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::PreviewEntry
+//
+//  One file in an image, read and rendered: its contents, the details of a
+//  file that cannot be read, or why not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind)
+{
+    DiskOperations::Result  result;
+    FilePayload             payload;
+    HRESULT                 hr          = S_OK;
+    bool                    disassemble = m_model.HasTabs() && m_model.GetActiveTab().disassemble;
+
+
+
+    result = m_operations.Read (TextEncoding::WideToNarrow (imagePath), entryPath, payload, entry.catalogIndex);
+
+    if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
+    {
+        m_preview.kind = PreviewContent::Kind::Details;
+        return;
+    }
+
+    if (!result.Succeeded())
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = FormatImageError (imagePath, result.message);
+        return;
+    }
+
+    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview);
+
+    if (FAILED (hr) && m_preview.message.empty())
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"This file could not be previewed.";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::PreviewSearchMatch
+//
+//  A search's match inside a disk image, found again in its image's catalog
+//  by where it was listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::PreviewSearchMatch (const CatalogRow & row)
+{
+    SearchMatch   match;
+    std::wstring  error;
+
+
+
+    if (!TryFindSearchMatch (row, match, error))
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = error;
+        return;
+    }
+
+    if (match.entry.isDirectory)
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"A folder. Open it to see what it holds.";
+        return;
+    }
+
+    PreviewEntry (match.imagePath, match.entry.name, match.entry, match.kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TryFindSearchMatch
+//
+//  A search's match inside a disk image, found again in its image's catalog
+//  by where it was listed. False, with why, when the image cannot be read or
+//  no longer holds it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryFindSearchMatch (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError)
+{
+    DiskOperations::Result  result;
+    VolumeListing           listing;
+    VolumeKind              kind  = VolumeKind::Unknown;
+    bool                    found = false;
+
+
+
+    if (row.imagePath.empty())
+    {
+        return false;
+    }
+
+    if (!m_model.TryGetCachedCatalog (row.imagePath, listing, kind))
+    {
+        result = m_operations.List (TextEncoding::WideToNarrow (row.imagePath), listing, kind);
+
+        if (!result.Succeeded())
+        {
+            outError = FormatImageError (row.imagePath, result.message);
+            return false;
+        }
+
+        m_model.CacheCatalog (row.imagePath, listing, kind);
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        if (!found && entry.catalogIndex == row.imageCatalogIndex)
+        {
+            outMatch.imagePath = row.imagePath;
+            outMatch.kind      = kind;
+            outMatch.entry     = entry;
+            found              = true;
+        }
+    }
+
+    if (!found)
+    {
+        outError = L"This file is no longer in its disk image.";
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetSelectedSearchMatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::GetSelectedSearchMatches (std::vector<SearchMatch> & outMatches)
+{
+    SearchMatch   match;
+    std::wstring  error;
+
+
+
+    outMatches.clear();
+
+    for (int row : m_selectedRows)
+    {
+        if (row >= 0 && (size_t) row < m_rows.size() && TryFindSearchMatch (m_rows[(size_t) row], match, error))
+        {
+            outMatches.push_back (match);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::AreSelectedRowsSearchMatches
+//
+//  Whether a selection is files a search found inside disk images, which
+//  copy from their images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::AreSelectedRowsSearchMatches() const
+{
+    bool  any = false;
+
+
+
+    for (int row : m_selectedRows)
+    {
+        any = any || (row >= 0 && (size_t) row < m_rows.size() && !m_rows[(size_t) row].imagePath.empty());
+    }
+
+    return any;
 }
 
 

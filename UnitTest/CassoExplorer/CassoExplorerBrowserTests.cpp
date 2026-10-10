@@ -5,6 +5,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/AppleSingleCodec.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -508,6 +509,48 @@ public:
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"Any other file still shows its bytes");
+    }
+
+
+    //  A search's match inside a disk image previews and copies as it does in
+    //  its image, found again there by where its catalog lists it.
+    TEST_METHOD (SearchMatchInAnImage_PreviewsAndCopiesAsInItsImage)
+    {
+        Host                                            host;
+        FakeRecycleBin                                  shell;
+        IShellItemVerbs::ShellFolderItem                match;
+        std::wstring                                    folder = host.OpenDisksFolder();
+        std::vector<CassoExplorerBrowser::SearchMatch>  matches;
+        size_t                                          index  = 0;
+
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+
+        for (const FileEntry & entry : host.browser.GetListing().entries)
+        {
+            index = (entry.name == "HELLO") ? entry.catalogIndex : index;
+        }
+
+        match.id           = L"C:\\Disks\\dos33.dsk\\HELLO";
+        match.name         = L"HELLO";
+        match.typeText     = L"Applesoft BASIC";
+        match.folder       = L"C:\\Disks\\dos33.dsk";
+        match.imagePath    = L"C:\\Disks\\dos33.dsk";
+        match.catalogIndex = index;
+        shell.shellItems.push_back (match);
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"hello"), SearchQuery::GetLabel (kDisks)));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
+
+        Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"The match previews as the program it is");
+        Assert::IsFalse (host.browser.GetPreview().lines.empty());
+        Assert::IsTrue  (host.browser.AreSelectedRowsSearchMatches());
+
+        host.browser.GetSelectedSearchMatches (matches);
+        Assert::AreEqual ((size_t) 1, matches.size(), L"and copies from its image");
+        Assert::AreEqual (std::string ("HELLO"), matches[0].entry.name);
+        Assert::IsTrue   (matches[0].kind == VolumeKind::Dos33);
     }
 
 

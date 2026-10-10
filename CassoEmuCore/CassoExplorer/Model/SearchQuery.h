@@ -26,6 +26,13 @@ class SearchQuery
 public:
     static constexpr const wchar_t *  kPrefix = L"casso-search:";
 
+    //  Between the folders of a search that covers several, as one from
+    //  Casso's root covers Casso's own: a character no path holds.
+    static constexpr wchar_t          kScopeSeparator = L'*';
+
+    static std::wstring               JoinScopes  (const std::vector<std::wstring> & folders);
+    static std::vector<std::wstring>  SplitScopes (const std::wstring & scope);
+
     static std::wstring  MakeId     (const std::wstring & scope, const std::wstring & query);
     static bool          TryParseId (const std::wstring & id, std::wstring & outScope, std::wstring & outQuery);
     static bool          IsId       (const std::wstring & id) { return id.starts_with (kPrefix); }

@@ -303,6 +303,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     std::shared_ptr<std::vector<uint8_t>>                    group;
     std::shared_ptr<std::string>                             privateData;
     std::shared_ptr<std::vector<uint8_t>>                    drop;
+    std::vector<CassoExplorerBrowser::SearchMatch>           matches;
+    std::shared_ptr<std::vector<std::string>>                images;
 
 
 
@@ -357,6 +359,78 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), 1,
                              [privateData] (int, std::vector<uint8_t> & out) { out.assign (privateData->begin(), privateData->end()); return S_OK; } });
+
+        return formats;
+    }
+
+    //  A search's matches inside disk images copy as they do from their
+    //  images: each image's files planned as that image's, then put together.
+    browser.GetSelectedSearchMatches (matches);
+
+    if (!matches.empty())
+    {
+        descriptors = std::make_shared<std::vector<DragPayload::Descriptor>>();
+        images      = std::make_shared<std::vector<std::string>>();
+
+        for (size_t first = 0; first < matches.size(); )
+        {
+            size_t       last = first;
+            std::string  from = TextEncoding::WideToNarrow (matches[first].imagePath);
+
+            entries.clear();
+
+            while (last < matches.size() && matches[last].imagePath == matches[first].imagePath)
+            {
+                entries.push_back (matches[last].entry);
+                last++;
+            }
+
+            plan = DragPayload::Build (DragPayload::SourceKind::CatalogEntries, from, matches[first].kind, entries, style,
+                                       [] (const std::string &, VolumeListing &) { return E_NOTIMPL; }, {});
+
+            for (const DragPayload::Descriptor & descriptor : plan.descriptors)
+            {
+                descriptors->push_back (descriptor);
+                images->push_back (from);
+            }
+
+            first = last;
+        }
+
+        group = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (*descriptors));
+
+        formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
+                             [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
+
+        formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
+                             [&browser, images, descriptors] (int index, std::vector<uint8_t> & out)
+                             {
+                                 const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
+                                 DiskOperations::Result           result;
+
+                                 out.clear();
+
+                                 if (descriptor.isDirectory)
+                                 {
+                                     return S_OK;
+                                 }
+
+                                 result = browser.GetOperations().Get ((*images)[(size_t) index], descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
+
+                                 if (result.Succeeded() && descriptor.appleSingle)
+                                 {
+                                     AppleSingleFile  single = descriptor.single;
+
+                                     single.data = std::move (result.payload);
+                                     AppleSingleCodec::Encode (single, out);
+                                 }
+                                 else if (result.Succeeded())
+                                 {
+                                     out.assign (result.payload.begin(), result.payload.end());
+                                 }
+
+                                 return result.hr;
+                             } });
 
         return formats;
     }
