@@ -39,6 +39,7 @@ enum class KeyTarget
     FluxTiming,
     Tracks,
     Findings,
+    Image,
 };
 
 
@@ -101,6 +102,8 @@ private:
     void  CopySector      ();
     void  OpenFind  ();
     void  OpenExport ();
+    void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    bool  IsCovered  (POINT pointPx) const;
     void  ShowContextMenu (POINT pointPx);
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
     void          StepKeyTarget      (int step);
@@ -186,6 +189,12 @@ private:
     InspectorTableView *                     m_tracksTab      = nullptr;
     FindingsTab *                            m_findingsTab    = nullptr;
     InspectorTableView *                     m_fieldsTab      = nullptr;
+    InspectorTableView *                     m_imageTab       = nullptr;
+    bool                                     m_is35           = false;
+    std::wstring                             m_openError;
+    RECT                                     m_platterAreaPx  = {};
+    RECT                                     m_trackAreaPx    = {};
+    RECT                                     m_diskContentPx  = {};
     FluxTimingTab *                          m_fluxTab        = nullptr;
     int                                      m_diskTab        = 0;
     bool                                     m_isTablesDirty  = true;

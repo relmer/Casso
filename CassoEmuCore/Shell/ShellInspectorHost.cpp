@@ -78,14 +78,18 @@ void ShellInspectorHost::Service()
 //
 //  ShellInspectorHost::GetImage
 //
-//  The disk in a slot 6 drive, as the CPU thread holds it.
+//  The disk in a slot 6 drive, as the CPU thread holds it, with its file's
+//  size and read-only attribute for the Image tab (FR-050); both are left at
+//  zero and clear when the file cannot be read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const DiskImage * ShellInspectorHost::GetImage (int drive, InspectorDiskIdentity & outIdentity)
 {
-    DiskImageStore &  store = m_machine.GetDiskStore();
-    const DiskImage * image = nullptr;
+    DiskImageStore &  store      = m_machine.GetDiskStore();
+    const DiskImage * image      = nullptr;
+    std::error_code   error;
+    DWORD             attributes = INVALID_FILE_ATTRIBUTES;
 
 
 
@@ -94,7 +98,10 @@ const DiskImage * ShellInspectorHost::GetImage (int drive, InspectorDiskIdentity
         image                  = store.GetImage (kDiskSlot, drive);
         outIdentity.mediaId    = store.GetMediaId (kDiskSlot, drive);
         outIdentity.fileName   = store.GetSourcePath (kDiskSlot, drive);
-        outIdentity.isReadOnly = (image != nullptr) && image->IsWriteProtected();
+        outIdentity.fileSize   = std::filesystem::file_size (std::filesystem::path (outIdentity.fileName), error);
+        outIdentity.fileSize   = error ? 0 : outIdentity.fileSize;
+        attributes             = GetFileAttributesW (std::filesystem::path (outIdentity.fileName).c_str());
+        outIdentity.isReadOnly = attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_READONLY) != 0;
     }
 
     return image;

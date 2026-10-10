@@ -3,6 +3,9 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Inspector/ImageDetails.h"
+#include "Ui/DiskInspector/InspectorTables.h"
 #include "Machines/Apple2/Common/WozCompatibility.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -306,5 +309,174 @@ public:
 
         Assert::IsTrue (std::find (damaged.begin(), damaged.end(), 20) != damaged.end());
         Assert::AreEqual (-1, disk.ResolveQuarterTrack (21), L"an entry of 255 is simply unmapped");
+    }
+
+
+
+    //  The Image tab (FR-050, FR-054): every field the file's version has,
+    //  WOZ 1's record trailers and the records no map refers to, a 3.5" disk
+    //  shown as one, and the reason a file cannot be opened.
+    static vector<TableRow> BuildRows (const vector<Byte> & bytes)
+    {
+        DiskImage  disk;
+
+
+
+        AssertSucceeded (WozLoader::Load (bytes, disk));
+
+        return InspectorTables::BuildImage (ImageDetails::MakeFromCopy (*DiskCopy::MakeFromImage (disk, 1, "test.woz", bytes.size(), false)));
+    }
+
+
+
+    static std::wstring GetValue (const vector<TableRow> & rows, const std::wstring & item)
+    {
+        std::wstring  value = L"(missing)";
+
+
+
+        for (const TableRow & row : rows)
+        {
+            if (row.cells[0] == item && value == L"(missing)")
+            {
+                value = row.cells[1];
+            }
+        }
+
+        return value;
+    }
+
+
+
+    static void AppendChunk (vector<Byte> & inOut, const char * id, const vector<Byte> & payload)
+    {
+        uint32_t  size = static_cast<uint32_t> (payload.size());
+
+
+
+        inOut.insert (inOut.end(), id, id + 4);
+
+        for (int b = 0; b < 4; b++)
+        {
+            inOut.push_back (static_cast<Byte> (size >> (8 * b)));
+        }
+
+        inOut.insert (inOut.end(), payload.begin(), payload.end());
+    }
+
+
+
+    //  A WOZ 1 file with two records: record 0 mapped at track 0, record 1
+    //  holding 100 bytes that no map entry points at.
+    static vector<Byte> MakeWoz1()
+    {
+        static constexpr size_t  kRecord  = WozLoader::kV1TrackRecordSize;
+        static constexpr size_t  kTrailer = 6646;
+
+        vector<Byte>  bytes = { 'W', 'O', 'Z', '1', 0xFF, 0x0A, 0x0D, 0x0A, 0, 0, 0, 0 };
+        vector<Byte>  tmap  (160, 0xFF);
+        vector<Byte>  trks  (2 * kRecord, 0);
+
+
+
+        tmap[0] = 0;
+
+        std::fill (trks.begin(), trks.begin() + 6400, Byte (0xFF));
+        trks[kTrailer]     = 0x00;
+        trks[kTrailer + 1] = 0x19;
+        trks[kTrailer + 2] = 0x00;
+        trks[kTrailer + 3] = 0xC8;
+        trks[kTrailer + 4] = 0xFF;
+        trks[kTrailer + 5] = 0xFF;
+
+        std::fill (trks.begin() + kRecord, trks.begin() + kRecord + 100, Byte (0xD5));
+        trks[kRecord + kTrailer]     = 100;
+        trks[kRecord + kTrailer + 2] = 0x20;
+        trks[kRecord + kTrailer + 3] = 0x03;
+
+        AppendChunk (bytes, "INFO", MakeInfo (1));
+        AppendChunk (bytes, "TMAP", tmap);
+        AppendChunk (bytes, "TRKS", trks);
+
+        return bytes;
+    }
+
+
+
+    TEST_METHOD (TheImageTabGivesEveryFieldTheVersionHas)
+    {
+        vector<Byte>      image;
+        vector<TableRow>  rows;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 ({ MakeBitTrack ({ 0, 1 }) }, image));
+        rows = BuildRows (image);
+
+        for (LPCWSTR item : { L"File name", L"Format", L"Size", L"Read-only", L"Checksum", L"Version", L"Disk type", L"Write protected", L"Synchronized",
+                              L"Cleaned", L"Creator", L"Sides", L"Boot sector format", L"Optimal bit timing", L"Compatible hardware", L"Required RAM",
+                              L"Largest track", L"Flux block", L"Largest flux track", L"TMAP", L"Track records", L"Chunks", L"INFO", L"TRKS" })
+        {
+            Assert::AreNotEqual (std::wstring (L"(missing)"), GetValue (rows, item), item);
+        }
+
+        Assert::AreEqual (std::wstring (L"WOZ 2.1"), GetValue (rows, L"Format"));
+        Assert::AreEqual (std::wstring (L"Record 0"), GetValue (rows, L"0-0.25"), L"a run of quarter tracks on one row");
+        Assert::AreEqual (std::wstring (L"5.25\""), GetValue (rows, L"Disk type"));
+    }
+
+
+
+    TEST_METHOD (AWoz1ShowsItsRecordTrailersAndTheRecordsNoMapRefersTo)
+    {
+        vector<Byte>      image = MakeWoz1();
+        DiskImage         disk;
+        ImageDetails      details;
+        vector<TableRow>  rows;
+
+
+
+        AssertSucceeded (WozLoader::Load (image, disk));
+        details = ImageDetails::MakeFromCopy (*DiskCopy::MakeFromImage (disk, 1, "old.woz", image.size(), false));
+        rows    = InspectorTables::BuildImage (details);
+
+        Assert::AreEqual (static_cast<size_t> (2), details.layout.v1Records.size());
+        Assert::AreEqual (static_cast<int> (0xC800), static_cast<int> (details.layout.v1Records[0].bitCount));
+        Assert::AreEqual (static_cast<size_t> (1), details.layout.unreferenced.size());
+        Assert::AreEqual (1, details.layout.unreferenced[0].index);
+        Assert::IsTrue   (std::any_of (details.problems.begin(), details.problems.end(), [] (const Finding & f) { return f.kind == FindingKind::UnreferencedRecord; }));
+        Assert::AreEqual (std::wstring (L"WOZ 1"), GetValue (rows, L"Format"));
+        Assert::IsTrue   (GetValue (rows, L"Record 0").starts_with (L"6,400 bytes used, 51,200 bits"));
+        Assert::AreNotEqual (std::wstring (L"(missing)"), GetValue (rows, L"Records no map refers to"));
+    }
+
+
+
+    TEST_METHOD (A35InchDiskSaysSo)
+    {
+        vector<Byte>  image;
+        size_t        info  = 0;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 ({ MakeBitTrack ({ 0 }) }, image));
+        info = FindChunk (image, "INFO");
+        image[info + WozLoader::kInfoOffsetDiskType] = WozLoader::kDiskType35;
+        std::fill (image.begin() + kCrcOffset, image.begin() + kCrcOffset + 4, Byte (0));
+
+        Assert::AreEqual (std::wstring (L"3.5\""), GetValue (BuildRows (image), L"Disk type"));
+    }
+
+
+
+    TEST_METHOD (AFileThatCannotBeOpenedSaysWhy)
+    {
+        const vector<Byte>  junk (300, 0x42);
+        MountDiagnosis      diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Woz, junk);
+
+
+
+        Assert::IsTrue  (diagnosis.failure != MountFailure::None);
+        Assert::IsFalse (DiskImageStore::FormatMountFailureMessage ("junk.woz", diagnosis).empty());
     }
 };

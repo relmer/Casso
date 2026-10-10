@@ -4,7 +4,9 @@
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
 
@@ -525,4 +527,337 @@ bool InspectorTables::IsNumberChar (wchar_t ch)
 std::wstring InspectorTables::FormatUnchecked (Byte stored, Byte computed)
 {
     return L"Not checked (" + InspectorFormat::FormatHexByte (stored) + L", computed " + InspectorFormat::FormatHexByte (computed) + L")";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::GetImageColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::wstring> InspectorTables::GetImageColumns()
+{
+    return { L"Item", L"Value" };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::BuildImage
+//
+//  The Image tab (FR-050): the file, then for a WOZ its checksum, INFO,
+//  META, maps, records, records no map refers to and chunks, and for a
+//  sector image its order; then the file's problems (FR-051). A section
+//  starts with a row holding only its title.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image)
+{
+    vector<TableRow>  rows;
+    bool              isProDos = image.format == DiskFormat::Po;
+
+
+
+    AddRow (rows, L"File", L"");
+    AddRow (rows, L"File name", TextEncoding::Utf8ToWide (image.fileName));
+    AddRow (rows, L"Format",    FormatImageFormat (image));
+    AddRow (rows, L"Size",      InspectorFormat::FormatCount (image.fileSize) + L" bytes");
+    AddRow (rows, L"Read-only", image.isReadOnly ? L"Yes" : L"No");
+
+    if (image.isWoz)
+    {
+        AddRow (rows, L"Checksum", image.isCrcMatch ? std::format (L"Matches (${:08X})", image.layout.storedCrc)
+                                                    : std::format (L"Stored ${:08X}, computed ${:08X}", image.layout.storedCrc, image.layout.computedCrc));
+        AddInfoRows   (rows, image.info);
+        AddMetaRows   (rows, image.layout);
+        AddMapRows    (rows, L"TMAP", image.layout.tmap);
+
+        if (image.layout.hasFluxMap)
+        {
+            AddMapRows (rows, L"FLUX", image.layout.flux);
+        }
+
+        AddRecordRows (rows, image.layout);
+        AddChunkRows  (rows, image.layout);
+    }
+    else if (image.format == DiskFormat::Dsk || image.format == DiskFormat::Do || isProDos)
+    {
+        AddRow (rows, L"Sector order", isProDos ? L"ProDOS" : L"DOS 3.3");
+        AddRow (rows, L"Tracks",       L"Casso builds each track from the sectors with volume 254");
+    }
+
+    if (!image.problems.empty())
+    {
+        AddRow (rows, L"Problems", L"");
+
+        for (const Finding & problem : image.problems)
+        {
+            AddRow (rows, L"", FindingFormatter::Format (problem));
+        }
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddInfoRows
+//
+//  Every INFO field the file's version has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddInfoRows (vector<TableRow> & inOut, const WozInfo & info)
+{
+    static constexpr LPCWSTR  kBootFormats[] = { L"Unknown", L"16-sector", L"13-sector", L"16-sector and 13-sector" };
+    static constexpr LPCWSTR  kMachines[]    = { L"][", L"][+", L"//e", L"//c", L"//e Enhanced", L"IIgs", L"//c+", L"///", L"///+" };
+    static constexpr double   kTickNs        = 125.0;
+
+
+
+    std::wstring  hardware;
+    size_t        bit      = 0;
+
+
+
+    AddRow (inOut, L"INFO", L"");
+    AddRow (inOut, L"Version",           std::to_wstring (info.version));
+    AddRow (inOut, L"Disk type",         info.diskType == WozLoader::kDiskType35 ? L"3.5\"" : info.diskType == WozLoader::kDiskType525 ? L"5.25\"" : std::to_wstring (info.diskType));
+    AddRow (inOut, L"Write protected",   info.isWriteProtected ? L"Yes" : L"No");
+    AddRow (inOut, L"Synchronized",      info.isSynchronized ? L"Yes" : L"No");
+    AddRow (inOut, L"Cleaned",           info.isCleaned ? L"Yes" : L"No");
+    AddRow (inOut, L"Creator",           TextEncoding::Utf8ToWide (info.creator));
+
+    if (info.hasVersion2Fields)
+    {
+        for (bit = 0; bit < std::size (kMachines); bit++)
+        {
+            hardware += ((info.compatibleHardware >> bit) & 1) ? (hardware.empty() ? L"" : L", ") + std::wstring (kMachines[bit]) : L"";
+        }
+
+        AddRow (inOut, L"Sides",               std::to_wstring (info.sides));
+        AddRow (inOut, L"Boot sector format",  info.bootSectorFormat < std::size (kBootFormats) ? kBootFormats[info.bootSectorFormat] : std::to_wstring (info.bootSectorFormat));
+        AddRow (inOut, L"Optimal bit timing",  std::format (L"{} ({:.3f} {}s)", info.optimalBitTiming, info.optimalBitTiming * kTickNs / 1000.0, s_kpszMicro));
+        AddRow (inOut, L"Compatible hardware", hardware.empty() ? L"Unknown" : hardware);
+        AddRow (inOut, L"Required RAM",        info.requiredRamK == 0 ? L"Unknown" : std::format (L"{}K", info.requiredRamK));
+        AddRow (inOut, L"Largest track",       std::format (L"{} blocks", info.largestTrack));
+    }
+
+    if (info.hasVersion3Fields)
+    {
+        AddRow (inOut, L"Flux block",          std::to_wstring (info.fluxBlock));
+        AddRow (inOut, L"Largest flux track",  std::format (L"{} blocks", info.largestFluxTrack));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddMetaRows
+//
+//  Every META entry, in file order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddMetaRows (vector<TableRow> & inOut, const WozFileLayout & layout)
+{
+    if (!layout.metaEntries.empty())
+    {
+        AddRow (inOut, L"META", L"");
+    }
+
+    for (const WozMetaEntry & entry : layout.metaEntries)
+    {
+        AddRow (inOut, TextEncoding::Utf8ToWide (entry.key), TextEncoding::Utf8ToWide (entry.value));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddMapRows
+//
+//  A map as the file holds it, each run of quarter tracks with the same
+//  entry on one row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddMapRows (vector<TableRow> & inOut, LPCWSTR title, const std::array<Byte, WozFileLayout::kMapEntries> & map)
+{
+    size_t  start = 0;
+    size_t  qt    = 0;
+
+
+
+    AddRow (inOut, title, L"");
+
+    for (qt = 1; qt <= map.size(); qt++)
+    {
+        if (qt == map.size() || map[qt] != map[start])
+        {
+            AddRow (inOut, InspectorFormat::FormatQuarterTrack (static_cast<int> (start)) + ((qt - 1 > start) ? L"-" + InspectorFormat::FormatQuarterTrack (static_cast<int> (qt - 1)) : L""),
+                    map[start] == WozFileLayout::kNoTrack ? L"No track (255)" : std::format (L"Record {}", map[start]));
+            start = qt;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddRecordRows
+//
+//  Each record the file holds, in the fields its version stores, and then
+//  the records no map refers to. A v2 record with every field zero is an
+//  unused slot, not a record, and is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayout & layout)
+{
+    vector<bool>  isFlux (std::max (layout.records.size(), layout.v1Records.size()), false);
+    size_t        r      = 0;
+
+
+
+    for (Byte entry : layout.flux)
+    {
+        if (layout.hasFluxMap && entry < isFlux.size())
+        {
+            isFlux[entry] = true;
+        }
+    }
+
+    AddRow (inOut, L"Track records", L"");
+
+    for (r = 0; r < layout.records.size(); r++)
+    {
+        const WozTrackRecordFields &  rec = layout.records[r];
+
+        if (rec.startBlock != 0 || rec.blockCount != 0 || rec.bitOrByteCount != 0)
+        {
+            AddRow (inOut, std::format (L"Record {}", r), std::format (L"Start block {}, {} blocks, {} {}", rec.startBlock, rec.blockCount,
+                                                                          InspectorFormat::FormatCount (rec.bitOrByteCount), isFlux[r] ? L"bytes" : L"bits"));
+        }
+    }
+
+    for (r = 0; r < layout.v1Records.size(); r++)
+    {
+        const WozV1RecordFields &  rec = layout.v1Records[r];
+
+        AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} bytes used, {} bits, splice point {}, splice nibble ${:02X}, splice bit count {}",
+                                                                      InspectorFormat::FormatCount (rec.bytesUsed), InspectorFormat::FormatCount (rec.bitCount),
+                                                                      rec.splicePoint, rec.spliceNibble, rec.spliceBitCount));
+    }
+
+    if (!layout.unreferenced.empty())
+    {
+        AddRow (inOut, L"Records no map refers to", L"");
+    }
+
+    for (const WozUnreferencedRecord & rec : layout.unreferenced)
+    {
+        AddRow (inOut, std::format (L"Record {}", rec.index), InspectorFormat::FormatCount (rec.bitOrByteCount) + L" bits or bytes");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddChunkRows
+//
+//  Every chunk's ID and size in file order, WRIT and unknown ones included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddChunkRows (vector<TableRow> & inOut, const WozFileLayout & layout)
+{
+    std::wstring  id;
+
+
+
+    AddRow (inOut, L"Chunks", L"");
+
+    for (const WozChunkEntry & chunk : layout.chunks)
+    {
+        id.clear();
+
+        for (Byte ch : chunk.id)
+        {
+            id.push_back ((ch >= 0x20 && ch < 0x7F) ? static_cast<wchar_t> (ch) : L'?');
+        }
+
+        AddRow (inOut, id, std::format (L"{} bytes at offset {}", InspectorFormat::FormatCount (chunk.size), InspectorFormat::FormatCount (chunk.offset)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::FormatImageFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorTables::FormatImageFormat (const ImageDetails & image)
+{
+    std::wstring  text;
+
+
+
+    switch (image.format)
+    {
+        case DiskFormat::Woz: text = image.info.version >= 3 ? L"WOZ 2.1" : image.info.version == 2 ? L"WOZ 2" : L"WOZ 1"; break;
+        case DiskFormat::Po:  text = L"ProDOS-order sector image";                                                      break;
+        case DiskFormat::Nib: text = L"Nibble image";                                                                   break;
+        default:              text = L"DOS-order sector image";                                                         break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddRow (vector<TableRow> & inOut, const std::wstring & item, const std::wstring & value)
+{
+    TableRow  row;
+
+
+
+    row.cells = { item, value };
+    inOut.push_back (std::move (row));
 }

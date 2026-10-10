@@ -13,6 +13,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Ui/DiskInspector/ExportDialog.h"
 #include "Ui/DiskInspector/FindPanel.h"
@@ -61,6 +62,7 @@ static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kPlatterShare   = 0.55;
+static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 140;
 static constexpr int      s_kExportButtonDip = 90;
 static constexpr int      s_kFindButtonDip   = 64;
@@ -292,12 +294,14 @@ void DiskInspectorWindow::OnCreate()
     m_legend       = CreateChild<PlatterLegendView> (m_context);
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
+    m_imageTab    = CreateChild<InspectorTableView> (m_context);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
     m_diskTabs->SetOnChange  ([this] (int index) { ShowDiskTab (index); });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
+    m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
     m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_findingsTab->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
     m_fieldsTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
@@ -370,7 +374,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        top       = rowBottom + (isTwoRows ? toolbar : 0);
     int                        ctlTop    = top - toolbar;
     int                        column    = splitX - boundsDip.left - 2 * margin;
-    int                        side      = std::max (0, std::min (column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare)));
+    int                        below     = 4 * margin + 2 * scaler.ToPx (s_kRowDip) + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows + s_kTabsDip + s_kMinTableDip);
+    int                        side      = std::max (0, std::min ({ column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare), static_cast<int> (boundsDip.bottom - top) - below }));
     int                        x         = boundsDip.left + margin;
     int                        y         = 0;
     int                        i         = 0;
@@ -457,6 +462,10 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     m_tracksTab->Layout   ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
     m_findingsTab->Layout ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+    m_imageTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
+    m_diskContentPx = { x, y, splitX - margin, boundsDip.bottom - margin };
+    m_platterAreaPx = { boundsDip.left, top, splitX, y - scaler.ToPx (s_kTabsDip) - margin / 2 };
+    m_trackAreaPx   = { m_splitterPx.right, top, boundsDip.right, boundsDip.bottom };
 
     y = right.top;
     m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
@@ -525,8 +534,22 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     DxuiWindow::Paint (painter, text, theme);
 
+    if (m_is35)
+    {
+        PaintNot35 (painter, text, theme);
+    }
+
+    //  A file that could not be opened says why where the platter would be.
+    if (!m_context.hasDisk && !m_openError.empty())
+    {
+        text.DrawString (m_openError.c_str(), static_cast<float> (m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.top),
+                         static_cast<float> (m_platterAreaPx.right - m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.bottom - m_platterAreaPx.top),
+                         theme.ErrorForeground(), m_scaler.ToPxf (InspectorView::kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                         DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+    }
+
     //  The view the keys act on, outlined once a key has been used (FR-059).
-    if (m_isFocusShown && m_context.hasDisk)
+    if (m_isFocusShown && m_context.hasDisk && !m_is35)
     {
         focus = GetKeyTargetBounds();
         InflateRect (&focus, m_scaler.ToPx (s_kFocusGapDip), m_scaler.ToPx (s_kFocusGapDip));
@@ -623,19 +646,21 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
 
 bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool   isHandled = false;
     POINT  p         = ev.positionDip;
     int    width     = m_boundsDip.right - m_boundsDip.left;
+    bool   isCovered = IsCovered (p) && ev.kind != DxuiMouseEventKind::Leave;
+    bool   isHandled = isCovered;
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Down)
+    //  Over a 3.5" disk's notes, the views under them take nothing.
+    if (!isCovered && ev.kind == DxuiMouseEventKind::Down)
     {
         m_keyTarget    = GetKeyTarget (p);
         m_isFocusShown = false;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_context.hasDisk &&
+    if (!isCovered && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_context.hasDisk &&
         (m_keyTarget == KeyTarget::SectorData || m_keyTarget == KeyTarget::Nibbles || m_keyTarget == KeyTarget::Tracks))
     {
         ShowContextMenu (p);
@@ -856,6 +881,7 @@ void DiskInspectorWindow::TakeReplies()
 
         m_pendingRequest  = 0;
         m_context.hasDisk = (reply.disk != nullptr);
+        m_openError       = (reply.status == InspectorReplyStatus::Unopenable) ? reply.reason : std::wstring();
         m_changedSlots.clear();
         m_levels.fill (nullptr);
         m_timingLevels.fill (nullptr);
@@ -1232,6 +1258,7 @@ void DiskInspectorWindow::ShowDiskTab (int tab)
     m_diskTab = tab;
     m_tracksTab->SetVisible   (tab == kTabTracks);
     m_findingsTab->SetVisible (tab == kTabFindings);
+    m_imageTab->SetVisible    (tab == kTabImage);
     m_diskTabs->SetSelected   (tab);
 }
 
@@ -1262,6 +1289,17 @@ void DiskInspectorWindow::RefreshTables()
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
         m_findingsTab->Refresh();
+        m_imageTab->SetRows (m_context.hasDisk ? InspectorTables::BuildImage (m_analysis.image) : vector<TableRow>());
+
+        //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image
+        //  tab, and every other view is covered by a note (FR-054).
+        m_is35 = m_context.hasDisk && m_analysis.image.isWoz && m_analysis.image.info.diskType == WozLoader::kDiskType35;
+
+        if (m_is35)
+        {
+            ShowDiskTab (kTabImage);
+        }
+
         Layout (m_boundsDip, m_scaler);
     }
 
@@ -1662,6 +1700,10 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::Findings;
     }
+    else if (m_imageTab->IsVisible() && IsInside (m_imageTab->GetBounds(), pointPx))
+    {
+        target = KeyTarget::Image;
+    }
 
     return target;
 }
@@ -1760,6 +1802,7 @@ void DiskInspectorWindow::Copy()
         case KeyTarget::Fields:     text = m_fieldsTab->GetSelectedText();   break;
         case KeyTarget::Tracks:     text = m_tracksTab->GetSelectedText();   break;
         case KeyTarget::Findings:   text = m_findingsTab->GetSelectedText(); break;
+        case KeyTarget::Image:      text = m_imageTab->GetSelectedText();    break;
         case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
 
         case KeyTarget::Strip:
@@ -2089,4 +2132,54 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
     }
 
     return bounds;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PaintNot35
+//
+//  On a 3.5" disk, a note over every view but the Image tab (FR-054).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    static constexpr LPCWSTR  kpszNote = L"Casso does not analyze 3.5\" disks. The Image tab shows what the file holds.";
+
+
+
+    RECT  empty = {};
+
+
+
+    for (const RECT & area : { m_platterAreaPx, m_trackAreaPx, m_diskTab == kTabImage ? empty : m_diskContentPx })
+    {
+        if (!IsRectEmpty (&area))
+        {
+            painter.FillRect (static_cast<float> (area.left), static_cast<float> (area.top), static_cast<float> (area.right - area.left),
+                              static_cast<float> (area.bottom - area.top), theme.Background());
+            text.DrawString (kpszNote, static_cast<float> (area.left), static_cast<float> (area.top), static_cast<float> (area.right - area.left),
+                             static_cast<float> (area.bottom - area.top), theme.ForegroundMuted(), m_scaler.ToPxf (InspectorView::kTextDip),
+                             DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsCovered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsCovered (POINT pointPx) const
+{
+    return m_is35 && (IsInside (m_platterAreaPx, pointPx) || IsInside (m_trackAreaPx, pointPx) || (m_diskTab != kTabImage && IsInside (m_diskContentPx, pointPx)));
 }

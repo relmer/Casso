@@ -895,9 +895,11 @@ Error:
 //
 //  WozLoader::ReadFileLayout
 //
-//  Keeps the maps exactly as stored, and for a v2 file every record's fields.
-//  A record that neither map refers to keeps its blocks' bytes too, so a save
-//  can put them back where the track model would otherwise write zeros.
+//  Keeps the maps exactly as stored, and every record's fields: start block,
+//  block count and bit or byte count for a v2 file, the trailer of bytes
+//  used, bit count and splice for a v1 file. A record that neither map refers
+//  to keeps its bytes too, so a save can put them back where the track model
+//  would otherwise write zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -910,8 +912,9 @@ void WozLoader::ReadFileLayout (
     size_t                 trksSize,
     WozFileLayout       &  out)
 {
-    static constexpr size_t  kBlockCountOffset = 2;
-    static constexpr size_t  kBitCountOffset   = 4;
+    static constexpr size_t  kBlockCountOffset  = 2;
+    static constexpr size_t  kBitCountOffset    = 4;
+    static constexpr size_t  kV1BytesUsedOffset = 6646;
 
 
 
@@ -964,6 +967,26 @@ void WozLoader::ReadFileLayout (
         if (!referenced[r] && fields.startBlock >= kV2FirstDataBlock && length > 0 && from + length <= raw.size())
         {
             out.unreferenced.push_back ({ static_cast<int> (r), fields.bitOrByteCount, vector<Byte> (raw.begin() + from, raw.begin() + from + length) });
+        }
+    }
+
+    //  A WOZ 1 record is its 6,646 bytes of bits followed by its trailer.
+    for (r = 0; !isV2 && trksData != nullptr && (r + 1) * kV1TrackRecordSize <= trksSize; r++)
+    {
+        rec = trksData + r * kV1TrackRecordSize;
+
+        WozV1RecordFields  v1;
+
+        v1.bytesUsed      = Read16LE (rec + kV1BytesUsedOffset);
+        v1.bitCount       = Read16LE (rec + kV1BytesUsedOffset + 2);
+        v1.splicePoint    = Read16LE (rec + kV1BytesUsedOffset + 4);
+        v1.spliceNibble   = rec[kV1BytesUsedOffset + 6];
+        v1.spliceBitCount = rec[kV1BytesUsedOffset + 7];
+        out.v1Records.push_back (v1);
+
+        if (r < referenced.size() && !referenced[r] && v1.bytesUsed > 0 && v1.bytesUsed <= kV1BytesUsedOffset)
+        {
+            out.unreferenced.push_back ({ static_cast<int> (r), v1.bitCount, vector<Byte> (rec, rec + v1.bytesUsed) });
         }
     }
 }

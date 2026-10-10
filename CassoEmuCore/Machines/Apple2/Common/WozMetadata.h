@@ -84,6 +84,17 @@ struct WozTrackRecordFields
 };
 
 
+//  A WOZ 1 track record's trailer, as the file stores it.
+struct WozV1RecordFields
+{
+    uint16_t  bytesUsed      = 0;
+    uint16_t  bitCount       = 0;
+    uint16_t  splicePoint    = 0;
+    Byte      spliceNibble   = 0;
+    Byte      spliceBitCount = 0;
+};
+
+
 struct WozChunkEntry
 {
     std::array<Byte, 4>  id     = {};
@@ -118,6 +129,7 @@ struct WozFileLayout
     std::array<Byte, kMapEntries>  tmap                 = {};
     std::array<Byte, kMapEntries>  flux                 = {};
     vector<WozTrackRecordFields>   records;
+    vector<WozV1RecordFields>      v1Records;
     vector<WozUnreferencedRecord>  unreferenced;
     vector<WozChunkEntry>          chunks;
     vector<WozMetaEntry>           metaEntries;

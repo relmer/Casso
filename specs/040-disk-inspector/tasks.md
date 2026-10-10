@@ -216,8 +216,8 @@ without the others in its merge.
 
 **Independent Test**: Made-up WOZ 1, WOZ 2, WOZ 2.1, bad checksum, damaged records, 3.5" disk type, DSK.
 
-- [ ] T086 [P] [US5] Extend `UT/WozImageDetailsTests.cpp` for the Image tab model: every row FR-050 lists per version, unreferenced records listed, 3.5" note on every other view (FR-054), unopenable file reason
-- [ ] T087 [US5] Create `UI/ImageTab.h` / `.cpp` (FR-050, FR-051, FR-054)
+- [X] T086 [P] [US5] Extend `UT/WozImageDetailsTests.cpp` for the Image tab model: every row FR-050 lists per version, unreferenced records listed, 3.5" note on every other view (FR-054), unopenable file reason
+- [X] T087 [US5] Create `UI/ImageTab.h` / `.cpp` (FR-050, FR-051, FR-054)
 
 ---
 

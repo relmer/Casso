@@ -64,6 +64,9 @@ enum class InspectorReplyStatus
     Done,
     DiskChanged,
     NoDisk,
+
+    //  The file could not be opened at all; the reply says why (FR-054).
+    Unopenable,
 };
 
 
@@ -86,6 +89,7 @@ struct InspectorReply
     uint64_t                                    mediaId   = 0;
     std::shared_ptr<const DiskCopy>             disk;
     vector<std::shared_ptr<const TrackCopy>>    tracks;
+    std::wstring                                reason;
 };
 
 
