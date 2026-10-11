@@ -3037,9 +3037,27 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
         closed = m_model.CloseTab (0);
     }
 
+    //  A tab on a drive that is not attached now is left closed rather than
+    //  opened on an error. Only a drive letter is checked: asking a network
+    //  share could take as long as the network takes to answer.
     for (const Location & location : locations)
     {
+        bool  hostPath = location.kind == Location::Kind::HostFolder
+                      || location.kind == Location::Kind::DiskImage
+                      || location.kind == Location::Kind::DiskDirectory;
+
+        if (hostPath && location.path.size() >= 2 && location.path[1] == L':'
+            && !m_fs.DirectoryExists (location.path.substr (0, 2) + L"\\"))
+        {
+            continue;
+        }
+
         m_model.OpenTab (location);
+    }
+
+    if (m_model.GetTabCount() == 0)
+    {
+        m_model.OpenTab (Location());
     }
 
     switched = SwitchTab (0);

@@ -1099,6 +1099,28 @@ public:
     }
 
 
+    TEST_METHOD (RestoreTabs_DriveNotAttached_LeavesItsTabClosed)
+    {
+        Host  host;
+
+        host.OpenDisksFolder();
+        host.browser.RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games"), Location::MakeHostFolder (kDisks) });
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
+    }
+
+
+    TEST_METHOD (RestoreTabs_NoDriveAttached_OpensOneHomeTab)
+    {
+        Host  host;
+
+        host.browser.RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games") });
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
+        Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None);
+    }
+
     TEST_METHOD (RestoreTabs_NothingSaved_OpensOneHomeTab)
     {
         Host  host;

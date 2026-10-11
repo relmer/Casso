@@ -499,10 +499,21 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_browser.GetTreeChildren (id); });
 
+    //  A known folder whose drive is away has nothing to show, so selecting
+    //  it opens nothing; it stays in the tree to be removed.
     m_tree->SetOnSelect ([this] (const std::wstring & id)
     {
-        HRESULT  hr = m_browser.SelectTreeNode (id);
+        HRESULT               hr   = S_OK;
+        const DxuiTreeNode *  node = m_tree->GetNodeAt (m_tree->FindRowById (id));
 
+
+
+        if (node != nullptr && node->dimmed)
+        {
+            return;
+        }
+
+        hr = m_browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
         FillList();
     });
@@ -7484,10 +7495,18 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
     Location                        location;
     bool                            hasFolder   = m_browser.TryGetNodePath (id, folder);
     bool                            hasLocation = m_browser.TryGetNodeLocation (id, location);
+    const DxuiTreeNode            * node        = m_tree->GetNodeAt (m_tree->FindRowById (id));
 
 
 
     m_menuCommands.clear();
+
+    //  A known folder that is not there offers only its removal; every other
+    //  command acts on a folder that cannot be opened.
+    if (node != nullptr && node->dimmed)
+    {
+        hasLocation = false;
+    }
 
     if (hasLocation)
     {
@@ -10839,8 +10858,8 @@ void CassoExplorerWindow::HideHoverTip (TipOwner owner)
 //
 //  CassoExplorerWindow::UpdateTreeTip
 //
-//  The Casso node says what the folders under it are, since nothing else on
-//  screen does.
+//  The Casso node's tip lists what the folders under it are, since nothing
+//  else on screen does. A known folder that is not there gets a tip on why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10859,7 +10878,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
         node = m_tree->GetNodeAt (row);
     }
 
-    if (node == nullptr || node->id != TreeModel::kCassoRootId)
+    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed))
     {
         HideHoverTip (TipOwner::Tree);
         return;
@@ -10870,7 +10889,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
-    ShowHoverTip (TipOwner::Tree, anchor, kCassoNodeTip);
+    ShowHoverTip (TipOwner::Tree, anchor, node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }
 
 
