@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
@@ -321,7 +322,7 @@ void ShellChrome::SyncStandInBanner()
 
 
 
-    m_standInBar.SetText (m_shell.GetStandInBannerText());
+    m_standInBar.SetText (m_shell.m_input->GetStandInBannerText());
 
     if (m_standInBar.GetText().empty() || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
     {
@@ -361,10 +362,10 @@ void ShellChrome::SyncStandInBanner()
     //  took on the arrow keys. Without the test it grabs the pointer and
     //  clips the cursor to the client in keys mode, where nothing asked for
     //  the mouse at all.
-    if (m_shell.m_paddleCaptured && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
+    if (m_shell.m_input->m_paddleCaptured && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
     {
         SetCapture (m_shell.m_hwnd);
-        m_shell.ClipPaddleCursorToClient();
+        m_shell.m_input->ClipPaddleCursorToClient();
     }
 
     //  A BAND THAT HAS NOT BEEN CLAIMED YET, ASKED FOR. The mirror of the
@@ -1632,7 +1633,7 @@ int ShellChrome::GetCaptureBandThicknessPx (int clientWidthPx) const
 int ShellChrome::GetStandInBarHeightPx (float widthPx) const
 {
     IDxuiTextRenderer *  text = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
-    std::wstring         line = m_shell.GetStandInBannerText();
+    std::wstring         line = m_shell.m_input->GetStandInBannerText();
     DxuiInfoBanner       measure (line);
 
 

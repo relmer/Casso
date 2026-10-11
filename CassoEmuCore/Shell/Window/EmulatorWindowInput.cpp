@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
@@ -309,7 +310,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // The update indicator sits in the caption, above every band, so a move
     // over it is its own and nothing below sees it.
-    if (!m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    if (!m_input->m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -318,7 +319,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // call is what keeps its hover highlight honest. Ahead of the drags
     // below because a press the compass took must never feed the orbit's
     // own anchor math as well.
-    if (!m_paddleCaptured && m_scene->m_sceneCompass.OnPointerMove (x, y))
+    if (!m_input->m_paddleCaptured && m_scene->m_sceneCompass.OnPointerMove (x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -335,7 +336,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // it would cause is a game whose paddles stop responding.
     // An orbit in flight owns the move the same way a pan does, whichever
     // button is driving it.
-    if (m_scene->m_sceneOrbiting && !m_paddleCaptured &&
+    if (m_scene->m_sceneOrbiting && !m_input->m_paddleCaptured &&
         ((m_scene->m_sceneOrbitLeftBtn && leftDown) ||
          (!m_scene->m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
     {
@@ -358,7 +359,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     // The recorder's volume wheel, held, follows the pointer across.
-    if (m_scene->m_volumeDragging && leftDown && !m_paddleCaptured)
+    if (m_scene->m_volumeDragging && leftDown && !m_input->m_paddleCaptured)
     {
         m_scene->DragVolumeWheel (x, nowMs);
 
@@ -370,7 +371,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // on -- the marks say which way the control goes, they are not two
     // separate handles that move in opposite senses. Screen y grows downward,
     // so the travel is negated to get "up is up".
-    if (m_scene->m_bezelTilting && leftDown && !m_paddleCaptured)
+    if (m_scene->m_bezelTilting && leftDown && !m_input->m_paddleCaptured)
     {
         m_scene->m_deskScene.SetBezelTilt (m_scene->m_bezelTiltStartRad
                                            + ((float) (m_scene->m_bezelTiltStartPx.y - y)) * ShellDeskScene::kBezelTiltRadPerPx);
@@ -379,7 +380,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (m_scene->m_scenePanning && leftDown && !m_paddleCaptured)
+    if (m_scene->m_scenePanning && leftDown && !m_input->m_paddleCaptured)
     {
         RECT   box    = m_scene->m_deskScene.Composition().viewportPx;
         float  width  = (float) (box.right - box.left);
@@ -404,21 +405,21 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // Paddle mode owns the pointer while captured: relative motion drives
     // the held paddle axes and the cursor is snapped back to center, so the
     // chrome never sees the move.
-    if (m_paddleCaptured)
+    if (m_input->m_paddleCaptured)
     {
-        UpdatePaddleFromMouse (x, y);
+        m_input->UpdatePaddleFromMouse (x, y);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
 
     // //c Mouse mode (non-capturing): a move over the emulator viewport
     // drives the guest mouse via absolute mapping. Deliberately falls
     // through to normal routing — the viewport has no chrome, and moves
     // outside it (menu bar, drive band) behave exactly as before.
-    if (IsGuestMouseActive())
+    if (m_input->IsGuestMouseActive())
     {
-        UpdateGuestMouseFromHost (x, y);
+        m_input->UpdateGuestMouseFromHost (x, y);
     }
 
     // The desk's names scroll under the pointer too; a change re-hangs them so
@@ -733,151 +734,6 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsGuestMouseActive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsGuestMouseActive() const
-{
-    // The fullscreen drive strip's hotkey summon "releases" the guest mouse
-    // for the interaction; the FSM restores it when the strip hides.
-    return m_pointerMode == InputMappingMode::Mouse && m_machine.GetMouse() != nullptr
-        && m_mouseConnected && !m_scene->m_stripSuppressGuestMouse;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsGuestMouseLive
-//
-//  "Mouse-aware software is actually running", so Mouse mode stays invisible
-//  at a BASIC prompt: hardware truth (the IOU's own interrupt enables, which
-//  only the $C079 / $C05x programming sequence can set) rather than anything
-//  garbage RAM could fake.
-//
-//  EITHER enable counts. The gate first read X/Y alone, on the assumption
-//  that SETMOUSE programs ENBXY for every active mode -- it does not.
-//  MousePaint's main app asks for mode $09 (mouse on + VBL interrupt, no
-//  movement interrupt), so the firmware issues DISXY / ENVBL and X/Y stays
-//  masked for as long as the app runs. That read as a dead mouse: the pointer
-//  froze wherever the firmware left it and clicks went nowhere, while the
-//  startup screen and tutorial -- different modes -- worked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsGuestMouseLive() const
-{
-    return IsGuestMouseActive() &&
-           (m_machine.GetMouse()->AreXyInterruptsEnabled() || m_machine.GetMouse()->AreVblInterruptsEnabled());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateGuestMouseFromHost
-//
-//  Absolute host->guest mapping for //c Mouse mode. The mouse firmware owns
-//  position and clamping, publishing both through the slot-7 screen holes:
-//
-//      position   $047F/$057F (X lo/hi)   $04FF/$05FF (Y lo/hi)
-//      clamp min  $047D/$057D (X)         $04FD/$05FD (Y)
-//      clamp max  $067D/$077D (X)         $06FD/$07FD (Y)
-//
-//  The host position's fraction across the viewport maps into the live
-//  clamp window, and the delta from the firmware's current position is
-//  queued as movement units. Self-correcting: any units the firmware
-//  clamps away are re-derived from the holes on the next move. Sanity
-//  checks make this a no-op until the guest app has initialized the mouse
-//  firmware (pre-INITMOUSE holes are garbage). PeekByte reads the CPU's
-//  memory array directly (same cross-thread pattern as screen scraping).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
-{
-    const RECT                          & vp         = m_viewportBoundsPx;
-    int                                   vpW        = vp.right  - vp.left;
-    int                                   vpH        = vp.bottom - vp.top;
-    bool                                  isMouseOn  = IsGuestMouseLive() && vpW > 1 && vpH > 1;
-    bool                                  isGateOpen = false;
-    uint32_t                              fx         = 0;
-    uint32_t                              fy         = 0;
-    bool                                  isInside   = xPx >= vp.left && xPx < vp.right &&
-                                                       yPx >= vp.top  && yPx < vp.bottom;
-    std::optional<uint32_t>               target;
-    std::shared_lock<std::shared_mutex>   gate;
-
-
-
-    // Only Mouse mode with the guest's mouse on makes the pointer guest
-    // input; anything else over the picture is the host's own pointer.
-    if (!isMouseOn)
-    {
-        return;
-    }
-
-    if (CrtMonitorActive())
-    {
-        // Curvature-correct mapping (spec 018): the pixel comes from the
-        // inverse projection through the glass, so only the picture counts
-        // -- pointer positions off the glass (including what used to be
-        // letterbox bars) release the guest mouse.
-        SceneHitResult  hit = m_scene->DeskSceneHit (xPx, yPx);
-
-        if (hit.target == SceneHitResult::Target::Glass)
-        {
-            fx     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
-            fy     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
-            target = (fx << 16) | fy;
-        }
-    }
-    else if (isInside)
-    {
-        // Publish the viewport fraction only. The DEVICE projects it into the
-        // firmware's live clamp window on the CPU thread (AppleMouse::Tick ->
-        // RetargetFromHoles): guest memory must not be read from the UI thread
-        // -- the CPU's debug array is not the live MMU-mapped RAM, and bus
-        // reads here would race the CPU thread. (The original PeekByte-based
-        // mapping read stale bytes and silently no-oped in production.)
-        // Leaving the viewport releases the guest mouse to wherever the
-        // firmware last put it (non-capturing contract).
-        fx     = static_cast<uint32_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
-        fy     = static_cast<uint32_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
-        target = (fx << 16) | fy;
-    }
-
-    // Behind live in reverse execution's history the mouse holds a recorded
-    // position, so the pointer's place is held instead, until the guest's
-    // mouse would move to it or the machine is live.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-
-    if (!isGateOpen)
-    {
-        m_debugger->GetDivergenceGate().SetMouseTarget (target);
-        m_debugger->PublishHeldInput();
-    }
-    else if (target.has_value())
-    {
-        m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (fx), static_cast<uint16_t> (fy));
-    }
-    else
-    {
-        m_machine.GetMouse()->ClearHostTarget();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnSetCursor
 //
 //  //c Mouse mode is non-capturing but hides the host cursor while it is
@@ -900,7 +756,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     // draws no pointer, so hiding the host cursor would just look broken.
     // Short-circuit order matters: the cursor is only read once that holds.
     overGuest = hitTest == HTCLIENT
-                && IsGuestMouseLive()
+                && m_input->IsGuestMouseLive()
                 && GetCursorPos (&pt)
                 && ScreenToClient (m_hwnd, &pt);
 
@@ -1009,7 +865,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // Fullscreen is: the picture owns the client and the desk is not on
     // screen, so there is no camera to move -- only hidden state to
     // scramble for the return to windowed.
-    if (delta == 0 || !DeskSceneActive() || m_paddleCaptured ||
+    if (delta == 0 || !DeskSceneActive() || m_input->m_paddleCaptured ||
         m_renderer->m_d3dRenderer.IsFullscreen())
     {
         return DxuiMessageResult::NotHandled;
@@ -1198,7 +1054,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
             // one-finger drag then is someone pointing, and the promotion to
             // mouse input is exactly what has to keep happening.
             if (m_scene->m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
-                IsGuestMouseLive())
+                m_input->IsGuestMouseLive())
             {
                 break;
             }
@@ -1294,13 +1150,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0 and the
     // pointer is hidden/confined, so nothing else acts on the press.
-    if (m_paddleCaptured)
+    if (m_input->m_paddleCaptured)
     {
-        PushPaddleButton (0, true);
+        m_input->PushPaddleButton (0, true);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
 
     // The caption's update indicator, ahead of the capture and every band:
     // nothing else lives in the caption strip's client area.
@@ -1378,7 +1234,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Chrome outside the display already had its chance above. With the
     // desk scene, "over the display" means over the curved glass itself
     // (release stays deliberately ungated, matching the 2D contract).
-    if (IsGuestMouseLive())
+    if (m_input->IsGuestMouseLive())
     {
         bool  overDisplay = false;
 
@@ -1401,7 +1257,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         if (overDisplay)
         {
             isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-            m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
+            m_input->m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
         }
 
         if (overDisplay && !isGateOpen)
@@ -1458,7 +1314,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // Pressing on the recorder's volume wheel starts its drag, which handles
     // every move until the release: no orbit, no click.
-    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive())
     {
         float  span  = 0.0f;
         RECT   wheel = m_scene->GetVolumeWheelRect (&span);
@@ -1515,7 +1371,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // the only other thing a press on the scene begins, and which would
     // otherwise swallow the gesture.
     if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() && !m_chrome->m_mainMenu.IsOpen()
-        && !IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
+        && !m_input->IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
         SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
 
@@ -1557,7 +1413,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // on that alone armed a turn under the command buttons, and the release
     // that would have fired them ended the turn instead.
     if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() &&
-        !m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive() &&
+        !m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
         SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
@@ -1609,7 +1465,7 @@ Error:
 //  then immediately opens the file-open dialog on top of it.
 //
 //  The paddle re-grab predicate is captured BEFORE StartPaddleCapture runs,
-//  because that call sets m_paddleCaptured -- re-testing afterwards reads
+//  because that call sets m_input->m_paddleCaptured -- re-testing afterwards reads
 //  false and the bail below would not fire.
 //
 //  The guest mouse button release at the end is deliberately NOT viewport-
@@ -1661,14 +1517,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     //
     //  PADDLE MODE IS THE EXCEPTION and holds the pointer on purpose, so it
     //  keeps it across the click; the button release below is its own.
-    if (!m_paddleCaptured)
+    if (!m_input->m_paddleCaptured)
     {
         ReleaseCapture();
     }
 
     //  The update indicator's own press ends here, and its click is this
     //  release landing on it.
-    if (!m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    if (!m_input->m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1736,13 +1592,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).
-    if (m_paddleCaptured)
+    if (m_input->m_paddleCaptured)
     {
-        PushPaddleButton (0, false);
+        m_input->PushPaddleButton (0, false);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
 
     // Command toolbar release: click dispatch / mute toggle / slider drop.
     toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonUp (x, y);
@@ -1909,12 +1765,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release. The
     // predicate is captured BEFORE the call, because StartPaddleCapture sets
-    // m_paddleCaptured and re-testing it afterwards would read false.
-    canGrabPaddle = m_pointerMode == InputMappingMode::Paddle && !m_paddleCaptured;
+    // m_input->m_paddleCaptured and re-testing it afterwards would read false.
+    canGrabPaddle = m_input->m_pointerMode == InputMappingMode::Paddle && !m_input->m_paddleCaptured;
 
     if (canGrabPaddle)
     {
-        StartPaddleCapture();
+        m_input->StartPaddleCapture();
         result = DxuiMessageResult::Handled;
     }
 
@@ -1925,19 +1781,19 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // released outside it can never leave the guest button stuck. Behind
     // live the release is kept for when the machine is live again, and a
     // press held there that the guest has not read yet is dropped.
-    if (IsGuestMouseActive())
+    if (m_input->IsGuestMouseActive())
     {
         isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-        m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+        m_input->m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
     }
 
-    if (IsGuestMouseActive() && !isGateOpen)
+    if (m_input->IsGuestMouseActive() && !isGateOpen)
     {
         m_debugger->GetDivergenceGate().ReleaseMousePress();
         m_debugger->PublishHeldInput();
     }
 
-    if (IsGuestMouseActive() && isGateOpen)
+    if (m_input->IsGuestMouseActive() && isGateOpen)
     {
         m_machine.GetMouse()->SetButton (false);
     }
@@ -1967,9 +1823,9 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
-    if (m_paddleCaptured)
+    if (m_input->m_paddleCaptured)
     {
-        PushPaddleButton (1, true);
+        m_input->PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
     }
     else if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen())
@@ -2046,12 +1902,12 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (m_paddleCaptured)
+    if (m_input->m_paddleCaptured)
     {
-        PushPaddleButton (1, false);
+        m_input->PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
-    else if (!m_chrome->m_mainMenu.IsOpen() && !IsGuestMouseLive())
+    else if (!m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive())
     {
         // The drive band and the fullscreen strip have no orbit to share the
         // button with: a right-click there is the device's menu.
@@ -2136,103 +1992,6 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReleaseGuestKeys
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ReleaseGuestKeys()
-{
-    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::defer_lock);
-    std::shared_lock<std::shared_mutex>  gate;
-    bool                                 isGateOpen = false;
-
-
-
-    // The modifier and fire keys go through the mixer, which takes the lock
-    // itself when it writes: the release reaches the machine now, or when a
-    // rebuild in progress finishes.
-    m_appleModifierContribution = GamePortContribution();
-    m_gamePortMixer.ReleaseSource (GamePortSource::AppleModifierKeys);
-    m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
-
-    // A machine switch holds the lock exclusively while it replaces the
-    // devices; the new machine starts with every key up anyway.
-    if (!lifetime.try_lock())
-    {
-        return;
-    }
-
-    // Behind live in reverse execution's history the keyboard holds a
-    // recorded position, which a release must not change; the releases are
-    // kept for when the machine is live again.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-    m_heldHostInputs.OnReleaseAll (isGateOpen);
-
-    if (!isGateOpen)
-    {
-        return;
-    }
-
-    if (m_machine.GetRefs().keyboard != nullptr)
-    {
-        m_machine.GetRefs().keyboard->SetKeyDown (false);
-        m_machine.GetRefs().keyboard->EndKeyRepeat();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseInputsLetGoBehindLive
-//
-//  Once the machine is live again it stands where it left live, with the
-//  keys and mouse button held then still down. A release for each one the
-//  user let go of in the meantime goes through the same path a real release
-//  takes, so the modifiers and the arrow joystick follow too. Run while the
-//  gate is still held, it waits for the next call.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ReleaseInputsLetGoBehindLive()
-{
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
-    std::vector<WPARAM>                  releases;
-    DxuiKeyEvent                         release;
-
-
-
-    if (m_machine.GetHostInputGate().IsHeld())
-    {
-        return;
-    }
-
-    releases     = m_heldHostInputs.TakeReleases();
-    release.kind = DxuiKeyEventKind::Up;
-
-    for (WPARAM input : releases)
-    {
-        if (input != HeldHostInputs::kMouseButton)
-        {
-            release.vk = input;
-            (void) OnViewportKey (release);
-        }
-        else if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
-        {
-            m_machine.GetMouse()->SetButton (false);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
@@ -2270,7 +2029,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
         // the pasted text, planting an invisible control byte in the input
         // line (the classic paste-then-SYNTAX-ERROR).
         m_swallowMetaChar = true;
-        PasteClipboardText();
+        m_input->PasteClipboardText();
     }
     else
     {
@@ -2278,53 +2037,6 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
     }
 
     return claimed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyAppleModifierKeys
-//
-//  Submits the host modifier state to the game-port mixer as the //e modifier
-//  keys' contribution: left Alt -> Open Apple (PB0, $C061), right Alt ->
-//  Closed Apple (PB1, $C062), Shift -> Shift (PB2, $C063). GetKeyState gives
-//  the canonical left/right state, so a modifier stays asserted while either
-//  physical key is still down. A no-op on the ][/][+ where the keyboard is
-//  not an Apple //e keyboard.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
-{
-    constexpr size_t  kOpenAppleButton  = 0;
-    constexpr size_t  kSolidAppleButton = 1;
-    constexpr size_t  kShiftButton      = 2;
-    HRESULT           hr                = S_OK;
-    auto            * iieKbd            = m_machine.GetRefs().iieKeyboard;
-    bool              isAlt             = vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU;
-    bool              isShift           = vk == VK_SHIFT;
-
-
-
-    BAIL_OUT_IF (iieKbd == nullptr || !(isAlt || isShift), S_OK);
-
-    if (isAlt)
-    {
-        m_appleModifierContribution.buttons.set (kOpenAppleButton,  (GetKeyState (VK_LMENU) & 0x8000) != 0);
-        m_appleModifierContribution.buttons.set (kSolidAppleButton, (GetKeyState (VK_RMENU) & 0x8000) != 0);
-    }
-    else
-    {
-        m_appleModifierContribution.buttons.set (kShiftButton, keyDown);
-    }
-
-    m_gamePortMixer.Submit (GamePortSource::AppleModifierKeys, m_appleModifierContribution);
-
-Error:
-    return;
 }
 
 
@@ -2347,7 +2059,7 @@ ShellKeyRouting::State EmulatorShell::GetKeyRoutingState() const
 
 
 
-    state.pointerMode         = m_pointerMode;
+    state.pointerMode         = m_input->m_pointerMode;
     state.toolbarOwnsKeyboard = m_chrome->m_toolbar.OwnsKeyboard();
     state.isChromeFocused     = m_chromeFocusIndex != s_kChromeFocusNone;
     state.isMenuOpen          = m_chrome->m_mainMenu.IsOpen();
@@ -2381,7 +2093,7 @@ void EmulatorShell::DispatchShellKey (
     case ShellKeyOwner::PaddleExit:
         // The pointer is captured and hidden, so Esc is the only way out and
         // has to work whatever else is up.
-        SetPointerMapping (InputMappingMode::Off);
+        m_input->SetPointerMapping (InputMappingMode::Off);
         break;
 
     case ShellKeyOwner::Toolbar:
@@ -2489,7 +2201,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // the guest never sees the press.
     if (vk == VK_CAPITAL)
     {
-        if (!isRepeat && m_capsLock.OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
+        if (!isRepeat && m_input->m_capsLock.OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
         {
             m_chrome->ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
         }
@@ -2604,1471 +2316,6 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HostKeyboardLayoutIsDvorak
-//
-//  True when the host's active keyboard layout is a Dvorak variant. Probed
-//  behaviorally rather than by KLID string, so it catches every Dvorak layout
-//  (US, left/right-hand, third-party) without a hard-coded list: VkKeyScanEx
-//  reports which physical key (VK code) produces 'o'. On QWERTY that is VK 'O';
-//  on Dvorak 'o' lives on the physical 'S' key, so it reports VK 'S'. Unlike
-//  ToUnicode this leaves no dead-key state behind. The //c keyboard switch only
-//  needs to remap when the host is QWERTY -- see Apple2eKeyboard::MapTypedChar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool HostKeyboardLayoutIsDvorak()
-{
-    HKL    hkl = GetKeyboardLayout (0);
-    SHORT  vk  = VkKeyScanExW (L'o', hkl);
-
-
-
-    // vk == -1 means 'o' is unreachable on this layout -- assume QWERTY.
-    return vk != -1 && LOBYTE (vk) == 'S';
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnViewportKey
-//
-//  Applies one guest keystroke to the Apple ][ keyboard latch and game port.
-//  Everything arriving here has already been classified as the guest's.
-//
-//  Down, Up, and Char are three different jobs, not three cases of one:
-//  Down handles control codes and joystick axes, Up disarms, and Char is the
-//  only path that types a printable character.
-//
-//  Auto-repeat is the subtlest part. Control-code presses are gated on the
-//  repeat bit so the HOST's repeat never reaches the latch -- a fresh press
-//  arms the $C000 strobe once and registers the key with BeginKeyRepeat, and
-//  the emulated //e then generates its own authentic repeat cadence in Tick.
-//  Letting both repeats run would double the rate and sound wrong.
-//
-//  A key-up always calls EndKeyRepeat. The //e latch holds exactly one
-//  key, so a release necessarily ends the current repeat; clearing it also
-//  stops a later non-character press (a bare modifier, say) from resurrecting
-//  the previous character's repeat.
-//
-//  Joystick emulation overlays the arrows and X / Z, and only when the mode
-//  is on AND a game-port paddle bank exists. Three details matter:
-//
-//    - whether the keys drive the joystick is asked per event, so a mode
-//      change between a press and its release is honored and nothing is
-//      left held
-//    - arrows are WITHHELD from the keyboard latch in this mode; a held
-//      direction would otherwise flood $C000 and starve a game's reads
-//    - the fire buttons are re-resolved on EVERY key event, not just X / Z,
-//      so an Alt press re-applies its Open / Closed-Apple mapping without
-//      clobbering a still-held X, and a released X cannot leave a button
-//      stuck down while Alt is still held
-//
-//  Opposing arrows resolve last-pressed-wins via the per-axis memory, which
-//  is what makes a quick left-right reversal read as a reversal rather than
-//  as centered.
-//
-//  The Char path feeds MapTypedChar so the //c keyboard switch can remap to
-//  Dvorak. The host's own layout is probed live and pushed in, so a host that
-//  is ALREADY Dvorak skips the remap instead of translating twice. Clipboard
-//  paste bypasses this path entirely and calls PressKey directly -- pasted
-//  text is never remapped, matching the hardware encoder.
-//
-//  Behind live every event is held, with the key it would latch, until the
-//  replayed guest reads the keyboard where it would differ or the machine
-//  is live; the game-port side goes to the mixer at once, which holds it.
-//
-//  Always returns true: nothing here bubbles back to the framework, since the
-//  shell's escape routes live in the OnKeyDown pre-checks, not in the sink.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
-{
-    std::shared_lock<std::shared_mutex>  lifetime     (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
-    bool                                 hasKeyboard  = false;
-    bool                                 isGateOpen   = false;
-    bool                                 isMachineKey = false;
-    std::optional<Byte>                  latch;
-    DivergenceVerdict                    verdict      = DivergenceVerdict::Proceed;
-
-
-
-    // A machine switch holds the lock exclusively while it replaces the
-    // devices; a key that lands in that window is dropped.
-    if (!lifetime.owns_lock())
-    {
-        return false;
-    }
-
-    // Behind live in reverse execution's history the devices hold a recorded
-    // position, so the guest gets no keys until the machine is live again.
-    // Each press and release is tracked either way, so a key let go of behind
-    // live is released once the machine is live.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-
-    if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
-    {
-        m_heldHostInputs.OnPress (ev.vk, isGateOpen);
-    }
-    else if (ev.kind == DxuiKeyEventKind::Up)
-    {
-        m_heldHostInputs.OnRelease (ev.vk, isGateOpen);
-    }
-
-    // A key into the machine while it replays history would change it. It is
-    // held, with no question, until the replayed guest reads the keyboard
-    // where the key would change what it reads, or the machine is live; the
-    // keys that follow wait with it. A key that drives the game port goes to
-    // the mixer now, which holds it there the same way.
-    verdict = m_debugger->GetDivergenceGate().JudgeKey (!isGateOpen, ev);
-
-    if (verdict == DivergenceVerdict::Hold)
-    {
-        latch = GetHeldKeyLatch (ev, isMachineKey);
-
-        m_debugger->GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
-        RouteKeyToGamePort (ev);
-        m_debugger->PublishHeldInput();
-
-        return true;
-    }
-
-    if (!isGateOpen)
-    {
-        return true;
-    }
-
-    // The guest owns every key that reaches here either way; with no keyboard
-    // device there is simply nothing to deliver it to.
-    hasKeyboard = m_machine.GetRefs().keyboard != nullptr;
-
-    if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
-    {
-        WPARAM           vk         = ev.vk;
-        Byte             appleCode  = 0;
-        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
-        bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
-        bool             hasTheKey  = !isSpecial ||
-                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
-
-        // A named key the running machine's keyboard does not have was never
-        // pressed as far as the guest is concerned, so it must not raise
-        // any-key-down either -- $C010 reporting a key held while $C000 holds
-        // nothing is a state the hardware cannot be in.
-        if (hasTheKey)
-        {
-            m_machine.GetRefs().keyboard->SetKeyDown (true);
-        }
-
-        // TAB and Escape reach us twice: once as this keydown, and again as
-        // the WM_CHAR Windows manufactures from it. The key route below is
-        // the authoritative one -- it is the only one that can tell the TAB
-        // key from Ctrl+I, which sends the same $09 -- so the character is
-        // swallowed. Set on repeats too, since each repeated keydown brings
-        // its own character along. Nothing here depends on that character
-        // actually arriving: OnKeyDown clears the flag on the way in, so an
-        // Alt-held TAB or Escape, whose WM_SYSCHAR never reaches OnChar,
-        // cannot leave it armed for the next key.
-        if (isSpecial && AppleKeyMapping::DoesSpecialKeySynthesizeChar (specialKey))
-        {
-            m_swallowMetaChar = true;
-        }
-
-        // Arrows / TAB / Escape / DELETE are delivered as KEYS, and the
-        // device decides both which code each sends and whether this machine
-        // has it at all. Gated on the auto-repeat bit so the host OS repeat
-        // never reaches the latch; a fresh press arms the $C000 strobe once
-        // and registers the key for the emulator's own authentic //e
-        // auto-repeat cadence (Tick). With "Map arrows to joystick" on (and a
-        // game-port paddle bank present), arrow keys are withheld from the
-        // keyboard latch so a held direction cannot flood $C000 and starve a
-        // joystick game's reads.
-        if (!ev.repeat && isSpecial && !(IsDrivingJoystickFromKeys() && AppleKeyMapping::IsArrowVk (vk)))
-        {
-            appleCode = m_machine.GetRefs().keyboard->PressSpecialKey (specialKey);
-
-            if (appleCode != 0)
-            {
-                m_machine.GetRefs().keyboard->BeginKeyRepeat (appleCode);
-            }
-        }
-
-        RouteKeyToGamePort (ev);
-    }
-    else if (hasKeyboard && ev.kind == DxuiKeyEventKind::Up)
-    {
-        WPARAM           vk         = ev.vk;
-        AppleSpecialKey  specialKey = AppleSpecialKey::Left;
-        bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
-        bool             hasTheKey  = !isSpecial ||
-                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
-
-        // The same question the press asked, asked again: a key this machine
-        // does not have was never pressed, so its release must not undo the
-        // state some other key is still holding. Gating only the press left
-        // the up arrow on a ][+ able to clear any-key-down, and disarm the
-        // repeat, while a real key was still down -- $C010 reporting nothing
-        // held while $C000 holds a character.
-        if (hasTheKey)
-        {
-            m_machine.GetRefs().keyboard->SetKeyDown (false);
-
-            // Disarm auto-repeat on release. The //e latch holds a single
-            // key, so a key-up always ends the current repeat; this also
-            // clears any stale armed key so a later non-character press
-            // (e.g. a bare modifier) can never resurrect the previous
-            // character's repeat.
-            m_machine.GetRefs().keyboard->EndKeyRepeat();
-        }
-
-        RouteKeyToGamePort (ev);
-    }
-    else if (hasKeyboard && ev.vk <= 127)   // DxuiKeyEventKind::Char
-    {
-        // $00 is a real character: Windows sends it for Ctrl+Shift+2, the
-        // PC's Ctrl+@, and some games wait for it.
-        Byte  code = MapHostCharToApple (ev.vk);
-
-        m_machine.GetRefs().keyboard->PressKey (code);
-        m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsDrivingJoystickFromKeys
-//
-//  Arrow keys double as the emulated joystick axes / the X / Z keys as fire
-//  buttons when "Map arrows to joystick" is on AND a game-port paddle bank
-//  is present. Asked per event so a mode change between press and release
-//  is always honored.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsDrivingJoystickFromKeys() const
-{
-    return m_arrowsJoystick &&
-           (m_machine.GetRefs().iieSoftSwitches != nullptr || m_machine.GetRefs().gamePort != nullptr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RouteKeyToGamePort
-//
-//  The game-port side of a key event: the //e's Open and Closed Apple and
-//  Shift lines, and with the joystick on the keys, the arrows' axes and the
-//  fire buttons. Each goes through the mixer, which writes it live and holds
-//  it behind live.
-//
-//  Opposing arrows resolve last-pressed-wins via the per-axis memory, which
-//  is what makes a quick left-right reversal read as a reversal rather than
-//  as centered. The fire buttons are re-resolved on EVERY key event in
-//  joystick mode, not just X / Z, so an Alt press/release re-applies its
-//  Open/Closed-Apple mapping without clobbering a still-held X / Z, and a
-//  released X / Z can't leave a button stuck while Alt is down. The matching
-//  X / Z WM_CHAR is suppressed in OnChar so the letters don't also type into
-//  the //e keyboard latch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RouteKeyToGamePort (const DxuiKeyEvent & ev)
-{
-    WPARAM  vk            = ev.vk;
-    bool    driveJoystick = IsDrivingJoystickFromKeys();
-
-
-
-    if (m_machine.GetRefs().keyboard == nullptr)
-    {
-        return;
-    }
-
-    if (ev.kind == DxuiKeyEventKind::Down)
-    {
-        ApplyAppleModifierKeys (vk, true);
-
-        if (driveJoystick && AppleKeyMapping::IsArrowVk (vk))
-        {
-            if (vk == VK_LEFT || vk == VK_RIGHT)
-            {
-                m_lastHorizontalArrowVk = vk;
-            }
-            else
-            {
-                m_lastVerticalArrowVk = vk;
-            }
-
-            UpdateJoystickAxesFromKeys();
-        }
-
-        if (driveJoystick)
-        {
-            UpdateJoystickButtonsFromKeys();
-        }
-    }
-    else if (ev.kind == DxuiKeyEventKind::Up)
-    {
-        // Release the //e Open/Closed-Apple and Shift modifiers as the host
-        // releases the physical keys.
-        ApplyAppleModifierKeys (vk, false);
-
-        if (m_arrowsJoystick && AppleKeyMapping::IsArrowVk (vk))
-        {
-            UpdateJoystickAxesFromKeys();
-        }
-
-        if (m_arrowsJoystick)
-        {
-            UpdateJoystickButtonsFromKeys();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MapHostCharToApple
-//
-//  A typed character as the keyboard will latch it. The //c keyboard switch
-//  remaps to Dvorak when engaged; the host's own layout is probed live and
-//  pushed in, so a host that is ALREADY Dvorak skips the remap instead of
-//  translating twice. Clipboard paste bypasses this path entirely and calls
-//  PressKey directly -- pasted text is never remapped, matching the hardware
-//  encoder.
-//
-//  Caps Lock brackets the remap. The host's comes out first, so the remap
-//  sees the key the user pressed with only Shift applied; the emulated one
-//  goes on last, because the encoder raises the letter a key produces, and
-//  on Dvorak some QWERTY letter keys produce punctuation it must leave
-//  alone. Paste skips both, keeping its case.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte EmulatorShell::MapHostCharToApple (WPARAM ch)
-{
-    Byte  code         = static_cast<Byte> (ch);
-    bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
-
-
-
-    code = CapsLockTracker::RemoveHostCapsLock (code, hostCapsLock);
-
-    if (m_machine.GetRefs().iieKeyboard != nullptr)
-    {
-        m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
-
-        code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
-    }
-
-    return CapsLockTracker::ApplyCapsLock (code, m_capsLock.IsOn (hostCapsLock));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetHeldKeyLatch
-//
-//  Behind live, what a key event will leave in the latch once it goes in: a
-//  fresh press of a special key the machine has, unless the arrows drive the
-//  joystick, or a typed character. Whether the event is a key this
-//  machine's keyboard has decides whether it holds any-key-down.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<Byte> EmulatorShell::GetHeldKeyLatch (
-    const DxuiKeyEvent  & ev,
-    bool                & outIsMachineKey)
-{
-    AppleKeyboard        * keyboard   = m_machine.GetRefs().keyboard;
-    AppleSpecialKey        specialKey = AppleSpecialKey::Left;
-    bool                   isSpecial  = false;
-    Byte                   code       = 0;
-    std::optional<Byte>    latch;
-
-
-
-    outIsMachineKey = false;
-
-    if (keyboard == nullptr)
-    {
-        return latch;
-    }
-
-    if (ev.kind == DxuiKeyEventKind::Down)
-    {
-        isSpecial       = AppleKeyMapping::TryMapVkToSpecialKey (ev.vk, specialKey);
-        code            = isSpecial ? keyboard->MapSpecialKey (specialKey) : 0;
-        outIsMachineKey = !isSpecial || code != 0;
-
-        if (!ev.repeat && code != 0 && !(IsDrivingJoystickFromKeys() && AppleKeyMapping::IsArrowVk (ev.vk)))
-        {
-            latch = keyboard->GetTypedLatch (code);
-        }
-    }
-    else if (ev.kind == DxuiKeyEventKind::Char && ev.vk <= 127)
-    {
-        latch = keyboard->GetTypedLatch (MapHostCharToApple (ev.vk));
-    }
-
-    return latch;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnViewportMouse
-//
-//  IDxuiViewportInputSink. The Apple ][ has no viewport-rect mouse mapping
-//  in the current build: paddle input is a captured relative-motion mode
-//  driven directly from OnMouseMove (SetCapture snaps the cursor to
-//  center), and the joystick maps to arrow keys -- neither fits the
-//  viewport's absolute-rect forwarding. Returns false so any future
-//  in-viewport click continues to bubble to the chrome hit-testing that
-//  owns it today.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
-{
-    UNREFERENCED_PARAMETER (ev);
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateJoystickAxesFromKeys
-//
-//  Host UI thread. Resolves the four arrow keys into the two emulated
-//  joystick axes and submits them to the game-port mixer as the arrow keys'
-//  contribution. The mixer writes them to whichever game port the machine
-//  has while the arrow keys own the axes; the PREAD timer ($C070 /
-//  $C064-$C067) turns them into analog readings.
-//
-//  Reads real-time physical key state via GetAsyncKeyState rather than the
-//  per-thread GetKeyState table, which can desync (and leave an axis stuck)
-//  if a key-up is lost to a focus change. Opposing keys resolve
-//  last-pressed-wins so a rolling reversal flips the axis instead of
-//  canceling to center.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateJoystickAxesFromKeys()
-{
-    GamePortContribution  contribution;
-    bool                  left         = false;
-    bool                  right        = false;
-    bool                  up           = false;
-    bool                  down         = false;
-    Byte                  x            = GamePortState::kPaddleCenter;
-    Byte                  y            = GamePortState::kPaddleCenter;
-
-
-
-    left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
-    right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
-    up    = (GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
-    down  = (GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
-
-    if (left && right)
-    {
-        x = (m_lastHorizontalArrowVk == VK_RIGHT) ? s_kPaddleAxisMax : s_kPaddleAxisMin;
-    }
-    else if (left)
-    {
-        x = s_kPaddleAxisMin;
-    }
-    else if (right)
-    {
-        x = s_kPaddleAxisMax;
-    }
-
-    if (up && down)
-    {
-        y = (m_lastVerticalArrowVk == VK_DOWN) ? s_kPaddleAxisMax : s_kPaddleAxisMin;
-    }
-    else if (up)
-    {
-        y = s_kPaddleAxisMin;
-    }
-    else if (down)
-    {
-        y = s_kPaddleAxisMax;
-    }
-
-    contribution.paddle[0] = x;
-    contribution.paddle[1] = y;
-
-    // Player 1's keys in a jack close its switches, on both jacks until the
-    // controllers place the players.
-    if (IsPlayerOneOnJoyport())
-    {
-        contribution.keyJacks.set();
-    }
-
-    m_gamePortMixer.Submit (GamePortSource::ArrowKeys, contribution);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateJoystickButtonsFromKeys
-//
-//  Host UI thread. Resolves the X / Z letter keys into the two emulated
-//  joystick fire buttons and submits them to the game-port mixer as the fire
-//  keys' contribution. The mixer writes PB0/PB1 to the //e keyboard's
-//  Open/Closed-Apple lines or the ][/][+ game port's pushbuttons ($C061,
-//  $C062), whichever the machine has.
-//
-//  Reads real-time physical key state via GetAsyncKeyState, matching the
-//  axis helper so a key-up lost to a focus change can't wedge a button on.
-//  The fire state is OR'd with the host left/right Alt keys so the X / Z
-//  mapping coexists with the existing Alt->button mapping instead of
-//  clobbering a held Alt.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdateJoystickButtonsFromKeys()
-{
-    GamePortContribution  contribution;
-    bool                  xDown        = false;
-    bool                  zDown        = false;
-    bool                  leftAltDown  = false;
-    bool                  rightAltDown = false;
-    std::bitset<2>        buttons;
-
-
-
-    // Only read the physical keys while WE are the foreground app. The async
-    // key state is global, so a held Alt during the Alt-Tab switcher (or any
-    // time another app is active) would otherwise keep re-pressing Open-Apple /
-    // button 0 in the guest every frame -- e.g. re-triggering a Print Shop
-    // print on the way out. Foreground reads normally (no added latency); not
-    // foreground leaves the buttons released. Matches the input gate used
-    // elsewhere (GetForegroundWindow() != m_hwnd).
-    if (GetForegroundWindow() == m_hwnd)
-    {
-        xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
-        zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
-        leftAltDown  = (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-        rightAltDown = (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
-    }
-
-    buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
-                                                 IsJoyportInEffect());
-
-    contribution.buttons.set (0, buttons.test (0));
-    contribution.buttons.set (1, buttons.test (1));
-    m_gamePortMixer.Submit (GamePortSource::FireKeys, contribution);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetInputMappingMode
-//
-//  Sets the host input mapping mode (Off / Joystick / Paddle) and persists
-//  it. Leaving Paddle drops the mouse capture. Joystick resolves the axes
-//  and fire buttons from the current key state so a held arrow / X / Z
-//  takes effect immediately. Off and Paddle both neutralize the
-//  key-derived stick and buttons so the game port reads neutral; Paddle
-//  then centers the paddle and grabs the mouse.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
-{
-    // Combined PRESET setter (button cycle + legacy callers): selects BOTH
-    // axes of the split model. The Machine-menu items toggle the
-    // axes independently via SetArrowsJoystick / SetPointerMapping, so
-    // e.g. Joystick keys + Mouse pointer can coexist (disjoint game-port
-    // lines); presets deliberately reset the other axis.
-    switch (mode)
-    {
-        case InputMappingMode::Joystick:
-            SetPointerMapping (InputMappingMode::Off);
-            SetArrowsJoystick (true);
-            break;
-
-        case InputMappingMode::Paddle:
-            SetArrowsJoystick (false);
-            SetPointerMapping (InputMappingMode::Paddle);
-            break;
-
-        case InputMappingMode::Mouse:
-            SetArrowsJoystick (false);
-            SetPointerMapping (InputMappingMode::Mouse);
-            break;
-
-        case InputMappingMode::Off:
-        default:
-            SetArrowsJoystick (false);
-            SetPointerMapping (InputMappingMode::Off);
-            break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetArrowsJoystick
-//
-//  Keys axis of the split input model: maps arrows + X/Z onto the joystick
-//  axes / fire buttons. Independent of the Mouse pointer (disjoint hardware),
-//  but mutually exclusive with Paddle -- both drive the game-port paddle
-//  lines -- so enabling it drops an active Paddle. Turning it off neutralizes
-//  the key-derived stick and buttons so a held key can't stay stuck (axes
-//  left alone while Paddle owns them).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetArrowsJoystick (bool on)
-{
-    // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
-    // so enabling it must drop an active Paddle (they fight over the same
-    // game-port lines). Mouse uses a separate slot card and may coexist.
-    // Dropped WITHOUT a sync of its own, so the one below finds the keys on
-    // and the paddle off together: Player 1's entry then goes from the mouse
-    // straight to the keys, never through Automatic, which would hand Player
-    // 1 a controller for a moment and announce it.
-    if (on && m_pointerMode == InputMappingMode::Paddle)
-    {
-        DropPaddleMode();
-    }
-
-    m_arrowsJoystick = on;
-    SyncGamePortAxisOwner();
-    SyncInputModeUi();
-
-    if (on)
-    {
-        UpdateJoystickAxesFromKeys();
-        UpdateJoystickButtonsFromKeys();
-        return;
-    }
-
-    ReleaseArrowKeySources();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DropPaddleMode
-//
-//  The paddle's half of turning the keys on: the capture ends and the
-//  pointer mapping goes Off. No sync; SetArrowsJoystick runs one with both
-//  changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DropPaddleMode()
-{
-    StopPaddleCapture();
-    m_pointerMode = InputMappingMode::Off;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DropArrowsJoystick
-//
-//  The keys' half of turning the paddle on. No sync; SetPointerMapping runs
-//  one with both changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DropArrowsJoystick()
-{
-    m_arrowsJoystick = false;
-    ReleaseArrowKeySources();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseArrowKeySources
-//
-//  The arrows drive nothing now: the axes go to whichever owner is left
-//  (center when none) and the fire buttons release. Alt held as Open or
-//  Solid-Apple is the modifier keys' own contribution, so it stays pressed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ReleaseArrowKeySources()
-{
-    m_gamePortMixer.ReleaseSource (GamePortSource::ArrowKeys);
-    m_gamePortMixer.ReleaseSource (GamePortSource::FireKeys);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncJoyport
-//
-//  UI thread, after the players' modes may have changed: the running
-//  machine's Joyport follows them on the next button read, with no reset.
-//  The keys are resubmitted, since Player 1's keys in a jack close its
-//  switches rather than drive the paddle inputs, and the Alt keys drop out
-//  of the fire keys while the Joyport is on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncJoyport()
-{
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
-    std::shared_lock<std::shared_mutex>  gate;
-    bool                                 isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-
-
-
-    // Behind live the Joyport holds the recorded settings, which the guest
-    // reads; the new ones reach it once the machine is live.
-    if (isGateOpen)
-    {
-        ApplyJoyportToMachine();
-    }
-    else
-    {
-        m_debugger->OweJoyportSync();
-    }
-
-    gate.unlock();
-    lifetime.unlock();
-
-    if (m_arrowsJoystick)
-    {
-        UpdateJoystickAxesFromKeys();
-        UpdateJoystickButtonsFromKeys();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsJoyportInEffect
-//
-//  Whether the running machine reads the Joyport: a player is in one of its
-//  jacks, on a machine that has one. A machine builds a Joyport exactly when
-//  it has the annunciators to drive one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsJoyportInEffect() const
-{
-    PlayerEntries  entries;
-
-
-
-    if (m_controllerService != nullptr)
-    {
-        entries = m_controllerService->GetPlayerEntries();
-    }
-
-    return PlayerModeRules::IsJoyportOn (entries, m_machine.GetJoyport() != nullptr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsPlayerOneOnJoyport
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsPlayerOneOnJoyport() const
-{
-    PlayerEntries  entries;
-
-
-
-    if (m_controllerService != nullptr)
-    {
-        entries = m_controllerService->GetPlayerEntries();
-    }
-
-    return PlayerModeRules::IsOnJoyport (entries, 0, m_machine.GetJoyport() != nullptr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsJoyportOffered
-//
-//  Whether the running machine can take a Joyport, which is what the picker's
-//  row and the Controllers page's switch are offered on: both apply at once
-//  to the running machine, so a machine staged elsewhere has no say.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::IsJoyportOffered() const
-{
-    return m_machine.GetJoyport() != nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetPointerMapping
-//
-//  Pointer axis of the split input model: Off / Paddle (capturing) /
-//  Mouse (non-capturing //c IOU mouse). Paddle and Mouse are mutually
-//  exclusive by construction -- both claim the host pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
-{
-    InputMappingMode  prev = m_pointerMode;
-
-
-
-    if (pointer == InputMappingMode::Joystick)   // not a pointer mode
-    {
-        pointer = InputMappingMode::Off;
-    }
-
-    // Paddle owns the game-port paddle axes (PDL0/1) -- the same lines the
-    // arrows->joystick remap drives -- so entering Paddle must drop the Keys
-    // axis. Mouse is a separate slot card (disjoint lines) and may coexist
-    // with Joystick, so only Paddle clears it. Enforced here (not just in the
-    // SetInputMappingMode presets) so the per-segment / menu toggle paths
-    // honor the same paddle-vs-joystick exclusivity. Dropped without a sync
-    // of its own, for the reason SetArrowsJoystick gives.
-    if (pointer == InputMappingMode::Paddle && m_arrowsJoystick)
-    {
-        DropArrowsJoystick();
-    }
-
-    if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
-    {
-        StopPaddleCapture();
-    }
-
-    // Leaving Mouse: release a held guest button so it can't stick, and
-    // drop the absolute target so the guest mouse stops tracking.
-    if (prev == InputMappingMode::Mouse && pointer != InputMappingMode::Mouse
-        && m_machine.GetMouse() != nullptr)
-    {
-        m_machine.GetMouse()->SetButton (false);
-        m_machine.GetMouse()->ClearHostTarget();
-    }
-
-    m_pointerMode = pointer;
-    SyncGamePortAxisOwner();
-    SyncInputModeUi();
-
-    if (pointer == InputMappingMode::Paddle)
-    {
-        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                             std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        m_paddleAxisX = (float) s_kPaddleCenterByte;
-        m_paddleAxisY = (float) s_kPaddleCenterByte;
-        PushPaddlePosition();
-
-        // THE HUD NOTICE SAYS THIS NOW, in both presentations. Entering
-        // paddle mode used to force a tooltip up for eight seconds, because
-        // the capture means the hover that would normally dismiss one never
-        // fires -- so it had to time out instead. That put a panel over the
-        // chrome it was anchored to, on top of whatever tooltip the pointer
-        // had already summoned, and it said what the notice over the picture
-        // now says for exactly as long as the capture lasts.
-        //
-        // AND WHATEVER IS ALREADY UP GOES NOW. The click that turns paddle
-        // mode on is a click ON a control, so its tooltip is showing -- and
-        // the capture that follows takes the pointer, so the move that would
-        // dismiss it never comes. It would sit there until its lifetime ran
-        // out, which is a long time to leave a balloon over a game.
-        m_chrome->m_toolbarTooltip.HideImmediate();
-        m_chrome->m_driveTooltip.HideImmediate();
-        m_chrome->m_switchBarTooltip.HideImmediate();
-
-        StartPaddleCapture();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PickPlayer
-//
-//  UI thread. The user picked an entry in a player's submenu. A controller
-//  takes effect at once, whether or not it has been used, and one the other
-//  player picked sends that player back to Automatic (FR-041).
-//
-//  The keys and the mouse go through their own setters, which hand PDL0 and
-//  PDL1 over and take the pointer, and record Player 1's entry through the
-//  axis owner. Any other entry for Player 1 gives them up. The entry is set
-//  FIRST, so the setters that give them up find Player 1 already on it and
-//  do not pass through Automatic on the way. From the keys to the mouse, or
-//  back, the setter turns the other off and syncs once with both changed, so
-//  Player 1's entry is set once, straight to the new one. The entries are
-//  saved with the global prefs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PickPlayer (size_t player, PlayerEntry entry)
-{
-    bool  isPlayerOne = player == 0;
-
-
-
-    if (isPlayerOne && entry.kind == PlayerEntryKind::ArrowKeys)
-    {
-        SetArrowsJoystick (true);
-        return;
-    }
-
-    if (isPlayerOne && entry.kind == PlayerEntryKind::MousePaddle)
-    {
-        SetPointerMapping (InputMappingMode::Paddle);
-        return;
-    }
-
-    PickPlayerEntry (player, entry);
-
-    if (isPlayerOne && m_arrowsJoystick)
-    {
-        SetArrowsJoystick (false);
-    }
-
-    if (isPlayerOne && m_pointerMode == InputMappingMode::Paddle)
-    {
-        SetPointerMapping (InputMappingMode::Off);
-    }
-
-    SyncJoyport();
-    SyncGamePortAxisOwner();
-    SyncInputModeUi();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetPlayerMode
-//
-//  UI thread. The mode is set FIRST, and the service returns Player 1 to
-//  Automatic when the new mode cannot have the keys or the mouse; turning
-//  those off afterwards then finds Player 1 already on Automatic and picks
-//  nothing on the way. The machine's Joyport follows the new modes, and the
-//  entries are saved with the global prefs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetPlayerMode (size_t player, PlayerMode mode)
-{
-    bool  isPlayerOne = player == 0;
-
-
-
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    m_controllerService->SetPlayerMode (player, mode);
-
-    if (isPlayerOne && PlayerModeRules::IsPaddleMode (mode) && m_arrowsJoystick)
-    {
-        SetArrowsJoystick (false);
-    }
-
-    if (isPlayerOne && !PlayerModeRules::IsPaddleMode (mode) && m_pointerMode == InputMappingMode::Paddle)
-    {
-        SetPointerMapping (InputMappingMode::Off);
-    }
-
-    SyncJoyport();
-    SyncGamePortAxisOwner();
-    SyncInputModeUi();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PickPlayerEntry
-//
-//  Hands one player's entry to the service and wakes its thread, so the
-//  choice takes effect on the next read rather than at the end of whatever
-//  wait the thread is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PickPlayerEntry (size_t player, const PlayerEntry & entry)
-{
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    m_controllerService->PickPlayerEntry (player, entry);
-
-    if (m_controllerThread != nullptr)
-    {
-        m_controllerThread->Wake();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncPaddleSourceList
-//
-//  Rebuilds the picker from what is attached and what is playing: a row for
-//  each player, the profiles of whatever controller plays there, and the
-//  word the closed picker wears. The menu holds the rows by pointer, so the
-//  strip is handed the new list whenever they are rebuilt.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncPaddleSourceList()
-{
-    InputModeRules::PickerSource      source;
-    ControllerInputService::Snapshot  snapshot;
-
-
-
-    // Without the controller service there is nothing to list, so the
-    // drop-down keeps its own rows rather than going empty.
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    snapshot = m_controllerService->GetSnapshot();
-
-    // A picked controller that is unplugged is still listed, under the
-    // description it had while it was here.
-    for (const ControllerDeviceInfo & device : snapshot.devices)
-    {
-        m_controllerDescriptions[ControllerTokens::UnitToToken (device.unit)] = device.description;
-    }
-
-    source.entries           = snapshot.entries;
-    source.slots             = snapshot.slots;
-    source.devices           = snapshot.devices;
-    source.profiles          = GetPickerProfileChoices (snapshot);
-    source.knownDescriptions = m_controllerDescriptions;
-    source.hasJoyport        = IsJoyportOffered();
-
-    m_chrome->m_mainMenu.GetCommands().SetPicker (InputModeRules::BuildPicker (source));
-
-    // Straight onto the command bar's drop-down rather than a submenu off the
-    // Machine menu: this is a list the user picks from while playing.
-    m_chrome->m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
-                                          m_chrome->m_mainMenu.GetCommands().GetPaddlePickerItems());
-
-    // The picker wears what is playing, so its width moves with the answer.
-    // Without laying the strip out again the new word paints into the rect
-    // the old one left behind.
-    {
-        RECT  bounds = m_chrome->m_toolbar.GetBounds();
-
-        if (bounds.right > bounds.left)
-        {
-            m_chrome->m_toolbar.Layout (bounds, m_scaler);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetPickerProfileChoices
-//
-//  Each attached controller's profiles of the kind it plays -- its player's
-//  mode, either Joyport jack being the Joyport kind -- that kind's built-in
-//  profile first, which a model with nothing saved still lists, and its
-//  active one.
-//  By unit token, since two pads of one model can play different profiles.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::map<std::string, InputModeRules::ProfileChoices> EmulatorShell::GetPickerProfileChoices (
-    const ControllerInputService::Snapshot & snapshot) const
-{
-    std::map<std::string, ControllerModelSettings>         models  = m_controllerService->GetModelSettings();
-    std::map<std::string, InputModeRules::ProfileChoices>  choices;
-
-
-
-    for (const ControllerDeviceInfo & device : snapshot.devices)
-    {
-        std::string                       token  = ControllerTokens::UnitToToken (device.unit);
-        auto                              model  = models.find (ControllerTokens::ModelToToken (device.unit.model));
-        auto                              active = snapshot.activeProfiles.find (token);
-        auto                              kind   = snapshot.profileModes.find (token);
-        ProfileMode                       mode   = (kind != snapshot.profileModes.end()) ? kind->second : ProfileMode::Joystick;
-        InputModeRules::ProfileChoices  & entry  = choices[token];
-
-        entry.names  = (model != models.end()) ? model->second.GetProfileNames (mode)
-                                               : ControllerModelSettings().GetProfileNames (mode);
-        entry.active = (active != snapshot.activeProfiles.end()) ? active->second : std::string();
-    }
-
-    return choices;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PickControllerProfile
-//
-//  UI thread. The user chose the profile one controller plays with. The rate
-//  paddles return to center, since the old profile's position means nothing
-//  to the new one, and the choice is saved with the global controller
-//  settings, since it belongs to the controller on every machine.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PickControllerProfile (ControllerUnitKey unit, std::string profileName)
-{
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    m_controllerService->SetActiveProfile (unit, profileName);
-    m_controllerService->ResetPaddleRate();
-
-    if (m_controllerThread != nullptr)
-    {
-        m_controllerThread->Wake();
-    }
-
-    SaveControllerPrefs();
-    SyncPaddleSourceList();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartNewControllerProfile
-//
-//  New... at the foot of a player's profile section. Settings opens on the
-//  Controllers page with Editing on that section's controller, and the New
-//  Profile dialog comes up for it. Opened without the Controllers page's own
-//  landing, which would move Editing to player one's controller first.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::StartNewControllerProfile (ControllerUnitKey unit)
-{
-    m_settings->OpenSettings (false);
-
-    if (m_settings->GetSheet() != nullptr)
-    {
-        m_settings->GetSheet()->StartNewControllerProfile (unit);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyControllerSlotsChange
-//
-//  UI thread. The players' slots changed, or a controller came or went. The
-//  axis owner and the picker follow either way, and the global prefs take
-//  the entries when a picked controller was followed to another identity,
-//  and the last holders when a slot's holder changed.
-//
-//  A CONTROLLER CONNECTING TURNS NOTHING OFF. The keys or the mouse picked
-//  for Player 1 stay until the user picks something else.
-//
-//  Each notice -- a controller that left, or one Automatic gave a slot that
-//  another controller held last time -- goes onto the notice stack over the
-//  picture, never into a dialog: the user did not ask about this, so
-//  stopping the machine to have it acknowledged would interrupt them to
-//  report something they may not care about.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyControllerSlotsChange (
-    const std::vector<std::wstring>  & notices,
-    bool                               haveEntriesChanged,
-    bool                               haveLastHoldersChanged)
-{
-    SyncGamePortAxisOwner();
-
-    if (haveEntriesChanged)
-    {
-        SyncInputModeUi();
-    }
-    else if (haveLastHoldersChanged)
-    {
-        SaveControllerPrefs();
-    }
-
-    for (const std::wstring & notice : notices)
-    {
-        m_chrome->ShowNotice (notice);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TraceControllerState
-//
-//  Every step between a controller moving and the game port changing, once a
-//  second, to the debugger, while CASSO_CONTROLLER_TRACE is set. Off and free
-//  otherwise: the variable is read once.
-//
-//  A controller that does nothing is the hardest fault to reason about,
-//  because every stage fails the same way -- nothing happens. Reading which
-//  stage stopped beats guessing at the one before it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::TraceControllerState()
-{
-    static int                          s_enabled = -1;
-    ControllerInputService::TickReport  tick;
-    ControllerInputService::Snapshot    snapshot;
-    InputModeRules::State               state;
-    wchar_t                             line[512] = {};
-    int64_t                             nowMs     = 0;
-
-
-
-    if (s_enabled < 0)
-    {
-        wchar_t  value[8] = {};
-
-        s_enabled = (GetEnvironmentVariableW (L"CASSO_CONTROLLER_TRACE", value, ARRAYSIZE (value)) > 0) ? 1 : 0;
-    }
-
-    if (s_enabled == 0 || m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now().time_since_epoch()).count();
-
-    if (nowMs - m_controllerTraceMs < 1000)
-    {
-        return;
-    }
-
-    m_controllerTraceMs = nowMs;
-
-    tick     = m_controllerService->GetLastTickReport();
-    snapshot = m_controllerService->GetSnapshot();
-
-    state.arrowsJoystick       = m_arrowsJoystick;
-    state.mousePaddle          = (m_pointerMode == InputMappingMode::Paddle);
-    state.hasController        = snapshot.slots[0].holder.has_value() || snapshot.slots[1].holder.has_value();
-    state.isControllerAttached = snapshot.isAnyDriverConnected;
-
-    swprintf_s (line,
-        L"[controller] devices=%zu sel=%d xinput=%d "
-        L"read=0x%08X connected=%d mapping=%d appActive=%d submit=%d "
-        L"paddle=%d,%d buttons=%d%d%d deadZone=%.2f owner=%d\n",
-        snapshot.devices.size(),
-        tick.hasPlayerOne, tick.isActiveXInput, (unsigned int) tick.readResult, tick.isConnected,
-        tick.hasMapping, tick.isAppActive, tick.didSubmit,
-        tick.submitted.paddle[0].has_value() ? (int) tick.submitted.paddle[0].value() : -1,
-        tick.submitted.paddle[1].has_value() ? (int) tick.submitted.paddle[1].value() : -1,
-        tick.submitted.buttons.test (0), tick.submitted.buttons.test (1),
-        tick.submitted.buttons.test (2),
-        tick.deadzone,
-        (int) InputModeRules::GetAxisOwners (state)[0]);
-
-    OutputDebugStringW (line);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetStandInBannerText
-//
-//  The line the input-mode bar carries, or empty when there is no bar. The
-//  rule is in InputModeRules; this only gathers what it asks about.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring EmulatorShell::GetStandInBannerText() const
-{
-    InputModeRules::State  state;
-
-
-
-    state.arrowsJoystick = m_arrowsJoystick;
-    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
-
-    return InputModeRules::GetStandInBannerText (state);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncGamePortAxisOwner
-//
-//  Who owns each axis: Player 1's keys or mouse own PDL0 and PDL1 while one of
-//  them is picked -- the keys only outside the Joyport's jacks, and the mouse
-//  PDL0 alone while Player 2 plays, outside Two paddles mode -- and the
-//  controller source owns the rest,
-//  and all four otherwise. The rule itself is in InputModeRules so it can be
-//  asserted without a machine. Which controller drives which axis is settled
-//  inside the controller source, which leaves an axis it does not drive at
-//  center.
-//
-//  THE KEYS AND THE MOUSE ARE PLAYER 1'S ENTRY, so the players follow them:
-//  a controller then plays as Player 2 beside them rather than as Player 1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncGamePortAxisOwner()
-{
-    InputModeRules::State             state;
-    InputModeRules::AxisOwners        owners;
-    ControllerInputService::Snapshot  snapshot;
-    PlayerEntry                       playerOne;
-    PlayerEntryKind                   wanted    = PlayerEntryKind::Automatic;
-    size_t                            axis      = 0;
-
-
-
-    state.arrowsJoystick = m_arrowsJoystick;
-    state.mousePaddle    = (m_pointerMode == InputMappingMode::Paddle);
-
-    if (m_controllerService != nullptr)
-    {
-        snapshot  = m_controllerService->GetSnapshot();
-        playerOne = snapshot.entries[0];
-        wanted    = playerOne.kind;
-
-        state.isKeysOnJoyport   = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
-        state.isSecondPlaying   = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
-        state.isMouseTwoPaddles = PlayerModeRules::ResolveMode (snapshot.entries, 0, m_machine.GetJoyport() != nullptr) == PlayerMode::TwoPaddles;
-
-        if (state.mousePaddle)
-        {
-            wanted = PlayerEntryKind::MousePaddle;
-        }
-        else if (state.arrowsJoystick)
-        {
-            wanted = PlayerEntryKind::ArrowKeys;
-        }
-        else if (wanted == PlayerEntryKind::ArrowKeys || wanted == PlayerEntryKind::MousePaddle)
-        {
-            wanted = PlayerEntryKind::Automatic;
-        }
-
-        if (wanted != playerOne.kind)
-        {
-            playerOne.kind = wanted;
-            playerOne.unit.reset();
-            PickPlayerEntry (0, playerOne);
-        }
-    }
-
-    owners = InputModeRules::GetAxisOwners (state);
-
-    for (axis = 0; axis < owners.size(); axis++)
-    {
-        m_gamePortMixer.SetAxisOwner (axis, owners[axis]);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SyncInputModeUi
 //
 //  Common tail for the axis setters: refresh the toggle button's displayed
@@ -4085,7 +2332,7 @@ void EmulatorShell::SyncInputModeUi()
     // SyncSelectorState rebuilds the picker rows; calling SyncPaddleSourceList
     // here as well rebuilt them twice for every mode change.
     SyncSelectorState();
-    PersistInputModeForMachine();
+    m_input->PersistInputModeForMachine();
 }
 
 
@@ -4104,481 +2351,7 @@ void EmulatorShell::SyncInputModeUi()
 
 void EmulatorShell::SyncSelectorState()
 {
-    SyncPaddleSourceList();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyDefaultPointerForMachine
-//
-//  A //c with its mouse connected and no pointer mapping chosen
-//  defaults Pointer to Mouse -- a runtime nudge, not persisted, and
-//  invisible until guest mouse software runs (firmware-live gate). Called
-//  after the per-machine connected states are seeded at launch and on
-//  machine switch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyDefaultPointerForMachine()
-{
-    if (m_machine.GetMouse() != nullptr && m_mouseConnected
-        && m_pointerMode == InputMappingMode::Off)
-    {
-        // State only -- NO chrome work here. This runs on the CPU thread
-        // during SwitchMachine, and the selector sync measures text through
-        // the Dxui renderer, which is UI-thread-only (DxuiAssertUiThread
-        // fired on a //c -> //e switch). Both paths already sync on the UI
-        // thread afterwards: a machine switch posts WM_APP_DXUI_UPDATE_TITLE,
-        // whose handler runs ReflowChromeForMachineChange, and the launch
-        // path lays out the chrome later in Initialize.
-        m_pointerMode = InputMappingMode::Mouse;
-
-        // SyncSelectorState touches Dxui (text measurement) and asserts the
-        // UI thread. On a machine switch this runs
-        // on the CPU thread, so defer the chrome reflection to the post-switch
-        // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
-        // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
-        // (launch, or before the window exists) reflect it immediately.
-        bool  offUiThread = (m_hwnd != nullptr) &&
-                            (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
-
-        if (offUiThread)
-        {
-            return;
-        }
-
-        SyncSelectorState();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CycleInputMappingMode
-//
-//  Advances the input mapping mode Off -> Joystick -> Paddle -> Off.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CycleInputMappingMode()
-{
-    InputMappingMode  next    = InputMappingMode::Off;
-    InputMappingMode  current = GetDisplayInputMode();
-
-
-
-    // Mouse (mouse-capable machines only) deliberately precedes Paddle:
-    // entering Paddle CAPTURES the pointer (clicks become fire buttons),
-    // so any mode placed after Paddle would be unreachable by clicking
-    // the toggle. Mouse mode is non-capturing, so the toggle stays
-    // clickable and Paddle remains reachable from it.
-    switch (current)
-    {
-        case InputMappingMode::Off:
-            next = InputMappingMode::Joystick;
-            break;
-
-        case InputMappingMode::Joystick:
-            next = (m_machine.GetMouse() != nullptr && m_mouseConnected)
-                       ? InputMappingMode::Mouse
-                       : InputMappingMode::Paddle;
-            break;
-
-        case InputMappingMode::Mouse:
-            next = InputMappingMode::Paddle;
-            break;
-
-        case InputMappingMode::Paddle:
-        default:
-            next = InputMappingMode::Off;
-            break;
-    }
-
-    SetInputMappingMode (next);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ToggleInputMappingMode
-//
-//  Radio-group selection for the Machine-menu Joystick / Paddle items:
-//  picks `target`, or turns mapping Off when `target` is already active so
-//  re-selecting the current mode clears it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
-{
-    switch (target)
-    {
-        case InputMappingMode::Joystick:
-            SetArrowsJoystick (!m_arrowsJoystick);
-            break;
-
-        case InputMappingMode::Paddle:
-            SetPointerMapping (m_pointerMode == InputMappingMode::Paddle
-                                   ? InputMappingMode::Off : InputMappingMode::Paddle);
-            break;
-
-        case InputMappingMode::Mouse:
-            SetPointerMapping (m_pointerMode == InputMappingMode::Mouse
-                                   ? InputMappingMode::Off : InputMappingMode::Mouse);
-            break;
-
-        default:
-            SetInputMappingMode (InputMappingMode::Off);
-            break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PasteClipboardText
-//
-//  Ctrl+V and Edit > Paste. Caps Lock applies only where the machine has the
-//  key: the //e and //c keyboards. The ][ and ][+ have no lower case, and their
-//  keyboard raises every letter itself, so there is nothing to explain.
-//
-//  The notice appears only when the paste actually differs from the
-//  clipboard, which is the moment the user can see the result and wonder why.
-//
-//  Behind live a paste is held as typed keys are: its text waits in the
-//  buffer, which drains only once the machine is live, and the question
-//  whether to discard the history after this point waits until the guest
-//  reads the keyboard where the first character would change what it reads.
-//  A yes types the text in live from there, a no drops it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PasteClipboardText()
-{
-    bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
-    bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
-    bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
-    bool    raisedLetters  = false;
-    bool    isBehindLive   = m_debugger->IsBehindLiveForUi();
-    Byte    first          = 0;
-    size_t  length         = 0;
-
-
-
-    if (m_clipboardManager == nullptr || !m_debugger->AllowCommand (IDM_EDIT_PASTE, std::string()))
-    {
-        return;
-    }
-
-    if (isBehindLive && !m_debugger->GetDivergenceGate().HasHeldPaste())
-    {
-        m_debugger->SetPasteLengthBeforeHold (m_clipboardManager->GetPasteLength (first));
-    }
-
-    raisedLetters = m_clipboardManager->PasteFromClipboard (m_hwnd, capsLockOn);
-    length        = m_clipboardManager->GetPasteLength (first);
-
-    if (isBehindLive && length > m_debugger->GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
-    {
-        m_debugger->GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        m_debugger->PublishHeldInput();
-    }
-
-    if (raisedLetters)
-    {
-        m_chrome->ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClipPaddleCursorToClient
-//
-//  The pointer confined to the picture and parked in the middle -- the half of
-//  "captured" the user can see. Kept apart from StartPaddleCapture because the
-//  clip has to be laid on twice: once at the grab, and again when a cancel the
-//  chrome's own layout raised has to be taken back (see OnCancelMode).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ClipPaddleCursorToClient()
-{
-    RECT   client  = {};
-    POINT  topLeft = {};
-    POINT  botRt   = {};
-    RECT   clip    = {};
-    POINT  center  = {};
-
-
-
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
-    {
-        return;
-    }
-
-    topLeft.x = client.left;
-    topLeft.y = client.top;
-    botRt.x   = client.right;
-    botRt.y   = client.bottom;
-    ClientToScreen (m_hwnd, &topLeft);
-    ClientToScreen (m_hwnd, &botRt);
-
-    clip.left   = topLeft.x;
-    clip.top    = topLeft.y;
-    clip.right  = botRt.x;
-    clip.bottom = botRt.y;
-    ClipCursor (&clip);
-
-    center.x = (client.right  - client.left) / 2;
-    center.y = (client.bottom - client.top)  / 2;
-    ClientToScreen (m_hwnd, &center);
-    SetCursorPos (center.x, center.y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartPaddleCapture
-//
-//  Hides and confines the cursor to the client area, parks it at center,
-//  and begins relative tracking. No-op unless the mode is Paddle, the
-//  window owns the foreground, and capture isn't already active. The
-//  current (held) paddle position is pushed so a re-grab after an Esc
-//  release resumes from where the dial was left.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::StartPaddleCapture()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
-    BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
-    BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
-    BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
-
-    m_paddleCaptured = true;
-
-    //  THE BAND IS CLAIMED BEFORE THE MOUSE IS, and the order is the point.
-    //  Docking resizes the picture, and Windows answers a resize by cancelling
-    //  the mode of whoever holds the pointer -- so the layout runs while there
-    //  is no grab to lose, and the grab is taken once it has settled. Traced
-    //  in that order, no cancel arrives at all; the two guards below exist for
-    //  the case where one does anyway.
-    //
-    //  NOT IN FULLSCREEN, where the band is zero however this ends: the bar
-    //  hangs off the top edge there instead. A layout pass would be a settle
-    //  of the whole scene plus a synchronous repaint for no change at all --
-    //  and one caller of this grab is the fullscreen strip's own tick, which
-    //  runs inside the frame the repaint would re-enter.
-    m_chrome->m_captureReflowMs = 0;
-
-    if (!m_renderer->m_d3dRenderer.IsFullscreen())
-    {
-        m_chrome->ReflowChromeForChangeBand();
-        m_chrome->m_captureReflowMs = ChangeBannerNowMs();
-    }
-
-    SetCapture (m_hwnd);
-
-    // Drive the per-thread ShowCursor counter negative so the arrow hides.
-    while (ShowCursor (FALSE) >= 0)
-    {
-    }
-
-    ClipPaddleCursorToClient();
-
-    PushPaddlePosition();
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StopPaddleCapture
-//
-//  Releases the mouse capture and cursor clip, restores the cursor, and
-//  clears the fire buttons so a held mouse button doesn't stick. No-op
-//  when not captured. Leaves the input mode unchanged, so the dial holds
-//  its position for a later re-grab.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::StopPaddleCapture()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
-
-    m_paddleCaptured = false;
-
-    ClipCursor (nullptr);
-
-    if (GetCapture() == m_hwnd)
-    {
-        ReleaseCapture();
-    }
-
-    while (ShowCursor (TRUE) < 0)
-    {
-    }
-
-    PushPaddleButton (0, false);
-    PushPaddleButton (1, false);
-
-    //  ...and the picture takes the height back -- windowed, where it gave any
-    //  up. See StartPaddleCapture for why fullscreen is left alone.
-    if (!m_renderer->m_d3dRenderer.IsFullscreen())
-    {
-        m_chrome->ReflowChromeForChangeBand();
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdatePaddleFromMouse
-//
-//  Maps one WM_MOUSEMOVE while paddle-captured: the motion relative to the
-//  client center is scaled (s_kPaddleSweepInches of DPI-scaled travel =
-//  full range) into the held paddle axes, then the cursor is snapped back
-//  to center for unbounded relative motion. The zero-delta move our own
-//  recenter generates is ignored.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::UpdatePaddleFromMouse (int xClient, int yClient)
-{
-    HRESULT  hr         = S_OK;
-    RECT     client     = {};
-    int      centerX    = 0;
-    int      centerY    = 0;
-    int      dx         = 0;
-    int      dy         = 0;
-    UINT     dpi        = 96;
-    float    unitsPerPx = 0.0f;
-    POINT    center     = {};
-
-
-
-    BAIL_OUT_IF (!m_paddleCaptured, S_OK);
-
-    GetClientRect (m_hwnd, &client);
-    centerX = (client.right  - client.left) / 2;
-    centerY = (client.bottom - client.top)  / 2;
-    dx      = xClient - centerX;
-    dy      = yClient - centerY;
-
-    // The SetCursorPos recenter below re-enters here with a zero delta.
-    BAIL_OUT_IF (dx == 0 && dy == 0, S_OK);
-
-    dpi = GetDpiForWindow (m_hwnd);
-    if (dpi == 0)
-    {
-        dpi = 96;
-    }
-
-    unitsPerPx    = s_kPaddleRange / (s_kPaddleSweepInches * (float) dpi);
-    m_paddleAxisX = std::clamp (m_paddleAxisX + (float) dx * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
-    m_paddleAxisY = std::clamp (m_paddleAxisY + (float) dy * unitsPerPx, s_kPaddleMinF, s_kPaddleMaxF);
-
-    PushPaddlePosition();
-
-    center.x = centerX;
-    center.y = centerY;
-    ClientToScreen (m_hwnd, &center);
-    SetCursorPos (center.x, center.y);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PushPaddlePosition
-//
-//  Submits the held paddle axes to the game-port mixer as the mouse paddle's
-//  contribution, keeping its buttons as they are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PushPaddlePosition()
-{
-    Byte  x = (Byte) (m_paddleAxisX + 0.5f);
-    Byte  y = (Byte) (m_paddleAxisY + 0.5f);
-
-
-
-    m_mousePaddleContribution.paddle[0] = x;
-    m_mousePaddleContribution.paddle[1] = y;
-    m_gamePortMixer.Submit (GamePortSource::MousePaddle, m_mousePaddleContribution);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PushPaddleButton
-//
-//  Submits a paddle fire button (0 or 1) to the game-port mixer as part of
-//  the mouse paddle's contribution, keeping its axes as they are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PushPaddleButton (int index, bool pressed)
-{
-    constexpr int  kMouseButtonCount = 2;
-    HRESULT        hr                = S_OK;
-
-
-
-    CBRA (index >= 0 && index < kMouseButtonCount);
-
-    m_mousePaddleContribution.buttons.set (static_cast<size_t> (index), pressed);
-    m_gamePortMixer.Submit (GamePortSource::MousePaddle, m_mousePaddleContribution);
-
-Error:
-    return;
+    m_input->SyncPaddleSourceList();
 }
 
 
@@ -4659,7 +2432,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    bool  isFireKey = m_arrowsJoystick &&
+    bool  isFireKey = m_input->m_arrowsJoystick &&
                       (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                        m_machine.GetRefs().gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');
@@ -4691,4 +2464,38 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // Consumed either way: a character the shell suppressed must not fall
     // through to DefWindowProc any more than one the guest took.
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportKey
+//
+//  The viewport's keys, once the chrome has passed on them, are the guest's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
+{
+    return m_input->HandleViewportKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportMouse
+//
+//  The viewport's mouse, likewise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
+{
+    return m_input->HandleViewportMouse (ev);
 }

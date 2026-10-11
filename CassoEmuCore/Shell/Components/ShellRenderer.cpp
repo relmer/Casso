@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
@@ -647,7 +648,7 @@ bool ShellRenderer::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     m_shell.m_chrome->TickFullscreenTopChrome();
     m_shell.m_chrome->SyncStandInBanner();
-    m_shell.TraceControllerState();
+    m_shell.m_input->TraceControllerState();
     m_shell.m_chrome->SyncNotice();
     m_shell.m_chrome->SyncFrameRateReadout();
     m_shell.m_scene->SyncSceneViewReadout();
@@ -869,8 +870,8 @@ bool ShellRenderer::TryPresentUiFrame()
         // cursor is the only pointer there is, and the bottom edge must
         // summon the strip -- Active gated the reveal off for the whole
         // session on a machine whose mouse is built in.
-        inputs.guestPointer  = m_shell.m_paddleCaptured    ? GuestPointerMode::Paddle
-                             : m_shell.IsGuestMouseLive()    ? GuestPointerMode::Mouse
+        inputs.guestPointer  = m_shell.m_input->m_paddleCaptured    ? GuestPointerMode::Paddle
+                             : m_shell.m_input->IsGuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
 
@@ -878,9 +879,9 @@ bool ShellRenderer::TryPresentUiFrame()
 
         if (effects.releaseCapture)
         {
-            if (m_shell.m_paddleCaptured)
+            if (m_shell.m_input->m_paddleCaptured)
             {
-                m_shell.StopPaddleCapture();
+                m_shell.m_input->StopPaddleCapture();
             }
             else
             {
@@ -890,7 +891,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
         if (effects.restoreCapture == GuestPointerMode::Paddle)
         {
-            m_shell.StartPaddleCapture();
+            m_shell.m_input->StartPaddleCapture();
         }
         else if (effects.restoreCapture == GuestPointerMode::Mouse)
         {

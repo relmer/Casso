@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/EmulatorShellDebuggerHost.h"
 
@@ -292,7 +293,7 @@ void EmulatorShell::DebuggerHost::PersistSwitchState (const char * key, bool val
 
 HeldHostInputs & EmulatorShell::DebuggerHost::GetHeldHostInputs()
 {
-    return m_shell.m_heldHostInputs;
+    return m_shell.m_input->m_heldHostInputs;
 }
 
 

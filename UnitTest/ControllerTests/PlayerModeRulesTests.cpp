@@ -6,6 +6,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Shell/Components/ShellInput.h"
 #include "Shell/EmulatorShell.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -345,10 +346,10 @@ namespace ControllerTests
 
 
 
-            Assert::IsFalse (shell->IsJoyportOffered(), L"a running machine with no Joyport, the //c, is not offered one");
+            Assert::IsFalse (shell->GetInput().IsJoyportOffered(), L"a running machine with no Joyport, the //c, is not offered one");
 
             shell->GetMachine().SetJoyport (std::make_unique<SiriusJoyport>());
-            Assert::IsTrue (shell->IsJoyportOffered(), L"a running machine that built one is offered it");
+            Assert::IsTrue (shell->GetInput().IsJoyportOffered(), L"a running machine that built one is offered it");
         }
     };
 }

@@ -638,6 +638,8 @@
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\ShellDebugger.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
+    <ClCompile Include="Shell\Components\ShellInput.cpp" />
+    <ClCompile Include="Shell\EmulatorShellInputHost.cpp" />
     <ClCompile Include="Shell\Components\ShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
     <ClCompile Include="Shell\EmulatorShellDialogs.cpp" />
@@ -1267,6 +1269,9 @@
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />
     <ClInclude Include="Config\DebuggerSettings.h" />
     <ClInclude Include="Shell\DebuggerSliceHooks.h" />
+    <ClInclude Include="Shell\Components\ShellInput.h" />
+    <ClInclude Include="Shell\IInputHost.h" />
+    <ClInclude Include="Shell\EmulatorShellInputHost.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
     <ClInclude Include="Shell\Components\ShellChrome.h" />

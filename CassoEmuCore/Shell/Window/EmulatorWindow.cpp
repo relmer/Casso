@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Core/ThreadName.h"
 
@@ -633,9 +634,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the leave-time release of a held guest button runs identically. It is
     // offered only where there is a mouse to drive: the //c.
     m_chrome->m_mainMenu.GetCommands().SetMouseModeFns (
-        [this] () { return m_pointerMode == InputMappingMode::Mouse; },
-        [this] () { return m_machine.GetMouse() != nullptr && m_mouseConnected; },
-        [this] () { ToggleInputMappingMode (InputMappingMode::Mouse); });
+        [this] () { return m_input->m_pointerMode == InputMappingMode::Mouse; },
+        [this] () { return m_machine.GetMouse() != nullptr && m_input->m_mouseConnected; },
+        [this] () { m_input->ToggleInputMappingMode (InputMappingMode::Mouse); });
 
     m_chrome->m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
     {
@@ -663,8 +664,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
-            case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_input->m_arrowsJoystick;
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_input->m_pointerMode == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
 
@@ -675,24 +676,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_chrome->m_mainMenu.GetCommands().SetPlayerPickedFn (
         [this] (size_t player, const PlayerEntry & entry)
         {
-            PickPlayer (player, entry);
+            m_input->PickPlayer (player, entry);
         });
 
     m_chrome->m_mainMenu.GetCommands().SetPlayerModeFn (
         [this] (size_t player, PlayerMode mode)
         {
-            SetPlayerMode (player, mode);
+            m_input->SetPlayerMode (player, mode);
         });
 
     m_chrome->m_mainMenu.GetCommands().SetProfilePickedFn (
         [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {
-            PickControllerProfile (unit, profileName);
+            m_input->PickControllerProfile (unit, profileName);
         });
 
     m_chrome->m_mainMenu.GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
-        StartNewControllerProfile (unit);
+        m_input->StartNewControllerProfile (unit);
     });
 
     m_chrome->m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
@@ -1085,7 +1086,7 @@ int EmulatorShell::RunMessageLoop()
         {
             // The sheet may have created, renamed or deleted profiles, and
             // the command bar's profile list is built from them.
-            SyncPaddleSourceList();
+            m_input->SyncPaddleSourceList();
         }
 
         // Process pending messages, bounded by the drain deadline (see banner):
@@ -1393,15 +1394,15 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 {
     if (!active)
     {
-        StopPaddleCapture();
+        m_input->StopPaddleCapture();
     }
 
     // Controller input follows the application, not one window: the Settings
     // sheet is Casso too, and XInput was measured still delivering while
     // another application was in front, so the gate has to be ours.
-    if (m_controllerService != nullptr)
+    if (m_input->m_controllerService != nullptr)
     {
-        m_controllerService->SetActive (active);
+        m_input->m_controllerService->SetActive (active);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -1419,14 +1420,14 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 DxuiMessageResult EmulatorShell::OnKillFocus()
 {
-    StopPaddleCapture();
+    m_input->StopPaddleCapture();
 
     // Losing keyboard focus means the matching WM_KEYUPs will never arrive
     // here -- whatever window took focus gets them. Release the guest keyboard
     // latch, its armed auto-repeat, and the modifier states, so a key held
     // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
     // can never leave the emulated key repeating forever.
-    ReleaseGuestKeys();
+    m_input->ReleaseGuestKeys();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1453,19 +1454,19 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     //  other cancel -- a modal, a secure desktop, a real takeover -- releases
     //  the pointer as it always did, which is what keeps a hidden cursor from
     //  being stranded behind someone else's window.
-    if (m_paddleCaptured && m_chrome->m_captureReflowMs != 0
+    if (m_input->m_paddleCaptured && m_chrome->m_captureReflowMs != 0
         && ChangeBannerNowMs() - m_chrome->m_captureReflowMs <= ShellChrome::s_kCaptureReflowEchoMs
         && GetForegroundWindow() == m_hwnd
         && !m_chrome->m_mainMenu.IsOpen())
     {
         m_chrome->m_captureReflowMs = 0;
         SetCapture (m_hwnd);
-        ClipPaddleCursorToClient();
+        m_input->ClipPaddleCursorToClient();
 
         return DxuiMessageResult::Handled;
     }
 
-    StopPaddleCapture();
+    m_input->StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -2110,8 +2111,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
 
 
-        ReleaseInputsLetGoBehindLive();
-        m_gamePortMixer.FlushPending();
+        m_input->ReleaseInputsLetGoBehindLive();
+        m_input->m_gamePortMixer.FlushPending();
 
         // A controller's flush can arrive behind live, before the cut a yes
         // queued; what is held waits for the one going live posts.
@@ -2124,7 +2125,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         if (m_debugger->TakeJoyportSyncOwed())
         {
-            SyncJoyport();
+            m_input->SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
@@ -2183,19 +2184,19 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         bool                       haveLastHoldersChanged = false;
 
         {
-            std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+            std::lock_guard<std::mutex>  lock (m_input->m_controllerPickMutex);
 
-            notices.swap (m_controllerPickNotices);
-            haveEntriesChanged         = m_controllerPickHasEntries;
-            haveLastHoldersChanged     = m_controllerPickHasHolders;
-            m_controllerPickHasEntries = false;
-            m_controllerPickHasHolders = false;
+            notices.swap (m_input->m_controllerPickNotices);
+            haveEntriesChanged         = m_input->m_controllerPickHasEntries;
+            haveLastHoldersChanged     = m_input->m_controllerPickHasHolders;
+            m_input->m_controllerPickHasEntries = false;
+            m_input->m_controllerPickHasHolders = false;
         }
 
         // A device arriving or leaving changes the rows even when it changes
         // nothing else, so the list is rebuilt on every one of these.
-        ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
-        SyncPaddleSourceList();
+        m_input->ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
+        m_input->SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
     }

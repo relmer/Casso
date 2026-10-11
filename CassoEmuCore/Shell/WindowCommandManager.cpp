@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 
 #include "Core/ThreadName.h"
@@ -545,15 +546,15 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 
 
 
-    if (connected != m_shell.m_mouseConnected)
+    if (connected != m_shell.m_input->m_mouseConnected)
     {
-        m_shell.m_mouseConnected = connected;
+        m_shell.m_input->m_mouseConnected = connected;
 
-        if (!connected && m_shell.m_pointerMode == InputMappingMode::Mouse)
+        if (!connected && m_shell.m_input->m_pointerMode == InputMappingMode::Mouse)
         {
             // Drops Mouse mode; SetPointerMapping re-syncs the selector as a
             // side effect (SyncInputModeUi -> SyncSelectorState).
-            m_shell.SetPointerMapping (InputMappingMode::Off);
+            m_shell.m_input->SetPointerMapping (InputMappingMode::Off);
         }
         else
         {
@@ -687,7 +688,7 @@ void WindowCommandManager::OnEditCommand (int id)
 
         case IDM_EDIT_PASTE:
         {
-            m_shell.PasteClipboardText();
+            m_shell.m_input->PasteClipboardText();
             break;
         }
     }
@@ -839,13 +840,13 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_ARROWS_JOYSTICK:
         {
-            m_shell.ToggleInputMappingMode (InputMappingMode::Joystick);
+            m_shell.m_input->ToggleInputMappingMode (InputMappingMode::Joystick);
             break;
         }
 
         case IDM_MACHINE_ARROWS_PADDLE:
         {
-            m_shell.ToggleInputMappingMode (InputMappingMode::Paddle);
+            m_shell.m_input->ToggleInputMappingMode (InputMappingMode::Paddle);
             break;
         }
     }

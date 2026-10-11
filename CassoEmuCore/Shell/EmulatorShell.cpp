@@ -1,8 +1,10 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellDebuggerHost.h"
+#include "Shell/EmulatorShellInputHost.h"
 #include "Shell/MachineManager.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellChrome.h"
@@ -149,6 +151,8 @@ EmulatorShell::EmulatorShell()
 
     m_debuggerHost = std::make_unique<DebuggerHost> (*this);
     m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_settings->GetPrefs().debugger);
+    m_inputHost    = std::make_unique<InputHost> (*this);
+    m_input        = std::make_unique<ShellInput> (*this, *m_inputHost);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -249,14 +253,14 @@ EmulatorShell::~EmulatorShell()
     //
     //  In order: the thread stops and joins first, so nothing is inside the
     //  service when it goes; then the service, then the backend it reads.
-    m_controllerThread.reset();
+    m_input->m_controllerThread.reset();
 
     // What automatic calibration learned this session, while the service that
     // holds it still exists and nothing is reading into it.
-    SaveControllerPrefs();
+    m_input->SaveControllerPrefs();
 
-    m_controllerService.reset();
-    m_controllerBackend.reset();
+    m_input->m_controllerService.reset();
+    m_input->m_controllerBackend.reset();
 
     m_cpuManager.Stop();
 
@@ -688,7 +692,7 @@ HRESULT EmulatorShell::Initialize (
     // Every paddle and pushbutton write goes through the mixer from here on.
     // Writes happen on this (the UI) thread; a submission from any other
     // thread posts a flush back to the window.
-    m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
+    m_input->m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
     {
         GamePortTargets            targets;
         const MachineDefinition  * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
@@ -707,52 +711,52 @@ HRESULT EmulatorShell::Initialize (
     });
 
     // Held back while reverse execution has the machine behind live.
-    m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
+    m_input->m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_debugger->GetDivergenceGate(), [this]
+    m_input->m_gamePortSink->SetDivergenceGate (&m_debugger->GetDivergenceGate(), [this]
     {
         m_debugger->PublishHeldInput();
     });
 
-    m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
+    m_input->m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_hwnd]
     {
         PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
     });
 
-    m_gamePortMixer.SetSink (m_gamePortSink.get());
+    m_input->m_gamePortMixer.SetSink (m_input->m_gamePortSink.get());
 
     // Physical controllers. The backend is initialized on the controller
     // thread, which owns the window its device notifications arrive at, so
     // nothing here touches a device.
-    m_controllerBackend = std::make_unique<Win32ControllerBackend>();
-    m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
+    m_input->m_controllerBackend = std::make_unique<Win32ControllerBackend>();
+    m_input->m_controllerService = std::make_unique<ControllerInputService> (*m_input->m_controllerBackend, m_input->m_gamePortMixer);
 
     // Saved controller settings, calibrations and players, before the thread
     // starts reading, so its first evaluation already knows who was picked
     // and who last held each slot.
-    LoadControllerPrefs();
+    m_input->LoadControllerPrefs();
 
-    m_controllerThread  = std::make_unique<ControllerInputThread>();
+    m_input->m_controllerThread  = std::make_unique<ControllerInputThread>();
 
     // A controller that held a slot and left is said over the picture, and so
     // is one Automatic gave a slot that another controller held last time;
     // the command bar's picker already shows what is playing after either.
-    m_controllerService->SetSlotsChangedFn (
+    m_input->m_controllerService->SetSlotsChangedFn (
         [this] (const ControllerInputService::SlotsChange & change)
         {
             {
-                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+                std::lock_guard<std::mutex>  lock (m_input->m_controllerPickMutex);
 
                 for (const std::wstring & description : change.departedDescriptions)
                 {
-                    m_controllerPickNotices.push_back (description + L" disconnected.");
+                    m_input->m_controllerPickNotices.push_back (description + L" disconnected.");
                 }
 
-                m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
-                m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
-                m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
+                m_input->m_controllerPickNotices.insert (m_input->m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
+                m_input->m_controllerPickHasEntries = m_input->m_controllerPickHasEntries || change.haveEntriesChanged;
+                m_input->m_controllerPickHasHolders = m_input->m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
             PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
@@ -760,7 +764,7 @@ HRESULT EmulatorShell::Initialize (
 
     // A connect or disconnect changes who owns the axes but tells the user
     // nothing, so it takes the same trip to the UI thread without a notice.
-    m_controllerService->SetStateChangedFn ([this]
+    m_input->m_controllerService->SetStateChangedFn ([this]
     {
         PostMessageW (m_hwnd, WM_APP_CONTROLLER_PICK, 0, 0);
     });
@@ -768,13 +772,13 @@ HRESULT EmulatorShell::Initialize (
     // The Controllers page asking for a controller to be read wakes the
     // thread, which may be waiting on an event-driven controller that is not
     // moving.
-    m_controllerService->SetWakeFn ([this]
+    m_input->m_controllerService->SetWakeFn ([this]
     {
-        m_controllerThread->Wake();
+        m_input->m_controllerThread->Wake();
     });
 
-    hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
-                                    [this] { return m_controllerService->Tick(); });
+    hr = m_input->m_controllerThread->Start (m_input->m_controllerBackend.get(), m_input->m_controllerService.get(),
+                                    [this] { return m_input->m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = m_renderer->InitializeRenderer();

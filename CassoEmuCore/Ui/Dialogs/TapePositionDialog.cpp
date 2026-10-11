@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Ui/Dialogs/TapePositionDialog.h"
 #include "Ui/Chrome/TapeDeckWidget.h"

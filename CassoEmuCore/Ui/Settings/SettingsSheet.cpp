@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "SettingsSheet.h"
 #include "SettingsSheetSize.h"
@@ -73,9 +74,9 @@ SettingsSheet::~SettingsSheet()
     m_compositor.Shutdown();
 
     // The page is gone, so the controller thread stops reading its controller.
-    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    if (m_emuShell != nullptr && m_emuShell->GetInput().GetControllerService() != nullptr)
     {
-        m_emuShell->GetControllerService()->SetInspectedUnit (std::nullopt);
+        m_emuShell->GetInput().GetControllerService()->SetInspectedUnit (std::nullopt);
     }
 }
 
@@ -506,7 +507,7 @@ HRESULT SettingsSheet::OpenModeless (
     // reads whichever controller the page shows, so it can be assigned and
     // calibrated without being the selected one.
     {
-        ControllerInputService *  service = m_emuShell->GetControllerService();
+        ControllerInputService *  service = m_emuShell->GetInput().GetControllerService();
 
         if (service != nullptr)
         {
@@ -543,7 +544,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->PickPlayer (player, entry);
+                m_emuShell->GetInput().PickPlayer (player, entry);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -555,7 +556,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->SetPlayerMode (player, mode);
+                m_emuShell->GetInput().SetPlayerMode (player, mode);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -781,12 +782,12 @@ bool SettingsSheet::TrySyncControllersPlayers()
 
 
 
-    if (m_emuShell == nullptr || m_emuShell->GetControllerService() == nullptr || m_controllersPage == nullptr)
+    if (m_emuShell == nullptr || m_emuShell->GetInput().GetControllerService() == nullptr || m_controllersPage == nullptr)
     {
         return false;
     }
 
-    snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+    snapshot = m_emuShell->GetInput().GetControllerService()->GetSnapshot();
 
     // Laid out again rather than merely re-synced: the section is not a value
     // on the page, it is rows that come and go, and every row below it moves
@@ -977,9 +978,9 @@ void SettingsSheet::OnDialogTick()
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.
-    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetInput().GetControllerService() != nullptr)
     {
-        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetInput().GetControllerService()->GetSnapshot();
 
         m_controllersState.UpdateDevices (snapshot.devices);
 

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/ControllerProfileStore.h"
@@ -513,7 +514,7 @@ void SettingsApplyController::CommitApply()
                     }
                 }
 
-                m_emuShell->SyncPaddleSourceList();
+                m_emuShell->GetInput().SyncPaddleSourceList();
             }
         }
 

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "MachineManager.h"
 
@@ -342,7 +343,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
-                    m_shell.m_mouseConnected = mouseConn;
+                    m_shell.m_input->m_mouseConnected = mouseConn;
 
                     // The cassette recorder: the switched-to machine's own
                     // setting, connected unless it was disconnected.
@@ -414,8 +415,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
     // on the chrome. The nudge follows the adopt, so the //c mouse default
     // sees the restored mapping rather than being overwritten by it.
-    m_shell.AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
-    m_shell.ApplyDefaultPointerForMachine();
+    m_shell.m_input->AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
+    m_shell.m_input->ApplyDefaultPointerForMachine();
 
     // Reverse execution's history belongs to the machine being left, whose
     // devices are about to go; stopping it also lets the flush below write.
@@ -500,13 +501,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // The new machine's Joyport comes up detached; the global setting
         // attaches it where it is in effect, before the power cycle below opens
         // the reset window. The //c reads it as off and leaves it as it was.
-        m_shell.ApplyJoyportToMachine();
+        m_shell.m_input->ApplyJoyportToMachine();
     }
 
     // The new devices hold none of the game-port state the mixer wrote to the
     // old ones, and a write refused while the rebuild held the lock is still
     // pending. Both are delivered by this, on the UI thread.
-    m_shell.m_gamePortMixer.NotifyMachineRebuilt();
+    m_shell.m_input->m_gamePortMixer.NotifyMachineRebuilt();
 
     // The build unregistered the old disk-audio sources and created new
     // ones. They are registered with the mixer but hold no sample data yet

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Devices/Tape/TapeTurboGovernor.h"
 
@@ -111,8 +112,8 @@ void EmulatorShell::ApplyPersistedMachinePrefs()
     // Here rather than with the chrome prefs because both read state that is
     // seeded earlier: the mouse device exists by now, and
     // ApplyPersistedChromePrefs has already applied mouseConnected.
-    AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
-    ApplyDefaultPointerForMachine();
+    m_input->AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
+    m_input->ApplyDefaultPointerForMachine();
     SyncSelectorState();
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
@@ -440,68 +441,6 @@ void EmulatorShell::RunCpuThreadFrame()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TickKeyboardAutoRepeat
-//
-//  Advances the //e keyboard's auto-repeat cadence by the real time since the
-//  previous CPU-thread frame.
-//
-//  The cadence used to be counted in guest cycles, ticked once per
-//  instruction. That reads as authentic and is not: the //e's repeat is
-//  generated in the keyboard encoder, off an oscillator that knows nothing
-//  about the 6502, and a typist's finger rests in real seconds either way. So
-//  the guest clock dragged it along -- Double repeated at twice the rate off
-//  half the delay, and Maximum, which runs uncapped at tens of times real,
-//  turned a held key into hundreds of characters a second and made the
-//  machine impossible to type on.
-//
-//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
-//  and the clock read replaces one call per instruction. The stamp is
-//  advanced by the whole microseconds handed over rather than set to now, so
-//  the sub-microsecond remainder is carried instead of being dropped every
-//  frame -- at Maximum speed the frames are short enough for that to matter.
-//
-//  Each repeat that fires is journaled as a key press at the cycle it landed
-//  on, so a replay applies the same presses without this host-time timer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::TickKeyboardAutoRepeat()
-{
-    uint32_t  elapsed = 0;
-    Byte      fired   = 0;
-
-
-
-    if (m_machine.GetRefs().keyboard == nullptr)
-    {
-        return;
-    }
-
-    // The first frame since the machine came up starts the interval rather
-    // than reporting the whole time since the epoch, and a stall is charged
-    // once at the device's initial delay: the device caps anything past it at
-    // one repeat anyway. Both rules are the clock's, and tested there.
-    elapsed = m_renderer->m_frameClock.TakeKeyRepeatElapsedUs (AppleKeyboard::kKeyRepeatDelayUs);
-
-    if (elapsed == 0)
-    {
-        return;
-    }
-
-    fired = m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
-
-    if (fired != 0)
-    {
-        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  RunWatchedSlice
 //
 //  One slice. Behind live, with input held back, the devices report a read
@@ -612,7 +551,7 @@ void EmulatorShell::ExecuteCpuSlices()
     // replay applies from the journal.
     if (!isBehindLive)
     {
-        TickKeyboardAutoRepeat();
+        m_input->TickKeyboardAutoRepeat();
     }
 
     audioActive = (m_machine.GetRefs().speaker != nullptr && m_audio->IsOutputUp());

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellInput.h"
 #include "Shell/EmulatorShell.h"
 
 #include "FakeControllerBackend.h"
@@ -40,7 +41,7 @@ namespace ControllerTests
         public:
             void  InstallControllerService (IControllerBackend & backend)
             {
-                m_controllerService = std::make_unique<ControllerInputService> (backend, m_gamePortMixer);
+                GetInput().m_controllerService = std::make_unique<ControllerInputService> (backend, GetInput().m_gamePortMixer);
             }
 
             void  StartOn (PlayerEntryKind kind)
@@ -50,14 +51,14 @@ namespace ControllerTests
 
 
                 entries[0].kind  = kind;
-                m_arrowsJoystick = kind == PlayerEntryKind::ArrowKeys;
-                m_pointerMode    = (kind == PlayerEntryKind::MousePaddle) ? InputMappingMode::Paddle : InputMappingMode::Off;
-                m_controllerService->SetPlayerEntries (entries);
+                GetInput().m_arrowsJoystick = kind == PlayerEntryKind::ArrowKeys;
+                GetInput().m_pointerMode    = (kind == PlayerEntryKind::MousePaddle) ? InputMappingMode::Paddle : InputMappingMode::Off;
+                GetInput().m_controllerService->SetPlayerEntries (entries);
             }
 
-            ControllerInputService &  GetService()             { return *m_controllerService; }
-            bool                      IsArrowsJoystick() const { return m_arrowsJoystick; }
-            InputMappingMode          GetPointerMode() const   { return m_pointerMode; }
+            ControllerInputService &  GetService()             { return *GetInput().m_controllerService; }
+            bool                      IsArrowsJoystick() const { return GetInput().m_arrowsJoystick; }
+            InputMappingMode          GetPointerMode() const   { return GetInput().m_pointerMode; }
         };
 
 
@@ -106,7 +107,7 @@ namespace ControllerTests
             });
 
             picked.kind = to;
-            shell.PickPlayer (0, picked);
+            shell.GetInput().PickPlayer (0, picked);
         }
 
 
@@ -169,7 +170,7 @@ namespace ControllerTests
                 recorder.notices.insert (recorder.notices.end(), change.notices.begin(), change.notices.end());
             });
 
-            shell.SetPlayerMode (0, mode);
+            shell.GetInput().SetPlayerMode (0, mode);
         }
 
 
