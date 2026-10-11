@@ -133,6 +133,11 @@ public:
     // stays under it. Zooming about the viewport CENTER instead would push
     // the thing being inspected off toward an edge exactly as it got big
     // enough to look at.
+    // The wheel and touchscreen gestures, framing the scene: zoom, pan and
+    // orbit. A one-finger drag is left alone while the guest is pointing.
+    DxuiMessageResult  OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal);
+    DxuiMessageResult  OnGesture    (WPARAM wParam, LPARAM lParam, bool isGuestPointing);
+
     void    ZoomSceneAt          (POINT clientPt, float factor);
     DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
     void    OrbitSceneBy         (float yawRad, float pitchRad);

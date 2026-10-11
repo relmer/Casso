@@ -3136,3 +3136,273 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
 
     InvalidateSceneComposition();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnMouseWheel
+//
+//  The wheel frames the desk scene, and WHICH WAY it frames it depends on
+//  what sent it. A touchpad and a mouse produce the same message, and only
+//  the DELTA distinguishes them. A wheel is detented and reports whole
+//  WHEEL_DELTA notches; a precision touchpad reports the finger, in
+//  fractions of one. So:
+//
+//    - a touchpad PINCH arrives as Ctrl+wheel, and zooms.
+//    - a whole notch is a mouse wheel, and zooms -- a mouse has no pinch, and
+//      taking its zoom away to gain a pan would be a poor trade.
+//    - anything else is a two-finger slide, and PANS.
+//
+//  On a touchpad this works like every map and every drawing program: drag
+//  to move, pinch to scale. Horizontal wheel input is used as well, because
+//  panning on one axis with no way to pan the other is worse than not
+//  panning, and a precision touchpad sends both axes.
+//
+//  The test is deliberately one-sided: only a delta that is NOT a whole notch
+//  is treated as a touchpad. On a touchpad whose driver rounds to 120, a
+//  slide zooms, as it did before touchpad panning was added.
+//
+//  Touchscreen gestures do not come through here at all. They arrive as
+//  WM_GESTURE and are handled in OnGesture, whose pinch and one-finger drag
+//  are untouched by any of this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult ShellDeskScene::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
+{
+    int     delta   = GET_WHEEL_DELTA_WPARAM (wParam);
+    POINT   pt      = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    bool    pinch   = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+    bool    detent  = (delta % WHEEL_DELTA) == 0;
+    float   notch   = 0.0f;
+    float   factor  = 1.0f;
+
+
+
+    // Not in fullscreen: the picture fills the client and the desk is not on
+    // screen, so there is no camera to move, only hidden state to scramble
+    // for the return to windowed.
+    if (delta == 0 || !m_shell.DeskSceneActive() || m_shell.m_renderer->GetD3D().IsFullscreen())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Screen -> client: WM_MOUSEWHEEL packs the point in SCREEN coordinates,
+    // unlike every button message, which is a reliable way to zoom toward the
+    // wrong place on a window that is not at the origin.
+    if (m_shell.m_hwnd == nullptr || !ScreenToClient (m_shell.m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // Fractional notches matter: a precision touchpad sends many small
+    // deltas rather than one WHEEL_DELTA, and rounding them to whole notches
+    // turns a smooth slide into a series of jumps.
+    notch = (float) delta / (float) WHEEL_DELTA;
+
+    // Shift turns the slide into an orbit -- the touchpad's spin-the-scene,
+    // matching Shift+drag on the buttons. Content follows the fingers, and
+    // Windows reports a downward slide negative and a rightward one positive
+    // (see PanSceneByNotch), so both axes take the negative.
+    //
+    // THE KEYBOARD STATE IS READ DIRECTLY, not the message's. Windows turns
+    // Shift+slide into horizontal scrolling, and the precision-touchpad path
+    // synthesizes those wheel messages WITHOUT MK_SHIFT in their keystate,
+    // so that gesture arrived with no flag, fell through, and panned.
+    if (((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 ||
+         (GetKeyState (VK_SHIFT) & 0x8000) != 0) && !pinch)
+    {
+        // BOTH SIGNS ARE DERIVED FROM THE PAN, not measured one gesture at
+        // a time. The pan is the one slide mapping the user has validated:
+        // panX -= notch reads as content-follows-fingers, which pins what
+        // this hardware reports -- a rightward or upward slide arrives
+        // NEGATIVE. The drag's mapping then fixes the orbit: drag right is
+        // yaw negative and drag up is pitch negative, so a slide, with a
+        // negative notch for the same motion, multiplies by POSITIVE
+        // rates on both axes. The first flip fixed the vertical axis alone
+        // and left horizontal inverted, which read as "backwards" the
+        // moment the scene was spun side to side.
+        if (horizontal)
+        {
+            OrbitSceneBy (notch * s_kOrbitRadPerNotch, 0.0f);
+        }
+        else
+        {
+            OrbitSceneBy (0.0f, notch * s_kOrbitRadPerNotch);
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (!pinch && !detent)
+    {
+        return PanSceneByNotch (notch, horizontal);
+    }
+
+    // A horizontal wheel that got this far is a tilt wheel, which has no
+    // second axis to pair with, so it means nothing here.
+    if (horizontal)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    factor = std::pow (s_kSceneZoomStep, notch);
+
+    ZoomSceneAt (pt, factor);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnGesture
+//
+//  Touchscreen pinch and drag, framing the desk scene exactly as the wheel
+//  and a mouse drag do.
+//
+//  Windows reports both gestures ABSOLUTELY -- a pinch as the current
+//  separation between the fingers, a pan as the current point -- so each step
+//  is the ratio or difference against the previous report, and GF_BEGIN
+//  reseeds rather than measuring the first step of a new gesture against
+//  wherever the last one ended.
+//
+//  A pinch is a RATIO, not a difference: fingers moving 20 px apart means
+//  something quite different starting from 40 px apart than from 400, and
+//  only the ratio matches the motion of the fingers.
+//
+//  ptsLocation is in SCREEN coordinates like the wheel's point, not client
+//  like the button messages -- the same trap, in a second place.
+//
+//  A single-finger drag pans without the zoom gate the mouse path applies.
+//  On a mouse the press has to be shared with clicking, so panning waits
+//  until there is something to pan to; a touch drag on the backdrop has no
+//  competing meaning, and not moving would look broken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult ShellDeskScene::OnGesture (WPARAM wParam, LPARAM lParam, bool isGuestPointing)
+{
+    GESTUREINFO  info    = {};
+    POINT        pt      = {};
+    bool         handled = false;
+
+
+
+    info.cbSize = sizeof (info);
+
+    // In fullscreen the picture fills the client and the desk is not on
+    // screen, so there is no camera to move.
+    if (!m_shell.DeskSceneActive() || m_shell.m_renderer->GetD3D().IsFullscreen() ||
+        !GetGestureInfo (reinterpret_cast<HGESTUREINFO> (lParam), &info))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    pt.x = info.ptsLocation.x;
+    pt.y = info.ptsLocation.y;
+
+    if (m_shell.m_hwnd == nullptr || !ScreenToClient (m_shell.m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    switch (wParam)
+    {
+        case GID_ZOOM:
+        {
+            if ((info.dwFlags & GF_BEGIN) != 0 || m_gestureZoomLast == 0)
+            {
+                m_gestureZoomLast = info.ullArguments;
+                handled           = true;
+                break;
+            }
+
+            if (info.ullArguments > 0)
+            {
+                ZoomSceneAt (pt, (float) info.ullArguments / (float) m_gestureZoomLast);
+                m_gestureZoomLast = info.ullArguments;
+            }
+
+            handled = true;
+            break;
+        }
+
+        case GID_PAN:
+        {
+            RECT   box    = m_deskScene.Composition().viewportPx;
+            float  width  = (float) (box.right - box.left);
+            float  height = (float) (box.bottom - box.top);
+
+            // TWO fingers dragging together orbit; one finger pans. Windows
+            // reports the finger separation in ullArguments for a pan, and a
+            // single finger reports zero -- which is the whole discriminator.
+            // The two-finger form is always handled: it has no widget
+            // meaning to preserve, and orbit works at any zoom.
+            if (info.ullArguments > 0)
+            {
+                if ((info.dwFlags & GF_BEGIN) != 0)
+                {
+                    m_gesturePanLastPx = pt;
+                    handled            = true;
+                    break;
+                }
+
+                OrbitSceneBy (-(float) (pt.x - m_gesturePanLastPx.x) * OrbitRadPerPx(),
+                                       (float) (pt.y - m_gesturePanLastPx.y) * OrbitRadPerPx());
+
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
+
+            // NOT HANDLED when there is nothing to pan to. Windows promotes
+            // an unhandled gesture to mouse input, so handling a one-finger
+            // drag at 1x would swallow it, and touch could not work the drive
+            // widgets at all: the scene would gain a pan it cannot use, and
+            // every touch drag that meant something else would be swallowed.
+            //
+            // Not handled while the guest is pointing, for the same reason:
+            // a one-finger drag is then someone pointing, and it has to be
+            // promoted to mouse input.
+            if (m_sceneView.zoom <= 1.0f || width <= 0.0f || height <= 0.0f ||
+                isGuestPointing)
+            {
+                break;
+            }
+
+            if ((info.dwFlags & GF_BEGIN) != 0)
+            {
+                m_gesturePanLastPx = pt;
+                handled            = true;
+                break;
+            }
+
+            m_sceneView.panX += ((float) (pt.x - m_gesturePanLastPx.x) / width)  * 2.0f;
+            m_sceneView.panY -= ((float) (pt.y - m_gesturePanLastPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+
+            m_gesturePanLastPx = pt;
+            handled            = true;
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if ((info.dwFlags & GF_END) != 0)
+    {
+        m_gestureZoomLast = 0;
+    }
+
+    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
