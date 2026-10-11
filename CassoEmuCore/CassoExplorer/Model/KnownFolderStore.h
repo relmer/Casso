@@ -102,6 +102,7 @@ private:
     //  process that reads it back, which has its own working directory, so it
     //  is dropped rather than listed as a folder that cannot be found.
     static bool          IsUsableFolder (const std::wstring & folder);
+    static std::wstring  UppercaseDrive (const std::wstring & folder);
 
     static std::wstring  JoinBase (const std::wstring & baseDir, const std::wstring & name);
 

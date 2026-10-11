@@ -223,6 +223,25 @@ public:
     }
 
 
+    TEST_METHOD (LowercaseDriveLetter_IsListedAndRecordedInCapitals)
+    {
+        InMemoryFileSystem                    fs;
+        KnownFolderStore                      store (fs, kBase);
+        std::vector<KnownFolderStore::Entry>  entries;
+        std::vector<std::wstring>             folders;
+
+        entries.push_back (KnownFolderStore::Entry { L"h:\\", 1 });
+        folders = KnownFolderStore::ListRootFolders (fs, kBase, entries);
+
+        Assert::AreEqual ((size_t) 1, folders.size());
+        Assert::AreEqual (std::wstring (L"H:\\"), folders[0]);
+
+        AssertSucceeded (store.Append (L"d:\\Disks", 2));
+        AssertSucceeded (store.Load (entries));
+
+        Assert::AreEqual (std::wstring (L"D:\\Disks"), entries.back().path);
+    }
+
     TEST_METHOD (RootFolders_AreEmptyWithNothingRecordedAndNoDisksFolder)
     {
         InMemoryFileSystem                    fs;

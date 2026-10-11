@@ -58,7 +58,7 @@ public:
 
         Assert::AreEqual ((size_t) 3, folders.size());
         Assert::AreEqual (std::wstring (L"E:\\Known"),  folders[0].wstring());
-        Assert::AreEqual (std::wstring (L"d:\\shared"), folders[1].wstring(), L"a folder in both lists appears once, where the known list put it");
+        Assert::AreEqual (std::wstring (L"D:\\shared"), folders[1].wstring(), L"a folder in both lists appears once, where the known list put it, its drive letter in capitals");
         Assert::AreEqual (std::wstring (L"C:\\Recent"), folders[2].wstring());
     }
 

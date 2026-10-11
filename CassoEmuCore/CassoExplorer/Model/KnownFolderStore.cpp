@@ -50,7 +50,7 @@ std::vector<std::wstring> KnownFolderStore::ListRootFolders (
         //  relative path, and no listing of it would find anything.
         if (IsUsableFolder (entry.path))
         {
-            folders.push_back (entry.path);
+            folders.push_back (UppercaseDrive (entry.path));
         }
     }
 
@@ -422,10 +422,37 @@ std::wstring KnownFolderStore::Resolve (const std::wstring & folder) const
 
     if (folder.empty() || !path.is_relative() || m_baseDir.empty())
     {
-        return folder;
+        return UppercaseDrive (folder);
     }
 
-    return (std::filesystem::path (m_baseDir) / path).lexically_normal().wstring();
+    return UppercaseDrive ((std::filesystem::path (m_baseDir) / path).lexically_normal().wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KnownFolderStore::UppercaseDrive
+//
+//  A drive letter typed or picked in lowercase is shown in capitals, as
+//  Explorer shows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring KnownFolderStore::UppercaseDrive (const std::wstring & folder)
+{
+    std::wstring  out = folder;
+
+
+
+    if (out.size() >= 2 && out[1] == L':' && out[0] >= L'a' && out[0] <= L'z')
+    {
+        out[0] = (wchar_t) (out[0] - L'a' + L'A');
+    }
+
+    return out;
 }
 
 
