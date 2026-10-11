@@ -551,8 +551,14 @@ and text files shows four different icons in every view.
   size in the message; nothing is written.
 - **Both roots show the same folder**: the Casso root lists it as known;
   This PC lists it in place. Selecting either fills the same list.
-- **Known folder no longer exists**: it stays listed, grayed, and Remove
-  from Casso works on it as on any known folder.
+- **Known folder no longer exists**: one deleted from a drive that is present
+  is dropped from Casso's folder list by whichever of Casso and Casso
+  Explorer notices first: Casso when it lists folders for a disk picker,
+  Casso Explorer when it lists its Casso root, at start and on Refresh. One
+  whose drive is not present, or that is on a network share, stays listed and
+  grayed, since it is likely to come back, and Remove from Casso works on it
+  as on any known folder. A recent disk's folder that is gone is left out of
+  the disk picker.
 - **Two Casso Explorer windows edit the same image**: last write wins, and the
   other window refreshes on focus; no locking.
 - **Casso launched Casso Explorer and then exited**: Insert falls back to the
