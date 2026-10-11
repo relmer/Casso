@@ -279,7 +279,7 @@ EmulatorShell::~EmulatorShell()
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
-    m_window->m_dragDropTarget.Shutdown();
+    m_window->ShutdownDragDrop();
     m_disks->GetDriveWidgets().UnloadDocument();
     m_chrome->m_mainMenu.Hide();
     m_chrome->m_mainMenu.SetPopupHost (nullptr);
@@ -298,11 +298,7 @@ EmulatorShell::~EmulatorShell()
 
     m_renderer->m_d3dRenderer.Shutdown();
 
-    if (m_window->m_fOleInitialized)
-    {
-        OleUninitialize();
-        m_window->m_fOleInitialized = false;
-    }
+    m_window->UninitializeOle();
 }
 
 
@@ -664,10 +660,8 @@ HRESULT EmulatorShell::Initialize (
     // reference we pair with OleUninitialize at shutdown. A hard failure here
     // means the UI thread's apartment was already claimed with a conflicting
     // model -- a startup-ordering bug on our side, so assert.
-    hr = OleInitialize (nullptr);
-    CHRA (hr);
-
-    m_window->m_fOleInitialized = true;
+    hr = m_window->InitializeOle();
+    CHR (hr);
 
     m_renderer->AllocateFramebuffers();
 
@@ -695,42 +689,10 @@ HRESULT EmulatorShell::Initialize (
 
     // WASAPI audio is initialized on the CPU thread (COM apartment requirement)
 
-    // Show window. A placement saved while maximized restores the state,
-    // not just the normal rect it was created with: showing maximized
-    // directly (instead of SW_SHOW then SW_MAXIMIZE) avoids a one-frame
-    // flash of the restored-size window.
-
-    // HONOR WHAT THE LAUNCHER ASKED FOR. Windows carries a requested show
-    // state through CreateProcess into wCassoMain, which is how
-    // Start-Process -WindowStyle Minimized and every scripted launch says
-    // "come up, but do not take the screen". Casso discarded it and always
-    // activated, so a build-and-run in the background stole focus from
-    // whatever the user was doing.
-    //
-    // Only a PARTICULAR request wins. SW_SHOWDEFAULT / SW_SHOW / normal is
-    // what an ordinary double-click carries and means nothing in
-    // particular, and the remembered placement -- which knows whether the
-    // window was maximized -- is the better answer for it.
-    {
-        int   show = m_window->m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
-
-        switch (m_window->m_startShowCmd)
-        {
-            case SW_HIDE:
-            case SW_MINIMIZE:
-            case SW_SHOWMINIMIZED:
-            case SW_SHOWMINNOACTIVE:
-            case SW_SHOWNOACTIVATE:
-            case SW_SHOWNA:
-                show = m_window->m_startShowCmd;
-                break;
-
-            default:
-                break;
-        }
-
-        ShowWindow (m_hwnd, show);
-    }
+    // The window opens in the state the launcher requested, or else in the saved
+    // placement's. A window saved maximized opens maximized directly, not with
+    // SW_SHOW then SW_MAXIMIZE, which would flash the restored size for a frame.
+    ShowWindow (m_hwnd, m_window->GetStartupShowState());
 
     UpdateWindow (m_hwnd);
 
@@ -1241,7 +1203,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_tapeDeck->RegisterTapeDropTarget();
     }
 
-    if (m_window->m_fOleInitialized)
+    if (m_window->IsOleInitialized())
     {
         m_window->InstallDragDropTarget();
     }

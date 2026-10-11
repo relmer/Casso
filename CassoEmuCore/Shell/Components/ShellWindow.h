@@ -17,20 +17,16 @@ class WindowManager;
 //  ShellWindow
 //
 //  The main window's placement and size: the saved per-monitor placement,
-//  the startup show state, the first size reconcile, the client size a
-//  framebuffer or the drive row asks for, the caption's title and the app
+//  the startup window state, the first size reconcile, the client size that
+//  fits a framebuffer or the drive row, the caption's title and the app
 //  icon, the accelerators, OLE and the drag-drop target, and the message
-//  filter intents arrive through.
-//
-//  The window's message handlers stay on the shell, which routes them, and
-//  read and write the placement flags directly, so the shell is a friend.
+//  filter intents arrive through. The window's message handlers are on the
+//  shell, which calls these.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellWindow
 {
-    friend class EmulatorShell;
-
 public:
     explicit ShellWindow (EmulatorShell & shell);
     ~ShellWindow();
@@ -100,6 +96,36 @@ public:
     // as well costs a call and removes the dependency.
     void    InstallIntentMessageFilter ();
 
+    // OLE on the UI thread, which the drag-drop target and the drive widgets'
+    // file pickers require, paired with its uninitialization at shutdown. The
+    // drag-drop target is shut down before the window goes; a click the drop
+    // left behind on a drive is consumed once.
+    HRESULT  InitializeOle              ();
+    void     UninitializeOle            ();
+    bool     IsOleInitialized           () const { return m_fOleInitialized; }
+    void     ShutdownDragDrop           ();
+    bool     ConsumeSuppressedDropClick ();
+
+    // The first ShowWindow's state: a particular request from the launcher,
+    // else the saved placement's maximized or normal state.
+    int      GetStartupShowState        () const;
+
+    // The saved placement: loaded at startup, which also sets whether the
+    // window starts maximized, and saved after a settled change. Whether the
+    // initial client size is yet to be reconciled with the measured chrome.
+    bool     TryLoadSavedPlacement      (LONG & outX, LONG & outY, int & outW, int & outH);
+    void     SavePlacement              (bool isFullscreen);
+    void     SetInitialSizeReconciled   (bool isReconciled) { m_initialSizeReconciled = isReconciled; }
+
+    // A maximize or restore the user issued: marked when the command arrives
+    // and taken by the resize that applies it, which then saves the placement.
+    void     MarkUserStateChange        () { m_userStateChange = true; }
+    bool     TakeUserStateChange        ();
+
+    // The accelerator table, loaded once the window exists, and a message
+    // translated through it; false when it is not an accelerator.
+    HRESULT  LoadAcceleratorTable       (HINSTANCE hInstance);
+    bool     TranslateAcceleratorMessage (MSG & msg);
 
 
 private:

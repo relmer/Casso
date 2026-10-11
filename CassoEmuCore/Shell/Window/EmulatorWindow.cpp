@@ -254,7 +254,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_window->CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
-    hadSavedPlacement = m_window->m_windowManager->TryLoadSavedWindowPlacement (windowX, windowY, windowW, windowH, m_window->m_startMaximized);
+    hadSavedPlacement = m_window->TryLoadSavedPlacement (windowX, windowY, windowW, windowH);
 
     // Clamp a restored placement to the work area as well: prefs written by
     // older builds could hold a full-monitor rect (a fullscreen transition
@@ -574,7 +574,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // shrink the window to match the (wrong) measurement. The flag
     // tells ReconcileInitialClientSize whether to run; saved
     // placement deliberately bypasses the reset-to-default sizing.
-    m_window->m_initialSizeReconciled = hadSavedPlacement;
+    m_window->SetInitialSizeReconciled (hadSavedPlacement);
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
     // commands now route through `MainMenu` + the native nav strip;
@@ -830,8 +830,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
 
     // Load accelerator table
-    m_window->m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
-    CWRA (m_window->m_accelTable);
+    hr = m_window->LoadAcceleratorTable (hInstance);
+    CHR (hr);
 
 Error:
     return hr;
@@ -884,7 +884,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     if (!m_inSizeMove)
     {
         WindowTrace::LogWindow ("place.change", "main", m_hwnd, "outside the OS drag loop");
-        m_window->m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
+        m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
     }
 
     if (m_chrome->m_mainMenu.IsOpen())
@@ -936,7 +936,7 @@ void EmulatorShell::OnExitSizeMove()
     m_inSizeMove = false;
     WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
 
-    m_window->m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
+    m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
 }
 
 
@@ -955,7 +955,7 @@ void EmulatorShell::OnExitSizeMove()
 
 void EmulatorShell::OnUserWindowStateCommand()
 {
-    m_window->m_userStateChange = true;
+    m_window->MarkUserStateChange();
 }
 
 
@@ -1131,9 +1131,8 @@ int EmulatorShell::RunMessageLoop()
                                     m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
             if (settingsActive ||
-                m_window->m_accelTable == nullptr ||
                 m_debugger->IsDebuggerMessage (msg) ||
-                !TranslateAccelerator (m_hwnd, m_window->m_accelTable, &msg))
+                !m_window->TranslateAcceleratorMessage (msg))
             {
                 TranslateMessage (&msg);
                 DispatchMessage (&msg);
@@ -1357,7 +1356,7 @@ void EmulatorShell::OnDestroy()
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
-    m_window->m_dragDropTarget.Shutdown();
+    m_window->ShutdownDragDrop();
 
     // Join the printer drain thread before teardown frees the card, and
     // persist the pending strip on clean exit (FR-026); empty clears any stale
@@ -1760,11 +1759,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // enter the OS drag loop, so OnExitSizeMove cannot see them; the flag
     // is what says this one was theirs rather than a programmatic
     // ShowWindow, which produces an identical WM_SIZE.
-    if (m_window->m_userStateChange)
+    if (m_window->TakeUserStateChange())
     {
-        m_window->m_userStateChange = false;
         WindowTrace::LogWindow ("state.change", "main", m_hwnd, "a maximize or restore the user asked for");
-        m_window->m_windowManager->SaveWindowPlacement (m_hwnd, m_renderer->m_d3dRenderer.IsFullscreen());
+        m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
     }
 
     m_chrome->m_inChromeLayout = false;

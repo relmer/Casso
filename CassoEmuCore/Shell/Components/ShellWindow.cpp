@@ -725,3 +725,215 @@ void ShellWindow::InstallDragDropTarget()
     (void) ChangeWindowMessageFilterEx (m_shell.m_hwnd, WM_COPYDATA,       MSGFLT_ALLOW, nullptr);
     (void) ChangeWindowMessageFilterEx (m_shell.m_hwnd, kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::InitializeOle
+//
+//  OleInitialize implies CoInitializeEx (STA). S_FALSE (already initialized)
+//  also adds a reference, which OleUninitialize releases at shutdown. A hard
+//  failure means the UI thread's apartment was initialized with a
+//  conflicting model, a startup-ordering bug, so the call asserts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellWindow::InitializeOle()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = OleInitialize (nullptr);
+    CHRA (hr);
+
+    m_fOleInitialized = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::UninitializeOle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellWindow::UninitializeOle()
+{
+    if (m_fOleInitialized)
+    {
+        OleUninitialize();
+        m_fOleInitialized = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::ShutdownDragDrop
+//
+//  Revoked while the window handle is valid, as RevokeDragDrop requires.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellWindow::ShutdownDragDrop()
+{
+    m_dragDropTarget.Shutdown();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::ConsumeSuppressedDropClick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellWindow::ConsumeSuppressedDropClick()
+{
+    return m_dragDropTarget.ConsumeSuppressedClick();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::GetStartupShowState
+//
+//  Windows passes a requested window state through CreateProcess to
+//  wCassoMain. Start-Process -WindowStyle Minimized and scripted launches use
+//  it to start Casso without taking focus from the user's work.
+//
+//  Only a PARTICULAR request from the launcher is used. SW_SHOWDEFAULT,
+//  SW_SHOW and normal come from an ordinary double-click and mean nothing in
+//  particular, so the saved placement's state is used for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellWindow::GetStartupShowState() const
+{
+    int  show = m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
+
+
+
+    switch (m_startShowCmd)
+    {
+        case SW_HIDE:
+        case SW_MINIMIZE:
+        case SW_SHOWMINIMIZED:
+        case SW_SHOWMINNOACTIVE:
+        case SW_SHOWNOACTIVATE:
+        case SW_SHOWNA:
+            show = m_startShowCmd;
+            break;
+
+        default:
+            break;
+    }
+
+    return show;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::TryLoadSavedPlacement
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellWindow::TryLoadSavedPlacement (LONG & outX, LONG & outY, int & outW, int & outH)
+{
+    return m_windowManager->TryLoadSavedWindowPlacement (outX, outY, outW, outH, m_startMaximized);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::SavePlacement
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellWindow::SavePlacement (bool isFullscreen)
+{
+    m_windowManager->SaveWindowPlacement (m_shell.m_hwnd, isFullscreen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::TakeUserStateChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellWindow::TakeUserStateChange()
+{
+    bool  isChanged = m_userStateChange;
+
+
+
+    m_userStateChange = false;
+
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::LoadAcceleratorTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellWindow::LoadAcceleratorTable (HINSTANCE hInstance)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
+    CWRA (m_accelTable);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellWindow::TranslateAcceleratorMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellWindow::TranslateAcceleratorMessage (MSG & msg)
+{
+    return m_accelTable != nullptr && TranslateAccelerator (m_shell.m_hwnd, m_accelTable, &msg) != 0;
+}

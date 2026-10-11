@@ -1642,7 +1642,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // a WM_LBUTTONUP that lands here on top of the drive. Swallow it
     // so the user doesn't see the file-open dialog pop up immediately
     // after the dropped image mounts.
-    wasSuppressed = m_window->m_dragDropTarget.ConsumeSuppressedClick();
+    wasSuppressed = m_window->ConsumeSuppressedDropClick();
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 
