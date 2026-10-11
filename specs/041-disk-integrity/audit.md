@@ -2619,3 +2619,18 @@ Extend UnitTest/Devices/Disk2StateTests.cpp (Disk2StateTests, using SavePart/Loa
 
 **Sites:** CassoEmuCore/Machines/Apple2/Common/Disk2NibbleEngine.cpp:601, CassoEmuCore/Machines/Apple2/Common/Disk2NibbleEngine.cpp:672, CassoEmuCore/Machines/Apple2/Common/Disk2NibbleEngine.cpp:688-707, CassoEmuCore/Machines/Apple2/Common/Disk2NibbleEngine.cpp:198-203, CassoEmuCore/Devices/Disk/DiskImage.cpp:119-126, CassoEmuCore/Devices/Disk/DiskImage.cpp:400-422, CassoEmuCore/Devices/Disk/DiskImage.cpp:309-313, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:696, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:727-730, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:754-757, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:782-785, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:288, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:235-238, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:809, CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp:1496-1504, CassoEmuCore/Devices/Disk/DiskTrackSnapshot.cpp:83-95
 
+## iwm-mode-write-reaches-disk [still-present]
+
+**Evidence:** Found 2026-10-11 from a damaged WOZ. A //c booting MousePaint.do (ProDOS) from drive 1 cleared bits on track 1 of the WOZ in drive 2 ("Where in the World is Carmen Sandiego side B.woz"): bytes 20 and 21 at boot, and bytes 827, 829 and 888 later in a longer session. Every change was 1 to 0.
+
+A trace of the controller's switches and the engine's writes during the boot shows the cause. After reading drive 2, ProDOS turns the motor off ($C0E8), then sets Q6 ($C0ED) and Q7 ($C0EF) to write the IWM mode register. `Disk2Controller::Write` loads the mode register, because the motor is commanded off (Disk2Controller.cpp:124). But $C0EF had already put the selected drive's nibble engine in write mode (`SetWriteMode (true)`, :273), and the disk keeps turning through the one-second spin-down. So the engine shifted the data latch, zero, onto the disk until Q7 went off: bits 161-163 and 175, which are bytes 20 and 21. Each such mode write leaves a few zero cells wherever the selected disk has rotated to.
+
+It reaches either drive and any format. Drive 1 takes the same damage when it is the drive selected and spinning down. A nibblized .dsk, .do or .po loses the cells that land between sectors when it is decoded for saving, but cells that land in a data field change that sector or make it unreadable. Only the IWM is affected: a Disk II card keeps its drive enabled through the spin-down, so writing there is correct.
+
+**035 impact:** None; the code is master's.
+
+**Proposed fix:** On the IWM, the selected engine is in write mode only while Q7 is high and the motor is commanded on. `Disk2Controller::UpdateEngineWriteMode` decides it, called from $C0E8, $C0E9, $C0EE, $C0EF and the drive select.
+
+**Regression test:** `IwmModeWriteInTheSpinDownLeavesEitherDiskAlone` in UnitTest/EmuTests/Disk2Tests.cpp, for each drive: fill track 0 with ones, select the drive, motor on past the spin-up, motor off, $C0ED, write $C0EF, tick a nibble, $C0EE; assert no bit cleared and the track is not dirty. Before the fix, 8 bits clear on drive 1. `IwmWriteWithTheMotorOnReachesTheDisk` keeps the data-field write working.
+
+**Sites:** CassoEmuCore/Machines/Apple2/Common/Disk2Controller.cpp:113-131, :162-172, :264-274, :491-505
