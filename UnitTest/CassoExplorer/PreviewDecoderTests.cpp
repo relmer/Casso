@@ -195,6 +195,58 @@ public:
 
 
 
+    //  A picture named neither .A2FC nor .A2FM is told by its dots: color's
+    //  four-dot cells repeat every four, and monochrome art does not.
+    static std::vector<Byte> MakeDoubleHiRes (bool color)
+    {
+        std::vector<Byte>  bytes (16384, 0);
+        uint32_t           seed  = 12345;
+
+        for (int y = 0; y < 192; y++)
+        {
+            size_t  row = (size_t) (((y & 7) << 10) | (((y >> 3) & 7) << 7)) + (size_t) ((y >> 6) * 40);
+            int     dot = 0;
+
+            for (int col = 0; col < 40; col++)
+            {
+                for (size_t bank : { (size_t) 0, (size_t) 8192 })
+                {
+                    Byte  value = 0;
+
+                    for (int bit = 0; bit < 7; bit++, dot++)
+                    {
+                        seed = seed * 1103515245u + 12345u;
+
+                        //  Color: the nibble 0011 across every cell; mono: noise.
+                        int  lit = color ? ((dot % 4) < 2 ? 1 : 0) : (int) ((seed >> 16) & 1);
+
+                        value |= (Byte) (lit << bit);
+                    }
+
+                    bytes[row + (size_t) col + bank] = value;
+                }
+            }
+        }
+
+        return bytes;
+    }
+
+
+    TEST_METHOD (DoubleHiRes_UnnamedIsToldByItsPeriodFourRing)
+    {
+        std::vector<Byte>  color = MakeDoubleHiRes (true);
+        std::vector<Byte>  mono  = MakeDoubleHiRes (false);
+
+        Assert::IsTrue (PicturePreview::MeasurePeriodFour (color) >= PicturePreview::kColorPeriodicity, L"Color's cells ring at period four");
+        Assert::IsTrue (PicturePreview::MeasurePeriodFour (mono)  <  PicturePreview::kColorPeriodicity, L"and monochrome art does not");
+
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "PICTURE", color) == Mode::DoubleHiRes);
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "PICTURE", mono)  == Mode::DoubleHiResMono);
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "PICTURE.A2FC", mono) == Mode::DoubleHiRes, L"and the name, when it says, wins");
+    }
+
+
+
     TEST_METHOD (Picture_RendersSomethingAndNeverReadsTheBus)
     {
         PreviewContent  content;

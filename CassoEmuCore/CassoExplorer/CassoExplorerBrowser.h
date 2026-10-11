@@ -257,6 +257,7 @@ public:
     static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
     static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
     static IShellIcons::Kind                     GetAppleTypeIconKind (const std::wstring & typeText);
+    static bool                                  IsBasicListingName   (const std::wstring & name);
     static std::shared_ptr<const DxuiIconImage>  GetLocationIcon      (const Location & at, IShellIcons & icons);
 
     //  The color a row's name is drawn in, or zero for the theme's.

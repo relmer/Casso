@@ -20,7 +20,10 @@ class MemoryBus;
 //  8192 or $1FF8 bytes, double hi-res at $2000 with 16384 bytes, lo-res at
 //  $400 or $800 with 1024 bytes. A double hi-res file named .A2FM is the
 //  monochrome form, its bits drawn one pixel each in white on black, as the
-//  A2FC/A2FM naming has it. A file that misses by a byte is a hex dump,
+//  A2FC/A2FM naming has it, and one named .A2FC is color. One named neither
+//  way is color when its dots repeat every four far more than at nearby
+//  spacings, as color's four-dot cells make them, and monochrome otherwise.
+//  A file that misses by a byte is a hex dump,
 //  which is the honest answer for something nobody can prove is a picture.
 //
 //  The video modes render from a caller-supplied span and touch their bus
@@ -34,7 +37,15 @@ class PicturePreview
 public:
     enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, LoRes };
 
-    static Mode  Choose (Word address, size_t length, std::string_view name = {});
+    static Mode  Choose (Word address, size_t length, std::string_view name = {}, std::span<const Byte> bytes = {});
+
+    //  How strongly a double hi-res file's rows repeat every four dots, as a
+    //  multiple of how they repeat at nearby spacings: color art scores well
+    //  above kColorPeriodicity, monochrome art well below it.
+    static double  MeasurePeriodFour (std::span<const Byte> bytes);
+
+    //  Measured on 34 pictures: color 10 and up, monochrome 4 and under.
+    static constexpr double  kColorPeriodicity = 6.0;
 
     static HRESULT  Render (Mode                     mode,
                             std::span<const Byte>    bytes,
@@ -60,5 +71,7 @@ private:
     static constexpr size_t  kAddressSpace = 0x10000;
 
     static bool  IsMonochromeName (std::string_view name);
+    static bool  IsColorName      (std::string_view name);
+    static bool  HasSuffix        (std::string_view name, std::string_view suffix);
     static void  RenderMonochrome (std::span<const Byte> bytes, Word address, std::vector<uint32_t> & outBgra);
 };

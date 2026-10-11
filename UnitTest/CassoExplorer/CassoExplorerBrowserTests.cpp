@@ -169,6 +169,10 @@ public:
     {
         using Kind = IShellIcons::Kind;
 
+        Assert::IsTrue  (CassoExplorerBrowser::IsBasicListingName (L"Joyport.bas.txt"), L"A BASIC listing kept as text");
+        Assert::IsTrue  (CassoExplorerBrowser::IsBasicListingName (L"HELLO.BAS"));
+        Assert::IsFalse (CassoExplorerBrowser::IsBasicListingName (L"notes.txt"));
+        Assert::IsFalse (CassoExplorerBrowser::IsBasicListingName (L".bas"), L"a name that is only the suffix is no listing");
         Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"A")   == Kind::AppleApplesoft);
         Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"BAS") == Kind::AppleApplesoft);
         Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"I")   == Kind::AppleInteger);

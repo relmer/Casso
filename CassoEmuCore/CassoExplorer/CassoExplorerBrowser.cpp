@@ -3068,6 +3068,13 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
         return icons.GetForKind (IShellIcons::Kind::DiskImage);
     }
 
+    //  A BASIC listing kept on the host, named .bas or .bas.txt, has the
+    //  BASIC icon its program has inside an image.
+    if (!row.isDirectory && IsBasicListingName (row.name) && (at.kind == Location::Kind::HostFolder || !row.hostPath.empty()))
+    {
+        return icons.GetForKind (IShellIcons::Kind::AppleApplesoft);
+    }
+
     if (at.kind == Location::Kind::HostFolder)
     {
         return icons.GetForPath (JoinPath (at.path, row.name), row.isDirectory);
@@ -3129,6 +3136,34 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetLocationIcon (cons
             return icons.GetForKind ((at.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : IShellIcons::Kind::ThisPc);
         default:                            return nullptr;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsBasicListingName
+//
+//  A host file named as a BASIC listing: .bas, or .bas.txt for one an
+//  editor should open as text. Case is ignored, as Windows ignores it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsBasicListingName (const std::wstring & name)
+{
+    static constexpr std::wstring_view  s_kSuffixes[] = { L".bas", L".bas.txt" };
+    bool                                matches        = false;
+
+
+
+    for (std::wstring_view suffix : s_kSuffixes)
+    {
+        matches = matches || (name.size() > suffix.size() && _wcsicmp (name.c_str() + name.size() - suffix.size(), suffix.data()) == 0);
+    }
+
+    return matches;
 }
 
 
