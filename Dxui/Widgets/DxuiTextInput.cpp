@@ -573,7 +573,15 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     if (IsClearShown())
     {
-        RECT  clear = GetClearRect();
+        RECT   clear = GetClearRect();
+        float  inset = m_scaler.ToPxf (s_kClearHoverInsetDip);
+
+        //  A faint wash under the X while the pointer is on it, as Explorer's.
+        if (m_clearHover)
+        {
+            painter.FillRoundedRect ((float) clear.left, (float) clear.top + inset, (float) (clear.right - clear.left), (float) (clear.bottom - clear.top) - inset * 2.0f,
+                                     m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), (fgArgb & 0x00FFFFFFu) | 0x18000000u);
+        }
 
         hr = text.DrawString (m_clearGlyph, (float) clear.left, (float) clear.top, (float) (clear.right - clear.left), (float) (clear.bottom - clear.top),
                               (fgArgb & 0x00FFFFFFu) | 0xC8000000u, m_scaler.ToPxf (s_kClearGlyphDip), m_trailFace,
@@ -1479,6 +1487,7 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
         else
         {
             SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+            m_clearHover = IsOverClear (ev.positionDip);
         }
 
         break;

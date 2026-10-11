@@ -1211,11 +1211,11 @@ public:
 
         list.OnKey (Key (VK_NEXT));
         Assert::AreEqual ( 29, list.GetSelectedRow());
-        Assert::AreEqual (502, list.GetLeftPx());
+        Assert::AreEqual (484, list.GetLeftPx());
 
         list.OnKey (Key (VK_PRIOR));
         Assert::AreEqual ( 16, list.GetSelectedRow());
-        Assert::AreEqual (502, list.GetLeftPx());
+        Assert::AreEqual (484, list.GetLeftPx());
 
         list.OnKey (Key (VK_PRIOR));
         Assert::AreEqual (2, list.GetSelectedRow());

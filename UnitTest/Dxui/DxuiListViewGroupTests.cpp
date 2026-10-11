@@ -492,7 +492,7 @@ public:
         list.SetGroups ({ { L"A", 0 }, { L"B", 6 } });
 
         Assert::AreEqual ( 0, list.HitTestGroupHeader (10, 5));
-        Assert::AreEqual (-1, list.HitTestRow         (10, 35), L"The indent holds no item");
+        Assert::AreEqual (-1, list.HitTestRow         (2, 35), L"The indent holds no item");
         Assert::AreEqual ( 0, list.HitTestRow         (30, 35));
         Assert::AreEqual ( 5, list.HitTestRow         (30, 30 + 33 * 5 + 5));
         Assert::AreEqual ( 1, list.HitTestGroupHeader (270, 5));

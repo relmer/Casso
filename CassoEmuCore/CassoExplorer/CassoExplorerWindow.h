@@ -425,6 +425,7 @@ private:
     void  ShowAddressRootsMenu    (const RECT & anchor);
     void  OpenSelectedEntries     ();
     void  SearchLocation          (const std::wstring & query);
+    void  LeaveSearch             ();
     std::wstring  GetCassoSearchScope();
     bool  OnFindBoxKey            (const DxuiKeyEvent & ev);
     void  ShowAddressHistoryMenu  (const RECT & anchor);
@@ -771,6 +772,7 @@ private:
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
+    std::wstring           m_expandWhenListed;   // a shell folder opened before its listing arrived
     DxuiSplitter         * m_treeSplitter    = nullptr;
     DxuiListView         * m_list            = nullptr;
 

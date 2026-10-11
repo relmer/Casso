@@ -963,7 +963,13 @@ private:
     static constexpr float  s_kNameTextGapDip    = 2.0f;
     static constexpr float  s_kNameRightPadDip   = 5.33f;
     static constexpr float  s_kNameColumnGapDip  = 11.33f;
-    static constexpr float  s_kSmallIconsGapDip  = 1.0f;   // between Small icons' boxes once a name reaches the cap
+
+    //  Explorer's grouped List, measured at 150%: its items 18 dip further
+    //  left of their label than the header's own indent, and each column
+    //  10.67 dip narrower than an ungrouped one.
+    static constexpr float  s_kListGroupItemsPullDip  = 18.0f;
+    static constexpr float  s_kListGroupColumnTrimDip = 10.67f;
+    static constexpr float  s_kSmallIconsGapDip       = 1.0f;   // between Small icons' boxes once a name reaches the cap
 
     //  Explorer's tiles, measured at 100, 125 and 150%: a box 250 dip wide on
     //  the pitch, the icon 4 dip into it and the text 5.33 past the icon. The
@@ -1005,6 +1011,10 @@ private:
         int  count = 0;    // items shown; none under a collapsed header
         int  left  = 0;    // in the content's own pixels
         int  width = 0;
+
+        //  Where each of its columns starts past the indent, and where the
+        //  last ends: each as wide as the widest name in it, as Explorer's.
+        std::vector<int>  colLefts;
     };
 
     struct ListLayout
@@ -1023,6 +1033,14 @@ private:
     bool          GetListItemRectPx       (const ListLayout & layout, int item, RECT & outRect) const;
     static int    FindListBlock           (const ListLayout & layout, int x);
     int           HitTestListItem         (const ListLayout & layout, int xPx, int yPx) const;
+
+    //  What is left, in a grouped List column, between its widest name and
+    //  the next column, after Explorer's tighter packing.
+    int           GetListGroupGapPx       (const ItemGrid & grid) const
+    {
+        return (std::max) (0, (grid.cellW - grid.boxW) - (int) std::lround (m_scaler.ToPxf (s_kListGroupColumnTrimDip)));
+    }
+
     bool          HandleKeyboardListGroupNav (WPARAM vk, bool shift, bool ctrl);
 
     //  A column of List, grouped or not, as its page keys move across them.
@@ -1173,7 +1191,9 @@ private:
     bool   m_monospace       = false;
     int    m_rowHeightDip    = s_kRowHeightDip;
     bool   m_explorerDetails = false;
-    float  m_fontDip         = s_kFontDip;
+
+    static constexpr uint32_t  s_kSecondaryColumnAlpha = 0xCC000000u;   // Explorer's columns after the name, against its full white
+    float                      m_fontDip               = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     mutable std::vector<int>  m_measuredWPx;
     std::vector<int>          m_overrideWPx;

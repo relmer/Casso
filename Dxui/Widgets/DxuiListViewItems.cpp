@@ -658,7 +658,7 @@ DxuiListView::LayoutKey DxuiListView::GetLayoutKey() const
     key.fullH   = m_boundsDip.bottom - m_boundsDip.top;
     key.barW    = GetScrollbarWidthPx();
     key.headerH = GetRowHeightPx();
-    key.indent  = m_scaler.ToPx (s_kGroupLabelDip);
+    key.indent  = m_scaler.ToPx (s_kGroupLabelDip) - (int) std::lround (m_scaler.ToPxf (s_kListGroupItemsPullDip));
     key.rows    = GetRowCount();
 
     key.groups.reserve (m_groups.size());
@@ -1681,15 +1681,16 @@ const DxuiListView::ListLayout & DxuiListView::GetListLayout() const
 DxuiListView::ListLayout DxuiListView::BuildListLayout() const
 {
     ListLayout  layout;
-    ItemGrid    grid   = GetItemGrid();
-    int         rows   = GetRowCount();
-    int         fullH  = m_boundsDip.bottom - m_boundsDip.top;
-    int         x      = 0;
+    ItemGrid    grid     = GetItemGrid();
+    int         rows     = GetRowCount();
+    int         fullH    = m_boundsDip.bottom - m_boundsDip.top;
+    int         x        = 0;
+    bool        measured = m_itemNameWPx.size() == (size_t) (std::max) (rows, 0) && rows > 0;
 
 
 
     layout.headerH = GetRowHeightPx();
-    layout.indent  = m_scaler.ToPx (s_kGroupLabelDip);
+    layout.indent  = m_scaler.ToPx (s_kGroupLabelDip) - (int) std::lround (m_scaler.ToPxf (s_kListGroupItemsPullDip));
     layout.perCol  = (grid.cellH > 0) ? (std::max) (1, (fullH - GetScrollbarWidthPx() - layout.headerH) / grid.cellH) : 1;
     layout.blockOf.assign ((size_t) (std::max) (rows, 0), -1);
 
@@ -1703,7 +1704,21 @@ DxuiListView::ListLayout DxuiListView::BuildListLayout() const
         block.first = start;
         block.count = m_groups[g].collapsed ? 0 : end - start;
         block.left  = x;
-        block.width = layout.indent + (std::max) (1, (block.count + layout.perCol - 1) / layout.perCol) * grid.cellW;
+        block.colLefts.push_back (0);
+
+        for (int k = 0; k < (std::max) (1, block.count); k += layout.perCol)
+        {
+            int  widest = 0;
+
+            for (int item = start + k; item < start + (std::min) (k + layout.perCol, block.count); item++)
+            {
+                widest = (std::max) (widest, measured ? m_itemNameWPx[(size_t) item] : 0);
+            }
+
+            block.colLefts.push_back (block.colLefts.back() + (measured ? GetNameCellWPx (widest) - (int) std::lround (m_scaler.ToPxf (s_kListGroupColumnTrimDip)) : grid.cellW));
+        }
+
+        block.width = layout.indent + block.colLefts.back();
 
         for (int item = start; item < start + block.count; item++)
         {
@@ -1743,9 +1758,9 @@ bool DxuiListView::GetListItemRectPx (const ListLayout & layout, int item, RECT 
     }
 
     k              = item - layout.blocks[(size_t) at].first;
-    outRect.left   = layout.blocks[(size_t) at].left + layout.indent + (k / layout.perCol) * grid.cellW - m_leftPx;
+    outRect.left   = layout.blocks[(size_t) at].left + layout.indent + layout.blocks[(size_t) at].colLefts[(size_t) (k / layout.perCol)] - m_leftPx;
     outRect.top    = layout.headerH + (k % layout.perCol) * grid.cellH;
-    outRect.right  = outRect.left + grid.boxW;
+    outRect.right  = layout.blocks[(size_t) at].left + layout.indent + layout.blocks[(size_t) at].colLefts[(size_t) (k / layout.perCol) + 1] - m_leftPx - GetListGroupGapPx (grid);
     outRect.bottom = outRect.top  + grid.cellH;
 
     return true;
@@ -1809,7 +1824,14 @@ int DxuiListView::HitTestListItem (const ListLayout & layout, int xPx, int yPx) 
         return -1;
     }
 
-    k = (col / grid.cellW) * layout.perCol + row;
+    k = 0;
+
+    while ((size_t) (k / layout.perCol) + 1 < layout.blocks[(size_t) at].colLefts.size() && col >= layout.blocks[(size_t) at].colLefts[(size_t) (k / layout.perCol) + 1])
+    {
+        k += layout.perCol;
+    }
+
+    k += row;
 
     return (k < layout.blocks[(size_t) at].count) ? layout.blocks[(size_t) at].first + k : -1;
 }
@@ -1987,9 +2009,10 @@ std::vector<DxuiListView::ListColumn> DxuiListView::GetListColumns() const
         {
             for (int k = 0; k < block.count; k += layout.perCol)
             {
-                int  left = block.left + layout.indent + (k / layout.perCol) * grid.cellW;
+                int  left  = block.left + layout.indent + block.colLefts[(size_t) (k / layout.perCol)];
+                int  right = block.left + layout.indent + block.colLefts[(size_t) (k / layout.perCol) + 1] - GetListGroupGapPx (grid);
 
-                cols.push_back (ListColumn { left, left + grid.boxW, block.first + k, (std::min) (layout.perCol, block.count - k) });
+                cols.push_back (ListColumn { left, right, block.first + k, (std::min) (layout.perCol, block.count - k) });
             }
         }
 

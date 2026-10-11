@@ -508,8 +508,11 @@ void CassoExplorerWindow::ConfigureWidgets()
     });
 
     //  Opening or closing a folder changes which folders are on screen.
-    m_tree->SetOnExpand ([this] (const std::wstring &, bool)
+    m_tree->SetOnExpand ([this] (const std::wstring & id, bool expanded)
     {
+        //  A shell folder still being read opens with nothing under it; it
+        //  is opened again when its listing arrives, so one click does it.
+        m_expandWhenListed = expanded ? id : std::wstring();
         UpdateWatchedFolders();
     });
 
@@ -775,9 +778,9 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  Explorer's does, whether by its X or by deleting the query.
     m_findBox->SetOnChange ([this] (const std::wstring & text)
     {
-        if (text.empty() && SearchQuery::IsId (m_browser.GetLocation().path) && m_browser.GoBack())
+        if (text.empty())
         {
-            FillList();
+            LeaveSearch();
         }
     });
 
@@ -7718,6 +7721,12 @@ void CassoExplorerWindow::OnShellListed (const std::wstring & key)
         {
             m_browser.GetTreeModel().Invalidate (nodeId);
             m_tree->ReplaceChildren (nodeId, m_browser.GetTreeChildren (nodeId));
+
+            if (nodeId == m_expandWhenListed)
+            {
+                m_tree->SetRowExpanded (m_tree->FindRowById (nodeId), true);
+                m_expandWhenListed.clear();
+            }
         }
     }
 
@@ -9655,6 +9664,39 @@ void CassoExplorerWindow::ShowAddressOverflowMenu (const RECT & anchor)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::LeaveSearch
+//
+//  Back to the folder a search covered: by Back when the search was run here,
+//  and by going to the folder when the results tab was restored, with no
+//  history to go back through.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::LeaveSearch()
+{
+    Location  searched;
+
+
+
+    if (!SearchQuery::IsId (m_browser.GetLocation().path))
+    {
+        return;
+    }
+
+    if (!m_browser.GoBack() && m_browser.TryGetUpTarget (searched))
+    {
+        m_browser.NavigateToLocation (searched);
+    }
+
+    FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OnFindBoxKey
 //
 //  Enter searches, Escape empties the box and leaves a search's results, as
@@ -9677,11 +9719,7 @@ bool CassoExplorerWindow::OnFindBoxKey (const DxuiKeyEvent & ev)
     if (down && ev.vk == VK_ESCAPE)
     {
         m_findBox->SetText (L"");
-
-        if (SearchQuery::IsId (m_browser.GetLocation().path) && m_browser.GoBack())
-        {
-            FillList();
-        }
+        LeaveSearch();
 
         SetFocusPane (Pane::List);
         return true;

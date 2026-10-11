@@ -219,11 +219,13 @@ private:
     const wchar_t           * m_trailGlyph        = nullptr;
     const wchar_t           * m_trailFace         = nullptr;
     const wchar_t           * m_clearGlyph        = nullptr;
+    bool                      m_clearHover        = false;
 
     //  Explorer's clear X, measured at 150%: its middle 36.67 dip left of
     //  the magnifier's.
-    static constexpr float    s_kClearGlyphDip    = 10.0f;
-    static constexpr float    s_kClearCenterDip   = 55.0f;
+    static constexpr float  s_kClearGlyphDip      = 10.0f;
+    static constexpr float  s_kClearCenterDip     = 55.0f;
+    static constexpr float  s_kClearHoverInsetDip = 4.0f;
 
     bool   IsClearShown   () const { return m_clearGlyph != nullptr && m_trailFace != nullptr && !m_text.empty(); }
     RECT   GetClearRect   () const;

@@ -4257,6 +4257,12 @@ void DxuiListView::PaintDataRows (
             float         alpha     = text.GetGlobalAlpha();
             std::wstring  shown;
 
+            //  Explorer draws the columns after the name a step dimmer than it.
+            if (m_explorerDetails && c > 0 && !cells[c].dim && cells[c].argb == 0)
+            {
+                argb = (pal.fg & 0x00FFFFFFu) | s_kSecondaryColumnAlpha;
+            }
+
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
