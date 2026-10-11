@@ -353,3 +353,12 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [ ] T150 Match File Explorer's wrap width for names without spaces in Medium icons, per SC-009 (partial)
 - [ ] T151 Record SC-018 and SC-019 in `validation.md`, per SC-018 and SC-019 (missing)
 - [x] T152 Give the drop-down and context menus File Explorer's acrylic backdrop (blurred, tinted desktop behind the card; the popup sized to the card with the system's own rounded corners and shadow), and any other surface where File Explorer uses acrylic, matched by capture in light and dark, per SC-009 (missing)
+
+## Phase 12: Convergence
+
+- [ ] T153 Draw picture previews (hi-res, double hi-res, lo-res) through Casso's CRT post-process (CassoEmuCore/CrtPostProcess.h) with the chosen monitor and effects, so a preview matches Casso's screen; listing, text, hex and catalog previews stay as they are, per FR-067 and SC-020 (missing)
+- [ ] T154 Give Casso Explorer its own monitor type and CRT effect settings in CassoExplorerPrefs, kept across starts and never read from or written to Casso's, defaulting to each Casso theme's own and to green with the retro theme's effects under Light, Dark and Follow Windows, per FR-070, FR-071 and US9/AC3, US9/AC5 (missing)
+- [ ] T155 Let Casso's DisplayPage be hosted outside Casso: put SettingsDisplayCrtBridge's bindings (prefs, theme, panel state, emulator shell) behind what a host supplies, and add a Display page to Casso Explorer's options dialog that edits T154's settings and redraws the preview, per FR-069 and US9/AC2 (missing)
+- [ ] T156 Add a monitor drop-down beside Theme on Casso Explorer's command bar listing Casso's monitor styles, as Casso's toolbar has one, switching the preview at once, per FR-068 and US9/AC1 (missing)
+- [ ] T157 Add a color/monochrome switch to a double hi-res picture's preview, overriding the automatic choice while that picture is shown, per FR-072 and US9/AC4 (missing)
+- [ ] T158 Measure SC-020 (a picture in the preview and on Casso's screen, same monitor and effects, compared pixel for pixel at the same size) and SC-021 (redraw within a quarter second on a monitor switch; the choice survives a restart), and record both in validation.md, per SC-020 and SC-021 (missing)
