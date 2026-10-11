@@ -845,6 +845,9 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_browser.RestoreTabs (m_prefs.tabs);
     m_browser.LeaveMissingLocation();
 
+    m_driveMask = GetLogicalDrives();
+    SetTimer (GetHwnd(), kDriveTimerId, kDrivePollMs, nullptr);
+
     m_tree->OnFocusChanged (true);
 
     if (!m_context.openPath.empty())
@@ -8235,6 +8238,97 @@ void CassoExplorerWindow::ReloadKnownFolders()
     m_tree->ReplaceChildren (TreeModel::kCassoRootId, m_browser.GetTreeChildren (TreeModel::kCassoRootId));
     UpdateWatchedFolders();
     Invalidate();
+
+    hr = m_context.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.baseDir), m_knownFoldersText);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReloadKnownFoldersIfChanged
+//
+//  Casso writes its known folders while this window is open. The folder the
+//  file is in also has this window's own prefs, so the file's text is compared
+//  before the tree is rebuilt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ReloadKnownFoldersIfChanged()
+{
+    HRESULT      hr   = S_OK;
+    std::string  text;
+
+
+
+    if (m_context.fs == nullptr)
+    {
+        return;
+    }
+
+    hr = m_context.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.baseDir), text);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (text != m_knownFoldersText)
+    {
+        ReloadKnownFolders();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::CheckDrives
+//
+//  A drive attached or removed while the window is open changes This PC, and
+//  can bring back or take away a known folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::CheckDrives()
+{
+    HRESULT   hr   = S_OK;
+    DWORD     mask = GetLogicalDrives();
+    Location  showing;
+
+
+
+    if (mask == m_driveMask)
+    {
+        return;
+    }
+
+    m_driveMask = mask;
+
+    m_browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
+    m_browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
+    m_tree->ReplaceChildren (TreeModel::kThisPcRootId, m_browser.GetTreeChildren (TreeModel::kThisPcRootId));
+    ReloadKnownFolders();
+
+    if (!m_browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    showing = m_browser.GetLocation();
+
+    if (showing.kind == Location::Kind::Root && showing.path == TreeModel::kThisPcRootId)
+    {
+        m_browser.GetBrowserModel().InvalidateAllCatalogs();
+        hr = m_browser.Refresh();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        FillList();
+    }
+    else if (m_browser.LeaveMissingLocation())
+    {
+        FillList();
+    }
 }
 
 
@@ -8647,6 +8741,12 @@ void CassoExplorerWindow::UpdateWatchedFolders()
         }
     }
 
+    //  Casso's known folders file, which Casso writes while this window is open.
+    if (!m_context.baseDir.empty())
+    {
+        folders.push_back (m_context.baseDir);
+    }
+
     m_folderWatch->SetWatched (folders);
 }
 
@@ -8793,6 +8893,7 @@ void CassoExplorerWindow::RefreshChangedFolders()
         return;
     }
 
+    ReloadKnownFoldersIfChanged();
 
     //  A folder written to often -- a disk image Casso has mounted, say --
     //  must not cost the tree or the list anything when neither shows it.
@@ -11177,6 +11278,13 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         {
             RefreshAfterHostChange();
         }
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (timerId == kDriveTimerId)
+    {
+        CheckDrives();
 
         return DxuiMessageResult::Handled;
     }

@@ -253,6 +253,8 @@ public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
     static constexpr UINT_PTR  kRestoreTimerId       = 0x5155;   // re-reads while the Recycle Bin restores
     static constexpr UINT_PTR  kRecycleBinTimerId    = 0x5156;   // settles the bin's changes before a re-read
+    static constexpr UINT_PTR  kDriveTimerId         = 0x5157;   // polls for drives attached or removed
+    static constexpr UINT      kDrivePollMs          = 2000;
     static constexpr int       kRestoreRetries       = 5;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
@@ -650,6 +652,8 @@ private:
     void  ShowLocationProperties (const Location & location);
     void  ShowHostProperties     (const std::wstring & path);
     void  ReloadKnownFolders     ();
+    void  ReloadKnownFoldersIfChanged ();
+    void  CheckDrives            ();
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
 
     //  Re-reads the tree, keeping what was open, highlighted and on screen.
@@ -715,6 +719,8 @@ private:
     std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
     bool                                      m_dragArmed           = false;
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
+    DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
+    std::string                               m_knownFoldersText;          // KnownFolders.json as last read
     int                                       m_cassoDriveCount     = 0;
     int                                       m_defaultDriveCount   = -1;  // the default machine's, once read
     DxuiDragDropTarget                        m_dropTarget;
