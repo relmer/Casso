@@ -772,7 +772,6 @@ private:
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
-    std::wstring           m_expandWhenListed;   // a shell folder opened before its listing arrived
     DxuiSplitter         * m_treeSplitter    = nullptr;
     DxuiListView         * m_list            = nullptr;
 

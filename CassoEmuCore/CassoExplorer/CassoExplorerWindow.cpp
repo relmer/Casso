@@ -508,11 +508,8 @@ void CassoExplorerWindow::ConfigureWidgets()
     });
 
     //  Opening or closing a folder changes which folders are on screen.
-    m_tree->SetOnExpand ([this] (const std::wstring & id, bool expanded)
+    m_tree->SetOnExpand ([this] (const std::wstring &, bool)
     {
-        //  A shell folder still being read opens with nothing under it; it
-        //  is opened again when its listing arrives, so one click does it.
-        m_expandWhenListed = expanded ? id : std::wstring();
         UpdateWatchedFolders();
     });
 
@@ -2551,6 +2548,20 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
     {
         Invalidate();
+    }
+
+    //  Moves reach the search box wherever the pointer is, so its X lights
+    //  under the pointer and goes dark on the way out.
+    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
+    {
+        bool  wasLit = m_findBox->IsClearHovered();
+
+        m_findBox->OnMouse (ev);
+
+        if (m_findBox->IsClearHovered() != wasLit)
+        {
+            Invalidate();
+        }
     }
 
     if (ev.kind != DxuiMouseEventKind::Move || m_address->IsInteracting())
@@ -7721,12 +7732,6 @@ void CassoExplorerWindow::OnShellListed (const std::wstring & key)
         {
             m_browser.GetTreeModel().Invalidate (nodeId);
             m_tree->ReplaceChildren (nodeId, m_browser.GetTreeChildren (nodeId));
-
-            if (nodeId == m_expandWhenListed)
-            {
-                m_tree->SetRowExpanded (m_tree->FindRowById (nodeId), true);
-                m_expandWhenListed.clear();
-            }
         }
     }
 

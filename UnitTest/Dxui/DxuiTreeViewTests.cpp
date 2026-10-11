@@ -595,6 +595,32 @@ public:
     }
 
 
+    TEST_METHOD (ReplaceChildren_OpensANodeAskedOpenBeforeItsChildrenWereRead)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  fresh;
+        bool                       reported = false;
+
+        roots.push_back (MakeUnread (L"lib"));
+
+        tv.SetRect          (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight     (20);
+        tv.SetNodes         (std::move (roots));
+        tv.SetChildProvider ([] (const std::wstring &) { return std::vector<DxuiTreeNode>(); });
+        tv.SetOnExpand      ([&reported] (const std::wstring &, bool expanded) { reported = reported || expanded; });
+
+        tv.SetRowExpanded (tv.FindRowById (L"lib"), true);
+        Assert::IsFalse (tv.FindNodeById (L"lib")->expanded, L"Nothing is under it yet, so it stays closed");
+
+        fresh.push_back (MakeUnread (L"docs"));
+        Assert::IsTrue (tv.ReplaceChildren (L"lib", std::move (fresh)));
+
+        Assert::IsTrue (tv.FindNodeById (L"lib")->expanded, L"Its children arriving open it, so one click does it");
+        Assert::IsTrue (reported, L"and the host hears it opened");
+    }
+
+
     TEST_METHOD (ReplaceChildren_KeepsWhatIsOpenAndTakesTheNewLabels)
     {
         DxuiTreeView               tv;

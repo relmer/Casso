@@ -305,6 +305,7 @@ private:
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
+    std::wstring               m_openWhenFilled;   // asked open before its children were read
     int                        m_rowHeightPx    = 22;
     int                        m_indentDip      = kIndentDip;
     int                        m_indentPx       = kIndentDip;

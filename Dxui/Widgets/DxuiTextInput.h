@@ -84,6 +84,7 @@ public:
     //  An X left of the trailing glyph while the field holds text, which
     //  empties it, as Explorer's search box has. In the trailing glyph's face.
     void  SetClearGlyph    (const wchar_t * glyph)       { m_clearGlyph = glyph; }
+    bool  IsClearHovered   () const                      { return m_clearHover; }
 
     //  The field lies over another control's text, as a rename in place lies
     //  over a list row, and must hide it.

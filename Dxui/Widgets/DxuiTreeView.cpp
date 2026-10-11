@@ -487,6 +487,11 @@ bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
 
     n->expanded = expanded && !n->children.empty();
 
+    //  Asked open with nothing under it yet, as a folder still being read
+    //  is: it opens when ReplaceChildren brings its children, so one click
+    //  does it.
+    m_openWhenFilled = (expanded && n->children.empty()) ? id : (m_openWhenFilled == id ? std::wstring() : m_openWhenFilled);
+
     RebuildFlatRows();
 
     if (m_onExpand)
@@ -559,8 +564,9 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
 
 bool DxuiTreeView::ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children)
 {
-    DxuiTreeNode *  node = GetNodeAtMutable (FindRowById (id));
-    RowIds          ids  = GetRowIds();
+    DxuiTreeNode *  node   = GetNodeAtMutable (FindRowById (id));
+    RowIds          ids    = GetRowIds();
+    bool            opened = false;
 
 
 
@@ -572,10 +578,21 @@ bool DxuiTreeView::ReplaceChildren (const std::wstring & id, std::vector<DxuiTre
     MergeNodes (node->children, std::move (children));
 
     node->childrenLoaded = true;
-    node->expanded       = node->expanded && !node->children.empty();
+    opened               = id == m_openWhenFilled && !node->children.empty();
+    node->expanded       = (node->expanded || opened) && !node->children.empty();
+
+    if (opened)
+    {
+        m_openWhenFilled.clear();
+    }
 
     RebuildFlatRows();
     RestoreRowIds (ids);
+
+    if (opened && m_onExpand)
+    {
+        m_onExpand (id, true);
+    }
 
     return true;
 }
