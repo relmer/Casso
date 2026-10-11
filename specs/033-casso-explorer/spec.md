@@ -498,9 +498,51 @@ and text files shows four different icons in every view.
    icon for its type, and a type with no icon of its own shows the generic
    file icon.
 
+### User Story 9 - Pictures on the monitor they were made for (Priority: P3)
+
+A user previewing a picture inside a disk image sees it as Casso would show
+it: on a color, green, amber, white or custom monitor, with the same
+display effects Casso offers, switched from a drop-down beside Theme and
+tuned on a Display page in Casso Explorer's options.
+
+**Why this priority**: An Apple II picture was made to be seen on a
+monitor, and a green or amber screen changes how it reads; a user who has
+chosen a look in Casso expects the same look when browsing the same
+pictures, without starting the emulator.
+
+**Independent Test**: Preview a hi-res, a double hi-res and a lo-res
+picture; switch the monitor drop-down through each style and see each
+preview redrawn in it; change an effect on the Display page and see the
+preview follow; restart and find the choice kept. Switch a double hi-res
+picture between color and monochrome and see it redrawn each way.
+
+**Acceptance Scenarios**:
+
+1. **Given** a picture is previewed, **When** the user picks green, amber,
+   white, color or custom from the monitor drop-down beside Theme, **Then**
+   the preview is redrawn on that monitor at once, and the choice is kept
+   for the next start.
+2. **Given** the options dialog is open, **When** the user changes an effect
+   on its Display page, **Then** the preview shows the change, with the
+   same controls and the same results as Casso's Display settings page.
+3. **Given** no monitor has been chosen in Casso Explorer, **When** a
+   picture is previewed under a Casso theme, **Then** it uses that theme's
+   own default; **When** under Light, Dark or Follow Windows, **Then** it
+   uses green with the retro theme's effects.
+4. **Given** a double hi-res picture is previewed, **When** the user
+   switches it between color and monochrome, **Then** it is redrawn the
+   other way, whatever the automatic choice was.
+5. **Given** a monitor is chosen in Casso Explorer, **When** Casso's own
+   display settings change, **Then** Casso Explorer's are unchanged, and
+   the other way around.
 ### Edge Cases
 
-- **Registration is never silent**: installing, starting or updating Casso
+- **A picture on a monochrome monitor**: green, amber and white show a
+  color picture as Casso's monochrome monitor shows it, in shades of the
+  one color, and a monochrome double hi-res picture in the one color on
+  black.
+- **Listings, text and hex**: these previews are not pictures and keep
+  their look whatever monitor is chosen.- **Registration is never silent**: installing, starting or updating Casso
   writes no association; only the user's own choice in Casso does.
 - **A format another program already owns**: registering takes it for
   Casso and remembers the program it had, so unregistering gives it back.
@@ -621,7 +663,10 @@ and text files shows four different icons in every view.
   with a disassembly toggle, and disk images as their catalog. The
   graphics rule is: hi-res at $2000 or $4000 with 8192 or $1FF8 bytes;
   double hi-res at $2000 with 16384 bytes; lo-res at $400 or $800 with
-  1024 bytes.
+  1024 bytes. A double hi-res picture is monochrome when its name ends
+  .A2FM and color when it ends .A2FC; with neither, it is color when its
+  dots repeat every four far more strongly than at nearby spacings, as
+  color's four-dot cells make them, and monochrome otherwise.
 - **FR-012a**: A text, listing, hex or disassembly preview MUST draw in a
   fixed-width face, on rows at the line's height, since every one of them
   is columns of characters the reader lines up by eye.
@@ -970,6 +1015,24 @@ and text files shows four different icons in every view.
   files; any other type MUST show the generic file icon.
 - **FR-066**: Automated tests that register Casso MUST remove what they
   wrote, leaving the user's associations as they found them.
+- **FR-067**: A picture preview MUST be drawn on the chosen monitor --
+  color, green, amber, white or custom -- with Casso's display effects,
+  drawn as Casso draws them; listing, text, hex and catalog previews MUST
+  be unaffected.
+- **FR-068**: The command bar MUST carry a monitor drop-down beside Theme,
+  as Casso's toolbar carries one, listing the same styles.
+- **FR-069**: The options dialog MUST have a Display page holding Casso's
+  own Display settings page, with the same controls and the same effect on
+  the preview as on Casso's screen.
+- **FR-070**: With no monitor chosen in Casso Explorer, the preview MUST use
+  the theme's default: each Casso theme's own, and green with the retro
+  theme's effects under Light, Dark and Follow Windows.
+- **FR-071**: Casso Explorer's monitor and effect choices MUST be kept
+  across starts and MUST be its own, neither read from nor written to
+  Casso's.
+- **FR-072**: A double hi-res picture's preview MUST offer a switch between
+  color and monochrome, overriding the automatic choice for that picture
+  while it is shown.
 
 ### Key Entities
 
@@ -1064,6 +1127,11 @@ and text files shows four different icons in every view.
   difference.
 - **SC-019**: In a catalog of 50 files of mixed types, a user tells system,
   BASIC, binary and text files apart by icon alone, in every view.
+- **SC-020**: A picture shown in Casso Explorer's preview and on Casso's
+  screen, with the same monitor and effects, matches pixel for pixel at the
+  same size.
+- **SC-021**: Switching the monitor redraws the preview within a quarter
+  second, and the choice survives a restart.
 
 ## Assumptions
 
