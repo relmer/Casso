@@ -142,6 +142,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PicturePreview::IsMonochromeName
@@ -153,8 +154,7 @@ Error:
 bool PicturePreview::IsMonochromeName (std::string_view name)
 {
     static constexpr std::string_view  s_kSuffix = ".A2FM";
-
-    bool  matches = name.size() >= s_kSuffix.size();
+    bool                               matches   = name.size() >= s_kSuffix.size();
 
 
 
