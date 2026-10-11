@@ -235,6 +235,7 @@ namespace CassoExplorerIcons
     static constexpr DxuiVectorIconLayer  s_kPreviewLayers[] =
     {
         { 0x07u, false, 0.0f, 0.0f },
+        { 0x04u, true , 0.0f, 0.0f },
     };
 
     static constexpr DxuiVectorIcon  s_kPreview =

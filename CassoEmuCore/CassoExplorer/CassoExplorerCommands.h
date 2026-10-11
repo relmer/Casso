@@ -234,7 +234,7 @@ private:
         { kSelectAll,         Menu::Edit, L"Select &all",          L"Ctrl+A",  false, DxuiStandardCommand::SelectAll },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
         { kGoToOffset,        Menu::Edit, L"&Go to",               L"Ctrl+G",  false },
-        { kFind,              Menu::Edit, L"&Find",                L"Ctrl+F",  false },
+        { kFind,              Menu::Edit, L"&Find",                L"Ctrl+E",  false },
         { kFindNext,          Menu::Edit, L"Find &next",           L"F3",      false },
 
         //  Rows under Menu::Count are in no menu bar menu; they are the hex
@@ -383,6 +383,7 @@ private:
         { VK_TAB,   true,  false, false, kNextTab       },
         { VK_TAB,   true,  false, true,  kPreviousTab   },
         { 'G',      true,  false, false, kGoToOffset    },
+        { 'E',      true,  false, false, kFind          },
         { 'F',      true,  false, false, kFind          },
         { VK_OEM_PLUS,  true, false, false, kZoomIn     },
         { VK_OEM_PLUS,  true, false, true,  kZoomIn     },

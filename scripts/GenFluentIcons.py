@@ -41,7 +41,7 @@ ICONS = {
     'Sort':    ('arrow_sort_24_regular',        [([1], False, 0, 0), ([0], True, 0, 0)]),
     #  The filled dots, which are Explorer's weight; the outline ones are thin.
     'More':    ('more_horizontal_20_filled',    [([0, 1, 2], False, 0, 0)]),
-    'Preview': ('panel_right_20_regular',       [([0, 1, 2], False, 0, 0)]),
+    'Preview': ('panel_right_20_regular',       [([0, 1, 2], False, 0, 0), ([2], True, 0, 0)]),
     'Theme':   ('dark_theme_20_regular',        [([0, 1], False, 0, 0)]),
 
     #  The View menu's rows. ALL is every sub-shape, in the foreground ink.
