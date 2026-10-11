@@ -146,7 +146,7 @@ void EmulatorShell::InputHost::ClaimCaptureBand()
 {
     m_shell.m_chrome->m_captureReflowMs = 0;
 
-    if (!m_shell.m_renderer->m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         m_shell.m_chrome->ReflowChromeForChangeBand();
         m_shell.m_chrome->m_captureReflowMs = ChangeBannerNowMs();
@@ -165,7 +165,7 @@ void EmulatorShell::InputHost::ClaimCaptureBand()
 
 void EmulatorShell::InputHost::ReleaseCaptureBand()
 {
-    if (!m_shell.m_renderer->m_d3dRenderer.IsFullscreen())
+    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         m_shell.m_chrome->ReflowChromeForChangeBand();
     }
@@ -243,7 +243,7 @@ void EmulatorShell::InputHost::SwallowNextChar()
 
 uint32_t EmulatorShell::InputHost::TakeKeyRepeatElapsedUs (uint32_t capUs)
 {
-    return m_shell.m_renderer->m_frameClock.TakeKeyRepeatElapsedUs (capUs);
+    return m_shell.m_renderer->TakeKeyRepeatElapsedUs (capUs);
 }
 
 

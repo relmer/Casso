@@ -307,7 +307,6 @@ private:
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void WaitForFrameOrMessage();
-    void DestroyFrameReadyEvent();
 
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);

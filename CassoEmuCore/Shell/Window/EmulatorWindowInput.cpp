@@ -427,7 +427,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     if (m_scene->UpdateSceneLabelHover (x, y, nowMs))
     {
         m_scene->SyncSceneDriveLabels();
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     // The desk recorder's key under the pointer shows its name over it, and
@@ -452,7 +452,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         if (key != m_scene->m_recorderHoverKey)
         {
             m_scene->m_recorderHoverKey = key;
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
 
@@ -472,7 +472,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             // The band's button treatment appeared or went away. A static
             // emulator picture presents no frames on its own, so without this
             // the highlight would land on whatever frame happened next.
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
 
         if (inside && drive.IsWriteProtected())
@@ -488,7 +488,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     if (m_tapeDeck->GetWidget().UpdateHover (x, y))
     {
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     shellHandled = m_uiShell.OnMouseMove (x, y, leftDown);
@@ -505,7 +505,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // hovered button's label surfaces as a tooltip (no labels on the strip).
     if (m_chrome->m_toolbar.OnToolbarMouseMove (x, y))
     {
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     {
@@ -534,7 +534,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         // screen presents none; a highlight that moved asks for one.
         if (hoverChanged || partChanged)
         {
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
 
         if (tip != nullptr)
@@ -608,7 +608,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             }
         }
 
-        if (tip.empty() && DeskSceneActive() && m_renderer->m_d3dRenderer.IsFullscreen())
+        if (tip.empty() && DeskSceneActive() && m_renderer->GetD3D().IsFullscreen())
         {
             POINT  pt = { x, y };
 
@@ -700,7 +700,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
         m_scene->SyncSceneDriveLabels();
     }
 
-    m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+    m_renderer->GetD3D().MarkRedrawNeeded();
 
     m_chrome->m_toolbar.OnToolbarMouseLeave();
     m_chrome->m_toolbarTooltip.RequestHide (nowMs);
@@ -712,7 +712,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
         if (hoverChanged || pressChanged)
         {
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
 
@@ -787,7 +787,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
     }
-    else if (hitTest == HTCLIENT && DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen()
+    else if (hitTest == HTCLIENT && DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen()
              && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f
              && GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt))
     {
@@ -866,7 +866,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // screen, so there is no camera to move -- only hidden state to
     // scramble for the return to windowed.
     if (delta == 0 || !DeskSceneActive() || m_input->IsPaddleCaptured() ||
-        m_renderer->m_d3dRenderer.IsFullscreen())
+        m_renderer->GetD3D().IsFullscreen())
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -981,7 +981,7 @@ DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 
     // Fullscreen shows the picture, not the desk: no gesture moves a camera
     // that is not on screen.
-    if (!DeskSceneActive() || m_renderer->m_d3dRenderer.IsFullscreen() ||
+    if (!DeskSceneActive() || m_renderer->GetD3D().IsFullscreen() ||
         !GetGestureInfo (reinterpret_cast<HGESTUREINFO> (lParam), &info))
     {
         return DxuiMessageResult::NotHandled;
@@ -1202,7 +1202,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     if (toolbarTook)
     {
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     chromeTook = chromeTook || toolbarTook;
@@ -1215,7 +1215,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         // screen presents none; a key that went down asks for one.
         if (m_chrome->m_switchBar.SetPressedPart (part))
         {
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
 
         chromeTook = chromeTook || part != Apple2cSwitchBar::Part::None;
@@ -1286,7 +1286,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Shift turns the press into an orbit -- the touchpad's road to it, where
     // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
     // Never in fullscreen, where the desk is not on screen.
-    if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() &&
+    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
         (wParam & MK_SHIFT) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
@@ -1300,7 +1300,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // does with a two-finger slide. Beside the Shift orbit, for the same
     // reasons, and like it never in fullscreen. Not on the compass, which
     // has its own Ctrl gestures and is handled below.
-    if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() &&
+    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
         (wParam & MK_CONTROL) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook && !m_scene->PointOnCompass (x, y))
     {
@@ -1354,13 +1354,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
                 m_tapeDeck->SetKeyReleaseAtMs (nowMs + ShellTapeDeck::kRecorderKeyDownMs);
             }
 
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
 
     // The compass outranks everything on the scene: it is drawn on top,
     // so a press where it sits belongs to it.
-    if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() && !m_chrome->m_mainMenu.IsOpen() &&
+    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() && !m_chrome->m_mainMenu.IsOpen() &&
         m_scene->m_sceneCompass.OnPointerDown (x, y))
     {
         result = DxuiMessageResult::Handled;
@@ -1370,7 +1370,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
     // the only other thing a press on the scene begins, and which would
     // otherwise swallow the gesture.
-    if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() && !m_chrome->m_mainMenu.IsOpen()
+    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() && !m_chrome->m_mainMenu.IsOpen()
         && !m_input->IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
     {
         SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
@@ -1412,7 +1412,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // status bar as well -- there is no machine out there to hit -- so arming
     // on that alone armed a turn under the command buttons, and the release
     // that would have fired them ended the turn instead.
-    if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen() &&
+    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
         !m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive() &&
         m_scene->PointInSceneRect (x, y) && !chromeTook)
     {
@@ -1501,7 +1501,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_scene->m_recorderHeldKey >= 0)
     {
         m_scene->m_recorderHeldKey = -1;
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
@@ -1605,7 +1605,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     if (toolbarTook)
     {
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     BAIL_OUT_IF (toolbarTook, S_OK);
@@ -1618,7 +1618,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (m_chrome->m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
         {
-            m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
 
@@ -1633,7 +1633,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         // A latched switch is drawn sunk or proud on the next present, and
         // over a static screen this click is the only thing asking for one.
         m_chrome->HandleSwitchBarClick (switchPart);
-        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+        m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
     BAIL_OUT_IF (onSwitchPart, S_OK);
@@ -1654,7 +1654,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (DeskSceneActive())
     {
         POINT           pt      = { x, y };
-        bool            inStrip = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip = m_renderer->GetD3D().IsFullscreen() &&
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
@@ -1739,7 +1739,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 // auto-hide under the dialog).
                 RECT  driveRect = drive.GetOuterRect();
 
-                m_scene->m_stripBrowseOpen = m_renderer->m_d3dRenderer.IsFullscreen();
+                m_scene->m_stripBrowseOpen = m_renderer->GetD3D().IsFullscreen();
                 m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
                 m_scene->m_stripBrowseOpen = false;
 
@@ -1828,7 +1828,7 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         m_input->PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
     }
-    else if (DeskSceneActive() && !m_renderer->m_d3dRenderer.IsFullscreen())
+    else if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen())
     {
         // Right-drag orbits the scene. Unconditionally on the scene -- unlike
         // the pan there is no widget interaction to share the button with,
@@ -1949,7 +1949,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool            inStrip  = m_renderer->m_d3dRenderer.IsFullscreen() &&
+        bool            inStrip  = m_renderer->GetD3D().IsFullscreen() &&
                                    m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                    PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);

@@ -167,8 +167,8 @@ EmulatorShell::EmulatorShell()
                                                               m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
-                                                              m_renderer->m_framebufferMutex,
-                                                              m_renderer->m_uiFramebuffer,
+                                                              m_renderer->GetFramebufferMutex(),
+                                                              m_renderer->GetUiFramebuffer(),
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
                                                               &m_machine.GetRefs().keyboard);
@@ -296,7 +296,7 @@ EmulatorShell::~EmulatorShell()
         m_host->GetRoot().ClearAdopted();
     }
 
-    m_renderer->m_d3dRenderer.Shutdown();
+    m_renderer->GetD3D().Shutdown();
 
     m_window->UninitializeOle();
 }
@@ -921,7 +921,7 @@ HRESULT EmulatorShell::InitializeUiShell()
 
 
 
-    hr = m_uiShell.Initialize (&m_renderer->m_d3dRenderer);
+    hr = m_uiShell.Initialize (&m_renderer->GetD3D());
     CHR (hr);
 
     hr = WireUiShellChromeAndThemes();
@@ -1154,8 +1154,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // this the initial paint binds at the m_dpi default (0->96)
     // and chrome text renders tiny on high-DPI displays until
     // the user resizes the window.
-    hr = m_uiShell.OnResize (m_renderer->m_d3dRenderer.GetBackBufferWidth(),
-                             m_renderer->m_d3dRenderer.GetBackBufferHeight(),
+    hr = m_uiShell.OnResize (m_renderer->GetD3D().GetBackBufferWidth(),
+                             m_renderer->GetD3D().GetBackBufferHeight(),
                              initialDpi);
     CHR (hr);
 

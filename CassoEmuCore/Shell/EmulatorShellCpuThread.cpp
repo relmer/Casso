@@ -396,12 +396,6 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
-    FrameSignature  current;
-    FrameSignature  lastRendered;
-    bool            needsRender = false;
-
-
-
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
     m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
@@ -409,30 +403,7 @@ void EmulatorShell::RunCpuThreadFrame()
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
 
-    if (m_renderer->ShouldPublishFrame())
-    {
-        current.videoDirty = m_machine.GetMemoryBus().IsVideoDirty();
-        current.modeSig    = m_renderer->ComputeVideoModeSig();
-        current.flashOn    = m_renderer->ComputeFlashOn();
-        current.colorSig   = m_renderer->ComputeColorSig();
-
-        lastRendered.modeSig  = m_renderer->m_lastRenderModeSig;
-        lastRendered.flashOn  = m_renderer->m_lastRenderFlashOn;
-        lastRendered.colorSig = m_renderer->m_lastRenderColorSig;
-
-        needsRender = FramePacing::NeedsRender (current, lastRendered);
-    }
-
-    if (needsRender)
-    {
-        m_renderer->RenderFramebuffer();
-        m_renderer->PublishFramebuffer();
-
-        m_machine.GetMemoryBus().ClearVideoDirty();
-        m_renderer->m_lastRenderModeSig  = current.modeSig;
-        m_renderer->m_lastRenderFlashOn  = current.flashOn;
-        m_renderer->m_lastRenderColorSig = current.colorSig;
-    }
+    m_renderer->PublishFrameIfChanged();
 }
 
 

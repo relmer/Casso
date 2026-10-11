@@ -856,8 +856,8 @@ Error:
 void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
 {
     m_viewportBoundsPx = boundsPx;
-    m_renderer->m_d3dRenderer.SetTargetBounds (boundsPx);
-    m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+    m_renderer->GetD3D().SetTargetBounds (boundsPx);
+    m_renderer->GetD3D().MarkRedrawNeeded();
 
 }
 
@@ -884,7 +884,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     if (!m_inSizeMove)
     {
         WindowTrace::LogWindow ("place.change", "main", m_hwnd, "outside the OS drag loop");
-        m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
+        m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
     }
 
     if (m_chrome->m_mainMenu.IsOpen())
@@ -936,7 +936,7 @@ void EmulatorShell::OnExitSizeMove()
     m_inSizeMove = false;
     WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
 
-    m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
+    m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
 }
 
 
@@ -1048,8 +1048,8 @@ int EmulatorShell::RunMessageLoop()
     // Auto-reset wake signal the CPU thread raises after each published
     // frame, so the idle UI loop can block on it instead of spin-polling.
     // Must exist before the CPU thread starts publishing.
-    m_renderer->m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
-    CWRA (m_renderer->m_frameReadyEvent);
+    hr = m_renderer->CreateFrameReadyEvent();
+    CHR (hr);
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
@@ -1165,7 +1165,7 @@ int EmulatorShell::RunMessageLoop()
     m_cpuManager.Stop();
 
 Error:
-    DestroyFrameReadyEvent();
+    m_renderer->DestroyFrameReadyEvent();
     return exitCode;
 }
 
@@ -1218,6 +1218,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 {
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
+    HANDLE                  frameReady   = nullptr;
     std::optional<int64_t>  nextChangeMs = m_chrome->m_notices.GetNextChangeMs();
     std::optional<int64_t>  shimmerMs    = m_updater->GetMsUntilShimmer ((int64_t) GetTickCount64());
     int64_t                 untilMs      = 0;
@@ -1250,31 +1251,10 @@ void EmulatorShell::WaitForFrameOrMessage()
         timeout = (DWORD) std::clamp (*shimmerMs, (int64_t) 0, (int64_t) timeout);
     }
 
-    waited = MsgWaitForMultipleObjectsEx (1, &m_renderer->m_frameReadyEvent, timeout,
+    frameReady = m_renderer->GetFrameReadyEvent();
+    waited     = MsgWaitForMultipleObjectsEx (1, &frameReady, timeout,
                                           QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     IGNORE_RETURN_VALUE (waited, 0u);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DestroyFrameReadyEvent
-//
-//  Closes the frame-ready wake event. Idempotent; the caller must have
-//  stopped (joined) the CPU thread first so no SetEvent can race the close.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::DestroyFrameReadyEvent()
-{
-    if (m_renderer->m_frameReadyEvent != nullptr)
-    {
-        CloseHandle (m_renderer->m_frameReadyEvent);
-        m_renderer->m_frameReadyEvent = nullptr;
-    }
 }
 
 
@@ -1606,13 +1586,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     // chain and recreated the back-buffer RTV + D2D target before this
     // OnSize fired. The renderer no longer owns the swap chain; it just
     // needs the new back-buffer dimensions for the CRT post-process.
-    m_renderer->m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
+    m_renderer->GetD3D().SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
         UINT  dpi           = GetDpiForWindow (m_hwnd);
         RECT  menuBarBounds = {};
-        HRESULT  hrUiR           = m_uiShell.OnResize (m_renderer->m_d3dRenderer.GetBackBufferWidth(),
-                                                       m_renderer->m_d3dRenderer.GetBackBufferHeight(),
+        HRESULT  hrUiR           = m_uiShell.OnResize (m_renderer->GetD3D().GetBackBufferWidth(),
+                                                       m_renderer->GetD3D().GetBackBufferHeight(),
                                                        dpi);
 
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
@@ -1633,7 +1613,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         // windowed path below is the one that restores everything --
         // including the host caption -- when fullscreen exits, because this
         // OnSize runs on both transitions.
-        if (m_renderer->m_d3dRenderer.IsFullscreen())
+        if (m_renderer->GetD3D().IsFullscreen())
         {
             m_chrome->SetChromeHiddenForFullscreenScene (true);
             m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
@@ -1731,21 +1711,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
     // (Viewport layout already settled above, before the drive widgets.)
 
-    {
-        lock_guard<mutex> lock (m_renderer->m_framebufferMutex);
-
-        if (!m_renderer->m_uiFramebuffer.empty())
-        {
-            CrtParams  params = {};
-
-            params = MakeCrtParams (m_renderer->ResolveCrtForCurrentMode(),
-                                    (float) m_renderer->m_d3dRenderer.GetBackBufferWidth(),
-                                    (float) m_renderer->m_d3dRenderer.GetBackBufferHeight());
-            m_renderer->m_d3dRenderer.SetCrtParams (params);
-
-            m_renderer->m_pendingFramebuffer = m_renderer->m_uiFramebuffer.data();
-        }
-    }
+    m_renderer->StageFramebufferForResize();
 
     // Repaint immediately at the new size through the host pump. The
     // host already resized its swap chain in HandleSize; driving a
@@ -1762,7 +1728,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
     if (m_window->TakeUserStateChange())
     {
         WindowTrace::LogWindow ("state.change", "main", m_hwnd, "a maximize or restore the user asked for");
-        m_window->SavePlacement (m_renderer->m_d3dRenderer.IsFullscreen());
+        m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
     }
 
     m_chrome->m_inChromeLayout = false;

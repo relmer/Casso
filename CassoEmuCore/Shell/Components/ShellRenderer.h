@@ -31,15 +31,10 @@ struct MonitorSpec;
 //  clock, the color mode and CRT settings the picture is drawn with, the UI
 //  thread's present, and screenshots.
 //
-//  The CPU thread's frame loop and the shell's window handlers still reach
-//  the framebuffers and the gate directly, so the shell is a friend.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellRenderer
 {
-    friend class EmulatorShell;
-
 public:
     explicit ShellRenderer (EmulatorShell & shell);
     ~ShellRenderer();
@@ -47,6 +42,30 @@ public:
     // The framebuffer renderer, for the chrome, the scene and the drives that
     // draw into the same frame.
     D3DRenderer &  GetD3D () { return m_d3dRenderer; }
+
+    // CPU thread, once a frame: the picture rendered and published when what
+    // went into it changed since the last one, and the frame's video RAM
+    // marked clean.
+    void  PublishFrameIfChanged ();
+
+    // The event the CPU thread sets after publishing a frame, which the idle
+    // UI loop waits on. Created before the CPU thread starts and destroyed
+    // after it has been joined.
+    HRESULT  CreateFrameReadyEvent  ();
+    void     DestroyFrameReadyEvent ();
+    HANDLE   GetFrameReadyEvent     () const { return m_frameReadyEvent; }
+
+    // UI thread, after a resize: the current framebuffer staged for the
+    // next present at the new size, with the CRT parameters for it.
+    void  StageFramebufferForResize ();
+
+    // The UI framebuffer and its lock, which the clipboard's screen text
+    // scrape reads.
+    std::mutex             & GetFramebufferMutex () { return m_framebufferMutex; }
+    std::vector<uint32_t>  & GetUiFramebuffer    () { return m_uiFramebuffer; }
+
+    // The real time since the last frame's key repeat, capped at capUs.
+    uint32_t  TakeKeyRepeatElapsedUs (uint32_t capUs) { return m_frameClock.TakeKeyRepeatElapsedUs (capUs); }
 
     // The color mode the CPU thread renders with. The UI thread sets it; the
     // CPU thread picks it up on its next frame.

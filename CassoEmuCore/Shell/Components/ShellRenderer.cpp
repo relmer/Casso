@@ -1881,3 +1881,127 @@ void ShellRenderer::RedrawStoppedFrame()
 
     m_lastRenderColorSig = colorSig;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellRenderer::PublishFrameIfChanged
+//
+//  A steady screen renders nothing: the throttle, then a few cheap
+//  comparisons of what goes into the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellRenderer::PublishFrameIfChanged()
+{
+    FrameSignature  current;
+    FrameSignature  lastRendered;
+
+
+
+    if (!ShouldPublishFrame())
+    {
+        return;
+    }
+
+    current.videoDirty    = m_shell.m_machine.GetMemoryBus().IsVideoDirty();
+    current.modeSig       = ComputeVideoModeSig();
+    current.flashOn       = ComputeFlashOn();
+    current.colorSig      = ComputeColorSig();
+    lastRendered.modeSig  = m_lastRenderModeSig;
+    lastRendered.flashOn  = m_lastRenderFlashOn;
+    lastRendered.colorSig = m_lastRenderColorSig;
+
+    if (!FramePacing::NeedsRender (current, lastRendered))
+    {
+        return;
+    }
+
+    RenderFramebuffer();
+    PublishFramebuffer();
+
+    m_shell.m_machine.GetMemoryBus().ClearVideoDirty();
+    m_lastRenderModeSig  = current.modeSig;
+    m_lastRenderFlashOn  = current.flashOn;
+    m_lastRenderColorSig = current.colorSig;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellRenderer::CreateFrameReadyEvent
+//
+//  Auto-reset, so each wait takes one published frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellRenderer::CreateFrameReadyEvent()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
+    CWRA (m_frameReadyEvent);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellRenderer::DestroyFrameReadyEvent
+//
+//  Idempotent. The CPU thread must have been joined first, so no SetEvent
+//  can race the close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellRenderer::DestroyFrameReadyEvent()
+{
+    if (m_frameReadyEvent != nullptr)
+    {
+        CloseHandle (m_frameReadyEvent);
+        m_frameReadyEvent = nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellRenderer::StageFramebufferForResize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellRenderer::StageFramebufferForResize()
+{
+    lock_guard<mutex>  lock (m_framebufferMutex);
+    CrtParams          params = {};
+
+
+
+    if (m_uiFramebuffer.empty())
+    {
+        return;
+    }
+
+    params = MakeCrtParams (ResolveCrtForCurrentMode(),
+                            (float) m_d3dRenderer.GetBackBufferWidth(),
+                            (float) m_d3dRenderer.GetBackBufferHeight());
+    m_d3dRenderer.SetCrtParams (params);
+
+    m_pendingFramebuffer = m_uiFramebuffer.data();
+}
