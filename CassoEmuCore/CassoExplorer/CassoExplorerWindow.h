@@ -91,7 +91,7 @@ public:
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
 
     static constexpr const wchar_t *  kCassoNodeTip   = L"Folders Casso has opened disk images from, most recently used first";
-    static constexpr const wchar_t *  kMissingNodeTip = L"This folder is not available. Its drive may not be connected to this PC.";
+    static constexpr const wchar_t *  kMissingNodeTip = L"This folder is on a removable drive which is not currently connected.";
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
     static constexpr size_t           kMaxCompletions        = 200;

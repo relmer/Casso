@@ -640,7 +640,8 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         entry.isFolder = true;
 
         m_rows.push_back (CatalogModel::FromHostEntry (entry, false, index));
-        m_rows.back().hostPath = m_rootChildren[index].location.path;
+        m_rows.back().hostPath  = m_rootChildren[index].location.path;
+        m_rows.back().isMissing = m_rootChildren[index].missing;
 
         //  A drive's tile shows its name, its type and how full it is.
         if (m_rootChildren[index].kind == TreeNode::Kind::Drive && m_shellIcons != nullptr)
@@ -1763,7 +1764,15 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         cells[0].icon = GetRowIcon (row, at, *icons);
     }
 
-    cells[0].iconGhosted  = row.isHidden;
+    cells[0].iconGhosted  = row.isHidden || row.isMissing;
+
+    if (row.isMissing)
+    {
+        for (DxuiListView::Cell & cell : cells)
+        {
+            cell.dim = true;
+        }
+    }
 
     //  Explorer's Content row: a file's type under its name, and the date and
     //  the size in the column beside them, each saying what it is. A folder
@@ -2186,6 +2195,11 @@ bool CassoExplorerBrowser::OpenRow (int row)
     Location  target;
 
 
+
+    if (row >= 0 && (size_t) row < m_rows.size() && m_rows[(size_t) row].isMissing)
+    {
+        return false;
+    }
 
     //  A search's match inside a disk image opens the image with the file
     //  selected, where it previews and copies as any of the image's files.

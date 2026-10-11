@@ -45,6 +45,10 @@ struct CatalogRow
     bool  isCompressed        = false;
     bool  isEncrypted         = false;
 
+    //  A known folder whose drive is not attached: drawn dimmed, and opens
+    //  nothing.
+    bool  isMissing           = false;
+
     //  A drive in This PC, whose tile shows how full it is: sizeBytes holds
     //  its capacity and freeBytes what is left.
     bool      isDrive         = false;

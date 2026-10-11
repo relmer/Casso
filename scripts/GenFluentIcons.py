@@ -25,6 +25,13 @@ OUTPUT = ROOT / 'CassoEmuCore' / 'CassoExplorer' / 'CassoExplorerIcons.h'
 #  A band of (0, 0) is the whole icon.
 ALL = 'all'
 
+#  panel_right_20_regular's outline, cut at its divider: the left half and its
+#  hole, then the divider with the right half and its hole.
+PREVIEW_PATH = ('M11.5 3H5C3.34315 3 2 4.34315 2 6V13C2 14.6569 3.34315 16 5 16H11.5V3Z'
+                'M11.5 4V15H5C3.89543 15 3 14.1046 3 13V6C3 4.89543 3.89543 4 5 4H11.5Z'
+                'M11.5 16H15C16.6569 16 18 14.6569 18 13V6C18 4.34315 16.6569 3 15 3H11.5V16Z'
+                'M12.5 4H15C16.1046 4 17 4.89543 17 6V13C17 14.1046 16.1046 15 15 15H12.5V4Z')
+
 ICONS = {
     'New':     ('add_circle_20_regular',        [([0], True, 0, 0), ([1, 2], False, 0, 0)]),
     #  The scissors' handle loops and blades are one outline, so the tones
@@ -41,7 +48,6 @@ ICONS = {
     'Sort':    ('arrow_sort_24_regular',        [([1], False, 0, 0), ([0], True, 0, 0)]),
     #  The filled dots, which are Explorer's weight; the outline ones are thin.
     'More':    ('more_horizontal_20_filled',    [([0, 1, 2], False, 0, 0)]),
-    'Preview': ('panel_right_20_regular',       [([0, 1, 2], False, 0, 0), ([2], True, 0, 0)]),
     'Theme':   ('dark_theme_20_regular',        [([0, 1], False, 0, 0)]),
 
     #  The View menu's rows. ALL is every sub-shape, in the foreground ink.
@@ -205,6 +211,11 @@ def main():
     #  Explorer's View is four bars a pixel thick and 5 pixels apart at 150%,
     #  thinner and closer than Fluent's line_horizontal_4.
     entries += [('View', 'drawn by this script', bars_path(4, 2.0, 18.0, 10.0 / 3.0, 2.0 / 3.0), ALL)]
+
+    #  Explorer's Preview is panel_right with the pane in the accent: the divider
+    #  and the right pane's outline. Fluent's outline is one path, so it is
+    #  split here at the divider, each half closed along it.
+    entries += [('Preview', 'panel_right_20_regular, split at the divider', PREVIEW_PATH, [([0, 1], False, 0, 0), ([2, 3], True, 0, 0)])]
 
     for name, svg, d, layers in entries:
         if layers == ALL:

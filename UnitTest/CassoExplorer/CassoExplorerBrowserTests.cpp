@@ -189,6 +189,7 @@ public:
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
+        int                        missing = 0;
 
         host.browser.GetTreeRoots (roots);
 
@@ -838,6 +839,7 @@ public:
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
+        int                        missing = 0;
 
         host.browser.GetTreeRoots (roots);
 
@@ -849,6 +851,7 @@ public:
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
+        int                        missing = 0;
 
         host.browser.GetTreeRoots (roots);
 
@@ -895,6 +898,27 @@ public:
         Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
     }
 
+
+    TEST_METHOD (CassoRoot_MissingFolder_IsDimmedAndDoesNotOpen)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+        int                        missing = 0;
+
+        host.browser.GetTreeModel().SetKnownFolders ({ L"H:\\Games", kDisks });
+        host.browser.GetTreeRoots (roots);
+        AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kCassoRootId));
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
+
+        missing = _wcsicmp (host.browser.GetRows()[0].hostPath.c_str(), L"H:\\Games") == 0 ? 0 : 1;
+
+        Assert::IsTrue   (host.browser.GetRows()[(size_t) missing].isMissing);
+        Assert::IsTrue   (CassoExplorerBrowser::ToCells (host.browser.GetRows()[(size_t) missing])[0].dim);
+        Assert::IsFalse  (host.browser.GetRows()[(size_t) (1 - missing)].isMissing);
+        Assert::IsFalse  (host.browser.OpenRow (missing));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+    }
 
     TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
     {
@@ -974,6 +998,7 @@ public:
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
+        int                        missing = 0;
         std::wstring               known;
         std::wstring               path;
 

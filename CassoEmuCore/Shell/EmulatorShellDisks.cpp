@@ -223,18 +223,20 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
 {
     std::wstring  message;
     HWND          replyTo   = nullptr;
-    bool          handedOff = m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
+    bool          handedOff = false;
 
 
+
+    handedOff = m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
+    IGNORE_RETURN_VALUE (handedOff, true);
 
     RecordRecentDisk (fs::path (completion.path).wstring(), completion.result);
 
     if (SUCCEEDED (completion.result))
     {
-        if (handedOff)
-        {
-            RecordKnownFolder (completion.path);
-        }
+        //  Every disk mounted adds its folder, however it arrived: Casso
+        //  Explorer, a drop, the picker or the recent-disks menu.
+        RecordKnownFolder (completion.path);
 
         if (replyTo != nullptr)
         {

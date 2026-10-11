@@ -231,21 +231,6 @@ namespace CassoExplorerIcons
         20.0f, s_kMoreLayers, std::size (s_kMoreLayers)
     };
 
-    //  panel_right_20_regular
-    static constexpr DxuiVectorIconLayer  s_kPreviewLayers[] =
-    {
-        { 0x07u, false, 0.0f, 0.0f },
-        { 0x04u, true , 0.0f, 0.0f },
-    };
-
-    static constexpr DxuiVectorIcon  s_kPreview =
-    {
-        L"M18 6C18 4.34315 16.6569 3 15 3H5C3.34315 3 2 4.34315 2 6V13C2 14.6569 3.34315 16 5 16H15C16.6569 16 "
-        L"18 14.6569 18 13V6ZM11.5 4V15H5C3.89543 15 3 14.1046 3 13V6C3 4.89543 3.89543 4 5 4H11.5ZM12.5 "
-        L"4H15C16.1046 4 17 4.89543 17 6V13C17 14.1046 16.1046 15 15 15H12.5V4Z",
-        20.0f, s_kPreviewLayers, std::size (s_kPreviewLayers)
-    };
-
     //  dark_theme_20_regular
     static constexpr DxuiVectorIconLayer  s_kThemeLayers[] =
     {
@@ -427,5 +412,20 @@ namespace CassoExplorerIcons
         L"11.3333ZM2.33333 14.6667H17.6667A0.333333 0.333333 0 0 1 18 15V15A0.333333 0.333333 0 0 1 17.6667 "
         L"15.3333H2.33333A0.333333 0.333333 0 0 1 2 15V15A0.333333 0.333333 0 0 1 2.33333 14.6667Z",
         20.0f, s_kViewLayers, std::size (s_kViewLayers)
+    };
+
+    //  panel_right_20_regular, split at the divider
+    static constexpr DxuiVectorIconLayer  s_kPreviewLayers[] =
+    {
+        { 0x03u, false, 0.0f, 0.0f },
+        { 0x0Cu, true , 0.0f, 0.0f },
+    };
+
+    static constexpr DxuiVectorIcon  s_kPreview =
+    {
+        L"M11.5 3H5C3.34315 3 2 4.34315 2 6V13C2 14.6569 3.34315 16 5 16H11.5V3ZM11.5 4V15H5C3.89543 15 3 "
+        L"14.1046 3 13V6C3 4.89543 3.89543 4 5 4H11.5ZM11.5 16H15C16.6569 16 18 14.6569 18 13V6C18 4.34315 "
+        L"16.6569 3 15 3H11.5V16ZM12.5 4H15C16.1046 4 17 4.89543 17 6V13C17 14.1046 16.1046 15 15 15H12.5V4Z",
+        20.0f, s_kPreviewLayers, std::size (s_kPreviewLayers)
     };
 }
