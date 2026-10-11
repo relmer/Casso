@@ -5057,6 +5057,17 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
             SelectGroup (group);
         }
     }
+    else if (row >= 0 && !ev.ctrl && !ev.shift && m_selectedRows.size() > 1 && IsRowSelected (row))
+    {
+        //  A plain press on one of several selected rows leaves the selection
+        //  whole, so a drag that follows takes all of it, as Explorer's does.
+        //  The release collapses it to the row if no drag began.
+        m_focusGroup    = -1;
+        m_pressModified = false;
+        m_dragSelecting = false;
+        m_anchorRow     = row;
+        m_selectedRow   = row;
+    }
     else if (row >= 0)
     {
         m_focusGroup    = -1;
