@@ -293,7 +293,7 @@ void EmulatorShell::DebuggerHost::PersistSwitchState (const char * key, bool val
 
 HeldHostInputs & EmulatorShell::DebuggerHost::GetHeldHostInputs()
 {
-    return m_shell.m_input->m_heldHostInputs;
+    return m_shell.m_input->GetHeldHostInputs();
 }
 
 

@@ -634,8 +634,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the leave-time release of a held guest button runs identically. It is
     // offered only where there is a mouse to drive: the //c.
     m_chrome->m_mainMenu.GetCommands().SetMouseModeFns (
-        [this] () { return m_input->m_pointerMode == InputMappingMode::Mouse; },
-        [this] () { return m_machine.GetMouse() != nullptr && m_input->m_mouseConnected; },
+        [this] () { return m_input->GetPointerMode() == InputMappingMode::Mouse; },
+        [this] () { return m_machine.GetMouse() != nullptr && m_input->IsMouseConnected(); },
         [this] () { m_input->ToggleInputMappingMode (InputMappingMode::Mouse); });
 
     m_chrome->m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
@@ -664,8 +664,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_MACHINE_ARROWS_JOYSTICK: return m_input->m_arrowsJoystick;
-            case IDM_MACHINE_ARROWS_PADDLE:   return m_input->m_pointerMode == InputMappingMode::Paddle;
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_input->IsArrowsJoystick();
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_input->GetPointerMode() == InputMappingMode::Paddle;
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
 
@@ -1400,10 +1400,7 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
     // Controller input follows the application, not one window: the Settings
     // sheet is Casso too, and XInput was measured still delivering while
     // another application was in front, so the gate has to be ours.
-    if (m_input->m_controllerService != nullptr)
-    {
-        m_input->m_controllerService->SetActive (active);
-    }
+    m_input->SetControllersActive (active);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1454,7 +1451,7 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     //  other cancel -- a modal, a secure desktop, a real takeover -- releases
     //  the pointer as it always did, which is what keeps a hidden cursor from
     //  being stranded behind someone else's window.
-    if (m_input->m_paddleCaptured && m_chrome->m_captureReflowMs != 0
+    if (m_input->IsPaddleCaptured() && m_chrome->m_captureReflowMs != 0
         && ChangeBannerNowMs() - m_chrome->m_captureReflowMs <= ShellChrome::s_kCaptureReflowEchoMs
         && GetForegroundWindow() == m_hwnd
         && !m_chrome->m_mainMenu.IsOpen())
@@ -2112,7 +2109,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
 
         m_input->ReleaseInputsLetGoBehindLive();
-        m_input->m_gamePortMixer.FlushPending();
+        m_input->FlushGamePort();
 
         // A controller's flush can arrive behind live, before the cut a yes
         // queued; what is held waits for the one going live posts.
@@ -2179,25 +2176,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        std::vector<std::wstring>  notices;
-        bool                       haveEntriesChanged     = false;
-        bool                       haveLastHoldersChanged = false;
-
-        {
-            std::lock_guard<std::mutex>  lock (m_input->m_controllerPickMutex);
-
-            notices.swap (m_input->m_controllerPickNotices);
-            haveEntriesChanged         = m_input->m_controllerPickHasEntries;
-            haveLastHoldersChanged     = m_input->m_controllerPickHasHolders;
-            m_input->m_controllerPickHasEntries = false;
-            m_input->m_controllerPickHasHolders = false;
-        }
-
-        // A device arriving or leaving changes the rows even when it changes
-        // nothing else, so the list is rebuilt on every one of these.
-        m_input->ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
-        m_input->SyncPaddleSourceList();
-
+        m_input->ApplyPendingControllerPick();
         return DxuiMessageResult::Handled;
     }
 
@@ -2270,7 +2249,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // default pointer mode, both on the CPU thread, which defers their UI
         // reflection here. Sync the selector state on the UI thread; it is
         // idempotent when nothing changed.
-        SyncSelectorState();
+        m_input->SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
     }

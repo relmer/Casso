@@ -362,7 +362,7 @@ void ShellChrome::SyncStandInBanner()
     //  took on the arrow keys. Without the test it grabs the pointer and
     //  clips the cursor to the client in keys mode, where nothing asked for
     //  the mouse at all.
-    if (m_shell.m_input->m_paddleCaptured && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
+    if (m_shell.m_input->IsPaddleCaptured() && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
     {
         SetCapture (m_shell.m_hwnd);
         m_shell.m_input->ClipPaddleCursorToClient();

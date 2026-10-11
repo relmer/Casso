@@ -343,7 +343,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
-                    m_shell.m_input->m_mouseConnected = mouseConn;
+                    m_shell.m_input->SetMouseConnected (mouseConn);
 
                     // The cassette recorder: the switched-to machine's own
                     // setting, connected unless it was disconnected.
@@ -507,7 +507,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // The new devices hold none of the game-port state the mixer wrote to the
     // old ones, and a write refused while the rebuild held the lock is still
     // pending. Both are delivered by this, on the UI thread.
-    m_shell.m_input->m_gamePortMixer.NotifyMachineRebuilt();
+    m_shell.m_input->OnMachineRebuilt();
 
     // The build unregistered the old disk-audio sources and created new
     // ones. They are registered with the mixer but hold no sample data yet

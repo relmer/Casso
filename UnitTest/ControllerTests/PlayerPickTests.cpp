@@ -41,7 +41,7 @@ namespace ControllerTests
         public:
             void  InstallControllerService (IControllerBackend & backend)
             {
-                GetInput().m_controllerService = std::make_unique<ControllerInputService> (backend, GetInput().m_gamePortMixer);
+                GetInput().InstallControllerService (backend);
             }
 
             void  StartOn (PlayerEntryKind kind)
@@ -51,14 +51,14 @@ namespace ControllerTests
 
 
                 entries[0].kind  = kind;
-                GetInput().m_arrowsJoystick = kind == PlayerEntryKind::ArrowKeys;
-                GetInput().m_pointerMode    = (kind == PlayerEntryKind::MousePaddle) ? InputMappingMode::Paddle : InputMappingMode::Off;
-                GetInput().m_controllerService->SetPlayerEntries (entries);
+                GetInput().SetStandIns (kind == PlayerEntryKind::ArrowKeys,
+                                         (kind == PlayerEntryKind::MousePaddle) ? InputMappingMode::Paddle : InputMappingMode::Off);
+                GetInput().GetControllerService()->SetPlayerEntries (entries);
             }
 
-            ControllerInputService &  GetService()             { return *GetInput().m_controllerService; }
-            bool                      IsArrowsJoystick() const { return GetInput().m_arrowsJoystick; }
-            InputMappingMode          GetPointerMode() const   { return GetInput().m_pointerMode; }
+            ControllerInputService &  GetService()             { return *GetInput().GetControllerService(); }
+            bool                      IsArrowsJoystick() const { return GetInput().IsArrowsJoystick(); }
+            InputMappingMode          GetPointerMode() const   { return GetInput().GetPointerMode(); }
         };
 
 

@@ -310,7 +310,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // The update indicator sits in the caption, above every band, so a move
     // over it is its own and nothing below sees it.
-    if (!m_input->m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    if (!m_input->IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -319,7 +319,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // call is what keeps its hover highlight honest. Ahead of the drags
     // below because a press the compass took must never feed the orbit's
     // own anchor math as well.
-    if (!m_input->m_paddleCaptured && m_scene->m_sceneCompass.OnPointerMove (x, y))
+    if (!m_input->IsPaddleCaptured() && m_scene->m_sceneCompass.OnPointerMove (x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -336,7 +336,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // it would cause is a game whose paddles stop responding.
     // An orbit in flight owns the move the same way a pan does, whichever
     // button is driving it.
-    if (m_scene->m_sceneOrbiting && !m_input->m_paddleCaptured &&
+    if (m_scene->m_sceneOrbiting && !m_input->IsPaddleCaptured() &&
         ((m_scene->m_sceneOrbitLeftBtn && leftDown) ||
          (!m_scene->m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
     {
@@ -359,7 +359,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     // The recorder's volume wheel, held, follows the pointer across.
-    if (m_scene->m_volumeDragging && leftDown && !m_input->m_paddleCaptured)
+    if (m_scene->m_volumeDragging && leftDown && !m_input->IsPaddleCaptured())
     {
         m_scene->DragVolumeWheel (x, nowMs);
 
@@ -371,7 +371,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // on -- the marks say which way the control goes, they are not two
     // separate handles that move in opposite senses. Screen y grows downward,
     // so the travel is negated to get "up is up".
-    if (m_scene->m_bezelTilting && leftDown && !m_input->m_paddleCaptured)
+    if (m_scene->m_bezelTilting && leftDown && !m_input->IsPaddleCaptured())
     {
         m_scene->m_deskScene.SetBezelTilt (m_scene->m_bezelTiltStartRad
                                            + ((float) (m_scene->m_bezelTiltStartPx.y - y)) * ShellDeskScene::kBezelTiltRadPerPx);
@@ -380,7 +380,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (m_scene->m_scenePanning && leftDown && !m_input->m_paddleCaptured)
+    if (m_scene->m_scenePanning && leftDown && !m_input->IsPaddleCaptured())
     {
         RECT   box    = m_scene->m_deskScene.Composition().viewportPx;
         float  width  = (float) (box.right - box.left);
@@ -405,13 +405,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // Paddle mode owns the pointer while captured: relative motion drives
     // the held paddle axes and the cursor is snapped back to center, so the
     // chrome never sees the move.
-    if (m_input->m_paddleCaptured)
+    if (m_input->IsPaddleCaptured())
     {
         m_input->UpdatePaddleFromMouse (x, y);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
 
     // //c Mouse mode (non-capturing): a move over the emulator viewport
     // drives the guest mouse via absolute mapping. Deliberately falls
@@ -865,7 +865,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
     // Fullscreen is: the picture owns the client and the desk is not on
     // screen, so there is no camera to move -- only hidden state to
     // scramble for the return to windowed.
-    if (delta == 0 || !DeskSceneActive() || m_input->m_paddleCaptured ||
+    if (delta == 0 || !DeskSceneActive() || m_input->IsPaddleCaptured() ||
         m_renderer->m_d3dRenderer.IsFullscreen())
     {
         return DxuiMessageResult::NotHandled;
@@ -1150,13 +1150,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0 and the
     // pointer is hidden/confined, so nothing else acts on the press.
-    if (m_input->m_paddleCaptured)
+    if (m_input->IsPaddleCaptured())
     {
         m_input->PushPaddleButton (0, true);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
 
     // The caption's update indicator, ahead of the capture and every band:
     // nothing else lives in the caption strip's client area.
@@ -1257,7 +1257,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         if (overDisplay)
         {
             isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-            m_input->m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
+            m_input->GetHeldHostInputs().OnPress (HeldHostInputs::kMouseButton, isGateOpen);
         }
 
         if (overDisplay && !isGateOpen)
@@ -1465,7 +1465,7 @@ Error:
 //  then immediately opens the file-open dialog on top of it.
 //
 //  The paddle re-grab predicate is captured BEFORE StartPaddleCapture runs,
-//  because that call sets m_input->m_paddleCaptured -- re-testing afterwards reads
+//  because that call sets m_input->IsPaddleCaptured() -- re-testing afterwards reads
 //  false and the bail below would not fire.
 //
 //  The guest mouse button release at the end is deliberately NOT viewport-
@@ -1517,14 +1517,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     //
     //  PADDLE MODE IS THE EXCEPTION and holds the pointer on purpose, so it
     //  keeps it across the click; the button release below is its own.
-    if (!m_input->m_paddleCaptured)
+    if (!m_input->IsPaddleCaptured())
     {
         ReleaseCapture();
     }
 
     //  The update indicator's own press ends here, and its click is this
     //  release landing on it.
-    if (!m_input->m_paddleCaptured && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    if (!m_input->IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1592,13 +1592,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).
-    if (m_input->m_paddleCaptured)
+    if (m_input->IsPaddleCaptured())
     {
         m_input->PushPaddleButton (0, false);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->m_paddleCaptured, S_OK);
+    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
 
     // Command toolbar release: click dispatch / mute toggle / slider drop.
     toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonUp (x, y);
@@ -1765,8 +1765,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release. The
     // predicate is captured BEFORE the call, because StartPaddleCapture sets
-    // m_input->m_paddleCaptured and re-testing it afterwards would read false.
-    canGrabPaddle = m_input->m_pointerMode == InputMappingMode::Paddle && !m_input->m_paddleCaptured;
+    // m_input->IsPaddleCaptured() and re-testing it afterwards would read false.
+    canGrabPaddle = m_input->GetPointerMode() == InputMappingMode::Paddle && !m_input->IsPaddleCaptured();
 
     if (canGrabPaddle)
     {
@@ -1784,7 +1784,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_input->IsGuestMouseActive())
     {
         isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-        m_input->m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+        m_input->GetHeldHostInputs().OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
     }
 
     if (m_input->IsGuestMouseActive() && !isGateOpen)
@@ -1823,7 +1823,7 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
-    if (m_input->m_paddleCaptured)
+    if (m_input->IsPaddleCaptured())
     {
         m_input->PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
@@ -1902,7 +1902,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (m_input->m_paddleCaptured)
+    if (m_input->IsPaddleCaptured())
     {
         m_input->PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
@@ -2059,7 +2059,7 @@ ShellKeyRouting::State EmulatorShell::GetKeyRoutingState() const
 
 
 
-    state.pointerMode         = m_input->m_pointerMode;
+    state.pointerMode         = m_input->GetPointerMode();
     state.toolbarOwnsKeyboard = m_chrome->m_toolbar.OwnsKeyboard();
     state.isChromeFocused     = m_chromeFocusIndex != s_kChromeFocusNone;
     state.isMenuOpen          = m_chrome->m_mainMenu.IsOpen();
@@ -2201,7 +2201,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // the guest never sees the press.
     if (vk == VK_CAPITAL)
     {
-        if (!isRepeat && m_input->m_capsLock.OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
+        if (!isRepeat && m_input->GetCapsLock().OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
         {
             m_chrome->ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
         }
@@ -2316,50 +2316,6 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncInputModeUi
-//
-//  Common tail for the axis setters: refresh the toggle button's displayed
-//  mode, then persist the pair into the current machine's prefs.
-//
-//  The two setters call each other to enforce paddle-vs-joystick exclusivity,
-//  so one user action can land here twice. Both passes write the same live
-//  state, and the second is what ends up on disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncInputModeUi()
-{
-    // SyncSelectorState rebuilds the picker rows; calling SyncPaddleSourceList
-    // here as well rebuilt them twice for every mode change.
-    SyncSelectorState();
-    m_input->PersistInputModeForMachine();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncSelectorState
-//
-//  Re-reads what the strip's input controls show. Both read their own state
-//  through functors, so nothing is pushed into them; the paddle picker's
-//  rows are the one thing that has to be rebuilt.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SyncSelectorState()
-{
-    m_input->SyncPaddleSourceList();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnChar
 //
 //  Decides whether a synthesized WM_CHAR belongs to the guest, and drops it
@@ -2432,7 +2388,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    bool  isFireKey = m_input->m_arrowsJoystick &&
+    bool  isFireKey = m_input->IsArrowsJoystick() &&
                       (m_machine.GetRefs().iieSoftSwitches != nullptr ||
                        m_machine.GetRefs().gamePort != nullptr) &&
                       (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z');

@@ -114,7 +114,7 @@ void EmulatorShell::ApplyPersistedMachinePrefs()
     // ApplyPersistedChromePrefs has already applied mouseConnected.
     m_input->AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
     m_input->ApplyDefaultPointerForMachine();
-    SyncSelectorState();
+    m_input->SyncPaddleSourceList();
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 

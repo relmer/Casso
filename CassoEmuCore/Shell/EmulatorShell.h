@@ -2,24 +2,16 @@
 
 #include "Pch.h"
 
-#include "Controllers/ControllerInputService.h"
-#include "Controllers/GamePortInputMixer.h"
-#include "Controllers/InputModeRules.h"
-#include "Seams/Win32ControllerBackend.h"
-#include "Shell/ControllerInputThread.h"
-#include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
-#include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
 #include "Shell/MachineHost.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
-#include "Shell/HeldHostInputs.h"
 
 
 
@@ -31,7 +23,6 @@ class WindowCommandManager;
 struct DialogDefinition;
 struct MachineConfig;
 class SettingsSheet;
-class JsonValue;
 class DriveWidget;
 class ShellAudio;
 class ShellChrome;
@@ -44,16 +35,9 @@ class ShellSettings;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
-class MachineGamePortSink;
-class ControllerInputThread;
-class Win32ControllerBackend;
 struct ScreenshotFacts;
 class DiskManager;
 class ThemeManager;
-
-// Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
-// key classifiers can name it without dragging the device header in.
-enum class AppleSpecialKey;
 
 
 
@@ -97,10 +81,6 @@ class EmulatorShell : public IDxuiHostClient,
                       private ICpuMachineCommands
 {
 public:
-    // Stage 1 of the input extraction only: ShellInput reaches the shell's
-    // state directly until its host interface replaces that.
-    friend class ShellInput;
-
     // The input component, for the Settings sheet's Controllers page.
     ShellInput       &  GetInput ()       { return *m_input; }
     const ShellInput &  GetInput () const { return *m_input; }
@@ -385,8 +365,6 @@ private:
 
 private:
 
-    void    SyncInputModeUi();
-    void    SyncSelectorState();
 
     // Apple //c case-switch strip. IsApple2c gates its chrome band + input;
     // LayoutSwitchBar positions the strip in its band rect; SyncSwitchBarState

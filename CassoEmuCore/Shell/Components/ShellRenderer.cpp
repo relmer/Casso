@@ -870,7 +870,7 @@ bool ShellRenderer::TryPresentUiFrame()
         // cursor is the only pointer there is, and the bottom edge must
         // summon the strip -- Active gated the reveal off for the whole
         // session on a machine whose mouse is built in.
-        inputs.guestPointer  = m_shell.m_input->m_paddleCaptured    ? GuestPointerMode::Paddle
+        inputs.guestPointer  = m_shell.m_input->IsPaddleCaptured()    ? GuestPointerMode::Paddle
                              : m_shell.m_input->IsGuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
@@ -879,7 +879,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
         if (effects.releaseCapture)
         {
-            if (m_shell.m_input->m_paddleCaptured)
+            if (m_shell.m_input->IsPaddleCaptured())
             {
                 m_shell.m_input->StopPaddleCapture();
             }

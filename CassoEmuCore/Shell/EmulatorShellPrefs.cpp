@@ -270,7 +270,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);
     if (SUCCEEDED (hrOpt))
     {
-        m_input->m_mouseConnected = mouseConn;
+        m_input->SetMouseConnected (mouseConn);
     }
 
     // The cassette recorder, connected unless it was disconnected.

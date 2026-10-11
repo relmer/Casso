@@ -1,84 +1,24 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellInput.h"
-#include "Shell/EmulatorShell.h"
-#include "Shell/IInputHost.h"
-#include "Core/JsonWriter.h"
-#include "Machines/MachineDefinition.h"
-#include "Shell/EmulatorShell.h"
-#include "Shell/IInputHost.h"
-#include "Core/JsonWriter.h"
-#include "Machines/MachineDefinition.h"
+#include "Shell/MachineHost.h"
+#include "Config/GlobalUserPrefs.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/IInputHost.h"
+#include "Core/JsonWriter.h"
+#include "Machines/MachineDefinition.h"
 #include "Shell/ClipboardManager.h"
-#include "Shell/Components/ShellWindow.h"
-#include "Shell/Components/ShellRenderer.h"
-#include "Shell/Components/ShellChrome.h"
-#include "Shell/Components/ShellDeskScene.h"
-#include "Shell/Components/ShellSettings.h"
-#include "Shell/Components/ShellDisks.h"
-#include "Shell/Components/ShellTapeDeck.h"
-#include "Shell/Components/ShellAudio.h"
-#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
-#include "AssetBootstrap.h"
-#include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
-#include "Controllers/InputModeRules.h"
-#include "Controllers/ControllerProfileStore.h"
 #include "Controllers/ControllerTokens.h"
 #include "Controllers/PlayerModeRules.h"
-#include "Config/CrtPresets.h"
-#include "Config/CrtResolver.h"
-#include "Print/PrintJobStore.h"
-#include "Machines/Apple2/Common/PrinterCard.h"
-#include "Ui/PrinterPanel.h"
-#include "Core/PathResolver.h"
-#include "Version.h"
-#include "BuildInfo.h"
 #include "resource.h"
-#include "Devices/RamDevice.h"
-#include "Devices/RomDevice.h"
-#include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
-#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
-#include "Machines/Apple2/Common/AppleGamePort.h"
-#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
-#include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/MockingboardCard.h"
-#include "Machines/Apple2/Common/LanguageCard.h"
-#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
-#include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
-#include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
-#include "Shell/Layout/DriveRowLayout.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
-#include "Core/Prng.h"
 #include "Config/DiskSettings.h"
-#include "Core/UnicodeSymbols.h"
-#include "Core/MachineConfig.h"
-#include "Core/JsonParser.h"
-#include "Machines/Apple2/Common/AppleTextMode.h"
-#include "Machines/Apple2/Common/Apple80ColTextMode.h"
-#include "Machines/Apple2/Common/AppleLoResMode.h"
-#include "Machines/Apple2/Common/AppleHiResMode.h"
-#include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
-#include "Video/PixelFormat.h"
-#include "Video/MonochromeTint.h"
-#include "Ui/Chrome/ChromeMetrics.h"
-#include "Ui/DriveWidgetController.h"
-#include "Shell/DiskMru.h"
-#include "Ui/Dialogs/DialogBodyContent.h"
-#include "Ui/Dialogs/MessageDialog.h"
-#include "Ui/Dialogs/SalvageDialogContent.h"
-#include "Ui/Settings/SettingsPanelState.h"
-#include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
-#include "Seams/Win32IntentChannel.h"
-#include "Devices/Disk/PreservedCopy.h"
-#include "Shell/ControllerInputThread.h"
 
 
 
@@ -90,9 +30,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellInput::ShellInput (EmulatorShell & shell, IInputHost & host) :
-    m_shell (shell),
-    m_host  (host)
+ShellInput::ShellInput (IInputHost & host, MachineHost & machine, ShellDebugger & debugger) :
+    m_host     (host),
+    m_machine  (machine),
+    m_debugger (debugger)
 {
 }
 
@@ -120,7 +61,7 @@ ShellInput::~ShellInput() = default;
 
 void ShellInput::ReleaseGuestKeys()
 {
-    std::shared_lock<std::shared_mutex>  lifetime   (m_shell.m_machine.GetLifetimeLock(), std::defer_lock);
+    std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::defer_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 isGateOpen = false;
 
@@ -143,7 +84,7 @@ void ShellInput::ReleaseGuestKeys()
     // Behind live in reverse execution's history the keyboard holds a
     // recorded position, which a release must not change; the releases are
     // kept for when the machine is live again.
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
     m_heldHostInputs.OnReleaseAll (isGateOpen);
 
     if (!isGateOpen)
@@ -151,10 +92,10 @@ void ShellInput::ReleaseGuestKeys()
         return;
     }
 
-    if (m_shell.m_machine.GetRefs().keyboard != nullptr)
+    if (m_machine.GetRefs().keyboard != nullptr)
     {
-        m_shell.m_machine.GetRefs().keyboard->SetKeyDown (false);
-        m_shell.m_machine.GetRefs().keyboard->EndKeyRepeat();
+        m_machine.GetRefs().keyboard->SetKeyDown (false);
+        m_machine.GetRefs().keyboard->EndKeyRepeat();
     }
 }
 
@@ -176,14 +117,14 @@ void ShellInput::ReleaseGuestKeys()
 
 void ShellInput::ReleaseInputsLetGoBehindLive()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     std::vector<WPARAM>                  releases;
     DxuiKeyEvent                         release;
 
 
 
-    if (m_shell.m_machine.GetHostInputGate().IsHeld())
+    if (m_machine.GetHostInputGate().IsHeld())
     {
         return;
     }
@@ -198,9 +139,9 @@ void ShellInput::ReleaseInputsLetGoBehindLive()
             release.vk = input;
             (void) HandleViewportKey (release);
         }
-        else if (lifetime.owns_lock() && m_shell.m_machine.GetMouse() != nullptr && m_shell.m_machine.GetHostInputGate().TryEnter (gate))
+        else if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
         {
-            m_shell.m_machine.GetMouse()->SetButton (false);
+            m_machine.GetMouse()->SetButton (false);
         }
     }
 }
@@ -228,7 +169,7 @@ void ShellInput::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
     constexpr size_t  kSolidAppleButton = 1;
     constexpr size_t  kShiftButton      = 2;
     HRESULT           hr                = S_OK;
-    auto            * iieKbd            = m_shell.m_machine.GetRefs().iieKeyboard;
+    auto            * iieKbd            = m_machine.GetRefs().iieKeyboard;
     bool              isAlt             = vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU;
     bool              isShift           = vk == VK_SHIFT;
 
@@ -312,7 +253,7 @@ Error:
 
 bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
 {
-    std::shared_lock<std::shared_mutex>  lifetime     (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
+    std::shared_lock<std::shared_mutex>  lifetime     (m_machine.GetLifetimeLock(), std::try_to_lock);
     std::shared_lock<std::shared_mutex>  gate;
     bool                                 hasKeyboard  = false;
     bool                                 isGateOpen   = false;
@@ -333,7 +274,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // position, so the guest gets no keys until the machine is live again.
     // Each press and release is tracked either way, so a key let go of behind
     // live is released once the machine is live.
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
     if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
     {
@@ -349,15 +290,15 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_shell.m_debugger->GetDivergenceGate().JudgeKey (!isGateOpen, ev);
+    verdict = m_debugger.GetDivergenceGate().JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_shell.m_debugger->GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
+        m_debugger.GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
-        m_shell.m_debugger->PublishHeldInput();
+        m_debugger.PublishHeldInput();
 
         return true;
     }
@@ -369,7 +310,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
 
     // The guest owns every key that reaches here either way; with no keyboard
     // device there is simply nothing to deliver it to.
-    hasKeyboard = m_shell.m_machine.GetRefs().keyboard != nullptr;
+    hasKeyboard = m_machine.GetRefs().keyboard != nullptr;
 
     if (hasKeyboard && ev.kind == DxuiKeyEventKind::Down)
     {
@@ -378,7 +319,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
         bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
-                                      m_shell.m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
+                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
 
         // A named key the running machine's keyboard does not have was never
         // pressed as far as the guest is concerned, so it must not raise
@@ -386,7 +327,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         // nothing is a state the hardware cannot be in.
         if (hasTheKey)
         {
-            m_shell.m_machine.GetRefs().keyboard->SetKeyDown (true);
+            m_machine.GetRefs().keyboard->SetKeyDown (true);
         }
 
         // TAB and Escape reach us twice: once as this keydown, and again as
@@ -400,7 +341,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         // cannot leave it armed for the next key.
         if (isSpecial && AppleKeyMapping::DoesSpecialKeySynthesizeChar (specialKey))
         {
-            m_shell.m_swallowMetaChar = true;
+            m_host.SwallowNextChar();
         }
 
         // Arrows / TAB / Escape / DELETE are delivered as KEYS, and the
@@ -414,11 +355,11 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         // joystick game's reads.
         if (!ev.repeat && isSpecial && !(IsDrivingJoystickFromKeys() && AppleKeyMapping::IsArrowVk (vk)))
         {
-            appleCode = m_shell.m_machine.GetRefs().keyboard->PressSpecialKey (specialKey);
+            appleCode = m_machine.GetRefs().keyboard->PressSpecialKey (specialKey);
 
             if (appleCode != 0)
             {
-                m_shell.m_machine.GetRefs().keyboard->BeginKeyRepeat (appleCode);
+                m_machine.GetRefs().keyboard->BeginKeyRepeat (appleCode);
             }
         }
 
@@ -430,7 +371,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         AppleSpecialKey  specialKey = AppleSpecialKey::Left;
         bool             isSpecial  = AppleKeyMapping::TryMapVkToSpecialKey (vk, specialKey);
         bool             hasTheKey  = !isSpecial ||
-                                      m_shell.m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
+                                      m_machine.GetRefs().keyboard->MapSpecialKey (specialKey) != 0;
 
         // The same question the press asked, asked again: a key this machine
         // does not have was never pressed, so its release must not undo the
@@ -440,14 +381,14 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         // held while $C000 holds a character.
         if (hasTheKey)
         {
-            m_shell.m_machine.GetRefs().keyboard->SetKeyDown (false);
+            m_machine.GetRefs().keyboard->SetKeyDown (false);
 
             // Disarm auto-repeat on release. The //e latch holds a single
             // key, so a key-up always ends the current repeat; this also
             // clears any stale armed key so a later non-character press
             // (e.g. a bare modifier) can never resurrect the previous
             // character's repeat.
-            m_shell.m_machine.GetRefs().keyboard->EndKeyRepeat();
+            m_machine.GetRefs().keyboard->EndKeyRepeat();
         }
 
         RouteKeyToGamePort (ev);
@@ -458,8 +399,8 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         // PC's Ctrl+@, and some games wait for it.
         Byte  code = MapHostCharToApple (ev.vk);
 
-        m_shell.m_machine.GetRefs().keyboard->PressKey (code);
-        m_shell.m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
+        m_machine.GetRefs().keyboard->PressKey (code);
+        m_machine.GetRefs().keyboard->BeginKeyRepeat (code);
     }
 
     return true;
@@ -483,7 +424,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
 bool ShellInput::IsDrivingJoystickFromKeys() const
 {
     return m_arrowsJoystick &&
-           (m_shell.m_machine.GetRefs().iieSoftSwitches != nullptr || m_shell.m_machine.GetRefs().gamePort != nullptr);
+           (m_machine.GetRefs().iieSoftSwitches != nullptr || m_machine.GetRefs().gamePort != nullptr);
 }
 
 
@@ -517,7 +458,7 @@ void ShellInput::RouteKeyToGamePort (const DxuiKeyEvent & ev)
 
 
 
-    if (m_shell.m_machine.GetRefs().keyboard == nullptr)
+    if (m_machine.GetRefs().keyboard == nullptr)
     {
         return;
     }
@@ -595,11 +536,11 @@ Byte ShellInput::MapHostCharToApple (WPARAM ch)
 
     code = CapsLockTracker::RemoveHostCapsLock (code, hostCapsLock);
 
-    if (m_shell.m_machine.GetRefs().iieKeyboard != nullptr)
+    if (m_machine.GetRefs().iieKeyboard != nullptr)
     {
-        m_shell.m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (IsHostLayoutDvorak());
+        m_machine.GetRefs().iieKeyboard->SetHostKeyboardDvorak (IsHostLayoutDvorak());
 
-        code = m_shell.m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
+        code = m_machine.GetRefs().iieKeyboard->MapTypedChar (code);
     }
 
     return CapsLockTracker::ApplyCapsLock (code, m_capsLock.IsOn (hostCapsLock));
@@ -624,7 +565,7 @@ std::optional<Byte> ShellInput::GetHeldKeyLatch (
     const DxuiKeyEvent  & ev,
     bool                & outIsMachineKey)
 {
-    AppleKeyboard        * keyboard   = m_shell.m_machine.GetRefs().keyboard;
+    AppleKeyboard        * keyboard   = m_machine.GetRefs().keyboard;
     AppleSpecialKey        specialKey = AppleSpecialKey::Left;
     bool                   isSpecial  = false;
     Byte                   code       = 0;
@@ -668,7 +609,7 @@ std::optional<Byte> ShellInput::GetHeldKeyLatch (
 //
 //  IDxuiViewportInputSink. The Apple ][ has no viewport-rect mouse mapping
 //  in the current build: paddle input is a captured relative-motion mode
-//  driven directly from m_shell.OnMouseMove (SetCapture snaps the cursor to
+//  driven directly from the window's OnMouseMove (SetCapture snaps the cursor to
 //  center), and the joystick maps to arrow keys -- neither fits the
 //  viewport's absolute-rect forwarding. Returns false so any future
 //  in-viewport click continues to bubble to the chrome hit-testing that
@@ -799,8 +740,8 @@ void ShellInput::UpdateJoystickButtonsFromKeys()
     // button 0 in the guest every frame -- e.g. re-triggering a Print Shop
     // print on the way out. Foreground reads normally (no added latency); not
     // foreground leaves the buttons released. Matches the input gate used
-    // elsewhere (GetForegroundWindow() != m_shell.m_hwnd).
-    if (GetForegroundWindow() == m_shell.m_hwnd)
+    // elsewhere (GetForegroundWindow() != m_host.GetMainWindow()).
+    if (GetForegroundWindow() == m_host.GetMainWindow())
     {
         xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
         zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
@@ -898,7 +839,7 @@ void ShellInput::SetArrowsJoystick (bool on)
 
     m_arrowsJoystick = on;
     SyncGamePortAxisOwner();
-    m_shell.SyncInputModeUi();
+    SyncInputModeUi();
 
     if (on)
     {
@@ -987,9 +928,9 @@ void ShellInput::ReleaseArrowKeySources()
 
 void ShellInput::SyncJoyport()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock());
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
     std::shared_lock<std::shared_mutex>  gate;
-    bool                                 isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    bool                                 isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
 
 
@@ -1001,7 +942,7 @@ void ShellInput::SyncJoyport()
     }
     else
     {
-        m_shell.m_debugger->OweJoyportSync();
+        m_debugger.OweJoyportSync();
     }
 
     gate.unlock();
@@ -1039,7 +980,7 @@ bool ShellInput::IsJoyportInEffect() const
         entries = m_controllerService->GetPlayerEntries();
     }
 
-    return PlayerModeRules::IsJoyportOn (entries, m_shell.m_machine.GetJoyport() != nullptr);
+    return PlayerModeRules::IsJoyportOn (entries, m_machine.GetJoyport() != nullptr);
 }
 
 
@@ -1063,7 +1004,7 @@ bool ShellInput::IsPlayerOneOnJoyport() const
         entries = m_controllerService->GetPlayerEntries();
     }
 
-    return PlayerModeRules::IsOnJoyport (entries, 0, m_shell.m_machine.GetJoyport() != nullptr);
+    return PlayerModeRules::IsOnJoyport (entries, 0, m_machine.GetJoyport() != nullptr);
 }
 
 
@@ -1082,7 +1023,7 @@ bool ShellInput::IsPlayerOneOnJoyport() const
 
 bool ShellInput::IsJoyportOffered() const
 {
-    return m_shell.m_machine.GetJoyport() != nullptr;
+    return m_machine.GetJoyport() != nullptr;
 }
 
 
@@ -1130,15 +1071,15 @@ void ShellInput::SetPointerMapping (InputMappingMode pointer)
     // Leaving Mouse: release a held guest button so it can't stick, and
     // drop the absolute target so the guest mouse stops tracking.
     if (prev == InputMappingMode::Mouse && pointer != InputMappingMode::Mouse
-        && m_shell.m_machine.GetMouse() != nullptr)
+        && m_machine.GetMouse() != nullptr)
     {
-        m_shell.m_machine.GetMouse()->SetButton (false);
-        m_shell.m_machine.GetMouse()->ClearHostTarget();
+        m_machine.GetMouse()->SetButton (false);
+        m_machine.GetMouse()->ClearHostTarget();
     }
 
     m_pointerMode = pointer;
     SyncGamePortAxisOwner();
-    m_shell.SyncInputModeUi();
+    SyncInputModeUi();
 
     if (pointer == InputMappingMode::Paddle)
     {
@@ -1223,7 +1164,7 @@ void ShellInput::PickPlayer (size_t player, PlayerEntry entry)
 
     SyncJoyport();
     SyncGamePortAxisOwner();
-    m_shell.SyncInputModeUi();
+    SyncInputModeUi();
 }
 
 
@@ -1267,7 +1208,7 @@ void ShellInput::SetPlayerMode (size_t player, PlayerMode mode)
 
     SyncJoyport();
     SyncGamePortAxisOwner();
-    m_shell.SyncInputModeUi();
+    SyncInputModeUi();
 }
 
 
@@ -1439,12 +1380,7 @@ void ShellInput::PickControllerProfile (ControllerUnitKey unit, std::string prof
 
 void ShellInput::StartNewControllerProfile (ControllerUnitKey unit)
 {
-    m_shell.m_settings->OpenSettings (false);
-
-    if (m_shell.m_settings->GetSheet() != nullptr)
-    {
-        m_shell.m_settings->GetSheet()->StartNewControllerProfile (unit);
-    }
+    m_host.StartNewControllerProfile (unit);
 }
 
 
@@ -1480,7 +1416,7 @@ void ShellInput::ApplyControllerSlotsChange (
 
     if (haveEntriesChanged)
     {
-        m_shell.SyncInputModeUi();
+        SyncInputModeUi();
     }
     else if (haveLastHoldersChanged)
     {
@@ -1489,7 +1425,7 @@ void ShellInput::ApplyControllerSlotsChange (
 
     for (const std::wstring & notice : notices)
     {
-        m_shell.m_chrome->ShowNotice (notice);
+        m_host.ShowNotice (notice);
     }
 }
 
@@ -1636,9 +1572,9 @@ void ShellInput::SyncGamePortAxisOwner()
         playerOne = snapshot.entries[0];
         wanted    = playerOne.kind;
 
-        state.isKeysOnJoyport   = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_shell.m_machine.GetJoyport() != nullptr);
+        state.isKeysOnJoyport   = PlayerModeRules::IsOnJoyport (snapshot.entries, 0, m_machine.GetJoyport() != nullptr);
         state.isSecondPlaying   = PlayerSlotPolicy::IsDrivingSlot (snapshot.slots[1]);
-        state.isMouseTwoPaddles = PlayerModeRules::ResolveMode (snapshot.entries, 0, m_shell.m_machine.GetJoyport() != nullptr) == PlayerMode::TwoPaddles;
+        state.isMouseTwoPaddles = PlayerModeRules::ResolveMode (snapshot.entries, 0, m_machine.GetJoyport() != nullptr) == PlayerMode::TwoPaddles;
 
         if (state.mousePaddle)
         {
@@ -1687,7 +1623,7 @@ void ShellInput::SyncGamePortAxisOwner()
 
 void ShellInput::ApplyDefaultPointerForMachine()
 {
-    if (m_shell.m_machine.GetMouse() != nullptr && m_mouseConnected
+    if (m_machine.GetMouse() != nullptr && m_mouseConnected
         && m_pointerMode == InputMappingMode::Off)
     {
         // State only -- NO chrome work here. This runs on the CPU thread
@@ -1705,15 +1641,15 @@ void ShellInput::ApplyDefaultPointerForMachine()
         // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
         // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
         // (launch, or before the window exists) reflect it immediately.
-        bool  offUiThread = (m_shell.m_hwnd != nullptr) &&
-                            (GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId());
+        bool  offUiThread = (m_host.GetMainWindow() != nullptr) &&
+                            (GetWindowThreadProcessId (m_host.GetMainWindow(), nullptr) != GetCurrentThreadId());
 
         if (offUiThread)
         {
             return;
         }
 
-        m_shell.SyncSelectorState();
+        SyncSelectorState();
     }
 }
 
@@ -1748,7 +1684,7 @@ void ShellInput::CycleInputMappingMode()
             break;
 
         case InputMappingMode::Joystick:
-            next = (m_shell.m_machine.GetMouse() != nullptr && m_mouseConnected)
+            next = (m_machine.GetMouse() != nullptr && m_mouseConnected)
                        ? InputMappingMode::Mouse
                        : InputMappingMode::Paddle;
             break;
@@ -1829,38 +1765,38 @@ void ShellInput::ToggleInputMappingMode (InputMappingMode target)
 
 void ShellInput::PasteClipboardText()
 {
-    bool    hasCapsLockKey = m_shell.m_machine.GetRefs().iieKeyboard != nullptr;
+    bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
     bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
-    bool    isBehindLive   = m_shell.m_debugger->IsBehindLiveForUi();
+    bool    isBehindLive   = m_debugger.IsBehindLiveForUi();
     Byte    first          = 0;
     size_t  length         = 0;
 
 
 
-    if (m_shell.m_clipboardManager == nullptr || !m_shell.m_debugger->AllowCommand (IDM_EDIT_PASTE, std::string()))
+    if (m_host.GetClipboard() == nullptr || !m_debugger.AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
 
-    if (isBehindLive && !m_shell.m_debugger->GetDivergenceGate().HasHeldPaste())
+    if (isBehindLive && !m_debugger.GetDivergenceGate().HasHeldPaste())
     {
-        m_shell.m_debugger->SetPasteLengthBeforeHold (m_shell.m_clipboardManager->GetPasteLength (first));
+        m_debugger.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
-    raisedLetters = m_shell.m_clipboardManager->PasteFromClipboard (m_shell.m_hwnd, capsLockOn);
-    length        = m_shell.m_clipboardManager->GetPasteLength (first);
+    raisedLetters = m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
+    length        = m_host.GetClipboard()->GetPasteLength (first);
 
-    if (isBehindLive && length > m_shell.m_debugger->GetPasteLengthBeforeHold() && m_shell.m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_debugger.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_shell.m_debugger->GetDivergenceGate().HoldPaste (m_shell.m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        m_shell.m_debugger->PublishHeldInput();
+        m_debugger.GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_debugger.PublishHeldInput();
     }
 
     if (raisedLetters)
     {
-        m_shell.m_chrome->ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
+        m_host.ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
     }
 }
 
@@ -1889,7 +1825,7 @@ void ShellInput::ClipPaddleCursorToClient()
 
 
 
-    if (m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
+    if (m_host.GetMainWindow() == nullptr || !GetClientRect (m_host.GetMainWindow(), &client))
     {
         return;
     }
@@ -1898,8 +1834,8 @@ void ShellInput::ClipPaddleCursorToClient()
     topLeft.y = client.top;
     botRt.x   = client.right;
     botRt.y   = client.bottom;
-    ClientToScreen (m_shell.m_hwnd, &topLeft);
-    ClientToScreen (m_shell.m_hwnd, &botRt);
+    ClientToScreen (m_host.GetMainWindow(), &topLeft);
+    ClientToScreen (m_host.GetMainWindow(), &botRt);
 
     clip.left   = topLeft.x;
     clip.top    = topLeft.y;
@@ -1909,7 +1845,7 @@ void ShellInput::ClipPaddleCursorToClient()
 
     center.x = (client.right  - client.left) / 2;
     center.y = (client.bottom - client.top)  / 2;
-    ClientToScreen (m_shell.m_hwnd, &center);
+    ClientToScreen (m_host.GetMainWindow(), &center);
     SetCursorPos (center.x, center.y);
 }
 
@@ -1937,8 +1873,8 @@ void ShellInput::StartPaddleCapture()
 
     BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
     BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
-    BAIL_OUT_IF (m_shell.m_hwnd == nullptr,                       S_OK);
-    BAIL_OUT_IF (GetForegroundWindow() != m_shell.m_hwnd,         S_OK);
+    BAIL_OUT_IF (m_host.GetMainWindow() == nullptr,                       S_OK);
+    BAIL_OUT_IF (GetForegroundWindow() != m_host.GetMainWindow(),         S_OK);
 
     m_paddleCaptured = true;
 
@@ -1956,7 +1892,7 @@ void ShellInput::StartPaddleCapture()
     //  runs inside the frame the repaint would re-enter.
     m_host.ClaimCaptureBand();
 
-    SetCapture (m_shell.m_hwnd);
+    SetCapture (m_host.GetMainWindow());
 
     // Drive the per-thread ShowCursor counter negative so the arrow hides.
     while (ShowCursor (FALSE) >= 0)
@@ -1998,7 +1934,7 @@ void ShellInput::StopPaddleCapture()
 
     ClipCursor (nullptr);
 
-    if (GetCapture() == m_shell.m_hwnd)
+    if (GetCapture() == m_host.GetMainWindow())
     {
         ReleaseCapture();
     }
@@ -2050,7 +1986,7 @@ void ShellInput::UpdatePaddleFromMouse (int xClient, int yClient)
 
     BAIL_OUT_IF (!m_paddleCaptured, S_OK);
 
-    GetClientRect (m_shell.m_hwnd, &client);
+    GetClientRect (m_host.GetMainWindow(), &client);
     centerX = (client.right  - client.left) / 2;
     centerY = (client.bottom - client.top)  / 2;
     dx      = xClient - centerX;
@@ -2059,7 +1995,7 @@ void ShellInput::UpdatePaddleFromMouse (int xClient, int yClient)
     // The SetCursorPos recenter below re-enters here with a zero delta.
     BAIL_OUT_IF (dx == 0 && dy == 0, S_OK);
 
-    dpi = GetDpiForWindow (m_shell.m_hwnd);
+    dpi = GetDpiForWindow (m_host.GetMainWindow());
     if (dpi == 0)
     {
         dpi = 96;
@@ -2073,7 +2009,7 @@ void ShellInput::UpdatePaddleFromMouse (int xClient, int yClient)
 
     center.x = centerX;
     center.y = centerY;
-    ClientToScreen (m_shell.m_hwnd, &center);
+    ClientToScreen (m_host.GetMainWindow(), &center);
     SetCursorPos (center.x, center.y);
 
 Error:
@@ -2148,7 +2084,7 @@ bool ShellInput::IsGuestMouseActive() const
 {
     // The fullscreen drive strip's hotkey summon "releases" the guest mouse
     // for the interaction; the FSM restores it when the strip hides.
-    return m_pointerMode == InputMappingMode::Mouse && m_shell.m_machine.GetMouse() != nullptr
+    return m_pointerMode == InputMappingMode::Mouse && m_machine.GetMouse() != nullptr
         && m_mouseConnected && !m_host.IsGuestMouseSuppressed();
 }
 
@@ -2178,7 +2114,7 @@ bool ShellInput::IsGuestMouseActive() const
 bool ShellInput::IsGuestMouseLive() const
 {
     return IsGuestMouseActive() &&
-           (m_shell.m_machine.GetMouse()->AreXyInterruptsEnabled() || m_shell.m_machine.GetMouse()->AreVblInterruptsEnabled());
+           (m_machine.GetMouse()->AreXyInterruptsEnabled() || m_machine.GetMouse()->AreVblInterruptsEnabled());
 }
 
 
@@ -2208,15 +2144,7 @@ bool ShellInput::IsGuestMouseLive() const
 
 void ShellInput::UpdateGuestMouseFromHost (int xPx, int yPx)
 {
-    const RECT                          & vp         = m_shell.m_viewportBoundsPx;
-    int                                   vpW        = vp.right  - vp.left;
-    int                                   vpH        = vp.bottom - vp.top;
-    bool                                  isMouseOn  = IsGuestMouseLive() && vpW > 1 && vpH > 1;
     bool                                  isGateOpen = false;
-    uint32_t                              fx         = 0;
-    uint32_t                              fy         = 0;
-    bool                                  isInside   = xPx >= vp.left && xPx < vp.right &&
-                                                       yPx >= vp.top  && yPx < vp.bottom;
     std::optional<uint32_t>               target;
     std::shared_lock<std::shared_mutex>   gate;
 
@@ -2224,58 +2152,35 @@ void ShellInput::UpdateGuestMouseFromHost (int xPx, int yPx)
 
     // Only Mouse mode with the guest's mouse on makes the pointer guest
     // input; anything else over the picture is the host's own pointer.
-    if (!isMouseOn)
+    if (!IsGuestMouseLive())
     {
         return;
     }
 
-    if (m_shell.CrtMonitorActive())
-    {
-        // Curvature-correct mapping (spec 018): the pixel comes from the
-        // inverse projection through the glass, so only the picture counts
-        // -- pointer positions off the glass (including what used to be
-        // letterbox bars) release the guest mouse.
-        SceneHitResult  hit = m_shell.m_scene->DeskSceneHit (xPx, yPx);
-
-        if (hit.target == SceneHitResult::Target::Glass)
-        {
-            fx     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.x, 65535, kFramebufferWidth - 1));
-            fy     = static_cast<uint32_t> (MulDiv (hit.emulatedPixel.y, 65535, kFramebufferHeight - 1));
-            target = (fx << 16) | fy;
-        }
-    }
-    else if (isInside)
-    {
-        // Publish the viewport fraction only. The DEVICE projects it into the
-        // firmware's live clamp window on the CPU thread (AppleMouse::Tick ->
-        // RetargetFromHoles): guest memory must not be read from the UI thread
-        // -- the CPU's debug array is not the live MMU-mapped RAM, and bus
-        // reads here would race the CPU thread. (The original PeekByte-based
-        // mapping read stale bytes and silently no-oped in production.)
-        // Leaving the viewport releases the guest mouse to wherever the
-        // firmware last put it (non-capturing contract).
-        fx     = static_cast<uint32_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
-        fy     = static_cast<uint32_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
-        target = (fx << 16) | fy;
-    }
+    // Through the glass when the CRT is shown, so only the picture counts.
+    // Off the picture the guest mouse is released to wherever the firmware
+    // last put it. The DEVICE projects the fraction into the firmware's live
+    // clamp window on the CPU thread (AppleMouse::Tick -> RetargetFromHoles):
+    // guest memory must not be read from the UI thread.
+    target = m_host.MapPointerToPicture (xPx, yPx);
 
     // Behind live in reverse execution's history the mouse holds a recorded
     // position, so the pointer's place is held instead, until the guest's
     // mouse would move to it or the machine is live.
-    isGateOpen = m_shell.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
     if (!isGateOpen)
     {
-        m_shell.m_debugger->GetDivergenceGate().SetMouseTarget (target);
-        m_shell.m_debugger->PublishHeldInput();
+        m_debugger.GetDivergenceGate().SetMouseTarget (target);
+        m_debugger.PublishHeldInput();
     }
     else if (target.has_value())
     {
-        m_shell.m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (fx), static_cast<uint16_t> (fy));
+        m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (*target >> 16), static_cast<uint16_t> (*target & 0xFFFF));
     }
     else
     {
-        m_shell.m_machine.GetMouse()->ClearHostTarget();
+        m_machine.GetMouse()->ClearHostTarget();
     }
 }
 
@@ -2318,7 +2223,7 @@ void ShellInput::LoadControllerPrefs()
         return;
     }
 
-    store.FromJson (m_shell.m_settings->GetPrefs().controllers, rejected);
+    store.FromJson (m_host.GetPrefs().controllers, rejected);
     m_hadSavedPlayerModes = store.hasPlayerModes;
 
     m_controllerService->SetModelSettings  (store.models);
@@ -2334,7 +2239,7 @@ void ShellInput::LoadControllerPrefs()
     }
     else
     {
-        m_shell.m_settings->LoadMachineUiPrefs (doc, uiPrefs);
+        m_host.LoadMachineUiPrefs (doc, uiPrefs);
         entries   = MachineInputPrefs::ReadAdoptedPlayers (uiPrefs, lastHolders);
         isAdopted = true;
     }
@@ -2351,7 +2256,7 @@ void ShellInput::LoadControllerPrefs()
 
     if (!rejected.empty())
     {
-        m_shell.m_chrome->PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
+        m_host.PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
     }
 }
 
@@ -2389,15 +2294,15 @@ void ShellInput::SaveControllerPrefs()
     store.joyportActiveProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joyport);
     store.players               = m_controllerService->GetPlayerEntries();
     store.lastHolders           = m_controllerService->GetLastHolders();
-    controllers                 = store.ToJson (m_shell.m_settings->GetPrefs().controllers);
+    controllers                 = store.ToJson (m_host.GetPrefs().controllers);
 
-    if (JsonWriter::Write (controllers) == JsonWriter::Write (m_shell.m_settings->GetPrefs().controllers))
+    if (JsonWriter::Write (controllers) == JsonWriter::Write (m_host.GetPrefs().controllers))
     {
         return;
     }
 
-    m_shell.m_settings->GetPrefs().controllers = std::move (controllers);
-    m_shell.m_settings->SaveGlobalPrefs();
+    m_host.GetPrefs().controllers = std::move (controllers);
+    m_host.SavePrefs();
 }
 
 
@@ -2432,7 +2337,7 @@ void ShellInput::AdoptInputModeForMachine (const JsonValue * uiPrefs, const std:
 
 
     MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
-                                        m_shell.m_settings->GetPrefs().pointerMapping,
+                                        m_host.GetPrefs().pointerMapping,
                                         machineArrows,
                                         m_pointerMode);
 
@@ -2494,8 +2399,8 @@ void ShellInput::AdoptControllerForMachine (const JsonValue * uiPrefs, const std
     // How many axes this machine has, before anything is mapped onto them: a
     // player slot for paddles it lacks is kept and plays nothing (FR-035).
     //
-    // From `machineId`, NOT from m_shell.m_machine. On the switch path this runs
-    // before the new config is adopted, so m_shell.m_machine is still the machine
+    // From `machineId`, NOT from m_machine. On the switch path this runs
+    // before the new config is adopted, so m_machine is still the machine
     // being LEFT: reading it left the count a machine behind, which gave a
     // //c player two the //e's PDL2/PDL3 -- no stick, but a live button --
     // and cost an //e player two the axes the machine does have.
@@ -2571,7 +2476,7 @@ void ShellInput::PersistInputModeForMachine()
 
     SaveControllerPrefs();
 
-    if (m_shell.m_settings->GetConfigStore() == nullptr || m_shell.m_machine.GetCurrentMachineName().empty())
+    if (m_host.GetConfigStore() == nullptr || m_machine.GetCurrentMachineName().empty())
     {
         return;
     }
@@ -2579,7 +2484,7 @@ void ShellInput::PersistInputModeForMachine()
     entries = MachineInputPrefs::BuildUiPrefEntries (m_pointerMode);
 
     hr = DiskSettings::WriteSavedUiPrefs (
-             *m_shell.m_settings->GetConfigStore(), m_shell.m_settings->GetFileSystem(), m_shell.m_machine.GetCurrentMachineName(), entries);
+             *m_host.GetConfigStore(), m_host.GetFileSystem(), m_machine.GetCurrentMachineName(), entries);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -2604,8 +2509,8 @@ void ShellInput::PersistInputModeForMachine()
 
 void ShellInput::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
 {
-    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_hadSavedPlayerModes, m_shell.m_settings->GetPrefs().gamePortAdapter,
-                                                                   uiPrefs, m_shell.m_machine.GetJoyport() != nullptr);
+    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_hadSavedPlayerModes, m_host.GetPrefs().gamePortAdapter,
+                                                                   uiPrefs, m_machine.GetJoyport() != nullptr);
 
 
 
@@ -2621,8 +2526,8 @@ void ShellInput::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
 
     if (migration.shouldRemoveKey)
     {
-        m_shell.m_settings->GetPrefs().gamePortAdapter.clear();
-        m_shell.m_settings->SaveGlobalPrefs();
+        m_host.GetPrefs().gamePortAdapter.clear();
+        m_host.SavePrefs();
     }
 
     ApplyJoyportToMachine();
@@ -2654,7 +2559,7 @@ void ShellInput::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
 
 void ShellInput::ApplyJoyportToMachine()
 {
-    SiriusJoyport  * joyport    = m_shell.m_machine.GetJoyport();
+    SiriusJoyport  * joyport    = m_machine.GetJoyport();
     bool             hasJoyport = joyport != nullptr;
     PlayerEntries    entries;
 
@@ -2711,7 +2616,7 @@ void ShellInput::TickKeyboardAutoRepeat()
 
 
 
-    if (m_shell.m_machine.GetRefs().keyboard == nullptr)
+    if (m_machine.GetRefs().keyboard == nullptr)
     {
         return;
     }
@@ -2727,11 +2632,11 @@ void ShellInput::TickKeyboardAutoRepeat()
         return;
     }
 
-    fired = m_shell.m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
+    fired = m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
 
     if (fired != 0)
     {
-        m_shell.m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
+        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
     }
 }
 
@@ -2762,4 +2667,296 @@ bool ShellInput::IsHostLayoutDvorak()
 
     // vk == -1 means 'o' is unreachable on this layout -- assume QWERTY.
     return vk != -1 && LOBYTE (vk) == 'S';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::Start
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellInput::Start()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    // Every paddle and pushbutton write goes through the mixer from here on.
+    // Writes happen on this (the UI) thread; a submission from any other
+    // thread posts a flush back to the window.
+    m_gamePortSink = std::make_unique<MachineGamePortSink> (m_machine.GetLifetimeLock(), [this]
+    {
+        GamePortTargets            targets;
+        const MachineDefinition  * definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
+
+        targets.gamePort    = m_machine.GetRefs().gamePort;
+        targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
+        targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
+        targets.joyport     = m_machine.GetJoyport();
+
+        if (definition != nullptr)
+        {
+            targets.axisCount = static_cast<size_t> (definition->gamePortAxisCount);
+        }
+
+        return targets;
+    });
+
+    // Held back while reverse execution has the machine behind live.
+    m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
+
+    // Held back, a real press or deflection is held line by line, and the
+    // lines go to the watch the replay checks the guest's reads against.
+    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergenceGate(), [this]
+    {
+        m_debugger.PublishHeldInput();
+    });
+
+    m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_host.GetMainWindow()]
+    {
+        PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+    });
+
+    m_gamePortMixer.SetSink (m_gamePortSink.get());
+
+    // Physical controllers. The backend is initialized on the controller
+    // thread, which owns the window its device notifications arrive at, so
+    // nothing here touches a device.
+    m_controllerBackend = std::make_unique<Win32ControllerBackend>();
+    m_controllerService = std::make_unique<ControllerInputService> (*m_controllerBackend, m_gamePortMixer);
+
+    // Saved controller settings, calibrations and players, before the thread
+    // starts reading, so its first evaluation already knows who was picked
+    // and who last held each slot.
+    LoadControllerPrefs();
+
+    m_controllerThread  = std::make_unique<ControllerInputThread>();
+
+    // A controller that held a slot and left is said over the picture, and so
+    // is one Automatic gave a slot that another controller held last time;
+    // the command bar's picker already shows what is playing after either.
+    m_controllerService->SetSlotsChangedFn (
+        [this] (const ControllerInputService::SlotsChange & change)
+        {
+            {
+                std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+                for (const std::wstring & description : change.departedDescriptions)
+                {
+                    m_controllerPickNotices.push_back (description + L" disconnected.");
+                }
+
+                m_controllerPickNotices.insert (m_controllerPickNotices.end(), change.notices.begin(), change.notices.end());
+                m_controllerPickHasEntries = m_controllerPickHasEntries || change.haveEntriesChanged;
+                m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
+            }
+
+            PostMessageW (m_host.GetMainWindow(), WM_APP_CONTROLLER_PICK, 0, 0);
+        });
+
+    // A connect or disconnect changes who owns the axes but tells the user
+    // nothing, so it takes the same trip to the UI thread without a notice.
+    m_controllerService->SetStateChangedFn ([this]
+    {
+        PostMessageW (m_host.GetMainWindow(), WM_APP_CONTROLLER_PICK, 0, 0);
+    });
+
+    // The Controllers page asking for a controller to be read wakes the
+    // thread, which may be waiting on an event-driven controller that is not
+    // moving.
+    m_controllerService->SetWakeFn ([this]
+    {
+        m_controllerThread->Wake();
+    });
+
+    hr = m_controllerThread->Start (m_controllerBackend.get(), m_controllerService.get(),
+                                    [this] { return m_controllerService->Tick(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::Stop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::Stop()
+{
+    m_controllerThread.reset();
+
+    // What automatic calibration learned this session, while the service that
+    // holds it still exists and nothing is reading into it.
+    SaveControllerPrefs();
+
+    m_controllerService.reset();
+    m_controllerBackend.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::ApplyPendingControllerPick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::ApplyPendingControllerPick()
+{
+    std::vector<std::wstring>  notices;
+    bool                       haveEntriesChanged     = false;
+    bool                       haveLastHoldersChanged = false;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_controllerPickMutex);
+
+        notices.swap (m_controllerPickNotices);
+        haveEntriesChanged         = m_controllerPickHasEntries;
+        haveLastHoldersChanged     = m_controllerPickHasHolders;
+        m_controllerPickHasEntries = false;
+        m_controllerPickHasHolders = false;
+    }
+
+    // A device arriving or leaving changes the rows even when it changes
+    // nothing else, so the list is rebuilt on every one of these.
+    ApplyControllerSlotsChange (notices, haveEntriesChanged, haveLastHoldersChanged);
+    SyncPaddleSourceList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::SetControllersActive
+//
+//  Controllers are read while the emulator is the active app.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::SetControllersActive (bool active)
+{
+    if (m_controllerService != nullptr)
+    {
+        m_controllerService->SetActive (active);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::OnMachineRebuilt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::OnMachineRebuilt()
+{
+    m_gamePortMixer.NotifyMachineRebuilt();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::FlushGamePort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::FlushGamePort()
+{
+    m_gamePortMixer.FlushPending();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::InstallControllerService
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::InstallControllerService (IControllerBackend & backend)
+{
+    m_controllerService = std::make_unique<ControllerInputService> (backend, m_gamePortMixer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::SetStandIns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::SetStandIns (bool arrowsJoystick, InputMappingMode pointer)
+{
+    m_arrowsJoystick = arrowsJoystick;
+    m_pointerMode    = pointer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncInputModeUi
+//
+//  Common tail for the axis setters: refresh the toggle button's displayed
+//  mode, then persist the pair into the current machine's prefs.
+//
+//  The two setters call each other to enforce paddle-vs-joystick exclusivity,
+//  so one user action can land here twice. Both passes write the same live
+//  state, and the second is what ends up on disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::SyncInputModeUi()
+{
+    // SyncSelectorState rebuilds the picker rows; calling SyncPaddleSourceList
+    // here as well rebuilt them twice for every mode change.
+    SyncSelectorState();
+    PersistInputModeForMachine();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncSelectorState
+//
+//  Re-reads what the strip's input controls show. Both read their own state
+//  through functors, so nothing is pushed into them; the paddle picker's
+//  rows are the one thing that has to be rebuilt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::SyncSelectorState()
+{
+    SyncPaddleSourceList();
 }

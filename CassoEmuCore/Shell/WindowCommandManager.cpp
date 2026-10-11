@@ -546,11 +546,11 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 
 
 
-    if (connected != m_shell.m_input->m_mouseConnected)
+    if (connected != m_shell.m_input->IsMouseConnected())
     {
-        m_shell.m_input->m_mouseConnected = connected;
+        m_shell.m_input->SetMouseConnected (connected);
 
-        if (!connected && m_shell.m_input->m_pointerMode == InputMappingMode::Mouse)
+        if (!connected && m_shell.m_input->GetPointerMode() == InputMappingMode::Mouse)
         {
             // Drops Mouse mode; SetPointerMapping re-syncs the selector as a
             // side effect (SyncInputModeUi -> SyncSelectorState).
@@ -563,7 +563,7 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             // the Mouse segment reappears / disappears -- SetState flips the
             // availability flag and the toolbar rebuilds the 2<->3 segment
             // geometry + hit map. UI-thread routed (posted WM_COMMAND).
-            m_shell.SyncSelectorState();
+            m_shell.m_input->SyncPaddleSourceList();
         }
     }
 }
