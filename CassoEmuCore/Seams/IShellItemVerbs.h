@@ -66,6 +66,7 @@ public:
         bool          isNetwork     = false;
         bool          isLibraries   = false;
         bool          shownByShell  = true;    // File Explorer's pane shows it
+        bool          isPinned      = false;   // pinned to Quick access, not only frequent
         std::wstring  folder;                  // a search result's folder
         std::wstring  imagePath;               // a search result inside this disk image
         size_t        catalogIndex  = 0;       // and where it is in that image's catalog

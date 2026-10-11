@@ -2275,17 +2275,19 @@ int Win32ShellItemVerbs::GetDesktopRank (const ShellFolderItem & root)
 //
 //  Win32ShellItemVerbs::ListPinnedFolders
 //
-//  Quick access holds the pinned folders and the frequent ones; Explorer's
-//  pane shows the pinned alone.
+//  Quick access holds the pinned folders, the frequent ones and recent files.
+//  Explorer's pane shows the pinned folders, then the frequent ones; a zip or
+//  a library is a file, however the shell lists it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ShellItemVerbs::ListPinnedFolders (std::vector<ShellFolderItem> & outFolders)
 {
-    HRESULT                  hr     = S_OK;
-    ComPtr<IShellItem>       quick;
-    ComPtr<IEnumShellItems>  items;
-    PROPERTYKEY              pinned = {};
+    HRESULT                       hr     = S_OK;
+    ComPtr<IShellItem>            quick;
+    ComPtr<IEnumShellItems>       items;
+    PROPERTYKEY                   pinned = {};
+    std::vector<ShellFolderItem>  frequent;
 
 
 
@@ -2321,17 +2323,33 @@ HRESULT Win32ShellItemVerbs::ListPinnedFolders (std::vector<ShellFolderItem> & o
             hrItem = item2->GetBool (pinned, &isPinned);
         }
 
-        if (FAILED (hrItem) || !isPinned)
+        if (FAILED (hrItem))
         {
             continue;
         }
 
         hrItem = DescribeShellItem (item.Get(), entry);
 
-        if (SUCCEEDED (hrItem) && entry.isFolder)
+        if (FAILED (hrItem) || !entry.isFolder || entry.isFile)
+        {
+            continue;
+        }
+
+        entry.isPinned = isPinned != FALSE;
+
+        if (entry.isPinned)
         {
             outFolders.push_back (std::move (entry));
         }
+        else
+        {
+            frequent.push_back (std::move (entry));
+        }
+    }
+
+    for (ShellFolderItem & entry : frequent)
+    {
+        outFolders.push_back (std::move (entry));
     }
 
 Error:

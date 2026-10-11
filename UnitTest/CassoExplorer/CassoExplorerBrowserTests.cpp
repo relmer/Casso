@@ -303,6 +303,7 @@ public:
         network.isNetwork     = true;
         libraries.isLibraries = true;
         libraries.shownByShell = false;
+        pin.isPinned           = true;
 
         shell.navRoots = { home, oneDrive, pc, libraries, network, bin };
         shell.pinned   = { pin };
@@ -319,6 +320,7 @@ public:
         Assert::IsTrue (roots[3].dividerAbove, L"A line above the pinned folders");
         Assert::IsTrue (roots[4].dividerAbove, L"and one below them");
         Assert::IsTrue (roots[4].id == TreeModel::kThisPcRootId, L"Casso's own This PC, with its drives");
+        Assert::IsTrue (host.browser.IsPinnedToQuickAccess (pin.path), L"a pinned folder offers Unpin");
         Assert::IsTrue (roots[1].childrenLoaded, L"Home has no folders under it");
         Assert::IsFalse (roots[5].childrenLoaded, L"Network does");
 

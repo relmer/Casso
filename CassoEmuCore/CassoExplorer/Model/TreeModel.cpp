@@ -434,7 +434,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
     }
 
     //  Explorer's order: Home, Gallery and OneDrive; a line; the pinned
-    //  folders; a line; the rest, with Casso's own This PC where the shell's
+    //  folders, then the frequent ones; a line; the rest, with Casso's own This PC where the shell's
     //  is; the Recycle Bin last, as with all folders shown.
     for (const IShellItemVerbs::ShellFolderItem & root : m_navRoots)
     {
@@ -444,10 +444,13 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
         }
     }
 
+    //  Quick access lists its folders without opening them, as Explorer's
+    //  pane does; each one opens under its own drive.
     for (size_t i = 0; i < m_pinned.size(); i++)
     {
         outNodes.push_back (MakeShellNode (m_pinned[i]));
         outNodes.back().dividerAbove = i == 0;
+        outNodes.back().canExpand    = false;
     }
 
     rest = outNodes.size();
@@ -531,7 +534,7 @@ bool TreeModel::IsPinnedFolder (const std::wstring & path) const
 {
     return std::any_of (m_pinned.begin(), m_pinned.end(), [&path] (const IShellItemVerbs::ShellFolderItem & folder)
     {
-        return _wcsicmp (folder.path.c_str(), path.c_str()) == 0;
+        return folder.isPinned && _wcsicmp (folder.path.c_str(), path.c_str()) == 0;
     });
 }
 
