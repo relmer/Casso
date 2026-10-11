@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PicturePreview::Mode PicturePreview::Choose (Word address, size_t length)
+PicturePreview::Mode PicturePreview::Choose (Word address, size_t length, std::string_view name)
 {
     bool  hiResAddress = address == kHiResPage1 || address == kHiResPage2;
     bool  hiResLength  = length == kHiResLength || length == kHiResShort;
@@ -31,7 +31,7 @@ PicturePreview::Mode PicturePreview::Choose (Word address, size_t length)
 
     if (address == kHiResPage1 && length == kDoubleHiResLength)
     {
-        return Mode::DoubleHiRes;
+        return IsMonochromeName (name) ? Mode::DoubleHiResMono : Mode::DoubleHiRes;
     }
 
     if (loResAddress && length == kLoResLength)
@@ -80,6 +80,12 @@ HRESULT PicturePreview::Render (
     outWidth  = kWidth;
     outHeight = kHeight;
     outBgra.assign ((size_t) kWidth * kHeight, 0xFF000000u);
+
+    if (mode == Mode::DoubleHiResMono)
+    {
+        RenderMonochrome (bytes, address, outBgra);
+        return S_OK;
+    }
 
     if (mode == Mode::DoubleHiRes)
     {
@@ -131,4 +137,75 @@ HRESULT PicturePreview::Render (
 
 Error:
     return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::IsMonochromeName
+//
+//  The A2FC/A2FM naming: a double hi-res file ending .A2FM is monochrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PicturePreview::IsMonochromeName (std::string_view name)
+{
+    static constexpr std::string_view  s_kSuffix = ".A2FM";
+
+    bool  matches = name.size() >= s_kSuffix.size();
+
+
+
+    for (size_t i = 0; matches && i < s_kSuffix.size(); i++)
+    {
+        matches = toupper ((unsigned char) name[name.size() - s_kSuffix.size() + i]) == s_kSuffix[i];
+    }
+
+    return matches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::RenderMonochrome
+//
+//  Each row interleaves the halves a byte at a time, auxiliary first, seven
+//  pixels to a byte, low bit leftmost: 560 dots, each row drawn twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PicturePreview::RenderMonochrome (std::span<const Byte> bytes, Word address, std::vector<uint32_t> & outBgra)
+{
+    size_t  half = bytes.size() / 2;
+
+
+
+    UNREFERENCED_PARAMETER (address);
+
+    for (int y = 0; y < kHeight / 2; y++)
+    {
+        size_t  row = (size_t) (((y & 7) << 10) | (((y >> 3) & 7) << 7)) + (size_t) ((y >> 6) * 40);
+        int     x   = 0;
+
+        for (int col = 0; col < 40; col++)
+        {
+            for (size_t bank : { (size_t) 0, half })
+            {
+                Byte  value = (row + (size_t) col + bank < bytes.size()) ? bytes[row + (size_t) col + bank] : (Byte) 0;
+
+                for (int bit = 0; bit < 7 && x < kWidth; bit++, x++)
+                {
+                    uint32_t  argb = ((value >> bit) & 1) ? 0xFFFFFFFFu : 0xFF000000u;
+
+                    outBgra[(size_t) (y * 2)     * kWidth + (size_t) x] = argb;
+                    outBgra[(size_t) (y * 2 + 1) * kWidth + (size_t) x] = argb;
+                }
+            }
+        }
+    }
 }

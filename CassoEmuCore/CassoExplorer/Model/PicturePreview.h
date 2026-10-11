@@ -18,7 +18,9 @@ class MemoryBus;
 //
 //  THE RULE IS THE SPEC'S AND NOTHING SMARTER: hi-res at $2000 or $4000 with
 //  8192 or $1FF8 bytes, double hi-res at $2000 with 16384 bytes, lo-res at
-//  $400 or $800 with 1024 bytes. A file that misses by a byte is a hex dump,
+//  $400 or $800 with 1024 bytes. A double hi-res file named .A2FM is the
+//  monochrome form, its bits drawn one pixel each in white on black, as the
+//  A2FC/A2FM naming has it. A file that misses by a byte is a hex dump,
 //  which is the honest answer for something nobody can prove is a picture.
 //
 //  The video modes render from a caller-supplied span and touch their bus
@@ -30,9 +32,9 @@ class MemoryBus;
 class PicturePreview
 {
 public:
-    enum class Mode { None, HiRes, DoubleHiRes, LoRes };
+    enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, LoRes };
 
-    static Mode  Choose (Word address, size_t length);
+    static Mode  Choose (Word address, size_t length, std::string_view name = {});
 
     static HRESULT  Render (Mode                     mode,
                             std::span<const Byte>    bytes,
@@ -56,4 +58,7 @@ public:
 
 private:
     static constexpr size_t  kAddressSpace = 0x10000;
+
+    static bool  IsMonochromeName (std::string_view name);
+    static void  RenderMonochrome (std::span<const Byte> bytes, Word address, std::vector<uint32_t> & outBgra);
 };

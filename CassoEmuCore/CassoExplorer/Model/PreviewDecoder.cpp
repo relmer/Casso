@@ -483,7 +483,7 @@ HRESULT PreviewDecoder::Render (
             break;
 
         case PreviewContent::Kind::Picture:
-            mode = PicturePreview::Choose (payload.loadAddress, payload.bytes.size());
+            mode = PicturePreview::Choose (payload.loadAddress, payload.bytes.size(), entry.name);
             hr   = PicturePreview::Render (mode, payload.bytes, payload.loadAddress, bus,
                                            outContent.bgra, outContent.width, outContent.height);
             CHR (hr);

@@ -168,6 +168,33 @@ public:
 
 
 
+    TEST_METHOD (DoubleHiRes_NamedA2fm_IsMonochrome)
+    {
+        std::vector<Byte>      bytes (16384, 0);
+        std::vector<uint32_t>  bgra;
+        MemoryBus              bus;
+        int                    width  = 0;
+        int                    height = 0;
+
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "TITLE.A2FM") == Mode::DoubleHiResMono, L"The A2FM name is the monochrome form");
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "title.a2fm") == Mode::DoubleHiResMono, L"in either case");
+        Assert::IsTrue (PicturePreview::Choose (0x2000, 16384, "TITLE.A2FC") == Mode::DoubleHiRes,     L"and A2FC, or no suffix, is color");
+
+        //  The first row's first auxiliary byte lights its low bit, the first
+        //  dot; the first main byte lights its low bit, the eighth.
+        bytes[0]    = 0x01;
+        bytes[8192] = 0x01;
+
+        AssertSucceeded (PicturePreview::Render (Mode::DoubleHiResMono, bytes, 0x2000, bus, bgra, width, height));
+
+        Assert::AreEqual (0xFFFFFFFFu, bgra[0],  L"Auxiliary first");
+        Assert::AreEqual (0xFF000000u, bgra[1]);
+        Assert::AreEqual (0xFFFFFFFFu, bgra[7],  L"then main, seven dots to a byte");
+        Assert::AreEqual (0xFFFFFFFFu, bgra[(size_t) PicturePreview::kWidth], L"each row drawn twice");
+    }
+
+
+
     TEST_METHOD (Picture_RendersSomethingAndNeverReadsTheBus)
     {
         PreviewContent  content;
