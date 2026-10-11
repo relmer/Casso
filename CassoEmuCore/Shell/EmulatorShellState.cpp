@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellRenderer.h"
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
@@ -48,7 +50,7 @@ void EmulatorShell::ShowSaveStateDialog()
 Error:
     if (FAILED (hr))
     {
-        PostNotice (L"The file dialog could not be opened.");
+        m_chrome->PostNotice (L"The file dialog could not be opened.");
     }
 }
 
@@ -87,7 +89,7 @@ void EmulatorShell::ShowLoadStateDialog()
 Error:
     if (FAILED (hr))
     {
-        PostNotice (L"The file dialog could not be opened.");
+        m_chrome->PostNotice (L"The file dialog could not be opened.");
     }
 }
 
@@ -129,12 +131,12 @@ void EmulatorShell::SaveMachineState (const std::filesystem::path & path)
     isWritten = !out.fail();
     CBRF (isWritten, error = MachineStateFile::MakeError ("file not written", "The state file could not be written in full."));
 
-    PostNotice (L"Machine state saved to " + path.wstring() + L".");
+    m_chrome->PostNotice (L"Machine state saved to " + path.wstring() + L".");
 
 Error:
     if (FAILED (hr))
     {
-        PostNotice (FormatStateError (L"saved", error));
+        m_chrome->PostNotice (FormatStateError (L"saved", error));
     }
 }
 
@@ -201,15 +203,15 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
 
     m_debugger->MarkViewDirty();
 
-    RenderFramebuffer();
-    PublishFramebuffer();
+    m_renderer->RenderFramebuffer();
+    m_renderer->PublishFramebuffer();
 
-    PostNotice (L"Machine state loaded from " + path.wstring() + L".");
+    m_chrome->PostNotice (L"Machine state loaded from " + path.wstring() + L".");
 
 Error:
     if (FAILED (hr))
     {
-        PostNotice (FormatStateError (L"loaded", error));
+        m_chrome->PostNotice (FormatStateError (L"loaded", error));
     }
 }
 

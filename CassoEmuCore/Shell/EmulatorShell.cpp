@@ -3,11 +3,29 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/EmulatorShellDebuggerHost.h"
+#include "Shell/MachineManager.h"
+#include "Shell/MachineBuilder.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellWindow.h"
+#include "Shell/ClipboardManager.h"
+#include "Shell/WindowCommandManager.h"
+#include "Shell/Components/ShellDeskScene.h"
+#include "Config/UserConfigStore.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/WindowManager.h"
+#include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Debugger/Channel/Win32NamedPipeApi.h"
 #include "Debugger/Channel/Win32PipeTransport.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
 #include "Config/MachineInputPrefs.h"
@@ -35,7 +53,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
-#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -123,8 +140,19 @@ EmulatorShell::EmulatorShell()
 
     SetPrngSeed (seed);
 
+    m_settings      = std::make_unique<ShellSettings> (*this);
+    m_window        = std::make_unique<ShellWindow> (*this);
+    m_updater       = std::make_unique<ShellUpdater> (*this);
+    m_audio         = std::make_unique<ShellAudio>();
+    m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
+    m_printer       = std::make_unique<ShellPrinter> (*this);
+    m_disks         = std::make_unique<ShellDisks> (*this);
+    m_scene         = std::make_unique<ShellDeskScene> (*this);
+    m_chrome        = std::make_unique<ShellChrome> (*this);
+    m_renderer      = std::make_unique<ShellRenderer> (*this);
+
     m_debuggerHost = std::make_unique<DebuggerHost> (*this);
-    m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_globalPrefs.debugger);
+    m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_settings->GetPrefs().debugger);
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same
@@ -139,8 +167,8 @@ EmulatorShell::EmulatorShell()
                                                               m_machine.GetMemoryBus(),
                                                               m_cpuManager.GetCommandMutex(),
                                                               m_cpuManager.GetPasteBuffer(),
-                                                              m_framebufferMutex,
-                                                              m_uiFramebuffer,
+                                                              m_renderer->m_framebufferMutex,
+                                                              m_renderer->m_uiFramebuffer,
                                                               kFramebufferWidth,
                                                               kFramebufferHeight,
                                                               &m_machine.GetRefs().keyboard);
@@ -151,17 +179,10 @@ EmulatorShell::EmulatorShell()
 
     MachineBuildServices  services;
 
-    services.diskAudioSources       = &m_diskAudioSources;
-    services.driveAudioMixer        = &m_driveAudioMixer;
-    services.mockingboardAudioMixer = &m_mockingboardAudioMixer;
-    services.printerAudio           = &m_printerAudio;
-    services.wasapiAudio            = &m_wasapiAudio;
-    services.printerWorker          = &m_printerWorker;
-    services.printerAutoOpenActivity = &m_printerAutoOpenActivity;
-    services.drivePan               = m_drivePan;
-    services.driveMotorVolume       = &m_driveMotorVolume;
-    services.driveHeadVolume        = &m_driveHeadVolume;
-    services.driveDoorVolume        = &m_driveDoorVolume;
+    m_audio->BindBuildServices (services);
+
+    m_printer->BindBuildServices (services);
+
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
@@ -187,15 +208,6 @@ EmulatorShell::EmulatorShell()
 //  The CPU thread stops first: nothing can be safely destroyed while it is
 //  still executing instructions against these devices.
 //
-//  Debug panels are unwired before they are destroyed. Each was registered as
-//  an event SINK on live machine devices (disk controller, drive audio,
-//  keyboard, //e soft switches, game port), and those devices outlive the
-//  panel -- they die later, with the machine's owned devices. Resetting a
-//  panel without
-//  first revoking its sinks leaves the devices calling into freed memory. The
-//  disk panel revokes controller then audio, mirroring the attachment order
-//  in OpenDisk2DebugDialog (Spec-006 / FR-024).
-//
 //  Dirty disks are flushed before anything owning them unwinds, so a clean
 //  quit never loses user writes (T097 / FR-025).
 //
@@ -213,8 +225,7 @@ EmulatorShell::EmulatorShell()
 
 EmulatorShell::~EmulatorShell()
 {
-    HRESULT             hrFlush    = S_OK;
-    Disk2Controller *   controller = nullptr;
+    HRESULT  hrFlush = S_OK;
 
 
 
@@ -225,7 +236,7 @@ EmulatorShell::~EmulatorShell()
 
     // The update workers next: a download in flight is canceled, and every
     // worker is joined before anything it posts to or reads from goes.
-    StopUpdateService();
+    m_updater->StopUpdateService();
 
     // The window posts to the CPU thread through this shell, so it is cut off
     // before either goes.
@@ -253,57 +264,8 @@ EmulatorShell::~EmulatorShell()
 
     m_cpuManager.Stop();
 
-    // Spec-006 / FR-024. Revoke BOTH sinks BEFORE the dialog tears
-    // down its ring (and before the controller / audio source itself
-    // is destroyed, which happens via the machine's owned devices and
-    // m_diskAudioSources
-    // below). Controller sink first, then audio sink, matching the
-    // attachment order in OpenDisk2DebugDialog.
-    if (m_disk2DebugPanel != nullptr)
-    {
-        controller = m_diskManager->FindSlot6Controller();
-
-        if (controller != nullptr)
-        {
-            controller->SetEventSink (nullptr);
-        }
-
-        for (auto & diskAudioSource : m_diskAudioSources)
-        {
-            if (diskAudioSource != nullptr)
-            {
-                diskAudioSource->SetAudioEventSink (nullptr);
-            }
-        }
-
-        m_disk2DebugPanel.reset();
-    }
-
-    if (m_inputDebugPanel != nullptr)
-    {
-        Apple2eSoftSwitchBank * iieSwitches = nullptr;
-
-        if (m_machine.GetRefs().keyboard != nullptr)
-        {
-            m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
-        }
-
-        iieSwitches = m_machine.GetRefs().iieSoftSwitches;
-        if (iieSwitches != nullptr)
-        {
-            iieSwitches->SetInputEventSink (nullptr);
-        }
-
-        if (m_machine.GetRefs().gamePort != nullptr)
-        {
-            m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
-        }
-
-        m_inputDebugPanel.reset();
-    }
-
     // The printer panel holds no machine sinks -- just close its window.
-    m_printerPanel.reset();
+    m_printer->ClosePrinterPanel();
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
@@ -319,18 +281,18 @@ EmulatorShell::~EmulatorShell()
 
     // Same idea for a preference change still inside its debounce window:
     // quitting right after a volume nudge would otherwise lose it.
-    FlushDeferredGlobalPrefs();
+    m_settings->FlushDeferredGlobalPrefs();
 
     // An update applied when Casso closes, now that the disks and the
     // preferences are written.
-    CommitPendingUpdateAtExit();
+    m_updater->CommitPendingUpdateAtExit();
 
     // Native-only ownership teardown.
     m_uiShell.Shutdown();
-    m_dragDropTarget.Shutdown();
-    m_driveWidgets.UnloadDocument();
-    m_mainMenu.Hide();
-    m_mainMenu.SetPopupHost (nullptr);
+    m_window->m_dragDropTarget.Shutdown();
+    m_disks->GetDriveWidgets().UnloadDocument();
+    m_chrome->m_mainMenu.Hide();
+    m_chrome->m_mainMenu.SetPopupHost (nullptr);
 
     // Drop the host's adopted-chrome references before the chrome
     // members or m_host itself go out of scope. The chrome controls
@@ -344,13 +306,296 @@ EmulatorShell::~EmulatorShell()
         m_host->GetRoot().ClearAdopted();
     }
 
-    m_d3dRenderer.Shutdown();
+    m_renderer->m_d3dRenderer.Shutdown();
 
-    if (m_fOleInitialized)
+    if (m_window->m_fOleInitialized)
     {
         OleUninitialize();
-        m_fOleInitialized = false;
+        m_window->m_fOleInitialized = false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetUpdater
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellUpdater & EmulatorShell::GetUpdater()
+{
+    return *m_updater;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTapeDeck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellTapeDeck & EmulatorShell::GetTapeDeck()
+{
+    return *m_tapeDeck;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAudio
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellAudio & EmulatorShell::GetAudio()
+{
+    return *m_audio;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellPrinter & EmulatorShell::GetPrinter()
+{
+    return *m_printer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDisks & EmulatorShell::GetDisks()
+{
+    return *m_disks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDeskScene
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDeskScene & EmulatorShell::GetDeskScene()
+{
+    return *m_scene;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChrome
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellChrome & EmulatorShell::GetChrome()
+{
+    return *m_chrome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRenderer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellRenderer & EmulatorShell::GetRenderer()
+{
+    return *m_renderer;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellWindow & EmulatorShell::GetWindow()
+{
+    return *m_window;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetStartupShowCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetStartupShowCommand (int nCmdShow)
+{
+    m_window->SetStartupShowCommand (nCmdShow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWindowTitlePrefix
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
+{
+    m_window->SetWindowTitlePrefix (prefix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneActive
+//
+//  The 3D scene renders whenever a skeuo theme is active and the models
+//  loaded. The DRIVES are not optional -- they are 3D objects in every skeuo
+//  presentation; compact themes keep their flat widgets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DeskSceneActive() const
+{
+    return !m_chrome->m_chromeTheme.compactDrives && m_scene->m_deskSceneReady;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellSettings & EmulatorShell::GetSettings()
+{
+    return *m_settings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrtMonitorActive
+//
+//  The desk scene, and the monitor on top of it, which the user CAN turn off:
+//  the picture then sits on a flat rect at classic sizes with the 3D drive row
+//  still composed in the band below it. Everything keyed off the curved glass
+//  -- the glass-fill fullscreen, the inverse-projected pointer mapping, the
+//  Ctrl+0 solve -- follows this, not DeskSceneActive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::CrtMonitorActive() const
+{
+    return DeskSceneActive() && m_settings->GetPrefs().crtMonitor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutDriveRowForTest
+//
+//  The flat drive band's row, for the band layout tests: lays the row out in
+//  a client of the given size with no band below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutDriveRowForTest (int clientW, int clientH, UINT dpi, int visibleCount)
+{
+    m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), 0, clientW, clientH, dpi, 1.0f, visibleCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDriveRectForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::GetDriveRectForTest (size_t drive) const
+{
+    return m_disks->GetDriveChrome()[drive].GetOuterRect();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTapeAnchorForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::GetTapeAnchorForTest() const
+{
+    return m_tapeDeck->GetAnchor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRecorderAttachedForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRecorderAttachedForTest (bool attached)
+{
+    m_tapeDeck->SetRecorderConnected (attached);
 }
 
 
@@ -407,8 +652,7 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk2Path,
     const string        & tapePath)
 {
-    HRESULT  hr     = S_OK;
-    HRESULT  hrTape = S_OK;
+    HRESULT  hr = S_OK;
 
 
 
@@ -433,9 +677,9 @@ HRESULT EmulatorShell::Initialize (
     hr = OleInitialize (nullptr);
     CHRA (hr);
 
-    m_fOleInitialized = true;
+    m_window->m_fOleInitialized = true;
 
-    AllocateFramebuffers();
+    m_renderer->AllocateFramebuffers();
 
     PrimeChromeThemeEarly();
 
@@ -537,7 +781,7 @@ HRESULT EmulatorShell::Initialize (
                                     [this] { return m_controllerService->Tick(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = InitializeRenderer();
+    hr = m_renderer->InitializeRenderer();
     CHR (hr);
 
     hr = InitializeUiShell();
@@ -565,9 +809,9 @@ HRESULT EmulatorShell::Initialize (
     // particular, and the remembered placement -- which knows whether the
     // window was maximized -- is the better answer for it.
     {
-        int   show = m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
+        int   show = m_window->m_startMaximized ? SW_SHOWMAXIMIZED : SW_SHOW;
 
-        switch (m_startShowCmd)
+        switch (m_window->m_startShowCmd)
         {
             case SW_HIDE:
             case SW_MINIMIZE:
@@ -575,7 +819,7 @@ HRESULT EmulatorShell::Initialize (
             case SW_SHOWMINNOACTIVE:
             case SW_SHOWNOACTIVATE:
             case SW_SHOWNA:
-                show = m_startShowCmd;
+                show = m_window->m_startShowCmd;
                 break;
 
             default:
@@ -591,9 +835,9 @@ HRESULT EmulatorShell::Initialize (
     // client now that the window is shown and its NC frame has fully
     // materialized. Done before UpdateWindowTitle so the user never sees
     // the wrong-size window flash.
-    ReconcileInitialClientSize();
+    m_window->ReconcileInitialClientSize();
 
-    UpdateWindowTitle();
+    m_window->UpdateWindowTitle();
 
     // / FR-034. Cold power-on: seed DRAM via the shared Prng and
     // run the 6502 /RESET sequence. Without this, the CPU starts at PC=0
@@ -609,44 +853,15 @@ HRESULT EmulatorShell::Initialize (
 
     PowerCycle();
 
-    // Every mount reports its outcome through here, not just this one:
-    // the recent-disks entry, the damage check, and the failure report all
-    // hang off it. Installed before the command-line disks go in so those
-    // are covered too.
-    m_diskManager->SetMountCompletedCallback (
-        [this] (int drive, const std::string & path, HRESULT mountResult,
-                const MountDiagnosis & diagnosis)
-        {
-            OnMountCompleted (drive, path, mountResult, diagnosis);
-        });
+    // Every mount reports its outcome through the disks, not just these:
+    // installed before the command-line disks go in so those are covered too.
+    m_disks->InstallMountReporting();
 
-    // The toggle runs on the CPU thread and the notice is Dxui, so the text
-    // is posted to the window rather than shown here.
-    m_diskManager->SetWriteProtectChangedCallback (
-        [this] (const std::wstring & text)
-        {
-            PostNotice (text);
-        });
+    m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
 
-    m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
+    m_tapeDeck->InsertStartupTape (tapePath);
 
-    // A tape given on the command line goes in instead of the remembered one,
-    // and is remembered in its place, as --disk1 is.
-    if (tapePath.empty())
-    {
-        hrTape = m_tapeManager->RestoreSavedTape();
-        IGNORE_RETURN_VALUE (hrTape, S_OK);
-    }
-    else if (MachineHasCassettePort())
-    {
-        m_tapeManager->Insert (tapePath);
-    }
-    else
-    {
-        PostNotice (L"This machine has no cassette port, so the tape was not inserted.");
-    }
-
-    ApplyPersistedAudioPrefs();
+    ApplyPersistedMachinePrefs();
 
 Error:
     return hr;
@@ -667,23 +882,23 @@ void EmulatorShell::RegisterChromeDock()
     // Register the chrome bands + center with the dock layout once --
     // their thicknesses are refreshed from DPI + live drive-bar state
     // on every ComputeViewportRect / GetClientSizeForCenterPx call.
-    m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
-    m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
-    m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_titleBand,   DxuiDock::Top);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_navBand,     DxuiDock::Top);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_toolbarBand, DxuiDock::Top);
 
     // Under the toolbar and above the picture, because a notice about the disk
     // in the drive belongs with the controls rather than over the screen.
-    m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_changeBand,  DxuiDock::Top);
 
     // Under the change notice, so a capture that starts while a disk question
     // stands does not push the question off the top of the chrome.
-    m_chromeDock.SetDock (m_standInBand, DxuiDock::Top);
-    m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_standInBand, DxuiDock::Top);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
     // the viewport and the joystick/paddle/mouse bar).
-    m_chromeDock.SetDock (m_switchBand,  DxuiDock::Bottom);
-    m_chromeDock.SetDock (m_centerBand,  DxuiDock::Fill);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_switchBand,  DxuiDock::Bottom);
+    m_chrome->m_chromeDock.SetDock (m_chrome->m_centerBand,  DxuiDock::Fill);
 }
 
 
@@ -703,62 +918,14 @@ void EmulatorShell::InitAssetPathsAndStores()
 
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
-    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+    m_settings->CreateConfigStore (assetBaseDir.wstring());
 
-    m_diskManager = std::make_unique<DiskManager> (m_machine,
-                                                   m_machine.GetDiskStore(),
-                                                   m_diskAudioSources,
-                                                   m_wasapiAudio,
-                                                   m_driveWidgets,
-                                                   m_driveWidgetState,
-                                                   m_driveChrome,
-                                                   m_cpuManager,
-                                                   m_machine.GetCurrentMachineName(),
-                                                   *m_userConfigStore,
-                                                   m_uiFs,
-                                                   m_userWriteProtect);
+    m_disks->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_imageWatchDisabled);
 
-    //  The store owns the watch lifecycle; this only decides which watcher it
-    //  gets. --no-image-watch installs one that refuses every watch, so the
-    //  check made before every write can be measured on its own.
-    m_diskManager->InstallSharedImageSupport (m_imageWatchDisabled);
+    m_audio->AttachTape (&m_machine.GetTapeDeck(),
+                         [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
-    m_tapeAudioSource.Attach (&m_machine.GetTapeDeck(),
-                              [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
-    m_tapeAudioMixer.RegisterSource (&m_tapeAudioSource);
-
-    m_tapeFileIo  = std::make_unique<Win32DiskFileIo>();
-    m_tapeLoader  = std::make_unique<BackgroundWorkQueue>();
-    m_tapeManager = std::make_unique<TapeManager> (*m_tapeFileIo,
-                                                   m_uiFs,
-                                                   *m_userConfigStore,
-                                                   m_tapeAudioDecoder,
-                                                   [this] (WORD id, const std::string & payload) { PostCommand (id, payload); },
-                                                   [this] () { return m_machine.GetCurrentMachineName(); },
-                                                   [this] (std::function<void()> job) { m_tapeLoader->Post (std::move (job)); });
-    m_tapeManager->SetNotifyFn ([this] (const std::wstring & text) { PostNotice (text); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AllocateFramebuffers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AllocateFramebuffers()
-{
-    size_t  framebufferSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
-
-
-
-    // Create framebuffers (CPU renders to one, UI reads the other)
-    m_cpuFramebuffer.resize (framebufferSize, 0);
-    m_textOverlay.resize (framebufferSize, 0);
-    m_uiFramebuffer.resize (framebufferSize, 0);
+    m_tapeDeck->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem());
 }
 
 
@@ -809,12 +976,12 @@ void EmulatorShell::PrimeChromeThemeEarly()
     // and the -N family is CHRF with its action fixed to one EhmNotifyUser
     // call. EhmNotifyUser rather than a themed dialog: this runs before the
     // chrome theme or main window exist, and it auto-detects GUI vs console.
-    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, report);
+    hr = m_settings->GetConfigStore()->LoadAll (m_settings->GetPrefs(), m_settings->GetFileSystem(), report);
     CHRF (hr,
           message = UserConfigStore::ComposeLoadFailureMessage (
-                        m_machine.GetAssetBaseDir(), m_userConfigStore->GetUserPrefsFilePath(), report);
+                        m_machine.GetAssetBaseDir(), m_settings->GetConfigStore()->GetUserPrefsFilePath(), report);
           EhmNotifyUser (message.c_str());
-          m_globalPrefs = GlobalUserPrefs {});
+          m_settings->GetPrefs() = GlobalUserPrefs {});
 
     // A migration that carried forward what it could and left the rest is the
     // one degraded outcome that reports SUCCESS, so nothing else will mention
@@ -828,7 +995,7 @@ void EmulatorShell::PrimeChromeThemeEarly()
     }
 
 Error:
-    ApplyChromeThemeByName (m_globalPrefs.activeTheme);
+    m_scene->ApplyChromeThemeByName (m_settings->GetPrefs().activeTheme);
     return;
 }
 
@@ -889,14 +1056,14 @@ HRESULT EmulatorShell::InitializeUiShell()
 
 
 
-    hr = m_uiShell.Initialize (&m_d3dRenderer);
+    hr = m_uiShell.Initialize (&m_renderer->m_d3dRenderer);
     CHR (hr);
 
     hr = WireUiShellChromeAndThemes();
     CHR (hr);
 
     RestoreColorTextPref();
-    RecordActiveMachineSelection();
+    m_settings->RecordActiveMachineSelection();
 
     SubscribeAndActivateTheme();
 
@@ -906,7 +1073,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     // rather than inside ApplyPersistedChromePrefs, which returns early for
     // a machine carrying no $cassoUiPrefs object and would leave the keys
     // empty for it.
-    RefreshCrtOverrideKeys();
+    m_renderer->RefreshCrtOverrideKeys();
 
     hr = FinishUiShellLayout();
     CHR (hr);
@@ -955,8 +1122,8 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // The caption is host-owned now, and chrome paints through the
     // host panel tree; UiShell only routes input, hit-tests, and
     // supplies the theme / viewport metrics the settings panel reads.
-    m_uiShell.SetMainMenu (&m_mainMenu);
-    m_uiShell.SetTheme    (&m_chromeTheme);
+    m_uiShell.SetMainMenu (&m_chrome->m_mainMenu);
+    m_uiShell.SetTheme    (&m_chrome->m_chromeTheme);
 
     // Inject the shared text renderer into chrome controls that
     // need to measure label strings during Layout. Mirrors the
@@ -964,16 +1131,17 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // controls participate in the standard IDxuiControl::Layout
     // contract without needing the renderer passed as a Layout
     // parameter on every call.
-    m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
-    m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
-    m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
+    m_chrome->m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
+    m_chrome->m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
+    m_chrome->m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
     // or absent one returns S_OK -- the built-in themes still work), so only
     // a genuine enumeration failure propagates.
-    m_themeManager = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
-    hr             = m_themeManager->Discover();
+    m_settings->CreateThemeManager (themesDir.wstring());
+
+    hr = m_settings->GetThemeManager()->Discover();
     CHR (hr);
 
 Error:
@@ -1004,7 +1172,7 @@ Error:
 
 void EmulatorShell::WireToolbarPickers()
 {
-    m_toolbar.SetPopupHost (m_host.get());
+    m_chrome->m_toolbar.SetPopupHost (m_host.get());
 
     //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
     //  closing the drop-down that was open. The drop-down holds capture, so
@@ -1014,7 +1182,7 @@ void EmulatorShell::WireToolbarPickers()
     //  Only the titles. Anywhere else the click closes the picker and stops
     //  there, which is what a menu does everywhere: dismissing is not a
     //  reason to fire the button that happened to be underneath.
-    m_toolbar.SetDropDownClickOutsideFn (
+    m_chrome->m_toolbar.SetDropDownClickOutsideFn (
         [this] (POINT screenPx)
         {
             POINT  client = screenPx;
@@ -1024,53 +1192,53 @@ void EmulatorShell::WireToolbarPickers()
                 return;
             }
 
-            for (int i = 0; i < m_mainMenu.GetMenuCount(); i++)
+            for (int i = 0; i < m_chrome->m_mainMenu.GetMenuCount(); i++)
             {
-                RECT  title = m_mainMenu.GetMenuRect (i);
+                RECT  title = m_chrome->m_mainMenu.GetMenuRect (i);
 
                 if (PtInRect (&title, client))
                 {
-                    m_mainMenu.Open (i, false);
+                    m_chrome->m_mainMenu.Open (i, false);
                     return;
                 }
             }
         });
 
-    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
+    m_chrome->m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
         [this] (int index)
         {
             HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+            bool     inRange = index >= 0 && index < (int) m_chrome->m_toolbarThemeIds.size();
 
             if (inRange)
             {
-                hrTheme = ApplyThemeLive (m_toolbarThemeIds[index]);
+                hrTheme = m_settings->ApplyThemeLive (m_chrome->m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         },
         [this] (int index)
         {
             HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+            bool     inRange = index >= 0 && index < (int) m_chrome->m_toolbarThemeIds.size();
 
             if (inRange)
             {
-                m_mainMenu.GetCommands().SetThemeIndex (index);
-                hrTheme = ApplyAndPersistTheme (m_toolbarThemeIds[index]);
+                m_chrome->m_mainMenu.GetCommands().SetThemeIndex (index);
+                hrTheme = m_settings->ApplyAndPersistTheme (m_chrome->m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         });
 
-    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
+    m_chrome->m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
         [this] (int index)
         {
-            SetColorModeLive (index);
+            m_renderer->SetColorModeLive (index);
         },
         [this] (int index)
         {
-            m_mainMenu.GetCommands().SetMonitorColorIndex (index);
-            SetColorModeLive              (index);
-            PersistColorModeForMachine    (index);
+            m_chrome->m_mainMenu.GetCommands().SetMonitorColorIndex (index);
+            m_renderer->SetColorModeLive              (index);
+            m_settings->PersistColorModeForMachine    (index);
         });
 }
 
@@ -1112,7 +1280,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
 {
     HRESULT  hr         = S_OK;
     UINT     initialDpi = GetDpiForWindow (m_hwnd);
-    bool     fHasDisk   = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool     fHasDisk   = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
 
 
@@ -1121,8 +1289,8 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // this the initial paint binds at the m_dpi default (0->96)
     // and chrome text renders tiny on high-DPI displays until
     // the user resizes the window.
-    hr = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                             m_d3dRenderer.GetBackBufferHeight(),
+    hr = m_uiShell.OnResize (m_renderer->m_d3dRenderer.GetBackBufferWidth(),
+                             m_renderer->m_d3dRenderer.GetBackBufferHeight(),
                              initialDpi);
     CHR (hr);
 
@@ -1135,7 +1303,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     {
         // The 3D scene owns the drives: widgets hidden, drop-target rects
         // from the composition's projected drive bounds.
-        SyncSceneDriveChrome();
+        m_scene->SyncSceneDriveChrome();
     }
     else if (!fHasDisk)
     {
@@ -1144,15 +1312,15 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         // and the bottom command bar is clear of drive UI.
         // The joystick-mode button still paints, since
         // joystick input is independent of disk presence.
-        m_driveChrome[0].Hide();
-        m_driveChrome[1].Hide();
+        m_disks->GetDriveChrome()[0].Hide();
+        m_disks->GetDriveChrome()[1].Hide();
     }
-    else if (!ShouldShowExternalDrive())
+    else if (!m_disks->ShouldShowExternalDrive())
     {
         // //c with the optional external drive not connected: the
         // internal drive (widget 0) shows, the external (widget 1)
         // stays collapsed until the user connects it in Settings.
-        m_driveChrome[1].Hide();
+        m_disks->GetDriveChrome()[1].Hide();
     }
 
     if (!DeskSceneActive())
@@ -1160,97 +1328,27 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_uiShell.GetHitTester().Clear();
         if (fHasDisk)
         {
-            m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-            if (ShouldShowExternalDrive())
+            m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
+            if (m_disks->ShouldShowExternalDrive())
             {
-                m_uiShell.GetHitTester().Register (DxuiHitRect { m_driveChrome[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
+                m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
             }
         }
 
-        RegisterTapeDropTarget();
+        m_tapeDeck->RegisterTapeDropTarget();
     }
 
-    if (m_fOleInitialized)
+    if (m_window->m_fOleInitialized)
     {
-        InstallDragDropTarget();
+        m_window->InstallDragDropTarget();
     }
 
-    InstallChangeReporting();
+    m_disks->InstallChangeReporting();
     InstallIntentReplies();
-    InstallIntentMessageFilter();
+    m_window->InstallIntentMessageFilter();
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InstallDragDropTarget
-//
-//  Registers the window as an OLE drop target for disk images, and opens the
-//  UIPI holes that make dropping work across an integrity-level boundary.
-//
-//  A failed registration is survivable and deliberately non-fatal: File > Open
-//  and the drive widgets' click-to-browse mount the same images, so losing
-//  drag-and-drop costs a convenience, not a capability, and must not prevent
-//  launch.
-//
-//  The message filters are the non-obvious half. When Casso runs at a HIGHER
-//  integrity level than the drag source -- the common case being an elevated
-//  Casso and a normal Explorer window -- UIPI silently drops the messages OLE
-//  uses to marshal the payload across the boundary, and the drop simply does
-//  nothing with no error anywhere. Allowing the three messages OLE actually
-//  uses for drop targets (WM_DROPFILES, WM_COPYDATA, and the undocumented but
-//  real WM_COPYGLOBALDATA) makes Explorer-to-elevated-Casso drags work without
-//  lowering Casso's own integrity level.
-//
-//  Only m_hwnd needs the filter: the window is a single top-level HWND now
-//  that the legacy CassoRenderSurface child is gone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::InstallDragDropTarget()
-{
-    HRESULT     hrDrop            = S_OK;
-    const UINT  kWmCopyGlobalData = 0x0049;   // undocumented but real
-
-
-
-    // Drag-drop is an optional convenience -- File > Open and the drive
-    // widgets' click-to-browse cover the same mounts -- so a failed
-    // registration disables drop but must not prevent launch.
-    // Disks and tapes both; OnFileDropped sends each only to what can take it.
-    hrDrop = m_dragDropTarget.Initialize (m_hwnd,
-                                          &m_uiShell.GetHitTester(),
-                                          [this] (int tag, const std::wstring & path) { OnFileDropped (tag, path); },
-                                          [] (const std::wstring & path)
-                                          {
-                                              return IsSupportedDiskImageExtension (path) ||
-                                                     TapeImageLoader::IsTapeFileExtension (path);
-                                          });
-    IGNORE_RETURN_VALUE (hrDrop, S_OK);
-
-    // UIPI whitelist. When Casso runs at a higher integrity
-    // level than the source (e.g. user launched Casso
-    // elevated and is dragging from a non-elevated Explorer),
-    // UIPI silently blocks the messages OLE uses to marshal
-    // the dragged payload across the IL boundary. The fix
-    // is ChangeWindowMessageFilterEx for the three messages
-    // OLE actually uses for drop targets:
-    //   WM_DROPFILES       (0x0233)
-    //   WM_COPYDATA        (0x004A)
-    //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
-    // Allowing these lets Explorer -> elevated-Casso drag
-    // work without lowering Casso's IL. The window is now a
-    // single top-level HWND (the legacy CassoRenderSurface
-    // child is gone), so only m_hwnd needs the filter.
-    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,      MSGFLT_ALLOW, nullptr);
-    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,       MSGFLT_ALLOW, nullptr);
-    (void) ChangeWindowMessageFilterEx (m_hwnd, kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
 }
 
 
@@ -1303,53 +1401,6 @@ bool EmulatorShell::MachineHasCaseSwitches() const
 
 
     return (definition != nullptr && definition->hasCaseSwitches);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::MachineHasBuiltInDrive
-//
-//  Whether the machine's drive is soldered in rather than plugged into a card,
-//  which is what decides the drive the desk scene draws.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EmulatorShell::MachineHasBuiltInDrive() const
-{
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
-
-
-
-    return (definition != nullptr && definition->hasBuiltInDrive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ComposeDriveInfoTooltip
-//
-//  Every presentation's info icon shows the same words, all from the drive's
-//  sampled state: the WOZ requirements and the machine they were checked
-//  against. The machine's config is not read here, because this runs on a
-//  pointer move, outside the machine's lifetime lock, and a machine switch on
-//  the CPU thread can be replacing that config at the same moment.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring EmulatorShell::ComposeDriveInfoTooltip (int drive) const
-{
-    const DriveWidgetState  & st = m_driveWidgetState[drive];
-
-
-
-    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
 }
 
 

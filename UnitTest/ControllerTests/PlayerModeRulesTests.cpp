@@ -4,6 +4,7 @@
 #include "Controllers/PlayerModeRules.h"
 
 #include "Core/JsonParser.h"
+#include "Core/JsonValue.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Shell/EmulatorShell.h"
 

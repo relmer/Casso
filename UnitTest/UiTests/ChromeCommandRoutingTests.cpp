@@ -64,7 +64,6 @@ public:
 
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
-        IDM_VIEW_DISK2_DEBUG,
         IDM_VIEW_DEBUGGER,
         IDM_DEBUG_RESTART,
 
@@ -133,8 +132,6 @@ public:
         { L"IDM_VIEW_FULLSCREEN",           IDM_VIEW_FULLSCREEN           },
         { L"IDM_VIEW_CRT_SHADER",           IDM_VIEW_CRT_SHADER           },
         { L"IDM_VIEW_RESET_SIZE",           IDM_VIEW_RESET_SIZE           },
-        { L"IDM_VIEW_INPUT_DEBUG",          IDM_VIEW_INPUT_DEBUG          },
-        { L"IDM_VIEW_DISK2_DEBUG",          IDM_VIEW_DISK2_DEBUG          },
         { L"IDM_VIEW_DEBUGGER",             IDM_VIEW_DEBUGGER             },
         { L"IDM_DEBUG_RESTART",             IDM_DEBUG_RESTART             },
         { L"IDM_DEBUG_COMMAND",             IDM_DEBUG_COMMAND             },

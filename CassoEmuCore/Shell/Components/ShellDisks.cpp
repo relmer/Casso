@@ -1,6 +1,14 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/WindowCommandManager.h"
+#include "Ui/Dialogs/DialogDefinition.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -27,6 +35,7 @@
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
+#include "Machines/MachineDefinition.h"
 #include "Machines/MachineDefinitions.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
@@ -66,6 +75,190 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDisks::ShellDisks (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellDisks
+//
+//  Out of line so DiskManager is complete where its unique_ptr destroys it.
+//  It goes first: it holds the widgets and their state by reference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDisks::~ShellDisks() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::Initialize
+//
+//  The store owns the watch lifecycle; this only decides which watcher it
+//  gets. --no-image-watch installs one that refuses every watch, so the check
+//  made before every write can be measured on its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::Initialize (UserConfigStore & configStore, IFileSystem & fileSystem, bool imageWatchDisabled)
+{
+    m_diskManager = std::make_unique<DiskManager> (m_shell.m_machine,
+                                                   m_shell.m_machine.GetDiskStore(),
+                                                   m_shell.m_audio->GetDiskSources(),
+                                                   m_shell.m_audio->GetOutput(),
+                                                   m_driveWidgets,
+                                                   m_driveWidgetState,
+                                                   m_driveChrome,
+                                                   m_shell.m_cpuManager,
+                                                   m_shell.m_machine.GetCurrentMachineName(),
+                                                   configStore,
+                                                   fileSystem,
+                                                   m_userWriteProtect);
+
+    m_diskManager->InstallSharedImageSupport (imageWatchDisabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::InstallMountReporting
+//
+//  Every mount reports its outcome through here, not just the startup ones:
+//  the recent-disks entry, the damage check, and the failure report all hang
+//  off it. Installed before the command-line disks go in so those are
+//  covered too.
+//
+//  The write-protect toggle runs on the CPU thread and the notice is Dxui, so
+//  its text is posted to the window rather than shown here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::InstallMountReporting()
+{
+    m_diskManager->SetMountCompletedCallback (
+        [this] (int drive, const std::string & path, HRESULT mountResult,
+                const MountDiagnosis & diagnosis)
+        {
+            OnMountCompleted (drive, path, mountResult, diagnosis);
+        });
+
+    m_diskManager->SetWriteProtectChangedCallback (
+        [this] (const std::wstring & text)
+        {
+            m_shell.m_chrome->PostNotice (text);
+        });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetMountedImagePath
+//
+//  The Settings > Theme preview's basename label: whatever disk image is
+//  mounted in the drive, or an empty string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::wstring & ShellDisks::GetMountedImagePath (int driveIndex) const
+{
+    static const std::wstring  s_kEmpty;
+
+
+
+    if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+    {
+        return s_kEmpty;
+    }
+
+    return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetDriveWriteProtect
+//
+//  Write-protect breakdown for a drive, read from the live per-drive widget
+//  state (refreshed each frame by DiskManager::UpdateDriveWidgets), so the
+//  Settings > Theme preview's sample drive shows the padlock cue for whatever
+//  is actually mounted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WriteProtectInfo ShellDisks::GetDriveWriteProtect (int driveIndex) const
+{
+    if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+    {
+        return WriteProtectInfo();
+    }
+
+    return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::SampleDriveActivity
+//
+//  Head position and activity for the Settings > Theme preview, copied into
+//  the caller's state rather than returned, because the live state holds
+//  atomics and cannot be copied whole. Without it the preview's drives are
+//  built from a default-constructed state, whose head position is the
+//  "unknown" -1 that PaintCompactHeadBar deliberately refuses to draw a core
+//  for -- so a 2D theme's activity indicator showed the bare rail and nothing
+//  else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::SampleDriveActivity (int driveIndex, DriveWidgetState & outState) const
+{
+    if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+    {
+        return;
+    }
+
+    const DriveWidgetState &  st = m_driveWidgetState[(size_t) driveIndex];
+
+    outState.headQuarterTrack.store (st.headQuarterTrack.load (std::memory_order_relaxed),
+                                     std::memory_order_relaxed);
+    outState.motorOn.store    (st.motorOn.load    (std::memory_order_relaxed),
+                               std::memory_order_relaxed);
+    outState.diskActive.store (st.diskActive.load (std::memory_order_relaxed),
+                               std::memory_order_relaxed);
+    outState.lastActiveMs = st.lastActiveMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Mount  (IDriveCommandSink)
 //
 //  IDriveCommandSink override delegates straight through to the
@@ -80,7 +273,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::Mount (int slot, int drive, const std::wstring & path)
+HRESULT ShellDisks::Mount (int slot, int drive, const std::wstring & path)
 {
     HRESULT  hr = S_OK;
 
@@ -111,7 +304,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RecordRecentDisk (const std::wstring & path, HRESULT mountResult)
+void ShellDisks::RecordRecentDisk (const std::wstring & path, HRESULT mountResult)
 {
     HRESULT                    hr         = S_OK;
     DiskMru                    mru;
@@ -128,13 +321,13 @@ void EmulatorShell::RecordRecentDisk (const std::wstring & path, HRESULT mountRe
                   std::chrono::system_clock::now().time_since_epoch()).count();
 
     fsPath = std::filesystem::path (path);
-    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks, m_globalPrefs.recentDiskLoadedAt);
+    mru    = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks, m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     mru.RecordMountResult (mountResult, fsPath, nowUnix);
     mru.ToUtf8 (serialized, loadedAt);
-    m_globalPrefs.recentDisks        = std::move (serialized);
-    m_globalPrefs.recentDiskLoadedAt = std::move (loadedAt);
+    m_shell.m_settings->GetPrefs().recentDisks        = std::move (serialized);
+    m_shell.m_settings->GetPrefs().recentDiskLoadedAt = std::move (loadedAt);
 
-    SaveGlobalPrefs();
+    m_shell.m_settings->SaveGlobalPrefs();
 
 Error:
     return;
@@ -146,7 +339,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OnMountCompleted
+//  ShellDisks::OnMountCompleted
 //
 //  Every attempted mount ends here with its own HRESULT, and the only job
 //  this half has is getting that onto the UI thread.
@@ -165,8 +358,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
-                                      const MountDiagnosis & diagnosis)
+void ShellDisks::OnMountCompleted (int drive, const std::string & path, HRESULT mountResult,
+                                   const MountDiagnosis & diagnosis)
 {
     MountCompletion *  carried  = nullptr;
     MountCompletion    fallback;
@@ -179,14 +372,14 @@ void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESU
     fallback.result    = mountResult;
     fallback.drive     = drive;
 
-    if (m_hwnd != nullptr)
+    if (m_shell.m_hwnd != nullptr)
     {
         carried = new (std::nothrow) MountCompletion (fallback);
     }
 
     if (carried != nullptr)
     {
-        isPosted = (PostMessageW (m_hwnd, WM_APP_MOUNT_COMPLETED, 0,
+        isPosted = (PostMessageW (m_shell.m_hwnd, WM_APP_MOUNT_COMPLETED, 0,
                                   reinterpret_cast<LPARAM> (carried)) != FALSE);
 
         if (!isPosted)
@@ -207,7 +400,7 @@ void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESU
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HandleMountCompletion
+//  ShellDisks::HandleMountCompletion
 //
 //  The UI-thread half. A mount that worked joins the recent-disks list and is
 //  checked for a damaged image; a mount that did not is reported to the user
@@ -220,11 +413,11 @@ void EmulatorShell::OnMountCompleted (int drive, const std::string & path, HRESU
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
+void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
 {
     std::wstring  message;
     HWND          replyTo   = nullptr;
-    bool          handedOff = m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
+    bool          handedOff = m_shell.m_intentReplies.TryTakeInsert (completion.drive, completion.path, replyTo);
 
 
 
@@ -234,12 +427,12 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
     {
         if (handedOff)
         {
-            RecordKnownFolder (completion.path);
+            m_shell.RecordKnownFolder (completion.path);
         }
 
         if (replyTo != nullptr)
         {
-            SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result, std::string()));
+            m_shell.SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result, std::string()));
         }
 
         ReportDamagedMount (completion.drive);
@@ -252,7 +445,7 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
     //  window the user is looking at.
     if (replyTo != nullptr)
     {
-        SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result,
+        m_shell.SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result,
                                                                        TextEncoding::WideToNarrow (message)));
         return;
     }
@@ -266,127 +459,11 @@ void EmulatorShell::HandleMountCompletion (const MountCompletion & completion)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SendIntentReply
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
-{
-    bool  delivered = Win32IntentChannel::SendTo (target, m_hwnd, Win32IntentChannel::GetReplyMessageId(),
-                                                  Win32IntentChannel::EncodeReply (reply));
-
-
-
-    IGNORE_RETURN_VALUE (delivered, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::PostIntentReply
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
-{
-    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost();
-
-
-
-    if (carried == nullptr)
-    {
-        return;
-    }
-
-    carried->target = target;
-    carried->reply  = reply;
-
-    if (m_hwnd == nullptr || !PostMessageW (m_hwnd, WM_APP_INTENT_REPLY, 0, (LPARAM) carried))
-    {
-        delete carried;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::RecordKnownFolder
-//
-//  Best effort: a hand-off that mounted is not undone because the list could
-//  not be written.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RecordKnownFolder (const std::string & imagePath)
-{
-    Win32FileSystem   fsKnown;
-    KnownFolderStore  store (fsKnown, AssetBootstrap::GetAssetBaseDirectory().wstring());
-    std::wstring      folder  = fs::path (imagePath).parent_path().wstring();
-    int64_t           nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                    std::chrono::system_clock::now().time_since_epoch()).count();
-    HRESULT           hr      = S_OK;
-
-
-
-    BAIL_OUT_IF (folder.empty(), S_OK);
-
-    hr = store.Append (folder, nowUnix);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::InstallIntentReplies
-//
-//  A reload a tool asked for is decided on the thread that owns disk writes;
-//  the answer is composed there and carried to the UI thread to be sent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::InstallIntentReplies()
-{
-    m_machine.GetDiskStore().SetDecisionSink ([this] (const std::string & path, ChangeAction action,
-                                                      bool guestCopyPreserved, const std::string & preservedPath)
-    {
-        HWND                       replyTo = nullptr;
-        Win32IntentChannel::Reply  reply;
-
-        if (!m_intentReplies.TryTakeReload (path, replyTo) || replyTo == nullptr)
-        {
-            return;
-        }
-
-        if (IntentReplyTracker::TryMakeReloadReply (action, guestCopyPreserved, preservedPath, reply))
-        {
-            PostIntentReply (replyTo, reply);
-        }
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Eject  (IDriveCommandSink)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::Eject (int slot, int drive)
+void ShellDisks::Eject (int slot, int drive)
 {
     m_diskManager->Eject (slot, drive);
 }
@@ -419,7 +496,7 @@ void EmulatorShell::Eject (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
+void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
 {
     DriveWidgetState *  pSt          = nullptr;
     HRESULT             hrBrowse     = S_OK;
@@ -451,7 +528,7 @@ void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
     // animationStartTimeMs. An empty drive rests with its door already
     // Open, so StartDoorTransition is a no-op there.
     pSt->StartDoorTransition (DriveWidgetState::Door::Opening, nowMs());
-    m_d3dRenderer.MarkRedrawNeeded();
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
 
     // The keep-alive spans the whole modal picker (including its nested
     // IFileOpenDialog when the user clicks Browse...), animating the door
@@ -460,16 +537,16 @@ void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
     if (anchorClientPx != nullptr && !IsRectEmpty (anchorClientPx))
     {
         anchorScreen = *anchorClientPx;
-        MapWindowPoints (m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchorScreen), 2);
+        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchorScreen), 2);
         pAnchor = &anchorScreen;
     }
 
-    m_host->BeginModalKeepAlive();
+    m_shell.m_host->BeginModalKeepAlive();
 
-    hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1, pAnchor, mountStarted);
+    hrBrowse = m_shell.m_windowCommandManager->PromptInsertDiskMru (drive + 1, pAnchor, mountStarted);
     IGNORE_RETURN_VALUE (hrBrowse, S_OK);
 
-    m_host->EndModalKeepAlive();
+    m_shell.m_host->EndModalKeepAlive();
 
     // No-mount path (cancel or failure): the door follows the mount
     // state -- a mounted drive closes back, an empty drive rests open
@@ -480,7 +557,7 @@ void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
     if (!mountStarted && pSt->IsMounted())
     {
         pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
-        m_d3dRenderer.MarkRedrawNeeded();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
 
@@ -490,7 +567,7 @@ void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ShowSalvageDialog
+//  ShellDisks::ShowSalvageDialog
 //
 //  Shows a dialog whose body is a caller-built panel instead of wrapped text
 //  runs. The salvage dialog needs a figures table and a warning banner, and
@@ -501,8 +578,8 @@ void EmulatorShell::BrowseForDisk (int drive, const RECT * anchorClientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
-                                      std::unique_ptr<SalvageDialogContent>  content)
+int ShellDisks::ShowSalvageDialog (const DialogDefinition             &  def,
+                                   std::unique_ptr<SalvageDialogContent>  content)
 {
     constexpr int  s_kDialogWidthDip  = 520;
     constexpr int  s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
@@ -537,8 +614,8 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
     params.title                    = def.title;
-    params.hInstance                = m_hInstance;
-    params.ownerHwnd                = m_hwnd;
+    params.hInstance                = m_shell.m_hInstance;
+    params.ownerHwnd                = m_shell.m_hwnd;
     params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
@@ -552,7 +629,7 @@ int EmulatorShell::ShowSalvageDialog (const DialogDefinition             &  def,
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_chromeTheme);
+    dlg.SetTheme (&m_shell.m_chrome->GetTheme());
 
     result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 
@@ -566,17 +643,17 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::IsSalvageOffered
+//  ShellDisks::IsSalvageOffered
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::IsSalvageOffered (int drive)
+bool ShellDisks::IsSalvageOffered (int drive)
 {
     // Reads the verdict reached at mount rather than re-deriving it. This runs
     // from the menu's enable query, so it runs on every draw of that menu:
     // assessing here cost 11 ms for an ordinary disk and 154 ms for a
     // copy-protected one, per drive, on the UI thread.
-    return m_machine.GetDiskStore().IsSalvageOffered (6, drive);
+    return m_shell.m_machine.GetDiskStore().IsSalvageOffered (6, drive);
 }
 
 
@@ -585,7 +662,7 @@ bool EmulatorShell::IsSalvageOffered (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::RunSalvageFlow
+//  ShellDisks::RunSalvageFlow
 //
 //  Assess, show the figures, write on confirmation, then offer to insert the
 //  copy. The assessment is shown BEFORE anything is written: a lossy copy is
@@ -594,7 +671,7 @@ bool EmulatorShell::IsSalvageOffered (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RunSalvageFlow (int drive)
+void ShellDisks::RunSalvageFlow (int drive)
 {
     SalvageAssessment                       assessment;
     DenibblizeReport                        report;
@@ -608,7 +685,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
 
 
 
-    hr =m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr =m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;
@@ -619,7 +696,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    sourcePath = fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring();
+    sourcePath = fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring();
     destName   = fs::path (assessment.suggestedPath).filename().wstring();
 
     content = std::make_unique<SalvageDialogContent>();
@@ -635,7 +712,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {
@@ -649,7 +726,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
             WindowCommandManager::FormatSystemError (hr), false, std::wstring() });
         failed.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
 
-        ShowModalDialog (failed);
+        m_shell.ShowModalDialog (failed);
         return;
     }
 
@@ -668,7 +745,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
     def.buttons.push_back (DialogButton { L"Insert",  1, true,  false, false });
     def.buttons.push_back (DialogButton { L"Not now", 0, false, true,  false });
 
-    choice = ShowModalDialog (def);
+    choice = m_shell.ShowModalDialog (def);
 
     if (choice == 1)
     {
@@ -684,7 +761,7 @@ void EmulatorShell::RunSalvageFlow (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ReportDamagedMount
+//  ShellDisks::ReportDamagedMount
 //
 //  The damage report, with salvage offered inline so the dialog is not a dead
 //  end. Reached after every mount; silent unless the image failed its stored
@@ -692,9 +769,9 @@ void EmulatorShell::RunSalvageFlow (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReportDamagedMount (int drive)
+void ShellDisks::ReportDamagedMount (int drive)
 {
-    DiskImage          * image       = m_machine.GetDiskStore().GetImage (6, drive);
+    DiskImage          * image       = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
     SalvageAssessment    assessment;
     DialogDefinition     def;
     HRESULT              hr          = S_OK;
@@ -711,12 +788,12 @@ void EmulatorShell::ReportDamagedMount (int drive)
     // Mounts run on the CPU thread -- the picker and the menu both route
     // through it so a flush never races the drive engine -- and this raises a
     // modal. Bounce to the UI thread rather than building a dialog from there.
-    isOffThread = (m_hwnd != nullptr) &&
-                  (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
+    isOffThread = (m_shell.m_hwnd != nullptr) &&
+                  (GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId());
 
     if (isOffThread)
     {
-        PostMessageW (m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
+        PostMessageW (m_shell.m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
         return;
     }
 
@@ -732,10 +809,10 @@ void EmulatorShell::ReportDamagedMount (int drive)
     // reason to yet.
     def.body.push_back (DialogTextRun {
         DamagedMountReport::FormatBody (*image,
-            fs::path (m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
+            fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
         false, std::wstring() });
 
-    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr = m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
 
     if (SUCCEEDED (hr) && assessment.isOffered)
     {
@@ -745,7 +822,7 @@ void EmulatorShell::ReportDamagedMount (int drive)
 
     def.buttons.push_back (DialogButton { L"OK", 0, true, true, false });
 
-    choice = ShowModalDialog (def);
+    choice = m_shell.ShowModalDialog (def);
 
     if (choice == 1)
     {
@@ -759,7 +836,7 @@ void EmulatorShell::ReportDamagedMount (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::IsWriteProtectToggleOffered
+//  ShellDisks::IsWriteProtectToggleOffered
 //
 //  Whether the Disk menu should offer the write-protect toggle for a drive.
 //  Reads the bay, then defers to the pure predicate so the rule itself stays
@@ -767,10 +844,10 @@ void EmulatorShell::ReportDamagedMount (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
+bool ShellDisks::IsWriteProtectToggleOffered (int drive)
 {
-    const DiskImage *  image   = m_machine.GetDiskStore().GetImage (6, drive);
-    bool               mounted = m_machine.GetDiskStore().IsMounted (6, drive);
+    const DiskImage *  image   = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
+    bool               mounted = m_shell.m_machine.GetDiskStore().IsMounted (6, drive);
 
 
 
@@ -792,7 +869,7 @@ bool EmulatorShell::IsWriteProtectToggleOffered (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
+void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
 {
     DiskImage *  image = nullptr;
 
@@ -808,7 +885,7 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
     // Apply to whatever is mounted right now so the toggle takes effect
     // without a remount; a later mount re-applies the standing preference
     // via DiskManager::MountDiskInSlot6.
-    image = m_machine.GetDiskStore().GetImage (6, drive);
+    image = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
 
     if (image != nullptr)
     {
@@ -822,7 +899,7 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::InstallChangeReporting
+//  ShellDisks::InstallChangeReporting
 //
 //  Gives the image store the two ways it has of reaching the user.
 //
@@ -836,14 +913,14 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::InstallChangeReporting()
+void ShellDisks::InstallChangeReporting()
 {
-    m_machine.GetDiskStore().SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
+    m_shell.m_machine.GetDiskStore().SetChangeReportSink ([this] (int slot, int drive, const ChangePrompt & prompt)
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
-        if (m_hwnd == nullptr ||
-            !PostMessageW (m_hwnd, WM_APP_CHANGE_REPORT, 0, (LPARAM) carried))
+        if (m_shell.m_hwnd == nullptr ||
+            !PostMessageW (m_shell.m_hwnd, WM_APP_CHANGE_REPORT, 0, (LPARAM) carried))
         {
             delete carried;
         }
@@ -853,12 +930,12 @@ void EmulatorShell::InstallChangeReporting()
     //  told. This sink is installed before the window exists and posting can
     //  fail on a full queue, and a bay left believing a question is on screen
     //  that nobody ever saw is a bay nothing acts on again until it is ejected.
-    m_machine.GetDiskStore().SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
+    m_shell.m_machine.GetDiskStore().SetAskSink ([this] (int slot, int drive, const ChangePrompt & prompt) -> bool
     {
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
-        if (m_hwnd == nullptr ||
-            !PostMessageW (m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
+        if (m_shell.m_hwnd == nullptr ||
+            !PostMessageW (m_shell.m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
         {
             delete carried;
 
@@ -872,8 +949,8 @@ void EmulatorShell::InstallChangeReporting()
     //  loop has gone. It runs on this thread, inside the apartment OleInitialize
     //  set up, so the picker works exactly as it does from a question -- and
     //  unlike a question, this returns the answer rather than posting for it.
-    m_machine.GetDiskStore().SetRescueSink ([this] (const std::string & imagePath,
-                                       std::string & outPath) -> bool
+    m_shell.m_machine.GetDiskStore().SetRescueSink ([this] (const std::string & imagePath,
+                                               std::string & outPath) -> bool
     {
         std::wstring  chosen;
 
@@ -911,7 +988,7 @@ void EmulatorShell::InstallChangeReporting()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ShowChangeBanner
+//  ShellDisks::ShowChangeBanner
 //
 //  Raises the non-modal notice over the running machine.
 //
@@ -925,7 +1002,7 @@ void EmulatorShell::InstallChangeReporting()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
+void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
 {
     std::vector<std::wstring>  labels;
     size_t                     i = 0;
@@ -955,7 +1032,7 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the
     //  notice: the dock does, and this is the pass that runs it.
-    ReflowChromeForChangeBand();
+    m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
 }
@@ -966,56 +1043,7 @@ void EmulatorShell::ShowChangeBanner (const ChangeNotice & notice)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ReflowChromeForChangeBand
-//
-//  Re-docks everything after the notice appears or goes.
-//
-//  THE WINDOW KEEPS ITS SIZE. The machine-change reflow beside this one grows
-//  and shrinks the window, because a machine with no disk drives genuinely
-//  needs less of it and the user keeps that size for the session. A notice is
-//  transient: the picture gives up the height while it is up and takes it back
-//  when it goes, which is what makes the strip read as sliding in over the
-//  scene rather than shoving the window about.
-//
-//  RUN THROUGH OnSize, which is the one authoritative layout pass. A second
-//  path that re-docked some of the chrome would be a second answer to where
-//  everything goes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ReflowChromeForChangeBand()
-{
-    RECT  client = {};
-
-
-
-    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
-
-    //  NEVER FROM INSIDE THE PASS IT RUNS. Losing the pointer capture re-docks,
-    //  and the capture is dropped from OnCancelMode / OnKillFocus, which a
-    //  resize itself can raise -- so the layout would call itself.
-    if (m_inChromeLayout || m_hwnd == nullptr || !GetClientRect (m_hwnd, &client))
-    {
-        return;
-    }
-
-    {
-        DxuiMessageResult  sized = OnSize (client.right - client.left,
-                                           client.bottom - client.top);
-
-        IGNORE_RETURN_VALUE (sized, DxuiMessageResult::Handled);
-    }
-
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetChangeBandThicknessPx
+//  ShellDisks::GetChangeBandThicknessPx
 //
 //  How tall the notice's band is.
 //
@@ -1029,7 +1057,7 @@ void EmulatorShell::ReflowChromeForChangeBand()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
+int ShellDisks::GetChangeBandThicknessPx (int clientWidthPx) const
 {
     float  height = 0.0f;
 
@@ -1040,7 +1068,7 @@ int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
         return 0;
     }
 
-    height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_scaler);
+    height = m_changeBanner.GetPreferredHeightPx ((float) clientWidthPx, m_shell.m_scaler);
 
     return (int) height;
 }
@@ -1051,28 +1079,25 @@ int EmulatorShell::GetChangeBandThicknessPx (int clientWidthPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::LayoutChangeBanner
+//  ShellDisks::LayoutChangeBanner
 //
 //  Lays the notice into the band the dock gave it.
 //
-//  IT TAKES THE BAND'S BOUNDS RATHER THAN COMPUTING ITS OWN. The band already
+//  IT TAKES THE BAND'S BOUNDS RATHER THAN COMPUTING ITS OWN. The band is the
+//  chrome dock's, and the shell hands its bounds in. The band already
 //  spans the client and already has the height this asked for, so anything
 //  computed here a second time would be a second answer to a settled question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::LayoutChangeBanner()
+void ShellDisks::LayoutChangeBanner (const RECT & bandBounds)
 {
-    RECT  bounds = m_changeBand.GetBounds();
-
-
-
-    if (!m_changeBanner.IsVisible() || bounds.right <= bounds.left)
+    if (!m_changeBanner.IsVisible() || bandBounds.right <= bandBounds.left)
     {
         return;
     }
 
-    m_changeBanner.Layout (bounds, m_scaler);
+    m_changeBanner.Layout (bandBounds, m_shell.m_scaler);
 
     return;
 }
@@ -1083,7 +1108,7 @@ void EmulatorShell::LayoutChangeBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::AskAboutChange
+//  ShellDisks::AskAboutChange
 //
 //  Puts the store's question to the user.
 //
@@ -1097,7 +1122,7 @@ void EmulatorShell::LayoutChangeBanner()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
+void ShellDisks::AskAboutChange (const ChangeNotice & notice)
 {
     DialogDefinition  def;
     size_t            i          = 0;
@@ -1141,7 +1166,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
     {
         std::wstring  savePath;
 
-        choice = ShowModalDialog (def);
+        choice = m_shell.ShowModalDialog (def);
 
         if (choice < 0 || choice >= (int) notice.prompt.answers.size())
         {
@@ -1155,7 +1180,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
             break;
         }
 
-        if (AskWhereToSaveLostDisk (m_machine.GetDiskStore().GetSourcePath (notice.slot, notice.drive),
+        if (AskWhereToSaveLostDisk (m_shell.m_machine.GetDiskStore().GetSourcePath (notice.slot, notice.drive),
                                     savePath))
         {
             saveTarget = fs::path (savePath).string();
@@ -1165,9 +1190,9 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
     //  A path can contain spaces, so it goes last and the reader takes the
     //  rest of the line.
-    PostCommand (IDM_DISK_RESOLVE_CHANGE,
-                 std::format ("{} {} {} {}", notice.slot, notice.drive,
-                              (int) chosen, saveTarget));
+    m_shell.PostCommand (IDM_DISK_RESOLVE_CHANGE,
+                         std::format ("{} {} {} {}", notice.slot, notice.drive,
+                                      (int) chosen, saveTarget));
 
     return;
 }
@@ -1178,7 +1203,7 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::AskWhereToSaveLostDisk
+//  ShellDisks::AskWhereToSaveLostDisk
 //
 //  Where to put the contents of a disk whose file has gone.
 //
@@ -1193,8 +1218,8 @@ void EmulatorShell::AskAboutChange (const ChangeNotice & notice)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
-                                            std::wstring & outPath)
+bool ShellDisks::AskWhereToSaveLostDisk (const std::string & imagePath,
+                                         std::wstring & outPath)
 {
     HRESULT         hr       = S_OK;
     FileDialogSpec  spec;
@@ -1219,7 +1244,7 @@ bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
 
     //  A cancelled dialog is not a problem, and leaves through the same exit
     //  as a failure: with nothing chosen.
-    hr = m_hostDialogs.PickFileToSave (m_hwnd, spec, chosen, picked);
+    hr = m_shell.m_hostDialogs.PickFileToSave (m_shell.m_hwnd, spec, chosen, picked);
 
     if (SUCCEEDED (hr) && picked)
     {
@@ -1235,18 +1260,18 @@ bool EmulatorShell::AskWhereToSaveLostDisk (const std::string & imagePath,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HideChangeBanner
+//  ShellDisks::HideChangeBanner
 //
 //  Closes the change band and gives its height back to the picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HideChangeBanner()
+void ShellDisks::HideChangeBanner()
 {
     m_changeBanner.SetVisible (false);
     m_changeBannerHideAtMs = 0;
 
-    ReflowChromeForChangeBand();
+    m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
 }
@@ -1257,7 +1282,7 @@ void EmulatorShell::HideChangeBanner()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ExpireChangeBannerIfDue
+//  ShellDisks::ExpireChangeBannerIfDue
 //
 //  Closes the band once its time is up.
 //
@@ -1271,7 +1296,7 @@ void EmulatorShell::HideChangeBanner()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ExpireChangeBannerIfDue()
+void ShellDisks::ExpireChangeBannerIfDue()
 {
     int64_t  now     = ChangeBannerNowMs();
     int64_t  elapsed = now - m_changeBannerTickMs;
@@ -1290,7 +1315,7 @@ void EmulatorShell::ExpireChangeBannerIfDue()
 
     bounds = m_changeBanner.GetBounds();
 
-    if (GetCursorPos (&cursor) && ScreenToClient (m_hwnd, &cursor))
+    if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor))
     {
         hovered = (cursor.x >= bounds.left && cursor.x < bounds.right
                 && cursor.y >= bounds.top  && cursor.y < bounds.bottom);
@@ -1316,7 +1341,7 @@ void EmulatorShell::ExpireChangeBannerIfDue()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OfferMouseToChangeBanner
+//  ShellDisks::OfferMouseToChangeBanner
 //
 //  Hands the message bar a mouse event.
 //
@@ -1331,7 +1356,7 @@ void EmulatorShell::ExpireChangeBannerIfDue()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y)
+bool ShellDisks::OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, int y)
 {
     RECT             bounds = m_changeBanner.GetBounds();
     DxuiMouseEvent   ev     = {};
@@ -1359,3 +1384,198 @@ bool EmulatorShell::OfferMouseToChangeBanner (DxuiMouseEventKind kind, int x, in
     return m_changeBanner.OnMouse (ev);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::IsSecondDriveOffered
+//
+//  Whether this machine has anywhere to plug a second drive: the //c's disk
+//  port, or the second connector of an enabled Disk ][ card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::IsSecondDriveOffered() const
+{
+    const MachineConfig  & config = m_shell.m_machine.GetConfig();
+
+
+
+    if (config.systemRom.romBankSize != 0)
+    {
+        return true;
+    }
+
+    for (const SlotConfig & slot : config.slots)
+    {
+        if (slot.enabled && slot.device == kpszDiskIiDevice)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::ShouldShowExternalDrive
+//
+//  The //c's second drive is an optional external unit that plugs into the
+//  disk port, so it appears only when the user has marked it connected
+//  (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected). The //c is
+//  the only machine with a banked system ROM, so romBankSize is the
+//  discriminator -- the same signal that gates the built-in IWM drive.
+//
+//  Everywhere else the second drive is whatever is attached to the Disk ][
+//  card's second connector. That used to be unconditionally true, on the
+//  reasoning that the card is two-drive hardware -- but the CARD having two
+//  connectors was never the same claim as both of them having a drive on the
+//  end, and this is the question the 2D widgets and the desk scene both ask,
+//  so answering it from the config is what keeps them agreeing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::ShouldShowExternalDrive() const
+{
+    bool  externalIsOptional = (m_shell.m_machine.GetConfig().systemRom.romBankSize != 0);
+
+
+
+    if (externalIsOptional)
+    {
+        return m_externalDriveConnected;
+    }
+
+    return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount() >= kDiskIiPortCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::MachineHasBuiltInDrive
+//
+//  Whether the machine's drive is soldered in rather than plugged into a card,
+//  which is what decides the drive the desk scene draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::MachineHasBuiltInDrive() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::ComposeDriveInfoTooltip
+//
+//  Every presentation's info icon shows the same words, all from the drive's
+//  sampled state: the WOZ requirements and the machine they were checked
+//  against. The machine's config is not read here, because this runs on a
+//  pointer move, outside the machine's lifetime lock, and a machine switch on
+//  the CPU thread can be replacing that config at the same moment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDisks::ComposeDriveInfoTooltip (int drive) const
+{
+    const DriveWidgetState  & st = m_driveWidgetState[drive];
+
+
+
+    return WozCompatibility::ComposeTooltip (st.wozRequirements, st.wozMachine, TextEncoding::Utf8ToWide (st.wozMachineName));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemountDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::RemountDisks()
+{
+    m_diskManager->RemountSlot6Disks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDisks::MountDisk (int drive, const std::string & path)
+{
+    return m_diskManager->MountDiskInSlot6 (drive, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::EjectDisk (int drive)
+{
+    m_diskManager->EjectDiskInSlot6 (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleImageWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
+{
+    // On the CPU thread like mount and eject, so the flush never races the
+    // drive engine; failures are already reported inside.
+    return m_diskManager->ToggleImageWriteProtect (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolvePendingChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
+{
+    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+}

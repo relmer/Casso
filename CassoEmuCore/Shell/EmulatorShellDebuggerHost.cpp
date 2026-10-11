@@ -4,6 +4,10 @@
 
 #include "Config/WindowPlacementProfile.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellWindow.h"
 
 
 
@@ -47,7 +51,7 @@ HINSTANCE EmulatorShell::DebuggerHost::GetInstance() const
 
 const CassoTheme & EmulatorShell::DebuggerHost::GetChromeTheme() const
 {
-    return m_shell.m_chromeTheme;
+    return m_shell.m_chrome->GetTheme();
 }
 
 
@@ -62,7 +66,7 @@ const CassoTheme & EmulatorShell::DebuggerHost::GetChromeTheme() const
 
 const std::wstring & EmulatorShell::DebuggerHost::GetTitlePrefix() const
 {
-    return m_shell.m_titlePrefix;
+    return m_shell.m_window->GetWindowTitlePrefix();
 }
 
 
@@ -77,7 +81,7 @@ const std::wstring & EmulatorShell::DebuggerHost::GetTitlePrefix() const
 
 void EmulatorShell::DebuggerHost::ApplyAppIcon (HWND window)
 {
-    m_shell.ApplyAppIconToWindow (window);
+    m_shell.m_window->ApplyAppIconToWindow (window);
 }
 
 
@@ -92,7 +96,7 @@ void EmulatorShell::DebuggerHost::ApplyAppIcon (HWND window)
 
 void EmulatorShell::DebuggerHost::PresentUiFrame()
 {
-    (void) m_shell.TryPresentUiFrame();
+    (void) m_shell.m_renderer->TryPresentUiFrame();
 }
 
 
@@ -107,7 +111,7 @@ void EmulatorShell::DebuggerHost::PresentUiFrame()
 
 void EmulatorShell::DebuggerHost::UpdateWindowTitle()
 {
-    m_shell.UpdateWindowTitle();
+    m_shell.m_window->UpdateWindowTitle();
 }
 
 
@@ -167,8 +171,8 @@ void EmulatorShell::DebuggerHost::PostCommand (WORD id, const std::string & payl
 
 void EmulatorShell::DebuggerHost::DrawFrame()
 {
-    m_shell.RenderFramebuffer();
-    m_shell.PublishFramebuffer();
+    m_shell.m_renderer->RenderFramebuffer();
+    m_shell.m_renderer->PublishFramebuffer();
 }
 
 
@@ -183,19 +187,7 @@ void EmulatorShell::DebuggerHost::DrawFrame()
 
 void EmulatorShell::DebuggerHost::RedrawStoppedFrame()
 {
-    uint64_t  colorSig = m_shell.ComputeColorSig();
-
-
-
-    if (colorSig == m_shell.m_lastRenderColorSig)
-    {
-        return;
-    }
-
-    m_shell.RenderFramebuffer();
-    m_shell.PublishFramebuffer();
-
-    m_shell.m_lastRenderColorSig = colorSig;
+    m_shell.m_renderer->RedrawStoppedFrame();
 }
 
 
@@ -210,7 +202,7 @@ void EmulatorShell::DebuggerHost::RedrawStoppedFrame()
 
 void EmulatorShell::DebuggerHost::PrepareFramebuffers()
 {
-    m_shell.AllocateFramebuffers();
+    m_shell.m_renderer->AllocateFramebuffers();
 }
 
 
@@ -225,7 +217,7 @@ void EmulatorShell::DebuggerHost::PrepareFramebuffers()
 
 IFileSystem & EmulatorShell::DebuggerHost::GetUiFileSystem()
 {
-    return m_shell.m_uiFs;
+    return m_shell.m_settings->GetFileSystem();
 }
 
 
@@ -255,7 +247,7 @@ IHostDialogs & EmulatorShell::DebuggerHost::GetHostDialogs()
 
 WindowPlacementProfile EmulatorShell::DebuggerHost::GetWindowPlacements()
 {
-    return WindowPlacementProfile (m_shell.m_globalPrefs);
+    return WindowPlacementProfile (m_shell.m_settings->GetPrefs());
 }
 
 
@@ -270,7 +262,7 @@ WindowPlacementProfile EmulatorShell::DebuggerHost::GetWindowPlacements()
 
 void EmulatorShell::DebuggerHost::SaveSettings()
 {
-    m_shell.SaveGlobalPrefsDeferred();
+    m_shell.m_settings->SaveGlobalPrefsDeferred();
 }
 
 
@@ -285,7 +277,7 @@ void EmulatorShell::DebuggerHost::SaveSettings()
 
 void EmulatorShell::DebuggerHost::PersistSwitchState (const char * key, bool value)
 {
-    m_shell.PersistSwitchState (key, value);
+    m_shell.m_settings->PersistSwitchState (key, value);
 }
 
 

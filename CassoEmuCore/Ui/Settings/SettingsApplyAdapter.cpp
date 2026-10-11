@@ -3,6 +3,8 @@
 #include "SettingsApplyAdapter.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "resource.h"
 
 
@@ -88,7 +90,7 @@ void SettingsApplyAdapter::ApplyFloppySound (bool enabled)
 
 void SettingsApplyAdapter::ApplyFastTapeLoading (bool enabled)
 {
-    m_shell.SetFastTapeLoading (enabled);
+    m_shell.GetTapeDeck().SetFastTapeLoading (enabled);
 }
 
 
@@ -103,7 +105,7 @@ void SettingsApplyAdapter::ApplyFastTapeLoading (bool enabled)
 
 void SettingsApplyAdapter::ApplyTapeVolume (float gain)
 {
-    m_shell.SetTapeVolume (gain);
+    m_shell.GetAudio().SetTapeVolume (gain);
 }
 
 
@@ -118,7 +120,7 @@ void SettingsApplyAdapter::ApplyTapeVolume (float gain)
 
 void SettingsApplyAdapter::ApplyTapeAutoStop (bool enabled)
 {
-    m_shell.SetTapeAutoStop (enabled);
+    m_shell.GetTapeDeck().SetTapeAutoStop (enabled);
 }
 
 
@@ -133,7 +135,7 @@ void SettingsApplyAdapter::ApplyTapeAutoStop (bool enabled)
 
 void SettingsApplyAdapter::ApplyTapeIdleStop (bool enabled)
 {
-    m_shell.SetTapeIdleStop (enabled);
+    m_shell.GetTapeDeck().SetTapeIdleStop (enabled);
 }
 
 
@@ -148,7 +150,7 @@ void SettingsApplyAdapter::ApplyTapeIdleStop (bool enabled)
 
 void SettingsApplyAdapter::ApplyTapeEightBit (bool enabled)
 {
-    m_shell.SetTapeEightBit (enabled);
+    m_shell.GetTapeDeck().SetTapeEightBit (enabled);
 }
 
 

@@ -470,8 +470,13 @@ public:
 
 private:
 
-    //  A target that writes down what it was asked, one line per call.
-    class Notebook : public ICpuCommandTarget, public IDebugCommandTarget
+    //  Every target at once, writing down what it was asked, one line per
+    //  call, so the order across the five is on the record too.
+    class Notebook : public ICpuMachineCommands,
+                     public ICpuDiskCommands,
+                     public ICpuDriveAudioCommands,
+                     public ICpuTapeCommands,
+                     public IDebugCommandTarget
     {
     public:
 
@@ -648,6 +653,6 @@ private:
         cmd.id      = id;
         cmd.payload = payload;
 
-        CpuCommandDispatcher::Dispatch (cmd, target, target);
+        CpuCommandDispatcher::Dispatch (cmd, { target, target, target, target, target });
     }
 };

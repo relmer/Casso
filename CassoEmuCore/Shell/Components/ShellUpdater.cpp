@@ -1,9 +1,16 @@
 #include "Pch.h"
 
+#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShell.h"
+#include "Ui/Dialogs/DialogDefinition.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Ui/Dialogs/UpdateDialog.h"
 #include "Update/UpdateDialogModel.h"
+#include "Update/UpdateResult.h"
+#include "Update/UpdateRuntime.h"
 #include "Update/UpdateSchedule.h"
 #include "Ui/Chrome/UpdateIndicatorModel.h"
 #include "Update/AuthenticodeVerifier.h"
@@ -23,11 +30,81 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetRunningVersion
+//  ShellUpdater
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ReleaseVersion EmulatorShell::GetRunningVersion()
+ShellUpdater::ShellUpdater (EmulatorShell & shell)
+    : m_shell (shell)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~ShellUpdater
+//
+//  Out of line so UpdateRuntime is complete where the unique_ptr destroys it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellUpdater::~ShellUpdater() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellUpdater::GetMsUntilShimmer
+//
+//  How long the idle loop may sleep before the indicator's shimmer wants a
+//  frame; nothing when the indicator is hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int64_t> ShellUpdater::GetMsUntilShimmer (int64_t nowMs) const
+{
+    return m_updateIndicator.IsVisible() ? m_updateIndicator.GetMsUntilShimmer (nowMs) : std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellUpdater::OnMouseLeave
+//
+//  Leaving the window -- into the caption counts -- from the update indicator
+//  takes its tooltip down at once; nothing else would, since the indicator is
+//  a client-area control under the caption's tooltip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellUpdater::OnMouseLeave()
+{
+    if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
+    {
+        m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
+        InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellUpdater::GetRunningVersion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReleaseVersion ShellUpdater::GetRunningVersion()
 {
     return ReleaseVersion { VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH };
 }
@@ -38,13 +115,13 @@ ReleaseVersion EmulatorShell::GetRunningVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetRandomIndex
+//  ShellUpdater::GetRandomIndex
 //
 //  A uniform index below `count`, for picking the update dialog's remark.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t EmulatorShell::GetRandomIndex (size_t count)
+size_t ShellUpdater::GetRandomIndex (size_t count)
 {
     std::random_device                     device;
     std::uniform_int_distribution<size_t>  pick (0, (count > 0) ? count - 1 : 0);
@@ -60,14 +137,14 @@ size_t EmulatorShell::GetRandomIndex (size_t count)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::MakeUpdateHeader
+//  ShellUpdater::MakeUpdateHeader
 //
 //  The dialog's header with its one closing remark. The running build's
 //  date, when the notes gave one, adds the age remarks to the pick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::MakeUpdateHeader (const std::string & runningReleaseDate)
+std::wstring ShellUpdater::MakeUpdateHeader (const std::string & runningReleaseDate)
 {
     std::optional<int>  ageDays;
     int                 days    = 0;
@@ -84,7 +161,7 @@ std::wstring EmulatorShell::MakeUpdateHeader (const std::string & runningRelease
                                                m_updateRelease.publishedDate,
                                                GetRunningVersion(),
                                                ageDays,
-                                               &EmulatorShell::GetRandomIndex);
+                                               &ShellUpdater::GetRandomIndex);
 }
 
 
@@ -93,17 +170,17 @@ std::wstring EmulatorShell::MakeUpdateHeader (const std::string & runningRelease
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetUpdateService
+//  ShellUpdater::GetUpdateService
 //
 //  Built on first use, once there is a window to post results to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-UpdateService * EmulatorShell::GetUpdateService()
+UpdateService * ShellUpdater::GetUpdateService()
 {
-    if (m_updateRuntime == nullptr && m_hwnd != nullptr)
+    if (m_updateRuntime == nullptr && m_shell.m_hwnd != nullptr)
     {
-        m_updateRuntime = std::make_unique<UpdateRuntime> (m_hwnd, (UINT) WM_APP_UPDATE_RESULT);
+        m_updateRuntime = std::make_unique<UpdateRuntime> (m_shell.m_hwnd, (UINT) WM_APP_UPDATE_RESULT);
     }
 
     return (m_updateRuntime != nullptr) ? &m_updateRuntime->GetService() : nullptr;
@@ -115,14 +192,14 @@ UpdateService * EmulatorShell::GetUpdateService()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetAutoUpdateCheck
+//  ShellUpdater::SetAutoUpdateCheck
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetAutoUpdateCheck (bool enabled)
+void ShellUpdater::SetAutoUpdateCheck (bool enabled)
 {
-    m_globalPrefs.autoUpdateCheck = enabled;
-    SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().autoUpdateCheck = enabled;
+    m_shell.m_settings->SaveGlobalPrefs();
 }
 
 
@@ -131,25 +208,25 @@ void EmulatorShell::SetAutoUpdateCheck (bool enabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StopSkippingVersion
+//  ShellUpdater::StopSkippingVersion
 //
 //  Settings > General > Cancel skip. Clearing the skip lets the release
 //  last found show the indicator again, decided as at startup.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StopSkippingVersion()
+void ShellUpdater::StopSkippingVersion()
 {
     bool  isShown = false;
 
 
 
-    m_globalPrefs.skippedVersion.clear();
-    SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().skippedVersion.clear();
+    m_shell.m_settings->SaveGlobalPrefs();
 
     isShown = m_isUpdatePending ||
-              (m_globalPrefs.autoUpdateCheck &&
-               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_globalPrefs.latestKnownVersion, m_globalPrefs.skippedVersion));
+              (m_shell.m_settings->GetPrefs().autoUpdateCheck &&
+               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion));
 
     if (m_updateCheckStarted)
     {
@@ -165,91 +242,17 @@ void EmulatorShell::StopSkippingVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetAudioDownloadConsent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetAudioDownloadConsent (const std::string & consent)
-{
-    m_globalPrefs.audioDownloadConsent = consent;
-    SaveGlobalPrefs();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SetRomRefreshConsent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetRomRefreshConsent (const std::string & consent)
-{
-    m_globalPrefs.romRefreshConsent = consent;
-    SaveGlobalPrefs();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetSettingsFolder
-//
-//  %LOCALAPPDATA%\Casso, where the preferences files live. Empty when the
-//  folder cannot be resolved.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring EmulatorShell::GetSettingsFolder()
-{
-    return PathResolver::GetLocalAppDataDir (L"Casso").wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::OpenSettingsFolder
-//
-//  Opens the settings folder in Explorer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OpenSettingsFolder()
-{
-    std::wstring  folder = GetSettingsFolder();
-
-
-
-    if (!folder.empty())
-    {
-        OpenUrl (folder);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::RefreshSettingsUpdateStatus
+//  ShellUpdater::RefreshSettingsUpdateStatus
 //
 //  Brings an open Settings sheet's update lines up to date with the prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RefreshSettingsUpdateStatus()
+void ShellUpdater::RefreshSettingsUpdateStatus()
 {
-    if (m_settingsSheet != nullptr)
+    if (m_shell.m_settings->GetSheet() != nullptr)
     {
-        m_settingsSheet->RefreshUpdateStatus();
+        m_shell.m_settings->GetSheet()->RefreshUpdateStatus();
     }
 }
 
@@ -259,7 +262,7 @@ void EmulatorShell::RefreshSettingsUpdateStatus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StartAutomaticUpdateCheck
+//  ShellUpdater::StartAutomaticUpdateCheck
 //
 //  Runs once, after the first frame is on screen, so nothing about updates
 //  delays startup. Puts the indicator in the caption (hidden), starts the
@@ -269,7 +272,7 @@ void EmulatorShell::RefreshSettingsUpdateStatus()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartAutomaticUpdateCheck()
+void ShellUpdater::StartAutomaticUpdateCheck()
 {
     UpdateService  * service  = nullptr;
     HRESULT          hr       = S_OK;
@@ -284,9 +287,9 @@ void EmulatorShell::StartAutomaticUpdateCheck()
     service = GetUpdateService();
     BAIL_OUT_IF (service == nullptr, S_OK);
 
-    if (m_host != nullptr)
+    if (m_shell.m_host != nullptr)
     {
-        m_host->SetCaptionAccessory (&m_updateIndicator);
+        m_shell.m_host->SetCaptionAccessory (&m_updateIndicator);
     }
 
     service->SetRelaunchArguments (GetRelaunchArguments());
@@ -299,7 +302,7 @@ void EmulatorShell::StartAutomaticUpdateCheck()
 
     if (m_wasLaunchedByUpdate)
     {
-        ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
+        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
     }
     else
     {
@@ -307,30 +310,30 @@ void EmulatorShell::StartAutomaticUpdateCheck()
     }
 
     isDue = UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic,
-                                        m_globalPrefs.autoUpdateCheck,
-                                        m_globalPrefs.lastUpdateCheckUtc,
+                                        m_shell.m_settings->GetPrefs().autoUpdateCheck,
+                                        m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
                                         UpdateRuntime::GetUtcNow(),
                                         m_updateRuntime->IsUsingLocalFeed());
 
     if (isDue)
     {
-        m_launchCheckUtc = m_globalPrefs.lastUpdateCheckUtc;
+        m_launchCheckUtc = m_shell.m_settings->GetPrefs().lastUpdateCheckUtc;
 
-        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_globalPrefs.skippedVersion);
+        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_shell.m_settings->GetPrefs().skippedVersion);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         OutputDebugStringW (std::format (L"Casso: update check started (automatic, hr=0x{:08X})\n", (unsigned) hr).c_str());
     }
     else
     {
-        isShown = m_globalPrefs.autoUpdateCheck &&
-                  UpdateSchedule::ShouldShowIndicator (running, m_globalPrefs.latestKnownVersion, m_globalPrefs.skippedVersion);
+        isShown = m_shell.m_settings->GetPrefs().autoUpdateCheck &&
+                  UpdateSchedule::ShouldShowIndicator (running, m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion);
         ShowUpdateIndicator (isShown);
 
         OutputDebugStringW (std::format (L"Casso: update check not due (auto={}, last={}); latest known '{}', skipped '{}': indicator {}\n",
-                                         m_globalPrefs.autoUpdateCheck, m_globalPrefs.lastUpdateCheckUtc,
-                                         TextEncoding::Utf8ToWide (m_globalPrefs.latestKnownVersion),
-                                         TextEncoding::Utf8ToWide (m_globalPrefs.skippedVersion),
+                                         m_shell.m_settings->GetPrefs().autoUpdateCheck, m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
+                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
+                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().skippedVersion),
                                          isShown ? L"shown" : L"hidden").c_str());
     }
 
@@ -344,7 +347,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::CheckForUpdatesNow
+//  ShellUpdater::CheckForUpdatesNow
 //
 //  Help > Check for updates, and a click on the indicator before this
 //  session has a release record. A check already in flight answers for
@@ -352,7 +355,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CheckForUpdatesNow()
+void ShellUpdater::CheckForUpdatesNow()
 {
     UpdateService  * service = GetUpdateService();
     HRESULT          hr      = S_OK;
@@ -363,7 +366,7 @@ void EmulatorShell::CheckForUpdatesNow()
 
     m_isManualCheckPending = true;
 
-    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_globalPrefs.skippedVersion);
+    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_shell.m_settings->GetPrefs().skippedVersion);
 
     if (hr == E_PENDING)
     {
@@ -382,13 +385,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HandleUpdateResult
+//  ShellUpdater::HandleUpdateResult
 //
 //  The UI-thread end of every piece of update work.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleUpdateResult (UpdateResult & result)
+void ShellUpdater::HandleUpdateResult (UpdateResult & result)
 {
     UpdateService  * service  = GetUpdateService();
     HRESULT          hrImages = S_OK;
@@ -447,7 +450,7 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HandleUpdateCheckResult
+//  ShellUpdater::HandleUpdateCheckResult
 //
 //  A failed automatic check says nothing. A successful check is recorded
 //  (time and version) whatever it found, so the daily limit and the
@@ -457,7 +460,7 @@ void EmulatorShell::HandleUpdateResult (UpdateResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
+void ShellUpdater::HandleUpdateCheckResult (UpdateResult & result)
 {
     bool  isManual  = result.trigger == UpdateCheckTrigger::Manual || m_isManualCheckPending;
     bool  isOffered = isManual ? result.isNewer : result.isOffered;
@@ -483,9 +486,9 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
         return;
     }
 
-    m_globalPrefs.lastUpdateCheckUtc = result.checkedAtUtc;
-    m_globalPrefs.latestKnownVersion = result.release.version.ToString();
-    SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = result.checkedAtUtc;
+    m_shell.m_settings->GetPrefs().latestKnownVersion = result.release.version.ToString();
+    m_shell.m_settings->SaveGlobalPrefs();
     RefreshSettingsUpdateStatus();
 
     m_updateRelease     = result.release;
@@ -510,7 +513,7 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StartSharedCheckWait
+//  ShellUpdater::StartSharedCheckWait
 //
 //  The startup check was skipped because another Casso holds the check
 //  lock. That instance records what it finds in the prefs file, so poll
@@ -518,7 +521,7 @@ void EmulatorShell::HandleUpdateCheckResult (UpdateResult & result)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartSharedCheckWait()
+void ShellUpdater::StartSharedCheckWait()
 {
     HRESULT  hr = S_OK;
 
@@ -526,9 +529,9 @@ void EmulatorShell::StartSharedCheckWait()
 
     m_sharedCheckPolls = 0;
 
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
+    BAIL_OUT_IF (m_shell.m_host == nullptr, S_OK);
 
-    hr = m_host->SetTimer (kSharedCheckTimerId, UpdateSchedule::kSharedCheckPollMs);
+    hr = m_shell.m_host->SetTimer (kSharedCheckTimerId, UpdateSchedule::kSharedCheckPollMs);
     CHRA (hr);
 
     m_isSharedCheckWaiting = true;
@@ -545,7 +548,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PollSharedCheckRecord
+//  ShellUpdater::PollSharedCheckRecord
 //
 //  One re-read of the update fields. A record newer than the one read at
 //  launch is adopted and decides the indicator as the not-due path would,
@@ -555,12 +558,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PollSharedCheckRecord()
+void ShellUpdater::PollSharedCheckRecord()
 {
     HRESULT             hr       = S_OK;
     GlobalUserPrefs     stored;
     SharedCheckOutcome  outcome  = SharedCheckOutcome::Wait;
-    bool                hasStore = m_userConfigStore != nullptr;
+    bool                hasStore = m_shell.m_settings->GetConfigStore() != nullptr;
 
 
 
@@ -568,27 +571,27 @@ void EmulatorShell::PollSharedCheckRecord()
 
     CBRA (hasStore);
 
-    hr = m_userConfigStore->ReadGlobalPrefs (m_uiFs, stored);
+    hr = m_shell.m_settings->GetConfigStore()->ReadGlobalPrefs (m_shell.m_settings->GetFileSystem(), stored);
     CHR (hr);
 
     outcome = UpdateSchedule::DecideSharedCheck (m_launchCheckUtc,
                                                  stored.lastUpdateCheckUtc,
-                                                 m_globalPrefs.autoUpdateCheck,
+                                                 m_shell.m_settings->GetPrefs().autoUpdateCheck,
                                                  GetRunningVersion(),
                                                  stored.latestKnownVersion,
                                                  stored.skippedVersion,
                                                  m_sharedCheckPolls >= UpdateSchedule::kSharedCheckPollLimit);
     BAIL_OUT_IF (outcome == SharedCheckOutcome::Wait, S_OK);
 
-    m_globalPrefs.lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
-    m_globalPrefs.latestKnownVersion = stored.latestKnownVersion;
-    m_globalPrefs.skippedVersion     = stored.skippedVersion;
+    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
+    m_shell.m_settings->GetPrefs().latestKnownVersion = stored.latestKnownVersion;
+    m_shell.m_settings->GetPrefs().skippedVersion     = stored.skippedVersion;
 
     ShowUpdateIndicator (outcome == SharedCheckOutcome::Show);
     RefreshSettingsUpdateStatus();
 
     OutputDebugStringW (std::format (L"Casso: adopted another Casso's update check record; latest known '{}': indicator {}\n",
-                                     TextEncoding::Utf8ToWide (m_globalPrefs.latestKnownVersion),
+                                     TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
                                      outcome == SharedCheckOutcome::Show ? L"shown" : L"hidden").c_str());
 
 Error:
@@ -606,19 +609,19 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StopSharedCheckWait
+//  ShellUpdater::StopSharedCheckWait
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StopSharedCheckWait()
+void ShellUpdater::StopSharedCheckWait()
 {
     HRESULT  hr = S_OK;
 
 
 
-    if (m_isSharedCheckWaiting && m_host != nullptr)
+    if (m_isSharedCheckWaiting && m_shell.m_host != nullptr)
     {
-        hr = m_host->KillTimer (kSharedCheckTimerId);
+        hr = m_shell.m_host->KillTimer (kSharedCheckTimerId);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -631,7 +634,7 @@ void EmulatorShell::StopSharedCheckWait()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HandleUpdateApplyResult
+//  ShellUpdater::HandleUpdateApplyResult
 //
 //  A bundle ready to deploy gets the normal exit flush first, because a
 //  successful deploy ends this process without running the destructor. A
@@ -641,7 +644,7 @@ void EmulatorShell::StopSharedCheckWait()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandleUpdateApplyResult (UpdateResult & result)
+void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
 {
     HRESULT          hr      = S_OK;
     HRESULT          hrFlush = S_OK;
@@ -670,7 +673,7 @@ void EmulatorShell::HandleUpdateApplyResult (UpdateResult & result)
         }
         else
         {
-            ShowNotification (message);
+            m_shell.ShowNotification (message);
         }
 
         return;
@@ -683,9 +686,9 @@ void EmulatorShell::HandleUpdateApplyResult (UpdateResult & result)
             m_updateDialog->ShowInstalling();
         }
 
-        hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
+        hrFlush = m_shell.m_machine.GetDiskStore().FlushAllForShutdown();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
-        FlushDeferredGlobalPrefs();
+        m_shell.m_settings->FlushDeferredGlobalPrefs();
 
         CBRA (service != nullptr);
 
@@ -717,7 +720,7 @@ void EmulatorShell::HandleUpdateApplyResult (UpdateResult & result)
 
     if (result.installType == InstallType::Zip)
     {
-        PostMessageW (m_hwnd, WM_CLOSE, 0, 0);
+        PostMessageW (m_shell.m_hwnd, WM_CLOSE, 0, 0);
     }
 
 Error:
@@ -730,13 +733,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ShowUpdateIndicator
+//  ShellUpdater::ShowUpdateIndicator
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowUpdateIndicator (bool isShown)
+void ShellUpdater::ShowUpdateIndicator (bool isShown)
 {
-    std::string  version = m_globalPrefs.latestKnownVersion;
+    std::string  version = m_shell.m_settings->GetPrefs().latestKnownVersion;
 
 
 
@@ -747,8 +750,8 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
 
     if (m_updateIndicatorLine.empty())
     {
-        m_updateIndicatorLine = UpdateIndicatorModel::PickLine (version, &EmulatorShell::GetRandomIndex);
-        m_updateIndicator.SetRandomSource (&EmulatorShell::GetRandomIndex);
+        m_updateIndicatorLine = UpdateIndicatorModel::PickLine (version, &ShellUpdater::GetRandomIndex);
+        m_updateIndicator.SetRandomSource (&ShellUpdater::GetRandomIndex);
     }
 
     if (isShown && !m_updateIndicator.IsVisible())
@@ -779,9 +782,9 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
         m_updateIndicator.SetPressed (false);
     }
 
-    if (m_hwnd != nullptr)
+    if (m_shell.m_hwnd != nullptr)
     {
-        InvalidateRect (m_hwnd, nullptr, FALSE);
+        InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
     }
 }
 
@@ -791,7 +794,7 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OpenUpdateDialog
+//  ShellUpdater::OpenUpdateDialog
 //
 //  Opens the dialog for the release this session last found, and starts
 //  fetching its notes. A download still running when the dialog closes is
@@ -799,7 +802,7 @@ void EmulatorShell::ShowUpdateIndicator (bool isShown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenUpdateDialog()
+void ShellUpdater::OpenUpdateDialog()
 {
     constexpr int  kWidthDip     = 600;
     constexpr int  kHeightDip    = 560;
@@ -880,16 +883,16 @@ void EmulatorShell::OpenUpdateDialog()
     };
 
     dlg.Configure (buttons,
-                   UpdateDialogModel::PickOpener (&EmulatorShell::GetRandomIndex),
+                   UpdateDialogModel::PickOpener (&ShellUpdater::GetRandomIndex),
                    UpdateDialogModel::MakeAgeHeader (m_updateRelease.version, m_updateRelease.publishedDate, running, L""),
-                   UpdateDialogModel::PickDeveloperNudge (&EmulatorShell::GetRandomIndex),
+                   UpdateDialogModel::PickDeveloperNudge (&ShellUpdater::GetRandomIndex),
                    pageUrl,
                    m_isUpdatePending,
                    std::move (callbacks));
 
     params.title                    = UpdateDialogModel::kpszTitle;
-    params.hInstance                = m_hInstance;
-    params.ownerHwnd                = m_hwnd;
+    params.hInstance                = m_shell.m_hInstance;
+    params.ownerHwnd                = m_shell.m_hwnd;
     params.initialSizeDip           = { kWidthDip, kHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
@@ -904,7 +907,7 @@ void EmulatorShell::OpenUpdateDialog()
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_chromeTheme);
+    dlg.SetTheme (&m_shell.m_chrome->GetTheme());
 
     m_updateDialog = &dlg;
 
@@ -938,17 +941,17 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SkipOfferedRelease
+//  ShellUpdater::SkipOfferedRelease
 //
 //  The skip is for this version only: a newer release shows the indicator
 //  again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SkipOfferedRelease()
+void ShellUpdater::SkipOfferedRelease()
 {
-    m_globalPrefs.skippedVersion = m_updateRelease.version.ToString();
-    SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().skippedVersion = m_updateRelease.version.ToString();
+    m_shell.m_settings->SaveGlobalPrefs();
 
     ShowUpdateIndicator (false);
     RefreshSettingsUpdateStatus();
@@ -960,11 +963,11 @@ void EmulatorShell::SkipOfferedRelease()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ReportUpdateCheckFailure
+//  ShellUpdater::ReportUpdateCheckFailure
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReportUpdateCheckFailure (UpdateFailure failure)
+void ShellUpdater::ReportUpdateCheckFailure (UpdateFailure failure)
 {
     DialogDefinition  def;
 
@@ -977,7 +980,7 @@ void EmulatorShell::ReportUpdateCheckFailure (UpdateFailure failure)
     def.body.push_back ({ L"Open the release page", true, UpdateService::kpszReleasesPage });
     def.buttons.push_back ({ L"OK", 0, true, true });
 
-    (void) ShowModalDialog (def);
+    (void) m_shell.ShowModalDialog (def);
 }
 
 
@@ -986,11 +989,11 @@ void EmulatorShell::ReportUpdateCheckFailure (UpdateFailure failure)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ReportUpToDate
+//  ShellUpdater::ReportUpToDate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReportUpToDate()
+void ShellUpdater::ReportUpToDate()
 {
     DialogDefinition  def;
 
@@ -1001,7 +1004,7 @@ void EmulatorShell::ReportUpToDate()
     def.body.push_back ({ UpdateDialogModel::MakeUpToDateText (GetRunningVersion()), false, L"" });
     def.buttons.push_back ({ L"OK", 0, true, true });
 
-    (void) ShowModalDialog (def);
+    (void) m_shell.ShowModalDialog (def);
 }
 
 
@@ -1010,11 +1013,11 @@ void EmulatorShell::ReportUpToDate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OpenUrl
+//  ShellUpdater::OpenUrl
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenUrl (const std::wstring & url)
+void ShellUpdater::OpenUrl (const std::wstring & url)
 {
     constexpr INT_PTR  kShellExecOk = 0;
 
@@ -1033,7 +1036,7 @@ void EmulatorShell::OpenUrl (const std::wstring & url)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::OfferMouseToUpdateIndicator
+//  ShellUpdater::OfferMouseToUpdateIndicator
 //
 //  The caption does not route client input to its children, so the shell
 //  drives the indicator: hover and its tooltip on a move, press on a down,
@@ -1042,7 +1045,7 @@ void EmulatorShell::OpenUrl (const std::wstring & url)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx)
+bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx)
 {
     constexpr int  kBaseDpi = 96;
 
@@ -1050,15 +1053,15 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 
     int64_t  nowMs      = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                               std::chrono::steady_clock::now().time_since_epoch()).count();
-    UINT                                  dpi        = m_scaler.GetDpi();
+    UINT                                  dpi        = m_shell.m_scaler.GetDpi();
     POINT                                 pointDip   = { MulDiv (xPx, kBaseDpi, (int) dpi), MulDiv (yPx, kBaseDpi, (int) dpi) };
-    bool                                  hasCaption = m_host != nullptr && m_host->GetCaptionHeightPx() > 0;
+    bool                                  hasCaption = m_shell.m_host != nullptr && m_shell.m_host->GetCaptionHeightPx() > 0;
     bool                                  isInside   = hasCaption && m_updateIndicator.ContainsDip (pointDip);
     bool                                  isTaken    = false;
     UpdateIndicatorButton::PointerResult  pointer;
     RECT                                  bounds     = m_updateIndicator.GetBounds();
-    RECT     anchorPx   = { m_scaler.ToPx (bounds.left),  m_scaler.ToPx (bounds.top),
-                            m_scaler.ToPx (bounds.right), m_scaler.ToPx (bounds.bottom) };
+    RECT     anchorPx   = { m_shell.m_scaler.ToPx (bounds.left),  m_shell.m_scaler.ToPx (bounds.top),
+                            m_shell.m_scaler.ToPx (bounds.right), m_shell.m_scaler.ToPx (bounds.bottom) };
 
 
 
@@ -1069,19 +1072,19 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 
             if (pointer.repaint)
             {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
+                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
             }
 
             if (pointer.showTip)
             {
-                m_captionTooltip.RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
-                                                                                     m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
-                                              m_updateIndicator.GetToolTipText().c_str(), nowMs);
+                m_shell.m_chrome->GetCaptionTooltip().RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
+                                                                                                          m_shell.m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
+                                                                   m_updateIndicator.GetToolTipText().c_str(), nowMs);
             }
 
             if (pointer.hideTip)
             {
-                m_captionTooltip.HideImmediate();
+                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
             }
 
             isTaken = isInside;
@@ -1093,8 +1096,8 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
             if (isInside)
             {
                 m_updateIndicator.SetPressed (true);
-                m_captionTooltip.HideImmediate();
-                InvalidateRect (m_hwnd, nullptr, FALSE);
+                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
+                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
             }
 
             break;
@@ -1105,7 +1108,7 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
             if (isTaken)
             {
                 m_updateIndicator.SetPressed (false);
-                InvalidateRect (m_hwnd, nullptr, FALSE);
+                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
             }
 
             if (isTaken && isInside)
@@ -1135,7 +1138,7 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::StopUpdateService
+//  ShellUpdater::StopUpdateService
 //
 //  Shutdown: cancel and join the update workers while everything they use
 //  still exists, and take the indicator out of the caption before the
@@ -1143,16 +1146,16 @@ bool EmulatorShell::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xP
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StopUpdateService()
+void ShellUpdater::StopUpdateService()
 {
     if (m_updateRuntime != nullptr)
     {
         m_updateRuntime->GetService().Stop();
     }
 
-    if (m_host != nullptr)
+    if (m_shell.m_host != nullptr)
     {
-        m_host->SetCaptionAccessory (nullptr);
+        m_shell.m_host->SetCaptionAccessory (nullptr);
     }
 
     m_updateRuntime.reset();
@@ -1164,7 +1167,7 @@ void EmulatorShell::StopUpdateService()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::RefitUpdateIndicator
+//  ShellUpdater::RefitUpdateIndicator
 //
 //  Sizes the indicator for the caption it has: its text when there is room
 //  beside a title of at least the minimum width, the arrow alone when not.
@@ -1173,7 +1176,7 @@ void EmulatorShell::StopUpdateService()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RefitUpdateIndicator (bool force)
+void ShellUpdater::RefitUpdateIndicator (bool force)
 {
     constexpr int  kBaseDpi = 96;
 
@@ -1182,11 +1185,11 @@ void EmulatorShell::RefitUpdateIndicator (bool force)
     RECT          client    = {};
     IndicatorFit  fit;
     int           widthPx   = 0;
-    UINT          dpi       = m_scaler.GetDpi();
+    UINT          dpi       = m_shell.m_scaler.GetDpi();
 
 
 
-    if (m_host == nullptr || m_hwnd == nullptr || GetClientRect (m_hwnd, &client) == FALSE)
+    if (m_shell.m_host == nullptr || m_shell.m_hwnd == nullptr || GetClientRect (m_shell.m_hwnd, &client) == FALSE)
     {
         return;
     }
@@ -1201,7 +1204,7 @@ void EmulatorShell::RefitUpdateIndicator (bool force)
     m_indicatorClientPx = widthPx;
 
     fit = UpdateIndicatorModel::Fit (MulDiv (widthPx, kBaseDpi, (int) dpi),
-                                     m_host->GetCaptionReservedWidthDip(),
+                                     m_shell.m_host->GetCaptionReservedWidthDip(),
                                      m_updateIndicatorLine);
 
     m_updateIndicator.SetShowsText (fit.showsText);
@@ -1209,7 +1212,7 @@ void EmulatorShell::RefitUpdateIndicator (bool force)
     if (fit.widthDip != m_indicatorWidthDip)
     {
         m_indicatorWidthDip = fit.widthDip;
-        m_host->SetCaptionAccessoryWidth (fit.widthDip);
+        m_shell.m_host->SetCaptionAccessoryWidth (fit.widthDip);
     }
 }
 
@@ -1219,14 +1222,14 @@ void EmulatorShell::RefitUpdateIndicator (bool force)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::TickUpdateIndicator
+//  ShellUpdater::TickUpdateIndicator
 //
 //  Once per UI frame: refit on a width change, follow the system animation
 //  setting, and advance the shimmer. True while the shimmer needs frames.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::TickUpdateIndicator (int64_t nowMs)
+bool ShellUpdater::TickUpdateIndicator (int64_t nowMs)
 {
     if (!m_updateIndicator.IsVisible())
     {
@@ -1245,14 +1248,14 @@ bool EmulatorShell::TickUpdateIndicator (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetRelaunchArguments
+//  ShellUpdater::GetRelaunchArguments
 //
 //  The options this process was started with that a relaunch after an
 //  update repeats, as CommandLineParser decides them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::wstring> EmulatorShell::GetRelaunchArguments()
+std::vector<std::wstring> ShellUpdater::GetRelaunchArguments()
 {
     int                        argc  = 0;
     LPWSTR                   * argvW = CommandLineToArgvW (GetCommandLineW(), &argc);
@@ -1295,13 +1298,13 @@ std::vector<std::wstring> EmulatorShell::GetRelaunchArguments()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::GetInstallDirectory
+//  ShellUpdater::GetInstallDirectory
 //
 //  The folder Casso.exe runs from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::GetInstallDirectory()
+std::wstring ShellUpdater::GetInstallDirectory()
 {
     wchar_t       path[MAX_PATH] = {};
     DWORD         length         = GetModuleFileNameW (nullptr, path, MAX_PATH);
@@ -1319,14 +1322,14 @@ std::wstring EmulatorShell::GetInstallDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::HandlePendingUpdateAtLaunch
+//  ShellUpdater::HandlePendingUpdateAtLaunch
 //
 //  Carries out what PendingUpdateModel decides about an update that was
 //  left to apply when Casso closed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::HandlePendingUpdateAtLaunch()
+void ShellUpdater::HandlePendingUpdateAtLaunch()
 {
     PendingUpdate          pending;
     PendingLaunchAction    action;
@@ -1336,20 +1339,20 @@ void EmulatorShell::HandlePendingUpdateAtLaunch()
 
 
 
-    pending.version = m_globalPrefs.pendingUpdateVersion;
-    pending.kind    = m_globalPrefs.pendingUpdateKind;
-    pending.failure = (UpdateFailure) m_globalPrefs.pendingUpdateFailure;
+    pending.version = m_shell.m_settings->GetPrefs().pendingUpdateVersion;
+    pending.kind    = m_shell.m_settings->GetPrefs().pendingUpdateKind;
+    pending.failure = (UpdateFailure) m_shell.m_settings->GetPrefs().pendingUpdateFailure;
 
     action = PendingUpdateModel::DecideAtLaunch (pending, GetRunningVersion());
 
     if (action.showUpdated)
     {
-        ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
+        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
     }
 
     if (action.failure != UpdateFailure::None)
     {
-        ShowNotification (UpdateDialogModel::MakeUpdateFailedText (action.failure));
+        m_shell.ShowNotification (UpdateDialogModel::MakeUpdateFailedText (action.failure));
     }
 
     // The process that ran the old files exited before this one started.
@@ -1382,14 +1385,14 @@ void EmulatorShell::HandlePendingUpdateAtLaunch()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::SetUpdatePending
+//  ShellUpdater::SetUpdatePending
 //
 //  Update when closed finished its download and checks: remember what to
 //  apply, in the preferences too so the next launch can tell what happened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SetUpdatePending (const UpdateResult & result)
+void ShellUpdater::SetUpdatePending (const UpdateResult & result)
 {
     bool  isZip = result.installType == InstallType::Zip;
 
@@ -1401,10 +1404,10 @@ void EmulatorShell::SetUpdatePending (const UpdateResult & result)
     m_pendingPaths       = result.stagedPaths;
     m_pendingBundlePath  = result.bundlePath;
 
-    m_globalPrefs.pendingUpdateVersion = m_updateRelease.version.ToString();
-    m_globalPrefs.pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
-    m_globalPrefs.pendingUpdateFailure = 0;
-    SaveGlobalPrefs();
+    m_shell.m_settings->GetPrefs().pendingUpdateVersion = m_updateRelease.version.ToString();
+    m_shell.m_settings->GetPrefs().pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
+    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
+    m_shell.m_settings->SaveGlobalPrefs();
 
     if (m_updateDialog != nullptr)
     {
@@ -1420,23 +1423,23 @@ void EmulatorShell::SetUpdatePending (const UpdateResult & result)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ClearPendingUpdatePrefs
+//  ShellUpdater::ClearPendingUpdatePrefs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ClearPendingUpdatePrefs()
+void ShellUpdater::ClearPendingUpdatePrefs()
 {
-    bool  isSet = !m_globalPrefs.pendingUpdateVersion.empty() || m_globalPrefs.pendingUpdateFailure != 0;
+    bool  isSet = !m_shell.m_settings->GetPrefs().pendingUpdateVersion.empty() || m_shell.m_settings->GetPrefs().pendingUpdateFailure != 0;
 
 
 
-    m_globalPrefs.pendingUpdateVersion.clear();
-    m_globalPrefs.pendingUpdateKind.clear();
-    m_globalPrefs.pendingUpdateFailure = 0;
+    m_shell.m_settings->GetPrefs().pendingUpdateVersion.clear();
+    m_shell.m_settings->GetPrefs().pendingUpdateKind.clear();
+    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
 
     if (isSet)
     {
-        SaveGlobalPrefs();
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 }
 
@@ -1446,7 +1449,7 @@ void EmulatorShell::ClearPendingUpdatePrefs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ApplyPendingUpdateNow
+//  ShellUpdater::ApplyPendingUpdateNow
 //
 //  Update now, for an update already waiting: a zip copy swaps its staged
 //  files in and relaunches; a packaged one deploys the bundle at once, after
@@ -1454,7 +1457,7 @@ void EmulatorShell::ClearPendingUpdatePrefs()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyPendingUpdateNow()
+void ShellUpdater::ApplyPendingUpdateNow()
 {
     UpdateService  * service = GetUpdateService();
     HRESULT          hr      = S_OK;
@@ -1495,7 +1498,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::CommitPendingUpdateAtExit
+//  ShellUpdater::CommitPendingUpdateAtExit
 //
 //  The swap an update applied when Casso closes was waiting for, run as the
 //  shell shuts down, after the disks and the preferences are flushed. No
@@ -1505,7 +1508,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CommitPendingUpdateAtExit()
+void ShellUpdater::CommitPendingUpdateAtExit()
 {
     HRESULT                hr          = S_OK;
     UpdateFailure          failure     = UpdateFailure::None;
@@ -1531,8 +1534,8 @@ Error:
         hr = ZipUpdateInstaller::DiscardStaged (fileSystem, m_pendingInstallDir);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_globalPrefs.pendingUpdateFailure = (int) failure;
-        SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().pendingUpdateFailure = (int) failure;
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
     m_isUpdatePending = false;

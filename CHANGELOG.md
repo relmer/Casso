@@ -16,6 +16,17 @@ Entries before versioning was introduced use dates only.
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
 
+### Changed
+
+- EmulatorShell is split into components: audio, Disk II drives, tape deck,
+  printer, update notification, settings, desk scene, chrome, renderer and
+  window. The shell owns them, routes window messages and runs the CPU
+  thread's frame loop.
+
+### Removed
+
+- The Disk II and Input debug panels.
+
 ### Fixed
 
 - Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.

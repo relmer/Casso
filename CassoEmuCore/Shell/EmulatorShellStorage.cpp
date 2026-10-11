@@ -1,7 +1,16 @@
 #include "Pch.h"
+#include "AssetBootstrap.h"
+#include "Cassque/Model/KnownFolderStore.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
@@ -14,33 +23,32 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::IsSecondDriveOffered
+//  EmulatorShell::OnFileDropped
 //
-//  Whether this machine has anywhere to plug a second drive: the //c's disk
-//  port, or the second connector of an enabled Disk ][ card.
+//  A file dropped on a drive mounts there and one dropped on the recorder is
+//  inserted into it, but only the kind each takes: a tape dropped on a drive,
+//  or a disk on the recorder, is ignored rather than mounted somewhere it
+//  cannot be read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::IsSecondDriveOffered() const
+void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 {
-    const MachineConfig  & config = m_machine.GetConfig();
-
-
-
-    if (config.systemRom.romBankSize != 0)
+    if (tag == ShellTapeDeck::kTapeDropTag)
     {
-        return true;
-    }
-
-    for (const SlotConfig & slot : config.slots)
-    {
-        if (slot.enabled && slot.device == kpszDiskIiDevice)
+        if (TapeImageLoader::IsTapeFileExtension (path))
         {
-            return true;
+            m_tapeDeck->InsertTape (path);
         }
     }
-
-    return false;
+    else if (IsSupportedDiskImageExtension (path))
+    {
+        //  A drop is a hand-off like an insert from another tool: its folder
+        //  joins the known-folder list once the mount succeeds, with nobody to
+        //  answer.
+        m_intentReplies.NoteInsert (tag, fs::path (path).string(), nullptr);
+        m_disks->Mount (6, tag, path);
+    }
 }
 
 
@@ -59,7 +67,7 @@ bool EmulatorShell::IsSecondDriveOffered() const
 
 void EmulatorShell::SetSecondDriveConnected (bool connected)
 {
-    if (!IsSecondDriveOffered() || connected == ShouldShowExternalDrive())
+    if (!m_disks->IsSecondDriveOffered() || connected == m_disks->ShouldShowExternalDrive())
     {
         return;
     }
@@ -85,19 +93,19 @@ void EmulatorShell::SetSecondDriveConnected (bool connected)
 
 void EmulatorShell::SetTapeRecorderConnected (bool connected)
 {
-    if (!MachineHasCassettePort() || connected == m_tapeRecorderConnected)
+    if (!m_tapeDeck->MachineHasCassettePort() || connected == m_tapeDeck->IsRecorderConnected())
     {
         return;
     }
 
-    if (!connected && m_tapeManager != nullptr)
+    if (!connected && m_tapeDeck->GetManager() != nullptr)
     {
-        m_tapeManager->Eject();
+        m_tapeDeck->GetManager()->Eject();
     }
 
-    m_tapeRecorderConnected = connected;
+    m_tapeDeck->SetRecorderConnected (connected);
 
-    ReflowChromeForMachineChange();
+    m_chrome->ReflowChromeForMachineChange();
     SaveStorageDevices();
 }
 
@@ -140,7 +148,7 @@ void EmulatorShell::SaveStorageDevices()
 
 
 
-    BAIL_OUT_IF (m_userConfigStore == nullptr || configPath.empty(), S_OK);
+    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), S_OK);
 
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -150,22 +158,22 @@ void EmulatorShell::SaveStorageDevices()
     hr = JsonParser::Parse (ss.str(), defaultJson, parseErr);
     CHRA (hr);
 
-    hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, mergedJson);
+    hr = m_settings->GetConfigStore()->Load (machineNameNarrow, defaultJson, m_settings->GetFileSystem(), mergedJson);
     CHR (hr);
 
     hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
     CHR (hr);
 
-    if (IsSecondDriveOffered())
+    if (m_disks->IsSecondDriveOffered())
     {
-        state.SetSecondDriveAttached (ShouldShowExternalDrive());
+        state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
     }
 
-    state.SetTapeRecorderConnected (m_tapeRecorderConnected);
+    state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
 
     savedJson = state.BuildCurrentJson();
 
-    hr = m_userConfigStore->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_uiFs);
+    hr = m_settings->GetConfigStore()->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_settings->GetFileSystem());
     CHR (hr);
 
 Error:
@@ -191,7 +199,7 @@ Error:
 
 void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 {
-    const EmulatorCommands          & commands = m_mainMenu.GetCommands();
+    const EmulatorCommands          & commands = m_chrome->m_mainMenu.GetCommands();
     std::vector<DxuiPopupMenuItem>    items;
     std::vector<int>                  ids;
 
@@ -211,8 +219,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     {
         // Drive 1 is always there, so its menu is where a detached drive 2 or
         // recorder is attached again: neither is on screen to be clicked.
-        bool  drive2Away   = IsSecondDriveOffered() && !ShouldShowExternalDrive();
-        bool  recorderAway = MachineHasCassettePort() && !IsTapeRecorderShown();
+        bool  drive2Away   = m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive();
+        bool  recorderAway = m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown();
 
         ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1 };
 
@@ -242,4 +250,120 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
 
     DxuiContextMenu::Show (*m_host, x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SendIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    bool  delivered = Win32IntentChannel::SendTo (target, m_hwnd, Win32IntentChannel::GetReplyMessageId(),
+                                                  Win32IntentChannel::EncodeReply (reply));
+
+
+
+    IGNORE_RETURN_VALUE (delivered, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PostIntentReply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply)
+{
+    IntentReplyPost *  carried = new (std::nothrow) IntentReplyPost();
+
+
+
+    if (carried == nullptr)
+    {
+        return;
+    }
+
+    carried->target = target;
+    carried->reply  = reply;
+
+    if (m_hwnd == nullptr || !PostMessageW (m_hwnd, WM_APP_INTENT_REPLY, 0, (LPARAM) carried))
+    {
+        delete carried;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RecordKnownFolder
+//
+//  Best effort: a hand-off that mounted is not undone because the list could
+//  not be written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RecordKnownFolder (const std::string & imagePath)
+{
+    Win32FileSystem   fsKnown;
+    KnownFolderStore  store (fsKnown, AssetBootstrap::GetAssetBaseDirectory().wstring());
+    std::wstring      folder  = fs::path (imagePath).parent_path().wstring();
+    int64_t           nowUnix = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                                    std::chrono::system_clock::now().time_since_epoch()).count();
+    HRESULT           hr      = S_OK;
+
+
+
+    BAIL_OUT_IF (folder.empty(), S_OK);
+
+    hr = store.Append (folder, nowUnix);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InstallIntentReplies
+//
+//  A reload a tool asked for is decided on the thread that owns disk writes;
+//  the answer is composed there and carried to the UI thread to be sent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallIntentReplies()
+{
+    m_machine.GetDiskStore().SetDecisionSink ([this] (const std::string & path, ChangeAction action,
+                                                      bool guestCopyPreserved, const std::string & preservedPath)
+    {
+        HWND                       replyTo = nullptr;
+        Win32IntentChannel::Reply  reply;
+
+        if (!m_intentReplies.TryTakeReload (path, replyTo) || replyTo == nullptr)
+        {
+            return;
+        }
+
+        if (IntentReplyTracker::TryMakeReloadReply (action, guestCopyPreserved, preservedPath, reply))
+        {
+            PostIntentReply (replyTo, reply);
+        }
+    });
 }
