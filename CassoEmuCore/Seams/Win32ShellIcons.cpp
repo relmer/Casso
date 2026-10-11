@@ -665,7 +665,13 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
         return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_DISK_IMAGE), IMAGE_ICON, m_sizePx, m_sizePx, 0));
     }
 
-    //  An Apple file type's icon is Explorer's page with the type's badge.
+    //  An Applesoft program is an Apple II monitor with BASIC on its screen.
+    if (kind == Kind::AppleApplesoft)
+    {
+        return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_APPLESOFT_FILE), IMAGE_ICON, m_sizePx, m_sizePx, 0));
+    }
+
+    //  Any other Apple file type's icon is Explorer's page with the type's badge.
     if (kind >= Kind::AppleText)
     {
         m_cache[key] = DrawAppleTypeIcon (kind, Rasterize (LoadForKind (Kind::File, flag), m_sizePx), m_sizePx);
