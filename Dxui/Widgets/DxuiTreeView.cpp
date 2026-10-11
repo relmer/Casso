@@ -1329,12 +1329,31 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             textX += iconPx + m_scaler.ToPxf (m_iconGapDip);
         }
 
+        float  labelRight = (float) m_boundsDip.left + contentW;
+
+        //  Explorer's pin: the filled head under the outline, which adds the
+        //  needle, in the muted ink at the row's right.
+        if (node != nullptr && node->pinned)
+        {
+            float  pinPx = m_scaler.ToPxf (s_kPinDip);
+            float  pinX  = (float) m_boundsDip.left + contentW - m_scaler.ToPxf (s_kPinRightDip) - pinPx;
+
+            for (LPCWSTR glyph : { s_kpszMdl2PinnedFill, s_kpszMdl2Pinned })
+            {
+                hr = text.DrawString (glyph, pinX, rowY, pinPx, rowHeight, theme.ForegroundMuted(), pinPx,
+                                      L"Segoe Fluent Icons", DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            labelRight = pinX;
+        }
+
         if (node != nullptr)
         {
             hr = text.DrawString (node->label.c_str(),
                                   textX,
                                   rowY,
-                                  (std::max) ((float) m_boundsDip.left + contentW - textX, (float) m_rowsExtentPx),
+                                  (std::max) (labelRight - textX, (float) m_rowsExtentPx),
                                   rowHeight,
                                   textCol,
                                   fontDip,

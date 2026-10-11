@@ -451,6 +451,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
         outNodes.push_back (MakeShellNode (m_pinned[i]));
         outNodes.back().dividerAbove = i == 0;
         outNodes.back().canExpand    = false;
+        outNodes.back().pinned       = m_pinned[i].isPinned;
     }
 
     rest = outNodes.size();

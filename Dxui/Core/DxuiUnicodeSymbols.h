@@ -28,3 +28,5 @@ static constexpr LPCWSTR s_kpszMdl2Cancel       = L"\xE711";    // U+E711 Segoe 
 static constexpr LPCWSTR s_kpszMdl2ChevronDown  = L"\xE70D";    // U+E70D Segoe MDL2 ChevronDown
 static constexpr LPCWSTR s_kpszMdl2ChromeClose  = L"\xE8BB";    // U+E8BB Segoe MDL2 ChromeClose (a window or tab close X)
 static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";    // U+E814 Segoe MDL2 warning triangle, filled
+static constexpr LPCWSTR s_kpszMdl2Pinned       = L"\xE840";    // U+E840 Segoe MDL2 Pinned (outline, with its needle)
+static constexpr LPCWSTR s_kpszMdl2PinnedFill   = L"\xE842";    // U+E842 Segoe MDL2 PinnedFill (the head, filled)

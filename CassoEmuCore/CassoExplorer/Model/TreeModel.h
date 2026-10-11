@@ -31,6 +31,7 @@ struct TreeNode
     Location      location;
     bool          canExpand    = false;
     bool          missing      = false;   // a known folder that is no longer there, drawn dimmed
+    bool          pinned       = false;   // pinned to Quick access, drawn with a pin
     bool          hidden       = false;   // a hidden host folder, its icon drawn faded
     std::wstring  loadError;   // an image that failed to parse: the tooltip and the list-area message
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system

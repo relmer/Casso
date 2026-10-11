@@ -63,6 +63,7 @@ struct DxuiTreeNode
     bool                       childrenLoaded = true;           // false: ask the provider on first expand
     bool                       dimmed         = false;          // drawn in the muted color
     bool                       dividerAbove   = false;          // a divider row separates it from the row before
+    bool                       pinned         = false;          // a pin at the row's right, as on Explorer's Quick access
     std::vector<DxuiTreeNode>  children;
 
     //  Drawn before the label, as Explorer draws a folder's; none draws none.
@@ -153,6 +154,11 @@ public:
 
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
     static constexpr float  s_kGhostedIconAlpha = 0.5f;
+
+    //  Explorer's Quick access pin, measured at 150%: about 13 DIPs, its
+    //  right edge 7 DIPs in from the pane's.
+    static constexpr float  s_kPinDip           = 13.0f;
+    static constexpr float  s_kPinRightDip      = 7.0f;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }

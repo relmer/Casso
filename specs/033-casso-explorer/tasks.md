@@ -348,7 +348,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [ ] T145 Read disk folders on a network path off the UI thread so that an unreachable share never hangs the window, per FR-056 and Edge Cases (partial)
 - [ ] T146 Complete Show all folders: show the Desktop root holding the pane's other roots, and Control Panel, as File Explorer does, per FR-057 (partial)
 - [ ] T147 Show the OneDrive root with the shell's cloud icon, per FR-053 (partial)
-- [ ] T148 Show the pin icon on pinned folders in the navigation pane, per FR-055 (partial)
+- [x] T148 Show the pin icon on pinned folders in the navigation pane, per FR-055 (partial)
 - [ ] T149 Match File Explorer's Content view type line and right column position, per FR-044 and SC-009 (partial)
 - [ ] T150 Match File Explorer's wrap width for names without spaces in Medium icons, per SC-009 (partial)
 - [ ] T151 Record SC-018 and SC-019 in `validation.md`, per SC-018 and SC-019 (missing)
