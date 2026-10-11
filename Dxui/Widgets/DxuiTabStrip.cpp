@@ -1571,7 +1571,7 @@ void DxuiTabStrip::PaintInternal (
         bool         isHover = (i == m_hover);
         bool         isArmed = (i == m_pressed && i == m_hover);
         bool         nextLit = (i + 1 == m_selected) || (i + 1 == m_hover);
-        float        labelX  = left + m_scaler.ToPxf ((float) s_kLabelInsetDip);
+        float        labelX  = left + (t.icon ? m_scaler.ToPxf ((float) s_kLabelInsetDip) : padX);
         float        labelR  = (float) r.right - padX;
         std::wstring shown;
 
@@ -2037,7 +2037,7 @@ int DxuiTabStrip::MeasureTabPx (IDxuiTextRenderer * text, const Tab & tab, Style
     }
     else
     {
-        width = scaler.ToPxf ((float) s_kLabelInsetDip) + labelW + scaler.ToPxf (kExplorerPadDip);
+        width = (tab.icon ? scaler.ToPxf ((float) s_kLabelInsetDip) : scaler.ToPxf (kLabelPadXDip)) + labelW + scaler.ToPxf (kExplorerPadDip);
         width += (hasClose && tab.closable) ? scaler.ToPxf ((float) s_kCloseCenterDip + s_kCloseBoxDip / 2) : 0.0f;
     }
 
