@@ -4189,11 +4189,17 @@ void CassoExplorerWindow::Dispatch (int id)
             Invalidate();
             break;
 
+        //  Find searches the hex preview while it has focus; elsewhere it goes
+        //  to the search box, as Explorer's Ctrl+E and Ctrl+F do.
         case CassoExplorerCommands::kFind:
-            if (IsHexPreviewShowing())
+            if (IsHexPreviewShowing() && (m_focus == Pane::Preview || m_focus == Pane::Search || m_focus == Pane::GoTo))
             {
                 m_previewBarFocus = GetPreviewStopIndex (CassoExplorerCommands::kFind);
                 SetFocusPane (Pane::Search);
+            }
+            else
+            {
+                SetFocusPane (Pane::LocationSearch);
             }
 
             break;
