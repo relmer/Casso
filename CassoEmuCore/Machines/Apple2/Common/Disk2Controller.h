@@ -176,6 +176,7 @@ private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
     void   UpdateEngineSelection();
+    void   UpdateEngineWriteMode();
     Byte   HandleReadDispatch();
     void   CatchUpToCpu();
 
