@@ -2362,6 +2362,87 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::IsArchive
+//
+//  The shell's own answer, so an archive type Windows learns to open, as it
+//  learned 7z and rar, is one here too, and one it hands to another program
+//  is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellItemVerbs::IsArchive (const std::wstring & path)
+{
+    HRESULT             hr         = S_OK;
+    ComPtr<IShellItem>  item;
+    SFGAOF              attributes = 0;
+
+
+
+    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = item->GetAttributes (SFGAO_FOLDER | SFGAO_STREAM, &attributes);
+    CHR (hr);
+
+Error:
+    return SUCCEEDED (hr) && (attributes & SFGAO_FOLDER) != 0 && (attributes & SFGAO_STREAM) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::ReadItemBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::ReadItemBytes (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes)
+{
+    HRESULT             hr     = S_OK;
+    ComPtr<IShellItem>  item;
+    ComPtr<IStream>     stream;
+    ULONG               read   = 0;
+    size_t              chunk  = 0;
+
+
+
+    outBytes.clear();
+
+    hr = SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = item->BindToHandler (nullptr, BHID_Stream, IID_PPV_ARGS (&stream));
+    CHR (hr);
+
+    while (outBytes.size() < maxBytes)
+    {
+        chunk = (std::min) (maxBytes - outBytes.size(), (size_t) 65536);
+        outBytes.resize (outBytes.size() + chunk);
+
+        hr = stream->Read (outBytes.data() + outBytes.size() - chunk, (ULONG) chunk, &read);
+        outBytes.resize (outBytes.size() - chunk + read);
+        CHR (hr);
+
+        if (read == 0)
+        {
+            break;
+        }
+    }
+
+    hr = S_OK;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::GetShellItemName
 //
 ////////////////////////////////////////////////////////////////////////////////

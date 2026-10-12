@@ -505,7 +505,7 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             break;
 
         case Location::Kind::ShellFolder:
-            segments.push_back (AddressSegment { location.label.empty() ? location.path : location.label, location });
+            AppendArchiveSegments (location, root, segments);
             break;
 
         default:
@@ -596,6 +596,62 @@ void BrowserModel::AppendHostSegments (const std::wstring & path, const AddressR
         }
 
         start = slash + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserModel::AppendArchiveSegments
+//
+//  A path inside a zip reads as Explorer's does: the folders on the disk that
+//  hold the zip, then the zip and each folder inside it, which open through
+//  the shell. Any other shell folder is one segment, by the name it shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserModel::AppendArchiveSegments (const Location & location, const AddressRoot & root, std::vector<AddressSegment> & outSegments)
+{
+    const std::wstring &  path   = location.path;
+    size_t                split  = path.size();
+    size_t                start  = 0;
+    size_t                slash  = 0;
+    bool                  onDisk = path.size() > 3 && path[1] == L':' && path[2] == L'\\' && root.isHostFolder;
+
+
+
+    while (onDisk && split > 3)
+    {
+        split = path.rfind (L'\\', split - 1);
+
+        if (split == std::wstring::npos || split < 2)
+        {
+            onDisk = false;
+        }
+        else if (root.isHostFolder (path.substr (0, (split == 2) ? 3 : split)))
+        {
+            break;
+        }
+    }
+
+    if (!onDisk || split >= path.size())
+    {
+        outSegments.push_back (AddressSegment { location.label.empty() ? location.path : location.label, location });
+        return;
+    }
+
+    AppendHostSegments (path.substr (0, (split == 2) ? 3 : split), root, outSegments);
+
+    for (start = split + 1; start < path.size(); start = slash + 1)
+    {
+        slash = path.find (L'\\', start);
+        slash = (slash == std::wstring::npos) ? path.size() : slash;
+
+        outSegments.push_back (AddressSegment { path.substr (start, slash - start),
+                                                Location::MakeShellFolder (path.substr (0, slash), path.substr (start, slash - start)) });
     }
 }
 

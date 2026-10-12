@@ -487,6 +487,12 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_menuBar->SetVisible (false);
     m_addressRoot = GetProfileRoot();
 
+    //  A local folder only: a network path is never asked about on this thread.
+    m_addressRoot.isHostFolder = [this] (const std::wstring & path)
+    {
+        return m_context.fs != nullptr && path.size() > 1 && path[1] == L':' && m_context.fs->DirectoryExists (path);
+    };
+
     m_browser.GetTreeRoots (roots);
 
     m_tree->SetShowCheckboxes (false);
@@ -1862,15 +1868,7 @@ bool CassoExplorerWindow::FileBytes::LooksLikeText() const
 
     ReadAt (0, sample);
 
-    for (uint8_t byte : sample)
-    {
-        if ((byte < 0x20 || byte > 0x7E) && byte != '\t' && byte != '\r' && byte != '\n')
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return CassoExplorerBrowser::LooksLikePlainText (sample);
 }
 
 
@@ -7354,6 +7352,10 @@ void CassoExplorerWindow::OpenPathInNewTab (const std::wstring & path)
     else if (TreeModel::IsSupportedImage (full))
     {
         m_browser.OpenInNewTab (Location::MakeDiskImage (full));
+    }
+    else if (m_browser.GetTreeModel().IsArchive (full))
+    {
+        m_browser.OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
     }
     else
     {

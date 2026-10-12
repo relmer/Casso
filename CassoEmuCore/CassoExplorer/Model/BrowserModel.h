@@ -67,6 +67,11 @@ public:
     {
         std::wstring  path;
         std::wstring  label;
+
+        //  Whether a path is a folder on a disk, which splits a path inside a
+        //  zip into the folders that hold the zip and the zip's own folders.
+        //  None: a shell folder is one segment.
+        std::function<bool (const std::wstring & path)>  isHostFolder;
     };
 
     size_t  OpenTab   (const Location & location);
@@ -119,6 +124,7 @@ public:
 private:
     static bool  IsSameImage (const std::wstring & a, const std::wstring & b);
     static void  AppendHostSegments (const std::wstring & path, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
+    static void  AppendArchiveSegments (const Location & location, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
     static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
     static bool  IsLabelBefore      (const AddressSegment & a, const AddressSegment & b);
 

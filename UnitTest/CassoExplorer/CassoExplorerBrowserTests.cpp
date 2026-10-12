@@ -32,9 +32,24 @@ public:
     std::vector<ShellFolderItem>  navRoots;
     std::vector<ShellFolderItem>  pinned;
 
+    //  The extension the shell opens as a folder, and the bytes any item reads.
+    std::wstring                  archiveExtension;
+    std::vector<Byte>             itemBytes;
+
     HRESULT  ListShellFolder (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
     HRESULT  ListNavigationRoots (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
     HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
+
+    bool     IsArchive (const std::wstring & path) override
+    {
+        return !archiveExtension.empty() && path.ends_with (archiveExtension);
+    }
+
+    HRESULT  ReadItemBytes (const std::wstring &, size_t maxBytes, std::vector<Byte> & outBytes) override
+    {
+        outBytes.assign (itemBytes.begin(), itemBytes.begin() + (std::min) (maxBytes, itemBytes.size()));
+        return S_OK;
+    }
 
     HRESULT  Open                (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  GetOpenWithHandlers (const std::wstring &, std::vector<Handler> &) override                 { return E_NOTIMPL; }
@@ -273,6 +288,63 @@ public:
         Assert::AreEqual ((size_t) 1, loaded.tabs.size());
         Assert::IsTrue   (loaded.tabs[0].kind == Location::Kind::ShellFolder);
         Assert::AreEqual (std::wstring (L"SERVER"), loaded.tabs[0].label, L"A saved tab keeps the name it shows");
+    }
+
+
+    //  A file the shell opens as a folder, as a zip, is a node after the
+    //  folders in the tree, and a row in the list that opens through the shell.
+    TEST_METHOD (Archive_ListsAfterFoldersAndOpensThroughTheShell)
+    {
+        Host                       host;
+        FakeRecycleBin             shell;
+        std::vector<DxuiTreeNode>  children;
+        std::vector<std::wstring>  labels;
+        Location                   target;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\Sub\\a.txt", "a"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.zip",  "PK"));
+        shell.archiveExtension = L".zip";
+        host.browser.SetShellVerbs (&shell);
+
+        children = host.browser.GetTreeChildren (host.OpenDisksFolder());
+
+        for (const DxuiTreeNode & child : children)
+        {
+            labels.push_back (child.label);
+        }
+
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Sub", L"notes.zip", L"dos33.dsk", L"prodos.po" }),
+                        L"Folders, then archives, then disk images");
+        Assert::IsFalse (children[1].childrenLoaded, L"An archive opens like a folder");
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"notes.zip"), target));
+        Assert::IsTrue (target == Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
+        Assert::IsFalse (host.browser.TryGetRowLocation (FindRow (host.browser, L"readme.txt"), target), L"A plain file does not open");
+    }
+
+
+    //  A file inside an archive has no file of its own; its preview is its
+    //  bytes, read through the shell.
+    TEST_METHOD (Archive_FileInsidePreviewsItsBytes)
+    {
+        Host                              host;
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  inside;
+
+        inside.id       = L"C:\\Disks\\notes.zip\\hello.txt";
+        inside.name     = L"hello.txt";
+        inside.typeText = L"Text Document";
+        shell.shellItems.push_back (inside);
+        shell.itemBytes = { 'h', 'i', '\r', '\n' };
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"hello.txt") });
+
+        Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::AreEqual ((size_t) 4, host.browser.GetPreview().bytes.size());
+        Assert::IsTrue   (host.browser.GetPreview().textFile, L"Plain text opens showing its characters");
     }
 
 

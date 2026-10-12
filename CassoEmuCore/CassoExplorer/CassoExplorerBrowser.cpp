@@ -334,6 +334,7 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
         bool                     isImage = !entry.isFolder && TreeModel::IsSupportedImage (entry.name);
 
         m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
+        m_rows.back().isArchive = !entry.isFolder && !isImage && m_tree.IsArchive (JoinPath (path, entry.name));
 
         //  The shell's own type name, as Explorer's Type column shows.
         if (m_shellIcons != nullptr)
@@ -1220,6 +1221,11 @@ void CassoExplorerBrowser::UpdatePreview()
     {
         folder = m_rows[m_selectedRows[0]].folderPath;
     }
+    else if (!m_isImage && location.kind == Location::Kind::ShellFolder && m_selectedRows.size() == 1)
+    {
+        PreviewShellItem (m_rows[m_selectedRows[0]]);
+        return;
+    }
     else if (m_isImage || location.kind != Location::Kind::HostFolder || m_selectedRows.size() != 1)
     {
         return;
@@ -1280,6 +1286,82 @@ void CassoExplorerBrowser::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::LooksLikePlainText
+//
+//  Printable ASCII, tabs and line endings only: a host file that opens
+//  showing its characters rather than its bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::LooksLikePlainText (std::span<const Byte> sample)
+{
+    if (sample.empty())
+    {
+        return false;
+    }
+
+    return std::all_of (sample.begin(), sample.end(), [] (Byte value)
+    {
+        return (value >= 0x20 && value <= 0x7E) || value == '\t' || value == '\r' || value == '\n';
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::PreviewShellItem
+//
+//  A file the shell lists shows its bytes: one on a disk from the file, as in
+//  its own folder, and one with no file of its own, such as one inside a zip,
+//  read through the shell up to a limit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::PreviewShellItem (const CatalogRow & row)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (row.isDirectory)
+    {
+        return;
+    }
+
+    if (!row.hostPath.empty())
+    {
+        m_preview.kind     = PreviewContent::Kind::Hex;
+        m_preview.hostPath = row.hostPath;
+        return;
+    }
+
+    if (m_shellVerbs == nullptr || row.shellId.empty())
+    {
+        return;
+    }
+
+    hr = m_shellVerbs->ReadItemBytes (row.shellId, s_kShellPreviewMaxBytes, m_preview.bytes);
+
+    if (FAILED (hr))
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"The file could not be read";
+        return;
+    }
+
+    m_preview.kind     = PreviewContent::Kind::Hex;
+    m_preview.textFile = LooksLikePlainText (std::span<const Byte> (m_preview.bytes.data(), (std::min) (m_preview.bytes.size(), s_kTextSampleBytes)));
 }
 
 
@@ -2319,6 +2401,10 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
     {
         outLocation = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
     }
+    else if (m_rows[row].isArchive)
+    {
+        outLocation = Location::MakeShellFolder (JoinPath (location.path, m_rows[row].name), m_rows[row].name);
+    }
     else
     {
         found = false;
@@ -3260,6 +3346,12 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
     if (!node.iconId.empty())
     {
         return icons.GetForPath (node.iconId, true);
+    }
+
+    //  An archive has its file's icon, a zip's zipper, not a folder's.
+    if (node.archive)
+    {
+        return icons.GetForPath (node.location.path, false);
     }
 
     switch (node.kind)

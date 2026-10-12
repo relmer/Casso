@@ -51,6 +51,8 @@ public:
     HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override;
     HRESULT  ListDesktopFolders  (std::vector<ShellFolderItem> & outFolders) override;
     HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned) override;
+    bool     IsArchive (const std::wstring & path) override;
+    HRESULT  ReadItemBytes (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes) override;
     HRESULT  RenameItem          (HWND owner, const std::wstring & path, const std::wstring & newName) override;
     HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;
     bool     ClipboardHasFiles   () const override;

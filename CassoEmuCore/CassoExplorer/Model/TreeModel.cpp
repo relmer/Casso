@@ -527,6 +527,40 @@ void TreeModel::RefreshShellRoots()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsArchive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsArchive (const std::wstring & path) const
+{
+    std::wstring  extension = std::filesystem::path (path).extension().wstring();
+    auto          known     = m_archiveExtensions.end();
+
+
+
+    if (m_shellVerbs == nullptr || extension.empty() || IsSupportedImage (path))
+    {
+        return false;
+    }
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), ::towlower);
+
+    known = m_archiveExtensions.find (extension);
+
+    if (known == m_archiveExtensions.end())
+    {
+        known = m_archiveExtensions.emplace (extension, m_shellVerbs->IsArchive (path)).first;
+    }
+
+    return known->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::IsPinnedFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1012,6 +1046,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
     HRESULT                       hr = S_OK;
     std::vector<FileSystemEntry>  entries;
     std::vector<TreeNode>         folders;
+    std::vector<TreeNode>         archives;
     std::vector<TreeNode>         images;
 
 
@@ -1054,6 +1089,17 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
             folders.push_back (node);
         }
+        else if (IsArchive (JoinPath (path, entry.name)))
+        {
+            node.id        = std::wstring (kShellRootTag) + JoinPath (path, entry.name);
+            node.kind      = TreeNode::Kind::ShellRoot;
+            node.label     = entry.name;
+            node.location  = Location::MakeShellFolder (JoinPath (path, entry.name), entry.name);
+            node.canExpand = true;
+            node.archive   = true;
+
+            archives.push_back (node);
+        }
         else if (IsSupportedImage (entry.name))
         {
             node.id       = MakeImageId (underCasso, JoinPath (path, entry.name));
@@ -1070,10 +1116,14 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
     std::sort (folders.begin(), folders.end(), [] (const TreeNode & a, const TreeNode & b)
                { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
+    std::sort (archives.begin(), archives.end(), [] (const TreeNode & a, const TreeNode & b)
+               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
     std::sort (images.begin(), images.end(), [] (const TreeNode & a, const TreeNode & b)
                { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
 
+    //  Archives follow the folders, as in Explorer's pane.
     outNodes.insert (outNodes.end(), folders.begin(), folders.end());
+    outNodes.insert (outNodes.end(), archives.begin(), archives.end());
     outNodes.insert (outNodes.end(), images.begin(), images.end());
 
 Error:

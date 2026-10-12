@@ -49,6 +49,10 @@ struct CatalogRow
     //  nothing.
     bool  isMissing           = false;
 
+    //  A file the shell opens as a folder, such as a zip: it opens and lists
+    //  as one.
+    bool  isArchive           = false;
+
     //  A drive in This PC, whose tile shows how full it is: sizeBytes holds
     //  its capacity and freeBytes what is left.
     bool      isDrive         = false;

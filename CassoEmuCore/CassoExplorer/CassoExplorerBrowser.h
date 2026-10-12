@@ -102,6 +102,19 @@ public:
     bool          MoveTab     (size_t from, size_t to) { return m_model.MoveTab (from, to); }
     bool          SwitchTab   (size_t index);
     void          RestoreTabs (const std::vector<Location> & locations);
+
+    //  How much of a file with no file of its own, such as one inside a zip,
+    //  is read for its preview.
+    static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;
+
+    //  Whether a file's first bytes are plain text, and how many are looked at.
+    static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
+    static bool              LooksLikePlainText (std::span<const Byte> sample);
+
+private:
+    void  PreviewShellItem (const CatalogRow & row);
+
+public:
     std::wstring  GetTabLabel (size_t index) const;
 
     //  Opens a location in a new tab and switches to it. The tab menu's other

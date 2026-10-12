@@ -32,6 +32,7 @@ struct TreeNode
     bool          canExpand    = false;
     bool          missing      = false;   // a known folder that is no longer there, drawn dimmed
     bool          pinned       = false;   // pinned to Quick access, drawn with a pin
+    bool          archive      = false;   // a file the shell opens as a folder, such as a zip
     bool          hidden       = false;   // a hidden host folder, its icon drawn faded
     std::wstring  loadError;   // an image that failed to parse: the tooltip and the list-area message
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system
@@ -92,6 +93,10 @@ public:
     void  SetShellFetch      (ShellFetch fetch)        { m_shellFetch = std::move (fetch); }
     void  RefreshShellRoots  ();
     bool  IsPinnedFolder     (const std::wstring & path) const;
+
+    //  Whether a file opens as a folder, as File Explorer opens a zip. The
+    //  shell is asked once for each extension; a disk image is Casso's own.
+    bool  IsArchive          (const std::wstring & path) const;
 
     //  The roots the navigation pane's own menu shows or hides, as
     //  Explorer's does; all folders adds the Recycle Bin. A root with no
@@ -179,6 +184,7 @@ private:
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
     DirectoryProbe                                   m_directoryProbe;
+    mutable std::map<std::wstring, bool>             m_archiveExtensions;
     LocalizedNameLookup                              m_localizedName;
     FolderOptions                                    m_folderOptions;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;

@@ -151,6 +151,14 @@ public:
     //  verbs, so File Explorer's list changes with it.
     virtual HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned)    { (void) owner; (void) folder; (void) pinned; return E_NOTIMPL; }
 
+    //  Whether the shell opens this file as a folder, as File Explorer opens a
+    //  zip: an item that is both a folder and a stream.
+    virtual bool     IsArchive (const std::wstring & path)                                           { (void) path; return false; }
+
+    //  Up to `maxBytes` of an item the shell lists, read through its stream,
+    //  for one with no file on a disk, such as a file inside a zip.
+    virtual HRESULT  ReadItemBytes (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes) { (void) id; (void) maxBytes; (void) outBytes; return E_NOTIMPL; }
+
     //  Posts the message to the window whenever the Recycle Bin's contents
     //  may have changed, whoever changed them, until the watch ends.
     virtual void     WatchRecycleBin   (HWND hwnd, UINT message) { (void) hwnd; (void) message; }

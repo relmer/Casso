@@ -117,6 +117,32 @@ public:
 
 
 
+    //  Inside a zip: the folders on the disk, then the zip and its own folders,
+    //  which open through the shell.
+    TEST_METHOD (Address_InsideAnArchive_SplitsAtTheLastFolderOnTheDisk)
+    {
+        BrowserModel::AddressRoot                  root;
+        Location                                   inner    = Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs");
+        std::vector<BrowserModel::AddressSegment>  segments;
+        std::vector<BrowserModel::AddressSegment>  single;
+
+        single = BrowserModel::GetAddressSegments (inner, root);
+
+        Assert::AreEqual ((size_t) 1, single.size(), L"Without a way to ask the disk, a shell folder is one segment");
+
+        root.isHostFolder = [] (const std::wstring & path) { return path == L"C:\\" || path == L"C:\\Disks"; };
+        segments          = BrowserModel::GetAddressSegments (inner, root);
+
+        Assert::AreEqual ((size_t) 4, segments.size());
+        Assert::AreEqual (std::wstring (L"C:"),        segments[0].label);
+        Assert::IsTrue   (segments[1].location == Folder (L"C:\\Disks"));
+        Assert::AreEqual (std::wstring (L"notes.zip"), segments[2].label);
+        Assert::IsTrue   (segments[2].location == Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
+        Assert::IsTrue   (segments[3].location == inner, L"The last segment is where the tab is");
+    }
+
+
+
     TEST_METHOD (Address_HomeAndShareRoots)
     {
         std::vector<BrowserModel::AddressSegment>  home  = BrowserModel::GetAddressSegments (Location());

@@ -370,8 +370,10 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
 
 
     //  An item that is not on a disk has no path for the file calls; the shell
-    //  draws its icon from the item itself.
-    if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0)
+    //  draws its icon from the item itself. So does one inside a zip, whose
+    //  path the file system does not know.
+    if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0
+        || (path.size() > 2 && path[1] == L':' && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
     {
         return LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
     }
