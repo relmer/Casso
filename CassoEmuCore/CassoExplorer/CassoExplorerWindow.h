@@ -644,6 +644,12 @@ private:
     RECT  GetMessageRect (const RECT & pane) const;
     RECT  GetPromptRect  (const RECT & pane) const;
 
+    //  The archive files selected in the preview, by the shell's names for
+    //  them, and what happens to them.
+    std::vector<std::wstring>  GetSelectedArchiveIds () const;
+    bool                       RouteArchiveMouse     (const DxuiMouseEvent & ev, POINT point);
+    void                       OpenArchiveRow        (int row);
+
     //  Explorer's folder options read again; true when one changed.
     bool  ReadFolderOptions ();
 
@@ -817,6 +823,10 @@ private:
     //  toggle, 2 for the hex view's commands.
     int                    m_previewBarMode  = 0;
     bool                   m_previewPrompt   = false;   // the Preview pane shows its select-a-file prompt
+    bool                   m_previewArchive  = false;   // the preview list is an archive's files, as the file list
+    bool                   m_archiveDrag     = false;   // a left press on one of them, which may become a drag
+    bool                   m_archiveMenu     = false;   // a right press on one, whose menu opens on release
+    POINT                  m_archivePress    = {};
     int                    m_previewBarFocus = 0;
 
     //  The last search, as typed and as the bytes it matches.

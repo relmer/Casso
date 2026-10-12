@@ -674,6 +674,16 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_previewList->SetTextSelectionColors (true);
     m_previewList->SetOwnerWindow (GetHwnd());
 
+    //  An archive's files open on a double-click, as the file list's do.
+    m_previewList->SetActivateOnDoubleClick (true);
+    m_previewList->SetOnActivateRow ([this] (int row)
+    {
+        if (m_previewArchive)
+        {
+            OpenArchiveRow (row);
+        }
+    });
+
     m_textView->SetOwnerWindow   (GetHwnd());
     m_textView->SetIconFace      (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                                   ? DxuiToolbar::kFluentIconFace
@@ -1708,6 +1718,7 @@ void CassoExplorerWindow::FillPreview()
         m_previewList->SetRowHeightDip    (kPreviewRowHeightDip);
         m_previewList->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&CassoExplorerWindow::GetListRowHeightPx) : nullptr);
         m_previewList->SetColumns         (preview.archive ? CassoExplorerBrowser::GetArchivePreviewColumns() : CassoExplorerBrowser::GetCatalogPreviewColumns());
+        m_previewList->SetTextSelectionColors (!preview.archive);
 
         for (const CatalogRow & row : preview.rows)
         {
@@ -1715,6 +1726,7 @@ void CassoExplorerWindow::FillPreview()
         }
     }
 
+    m_previewArchive = columns && preview.archive;
     m_previewList->SetRows (std::move (rows));
     m_previewList->ResetAutoFit();
     m_previewList->UpdateAutoFitFromRows();
@@ -2889,6 +2901,12 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (m_previewArchive && RouteArchiveMouse (ev, point))
+    {
+        Invalidate();
+        return true;
+    }
+
     //  A drag selecting lines keeps the pointer until the button comes up, as
     //  the file list's does.
     if (m_previewList->IsInteracting())
@@ -3009,7 +3027,7 @@ LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
         POINT   local = { clientPx.x - list.left, clientPx.y - list.top };
 
         cursor = m_previewList->GetCursorForPoint (local);
-        cursor = (cursor != nullptr || m_previewList->IsOverScrollbar (local)) ? cursor : IDC_IBEAM;
+        cursor = (cursor != nullptr || m_previewList->IsOverScrollbar (local)) ? cursor : (m_previewArchive ? IDC_ARROW : IDC_IBEAM);
     }
 
     if (cursor == nullptr && m_previewMessage->IsVisible())
@@ -3117,6 +3135,16 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
             Invalidate();
             return handled;
         }
+    }
+
+    //  An archive's files copy as files do, for the shell to extract on paste.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'C'
+        && m_focus == Pane::Preview && m_previewArchive && !GetSelectedArchiveIds().empty())
+    {
+        HRESULT  hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), GetSelectedArchiveIds(), false);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return true;
     }
 
     //  A preview that is only a message selects and copies as text does.
@@ -3648,6 +3676,171 @@ std::vector<std::wstring> CassoExplorerWindow::SplitLineNumber (const std::wstri
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetSelectedArchiveIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerWindow::GetSelectedArchiveIds() const
+{
+    const std::vector<CatalogRow> &  rows = m_browser.GetPreview().rows;
+    std::vector<std::wstring>        ids;
+
+
+
+    for (int row : m_previewList->GetSelectedRows())
+    {
+        if (row >= 0 && (size_t) row < rows.size() && !rows[(size_t) row].shellId.empty())
+        {
+            ids.push_back (rows[(size_t) row].shellId);
+        }
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RouteArchiveMouse
+//
+//  An archive's files in the preview act as the file list's do: a press that
+//  moves drags them out, for the shell to extract where they land, and a
+//  right-click opens the shell's menu for them, Extract All among its verbs.
+//  Selection itself is the list's. True when the event is taken here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT point)
+{
+    RECT                       bounds = m_previewList->GetBounds();
+    DxuiMouseEvent             local  = ToLocal (ev, bounds);
+    int                        row    = -1;
+    HRESULT                    hr     = S_OK;
+    POINT                      screen = point;
+    std::vector<std::wstring>  ids;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && Contains (bounds, point))
+    {
+        row = m_previewList->HitTestRow (local.positionDip.x, local.positionDip.y);
+        SetFocusPane (Pane::Preview);
+
+        if (row >= 0 && ev.button == DxuiMouseButton::Right)
+        {
+            //  A right press on a row outside the selection selects it alone.
+            if (!m_previewList->IsRowSelected (row))
+            {
+                m_previewList->ClickRow (row, false, false);
+            }
+
+            m_archiveMenu = true;
+            return true;
+        }
+
+        if (row >= 0 && ev.button == DxuiMouseButton::Left)
+        {
+            m_archiveDrag = true;
+            m_archivePress     = point;
+        }
+
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && m_archiveMenu && ev.button == DxuiMouseButton::Right)
+    {
+        m_archiveMenu = false;
+        ids                = GetSelectedArchiveIds();
+
+        ClientToScreen (GetHwnd(), &screen);
+
+        if (!ids.empty())
+        {
+            hr = m_shellVerbs.ShowShellMenu (GetHwnd(), ids, screen);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up)
+    {
+        m_archiveDrag = false;
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && m_archiveDrag
+        && (abs (point.x - m_archivePress.x) > GetSystemMetrics (SM_CXDRAG)
+         || abs (point.y - m_archivePress.y) > GetSystemMetrics (SM_CYDRAG)))
+    {
+        DxuiMouseEvent  release;
+
+        m_archiveDrag = false;
+        ids                = GetSelectedArchiveIds();
+
+        //  The list lets go first, or it would take the move as extending
+        //  the selection once the drag is over.
+        release.kind   = DxuiMouseEventKind::Up;
+        release.button = DxuiMouseButton::Left;
+        m_previewList->OnMouse (release);
+
+        if (!ids.empty())
+        {
+            hr = m_shellVerbs.DragItems (ids);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OpenArchiveRow
+//
+//  A folder inside the archive opens in the file list; a file opens as the
+//  shell opens it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenArchiveRow (int row)
+{
+    const std::vector<CatalogRow> &  rows = m_browser.GetPreview().rows;
+    HRESULT                          hr   = S_OK;
+
+
+
+    if (row < 0 || (size_t) row >= rows.size() || rows[(size_t) row].shellId.empty())
+    {
+        return;
+    }
+
+    if (rows[(size_t) row].isDirectory)
+    {
+        m_browser.NavigateToLocation (Location::MakeShellFolder (rows[(size_t) row].shellId, rows[(size_t) row].name));
+        FillList();
+        return;
+    }
+
+    hr = m_shellVerbs.Open (GetHwnd(), rows[(size_t) row].shellId);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

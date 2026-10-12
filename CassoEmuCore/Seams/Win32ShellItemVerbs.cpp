@@ -2394,6 +2394,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::DragItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids)
+{
+    HRESULT                  hr     = S_OK;
+    ComPtr<IShellItemArray>  items;
+    ComPtr<IDataObject>      data;
+    DWORD                    effect = DROPEFFECT_NONE;
+
+
+
+    hr = GetItemArray (ids, &items);
+    CHR (hr);
+
+    hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
+    CHR (hr);
+
+    hr = SHDoDragDrop (nullptr, data.Get(), nullptr, DROPEFFECT_COPY, &effect);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::ReadItemBytes
 //
 ////////////////////////////////////////////////////////////////////////////////
