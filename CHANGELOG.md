@@ -18,6 +18,7 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- Changed the drive strip's hotkey from Ctrl+D to F8.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
   window. The shell owns them, routes window messages and runs the CPU

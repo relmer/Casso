@@ -57,7 +57,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"Fast-for&ward tape",     nullptr          },
     { IDM_TAPE_EJECT,               MainMenuId::Disk,    L"E&ject tape",            nullptr          },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
-    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"Ctrl+D"      },
+    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"F8"          },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
     { IDM_VIEW_SCENE_VIEW,          MainMenuId::View,    L"Scene &pose",            nullptr,          true   },
