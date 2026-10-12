@@ -702,7 +702,7 @@ void PlatterView::DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement
 
 void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const
 {
-    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx,
                                static_cast<int64_t> (GetTickCount64()));
     double            outer  = 0;
     double            inner  = 0;

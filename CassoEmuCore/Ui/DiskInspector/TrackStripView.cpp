@@ -1216,21 +1216,26 @@ void TrackStripView::DimOutsideFile (IDxuiPainter & painter, const vector<StripS
 
 void TrackStripView::PaintMarquee (IDxuiPainter & painter, const vector<StripSegment> & parts) const
 {
-    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx,
                                static_cast<int64_t> (GetTickCount64()));
     RECT              bar    = GetBarRect();
-    float             inset  = m_scaler.ToPxf (InspectorMarquee::kThicknessDip) * 1.5f;
+    float             inset  = std::ceil (m_scaler.ToPxf (s_kOutlineDip)) + 0.5f;
     float             top    = static_cast<float> (bar.top) + inset;
     float             bottom = static_cast<float> (bar.bottom) - inset;
     float             s      = 0;
+    float             left   = 0;
+    float             right  = 0;
 
 
 
     for (const StripSegment & part : parts)
     {
-        s = marquee.DrawLine (painter, part.x0 + inset, top,    part.x1 - inset, top,    0);
-        s = marquee.DrawLine (painter, part.x1 - inset, top,    part.x1 - inset, bottom, s);
-        s = marquee.DrawLine (painter, part.x1 - inset, bottom, part.x0 + inset, bottom, s);
-        marquee.DrawLine (painter, part.x0 + inset, bottom, part.x0 + inset, top, s);
+        left  = std::floor (part.x0) + inset;
+        right = std::floor (part.x1) - inset;
+
+        s = marquee.DrawLine (painter, left,  top,    right, top,    0);
+        s = marquee.DrawLine (painter, right, top,    right, bottom, s);
+        s = marquee.DrawLine (painter, right, bottom, left,  bottom, s);
+        marquee.DrawLine (painter, left, bottom, left, top, s);
     }
 }

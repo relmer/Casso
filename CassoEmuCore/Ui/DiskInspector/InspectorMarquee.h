@@ -21,9 +21,12 @@
 class InspectorMarquee
 {
 public:
-    static constexpr float  kDashDip      = 4.0f;
-    static constexpr float  kThicknessDip = 2.0f;
-    static constexpr int    kStepMs       = 80;
+    static constexpr float  kDashDip     = 4.0f;
+    static constexpr int    kStepMs      = 80;
+
+    //  One device pixel at any scale, as thin as the platter's and the grid's
+    //  own lines.
+    static constexpr float  kThicknessPx = 1.0f;
 
     InspectorMarquee (const DiskInspectorPalette & palette, float dashPx, float thicknessPx, int64_t nowMs);
 

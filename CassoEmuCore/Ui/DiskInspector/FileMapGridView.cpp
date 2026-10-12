@@ -197,7 +197,7 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 void FileMapGridView::PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const
 {
-    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx,
                                static_cast<int64_t> (GetTickCount64()));
     int               tracks  = m_map->tracks;
     int               columns = m_map->cellsPerTrack;
@@ -218,10 +218,11 @@ void FileMapGridView::PaintMarquee (IDxuiPainter & painter, const Grid & g, cons
                 continue;
             }
 
-            x0 = g.left + g.labelW + c * g.cellW;
-            y0 = g.top + t * g.rowH;
-            x1 = x0 + g.cellW - 1.0f;
-            y1 = y0 + g.rowH - 1.0f;
+            //  On pixel centers, so each one-pixel line covers one pixel.
+            x0 = std::floor (g.left + g.labelW + c * g.cellW) + 0.5f;
+            y0 = std::floor (g.top + t * g.rowH) + 0.5f;
+            x1 = std::floor (g.left + g.labelW + (c + 1) * g.cellW) - 0.5f;
+            y1 = std::floor (g.top + (t + 1) * g.rowH) - 0.5f;
 
             if (!isMarked (t - 1, c))
             {
