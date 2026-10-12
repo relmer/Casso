@@ -184,6 +184,7 @@ private:
     void   HandlePhase (int phase, bool on);
     void   OnLatchLoad ();
     void   UpdateEngineSelection();
+    void   UpdateEngineWriteMode();
     Byte   HandleReadDispatch();
     void   CatchUpToCpu();
 
