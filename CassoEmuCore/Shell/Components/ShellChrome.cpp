@@ -1991,3 +1991,84 @@ SIZE ShellChrome::GetClientSizeForCenterPx (int centerWidthPx, int centerHeightP
 
     return m_chromeDock.GetContainerSizeForFill (SIZE{ centerWidthPx, centerHeightPx }, bands);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::DismissMenuOutside
+//
+//  A press outside the menu strip closes an open menu. The strip toggles and
+//  hover-switches through the menu bar's own mouse handling, and the popup
+//  dropdown receives row clicks directly; the popup takes no capture, so the
+//  window's press is checked here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::DismissMenuOutside (int x, int y)
+{
+    RECT  strip = {};
+
+
+
+    if (!m_mainMenu.IsOpen())
+    {
+        return;
+    }
+
+    strip = m_mainMenu.GetBounds();
+
+    if (x < strip.left || x >= strip.right || y < strip.top || y >= strip.bottom)
+    {
+        m_mainMenu.Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::OnLButtonDown
+//
+//  A press on the command toolbar or the //c switch bar; true when either
+//  took it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::OnLButtonDown (int x, int y)
+{
+    bool  toolbarTook = false;
+    bool  isTaken     = false;
+
+
+
+    // Command toolbar press (button press states + slider drag start).
+    toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
+
+    if (toolbarTook)
+    {
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+
+    isTaken = isTaken || toolbarTook;
+
+    if (m_shell.MachineHasCaseSwitches())
+    {
+        Apple2cSwitchBar::Part  part = m_switchBar.GetPartAt (x, y);
+
+        // The strip is painted only when a frame is presented, and a static
+        // screen presents none, so a key that went down requests one.
+        if (m_switchBar.SetPressedPart (part))
+        {
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        }
+
+        isTaken = isTaken || part != Apple2cSwitchBar::Part::None;
+    }
+
+    return isTaken;
+}

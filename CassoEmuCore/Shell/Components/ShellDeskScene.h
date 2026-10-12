@@ -17,8 +17,30 @@ class EmulatorShell;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDeskScene
+//  ScenePointerContext
 //
+//  What the rest of the window made of a pointer event before the event is
+//  passed to the scene: whether a menu is open, whether the chrome took the
+//  event, and whether the guest mouse is live, which makes a drag pointing
+//  rather than framing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ScenePointerContext
+{
+    bool  isMenuOpen      = false;
+    bool  isChromeTaken   = false;
+    bool  isGuestPointing = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene
+////
 //  The 3D desk: the scene renderer with its monitor, drives and recorder,
 //  the fullscreen drive strip, the baked labels and the chrome labels that
 //  stand in for them, the scene compass, the recorder's key and reel
@@ -137,6 +159,10 @@ public:
     // orbit. A one-finger drag is left alone while the guest is pointing.
     DxuiMessageResult  OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal);
     DxuiMessageResult  OnGesture    (WPARAM wParam, LPARAM lParam, bool isGuestPointing);
+
+    // The left button on the scene, given what the rest of the window made of
+    // the press.
+    DxuiMessageResult  OnLButtonDown (int x, int y, WPARAM keys, const ScenePointerContext & context);
 
     void    ZoomSceneAt          (POINT clientPt, float factor);
     DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);

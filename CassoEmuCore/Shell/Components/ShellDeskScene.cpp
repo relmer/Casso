@@ -3406,3 +3406,181 @@ DxuiMessageResult ShellDeskScene::OnGesture (WPARAM wParam, LPARAM lParam, bool 
 
     return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnLButtonDown
+//
+//  The left button on the scene, once the chrome and the guest mouse have had
+//  the press: Shift orbits and Ctrl pans, the recorder's volume wheel and keys,
+//  the compass, the bezel's tilt marks, and a plain drag turns the scene.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult ShellDeskScene::OnLButtonDown (int x, int y, WPARAM keys, const ScenePointerContext & context)
+{
+    HRESULT            hr     = S_OK;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
+
+    // Every press the user could have meant as a click has been handled
+    // before this, so a drag armed here never replaces one.
+    //
+    // NOT WHILE THE GUEST IS POINTING. //c Mouse mode maps the host pointer
+    // absolutely, over the BACKGROUND too, so a drag out there is very likely
+    // someone steering the guest cursor toward an edge, and a pan would both
+    // replace that drag and freeze the guest pointer for its duration. Live
+    // rather than Active on purpose: at a BASIC prompt nothing is reading the
+    // mouse, so panning is available.
+    //
+    // Shift turns the press into an orbit, the touchpad's way to it, where a
+    // right-drag is awkward. Before the pan, and at any zoom. Never in
+    // fullscreen, where the desk is not on screen.
+    if (m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() &&
+        (keys & MK_SHIFT) != 0 && !context.isMenuOpen &&
+        PointInSceneRect (x, y) && !context.isChromeTaken)
+    {
+        BeginSceneOrbit (x, y);
+        m_sceneOrbitLeftBtn = true;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Ctrl turns the press into a pan, the mouse's way to do what the touchpad
+    // does with a two-finger slide. Beside the Shift orbit, for the same
+    // reasons, and like it never in fullscreen. Not on the compass, which
+    // has its own Ctrl gestures and is handled below.
+    if (m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() &&
+        (keys & MK_CONTROL) != 0 && !context.isMenuOpen &&
+        PointInSceneRect (x, y) && !context.isChromeTaken && !PointOnCompass (x, y))
+    {
+        m_scenePanning    = true;
+        m_scenePanStartPx = POINT { x, y };
+        m_scenePanStartX  = m_sceneView.panX;
+        m_scenePanStartY  = m_sceneView.panY;
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Pressing on the recorder's volume wheel starts its drag, which handles
+    // every move until the release: no orbit, no click.
+    if (m_shell.DeskSceneActive() && !context.isMenuOpen && !context.isGuestPointing)
+    {
+        float  span  = 0.0f;
+        RECT   wheel = GetVolumeWheelRect (&span);
+        POINT  pt    = { x, y };
+
+        if (PtInRect (&wheel, pt))
+        {
+            m_volumeDragging      = true;
+            m_volumeDragStartX    = x;
+            m_volumeDragStartGain = m_shell.m_audio->GetTapeSource().GetVolume();
+            m_volumeDragSpanPx    = span;
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
+    // A desk recorder key goes down the moment it is pressed, as under a
+    // finger, and is down until the button is released; its command runs on
+    // the release, like any button's. Stop is the exception: on the real
+    // deck the key at the bottom of its travel trips the latch, so the keys
+    // that are down are released then, with the button down.
+    if (m_shell.DeskSceneActive() && !context.isMenuOpen)
+    {
+        SceneHitResult  keyHit = RecorderHit (x, y);
+
+        if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
+        {
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
+            m_recorderHeldKey                               = keyHit.recorderKey;
+
+            if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
+            {
+                m_shell.m_tapeDeck->SetKeyReleaseAtMs (nowMs + ShellTapeDeck::kRecorderKeyDownMs);
+            }
+
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        }
+    }
+
+    // The compass is drawn on top of everything on the scene, so a press on
+    // it is the compass's.
+    if (m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() && !context.isMenuOpen &&
+        m_sceneCompass.OnPointerDown (x, y))
+    {
+        result = DxuiMessageResult::Handled;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
+    // the only other thing a press on the scene begins, and which would
+    // otherwise swallow the gesture.
+    if (m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() && !context.isMenuOpen
+        && !context.isGuestPointing && m_deskScene.MaxBezelTiltRad() > 0.0f)
+    {
+        SceneHitResult  hit = DeskSceneHit (x, y);
+
+        if (hit.target == SceneHitResult::Target::BezelTilt)
+        {
+            m_bezelTilting      = true;
+            m_bezelTiltStartPx  = POINT { x, y };
+            m_bezelTiltStartRad = m_deskScene.BezelTiltRad();
+
+            result = DxuiMessageResult::Handled;
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
+    // A PLAIN DRAG ON THE SCENE TURNS IT, AND THE SCENE INCLUDES THE MACHINE.
+    // It used to pan, and only when zoomed, so at rest the most natural
+    // gesture in the window did nothing at all. Dragging a 3D object turns it
+    // in other programs; the pan is on the touchpad's two-finger slide,
+    // beside the zoom on its pinch.
+    //
+    // ARMED OVER EVERYTHING ON THE SCENE, not only over the empty backdrop.
+    // Requiring a target miss made the picture and the drives' faces, the
+    // largest and most obvious surfaces in the window, dead to the gesture: a
+    // drag begun on the machine did nothing while the same drag an inch to
+    // the left turned it. A press there means what it meant before; the
+    // release determines which, exactly as for a button or the compass:
+    //
+    //     travel past the slop  ->  a turn, and the release ends it
+    //     released inside it    ->  a click, and the chain below runs
+    //
+    // The two grab targets are excluded because a press on them begins a
+    // different drag or a command: the bezel's tilt marks (armed above, which
+    // returns before this) and a drive's door.
+    //
+    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the press.
+    // A scene hit of None is true of every pixel of the toolbar and the
+    // status bar as well -- there is no machine out there to hit -- so arming
+    // on that alone armed a turn under the command buttons, and the release
+    // that would have fired them ended the turn instead.
+    if (m_shell.DeskSceneActive() && !m_shell.m_renderer->GetD3D().IsFullscreen() &&
+        !context.isMenuOpen && !context.isGuestPointing &&
+        PointInSceneRect (x, y) && !context.isChromeTaken)
+    {
+        SceneHitResult  hit    = DeskSceneHit (x, y);
+        bool            onDoor = hit.target == SceneHitResult::Target::Drive
+                                 && hit.region == DriveWidgetRegion::Eject;
+
+        if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
+        {
+            BeginSceneOrbit (x, y);
+            m_sceneOrbitLeftBtn = true;
+        }
+    }
+
+Error:
+    return result;
+}

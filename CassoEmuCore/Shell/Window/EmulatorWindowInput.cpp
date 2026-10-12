@@ -901,14 +901,10 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     int                                  x           = ((int) (short) LOWORD (lParam));
     int                                  y           = ((int) (short) HIWORD (lParam));
     bool                                 consumed    = false;
-    bool                                 toolbarTook = false;
     bool                                 chromeTook  = false;
-    bool                                 isGateOpen  = false;
-    std::shared_lock<std::shared_mutex>  gate;
+    ScenePointerContext                  context;
 
 
-
-    UNREFERENCED_PARAMETER (wParam);
 
     // While paddle-captured, the left button is fire button 0 and the
     // pointer is hidden/confined, so nothing else acts on the press.
@@ -937,19 +933,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         SetChromeFocusIndex (s_kChromeFocusNone);
     }
 
-    // A press outside the menu strip dismisses any open menu. The strip
-    // itself toggles / hover-switches via the menu bar's own mouse
-    // handling, and the popup-backed dropdown receives row clicks
-    // directly; the popup takes no capture, so the owner drives this.
-    if (m_chrome->m_mainMenu.IsOpen())
-    {
-        RECT  strip = m_chrome->m_mainMenu.GetBounds();
-
-        if (x < strip.left || x >= strip.right || y < strip.top || y >= strip.bottom)
-        {
-            m_chrome->m_mainMenu.Hide();
-        }
-    }
+    // A press outside the menu strip closes an open menu.
+    m_chrome->DismissMenuOutside (x, y);
 
     //  Before the rest of the chrome: the bar sits in its own band and
     //  overlaps nothing, so an event inside it belongs to it and to nothing
@@ -959,29 +944,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    // Command toolbar press (button press states + slider drag start).
-    toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonDown (x, y);
-
-    if (toolbarTook)
-    {
-        m_renderer->GetD3D().MarkRedrawNeeded();
-    }
-
-    chromeTook = chromeTook || toolbarTook;
-
-    if (MachineHasCaseSwitches())
-    {
-        Apple2cSwitchBar::Part  part = m_chrome->m_switchBar.GetPartAt (x, y);
-
-        // The strip is painted only when a frame is presented, and a static
-        // screen presents none; a key that went down asks for one.
-        if (m_chrome->m_switchBar.SetPressedPart (part))
-        {
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-
-        chromeTook = chromeTook || part != Apple2cSwitchBar::Part::None;
-    }
+    // The command toolbar and the //c switch bar.
+    chromeTook = m_chrome->OnLButtonDown (x, y);
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
     // the press. We still report the message as not fully handled, but its
@@ -990,204 +954,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     consumed   = m_uiShell.OnLButtonDown (x, y);
     chromeTook = chromeTook || consumed;
 
-    // //c Mouse mode (non-capturing): a press over the emulator display is
-    // the guest mouse button -- but only once guest software has turned the
-    // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
-    // Chrome outside the display already had its chance above. With the
-    // desk scene, "over the display" means over the curved glass itself
-    // (release stays deliberately ungated, matching the 2D contract).
-    if (m_input->IsGuestMouseLive())
-    {
-        bool  overDisplay = false;
+    // //c Mouse mode: a press over the picture is the guest's mouse button.
+    m_input->PressGuestMouseButton (x, y);
 
-        if (CrtMonitorActive())
-        {
-            SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
+    context.isMenuOpen      = m_chrome->IsMenuOpen();
+    context.isChromeTaken   = chromeTook;
+    context.isGuestPointing = m_input->IsGuestMouseLive();
 
-            overDisplay = hit.target == SceneHitResult::Target::Glass;
-        }
-        else
-        {
-            overDisplay = x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
-                       && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom;
-        }
-
-        // Not behind live in reverse execution's history, where the mouse
-        // holds a recorded position. The press is tracked either way, so a
-        // release made behind live is injected once the machine is live.
-        // Behind live the press is held until the guest reads the button.
-        if (overDisplay)
-        {
-            isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-            m_input->GetHeldHostInputs().OnPress (HeldHostInputs::kMouseButton, isGateOpen);
-        }
-
-        if (overDisplay && !isGateOpen)
-        {
-            m_debugger->HoldInputBehindLive (HeldInput::MousePress);
-        }
-
-        if (overDisplay && isGateOpen)
-        {
-            m_machine.GetMouse()->SetButton (true);
-        }
-    }
-
-    // Pan arms LAST, and only on empty scene background: anything the user
-    // could have meant to click has already claimed the press by here, so a
-    // drag can never steal one. Zoomed all the way out there is nothing to
-    // pan to, so it stays disarmed and an idle drag on the backdrop does
-    // nothing rather than wobbling a scene that already fits.
-    //
-    // NOT WHILE THE GUEST MOUSE IS LIVE. //c Mouse mode maps the host pointer
-    // absolutely, and it keeps doing so over the BACKGROUND -- so a drag out
-    // there is very likely someone steering the guest cursor toward an edge,
-    // and panning would both hijack that drag and freeze the guest pointer
-    // for its duration. GuestMouseLive rather than Active on purpose: at a
-    // BASIC prompt nothing is reading the mouse, so panning stays available.
-    // Shift turns the press into an orbit -- the touchpad's road to it, where
-    // a right-drag is awkward. Ahead of the pan arm, and regardless of zoom.
-    // Never in fullscreen, where the desk is not on screen.
-    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
-        (wParam & MK_SHIFT) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
-        m_scene->PointInSceneRect (x, y) && !chromeTook)
-    {
-        m_scene->BeginSceneOrbit (x, y);
-        m_scene->m_sceneOrbitLeftBtn = true;
-        result = DxuiMessageResult::Handled;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    // Ctrl turns the press into a pan, the mouse's way to do what the touchpad
-    // does with a two-finger slide. Beside the Shift orbit, for the same
-    // reasons, and like it never in fullscreen. Not on the compass, which
-    // has its own Ctrl gestures and is handled below.
-    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
-        (wParam & MK_CONTROL) != 0 && !m_chrome->m_mainMenu.IsOpen() &&
-        m_scene->PointInSceneRect (x, y) && !chromeTook && !m_scene->PointOnCompass (x, y))
-    {
-        m_scene->m_scenePanning    = true;
-        m_scene->m_scenePanStartPx = POINT { x, y };
-        m_scene->m_scenePanStartX  = m_scene->m_sceneView.panX;
-        m_scene->m_scenePanStartY  = m_scene->m_sceneView.panY;
-        result = DxuiMessageResult::Handled;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    // Pressing on the recorder's volume wheel starts its drag, which handles
-    // every move until the release: no orbit, no click.
-    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive())
-    {
-        float  span  = 0.0f;
-        RECT   wheel = m_scene->GetVolumeWheelRect (&span);
-        POINT  pt    = { x, y };
-
-        if (PtInRect (&wheel, pt))
-        {
-            m_scene->m_volumeDragging      = true;
-            m_scene->m_volumeDragStartX    = x;
-            m_scene->m_volumeDragStartGain = m_audio->GetTapeSource().GetVolume();
-            m_scene->m_volumeDragSpanPx    = span;
-
-            result = DxuiMessageResult::Handled;
-            BAIL_OUT_IF (true, S_OK);
-        }
-    }
-
-    // A desk recorder key starts down the moment it is pressed, as under a
-    // finger, and stays down while the button is held; what it does still
-    // waits for the release, like any button. Stop is the exception: it is
-    // the key reaching the bottom that trips the latch, so the held keys are
-    // released then, with the button still down.
-    if (DeskSceneActive() && !m_chrome->m_mainMenu.IsOpen())
-    {
-        SceneHitResult  keyHit = m_scene->RecorderHit (x, y);
-
-        if (keyHit.target == SceneHitResult::Target::Recorder && keyHit.recorderKey >= 0)
-        {
-            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now().time_since_epoch()).count();
-
-            m_scene->m_recorderKeyDipMs[(size_t) keyHit.recorderKey] = nowMs;
-            m_scene->m_recorderHeldKey                               = keyHit.recorderKey;
-
-            if (TapeDeckWidget::GetButtonRegion ((size_t) keyHit.recorderKey) == TapeDeckRegion::Stop)
-            {
-                m_tapeDeck->SetKeyReleaseAtMs (nowMs + ShellTapeDeck::kRecorderKeyDownMs);
-            }
-
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-    }
-
-    // The compass outranks everything on the scene: it is drawn on top,
-    // so a press where it sits belongs to it.
-    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() && !m_chrome->m_mainMenu.IsOpen() &&
-        m_scene->m_sceneCompass.OnPointerDown (x, y))
-    {
-        result = DxuiMessageResult::Handled;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    // Grabbing a tilt mark starts the bezel drag. Before the orbit, which is
-    // the only other thing a press on the scene begins, and which would
-    // otherwise swallow the gesture.
-    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() && !m_chrome->m_mainMenu.IsOpen()
-        && !m_input->IsGuestMouseLive() && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f)
-    {
-        SceneHitResult  hit = m_scene->DeskSceneHit (x, y);
-
-        if (hit.target == SceneHitResult::Target::BezelTilt)
-        {
-            m_scene->m_bezelTilting      = true;
-            m_scene->m_bezelTiltStartPx  = POINT { x, y };
-            m_scene->m_bezelTiltStartRad = m_scene->m_deskScene.BezelTiltRad();
-
-            result = DxuiMessageResult::Handled;
-            BAIL_OUT_IF (true, S_OK);
-        }
-    }
-
-    // A PLAIN DRAG ON THE SCENE TURNS IT, AND THE SCENE INCLUDES THE MACHINE.
-    // It used to pan, and only when zoomed -- so at rest the most natural
-    // gesture in the window did nothing at all. Turning is what people expect
-    // of a 3D thing under the mouse; the pan still lives on the touchpad's
-    // two-finger slide, beside the zoom on its pinch.
-    //
-    // ARMED OVER ANYTHING THE SCENE SHOWS, not only over the empty backdrop.
-    // Requiring a target miss meant the picture and the drives' faces -- the
-    // largest and most obvious surfaces in the window, the ones a hand
-    // reaches for first -- were dead to the gesture, and a drag begun on the
-    // machine did nothing while the same drag an inch to the left turned it.
-    // A press there still MEANS what it meant; it is the release that decides
-    // which, exactly as it does for a button or for the compass:
-    //
-    //     travel past the slop  ->  a turn, and the release ends it
-    //     released inside it    ->  a click, and the chain below runs
-    //
-    // The two grab targets are excluded because a press on them already
-    // begins a different drag or a command: the bezel's tilt marks (armed
-    // above, which bails before reaching here) and a drive's door.
-    //
-    // ONLY ON THE SCENE'S OWN RECT, and only where no chrome took the press.
-    // A scene hit of None is true of every pixel of the toolbar and the
-    // status bar as well -- there is no machine out there to hit -- so arming
-    // on that alone armed a turn under the command buttons, and the release
-    // that would have fired them ended the turn instead.
-    if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen() &&
-        !m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive() &&
-        m_scene->PointInSceneRect (x, y) && !chromeTook)
-    {
-        SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
-        bool            onDoor = hit.target == SceneHitResult::Target::Drive
-                                 && hit.region == DriveWidgetRegion::Eject;
-
-        if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
-        {
-            m_scene->BeginSceneOrbit (x, y);
-            m_scene->m_sceneOrbitLeftBtn = true;
-        }
-    }
+    result = m_scene->OnLButtonDown (x, y, wParam, context);
 
 Error:
     return result;

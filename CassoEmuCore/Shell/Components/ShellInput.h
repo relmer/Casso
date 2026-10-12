@@ -133,6 +133,9 @@ public:
     void  ClipPaddleCursorToClient ();
     void  UpdatePaddleFromMouse    (int xClient, int yClient);
     void  PushPaddleButton         (int index, bool pressed);
+
+    // A left-button press over the picture, as the //c guest mouse's button.
+    void  PressGuestMouseButton    (int x, int y);
     bool  IsPaddleCaptured         () const { return m_paddleCaptured; }
 
     // Controllers and players. PickPlayer and PickControllerProfile take

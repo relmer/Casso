@@ -47,6 +47,14 @@ public:
     // The chrome theme everything is painted in.
     CassoTheme &  GetTheme () { return m_chromeTheme; }
 
+    // Whether a menu from the menu bar is open.
+    bool  IsMenuOpen () const { return m_mainMenu.IsOpen(); }
+
+    // The left button: a press outside the menu strip closes an open menu,
+    // and a press on the command toolbar or the //c switch bar is theirs.
+    void  DismissMenuOutside (int x, int y);
+    bool  OnLButtonDown      (int x, int y);
+
     // The caption buttons' tooltip, which the update indicator in the caption
     // shares.
     DxuiTooltip &  GetCaptionTooltip () { return m_captionTooltip; }

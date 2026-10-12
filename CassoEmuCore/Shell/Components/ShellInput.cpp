@@ -2960,3 +2960,43 @@ void ShellInput::SyncSelectorState()
 {
     SyncPaddleSourceList();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::PressGuestMouseButton
+//
+//  Only once guest software has turned the mouse on, so clicks are not
+//  swallowed at a BASIC prompt, and only over the picture: through the glass
+//  when the CRT is on, else across the viewport. Behind live the press is
+//  deferred until the guest reads the button; a release made behind live is
+//  injected once the machine is live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::PressGuestMouseButton (int x, int y)
+{
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+
+
+
+    if (!IsGuestMouseLive() || !m_host.MapPointerToPicture (x, y).has_value())
+    {
+        return;
+    }
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
+
+    if (!isGateOpen)
+    {
+        m_debugger.HoldInputBehindLive (HeldInput::MousePress);
+        return;
+    }
+
+    m_machine.GetMouse()->SetButton (true);
+}
