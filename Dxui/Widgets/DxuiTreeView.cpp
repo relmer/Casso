@@ -1197,6 +1197,13 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         uint32_t              glyphCol    = 0;
         uint32_t              textCol     = 0;
         DxuiRowLook           look        = DxuiRowLook::Resolve (theme, i == m_highlight, i == m_highlight, i == m_hoverRow, m_focused);
+
+        if (i == m_dropRow)
+        {
+            look.fill = theme.ContentSelectionMulti();
+            look.edge = theme.ContentSelectionMultiEdge();
+        }
+
         hasChildren = (node != nullptr) && CanExpand (*node);
         bool              interactive = (node != nullptr)
                                           && node->capabilityFlag == DxuiTreeCapabilityFlag::Optional

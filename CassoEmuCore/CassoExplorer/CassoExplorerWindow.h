@@ -671,6 +671,11 @@ private:
     void  ReloadKnownFolders     ();
     void  ReloadKnownFoldersIfChanged ();
     void  RefreshQuickAccessIfChanged ();
+    bool  IsShellDropFile     (int row, std::wstring & outPath) const;
+    static bool  IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
+
+    //  Files the shell runs, with what is dropped on them as arguments.
+    static constexpr const wchar_t *  kProgramExtensions[] = { L".exe", L".com", L".bat", L".cmd" };
     static int64_t  GetQuickAccessStamp (const std::wstring & directory);
     void  CheckDrives            ();
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);

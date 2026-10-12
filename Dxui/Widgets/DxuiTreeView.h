@@ -189,6 +189,11 @@ public:
     int                           GetRowHeight    () const { return m_rowHeightPx; }
     int                           GetVisibleCount () const { return (int) m_flatRows.size(); }
     int                           GetHoverRow     () const { return m_hoverRow; }
+
+    //  The row a drag would drop onto, drawn as a selected row other than the
+    //  keyboard's; -1 for none.
+    void                          SetDropRow      (int row) { m_dropRow = row; }
+    int                           GetDropRow      () const  { return m_dropRow; }
     void                          SetHoverRow     (int row)  { m_hoverRow = row; }
     bool                          IsEnabled       () const { return m_enabled; }
     bool                          IsFocused       () const { return m_focused; }
@@ -323,6 +328,7 @@ private:
     float                      m_leftPadDip     = 0.0f;
     int                        m_highlight      = -1;
     int                        m_hoverRow       = -1;
+    int                        m_dropRow        = -1;
     int                        m_pressedRow     = -1;
     int                        m_lastClickRow   = -1;
     ULONGLONG                  m_lastClickMs    = 0;

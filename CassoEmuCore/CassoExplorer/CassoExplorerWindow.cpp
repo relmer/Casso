@@ -5901,6 +5901,13 @@ bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstr
     {
         row = m_list->IsVisible() ? m_list->HitTestRow (client.x - list.left, client.y - list.top) : -1;
 
+        //  An archive takes a drop as a folder does, and a program opens with
+        //  what is dropped on it, each through the shell's own target.
+        if (IsShellDropFile (row, outFolder))
+        {
+            return true;
+        }
+
         if (row < 0 || !m_browser.TryGetRowLocation (row, location) || location.kind != Location::Kind::HostFolder)
         {
             location = m_browser.GetLocation();
@@ -5923,6 +5930,100 @@ bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstr
     outFolder = location.path;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsShellDropFile
+//
+//  A file in the list that the shell's own drop target handles: an archive,
+//  which takes a copy of what is dropped, and a program, which opens with
+//  the dropped files as its arguments.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsShellDropFile (int row, std::wstring & outPath) const
+{
+    std::wstring  extension;
+
+
+
+    if (row < 0 || (size_t) row >= m_browser.GetRows().size() || m_browser.GetLocation().kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    const CatalogRow &  item = m_browser.GetRows()[(size_t) row];
+
+    if (item.isDirectory || item.isDiskImage || !m_browser.TryGetRowPath (row, outPath))
+    {
+        return false;
+    }
+
+    extension = std::filesystem::path (outPath).extension().wstring();
+
+    return item.isArchive || std::any_of (std::begin (kProgramExtensions), std::end (kProgramExtensions),
+                                          [&extension] (const wchar_t * known) { return _wcsicmp (extension.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsDraggedFromFolder
+//
+//  Whether every file the drag holds lies directly in the folder, so that a
+//  drop there would move each onto itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsDraggedFromFolder (IDataObject * data, const std::wstring & folder)
+{
+    FORMATETC  format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium         = {};
+    HDROP      drop           = nullptr;
+    UINT       count          = 0;
+    UINT       index          = 0;
+    bool       all            = false;
+    HRESULT    hr             = E_FAIL;
+    wchar_t    path[MAX_PATH] = {};
+
+
+
+    if (data != nullptr)
+    {
+        hr = data->GetData (&format, &medium);
+    }
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    drop  = (HDROP) GlobalLock (medium.hGlobal);
+    count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
+    all   = count > 0;
+
+    for (index = 0; all && index < count; index++)
+    {
+        all = DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0
+              && IsSameFolder (CassoExplorerBrowser::GetParentFolder (path), folder);
+    }
+
+    if (drop != nullptr)
+    {
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    ReleaseStgMedium (&medium);
+
+    return all;
 }
 
 
@@ -6029,6 +6130,15 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
         HoverDropTab (screen);
         ShowDropTarget (tag, screen, false);
         DescribeDrop (data, DROPEFFECT_NONE, location);
+        return DROPEFFECT_NONE;
+    }
+
+    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsDraggedFromFolder (data, hostFolder))
+    {
+        LeaveHostDrop();
+        ShowDropTarget (tag, screen, false);
+        DescribeDrop   (data, DROPEFFECT_NONE, location);
+
         return DROPEFFECT_NONE;
     }
 
@@ -6280,8 +6390,12 @@ void CassoExplorerWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
     {
         row = m_list->HitTestRow (client.x - list.left, client.y - list.top);
 
-        if (row >= 0 && m_browser.TryGetRowLocation (row, location) &&
-            (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage))
+        std::wstring  target;
+
+        if (row >= 0 && ((m_browser.TryGetRowLocation (row, location) &&
+                          (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage
+                           || location.kind == Location::Kind::HostFolder))
+                         || IsShellDropFile (row, target)))
         {
             listRow = row;
         }
@@ -6294,7 +6408,7 @@ void CassoExplorerWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
 
     m_list->SetDropRow (listRow);
     m_treeDropRow = treeRow;
-    m_tree->SetHoverRow (treeRow);
+    m_tree->SetDropRow (treeRow);
 
     Invalidate();
 }
@@ -6319,6 +6433,7 @@ void CassoExplorerWindow::ClearDropTarget()
     }
 
     m_list->SetDropRow  (-1);
+    m_tree->SetDropRow  (-1);
     m_tree->SetHoverRow (-1);
     m_treeDropRow = -1;
 
@@ -6356,6 +6471,13 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     POINTL                         at         = { screen.x, screen.y };
 
 
+
+    //  Back onto the folder the files came from: nothing to do.
+    if (TryGetHostDropFolder (tag, screen, hostFolder) && IsDraggedFromFolder (data, hostFolder))
+    {
+        m_dropTarget.SetDropResult (DROPEFFECT_NONE);
+        return;
+    }
 
     //  Onto a host folder, the folder's own target does the drop.
     if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsSameFolder (hostFolder, m_hostDropFolder))

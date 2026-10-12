@@ -4233,9 +4233,11 @@ void DxuiListView::PaintDataRows (
 
         //  Square, as Explorer's are, and like Explorer's a little shorter
         //  than the row and ending short of the last column's edge.
+        //  A drop target is drawn as a selected row other than the keyboard's:
+        //  its fill, and the accent outline.
         if (r == m_dropRow)
         {
-            look.fill = isSel ? look.fill : m_theme->ContentHover();
+            look.fill = m_theme->ContentSelectionMulti();
             look.edge = m_theme->ContentSelectionMultiEdge();
         }
 
