@@ -3847,3 +3847,280 @@ bool ShellDeskScene::OnRButtonUp (int x, int y)
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnDragMove
+//
+//  A pointer move during a drag the press began on the scene: the compass, an
+//  orbit, the volume wheel, a bezel tilt and a pan. True when the move is the
+//  drag's, so the rest of the window does not see it. Not called under paddle
+//  capture, which has the pointer to itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::OnDragMove (int x, int y, WPARAM keys, int64_t nowMs)
+{
+    bool  leftDown    = (keys & MK_LBUTTON) != 0;
+    bool  rightDown   = (keys & MK_RBUTTON) != 0;
+    bool  isUnderSlop = false;
+    bool  isTaken     = false;
+
+
+
+    // Every move goes to the compass: when armed, the move is part of its
+    // gesture; when idle, the call updates its hover highlight. Ahead of the drags below, so a
+    // press on the compass never also moves the orbit's anchor.
+    if (m_sceneCompass.OnPointerMove (x, y))
+    {
+        isTaken = true;
+    }
+
+    // An orbit in progress uses the move, whichever button is driving it.
+    // Under the slop a left press may yet be a click, so the scene does not
+    // move: a picture that shifts a pixel under a press and
+    // shifts back is worse than one that does not move at all. The right
+    // button's orbit has no click to protect and turns at once.
+    else if (m_sceneOrbiting && ((m_sceneOrbitLeftBtn && leftDown) || (!m_sceneOrbitLeftBtn && rightDown)))
+    {
+        isUnderSlop = !m_sceneOrbitMoved && m_sceneOrbitLeftBtn &&
+                      std::abs (x - m_sceneOrbitStartPx.x) <= s_kSceneOrbitSlopPx &&
+                      std::abs (y - m_sceneOrbitStartPx.y) <= s_kSceneOrbitSlopPx;
+
+        if (!isUnderSlop)
+        {
+            m_sceneOrbitMoved = true;
+            UpdateSceneOrbit (x, y);
+        }
+
+        isTaken = true;
+    }
+
+    // The recorder's volume wheel follows the pointer across.
+    else if (m_volumeDragging && leftDown)
+    {
+        DragVolumeWheel (x, nowMs);
+        isTaken = true;
+    }
+
+    // THE TILT FOLLOWS THE POINTER, not the mark. Dragging up tips the face up
+    // and dragging down tips it down, whichever mark the drag started on: the
+    // marks indicate which way the control goes, and are not two handles that
+    // move in opposite senses. Screen y grows downward, so the travel is
+    // negated.
+    else if (m_bezelTilting && leftDown)
+    {
+        m_deskScene.SetBezelTilt (m_bezelTiltStartRad + ((float) (m_bezelTiltStartPx.y - y)) * kBezelTiltRadPerPx);
+        InvalidateSceneComposition();
+        isTaken = true;
+    }
+
+    // A pan is measured from the anchor stored at the press rather than
+    // accumulated move to move, so the scene tracks the cursor exactly
+    // however far or slowly it travels, and a long drag cannot creep away
+    // from it.
+    else if (m_scenePanning && leftDown)
+    {
+        RECT   box    = m_deskScene.Composition().viewportPx;
+        float  width  = (float) (box.right - box.left);
+        float  height = (float) (box.bottom - box.top);
+
+        if (width > 0.0f && height > 0.0f)
+        {
+            // A pixel of cursor travel is two NDC units across the whole
+            // viewport, and NDC y runs opposite client y.
+            m_sceneView.panX = m_scenePanStartX + ((float) (x - m_scenePanStartPx.x) / width)  * 2.0f;
+            m_sceneView.panY = m_scenePanStartY - ((float) (y - m_scenePanStartPx.y) / height) * 2.0f;
+
+            ClampSceneView();
+            InvalidateSceneComposition();
+        }
+
+        isTaken = true;
+    }
+
+    return isTaken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::UpdateHover
+//
+//  The desk's hover state under the pointer: a drive name that scrolls while
+//  the pointer is on its drive or the name, and the label over the recorder
+//  with the name of the key under the pointer or the volume wheel's level.
+//  The label text changes in place rather than reopening.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::UpdateHover (int x, int y, int64_t nowMs)
+{
+    int    key   = -1;
+    POINT  pt    = { x, y };
+    RECT   wheel = GetVolumeWheelRect();
+
+
+
+    // A change repositions the drive labels, so the one that was scrolling
+    // returns to its start.
+    if (UpdateSceneLabelHover (x, y, nowMs))
+    {
+        SyncSceneDriveLabels();
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+
+    if (m_shell.DeskSceneActive() && (m_volumeDragging || PtInRect (&wheel, pt)))
+    {
+        key = s_kVolumeWheelLabelKey;
+    }
+    else if (m_shell.DeskSceneActive())
+    {
+        SceneHitResult  hit = RecorderHit (x, y);
+
+        key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
+    }
+
+    if (key != m_recorderHoverKey)
+    {
+        m_recorderHoverKey = key;
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ClearHover
+//
+//  The pointer left the window: the recorder's key name goes, and a scrolling
+//  drive name returns to its start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ClearHover (int64_t nowMs)
+{
+    m_recorderHoverKey = -1;
+
+    if (UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
+    {
+        SyncSceneDriveLabels();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveTooltip
+//
+//  The drive tooltip for a point on the desk or the fullscreen strip; empty
+//  when there is none. Windowed, every name and padlock is on the name
+//  strips, so the tooltips are the info icon's and, for a padlock, the
+//  write-protect composition anchored to its label. In fullscreen, a drive on
+//  the strip also has the image's name as its tooltip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT & outAnchor) const
+{
+    POINT                                     pt     = { x, y };
+    const std::array<DriveWidgetState, 2>  &  states = m_shell.m_disks->GetDriveWidgetState();
+
+
+
+    outTip.clear();
+    outAnchor = {};
+
+    // The info icon first, since its target is inside the label's.
+    for (int i = 0; i < (int) m_sceneInfoIconRect.size() && outTip.empty(); i++)
+    {
+        if (states[i].wozConflict && PtInRect (&m_sceneInfoIconRect[i], pt))
+        {
+            outAnchor = m_sceneInfoIconRect[i];
+            outTip    = m_shell.m_disks->ComposeDriveInfoTooltip (i);
+        }
+    }
+
+    // The name strip's padlock, on the desk and on the strip.
+    for (int i = 0; i < (int) m_sceneDriveLabelRect.size() && outTip.empty(); i++)
+    {
+        if (m_sceneDriveLabelRect[i].right > m_sceneDriveLabelRect[i].left &&
+            PtInRect (&m_sceneDriveLabelRect[i], pt) &&
+            states[i].writeProtect.Any())
+        {
+            outAnchor = m_sceneDriveLabelRect[i];
+            outTip    = ComposeWriteProtectTooltip (
+                            i + 1,
+                            std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring(),
+                            states[i].writeProtect);
+        }
+    }
+
+    if (outTip.empty() && m_shell.m_renderer->GetD3D().IsFullscreen() &&
+        m_stripRectPx.bottom > m_stripRectPx.top && PtInRect (&m_stripRectPx, pt))
+    {
+        SceneHitResult  hit = StripHit (x, y);
+
+        if (hit.target == SceneHitResult::Target::Drive)
+        {
+            std::wstring  imageName = std::filesystem::path (
+                m_shell.m_machine.GetDiskStore().GetSourcePath (6, hit.driveIndex)).filename().wstring();
+
+            outAnchor = m_stripComp.driveRectPx[hit.driveIndex];
+            outTip    = ComposeWriteProtectTooltip (hit.driveIndex + 1, imageName, states[hit.driveIndex].writeProtect);
+
+            if (outTip.empty())
+            {
+                outTip = imageName;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsGrabbableAt
+//
+//  Whether the point is on something the left button can drag: the
+//  recorder's volume wheel, or windowed, a bezel tilt mark. Resolved through
+//  the hit tests the press uses, so the IDC_HAND cursor appears exactly where
+//  a drag would start. True during either drag, wherever the pointer is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsGrabbableAt (int x, int y) const
+{
+    POINT  pt          = { x, y };
+    RECT   wheel       = GetVolumeWheelRect();
+    bool   isGrabbable = false;
+
+
+
+    if (m_volumeDragging || PtInRect (&wheel, pt))
+    {
+        isGrabbable = true;
+    }
+    else if (!m_shell.m_renderer->GetD3D().IsFullscreen() && m_deskScene.MaxBezelTiltRad() > 0.0f)
+    {
+        isGrabbable = m_bezelTilting || DeskSceneHit (x, y).target == SceneHitResult::Target::BezelTilt;
+    }
+
+    return isGrabbable;
+}

@@ -2116,3 +2116,125 @@ bool ShellChrome::OnLButtonUp (int x, int y, Apple2cSwitchBar::Part & outSwitchP
 
     return false;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::OnMouseMove
+//
+//  The command toolbar's hover and slider drag, with the hovered button's
+//  label as a tooltip in icon-only mode, and on the //c the switch bar's hover
+//  and per-part tooltip. A tooltip request starts a dwell timer and the
+//  tooltip appears when it expires, so none appears during a fast pass over
+//  several controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::OnMouseMove (int x, int y, int64_t nowMs)
+{
+    RECT             anchor     = {};
+    const wchar_t *  toolbarTip = nullptr;
+
+
+
+    if (m_toolbar.OnToolbarMouseMove (x, y))
+    {
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+
+    toolbarTip = m_toolbar.GetTooltipAt (x, y, anchor);
+
+    if (toolbarTip != nullptr)
+    {
+        m_toolbarTooltip.RequestShow (anchor, toolbarTip, nowMs);
+    }
+    else
+    {
+        m_toolbarTooltip.RequestHide (nowMs);
+    }
+
+    if (m_shell.MachineHasCaseSwitches())
+    {
+        const wchar_t *  switchTip    = m_switchBar.GetTooltipTextAt (x, y);
+        bool             hoverChanged = m_switchBar.SetHovered (m_switchBar.HitTest (x, y));
+        bool             partChanged  = m_switchBar.SetHoverPoint (x, y);
+
+        // The strip is painted only when a frame is presented, and a static
+        // screen presents none, so a highlight that moved requests one.
+        if (hoverChanged || partChanged)
+        {
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        }
+
+        if (switchTip != nullptr)
+        {
+            m_switchBarTooltip.RequestShow (m_switchBar.GetBounds(), switchTip, nowMs);
+        }
+        else
+        {
+            m_switchBarTooltip.RequestHide (nowMs);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::RequestDriveTooltip
+//
+//  Request the drive tooltip over the anchor; an empty text hides it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::RequestDriveTooltip (const RECT & anchor, const std::wstring & tip, int64_t nowMs)
+{
+    if (!tip.empty())
+    {
+        m_driveTooltip.RequestShow (anchor, tip, nowMs);
+    }
+    else
+    {
+        m_driveTooltip.RequestHide (nowMs);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::OnMouseLeave
+//
+//  The pointer left the window: the toolbar, the switch bar and the tooltips
+//  drop their hover, and a switch pressed but not released comes back up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::OnMouseLeave (int64_t nowMs)
+{
+    bool  hoverChanged = false;
+    bool  pressChanged = false;
+
+
+
+    m_toolbar.OnToolbarMouseLeave();
+    m_toolbarTooltip.RequestHide (nowMs);
+    m_driveTooltip.RequestHide (nowMs);
+
+    hoverChanged = m_switchBar.SetHovered (false);
+    pressChanged = m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+
+    if (hoverChanged || pressChanged)
+    {
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+
+    m_switchBarTooltip.RequestHide (nowMs);
+}

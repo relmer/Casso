@@ -303,6 +303,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     bool               shellHandled = false;
     DriveWidget *      wpDrive      = nullptr;
     DriveWidget *      infoDrive    = nullptr;
+    std::wstring       tip;
+    RECT               anchor       = {};
     int64_t            nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -315,90 +317,12 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    // The compass sees every move: armed, it owns the gesture; idle, the
-    // call is what keeps its hover highlight honest. Ahead of the drags
-    // below because a press the compass took must never feed the orbit's
-    // own anchor math as well.
-    if (!m_input->IsPaddleCaptured() && m_scene->m_sceneCompass.OnPointerMove (x, y))
+    // A drag the press began on the scene uses the move. Never under paddle
+    // capture: no drag can begin there today, since the press handler bails
+    // out first, but the failure that change would cause is a game whose
+    // paddles stop responding, so the capture is tested here too.
+    if (!m_input->IsPaddleCaptured() && m_scene->OnDragMove (x, y, wParam, nowMs))
     {
-        return DxuiMessageResult::Handled;
-    }
-
-    // A pan in flight owns the move outright. Measured from the ANCHOR the
-    // press recorded rather than accumulated frame to frame, so the scene
-    // tracks the cursor exactly however far or slowly it travels and a long
-    // drag cannot creep away from it.
-    //
-    // The paddle check below cannot be reached while this claims the move, so
-    // the capture is tested HERE too. A pan cannot start under paddle capture
-    // today -- the press handler bails before arming one -- but that is one
-    // early-out in another function away from being untrue, and the failure
-    // it would cause is a game whose paddles stop responding.
-    // An orbit in flight owns the move the same way a pan does, whichever
-    // button is driving it.
-    if (m_scene->m_sceneOrbiting && !m_input->IsPaddleCaptured() &&
-        ((m_scene->m_sceneOrbitLeftBtn && leftDown) ||
-         (!m_scene->m_sceneOrbitLeftBtn && (wParam & MK_RBUTTON) != 0)))
-    {
-        // Under the slop this is still a click in the making, so the scene
-        // must not stir: a picture that shifts a pixel under a press and
-        // shifts back is worse than one that does not move at all. The
-        // right-button orbit has no click to protect and turns at once.
-        if (!m_scene->m_sceneOrbitMoved &&
-            m_scene->m_sceneOrbitLeftBtn &&
-            std::abs (x - m_scene->m_sceneOrbitStartPx.x) <= ShellDeskScene::s_kSceneOrbitSlopPx &&
-            std::abs (y - m_scene->m_sceneOrbitStartPx.y) <= ShellDeskScene::s_kSceneOrbitSlopPx)
-        {
-            return DxuiMessageResult::Handled;
-        }
-
-        m_scene->m_sceneOrbitMoved = true;
-
-        m_scene->UpdateSceneOrbit (x, y);
-        return DxuiMessageResult::Handled;
-    }
-
-    // The recorder's volume wheel, held, follows the pointer across.
-    if (m_scene->m_volumeDragging && leftDown && !m_input->IsPaddleCaptured())
-    {
-        m_scene->DragVolumeWheel (x, nowMs);
-
-        return DxuiMessageResult::Handled;
-    }
-
-    // THE TILT FOLLOWS THE POINTER, not the mark. Dragging up tips the face
-    // up and dragging down tips it down, whichever mark the gesture started
-    // on -- the marks say which way the control goes, they are not two
-    // separate handles that move in opposite senses. Screen y grows downward,
-    // so the travel is negated to get "up is up".
-    if (m_scene->m_bezelTilting && leftDown && !m_input->IsPaddleCaptured())
-    {
-        m_scene->m_deskScene.SetBezelTilt (m_scene->m_bezelTiltStartRad
-                                           + ((float) (m_scene->m_bezelTiltStartPx.y - y)) * ShellDeskScene::kBezelTiltRadPerPx);
-        m_scene->InvalidateSceneComposition();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (m_scene->m_scenePanning && leftDown && !m_input->IsPaddleCaptured())
-    {
-        RECT   box    = m_scene->m_deskScene.Composition().viewportPx;
-        float  width  = (float) (box.right - box.left);
-        float  height = (float) (box.bottom - box.top);
-
-        if (width > 0.0f && height > 0.0f)
-        {
-            // A pixel of cursor travel is two NDC units across the whole
-            // viewport, and NDC y runs opposite client y.
-            m_scene->m_sceneView.panX = m_scene->m_scenePanStartX
-                                      + ((float) (x - m_scene->m_scenePanStartPx.x) / width)  * 2.0f;
-            m_scene->m_sceneView.panY = m_scene->m_scenePanStartY
-                                      - ((float) (y - m_scene->m_scenePanStartPx.y) / height) * 2.0f;
-
-            m_scene->ClampSceneView();
-            m_scene->InvalidateSceneComposition();
-        }
-
         return DxuiMessageResult::Handled;
     }
 
@@ -422,39 +346,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_input->UpdateGuestMouseFromHost (x, y);
     }
 
-    // The desk's names scroll under the pointer too; a change re-hangs them so
-    // the one that was scrolling comes back to its start.
-    if (m_scene->UpdateSceneLabelHover (x, y, nowMs))
-    {
-        m_scene->SyncSceneDriveLabels();
-        m_renderer->GetD3D().MarkRedrawNeeded();
-    }
-
-    // The desk recorder's key under the pointer shows its name over it, and
-    // its volume wheel, held or under the pointer, how loud it is set -- in
-    // the same label, which changes in place rather than reopening.
-    {
-        int    key   = -1;
-        POINT  pt    = { x, y };
-        RECT   wheel = m_scene->GetVolumeWheelRect();
-
-        if (DeskSceneActive() && (m_scene->m_volumeDragging || PtInRect (&wheel, pt)))
-        {
-            key = ShellDeskScene::s_kVolumeWheelLabelKey;
-        }
-        else if (DeskSceneActive())
-        {
-            SceneHitResult  hit = m_scene->RecorderHit (x, y);
-
-            key = (hit.target == SceneHitResult::Target::Recorder) ? hit.recorderKey : -1;
-        }
-
-        if (key != m_scene->m_recorderHoverKey)
-        {
-            m_scene->m_recorderHoverKey = key;
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-    }
+    m_scene->UpdateHover (x, y, nowMs);
 
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
@@ -500,159 +392,31 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (shellHandled, S_OK);
 
+    // The command toolbar and the //c switch bar.
+    m_chrome->OnMouseMove (x, y, nowMs);
 
-    // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
-    // hovered button's label surfaces as a tooltip (no labels on the strip).
-    if (m_chrome->m_toolbar.OnToolbarMouseMove (x, y))
+    // The drive tooltip. On the desk and the fullscreen strip the scene finds
+    // it. The flat row has the info icon's, and a dwell tooltip for a
+    // protected drive only, since the name is on the widget's marquee label.
+    if (DeskSceneActive())
     {
-        m_renderer->GetD3D().MarkRedrawNeeded();
+        m_scene->GetDriveTooltip (x, y, tip, anchor);
+    }
+    else if (infoDrive != nullptr)
+    {
+        anchor = infoDrive->GetInfoIconRect();
+        tip    = m_disks->ComposeDriveInfoTooltip (infoDrive->GetDrive());
+    }
+    else if (wpDrive != nullptr)
+    {
+        std::wstring  imageName = std::filesystem::path (
+            m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+
+        anchor = wpDrive->GetOuterRect();
+        tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
     }
 
-    {
-        RECT             anchor = {};
-        const wchar_t *  tip    = m_chrome->m_toolbar.GetTooltipAt (x, y, anchor);
-
-        if (tip != nullptr)
-        {
-            m_chrome->m_toolbarTooltip.RequestShow (anchor, tip, nowMs);
-        }
-        else
-        {
-            m_chrome->m_toolbarTooltip.RequestHide (nowMs);
-        }
-    }
-
-    // //c switch strip: hover state and a per-part tooltip (reset / 80/40 /
-    // keyboard). Inert on non-//c machines (hidden).
-    if (MachineHasCaseSwitches())
-    {
-        const wchar_t * tip          = m_chrome->m_switchBar.GetTooltipTextAt (x, y);
-        bool            hoverChanged = m_chrome->m_switchBar.SetHovered (m_chrome->m_switchBar.HitTest (x, y));
-        bool            partChanged  = m_chrome->m_switchBar.SetHoverPoint (x, y);
-
-        // The strip is painted only when a frame is presented, and a static
-        // screen presents none; a highlight that moved asks for one.
-        if (hoverChanged || partChanged)
-        {
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-
-        if (tip != nullptr)
-        {
-            m_chrome->m_switchBarTooltip.RequestShow (m_chrome->m_switchBar.GetBounds(), tip, nowMs);
-        }
-        else
-        {
-            m_chrome->m_switchBarTooltip.RequestHide (nowMs);
-        }
-    }
-
-    // Drive hover tooltip, suppressed while the joystick button owns the
-    // hover (mutually exclusive bands, but be explicit). Windowed, the 3D
-    // scene's name strips already show every basename and padlock, so the
-    // only tooltip left is the padlock's WHY -- the write-protect
-    // composition, anchored to the label it explains. Dwelling on the case
-    // itself volunteers nothing the strip is not already saying. Fullscreen
-    // shows no labels, so the overlay strip's drives keep the name tooltip,
-    // joined by the write-protect composition when the disk is protected --
-    // there is no padlock anywhere else to ask. The 2D path keeps its dwell
-    // tooltip for protected drives only (the basename lives on the widget's
-    // marquee label there).
-    {
-        std::wstring  tip;
-        RECT          anchor = {};
-
-        // The info icon answers first wherever it is drawn. Its target sits
-        // inside the label and the widget, which explain other things, and
-        // the pointer resting on the icon is asking about the icon.
-        if (!DeskSceneActive() && infoDrive != nullptr)
-        {
-            anchor = infoDrive->GetInfoIconRect();
-            tip    = m_disks->ComposeDriveInfoTooltip (infoDrive->GetDrive());
-        }
-
-        if (tip.empty() && DeskSceneActive())
-        {
-            for (int i = 0; i < (int) m_scene->m_sceneInfoIconRect.size(); i++)
-            {
-                if (m_disks->GetDriveWidgetState()[i].wozConflict && PtInRect (&m_scene->m_sceneInfoIconRect[i], pointer))
-                {
-                    anchor = m_scene->m_sceneInfoIconRect[i];
-                    tip    = m_disks->ComposeDriveInfoTooltip (i);
-                    break;
-                }
-            }
-        }
-
-        if (tip.empty() && DeskSceneActive())
-        {
-            // The name strip answers for the padlock in BOTH presentations:
-            // the strip carries names and locks in fullscreen now, so the
-            // lock explains itself there the same way it does on the desk.
-            for (int i = 0; i < (int) m_scene->m_sceneDriveLabelRect.size(); i++)
-            {
-                POINT  lp = { x, y };
-
-                if (m_scene->m_sceneDriveLabelRect[i].right > m_scene->m_sceneDriveLabelRect[i].left &&
-                    PtInRect (&m_scene->m_sceneDriveLabelRect[i], lp) &&
-                    m_disks->GetDriveWidgetState()[i].writeProtect.Any())
-                {
-                    anchor = m_scene->m_sceneDriveLabelRect[i];
-                    tip    = ComposeWriteProtectTooltip (
-                                 i + 1,
-                                 std::filesystem::path (m_machine.GetDiskStore().GetSourcePath (6, i))
-                                     .filename().wstring(),
-                                 m_disks->GetDriveWidgetState()[i].writeProtect);
-                    break;
-                }
-            }
-        }
-
-        if (tip.empty() && DeskSceneActive() && m_renderer->GetD3D().IsFullscreen())
-        {
-            POINT  pt = { x, y };
-
-            if (m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                PtInRect (&m_scene->m_stripRectPx, pt))
-            {
-                SceneHitResult  sceneHit = m_scene->StripHit (x, y);
-
-                if (sceneHit.target == SceneHitResult::Target::Drive)
-                {
-                    std::wstring  imageName = std::filesystem::path (
-                        m_machine.GetDiskStore().GetSourcePath (6, sceneHit.driveIndex)).filename().wstring();
-
-                    anchor = m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex];
-                    tip    = ComposeWriteProtectTooltip (
-                                 sceneHit.driveIndex + 1, imageName,
-                                 m_disks->GetDriveWidgetState()[sceneHit.driveIndex].writeProtect);
-
-                    if (tip.empty())
-                    {
-                        tip = imageName;
-                    }
-                }
-            }
-        }
-
-        if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr)
-        {
-            std::wstring  imageName = std::filesystem::path (
-                m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
-
-            anchor = wpDrive->GetOuterRect();
-            tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
-        }
-
-        if (!tip.empty())
-        {
-            m_chrome->m_driveTooltip.RequestShow (anchor, tip, nowMs);
-        }
-        else
-        {
-            m_chrome->m_driveTooltip.RequestHide (nowMs);
-        }
-    }
+    m_chrome->RequestDriveTooltip (anchor, tip, nowMs);
 
 Error:
     return result;
@@ -693,30 +457,11 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // Off every control, so the recorder's magnified controls ease back down
     // and the desk's scrolling name returns to its start.
     m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
-    m_scene->m_recorderHoverKey = -1;
-
-    if (m_scene->UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
-    {
-        m_scene->SyncSceneDriveLabels();
-    }
+    m_scene->ClearHover (nowMs);
 
     m_renderer->GetD3D().MarkRedrawNeeded();
 
-    m_chrome->m_toolbar.OnToolbarMouseLeave();
-    m_chrome->m_toolbarTooltip.RequestHide (nowMs);
-    m_chrome->m_driveTooltip.RequestHide (nowMs);
-
-    {
-        bool  hoverChanged = m_chrome->m_switchBar.SetHovered (false);
-        bool  pressChanged = m_chrome->m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
-
-        if (hoverChanged || pressChanged)
-        {
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-    }
-
-    m_chrome->m_switchBarTooltip.RequestHide (nowMs);
+    m_chrome->OnMouseLeave (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
@@ -747,7 +492,6 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     DxuiMessageResult  result     = DxuiMessageResult::NotHandled;
     POINT              pt         = {};
     bool               overGuest  = false;
-    RECT               wheel      = m_scene->GetVolumeWheelRect();
 
 
 
@@ -780,29 +524,12 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() &&
-             (m_scene->m_volumeDragging || (GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) &&
-                                            PtInRect (&wheel, pt))))
+             GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) && m_scene->IsGrabbableAt (pt.x, pt.y))
     {
-        // A hand over the volume wheel, which can be taken hold of.
+        // IDC_HAND over what the left button can drag: the recorder's volume
+        // wheel and the bezel's tilt marks.
         SetCursor (LoadCursorW (nullptr, IDC_HAND));
         result = DxuiMessageResult::Handled;
-    }
-    else if (hitTest == HTCLIENT && DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen()
-             && m_scene->m_deskScene.MaxBezelTiltRad() > 0.0f
-             && GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt))
-    {
-        // A HAND OVER THE TILT MARKS, because they are the one thing on the
-        // monitor you can take hold of. Resolved through the same hit test
-        // the press uses, so the cursor changes exactly where the drag would
-        // actually start -- a hand offered anywhere else would be a promise
-        // the press does not keep.
-        SceneHitResult  hit = m_scene->DeskSceneHit (pt.x, pt.y);
-
-        if (hit.target == SceneHitResult::Target::BezelTilt || m_scene->m_bezelTilting)
-        {
-            SetCursor (LoadCursorW (nullptr, IDC_HAND));
-            result = DxuiMessageResult::Handled;
-        }
     }
 
     return result;

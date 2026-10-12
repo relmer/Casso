@@ -177,6 +177,17 @@ public:
     bool  OnRButtonDown      (int x, int y);
     bool  OnRButtonUp        (int x, int y);
 
+    // Pointer moves. OnDragMove is true when a drag the press began on the
+    // scene used the move; UpdateHover and ClearHover set and clear the
+    // desk's hover state; GetDriveTooltip returns the desk's or the strip's
+    // drive tooltip, empty when there is none; IsGrabbableAt is true where the
+    // left button can drag something, for the IDC_HAND cursor.
+    bool  OnDragMove         (int x, int y, WPARAM keys, int64_t nowMs);
+    void  UpdateHover        (int x, int y, int64_t nowMs);
+    void  ClearHover         (int64_t nowMs);
+    void  GetDriveTooltip    (int x, int y, std::wstring & outTip, RECT & outAnchor) const;
+    bool  IsGrabbableAt      (int x, int y) const;
+
     // A browse opened from the fullscreen strip pins the strip while the
     // dialog is up.
     void  SetStripBrowseOpen (bool open) { m_stripBrowseOpen = open; }

@@ -57,6 +57,13 @@ public:
     bool  OnLButtonDown      (int x, int y);
     bool  OnLButtonUp        (int x, int y, Apple2cSwitchBar::Part & outSwitchPart);
 
+    // Pointer moves: the toolbar's and the switch bar's hover and tooltips;
+    // the drive tooltip request, where an empty text hides it; and the hover
+    // reset for a pointer outside the window.
+    void  OnMouseMove         (int x, int y, int64_t nowMs);
+    void  RequestDriveTooltip (const RECT & anchor, const std::wstring & tip, int64_t nowMs);
+    void  OnMouseLeave        (int64_t nowMs);
+
     // The caption buttons' tooltip, which the update indicator in the caption
     // shares.
     DxuiTooltip &  GetCaptionTooltip () { return m_captionTooltip; }
