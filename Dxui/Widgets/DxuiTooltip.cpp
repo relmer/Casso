@@ -199,26 +199,57 @@ RECT DxuiTooltip::MakePointerClearAnchor (const RECT & anchor, const PointerExte
 //
 //  GetPlacementAnchor
 //
-//  An instant tip follows the pointer, so it is placed clear of the pointer's
-//  image, where the anchor alone would put it under the pointer's arrow. A
-//  dwelled tip belongs to a control and is placed against the control.
+//  A hover tip sits by the pointer, as the system's own tips do: below the
+//  pointer's image from where it rests, or above where below would leave the
+//  screen. Placed against its control instead, a tip lined up flush with the
+//  control's edge, away from where the user was looking. A timed notice
+//  keeps its anchor, since the pointer may be captured while it shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiTooltip::GetPlacementAnchor() const
 {
-    PointerExtent  extent = {};
+    RECT   anchor  = m_anchor;
+    POINT  pointer = {};
+    HWND   owner   = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
 
 
 
-    if (!m_isInstant || m_pfnMeasurePointer == nullptr)
+    if (m_isPointerTip && m_pfnLocatePointer != nullptr && m_pfnLocatePointer (owner, pointer))
     {
-        return m_anchor;
+        anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
     }
 
-    extent = m_pfnMeasurePointer();
+    if (m_isPointerTip && m_pfnMeasurePointer != nullptr)
+    {
+        anchor = MakePointerClearAnchor (anchor, m_pfnMeasurePointer(), m_scaler.ToPx (kPointerGapDip));
+    }
 
-    return MakePointerClearAnchor (m_anchor, extent, m_scaler.ToPx (kPointerGapDip));
+    return anchor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LocatePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
+{
+    bool  isFound = GetCursorPos (&outClientPx) != FALSE;
+
+
+
+    if (isFound && owner != nullptr)
+    {
+        isFound = ScreenToClient (owner, &outClientPx) != FALSE;
+    }
+
+    return isFound;
 }
 
 
@@ -256,7 +287,8 @@ int DxuiTooltip::GetSystemVisibleMs()
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    m_isInstant = false;
+    m_isInstant    = false;
+    m_isPointerTip = true;
 
     if (m_visible)
     {
@@ -321,8 +353,9 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_pending   = false;
     m_visible   = true;
     m_fadingOut = false;
-    m_isInstant = true;
-    m_hideAtMs  = GetHideAtMs (nowMs);
+    m_isInstant    = true;
+    m_isPointerTip = true;
+    m_hideAtMs     = GetHideAtMs (nowMs);
 
     UpdatePopup();
 }
@@ -350,8 +383,9 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
     m_text      = text;
     m_pending   = false;
     m_visible   = true;
-    m_isInstant = false;
-    m_hideAtMs  = nowMs + (int64_t) durationMs;
+    m_isInstant    = false;
+    m_isPointerTip = false;
+    m_hideAtMs     = nowMs + (int64_t) durationMs;
 
     if (m_popupHost != nullptr && (changed || m_isSwatchChanged || m_activePopup == nullptr))
     {

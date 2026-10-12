@@ -18,8 +18,9 @@
 //  over its address prologue in its state's color and symbol, and the
 //  selected sector outlined from its address prologue to the end of its data
 //  epilogue, in two parts across the index (FR-033, FR-036). The wheel zooms
-//  about the pointer, a drag or the horizontal wheel pans, and a click
-//  selects the nibble and its sector (FR-037).
+//  about the pointer; a drag selects nibbles, as a drag does elsewhere, and
+//  Shift and a drag or the horizontal wheel pans; a click selects the nibble
+//  and its sector (FR-037).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,15 +61,17 @@ private:
     StripGeometry  MakeGeometry () const;
     RECT           GetBarRect   () const;
     int            GetNibbleAtX (const TrackAnalysis & track, float xPx) const;
+    int            GetCellAtX   (const TrackAnalysis & track, float xPx) const;
 
-    mutable const TrackAnalysis  * m_turnsOf     = nullptr;
+    mutable const TrackAnalysis  * m_turnsOf      = nullptr;
     mutable vector<double>         m_turns;
     mutable vector<double>         m_cellTurns;
-    bool                           m_isPressed   = false;
-    bool                           m_isPanning   = false;
-    bool                           m_isSelecting = false;
-    POINT                          m_pressAt     = {};
-    POINT                          m_lastAt      = {};
-    int64_t                        m_lastClickMs = 0;
-    int                            m_side        = 0;
+    bool                           m_isPressed    = false;
+    bool                           m_isPanning    = false;
+    bool                           m_isSelecting  = false;
+    bool                           m_isShiftPress = false;
+    POINT                          m_pressAt      = {};
+    POINT                          m_lastAt       = {};
+    int64_t                        m_lastClickMs  = 0;
+    int                            m_side         = 0;
 };

@@ -180,9 +180,13 @@ public:
     //  A pointer twenty pixels tall below its hot spot, and two above it.
     static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
 
-    //  An instant tip follows the pointer, so it is placed clear of the
-    //  pointer's whole image plus a gap, below it, or above it where below
-    //  would run off the work area. A dwelled tip keeps its control's anchor.
+    //  No pointer to be found, and a pointer resting at (150, 400).
+    static bool  FindNoPointer     (HWND, POINT &)       { return false; }
+    static bool  FindRestingPointer (HWND, POINT & out)  { out = { 150, 400 }; return true; }
+
+    //  A tip is placed clear of the pointer's whole image plus a gap, below
+    //  it, or above it where below would run off the work area. With no
+    //  pointer to be found it is placed against its anchor.
     TEST_METHOD (RequestShowNow_PlacesTheTipClearOfThePointer)
     {
         constexpr int  kGapPx   = 4;
@@ -196,6 +200,7 @@ public:
 
 
         t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
         t.RequestShowNow (cell, L"$0400", 0);
 
         anchor = t.GetPlacementAnchor();
@@ -217,6 +222,34 @@ public:
         t.Tick (0);
         anchor = t.GetPlacementAnchor();
 
-        Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
+        Assert::AreEqual (cell.bottom + 20 + kGapPx, anchor.bottom, L"a dwelled tip clears the pointer too");
+    }
+
+
+
+    //  A hover tip sits by the pointer, wherever on its control the pointer
+    //  rests, as the system's own tips do; a timed notice keeps its anchor.
+    TEST_METHOD (AHoverTipSitsByThePointer)
+    {
+        constexpr int  kGapPx  = 4;
+        DxuiTooltip    t;
+        RECT           control = MakeRect (100, 200, 300, 260);
+        RECT           anchor  = {};
+
+
+
+        t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindRestingPointer);
+        t.SetDwellOpenMs (0);
+        t.RequestShow (control, L"a control's tip", 0);
+        t.Tick (0);
+
+        anchor = t.GetPlacementAnchor();
+        Assert::AreEqual (150L,                anchor.left,   L"at the pointer, not the control's edge");
+        Assert::AreEqual (401L + 20 + kGapPx,  anchor.bottom, L"below the pointer's image");
+
+        t.ShowTimed (control, L"a notice", 0, 1000);
+        anchor = t.GetPlacementAnchor();
+        Assert::IsTrue (EqualRect (&anchor, &control) != FALSE, L"a timed notice keeps its anchor");
     }
 };

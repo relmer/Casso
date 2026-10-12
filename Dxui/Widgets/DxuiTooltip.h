@@ -53,6 +53,12 @@ public:
 
     using PointerMeasurer = PointerExtent (*) ();
 
+    //  Where the pointer is, in the owner's client pixels; false when it
+    //  cannot be found.
+    using PointerLocator  = bool (*) (HWND owner, POINT & outClientPx);
+
+    static bool  LocatePointer (HWND owner, POINT & outClientPx);
+
     //  The current pointer's extent, read from its image, or the system's
     //  cursor height below the hot spot where the image cannot be read.
     static PointerExtent  MeasurePointerExtent ();
@@ -64,8 +70,12 @@ public:
     //  Replaces MeasurePointerExtent, so a test can supply a pointer.
     void  SetPointerMeasurer (PointerMeasurer measurer) { m_pfnMeasurePointer = measurer; }
 
-    //  The rect the tip is placed against: the anchor, or for a tip that
-    //  follows the pointer, the anchor grown to clear the pointer's image.
+    //  Replaces LocatePointer, so a test can put the pointer where it wants.
+    void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
+
+    //  The rect the tip is placed against: for a hover tip, the pointer's hot
+    //  spot grown to clear the pointer's image, as the system's own tips sit;
+    //  for a timed notice, its anchor.
     RECT  GetPlacementAnchor () const;
 
     // A tip fades in when it appears and out when it goes. Short enough that
@@ -219,4 +229,6 @@ private:
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator     m_pfnLocatePointer  = LocatePointer;
+    bool               m_isPointerTip      = true;
 };

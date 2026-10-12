@@ -618,29 +618,43 @@ int InspectorText::GetNibbleColorLine (const TrackAnalysis & track, bool isTimin
 //
 //  InspectorText::FormatNibbleTooltip
 //
-//  A nibble's value, its cell and width in cells, its kind and sector, and
-//  on flux its mean cell time (FR-037). Extra zero cells after a nibble
-//  count in its width.
+//  A nibble's value, its cell and its own cells, its kind and sector, on
+//  flux its mean cell time (FR-037), and the random-bit cells after it. Over
+//  random bits, it says so in place of the kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, int nibble)
+std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, int nibble, int cell)
 {
-    const FramedTrack &   framed = track.framed;
-    const FramedNibble &  n      = framed.nibbles[nibble];
-    uint32_t              next   = framed.nibbles[(nibble + 1) % framed.nibbles.size()].startCell;
-    uint32_t              width  = (next + framed.cellCount - n.startCell) % std::max<uint32_t> (framed.cellCount, 1);
-    int                   sector = PlatterGeometry::GetSectorAt (track, n.startCell);
-    double                ticks  = 0;
-    uint32_t              k      = 0;
+    static constexpr uint32_t  kBitsCells = 8;
+
+
+
+    const FramedTrack   & framed   = track.framed;
+    const FramedNibble  & n        = framed.nibbles[nibble];
+    uint32_t              next     = framed.nibbles[(nibble + 1) % framed.nibbles.size()].startCell;
+    uint32_t              width    = (next + framed.cellCount - n.startCell) % std::max<uint32_t> (framed.cellCount, 1);
+    uint32_t              own      = kBitsCells + n.extraZeroCells;
+    int                   sector   = PlatterGeometry::GetSectorAt (track, n.startCell);
+    bool                  isFailed = nibble < static_cast<int> (track.isFailedChecksum.size()) && track.isFailedChecksum[nibble] != 0;
+    bool                  isRandom = cell >= 0 && cell < static_cast<int> (framed.isRandomCell.size()) && framed.isRandomCell[cell] != 0;
+    double                ticks    = 0;
+    uint32_t              k        = 0;
     std::wstring          text;
 
 
 
     width = (width == 0) ? framed.cellCount : width;
-    text  = std::format (L"{:02X} at offset {}\nCell {}, {} wide\n", n.value, InspectorFormat::FormatHexOffset (nibble),
-                         InspectorFormat::FormatCount (n.startCell), FormatCount (static_cast<int> (width), L"cell", L"cells"))
-          + FormatNibbleKind (track.nibbleKinds[nibble], nibble < static_cast<int> (track.isFailedChecksum.size()) && track.isFailedChecksum[nibble] != 0);
+    own   = std::min (own, width);
+
+    //  A nibble's own cells: its eight bits and any zero cells after them,
+    //  the "+N" (or for a sync nibble, the width) the Nibbles tab shows.
+    text = std::format (L"{:02X} at offset {}\nCell {}, ", n.value, InspectorFormat::FormatHexOffset (nibble), InspectorFormat::FormatCount (n.startCell));
+    text += (n.extraZeroCells == 0) ? FormatCount (static_cast<int> (own), L"cell", L"cells")
+                                    : std::format (L"{}: 8 bits and {}", FormatCount (static_cast<int> (own), L"cell", L"cells"),
+                                                   FormatCount (n.extraZeroCells, L"extra zero cell", L"extra zero cells"));
+    text += L"\n";
+    text += isRandom ? std::wstring (L"Random bits") : FormatNibbleKind (track.nibbleKinds[nibble], isFailed);
 
     if (sector >= 0)
     {
@@ -656,6 +670,14 @@ std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, in
 
         text += L"\n" + InspectorFormat::FormatMicroseconds (ticks / width) + L" cells ("
               + InspectorFormat::FormatPercent (ticks / width / TrackAnalyzer::kNominalCellTicks - 1.0) + L")";
+    }
+
+    //  Cells with no flux transition for too long, which the drive reads as
+    //  random bits rather than as part of this nibble.
+    if (width > own)
+    {
+        text += std::format (L"\nThen {} with no flux transitions, which the drive reads as random bits",
+                             FormatCount (static_cast<int> (width - own), L"cell", L"cells"));
     }
 
     return text;

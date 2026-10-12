@@ -80,7 +80,7 @@ public:
 
     static std::wstring         FormatNibbleKind    (NibbleKind kind, bool isFailedChecksum);
     static std::wstring         FormatPlatterTooltip (const DiskAnalysis & analysis, int quarterTrack, double turn, bool isShowingNibbles);
-    static std::wstring         FormatNibbleTooltip  (const TrackAnalysis & track, int nibble);
+    static std::wstring         FormatNibbleTooltip  (const TrackAnalysis & track, int nibble, int cell = -1);
 
     //  Which line of each tooltip says why the thing under the pointer has
     //  its color: the kind line, or in Timing mode on a flux track the cell

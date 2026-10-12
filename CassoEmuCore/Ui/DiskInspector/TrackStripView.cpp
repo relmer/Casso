@@ -15,7 +15,8 @@
 
 static constexpr int    s_kLabelRowDip     = 18;
 static constexpr float  s_kOutlineDip      = 2.0f;
-static constexpr float  s_kValueMinPx      = 18.0f;
+static constexpr float  s_kDividerMinDip   = 4.0f;
+static constexpr float  s_kValuePadDip     = 3.0f;
 static constexpr float  s_kLabelDip        = 11.0f;
 static constexpr float  s_kPadDip          = 6.0f;
 static constexpr float  s_kCellDigitDip    = 9.0f;
@@ -97,11 +98,17 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                        w         = 0;
     float                        textW     = 0;
     float                        textH     = 0;
+    float                        digitsW   = 0;
     std::wstring                 label;
 
 
 
     UpdateTurns (track);
+
+    //  A value shows wherever its two digits fit, and a divider wherever a
+    //  nibble is wide enough to tell from its neighbors, so a run of
+    //  nibbles of one kind does not read as one block.
+    text.MeasureString (L"FF", textPx, DxuiTheme::kMonoFace, digitsW, textH);
 
     for (i = 0; i + 1 < m_turns.size(); i++)
     {
@@ -113,9 +120,13 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
             w = parts[k].x1 - parts[k].x0;
             painter.FillRect (parts[k].x0, top, std::max (w, 1.0f), height, color);
 
-            if (w >= m_scaler.ToPxf (s_kValueMinPx))
+            if (w >= m_scaler.ToPxf (s_kDividerMinDip))
             {
                 painter.FillRect (parts[k].x0, top, 1.0f, height, theme.Background());
+            }
+
+            if (w >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
+            {
 
                 label = std::format (L"{:02X} ", framed.nibbles[i].value)
                       + InspectorText::FormatNibbleKind (track.nibbleKinds[i], i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0);
@@ -439,6 +450,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
     double                 newSpan   = 0;
     int                    nibble    = -1;
     int64_t                now       = static_cast<int64_t> (GetTickCount64());
+    bool                   isMoved   = false;
 
 
 
@@ -460,35 +472,35 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Down:
-            if (isInside && ev.button == DxuiMouseButton::Left && ev.shift)
+            if (isInside && ev.button == DxuiMouseButton::Left)
             {
-                UpdateTurns (*track);
-                nibble        = GetNibbleAtX (*track, static_cast<float> (p.x));
-                m_isSelecting = nibble >= 0;
-                isHandled     = true;
+                m_isPressed    = true;
+                m_isPanning    = false;
+                m_isShiftPress = ev.shift;
+                m_pressAt      = p;
+                m_lastAt       = p;
+                isHandled      = true;
 
-                if (nibble >= 0 && m_context.model->GetNibbleCount() > 0)
+                //  A plain press starts a selection at the nibble under it.
+                if (!ev.shift)
                 {
-                    m_context.model->ExtendNibbles (nibble);
+                    UpdateTurns (*track);
+                    nibble        = GetNibbleAtX (*track, static_cast<float> (p.x));
+                    m_isSelecting = nibble >= 0;
+
+                    if (nibble >= 0)
+                    {
+                        m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
+                    }
                 }
-                else if (nibble >= 0)
-                {
-                    m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
-                }
-            }
-            else if (isInside && ev.button == DxuiMouseButton::Left)
-            {
-                m_isPressed = true;
-                m_isPanning = false;
-                m_pressAt   = p;
-                m_lastAt    = p;
-                isHandled   = true;
             }
 
             break;
 
         case DxuiMouseEventKind::Move:
-            if (m_isSelecting)
+            isMoved = m_isPressed && std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2;
+
+            if (m_isSelecting && isMoved)
             {
                 UpdateTurns (*track);
                 nibble = GetNibbleAtX (*track, std::clamp (static_cast<float> (p.x), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.right - 1)));
@@ -499,10 +511,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
                 }
             }
 
-            if (m_isPressed && !m_isPanning && std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2)
-            {
-                m_isPanning = true;
-            }
+            m_isPanning = m_isPanning || (m_isShiftPress && isMoved);
 
             if (m_isPanning)
             {
@@ -514,36 +523,42 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Up:
-            isHandled = m_isPressed || m_isSelecting;
+            isHandled = m_isPressed;
+            isMoved   = std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2;
 
-            if (m_isSelecting)
+            //  Shift and a click without a drag extends the selection to the
+            //  nibble clicked.
+            if (m_isPressed && m_isShiftPress && !m_isPanning && m_context.model->GetNibbleCount() > 0)
             {
-                m_isSelecting = false;
-                NotifySelection();
-            }
-
-            if (m_isPressed && !m_isPanning && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
-            {
-                ShowWholeTrack();
-                m_lastClickMs = 0;
-            }
-            else if (m_isPressed && !m_isPanning)
-            {
-                m_lastClickMs = now;
                 UpdateTurns (*track);
                 nibble = GetNibbleAtX (*track, static_cast<float> (p.x));
 
                 if (nibble >= 0)
                 {
-                    m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
-                    NotifySelection();
+                    m_context.model->ExtendNibbles (nibble);
                 }
             }
 
-            m_isPressed = false;
-            m_isPanning = false;
-            break;
+            if (m_isPressed && !m_isShiftPress && !isMoved && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
+            {
+                ShowWholeTrack();
+                m_lastClickMs = 0;
+            }
+            else if (m_isPressed && !m_isShiftPress && !isMoved)
+            {
+                m_lastClickMs = now;
+            }
 
+            if (m_isPressed && !m_isPanning)
+            {
+                NotifySelection();
+            }
+
+            m_isPressed    = false;
+            m_isPanning    = false;
+            m_isSelecting  = false;
+            m_isShiftPress = false;
+            break;
         default:
             break;
     }
@@ -577,7 +592,7 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
 
     if (nibble >= 0)
     {
-        outText     = InspectorText::FormatNibbleTooltip (*track, nibble);
+        outText     = InspectorText::FormatNibbleTooltip (*track, nibble, GetCellAtX (*track, static_cast<float> (pointPx.x)));
         outAnchorPx = { pointPx.x, bar.top, pointPx.x + 1, bar.bottom };
     }
     else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && IsOverSeam (*track, static_cast<float> (pointPx.x)))
@@ -609,6 +624,7 @@ bool TrackStripView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & 
     const TrackAnalysis *  track  = m_context.GetTrack();
     RECT                   bar    = GetBarRect();
     int                    nibble = -1;
+    int                    cell   = 0;
 
 
 
@@ -620,8 +636,15 @@ bool TrackStripView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & 
 
     if (nibble >= 0)
     {
+        cell    = GetCellAtX (*track, static_cast<float> (pointPx.x));
         outLine = InspectorText::GetNibbleColorLine (*track, m_context.isTimingMode);
         outArgb = m_context.palette.GetNibbleColor (*track, nibble, m_context.isTimingMode, m_context.timingRange);
+
+        //  The strip paints random bits over the nibble they follow.
+        if (cell < static_cast<int> (track->framed.isRandomCell.size()) && track->framed.isRandomCell[cell] != 0)
+        {
+            outArgb = m_context.palette.GetKindColor (PlatterKind::RandomBits);
+        }
     }
 
     return nibble >= 0;
@@ -717,6 +740,27 @@ int TrackStripView::GetNibbleAtX (const TrackAnalysis & track, float xPx) const
     (void) track;
 
     return nibble;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetCellAtX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackStripView::GetCellAtX (const TrackAnalysis & track, float xPx) const
+{
+    double  turn = MakeGeometry().GetTurn (xPx);
+
+
+
+    turn -= std::floor (turn);
+
+    return static_cast<int> (PlatterGeometry::GetCellAtTurn (track, turn));
 }
 
 

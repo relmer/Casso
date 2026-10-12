@@ -42,7 +42,7 @@
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
 static constexpr LPCWSTR  s_kpszHint        = L"Scroll to zoom, drag to pan, double-click to fit";
-static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to pan, Shift+drag to select, double-click for the whole track";
+static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to select, Shift+drag to pan, double-click for the whole track";
 static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
 static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
