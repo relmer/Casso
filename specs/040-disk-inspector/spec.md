@@ -16,6 +16,9 @@ later release of the same feature. The owner then added two items to the first
 release, Apple Pascal and CP/M file maps and the move of Casso's other sector
 writers onto the editor's in-place writer, and two to the later release,
 custom track formats and the comparison of quarter tracks within one disk.
+After trying the window, the owner added to the first release a redesign of
+its look, a tilted 3D view of the platter and a walkthrough for first-time
+users (User Story 17).
 
 **GH ref**: GH #159, used in the CHANGELOG entry and in the commit and merge
 subjects for this feature.
@@ -69,6 +72,29 @@ comparing two quarter tracks of one disk.
   changes a drive's tracks without a guest write, what does the inspector do?
   → A: It handles the restore as a reload (FR-068, FR-069, FR-107, FR-108,
   Edge Cases).
+
+### Session 2026-10-12
+
+- Q: How should the window divide its space? → A: The platter fills the
+  height of the left column. The legend moves into a popup opened by a
+  "Legend" button. The right column has one tab strip with the track tabs and
+  the disk tabs, and the strip runs the full width of the window along the
+  bottom (FR-007, FR-030).
+- Q: Do the platter's colors change when it is restyled? → A: No. The
+  restyle adds texture: dark seams between rings, cell grain, a deep rim and
+  a lit hub (FR-149).
+- Q: How can the disk under the head marker stay visible and respond to the
+  pointer? → A: The marker is semi-transparent, with a bullseye exactly
+  over the head's quarter track and angle, and hovering and clicking over it
+  act on the disk under it (FR-064).
+- Q: Does the owner want a 3D view of the platter? → A: Yes, as a tilted perspective
+  view the user can tilt into and back out of; the flat view is the default
+  (FR-151, FR-152).
+- Q: How does someone new to disk internals learn the window? → A: A
+  walkthrough opens on the first visit, and a "?" button reopens it later
+  (FR-153).
+- Q: In the strip, which drag selects? → A: A drag selects, and Shift and a
+  drag pans, as in most programs (FR-034, FR-043).
 
 ## Scope
 
@@ -131,13 +157,13 @@ makes the `disk` command's and Explorer's sector, block and file reads find
 each whole track through the image's map, as the writer does (FR-111).
 
 **Delivery.** The feature ships in two releases. The first release holds User
-Stories 1 to 10, everything except the preservation stories, and no story in
+Stories 1 to 10 and 17, everything except the preservation stories, and no story in
 it ships without the others. It includes the shared sector writer with the
 move of the `disk` command's and Explorer's writes onto it, the fix to flux
 timing in sector writes, and the Apple Pascal and CP/M readers the file map
 needs. The first release reaches master in two merges: the shared sector
 writer (FR-110 to FR-116) first, on its own, as the fix for GH #170, and the
-rest of User Stories 1 to 10 in a second merge. User Stories 11 to 16, for preservationists, ship
+rest of User Stories 1 to 10 and 17 in a second merge. User Stories 11 to 16, for preservationists, ship
 in a later release of this same feature, with its own merge after the first
 release is on master. They are specified now so that the first release's
 analyzer, decode settings and views leave room for them, and the requirements
@@ -1213,6 +1239,44 @@ verdicts, the match shares and the repeated runs against what was planted.
 
 ---
 
+### User Story 17 - Learn the inspector and read it at a glance (Priority: P2)
+
+Someone who has never looked inside a disk opens the inspector for the
+first time. A walkthrough steps through each part of the window and the
+basic facts about how data is stored on a disk. The platter fills its column and
+reads as a disk, the legend is a click away, and every tooltip lists the
+colors under the pointer and what they mean. An expert can tilt the platter
+to see the area near the head magnified while the rest stays in view.
+
+**Why this priority**: The views are only useful if someone can read them.
+Whether a newcomer stays depends on the window's first impression, and an
+expert loses time to a platter too small to see.
+
+**Independent Test**: Open the inspector for the first time on a DOS 3.3
+disk, follow the walkthrough, then hover the platter at fit, open the
+legend, and tilt the platter and back.
+
+**Acceptance Scenarios**:
+
+1. **Given** the inspector has never been opened, **When** the user opens
+   it, **Then** the walkthrough opens on its first step; **When** the user
+   closes it and later clicks the "?" button, **Then** it opens again.
+2. **Given** the window at its opening size, **When** a disk is open,
+   **Then** the platter fills the height of its column and no legend sits
+   under it; **When** the user clicks "Legend", **Then** the color key opens
+   in a popup over the window.
+3. **Given** the platter at fit, **When** the user hovers a sector's start,
+   **Then** the tooltip lists the kinds there, sync, address marks and the
+   address field, each with its swatch.
+4. **Given** Casso running a disk, **When** the head marker passes under
+   the pointer, **Then** the tooltip text is about the cell under the
+   bullseye.
+5. **Given** the flat platter, **When** the user drags with the right mouse
+   button, **Then** the platter tilts, and its tooltips and clicks match the
+   cell under the pointer; **When** the user chooses "Top down", **Then** it
+   is flat again.
+
+---
 ### Edge Cases
 
 - No disk in the drive: the platter shows "No disk in drive 1" (or 2) over a
@@ -1522,13 +1586,16 @@ verdicts, the match shares and the repeated runs against what was planted.
   to head", and "Go to", "Find", "Compare with...", "Export..." and "Decode
   settings...";
   while comparing, a comparison bar under the toolbar (FR-121); a platter
-  column with the platter, its zoom controls, the legend, the overlays
-  ("Alignment", "Files", in Casso "Reads", and while comparing "Differences"),
-  the hint "Scroll to zoom, drag to pan, double-click to fit", and the disk
-  tabs Tracks, Findings, File map and Image, with Differences added while
-  comparing; and a track column with the track header, the strip with its
-  controls and hint, the sector row, and the track tabs Sector data, Nibbles,
-  Fields and Flux timing. The Sector data tab MUST hold the edit controls
+  column with the platter filling its height, and over the platter its zoom
+  controls, the "Legend" button (FR-030), the "?" button (FR-153), the
+  overlays ("Alignment", "Files", in Casso "Reads", and while comparing
+  "Differences"), the tilt controls (FR-151) and the hint "Scroll to zoom,
+  drag to pan, double-click to fit"; a track column with the track header,
+  the sector row, and one tab strip with two groups, the track tabs Sector
+  data, Nibbles, Fields and Flux timing, then the disk tabs Tracks, Findings,
+  File map and Image, with Differences added while comparing; and along the
+  bottom of the window, across both columns, the strip with its controls and
+  hint. The Sector data tab MUST contain the edit controls
   above the bytes: "Edit sector", "Recompute the checksum", the count of
   pending changes, "Apply", "Discard", "Discard sector", "Save edited
   copy...", "Undo applied edit" and "Redo applied edit" (FR-097 to FR-107),
@@ -1719,11 +1786,15 @@ verdicts, the match shares and the repeated runs against what was planted.
   select the previous and next sector in passing order, wrapping at the
   index, and Home and End the first and last. With the platter zoomed,
   Ctrl+arrow keys MUST pan it.
-- **FR-030**: A legend for the current mode MUST be shown with the platter:
-  in Structure mode each structure kind, the damaged hatch, the pending
-  pattern and the beyond-reach dimming; in Timing mode, "Fast cells",
-  "Nominal 3.91µs" and "Slow cells" with the numeric scale and the note "Only
-  flux tracks record timing; other tracks are dimmed".
+- **FR-030**: A "Legend" button over the platter MUST open a legend for the
+  current mode in a popup, on hover, and on a click, after which it stays open
+  until the next click outside it: in Structure mode each structure kind, the
+  damaged hatch, the pending pattern and the beyond-reach dimming; in Timing
+  mode, "Fast cells", "Nominal 3.91µs" and "Slow cells" with the numeric
+  scale and the note "Only flux tracks record timing; other tracks are
+  dimmed"; and in both, the colors of the Sector data bytes: zero bytes, and
+  bytes of $80 or more, which is how the Apple II stores normal text. The
+  legend MUST NOT take room from the platter.
 - **FR-031**: The platter MUST have an "Alignment" overlay that marks each
   track's sector 0 address field and its longest sync run, so their angles
   can be compared across tracks. In Casso it MUST also have a "Reads" overlay
@@ -1743,20 +1814,23 @@ verdicts, the match shares and the repeated runs against what was planted.
   each nibble in its kind color, and in Timing mode on a flux track the
   timing colors. On a flux track it MUST draw a timing line in both modes,
   nominal in the middle, slow above and fast below, with the timing range
-  filling the band. The strip MUST mark the longest sync run as the likely
+  filling the band; in Timing mode the line MUST be drawn as a waveform over
+  the colored bands, its area below the line shaded. The strip MUST mark the
+  longest sync run as the likely
   write seam.
 - **FR-034**: The strip MUST zoom from the whole track down to about 20
   cells across, about the pointer, with the mouse wheel, the "−", "+" and
-  "Whole track" buttons and the keyboard, and MUST pan by dragging, with
-  Shift and the wheel, and with Left and Right. Shift+drag MUST select a
+  "Whole track" buttons and the keyboard, and MUST pan with Shift and a drag,
+  with Shift and the wheel, and with Left and Right. A drag MUST select a
   range (FR-043). Double-click MUST return to the whole track. A readout MUST
-  show the zoom and the cells in view (for example "×83 · cells
-  12,400-13,016"), a hint MUST read "Scroll to zoom, drag to pan, Shift+drag
-  to select, double-click for the whole track", and the zoom MUST be kept
+  display the zoom and the cells in view (for example "×83 · cells
+  12,400-13,016"), a hint MUST read "Scroll to zoom, drag to select,
+  Shift+drag to pan, double-click for the whole track", and the zoom MUST stay the same
   when another track is selected or the same track is analyzed again.
-- **FR-035**: As the strip zooms in, it MUST show each nibble's hex value and
-  dividers between nibbles once the value fits inside the nibble at the
-  window's text size, then each cell's 1 or 0 with a pulse for each 1 once
+- **FR-035**: As the strip zooms in, it MUST draw dividers between nibbles
+  once a nibble is at least 4 pixels wide, and each nibble's hex value once
+  the value fits inside the nibble at the window's text size, then each
+  cell's 1 or 0 with a pulse for each 1 once
   the digit fits inside the cell, then on flux tracks each cell's own timing,
   and a nibble's kind inside it where the kind's label fits.
 - **FR-036**: The strip MUST show each sector's hex number over its address
@@ -1825,8 +1899,8 @@ verdicts, the match shares and the repeated runs against what was planted.
   keys, and Select all MUST take the whole track or the whole sector, as in
   033's hex view (its FR-012c and FR-012d). In the Sector data tab, the hex
   and text columns MUST each be a tab stop, as in 033's hex view (its
-  FR-012j). In the strip, Shift+drag MUST select a range of nibbles while a
-  plain drag still pans. The selection MUST show in the strip, the Nibbles
+  FR-012j). In the strip, a drag MUST select a range of nibbles, and Shift
+  and a drag MUST pan. The selection MUST be drawn in the strip, the Nibbles
   tab and, when zoomed, the platter, with a readout of its length in nibbles
   and cells, and on a flux track in µs.
 
@@ -2023,7 +2097,10 @@ verdicts, the match shares and the repeated runs against what was planted.
   under the marker; otherwise the platter MUST stay still. The head marker
   MUST point at the head's quarter track and show idle, reading, writing and
   write blocked differently. While the platter is zoomed in it MUST stay
-  still and the head marker MUST move around it instead.
+  still and the head marker MUST move around it instead. The head marker MUST
+  be semi-transparent, so the rings under it stay visible, with a bullseye
+  exactly over the head's quarter track and angle, and hovering, clicking and
+  dragging over the marker MUST act on the platter under it.
 - **FR-065**: The window MUST show whether the disk in the drive is
   write-protected and each cause Casso reports for the drive, including the
   image's write-protect flag, a read-only file, no permission to write the
@@ -2137,8 +2214,9 @@ verdicts, the match shares and the repeated runs against what was planted.
   placement and size, the mode, the selected disk tab and track tab, and the
   timing range. Casso MUST also save Follow head, the last drive and whether
   the window was open, and at launch MUST reopen the window on the last drive
-  if it was open at exit. "Show deleted files" and which overlays are on MUST
-  be saved with the rest of this state. The zoom, the pan, the selection and
+  if it was open at exit. "Show deleted files", which overlays are on, the
+  tilt of the tilted view (FR-151) and whether the walkthrough has been seen
+  (FR-153) MUST be saved with the rest of this state. The zoom, the pan, the selection and
   the decode settings MUST last only while the window shows the same disk.
   "Recompute the checksum" MUST start on for each sector the user edits, and
   the comparison options ("Ignore sync widths and counts", "Ignore volume
@@ -2726,6 +2804,46 @@ verdicts, the match shares and the repeated runs against what was planted.
   selected sector into A's matching sector as a pending edit (FR-097), when A
   is the window's disk as it is now and its sector is editable (FR-096).
 
+**Look and first use**
+
+- **FR-148**: Every tooltip over the platter, the strip and the Nibbles tab
+  MUST list each kind of cell that colors the spot under the pointer, each
+  with a swatch of its color beside it, the color that fills most of the spot
+  first. Where one pixel covers many cells, as at fit, it MUST list every kind
+  those cells contain. Over random bits it MUST read "Random bits" with that
+  color's swatch, and a nibble's own cells (its eight bits and any extra zero
+  cells) MUST be listed apart from random-bit cells that follow it.
+- **FR-149**: The platter MUST be drawn with texture in its own colors: a
+  thin dark seam between adjacent rings, each ring's cells visible as fine
+  grain at every zoom, a deep rim around the disk and a lit hub ring around
+  the spindle hole. The texture MUST NOT change any ring's colors or what
+  they mean.
+- **FR-150**: The Sector data bytes and the Nibbles tab MUST be drawn on a
+  near-black panel, each view in a tint of its own, with the colors of
+  FR-040 and FR-041 over it.
+- **FR-151**: The platter MUST tilt into a perspective view, its near side
+  larger and its far side smaller: dragging with the right mouse button, or
+  dragging the tilt handle, MUST tilt and turn it, up to 60° from flat;
+  double-clicking the handle or choosing "Top down" MUST return it to the
+  flat view, which is the default. In the tilted view, hovering, clicking,
+  dragging, zooming, the overlays, the selected ring, the alignment marks and
+  the nibble values MUST follow the projection, so the tooltip and a click
+  address exactly the cell under the pointer. Nibble values MUST be left out
+  where rings are too thin to fit them, and zooming MUST move the view
+  toward the point under the pointer.
+- **FR-152**: In Casso, the tilted view MUST draw the head at the near edge
+  as a translucent head carriage on its rail, with the bullseye of FR-064 on
+  the disk and a soft shadow, and hovering and clicking over it MUST act on
+  the disk, as over the flat view's head marker.
+- **FR-153**: The first time someone opens the inspector, a walkthrough MUST
+  open over the window with a step for each area: the platter and its
+  colors, the toolbar, the track header and sector row, the tabs, and the
+  strip, each with what it displays and how to use it, followed by steps on
+  basic disk facts: tracks and quarter tracks, sectors, nibbles, sync,
+  address and data fields, and what the colors mean. It MUST be possible to
+  step back and forth and to close it at any step. A "?" button in a circle
+  MUST reopen it at any time. Its text MUST be plain enough for someone new
+  to disk internals.
 **Preservation, later release**
 
 These requirements belong to User Stories 11 to 16 and ship in the later
@@ -3253,7 +3371,17 @@ release (Delivery). The first release MUST NOT depend on them.
   its neighbor, the second as holding data of its own, and lists the run once
   for each of the three quarter tracks with its rotation; a disk in a
   standard layout lists no run; and no disk changes.
-
+- **SC-030**: At the window's opening size, the platter covers at least a
+  quarter of the window's area, and the legend takes no room from it.
+- **SC-031**: At tilts of 0°, 30° and 60° and at fit and 8× zoom, a tooltip
+  and a click at each of 100 points on the platter address the cell the
+  flat view's projection puts under that point, with no miss, and the
+  tilted view turns as smoothly as the flat one.
+- **SC-032**: With the head marker over the pointer, hovering and clicking
+  address the cell under the bullseye in every case checked.
+- **SC-033**: Someone new to disk internals, after the walkthrough and
+  without other help, can find which file owns a given sector and which
+  tracks contain no standard sectors, in under five minutes.
 ## Assumptions
 
 - AppleEm (mikedaley/web-a2e and mikedaley/applem-core, MIT license) is the

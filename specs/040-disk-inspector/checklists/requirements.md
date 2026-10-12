@@ -31,6 +31,10 @@
 
 ## Notes
 
+- 2026-10-12: the update for the inspector's look and first use (User Story 17,
+  FR-148 to FR-153, SC-030 to SC-033, and revisions to FR-007, FR-030,
+  FR-033 to FR-035, FR-043, FR-064 and FR-080) passes every item; it adds no
+  [NEEDS CLARIFICATION] marker.
 - The owner settled both former [NEEDS CLARIFICATION] markers. FR-058:
   export to a file in three forms, decoded sectors, a track's framed nibbles,
   and a track's exact bits as a one-track WOZ 2.1 (User Story 4 scenario 10).
