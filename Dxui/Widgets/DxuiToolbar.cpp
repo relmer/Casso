@@ -1429,7 +1429,12 @@ bool DxuiToolbar::OnToolbarLButtonDown (int x, int y)
         {
             bool  other = slot.entry.command != nullptr && slot.entry.command->id != open && slot.entry.command->IsEnabled();
 
-            if (other && slot.entry.kind == Kind::DropDown && IsPointInRect (slot.rc, x, y))
+            //  See more opens a menu too, and switches the same way.
+            if (other && slot.entry.command->id == kSeeMoreId && IsPointInRect (slot.rc, x, y))
+            {
+                OpenSeeMore();
+            }
+            else if (other && slot.entry.kind == Kind::DropDown && IsPointInRect (slot.rc, x, y))
             {
                 OpenDropDown (slot.entry.command->id);
             }

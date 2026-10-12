@@ -627,7 +627,10 @@ STDMETHODIMP DxuiDragDropTarget::Drop (
 
 
 
-    m_dragKeys = grfKeyState;
+    //  The drop's key state has the button already up. The last drag-over's
+    //  stands, as a forwarded shell target reads a drop with no button down
+    //  as a right-button drag and asks what to do with a menu.
+    UNREFERENCED_PARAMETER (grfKeyState);
 
 
 

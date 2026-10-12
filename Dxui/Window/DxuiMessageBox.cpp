@@ -43,6 +43,7 @@ static constexpr int  s_kLineHeightDip   =  20;
 static constexpr int  s_kChromeHeightDip = 124;   // caption + button row + a margin above and below the content
 static constexpr int  s_kMinHeightDip    = 148;
 static constexpr int  s_kMaxHeightDip    = 560;
+static constexpr int  s_kWorkAreaMarginDip = 40;   // kept clear above and below a box as tall as the screen allows
 
 
 
@@ -114,9 +115,14 @@ public:
             DxuiTextVAlign   vAlign  = DxuiTextVAlign::Center;
 
             //  Text taller than its box starts at the top rather than spilling
-            //  up under the caption.
+            //  up under the caption, and a measure that fails takes it for
+            //  tall. The box clips it either way, so it never runs over the
+            //  caption or the buttons.
             hr = text.MeasureStringWrapped (m_text.c_str(), m_scaler.ToPxf (bf.sizeDip), bf.face, (float) (tr.right - tr.left), fullW, fullH);
-            vAlign = (SUCCEEDED (hr) && fullH > (float) (tr.bottom - tr.top)) ? DxuiTextVAlign::Top : DxuiTextVAlign::Center;
+            vAlign = (FAILED (hr) || fullH > (float) (tr.bottom - tr.top)) ? DxuiTextVAlign::Top : DxuiTextVAlign::Center;
+
+            hr = text.PushClipRect ((float) tr.left, (float) tr.top, (float) (tr.right - tr.left), (float) (tr.bottom - tr.top));
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             hr = text.DrawString (
 m_text.c_str(),
@@ -131,6 +137,9 @@ DxuiTextHAlign::Left,
 vAlign,
 bf.weight,
 true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            hr = text.PopClipRect();
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
@@ -273,6 +282,50 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMaxHeightDip
+//
+//  A long message's box grows to its owner's work area, less a margin, as
+//  Windows' own message box does, and never below the fixed cap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int GetMaxHeightDip (HWND owner)
+{
+    MONITORINFO  monitor = { sizeof (monitor) };
+    UINT         dpi     = (owner != nullptr) ? GetDpiForWindow (owner) : GetDpiForSystem();
+    POINT        cursor  = {};
+    HMONITOR     handle  = nullptr;
+    int          workDip = 0;
+
+
+
+    //  With no owner yet, as for a command line refused before Casso's window
+    //  opens, the box opens on the monitor under the pointer.
+    if (owner != nullptr)
+    {
+        handle = MonitorFromWindow (owner, MONITOR_DEFAULTTOPRIMARY);
+    }
+    else if (GetCursorPos (&cursor))
+    {
+        handle = MonitorFromPoint (cursor, MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    if (dpi == 0 || handle == nullptr || !GetMonitorInfoW (handle, &monitor))
+    {
+        return s_kMaxHeightDip;
+    }
+
+    workDip = MulDiv (monitor.rcWork.bottom - monitor.rcWork.top, USER_DEFAULT_SCREEN_DPI, (int) dpi);
+
+    return (std::max) (s_kMaxHeightDip, workDip - s_kWorkAreaMarginDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMessageBox
 //
 //  A themed replacement for the Win32 MessageBox, matching its signature.
@@ -358,7 +411,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
                                 + (std::max) (DxuiMessageBoxWindow::EstimateTextHeightDip (body, severity != DxuiMessageSeverity::None),
                                               (severity != DxuiMessageSeverity::None) ? s_kGlyphRowDip : 0),
                             s_kMinHeightDip,
-                            s_kMaxHeightDip);
+                            GetMaxHeightDip (owner));
 
     hInst = (owner != nullptr)
                 ? reinterpret_cast<HINSTANCE> (GetWindowLongPtrW (owner, GWLP_HINSTANCE))

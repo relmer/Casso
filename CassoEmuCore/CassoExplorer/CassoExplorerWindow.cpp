@@ -6040,6 +6040,29 @@ bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::IsArchiveLocation
+//
+//  Whether the list shows the inside of an archive: a shell folder whose path
+//  lies on a lettered drive but is no folder on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsArchiveLocation() const
+{
+    const Location &  location = m_browser.GetLocation();
+
+
+
+    return location.kind == Location::Kind::ShellFolder && location.path.size() > 3 && location.path[1] == L':'
+        && m_context.fs != nullptr && !m_context.fs->DirectoryExists (location.path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::DeleteSelectionPermanently
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -7523,9 +7546,15 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Delete:
             if (!m_browser.IsImageLocation())
             {
-                //  Windows asks, and the Recycle Bin keeps it. An item the
-                //  shell lists, such as a file inside a zip, goes by the
-                //  shell's name for it.
+                //  Windows asks, and the Recycle Bin keeps it. A file inside a
+                //  zip has no file of its own to recycle, so it is deleted for
+                //  good after Windows' confirmation, as in File Explorer.
+                if (IsArchiveLocation())
+                {
+                    DeleteSelectionPermanently();
+                    break;
+                }
+
                 if (TryGetSelectedShellIds (hostPaths))
                 {
                     hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
@@ -10887,6 +10916,18 @@ void CassoExplorerWindow::FillTabs()
 
 void CassoExplorerWindow::SwitchToTab (size_t index)
 {
+    //  An address being typed belongs to the tab it was typed in, so it is
+    //  dropped, as in Explorer, and the new tab's address shows.
+    if (m_address->IsEditing())
+    {
+        m_address->EndEdit();
+
+        if (m_focus == Pane::Address)
+        {
+            SetFocusPane (Pane::List);
+        }
+    }
+
     //  A tab left on a folder deleted since moves up as it is shown.
     if (m_browser.SwitchTab (index))
     {

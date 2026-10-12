@@ -676,6 +676,7 @@ private:
     bool  IsShellDropFile     (int row, std::wstring & outPath) const;
     bool  TryGetSelectedShellIds  (std::vector<std::wstring> & outIds) const;
     void  DeleteSelectionPermanently ();
+    bool  IsArchiveLocation          () const;
 
     static bool  IsProgramPath (const std::wstring & path);
     static bool  IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
