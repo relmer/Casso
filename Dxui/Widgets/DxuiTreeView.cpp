@@ -1338,12 +1338,18 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             float  pinPx = m_scaler.ToPxf (s_kPinDip);
             float  pinX  = (float) m_boundsDip.left + contentW - m_scaler.ToPxf (s_kPinRightDip) - pinPx;
 
+            float  alpha = text.GetGlobalAlpha();
+
+            text.SetGlobalAlpha (alpha * s_kPinAlpha);
+
             for (LPCWSTR glyph : { s_kpszMdl2PinnedFill, s_kpszMdl2Pinned })
             {
                 hr = text.DrawString (glyph, pinX, rowY, pinPx, rowHeight, theme.ForegroundMuted(), pinPx,
                                       L"Segoe Fluent Icons", DxuiTextHAlign::Center, DxuiTextVAlign::Center);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
+
+            text.SetGlobalAlpha (alpha);
 
             labelRight = pinX;
         }

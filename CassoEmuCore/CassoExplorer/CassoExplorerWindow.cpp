@@ -1662,6 +1662,7 @@ void CassoExplorerWindow::FillPreview()
     bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     int                                             mode     = !visible ? 0 : hex ? 2 : program ? 1 : 0;
+    bool                                            blank    = false;
 
 
 
@@ -1735,13 +1736,17 @@ void CassoExplorerWindow::FillPreview()
         m_hexView->SetShowValues (!(opened ? m_fileBytes.LooksLikeText() : preview.textFile));
     }
 
-    m_previewMessage->SetText (!error                  ? std::wstring()
+    //  With nothing selected the pane says so, as Explorer's does.
+    blank = m_list->GetSelectedRows().empty() && !picture && !error && !hex && !columns && !program;
+
+    m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
+                               : !error                ? std::wstring()
                                : (hostFile && !opened) ? FormatPreviewError (L"The file could not be read")
                                                        : FormatPreviewError (preview.message));
-    m_previewMessage->SetVisible (visible && error);
+    m_previewMessage->SetVisible (visible && (error || blank));
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
-    m_textView->SetVisible (visible && !picture && !error && !hex && !columns);
+    m_textView->SetVisible (visible && !picture && !error && !hex && !columns && !blank);
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
