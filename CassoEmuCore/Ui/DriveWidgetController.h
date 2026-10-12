@@ -20,6 +20,8 @@
 //  + sync-event channel is live so the existing mount/eject paths
 //  continue to publish events the future chrome will consume.
 //
+//  Any thread may publish a sync event; the UI frame consumes them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DriveWidgetController
@@ -58,6 +60,10 @@ public:
     size_t                      GetWidgetCount    () const { return 0; }
 
 private:
+    //  Published from the CPU thread, as its disk changes reach OnBayChange,
+    //  and drained by the UI frame. The mutex guards the queue and the id
+    //  counter both, so ids enter the queue in the order they are given out.
+    std::mutex                   m_syncMutex;
     std::vector<DriveSyncEvent>  m_syncEvents;
     uint64_t                     m_nextSyncEventId = 1;
 };

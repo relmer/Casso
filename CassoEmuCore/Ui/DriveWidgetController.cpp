@@ -132,12 +132,18 @@ uint64_t DriveWidgetController::PublishSyncEvent (
 
 
 
-    evt.eventId     = m_nextSyncEventId++;
     evt.driveId     = driveId;
     evt.action      = action;
     evt.timestampMs = timestampMs;
 
-    m_syncEvents.push_back (evt);
+    {
+        std::lock_guard<std::mutex>  lock (m_syncMutex);
+
+
+
+        evt.eventId = m_nextSyncEventId++;
+        m_syncEvents.push_back (evt);
+    }
 
     return evt.eventId;
 }
@@ -158,7 +164,13 @@ std::vector<DriveWidgetController::DriveSyncEvent> DriveWidgetController::Consum
 
 
 
-    out.swap (m_syncEvents);
+    {
+        std::lock_guard<std::mutex>  lock (m_syncMutex);
+
+
+
+        out.swap (m_syncEvents);
+    }
 
     return out;
 }
