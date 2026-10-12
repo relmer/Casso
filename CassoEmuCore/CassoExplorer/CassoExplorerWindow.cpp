@@ -849,9 +849,10 @@ void CassoExplorerWindow::ConfigureWidgets()
     SetTimer (GetHwnd(), kDriveTimerId, kDrivePollMs, nullptr);
 
     {
-        PWSTR  recent = nullptr;
+        PWSTR    recent   = nullptr;
+        HRESULT  hrRecent = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
 
-        if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent)))
+        if (SUCCEEDED (hrRecent))
         {
             m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
             m_quickAccessStamp = GetQuickAccessStamp (m_quickAccessDir);
