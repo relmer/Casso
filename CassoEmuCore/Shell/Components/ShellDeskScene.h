@@ -72,6 +72,15 @@ public:
     bool  IsReady    () const { return m_deskSceneReady; }
     bool  IsMachineC () const { return m_deskSceneMachineIsC; }
 
+    // Whether the fullscreen strip, summoned by its hotkey in Mouse mode, has
+    // the guest mouse turned off.
+    bool  IsGuestMouseSuppressed () const { return m_stripSuppressGuestMouse; }
+
+    // The storage device under a point on the desk or the fullscreen strip,
+    // as the left-click chain finds it: a Drive target with its index, a
+    // Recorder target for the recorder or its labels, or None.
+    SceneHitResult  StorageHit (int x, int y) const;
+
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.
     DxuiOrbitControl  & GetCompass     () { return m_sceneCompass; }

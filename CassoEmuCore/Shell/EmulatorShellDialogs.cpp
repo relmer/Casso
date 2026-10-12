@@ -488,7 +488,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_chrome->m_chromeTheme);
+    dlg.SetTheme (&m_chrome->GetTheme());
 
     result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 

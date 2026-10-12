@@ -4124,3 +4124,38 @@ bool ShellDeskScene::IsGrabbableAt (int x, int y) const
 
     return isGrabbable;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::StorageHit
+//
+//  The recorder has its own hit test, which checks whether it is on the strip
+//  or the desk; the drives' test does not include it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SceneHitResult ShellDeskScene::StorageHit (int x, int y) const
+{
+    POINT           pt      = { x, y };
+    bool            inStrip = m_shell.m_renderer->GetD3D().IsFullscreen() &&
+                              m_stripRectPx.bottom > m_stripRectPx.top &&
+                              PtInRect (&m_stripRectPx, pt);
+    SceneHitResult  hit     = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+
+
+
+    if (hit.target != SceneHitResult::Target::Drive)
+    {
+        hit        = {};
+        hit.target = (RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
+                      PtInRect (&m_sceneTapeCounterRect, pt) || PtInRect (&m_sceneTapeNameRect, pt))
+                         ? SceneHitResult::Target::Recorder
+                         : SceneHitResult::Target::None;
+    }
+
+    return hit;
+}

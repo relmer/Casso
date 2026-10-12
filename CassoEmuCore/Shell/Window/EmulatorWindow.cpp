@@ -407,7 +407,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
-    m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
+    m_host->GetRoot().Adopt (m_chrome->GetMainMenu());
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
@@ -502,7 +502,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_scene->m_sceneView.orbitPitchRad = 0.0f;
         m_scene->InvalidateSceneComposition();
     });
-    m_host->GetRoot().Adopt (m_chrome->m_toolbar);
+    m_host->GetRoot().Adopt (m_chrome->GetToolbar());
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     //  The backing goes in FIRST: the root paints its children in the order
@@ -539,7 +539,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the dropdown renders as a real top-level window (escapes the
     // client area + occludes). The strip stays in-window. The
     // full-ownership host owns the device, so its pool makes real popups.
-    m_chrome->m_mainMenu.SetPopupHost (m_host.get());
+    m_chrome->GetMainMenu().SetPopupHost (m_host.get());
 
     // The hover tooltips render through the host popup pool too; their
     // dwell timers are driven from the main frame loop's Tick. SetTheme
@@ -557,15 +557,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_chrome->m_driveTooltip.SetTheme     (m_chrome->m_chromeTheme);
 
     // The caption buttons' tooltip, in place of the stock system one.
-    m_chrome->m_captionTooltip.SetPopupHost (m_host.get());
-    m_chrome->m_captionTooltip.SetTheme     (m_chrome->m_chromeTheme);
+    m_chrome->GetCaptionTooltip().SetPopupHost (m_host.get());
+    m_chrome->GetCaptionTooltip().SetTheme     (m_chrome->m_chromeTheme);
 
     // The emulator's tips take Visual Studio's frame, as the debugger's do:
     // tighter corners, a border on whole pixels and a small shadow.
     m_chrome->m_toolbarTooltip.ApplyVisualStudioLook();
     m_chrome->m_switchBarTooltip.ApplyVisualStudioLook();
     m_chrome->m_driveTooltip.ApplyVisualStudioLook();
-    m_chrome->m_captionTooltip.ApplyVisualStudioLook();
+    m_chrome->GetCaptionTooltip().ApplyVisualStudioLook();
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -619,21 +619,21 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         RECT  menuBarBounds = { 0, m_host->GetCaptionHeightPx(), clientW, m_host->GetCaptionHeightPx() };
 
-        m_chrome->m_mainMenu.Layout (menuBarBounds, m_scaler);
+        m_chrome->GetMainMenu().Layout (menuBarBounds, m_scaler);
     }
 
-    m_chrome->m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_chrome->GetMainMenu().SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
 
     // Command toolbar: its entries are the same command table the menu
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_chrome->m_mainMenu.GetCommands().BuildToolbar (m_chrome->m_toolbar, m_printer->GetLed(), m_chrome->m_volumeFlyout);
+    m_chrome->GetMainMenu().GetCommands().BuildToolbar (m_chrome->GetToolbar(), m_printer->GetLed(), m_chrome->m_volumeFlyout);
 
     // Mouse mode routes through the same toggle the band selector used, so
     // the leave-time release of a held guest button runs identically. It is
     // offered only where there is a mouse to drive: the //c.
-    m_chrome->m_mainMenu.GetCommands().SetMouseModeFns (
+    m_chrome->GetMainMenu().GetCommands().SetMouseModeFns (
         [this] () { return m_input->GetPointerMode() == InputMappingMode::Mouse; },
         [this] () { return m_machine.GetMouse() != nullptr && m_input->IsMouseConnected(); },
         [this] () { m_input->ToggleInputMappingMode (InputMappingMode::Mouse); });
@@ -643,7 +643,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_settings->GetPrefs().masterVolume = volume01;
         m_settings->GetPrefs().masterMuted  = muted;
         m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
-        m_chrome->m_mainMenu.GetCommands().SetMuted (muted);
+        m_chrome->GetMainMenu().GetCommands().SetMuted (muted);
 
         // Deferred, not immediate: the slider reports every intermediate
         // value, so a save here would rewrite the prefs file on each tick of
@@ -651,7 +651,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_settings->SaveGlobalPrefsDeferred();
     });
     m_chrome->m_volumeFlyout.SetVolume (m_settings->GetPrefs().masterVolume, m_settings->GetPrefs().masterMuted);
-    m_chrome->m_mainMenu.GetCommands().SetMuted (m_settings->GetPrefs().masterMuted);
+    m_chrome->GetMainMenu().GetCommands().SetMuted (m_settings->GetPrefs().masterMuted);
     m_audio->GetOutput().SetMasterGain (m_settings->GetPrefs().masterMuted ? 0.0f : m_settings->GetPrefs().masterVolume);
 
     // The theme + monitor-color pickers, and the catalog behind the first of
@@ -660,7 +660,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     WireToolbarPickers();
     m_chrome->RefreshToolbarThemeList();
     m_chrome->SyncToolbarState();
-    m_chrome->m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
+    m_chrome->GetMainMenu().SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
         {
@@ -673,30 +673,30 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
-    m_chrome->m_mainMenu.GetCommands().SetPlayerPickedFn (
+    m_chrome->GetMainMenu().GetCommands().SetPlayerPickedFn (
         [this] (size_t player, const PlayerEntry & entry)
         {
             m_input->PickPlayer (player, entry);
         });
 
-    m_chrome->m_mainMenu.GetCommands().SetPlayerModeFn (
+    m_chrome->GetMainMenu().GetCommands().SetPlayerModeFn (
         [this] (size_t player, PlayerMode mode)
         {
             m_input->SetPlayerMode (player, mode);
         });
 
-    m_chrome->m_mainMenu.GetCommands().SetProfilePickedFn (
+    m_chrome->GetMainMenu().GetCommands().SetProfilePickedFn (
         [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {
             m_input->PickControllerProfile (unit, profileName);
         });
 
-    m_chrome->m_mainMenu.GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
+    m_chrome->GetMainMenu().GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
         m_input->StartNewControllerProfile (unit);
     });
 
-    m_chrome->m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
+    m_chrome->GetMainMenu().SetEnableQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
         {
@@ -719,7 +719,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
-    m_chrome->m_mainMenu.SetLabelQuery ([this] (WORD commandId) -> std::wstring
+    m_chrome->GetMainMenu().SetLabelQuery ([this] (WORD commandId) -> std::wstring
     {
         switch (commandId)
         {
@@ -887,9 +887,9 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
         m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
     }
 
-    if (m_chrome->m_mainMenu.IsOpen())
+    if (m_chrome->GetMainMenu().IsOpen())
     {
-        m_chrome->m_mainMenu.Hide();
+        m_chrome->GetMainMenu().Hide();
     }
 
     return DxuiMessageResult::NotHandled;
@@ -1229,12 +1229,12 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_chrome->m_switchBarTooltip.WantsTick() ||
         m_chrome->m_driveTooltip.WantsTick()     ||
-        m_chrome->m_captionTooltip.WantsTick()   ||
+        m_chrome->GetCaptionTooltip().WantsTick()   ||
         m_scene->m_sceneCompass.WantsTick()     ||
         m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
-        m_chrome->m_mainMenu.WantsTick()         ||
+        m_chrome->GetMainMenu().WantsTick()         ||
         (m_host != nullptr && m_host->GetContextMenu().WantsTick()) ||
-        m_chrome->m_toolbar.WantsTick())
+        m_chrome->GetToolbar().WantsTick())
     {
         timeout = s_kIdleAnimationTickMs;
     }
@@ -1430,12 +1430,11 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     //  other cancel -- a modal, a secure desktop, a real takeover -- releases
     //  the pointer as it always did, which is what keeps a hidden cursor from
     //  being stranded behind someone else's window.
-    if (m_input->IsPaddleCaptured() && m_chrome->m_captureReflowMs != 0
-        && ChangeBannerNowMs() - m_chrome->m_captureReflowMs <= ShellChrome::s_kCaptureReflowEchoMs
+    if (m_input->IsPaddleCaptured()
         && GetForegroundWindow() == m_hwnd
-        && !m_chrome->m_mainMenu.IsOpen())
+        && !m_chrome->IsMenuOpen()
+        && m_chrome->TakeCaptureReflowEcho (ChangeBannerNowMs()))
     {
-        m_chrome->m_captureReflowMs = 0;
         SetCapture (m_hwnd);
         m_input->ClipPaddleCursorToClient();
 
@@ -1484,7 +1483,7 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 
     // Never narrower than the menu strip's content so every title stays
     // on-strip. The width is physical client px, the same space as minClient.
-    menuWidthPx = m_chrome->m_mainMenu.GetMenuStripContentWidthPx() + m_scaler.ToPx (s_kMenuRightPadDp);
+    menuWidthPx = m_chrome->GetMainMenu().GetMenuStripContentWidthPx() + m_scaler.ToPx (s_kMenuRightPadDp);
 
     if (minClient.cx < menuWidthPx)
     {
@@ -1573,13 +1572,13 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
     UNREFERENCED_PARAMETER (widthPx);
 
-    m_chrome->m_inChromeLayout = true;
+    m_chrome->SetInLayout (true);
 
     // A resize restretches the window; drop any open menu so its
     // window-anchored popup is not left stranded.
-    if (m_chrome->m_mainMenu.IsOpen())
+    if (m_chrome->GetMainMenu().IsOpen())
     {
-        m_chrome->m_mainMenu.Hide();
+        m_chrome->GetMainMenu().Hide();
     }
 
     // The host (DxuiHwndSource::HandleSize) already resized its swap
@@ -1617,8 +1616,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         {
             m_chrome->SetChromeHiddenForFullscreenScene (true);
             m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
-            m_chrome->m_chromeSizedForHasDisk = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
-            m_chrome->m_chromeSizedForApple2c = MachineHasCaseSwitches();
+            m_chrome->RecordSizedFor ((m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller(),
+                                      MachineHasCaseSwitches());
         }
         else
         {
@@ -1628,7 +1627,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_chrome->SetChromeHiddenForFullscreenScene (false);
 
         menuBarBounds = { 0, m_host->GetCaptionHeightPx(), static_cast<int> (width), m_host->GetCaptionHeightPx() };
-        m_chrome->m_mainMenu.Layout (menuBarBounds, m_scaler);
+        m_chrome->GetMainMenu().Layout (menuBarBounds, m_scaler);
 
         // Settle the desk-scene scale (monitor fit + scaled band heights) for
         // THIS size before laying the drive widgets, so widgets and band agree
@@ -1637,7 +1636,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         {
             RECT  vr            = m_chrome->ComputeViewportRect (static_cast<int> (width), renderH);
-            RECT  driveRect     = m_chrome->m_driveBand.GetBounds();
+            RECT  driveRect     = m_chrome->GetDriveBandBounds();
             int   bottomInsetPx = renderH - driveRect.top;   // drive band height only
             bool  fHasDisk      = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
@@ -1651,7 +1650,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             else if (fHasDisk)
             {
                 m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
-                                                          m_chrome->m_chromeSceneScale, m_disks->ShouldShowExternalDrive() ? 2 : 1);
+                                                          m_chrome->GetSceneScale(), m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional
@@ -1678,11 +1677,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             // never per-frame), so record the disk-presence + //c-ness this
             // window size now accounts for. ReflowChromeForMachineChange reads
             // these pre-switch values to grow/shrink the window by the band delta.
-            m_chrome->m_chromeSizedForHasDisk = fHasDisk;
-            m_chrome->m_chromeSizedForApple2c = MachineHasCaseSwitches();
-
-            m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
-            m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
+            m_chrome->RecordSizedFor (fHasDisk, MachineHasCaseSwitches());
+            m_chrome->LayoutDriveBandSurface (!DeskSceneActive(), RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_chrome->LayoutSwitchBar (dpi);
 
@@ -1731,7 +1727,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
     }
 
-    m_chrome->m_inChromeLayout = false;
+    m_chrome->SetInLayout (false);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1883,18 +1879,18 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
     if (tip != nullptr && m_host != nullptr &&
         m_host->GetNcSystemButtonRectPx (POINT { xScreen, yScreen }, anchor))
     {
-        m_chrome->m_captionTooltip.RequestShow (anchor, tip, nowMs);
+        m_chrome->GetCaptionTooltip().RequestShow (anchor, tip, nowMs);
     }
     else
     {
-        m_chrome->m_captionTooltip.RequestHide (nowMs);
+        m_chrome->GetCaptionTooltip().RequestHide (nowMs);
     }
 
     // The host owns caption / system-button hover now. Our only stake in
     // a non-client move is dropping a latched menu hover: when the
     // pointer leaves the menu upward into the caption the client
     // mouse-move stream stops, so this is the one signal that clears it.
-    m_chrome->m_mainMenu.ClearHover();
+    m_chrome->GetMainMenu().ClearHover();
     InvalidateRect (m_hwnd, nullptr, FALSE);
     return DxuiMessageResult::NotHandled;
 }
@@ -1917,7 +1913,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 
 
     // Caption-button hover teardown is the host's job. The tooltip is ours.
-    m_chrome->m_captionTooltip.RequestHide (nowMs);
+    m_chrome->GetCaptionTooltip().RequestHide (nowMs);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1943,9 +1939,9 @@ DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, 
     // and a move / system action would strand it. The host then routes
     // the press to its own DxuiSystemButton (press state) or to
     // DefWindowProc (caption drag), so we never claim the message.
-    if (m_chrome->m_mainMenu.IsOpen())
+    if (m_chrome->GetMainMenu().IsOpen())
     {
-        m_chrome->m_mainMenu.Hide();
+        m_chrome->GetMainMenu().Hide();
     }
 
     return DxuiMessageResult::NotHandled;

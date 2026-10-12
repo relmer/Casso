@@ -199,7 +199,7 @@ Error:
 
 void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 {
-    const EmulatorCommands          & commands = m_chrome->m_mainMenu.GetCommands();
+    const EmulatorCommands          & commands = m_chrome->GetMainMenu().GetCommands();
     std::vector<DxuiPopupMenuItem>    items;
     std::vector<int>                  ids;
 

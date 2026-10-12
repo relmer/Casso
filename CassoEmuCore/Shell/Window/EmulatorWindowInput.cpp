@@ -114,14 +114,14 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 
     if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
     {
-        m_chrome->m_mainMenu.SetFocusedMenu ((MainMenuId) index);
+        m_chrome->GetMainMenu().SetFocusedMenu ((MainMenuId) index);
     }
     else
     {
-        m_chrome->m_mainMenu.ClearFocus();
+        m_chrome->GetMainMenu().ClearFocus();
     }
 
-    m_chrome->m_toolbar.SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
+    m_chrome->GetToolbar().SetFocusIndex ((index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast)
                                            ? index - s_kChromeFocusToolbarFirst : -1);
 
     m_disks->GetDriveChrome()[0].SetFocused (index == s_kChromeFocusDrive0);
@@ -151,7 +151,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     int   dir         = shift ? -1 : 1;
     int   index       = m_chromeFocusIndex;
     bool  exitVk      = (vk == VK_ESCAPE || vk == VK_F10);
-    bool  menuIsOpen  = m_chrome->m_mainMenu.IsOpen();
+    bool  menuIsOpen  = m_chrome->GetMainMenu().IsOpen();
     bool  onMenuTitle = index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast;
     bool  onToolbar   = index >= s_kChromeFocusToolbarFirst && index <= s_kChromeFocusToolbarLast;
 
@@ -159,20 +159,20 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 
     // A toolbar picker or a keyboard-opened flyout owns navigation; Escape
     // closes it and leaves the entry focused.
-    if (m_chrome->m_toolbar.OwnsKeyboard())
+    if (m_chrome->GetToolbar().OwnsKeyboard())
     {
-        (void) m_chrome->m_toolbar.HandleKey (vk);
+        (void) m_chrome->GetToolbar().HandleKey (vk);
     }
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
     else if (menuIsOpen)
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
-        int   openIdx   = (int) m_chrome->m_mainMenu.GetOpenMenu();
+        int   openIdx   = (int) m_chrome->GetMainMenu().GetOpenMenu();
 
-        m_chrome->m_mainMenu.HandleKey (vk);
+        m_chrome->GetMainMenu().HandleKey (vk);
 
-        if (m_chrome->m_mainMenu.IsOpen())
+        if (m_chrome->GetMainMenu().IsOpen())
         {
             // Still open: a ring-owned menu tracks the (possibly switched)
             // title. A menu opened outside the ring (Alt mnemonic / mouse)
@@ -180,7 +180,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
             // stranding focus on a title the user never Tab'd to.
             if (ringOwned)
             {
-                SetChromeFocusIndex ((int) m_chrome->m_mainMenu.GetOpenMenu());
+                SetChromeFocusIndex ((int) m_chrome->GetMainMenu().GetOpenMenu());
             }
         }
         else if (exitVk && ringOwned)
@@ -216,7 +216,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     }
     else if (onMenuTitle && (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE))
     {
-        m_chrome->m_mainMenu.Open ((MainMenuId) index, true);
+        m_chrome->GetMainMenu().Open ((MainMenuId) index, true);
     }
 
     // A toolbar entry is focused: Enter, Space or Down activates it, which
@@ -224,7 +224,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     // with the slider taking the keys that follow.
     else if (onToolbar && (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE))
     {
-        m_chrome->m_toolbar.ActivateFocused();
+        m_chrome->GetToolbar().ActivateFocused();
     }
 
     // A toolbar entry or a drive widget is focused. Left/Right walk the whole
@@ -1024,20 +1024,14 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool            inStrip  = m_renderer->GetD3D().IsFullscreen() &&
-                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                                   PtInRect (&m_scene->m_stripRectPx, pt);
-        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        SceneHitResult  hit = m_scene->StorageHit (x, y);
 
-        if (sceneHit.target == SceneHitResult::Target::Drive)
+        if (hit.target == SceneHitResult::Target::Drive)
         {
-            return sceneHit.driveIndex;
+            return hit.driveIndex;
         }
 
-        // The recorder has its own hit test, which checks whether it is on
-        // the strip or the desk; the drives' test does not include it.
-        if (m_scene->RecorderHit (x, y).target == SceneHitResult::Target::Recorder ||
-            PtInRect (&m_scene->m_sceneTapeCounterRect, pt) || PtInRect (&m_scene->m_sceneTapeNameRect, pt))
+        if (hit.target == SceneHitResult::Target::Recorder)
         {
             return m_tapeDeck->IsTapeRecorderShown() ? kStorageMenuRecorder : -1;
         }
@@ -1086,7 +1080,7 @@ bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHe
 
     // The mnemonic arm both TESTS and ACTS -- HandleAltKey opens the menu --
     // so it has to lead the ladder rather than fold into a predicate.
-    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_chrome->m_mainMenu.HandleAltKey ((wchar_t) vk))
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_chrome->GetMainMenu().HandleAltKey ((wchar_t) vk))
     {
         // Claimed by the menu bar.
     }
@@ -1135,9 +1129,9 @@ ShellKeyRouting::State EmulatorShell::GetKeyRoutingState() const
 
 
     state.pointerMode         = m_input->GetPointerMode();
-    state.toolbarOwnsKeyboard = m_chrome->m_toolbar.OwnsKeyboard();
+    state.toolbarOwnsKeyboard = m_chrome->GetToolbar().OwnsKeyboard();
     state.isChromeFocused     = m_chromeFocusIndex != s_kChromeFocusNone;
-    state.isMenuOpen          = m_chrome->m_mainMenu.IsOpen();
+    state.isMenuOpen          = m_chrome->GetMainMenu().IsOpen();
 
     return state;
 }
@@ -1175,7 +1169,7 @@ void EmulatorShell::DispatchShellKey (
         // An open picker is modal in practice: it owns arrows, Enter and
         // Escape, so browsing the rows previews rather than typing into
         // the //e. A flyout opened by keyboard owns them the same way.
-        (void) m_chrome->m_toolbar.HandleKey (vk);
+        (void) m_chrome->GetToolbar().HandleKey (vk);
         break;
 
     case ShellKeyOwner::Chrome:
@@ -1243,7 +1237,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 
     // Any key down ends or starts an Alt tap; see OnKeyUp.
-    (void) m_chrome->m_mainMenu.TrackAltTap (DxuiKeyEventKind::Down, vk);
+    (void) m_chrome->GetMainMenu().TrackAltTap (DxuiKeyEventKind::Down, vk);
 
     // Alt+F4 belongs to Windows, not to the guest or the chrome. Leaving it
     // unclaimed lets DefWindowProc turn it into SC_CLOSE; claiming it, as
@@ -1355,7 +1349,7 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     // A tap of Alt on its own toggles the menu's access-key underlines, and a
     // stopped machine draws no frame to show them, so the window repaints.
     // The release still reaches the guest below, since Alt is also Open Apple.
-    if (m_chrome->m_mainMenu.TrackAltTap (DxuiKeyEventKind::Up, vk))
+    if (m_chrome->GetMainMenu().TrackAltTap (DxuiKeyEventKind::Up, vk))
     {
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }

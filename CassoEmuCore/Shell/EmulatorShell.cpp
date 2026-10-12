@@ -281,8 +281,8 @@ EmulatorShell::~EmulatorShell()
     m_uiShell.Shutdown();
     m_window->ShutdownDragDrop();
     m_disks->GetDriveWidgets().UnloadDocument();
-    m_chrome->m_mainMenu.Hide();
-    m_chrome->m_mainMenu.SetPopupHost (nullptr);
+    m_chrome->GetMainMenu().Hide();
+    m_chrome->GetMainMenu().SetPopupHost (nullptr);
 
     // Drop the host's adopted-chrome references before the chrome
     // members or m_host itself go out of scope. The chrome controls
@@ -482,7 +482,7 @@ void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
 
 bool EmulatorShell::DeskSceneActive() const
 {
-    return !m_chrome->m_chromeTheme.compactDrives && m_scene->m_deskSceneReady;
+    return !m_chrome->GetTheme().compactDrives && m_scene->IsReady();
 }
 
 
@@ -651,7 +651,7 @@ HRESULT EmulatorShell::Initialize (
     // is replayed once the window exists.
     s_pNotifyShell = this;
 
-    RegisterChromeDock();
+    m_chrome->RegisterDock();
     InitAssetPathsAndStores();
 
     // Bring up OLE on the UI thread before any RegisterDragDrop / IFileDialog
@@ -730,40 +730,6 @@ HRESULT EmulatorShell::Initialize (
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RegisterChromeDock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RegisterChromeDock()
-{
-    // Register the chrome bands + center with the dock layout once --
-    // their thicknesses are refreshed from DPI + live drive-bar state
-    // on every ComputeViewportRect / GetClientSizeForCenterPx call.
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_titleBand,   DxuiDock::Top);
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_navBand,     DxuiDock::Top);
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_toolbarBand, DxuiDock::Top);
-
-    // Under the toolbar and above the picture, because a notice about the disk
-    // in the drive belongs with the controls rather than over the screen.
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_changeBand,  DxuiDock::Top);
-
-    // Under the change notice, so a capture that starts while a disk question
-    // stands does not push the question off the top of the chrome.
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_standInBand, DxuiDock::Top);
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_driveBand,   DxuiDock::Bottom);
-    // Registered AFTER the drive band so the dock peels the drive bar off the
-    // very bottom first and the //c switch strip lands just above it (between
-    // the viewport and the joystick/paddle/mouse bar).
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_switchBand,  DxuiDock::Bottom);
-    m_chrome->m_chromeDock.SetDock (m_chrome->m_centerBand,  DxuiDock::Fill);
 }
 
 
@@ -987,7 +953,7 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // The caption is host-owned now, and chrome paints through the
     // host panel tree; UiShell only routes input, hit-tests, and
     // supplies the theme / viewport metrics the settings panel reads.
-    m_uiShell.SetMainMenu (&m_chrome->m_mainMenu);
+    m_uiShell.SetMainMenu (&m_chrome->GetMainMenu());
     m_uiShell.SetTheme    (&m_chrome->m_chromeTheme);
 
     // Inject the shared text renderer into chrome controls that
@@ -996,9 +962,9 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // controls participate in the standard IDxuiControl::Layout
     // contract without needing the renderer passed as a Layout
     // parameter on every call.
-    m_chrome->m_mainMenu.SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
+    m_chrome->GetMainMenu().SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
     m_chrome->m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
-    m_chrome->m_toolbar.SetTextRenderer            (&m_uiShell.GetTextRenderer());
+    m_chrome->GetToolbar().SetTextRenderer            (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
@@ -1037,7 +1003,7 @@ Error:
 
 void EmulatorShell::WireToolbarPickers()
 {
-    m_chrome->m_toolbar.SetPopupHost (m_host.get());
+    m_chrome->GetToolbar().SetPopupHost (m_host.get());
 
     //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
     //  closing the drop-down that was open. The drop-down holds capture, so
@@ -1047,7 +1013,7 @@ void EmulatorShell::WireToolbarPickers()
     //  Only the titles. Anywhere else the click closes the picker and stops
     //  there, which is what a menu does everywhere: dismissing is not a
     //  reason to fire the button that happened to be underneath.
-    m_chrome->m_toolbar.SetDropDownClickOutsideFn (
+    m_chrome->GetToolbar().SetDropDownClickOutsideFn (
         [this] (POINT screenPx)
         {
             POINT  client = screenPx;
@@ -1057,19 +1023,19 @@ void EmulatorShell::WireToolbarPickers()
                 return;
             }
 
-            for (int i = 0; i < m_chrome->m_mainMenu.GetMenuCount(); i++)
+            for (int i = 0; i < m_chrome->GetMainMenu().GetMenuCount(); i++)
             {
-                RECT  title = m_chrome->m_mainMenu.GetMenuRect (i);
+                RECT  title = m_chrome->GetMainMenu().GetMenuRect (i);
 
                 if (PtInRect (&title, client))
                 {
-                    m_chrome->m_mainMenu.Open (i, false);
+                    m_chrome->GetMainMenu().Open (i, false);
                     return;
                 }
             }
         });
 
-    m_chrome->m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
+    m_chrome->GetToolbar().SetDropDownSinks (EmulatorCommands::kIdTheme,
         [this] (int index)
         {
             HRESULT  hrTheme = S_OK;
@@ -1088,20 +1054,20 @@ void EmulatorShell::WireToolbarPickers()
 
             if (inRange)
             {
-                m_chrome->m_mainMenu.GetCommands().SetThemeIndex (index);
+                m_chrome->GetMainMenu().GetCommands().SetThemeIndex (index);
                 hrTheme = m_settings->ApplyAndPersistTheme (m_chrome->m_toolbarThemeIds[index]);
                 IGNORE_RETURN_VALUE (hrTheme, S_OK);
             }
         });
 
-    m_chrome->m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
+    m_chrome->GetToolbar().SetDropDownSinks (EmulatorCommands::kIdColor,
         [this] (int index)
         {
             m_renderer->SetColorModeLive (index);
         },
         [this] (int index)
         {
-            m_chrome->m_mainMenu.GetCommands().SetMonitorColorIndex (index);
+            m_chrome->GetMainMenu().GetCommands().SetMonitorColorIndex (index);
             m_renderer->SetColorModeLive              (index);
             m_settings->PersistColorModeForMachine    (index);
         });

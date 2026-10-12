@@ -50,6 +50,32 @@ public:
     // Whether a menu from the menu bar is open.
     bool  IsMenuOpen () const { return m_mainMenu.IsOpen(); }
 
+    // The menu bar and the command toolbar, for the shell's keyboard routing,
+    // focus ring and command wiring.
+    MainMenu     &  GetMainMenu () { return m_mainMenu; }
+    DxuiToolbar  &  GetToolbar  () { return m_toolbar; }
+
+    // Registers the chrome bands and the center with the dock layout, once.
+    void  RegisterDock ();
+
+    // Hides the toolbar, drive and switch bar tooltips at once.
+    void  HideTooltipsNow ();
+
+    // The capture bar's dock. The resize that follows it sends WM_CANCELMODE
+    // to the window with the pointer, and that one cancel is ignored: Mark
+    // stores when the dock happened (0 clears it), and TakeCaptureReflowEcho
+    // is true, once, for a cancel within s_kCaptureReflowEchoMs of it.
+    void  MarkCaptureReflow     (int64_t nowMs) { m_captureReflowMs = nowMs; }
+    bool  TakeCaptureReflowEcho (int64_t nowMs);
+
+    // OnSize's part: whether the layout pass is running, the disk presence
+    // and //c the window size accounts for, the drive band's bounds, and the
+    // drive band's background.
+    void  SetInLayout            (bool inLayout) { m_inChromeLayout = inLayout; }
+    void  RecordSizedFor         (bool hasDisk, bool isApple2c);
+    RECT  GetDriveBandBounds     () const { return m_driveBand.GetBounds(); }
+    void  LayoutDriveBandSurface (bool isVisible, const RECT & bounds);
+
     // The left button: a press outside the menu strip closes an open menu,
     // and a press or release on the command toolbar or the //c switch bar is
     // theirs.

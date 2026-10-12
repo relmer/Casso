@@ -93,9 +93,7 @@ std::optional<uint32_t> EmulatorShell::InputHost::MapPointerToPicture (int xPx, 
 
 void EmulatorShell::InputHost::HideTooltips()
 {
-    m_shell.m_chrome->m_toolbarTooltip.HideImmediate();
-    m_shell.m_chrome->m_driveTooltip.HideImmediate();
-    m_shell.m_chrome->m_switchBarTooltip.HideImmediate();
+    m_shell.m_chrome->HideTooltipsNow();
 }
 
 
@@ -114,21 +112,21 @@ void EmulatorShell::InputHost::SetPlayerPicker (InputModeRules::Picker picker)
 
 
 
-    m_shell.m_chrome->m_mainMenu.GetCommands().SetPicker (std::move (picker));
+    m_shell.m_chrome->GetMainMenu().GetCommands().SetPicker (std::move (picker));
 
     // Straight onto the command bar's drop-down rather than a submenu off the
     // Machine menu: this is a list the user picks from while playing.
-    m_shell.m_chrome->m_toolbar.SetDropDownItems (EmulatorCommands::kIdPaddle,
-                                                  m_shell.m_chrome->m_mainMenu.GetCommands().GetPaddlePickerItems());
+    m_shell.m_chrome->GetToolbar().SetDropDownItems (EmulatorCommands::kIdPaddle,
+                                                  m_shell.m_chrome->GetMainMenu().GetCommands().GetPaddlePickerItems());
 
     // The picker wears what is playing, so its width moves with the answer.
     // Without laying the strip out again the new word paints into the rect
     // the old one left behind.
-    bounds = m_shell.m_chrome->m_toolbar.GetBounds();
+    bounds = m_shell.m_chrome->GetToolbar().GetBounds();
 
     if (bounds.right > bounds.left)
     {
-        m_shell.m_chrome->m_toolbar.Layout (bounds, m_shell.m_scaler);
+        m_shell.m_chrome->GetToolbar().Layout (bounds, m_shell.m_scaler);
     }
 }
 
@@ -144,12 +142,12 @@ void EmulatorShell::InputHost::SetPlayerPicker (InputModeRules::Picker picker)
 
 void EmulatorShell::InputHost::ClaimCaptureBand()
 {
-    m_shell.m_chrome->m_captureReflowMs = 0;
+    m_shell.m_chrome->MarkCaptureReflow (0);
 
     if (!m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         m_shell.m_chrome->ReflowChromeForChangeBand();
-        m_shell.m_chrome->m_captureReflowMs = ChangeBannerNowMs();
+        m_shell.m_chrome->MarkCaptureReflow (ChangeBannerNowMs());
     }
 }
 
@@ -183,7 +181,7 @@ void EmulatorShell::InputHost::ReleaseCaptureBand()
 
 bool EmulatorShell::InputHost::IsGuestMouseSuppressed() const
 {
-    return m_shell.m_scene->m_stripSuppressGuestMouse;
+    return m_shell.m_scene->IsGuestMouseSuppressed();
 }
 
 

@@ -2238,3 +2238,119 @@ void ShellChrome::OnMouseLeave (int64_t nowMs)
 
     m_switchBarTooltip.RequestHide (nowMs);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::RegisterDock
+//
+//  The bands' thicknesses are refreshed from the DPI and the drive bar's state
+//  on every ComputeViewportRect and GetClientSizeForCenterPx call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::RegisterDock()
+{
+    m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
+    m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+
+    // Under the toolbar and above the picture, so a notice about the disk in
+    // the drive is with the controls rather than over the screen.
+    m_chromeDock.SetDock (m_changeBand,  DxuiDock::Top);
+
+    // Under the change notice, so a capture that starts while a disk question
+    // is up does not push the question off the top of the chrome.
+    m_chromeDock.SetDock (m_standInBand, DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
+
+    // Registered AFTER the drive band so the dock peels the drive bar off the
+    // very bottom first and the //c switch strip lands just above it (between
+    // the viewport and the joystick/paddle/mouse bar).
+    m_chromeDock.SetDock (m_switchBand,  DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand,  DxuiDock::Fill);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::HideTooltipsNow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::HideTooltipsNow()
+{
+    m_toolbarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::TakeCaptureReflowEcho
+//
+//  True for a cancel within s_kCaptureReflowEchoMs of the capture bar's dock,
+//  which then clears, so exactly one cancel is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::TakeCaptureReflowEcho (int64_t nowMs)
+{
+    bool  isEcho = m_captureReflowMs != 0 && nowMs - m_captureReflowMs <= s_kCaptureReflowEchoMs;
+
+
+
+    if (isEcho)
+    {
+        m_captureReflowMs = 0;
+    }
+
+    return isEcho;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::RecordSizedFor
+//
+//  The disk presence and //c the window size accounts for. OnSize sets them
+//  because it runs on a real WM_SIZE only, and ReflowChromeForMachineChange
+//  reads the values from before a machine switch to grow or shrink the window
+//  by the band difference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::RecordSizedFor (bool hasDisk, bool isApple2c)
+{
+    m_chromeSizedForHasDisk = hasDisk;
+    m_chromeSizedForApple2c = isApple2c;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::LayoutDriveBandSurface
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::LayoutDriveBandSurface (bool isVisible, const RECT & bounds)
+{
+    m_driveBandSurface.SetVisible (isVisible);
+    m_driveBandSurface.SetBounds (bounds);
+}

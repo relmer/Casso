@@ -317,7 +317,6 @@ private:
     // no failable work, or recover in place -- asserting in debug so a dev
     // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
     // abort.
-    void    RegisterChromeDock              ();
     void    InitAssetPathsAndStores         ();
     void    PrimeChromeThemeEarly           ();
 

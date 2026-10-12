@@ -1028,7 +1028,7 @@ bool ShellRenderer::TryPresentUiFrame()
     hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_shell.m_chrome->m_mainMenu.IsOpen())
+    if (m_shell.m_chrome->GetMainMenu().IsOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1051,7 +1051,7 @@ bool ShellRenderer::TryPresentUiFrame()
     // forced present the preview would wait for the next unrelated redraw.
     m_shell.m_chrome->SyncToolbarState();
 
-    if (m_shell.m_chrome->m_toolbar.IsMenuOpen())
+    if (m_shell.m_chrome->GetToolbar().IsMenuOpen())
     {
         m_d3dRenderer.MarkRedrawNeeded();
     }
@@ -1078,10 +1078,10 @@ bool ShellRenderer::TryPresentUiFrame()
         // An open menu's submenu waits out the system's show delay before it
         // opens, and the pointer resting on the row produces no messages, so
         // a present is requested every frame one is armed, as for the compass.
-        if (m_shell.m_chrome->m_mainMenu.WantsTick() || m_shell.m_chrome->m_toolbar.WantsTick())
+        if (m_shell.m_chrome->GetMainMenu().WantsTick() || m_shell.m_chrome->GetToolbar().WantsTick())
         {
-            m_shell.m_chrome->m_mainMenu.TickMenus (nowMs);
-            m_shell.m_chrome->m_toolbar.TickMenus  (nowMs);
+            m_shell.m_chrome->GetMainMenu().TickMenus (nowMs);
+            m_shell.m_chrome->GetToolbar().TickMenus  (nowMs);
 
             m_d3dRenderer.MarkRedrawNeeded();
         }
