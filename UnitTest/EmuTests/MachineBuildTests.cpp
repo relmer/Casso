@@ -1,8 +1,12 @@
 #include "Pch.h"
 
+#include "Devices/RamDevice.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/MachineDefinitions.h"
 
@@ -124,6 +128,98 @@ public:
             Assert::AreEqual<Byte> (0x5A, machine.GetMemoryBus().ReadByte (addr),
                 std::format (L"main RAM must answer at ${:04X}", addr).c_str());
         }
+    }
+
+
+    TEST_METHOD (EveryBuildMarksTheDisplayPagesForVideoDirty)
+    {
+        //  The render loop skips a frame when the bus says nothing on screen
+        //  changed. A machine switch builds into a fresh bus, so the build is
+        //  what has to mark the pages -- the shell marked them once, at
+        //  startup, and a switched-to machine repainted at the flash rate.
+        for (const char * id : { "Apple2Plus", "Apple2e" })
+        {
+            TestMachine   machine (id, TestMachine::Slots::Empty);
+            MemoryBus   & bus = machine.GetMemoryBus();
+            std::wstring  name (id, id + strlen (id));
+
+            //  The first and last displayed bytes of the text and hi-res
+            //  pages; $xx78-$xx7F and $xxF8-$xxFF are screen holes.
+            for (Word addr : { Word (0x0400), Word (0x0BF7), Word (0x2000), Word (0x5FF7) })
+            {
+                bus.ClearVideoDirty();
+                bus.WriteByte (addr, static_cast<Byte> (bus.ReadByte (addr) ^ 0xFF));
+
+                Assert::IsTrue (bus.IsVideoDirty(),
+                    std::format (L"{}: a write to ${:04X} must mark the screen dirty", name, addr).c_str());
+            }
+
+            bus.ClearVideoDirty();
+            bus.WriteByte (0x0C00, 0x00);
+
+            Assert::IsFalse (bus.IsVideoDirty(),
+                std::format (L"{}: a write past the text pages must not", name).c_str());
+        }
+    }
+
+
+    TEST_METHOD (TheIIeScreenShowsMainRamWhateverTheCpuBanking)
+    {
+        //  The display scans main RAM for 40-column text and hi-res, while
+        //  RAMRD moves only the CPU's reads. The build has to hand the
+        //  renderers main RAM directly, since the bus follows RAMRD.
+        constexpr int  kWidth  = 560;
+        constexpr int  kHeight = 384;
+
+        TestMachine            machine   ("Apple2e", TestMachine::Slots::Empty);
+        MemoryBus            & bus       = machine.GetMemoryBus();
+        Byte                 * mainRam   = nullptr;
+        Byte                 * auxRam    = nullptr;
+        std::vector<uint32_t>  textMain  (kWidth * kHeight, 0);
+        std::vector<uint32_t>  textAux   (kWidth * kHeight, 0);
+        std::vector<uint32_t>  hiResMain (kWidth * kHeight, 0);
+        std::vector<uint32_t>  hiResAux  (kWidth * kHeight, 0);
+
+
+
+        machine.PowerCycle();
+        mainRam = machine.GetRefs().mainRamDev->GetData();
+        auxRam  = machine.GetMmu()->GetAuxBuffer();
+
+        Assert::IsTrue (machine.GetBuilder().GetMainRamBuffer() == mainRam,
+            L"the builder hands out the buffer the MMU treats as main");
+
+        std::fill (mainRam + 0x0400, mainRam + 0x0800, static_cast<Byte> (0xC1));   // 'A'
+        std::fill (auxRam  + 0x0400, auxRam  + 0x0800, static_cast<Byte> (0xA0));   // space
+        std::fill (mainRam + 0x2000, mainRam + 0x4000, static_cast<Byte> (0x2A));
+        std::fill (auxRam  + 0x2000, auxRam  + 0x4000, static_cast<Byte> (0x55));
+
+        machine.GetRefs().text40->InvalidateCache();
+        machine.GetRefs().text40->Render (nullptr, textMain.data(), kWidth, kHeight);
+        machine.GetRefs().hiRes->Render  (nullptr, hiResMain.data(), kWidth, kHeight);
+
+        bus.WriteByte (0xC003, 0);                  // RAMRD on
+        Assert::AreEqual<Byte> (0xA0, bus.ReadByte (0x0400), L"fixture: RAMRD banks the CPU's reads to aux");
+
+        machine.GetRefs().text40->InvalidateCache();
+        machine.GetRefs().text40->Render (nullptr, textAux.data(), kWidth, kHeight);
+        machine.GetRefs().hiRes->Render  (nullptr, hiResAux.data(), kWidth, kHeight);
+
+        Assert::IsTrue (textMain == textAux, L"40-column text shows main RAM with RAMRD on");
+        Assert::IsTrue (hiResMain == hiResAux, L"hi-res shows main RAM with RAMRD on");
+    }
+
+
+    TEST_METHOD (OnlyAMachineWithAnMmuHandsOutMainRam)
+    {
+        //  Copy text and the //c mouse read main RAM through this; on a ][+
+        //  nothing banks main RAM away and the bus serves it.
+        TestMachine  iiPlus ("Apple2Plus", TestMachine::Slots::Empty);
+        TestMachine  iie    ("Apple2e",    TestMachine::Slots::Empty);
+
+        Assert::IsNull (iiPlus.GetBuilder().GetMainRamBuffer(), L"a ][+ has no MMU, so nothing is handed out");
+        Assert::IsTrue (iie.GetBuilder().GetMainRamBuffer() == iie.GetRefs().mainRamDev->GetData(),
+            L"a //e hands out the buffer the MMU treats as main");
     }
 
 

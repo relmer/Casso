@@ -506,8 +506,8 @@ public:
         bus.NotifyBankingChanged();
 
         Assert::IsTrue (bus.IsVideoDirty(),
-            L"A banking change can swap the displayed buffer, so it must "
-            L"raise video-dirty");
+            L"A PAGE2, HIRES or DHIRES change can change what the screen "
+            L"shows, so it must raise video-dirty");
     }
 
     TEST_METHOD (Reset_RaisesDirty)

@@ -6,6 +6,7 @@
 #include "resource.h"
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -186,7 +187,7 @@ public:
             int             version  = 0;
             HRESULT         hrParse  = S_OK;
             HRESULT         hrVer    = S_OK;
-            std::wstring    machine  (cfg.machineName.begin(), cfg.machineName.end());
+            std::wstring    machine  = TextEncoding::NarrowToWide (std::string (cfg.machineName));
 
 
             hrParse = JsonParser::Parse (jsonText, root, parseError);
@@ -228,7 +229,7 @@ private:
 
         AssertSucceeded (hr,
             std::format (L"CollectRomFiles failed on embedded JSON: {}",
-                         std::wstring (error.begin(), error.end())).c_str());
+                         TextEncoding::NarrowToWide (error)).c_str());
     }
 
     ////////////////////////////////////////////////////////////////////////////

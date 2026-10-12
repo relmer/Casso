@@ -1,6 +1,10 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/MachineManager.h"
+#include "Shell/Components/ShellWindow.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -399,7 +403,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         HRESULT                hrIcon  = S_OK;
 
 
-        hrIcon = LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH);
+        hrIcon = m_window->LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH);
 
         if (SUCCEEDED (hrIcon))
         {
@@ -483,109 +487,10 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_chromeTheme);
+    dlg.SetTheme (&m_chrome->m_chromeTheme);
 
     result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.GetDefaultCommandId()));
 
 Error:
     return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::GetPrinterDialogOwner
-//
-//  Owner HWND for the printer's confirmation / notice boxes. When the preview
-//  panel is open the user is acting inside it (its Finish / Copy / Discard
-//  buttons, or a menu command while watching it), so own the box by the panel
-//  -- the modal box then centers on the panel and disables it while up. With
-//  the panel closed the command came from the main menu, so own it by the main
-//  window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HWND EmulatorShell::GetPrinterDialogOwner() const
-{
-    HWND  owner       = m_hwnd;
-    bool  panelIsUp   = m_printerPanel != nullptr
-                        && m_printerPanel->IsOpen()
-                        && m_printerPanel->GetHwnd() != nullptr
-                        && IsWindowVisible (m_printerPanel->GetHwnd());
-
-
-
-    if (panelIsUp)
-    {
-        owner = m_printerPanel->GetHwnd();
-    }
-
-    return owner;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OpenSettings
-//
-//  Opens the Settings dialog (View > Settings / Ctrl+,). The bespoke
-//  SettingsPanel + SettingsWindow were retired in T162 slice 3d; this shows
-//  the DxuiPropertySheet-based SettingsSheet MODELESS (FR-041) so the emulator
-//  keeps running behind it. The sheet is heap-owned; its close callback flags
-//  a deferred destroy handled by RunMessageLoop. A second invocation while it
-//  is already open just re-focuses the existing sheet.
-//
-//  showControllers lands on the Controllers tab, for Controller settings...,
-//  whether the sheet is opening or already open.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::OpenSettings (bool showControllers)
-{
-    HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
-
-
-
-    if (m_settingsSheet != nullptr)
-    {
-        HWND  existing = m_settingsSheet->GetHwnd();
-        if (existing != nullptr)
-        {
-            SetForegroundWindow (existing);
-        }
-
-        if (showControllers)
-        {
-            m_settingsSheet->ShowControllersPage();
-        }
-
-        return;
-    }
-
-    m_settingsSheet = std::make_unique<SettingsSheet>();
-    // A size the user dragged it to is kept for the next time it opens.
-    m_settingsSheet->SetOnDialogEnd ([this] (int)
-    {
-        if (m_settingsSheet->TryStoreResizedSize())
-        {
-            SaveGlobalPrefs();
-        }
-
-        m_settingsSheetClosePending = true;
-    });
-
-    (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
-                                          *m_userConfigStore, m_globalPrefs, *m_themeManager,
-                                          *this, m_uiFs);
-
-    if (showControllers)
-    {
-        m_settingsSheet->ShowControllersPage();
-    }
 }

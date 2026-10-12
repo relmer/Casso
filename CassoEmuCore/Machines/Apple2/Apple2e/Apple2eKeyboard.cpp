@@ -46,24 +46,24 @@ Byte Apple2eKeyboard::Read (Word address)
 
 
 
-    // Everything the soft-switch bank owns, forwarded identically:
-    //   $C00C-$C00F  80COL / ALTCHARSET
+    // Everything the soft-switch bank owns on a read, forwarded identically:
     //   $C011-$C01F  status reads (T061 ownership split)
     //   $C028        //c ROM-bank flip-flop (ROMBANK), which toggles the
     //                visible firmware bank on any access; unused on the //e,
     //                where the sibling no-ops with no ROM-bank switch attached
     //   $C050-$C05F  video display switches
-    bool  isSoftSwitch = (address >= 0xC00C && address <= 0xC00F)
-                         || (address >= 0xC011 && address <= 0xC01F)
+    // $C00C-$C00F (80COL / ALTCHARSET) are write-only switches. A read of any
+    // address in $C000-$C00F returns the keyboard latch (Sather p. 5-29), so
+    // those reads stay with the base keyboard below.
+    bool  isSoftSwitch = (address >= 0xC011 && address <= 0xC01F)
                          || (address == 0xC028)
                          || (address >= 0xC050 && address <= 0xC05F);
 
 
     // Each arm carries its own sibling test rather than sharing one up front:
-    // with the sibling absent the address must keep falling through, and for
-    // $C00C-$C00F that means reaching the base keyboard below. The cassette
-    // output comes first so $C028 toggles it on the //e; the //c, whose ROM
-    // bank flips there, has no cassette port.
+    // with the sibling absent the address must keep falling through. The
+    // cassette output comes first so $C028 toggles it on the //e; the //c,
+    // whose ROM bank flips there, has no cassette port.
     if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
     {
         m_cassettePort->ToggleOutput();
@@ -105,7 +105,7 @@ Byte Apple2eKeyboard::Read (Word address)
     }
     else if (address <= 0xC010)
     {
-        // $C000-$C00B (keyboard data) and $C010 (strobe-clear) belong to the
+        // $C000-$C00F (keyboard data) and $C010 (strobe-clear) belong to the
         // base AppleKeyboard. Other unowned addresses ($C020-$C02F,
         // $C040-$C04F, $C060) keep the 0 — no device behind them on a //e.
         value = AppleKeyboard::Read (address);

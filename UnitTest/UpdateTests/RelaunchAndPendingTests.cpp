@@ -3,6 +3,7 @@
 #include "CommandLineParser.h"
 #include "Update/PendingUpdateModel.h"
 #include "Update/UpdateService.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -61,7 +62,7 @@ public:
 
         for (const std::string & option : options)
         {
-            Assert::IsTrue (ruled.contains (option), std::format (L"--{} has no relaunch rule", std::wstring (option.begin(), option.end())).c_str());
+            Assert::IsTrue (ruled.contains (option), std::format (L"--{} has no relaunch rule", TextEncoding::NarrowToWide (option)).c_str());
         }
 
         Assert::IsTrue (options == ruled, L"no rule for an option the emulator does not take");

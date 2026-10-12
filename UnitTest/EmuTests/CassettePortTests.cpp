@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/MachineDefinitions.h"
 #include "TestMachine.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -228,6 +229,6 @@ public:
 
 
 
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 };

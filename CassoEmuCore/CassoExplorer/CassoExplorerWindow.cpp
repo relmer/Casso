@@ -1756,6 +1756,7 @@ void CassoExplorerWindow::FillPreview()
         m_previewPrompt = blank;
         RecomputeLayout();
     }
+
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
     m_textView->SetVisible (visible && !picture && !error && !hex && !columns && !blank);

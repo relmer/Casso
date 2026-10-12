@@ -8,6 +8,60 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+
+- An info icon after a mounted WOZ image's name when the models or the minimum
+  RAM the image declares do not match the running machine. Hovering it lists
+  what the image declares and marks whether the running machine meets each
+  requirement. In the flat themes, on the desk and on the fullscreen drive
+  strip.
+
+### Changed
+
+- EmulatorShell is split into components: audio, Disk II drives, tape deck,
+  printer, update notification, settings, desk scene, chrome, renderer and
+  window. The shell owns them, routes window messages and runs the CPU
+  thread's frame loop.
+
+### Removed
+
+- The Disk II and Input debug panels.
+
+### Fixed
+
+- On the //c, writes to the IWM mode register while the disk motor was running
+  (even if only spinning down) caused 0 bits to be written at the head's
+  current position, causing disk corruption.
+- Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.
+  In 80-column text mode, a program writing auxiliary memory at $2000-$3FFF
+  wrote main memory instead.
+- The disk head now lands at the same point of the revolution when it steps
+  between tracks of different lengths, which cross-track-synchronized copy
+  protection depends on.
+- The //e and //c screen no longer shows auxiliary memory in 40-column text,
+  lo-res or hi-res while a program has switched auxiliary memory in for the
+  processor. Copy text copies the text the screen shows.
+- After a switch to another machine, the screen updates as the program draws.
+  It had repainted only about four times a second until Casso restarted.
+- On the //c, reading $C07E or $C07F returns the IOUDIS or DHIRES status bit
+  without switching IOU access, so a program that acknowledges the VBL
+  interrupt with LDA $C07E keeps its mouse and VBL interrupt settings.
+- Reading $C00C-$C00F returns the keyboard, as on a real //e or //c, instead of
+  switching the 80-column display or the character set.
+- On the //e, a write to $C3xx, or a read of it with INTCXROM on, now activates
+  the 80-column firmware's ROM at $C800-$CFFF, as on a real //e.
+- On the //c, the mouse pointer no longer moves toward the wrong spot while a
+  program has switched auxiliary memory in.
+- Writing sectors with the `disk` command changes only those sectors. The rest
+  of each track, its volume number, sync and length, and on a WOZ flux track
+  its recorded timing, remains unchanged.
+- The `disk` command writes to WOZ images in the standard track layout and
+  finds each track through the image's track map.
+- The `disk` command now flushes the new image to the drive before it replaces
+  the old one, so a power loss just after the command finishes can no longer
+  leave the image empty or partly written. Casso now sets the attributes,
+  creation date, and permissions to match the old file.
+
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 
 ### Added

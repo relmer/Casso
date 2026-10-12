@@ -219,11 +219,11 @@ public:
         // button treatment for hover, and the only thing that asks for a
         // repaint is this returning true, so a stationary pointer must report
         // false or the drive band would repaint on every mouse move forever.
-        Assert::IsTrue  (w.UpdateMarqueeHover (true,  100), L"entering is a change");
-        Assert::IsFalse (w.UpdateMarqueeHover (true,  110), L"staying is not");
-        Assert::IsFalse (w.UpdateMarqueeHover (true,  120), L"still not");
-        Assert::IsTrue  (w.UpdateMarqueeHover (false, 130), L"leaving is a change");
-        Assert::IsFalse (w.UpdateMarqueeHover (false, 140), L"staying away is not");
+        Assert::IsTrue  (w.UpdateMarqueeHover (true,  false, 100), L"entering is a change");
+        Assert::IsFalse (w.UpdateMarqueeHover (true,  false, 110), L"staying is not");
+        Assert::IsFalse (w.UpdateMarqueeHover (true,  false, 120), L"still not");
+        Assert::IsTrue  (w.UpdateMarqueeHover (false, false, 130), L"leaving is a change");
+        Assert::IsFalse (w.UpdateMarqueeHover (false, false, 140), L"staying away is not");
     }
 };
 

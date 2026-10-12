@@ -52,6 +52,10 @@ public:
     // clipping bounds. Pass nullptr to revert to the in-panel PaintMenu path.
     void  SetPopupHost          (DxuiHwndSource * host);
 
+    // The renderer Layout measures the labels with. Without one it measures
+    // through the popup host, so only a test has a reason to set it.
+    void  SetTextRenderer       (IDxuiTextRenderer * renderer) { m_textRenderer = renderer; }
+
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild               ();
 
@@ -64,20 +68,31 @@ public:
     DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
+    const DxuiToggle      & GetFastTapeToggle    () const { return m_fastTape; }
     const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiComboBox    & WriteModeDropdown    () const { return m_writeMode; }
     const DxuiComboBox    & GetMechanismDropdown () const { return m_mechanism; }
 
 private:
+    // The gap between a label's last character and its info tip's glyph.
+    static constexpr int  kInfoTipGapDp = 4;
+
     static RECT  MakeRect (int l, int t, int w, int h);
+
+    IDxuiTextRenderer * GetMeasuringRenderer () const;
+    int                 MeasureLabelPx       (const DxuiLabel & label, const DxuiDpiScaler & scaler) const;
+    int                 GetLabelColumnPx     (const DxuiDpiScaler & scaler) const;
+    RECT                GetInfoTipRect       (const DxuiLabel & label, const DxuiDpiScaler & scaler) const;
 
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider          (DxuiSlider & slider, const RECT & rect);
     void  ResetPageToDefaults         ();
 
-    SettingsPanelState         * m_state = nullptr;
+    SettingsPanelState         * m_state        = nullptr;
     TestSoundFn                  m_onTestSound;
+    IDxuiTextRenderer          * m_textRenderer = nullptr;
+    DxuiHwndSource             * m_popupHost    = nullptr;
 
     DxuiLabel                        m_wpLabel;
     DxuiLabel                        m_writeModeLabel;

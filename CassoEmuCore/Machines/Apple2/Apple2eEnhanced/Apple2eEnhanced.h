@@ -32,4 +32,6 @@ public:
     std::string  GetId              () const override { return ("Apple2eEnhanced"); }
     std::string  GetCpu             () const override { return ("65C02"); }
     std::string  GetCpuManufacturer () const override { return ("Rockwell"); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2eEnhanced); }
 };

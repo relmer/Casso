@@ -66,6 +66,9 @@ public:
         HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }
         HRESULT  Remove        (const std::string &) override { return E_NOTIMPL; }
         HRESULT  ReplaceAtomically (const std::string &, const std::string &) override { return E_NOTIMPL; }
+        HRESULT  FlushToStorage         (const std::string &) override { return E_NOTIMPL; }
+        HRESULT  CopyFileMetadata       (const std::string &, const std::string &) override { return E_NOTIMPL; }
+        HRESULT  RenameWithoutReplacing (const std::string &, const std::string &) override { return E_NOTIMPL; }
         HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> &) override { return E_NOTIMPL; }
     };
 

@@ -28,6 +28,7 @@ public:
     static constexpr size_t  kNibImageSize  = kNibTrackSize * kTrackCount;
     static constexpr size_t  kNb2ImageSize  = kNb2TrackSize * kTrackCount;
     static constexpr Byte    kSyncNibble    = 0xFF;
+    static constexpr size_t  kBitsPerNibble = 8;
 
     //  Track size a file's total length implies; ERROR_BAD_LENGTH for any other.
     static HRESULT  ResolveGeometry (size_t imageByteSize, size_t & outTrackSize);

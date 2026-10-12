@@ -42,7 +42,7 @@ public:
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text, kWindows1252);
     }
 
     TEST_METHOD (Convert_TurnsTheCp1252NameIntoUtf8_RatherThanLeavingAStrayByte)

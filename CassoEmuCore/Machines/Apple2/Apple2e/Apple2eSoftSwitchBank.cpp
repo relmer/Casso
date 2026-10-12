@@ -296,7 +296,7 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 //
 //  Read
 //
-//  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
+//  $C00C-$C00F (80COL/ALTCHARSET) are write-only; see Write.
 //  $C054-$C057 (PAGE2/HIRES) trigger banking-changed so MMU can re-resolve.
 //  $C058-$C05D set and clear annunciators AN0-AN2 in the base bank.
 //  $C05E/$C05F toggle DHIRES (display-only).
@@ -305,6 +305,10 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 Byte Apple2eSoftSwitchBank::Read (Word address)
 {
+    constexpr Byte  kStatusBit = 0x80;
+
+
+
     Byte  result        = 0;
     bool  bankingChange = false;
 
@@ -345,13 +349,29 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             // IOUDis off by writing to $C07F, then accessed ENVBL at $C05B" --
             // so honoring only $C078/$C079 left that documented sequence
             // silently programming annunciators instead of the mouse.
-            if (address == 0xC078 || address == 0xC07E)
+            //
+            // $C078 / $C079 switch on any access. $C07E / $C07F switch only
+            // when written (see Write); read, they are RdIOUDis and RdDHIRES,
+            // and a status read that moved the latch sent the next $C058-$C05F
+            // access to the wrong target. RdDHIRES reads 1 when double hi-res
+            // is OFF: the //c ROM's self-test switch table expects that, as
+            // does the //c Technical Reference, 2nd edition. Its first
+            // printing said the opposite.
+            if (address == 0xC078)
             {
                 m_mouse->WriteIouAccess (false);
             }
-            else if (address == 0xC079 || address == 0xC07F)
+            else if (address == 0xC079)
             {
                 m_mouse->WriteIouAccess (true);
+            }
+            else if (address == 0xC07E)
+            {
+                result = m_mouse->IsIouAccessEnabled() ? 0 : kStatusBit;
+            }
+            else if (address == 0xC07F)
+            {
+                result = m_doubleHiRes ? 0 : kStatusBit;
             }
         }
 
@@ -390,18 +410,6 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
     {
         switch (address)
         {
-            case 0xC00C:
-                m_80colMode = false;
-                break;
-            case 0xC00D:
-                m_80colMode = true;
-                break;
-            case 0xC00E:
-                m_altCharSet = false;
-                break;
-            case 0xC00F:
-                m_altCharSet = true;
-                break;
             case 0xC028:
                 // Apple //c ROM-bank flip-flop: any access flips the visible
                 // 16K firmware bank across $C100-$FFFF. No effect on the //e
@@ -499,8 +507,11 @@ static const Apple2eSoftSwitchBank::MmuSwitch  s_kMmuSwitches[6] =
 //  Write
 //
 //  MMU-owned switches ($C000-$C00B, table above) forward to the MMU, which
-//  owns the flag and rebinds the page table. Everything else -- including
-//  $C00C-$C00F (80COL, ALTCHARSET) -- behaves exactly as the matching read.
+//  owns the flag and rebinds the page table. $C00C-$C00F (80COL, ALTCHARSET)
+//  are write-only (Sather Table 7.1, p. 7-5) and handled here; reading them
+//  returns keyboard data (p. 5-29), which the keyboard serves. Everything
+//  else behaves as the matching read, and on the //c a write of $C07E or
+//  $C07F also sets or clears IOUDIS, which a read does not.
 //
 //  Audit §1.1 fix-by-relocation: this is the correct addressing surface;
 //  the legacy AuxRamCard's $C003-$C006 was wrong and is deleted.
@@ -527,11 +538,40 @@ void Apple2eSoftSwitchBank::Write (Word address, Byte value)
         }
     }
 
-    // Everything else -- including $C00C-$C00F, which toggle on write exactly
-    // as they do on read -- goes through the read path.
+    // 80COL and ALTCHARSET: the even address of each pair clears the flag,
+    // the odd one sets it, as with the MMU pairs above.
+    if (address >= 0xC00C && address <= 0xC00F)
+    {
+        if (address <= 0xC00D)
+        {
+            m_80colMode = (address == 0xC00D);
+        }
+        else
+        {
+            m_altCharSet = (address == 0xC00F);
+        }
+
+        handled = true;
+    }
+
+    // Everything else goes through the read path.
     if (!handled)
     {
         Read (address);
+    }
+
+    // //c: SETIOUDIS / CLRIOUDIS take effect on a write only. Read leaves them
+    // alone, since reading the same addresses is a status read.
+    if (!handled && m_mouse != nullptr)
+    {
+        if (address == 0xC07E)
+        {
+            m_mouse->WriteIouAccess (false);
+        }
+        else if (address == 0xC07F)
+        {
+            m_mouse->WriteIouAccess (true);
+        }
     }
 }
 

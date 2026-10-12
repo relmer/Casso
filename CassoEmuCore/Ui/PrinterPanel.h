@@ -18,7 +18,7 @@ class  Printer3DScene;
 //
 //  PrinterPanel
 //
-//  A DxuiWindow (like the Disk II / Input debug panels) that shows the emulated
+//  A DxuiWindow that shows the emulated
 //  printer's output and doubles as print preview (FR-020): a live ~1-page
 //  viewport (FR-033) follows the print head as printing proceeds -- earlier
 //  pages scroll out of view as if folded into the tray -- with a toolbar to

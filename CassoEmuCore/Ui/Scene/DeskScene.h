@@ -139,9 +139,10 @@ public:
     // replace the first and both drives would wear the same name -- and that
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
-    // The baked labels the scene draws: the drives' names and the
-    // recorder's (see EmulatorShell::s_kSceneLabelCount).
-    static constexpr int  kLabelCount = 6;
+    // The baked labels the scene draws: the drives' names, the recorder's,
+    // and the info icon after each drive's name (see
+    // EmulatorShell::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 8;
     // The name of the recorder key under the pointer. A tip rather than a
     // decal, so it is drawn over everything, and the recorder's own front
     // lip never cuts through it.

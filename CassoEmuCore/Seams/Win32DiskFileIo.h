@@ -39,6 +39,9 @@ public:
     HRESULT  ReplaceAtomically (const std::string & tempPath,
                                 const std::string & targetPath) override;
 
+    HRESULT  FlushToStorage         (const std::string & path) override;
+    HRESULT  CopyFileMetadata       (const std::string & fromPath, const std::string & toPath) override;
+    HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override;
     bool     IsHeldByAnotherProcess (const std::string & path) override;
 
     HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) override;

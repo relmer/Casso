@@ -36,7 +36,7 @@
 
 #### Real //e Behavior
 
-All 16 addresses respond to **writes** (and on the //e, reads at $C00C–$C00F also trigger the switch; see Sather UTAIIe §5-18). The full table (Apple //e Tech Ref Table 4-1, AppleWin `Memory.cpp:1050–1100`):
+All 16 addresses respond to **writes** only; a read of any of them returns keyboard data. Sather UTAIIe Table 5.4 lists the MMU's write switches at $C000–$C00B, Table 7.1 (p. 7-5) lists 80COL and ALTCHRSET as write-only, and p. 5-29 has the MMU enable the keyboard on any read of $C000–$C01F. The full table (Apple //e Tech Ref Table 4-1, AppleWin `Memory.cpp:1050–1100`):
 
 | Address | Name | Effect |
 |---------|------|--------|
@@ -52,12 +52,12 @@ All 16 addresses respond to **writes** (and on the //e, reads at $C00C–$C00F a
 | $C009 W | ALTZPON    | ZP/stack from aux $0000–$01FF |
 | $C00A W | SLOTC3ROMOFF | Internal ROM at $C300–$C3FF |
 | $C00B W | SLOTC3ROMON  | Slot 3 ROM at $C300–$C3FF |
-| $C00C W/R | 80COLOFF    | Disable 80-col display |
-| $C00D W/R | 80COLON     | Enable 80-col display |
-| $C00E W/R | ALTCHARSETOFF | Primary character set |
-| $C00F W/R | ALTCHARSETTON | Alternate character set |
+| $C00C W   | 80COLOFF    | Disable 80-col display |
+| $C00D W   | 80COLON     | Enable 80-col display |
+| $C00E W   | ALTCHARSETOFF | Primary character set |
+| $C00F W   | ALTCHARSETTON | Alternate character set |
 
-`$C000`/`$C001` are **write-only** (reads return keyboard data). `$C002`–`$C00B` are **write-only**. `$C00C`–`$C00F` respond to both reads and writes.
+`$C000`–`$C00F` are all **write-only**; reads return keyboard data. (An earlier revision of this audit said `$C00C`–`$C00F` also switch on a read; they do not.)
 
 #### AppleWin Implementation
 

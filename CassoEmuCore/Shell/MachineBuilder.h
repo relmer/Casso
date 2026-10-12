@@ -118,6 +118,7 @@ public:
     void     WireBankedRom        ();
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
     void     WirePageTable        ();
+    void     MarkVideoWatchPages  ();
     void     RebuildBankingPages  ();
     void     CreateVideoModes     ();
     HRESULT  CreateCpu            (const MachineConfig & config);
@@ -125,6 +126,7 @@ public:
     void     WireCassettePort     ();
 
     Byte *   GetAuxRamBuffer      ();
+    Byte *   GetMainRamBuffer     ();
 
     void     SelectVideoMode      ();
 

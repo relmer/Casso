@@ -27,4 +27,6 @@ class Apple2Plus : public Apple2
 {
 public:
     std::string  GetId () const override { return ("Apple2Plus"); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2Plus); }
 };

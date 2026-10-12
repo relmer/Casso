@@ -3,6 +3,7 @@
 #include "Update/UpdateService.h"
 #include "Update/ZipUpdateInstaller.h"
 #include "Devices/Printer/PngCodec.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -415,7 +416,7 @@ std::wstring UpdateService::MakeNotesPath (const std::string & tag, LPCWSTR file
 
 
 
-    path.append (tag.begin(), tag.end());
+    path += TextEncoding::Utf8ToWide (tag);
     path += L"/";
     path += fileName;
 
@@ -993,7 +994,7 @@ HRESULT UpdateService::StageBundle (const ReleaseAsset & asset, std::span<const 
     CHRF (hr, result.failure = UpdateFailure::InstallFailed);
 
     path = folder + L"\\";
-    path.append (asset.name.begin(), asset.name.end());
+    path += TextEncoding::Utf8ToWide (asset.name);
 
     hr = m_deps.fileSystem->WriteAllBytes (path, bytes);
     CHRF (hr, result.failure = UpdateFailure::InstallFailed);
@@ -1265,7 +1266,7 @@ bool UpdateService::TryResolveImageUrl (const std::string & src, const std::stri
 
     if (src.starts_with ("https://"))
     {
-        outUrl.assign (src.begin(), src.end());
+        outUrl     = TextEncoding::Utf8ToWide (src);
         isResolved = true;
     }
     else if (!src.empty() && src.find (':') == std::string::npos && !src.starts_with ("//") && !tag.empty())
@@ -1283,9 +1284,9 @@ bool UpdateService::TryResolveImageUrl (const std::string & src, const std::stri
         outUrl  = L"https://";
         outUrl += kpszRawHost;
         outUrl += kpszRepoRawPath;
-        outUrl.append (tag.begin(), tag.end());
+        outUrl += TextEncoding::Utf8ToWide (tag);
         outUrl += L"/";
-        outUrl.append (path.begin(), path.end());
+        outUrl += TextEncoding::Utf8ToWide (std::string (path));
         isResolved = !path.empty();
     }
 

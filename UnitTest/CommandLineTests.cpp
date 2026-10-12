@@ -4,6 +4,7 @@
 #include "DialectHelp.h"
 #include "CommandLineParser.h"
 #include "UsageText.h"
+#include "Core/TextEncoding.h"
 
 #include "CppUnitTest.h"
 
@@ -105,7 +106,7 @@ namespace CommandLineTests
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 
@@ -274,7 +275,7 @@ namespace CommandLineTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
         //  Every flag the dialect accepts appears on its own page. Swept from the
@@ -1467,7 +1468,7 @@ namespace CommandLineTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
         static CommandLineOptions Parse (std::initializer_list<const char *> typed)

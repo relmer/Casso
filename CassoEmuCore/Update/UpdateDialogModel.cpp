@@ -2,6 +2,7 @@
 
 #include "Update/UpdateDialogModel.h"
 #include "Core/UnicodeSymbols.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -152,13 +153,13 @@ std::wstring UpdateDialogModel::MakeHeader (
 
     if (!publishedDate.empty())
     {
-        released = L" (released " + std::wstring (publishedDate.begin(), publishedDate.end()) + L")";
+        released = L" (released " + TextEncoding::Utf8ToWide (publishedDate) + L")";
     }
 
     return std::format (L"Casso {}{} is available. Sadly, you're still using {}{}{}.",
-                        std::wstring (newerText.begin(),   newerText.end()),
+                        TextEncoding::NarrowToWide (newerText),
                         released,
-                        std::wstring (runningText.begin(), runningText.end()),
+                        TextEncoding::NarrowToWide (runningText),
                         s_kchEmDash,
                         judgement);
 }
@@ -394,7 +395,7 @@ size_t UpdateDialogModel::GetAgeRemarkCount()
 std::wstring UpdateDialogModel::MakeAgeRemark (size_t index, int days, const ReleaseVersion & running)
 {
     std::string   runningText = running.ToString();
-    std::wstring  version (runningText.begin(), runningText.end());
+    std::wstring  version     = TextEncoding::NarrowToWide (runningText);
     std::wstring  age         = (days == 1) ? std::wstring (L"1 day") : std::format (L"{} days", days);
     wchar_t       dash        = s_kchEmDash;
     LPCWSTR       pattern     = s_kAgeRemarks[std::min (index, std::size (s_kAgeRemarks) - 1)];
@@ -559,7 +560,7 @@ std::wstring UpdateDialogModel::MakeUpToDateText (const ReleaseVersion & running
 
     return std::format (L"{}\n\nYou have version {}, the latest release.",
                         kpszUpToDate,
-                        std::wstring (runningText.begin(), runningText.end()));
+                        TextEncoding::NarrowToWide (runningText));
 }
 
 
@@ -962,5 +963,5 @@ int UpdateDialogModel::CountWrappedLines (std::wstring_view text, float widthPx,
 
 std::wstring UpdateDialogModel::MakeUpdatedNotice (const std::string & version)
 {
-    return L"Casso was updated to version " + std::wstring (version.begin(), version.end()) + L".";
+    return L"Casso was updated to version " + TextEncoding::NarrowToWide (version) + L".";
 }

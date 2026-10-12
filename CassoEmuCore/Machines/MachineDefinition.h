@@ -58,4 +58,7 @@ struct MachineDefinition
     //  machine was a //c.
     bool                         hasCaseSwitches = false;
     bool                         hasBuiltInDrive = false;
+
+    //  The machine's bit in a WOZ image's compatible-hardware field.
+    uint16_t                     wozHardwareFlag = 0;
 };

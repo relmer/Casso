@@ -3,6 +3,7 @@
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
 #include "Assembler.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -2688,7 +2689,7 @@ namespace AssemblerTests
                 expectedAddr = 0x0000 + (Word) i;
 
                 Assert::AreEqual (expectedAddr, result.symbols[name],
-                    (std::wstring (L"Label: ") + std::wstring (name.begin(), name.end())).c_str());
+                    (std::wstring (L"Label: ") + TextEncoding::NarrowToWide (name)).c_str());
             }
         }
     };

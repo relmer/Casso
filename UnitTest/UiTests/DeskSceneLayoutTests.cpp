@@ -903,6 +903,36 @@ public:
     }
 
 
+    TEST_METHOD (Label_Quad_Offset_Moves_It_Beside_The_Anchor)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        DeskSceneComposition  comp;
+        RECT                  viewport      = { 0, 0, 1600, 1000 };
+        SIZE                  labelPx       = { 24, 16 };
+        int                   gapPx         = 4;
+        int                   offsetPx      = 70;
+        float                 corners[4][3] = {};
+        RECT                  quadPx        = {};
+
+
+
+        Assert::AreEqual (S_OK, DeskSceneLayout::Compute (viewport, 96, 2, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeDriveLabelQuad (comp, 1, labelPx, gapPx, corners, offsetPx));
+
+        MeasureQuadPx (comp, corners, quadPx);
+
+        // An info icon beside a drive's name: its own quad, the same size and
+        // height below the anchor, centered that many pixels to the right.
+        Assert::AreEqual (labelPx.cx, quadPx.right - quadPx.left,
+            L"an offset quad keeps the width it was asked for");
+        Assert::AreEqual (comp.driveLabelPx[1].x + offsetPx, (quadPx.left + quadPx.right) / 2,
+            L"centered the offset to the right of the anchor");
+        Assert::AreEqual (comp.driveLabelPx[1].y + gapPx, quadPx.top,
+            L"and hung the same gap below it");
+    }
+
+
     TEST_METHOD (Label_Quad_Keeps_Its_Pixel_Size_Through_The_Orbit)
     {
         DeskSceneMetrics      metrics          = MakeMetrics();

@@ -48,15 +48,16 @@ public:
 
     bool  IsImageWritable () const { return m_imageRefusalReason.empty(); }
 
-    //  A track qualifies only when it decoded to a complete standard set, or
-    //  was blank. Blank is writable on purpose: refusing it would make blank
-    //  and newly formatted media unwritable, which is the wrong answer to
-    //  "nothing was there".
+    //  A track qualifies only when it decoded to a complete standard set. A
+    //  blank track has no data field to write into, and no track is laid down
+    //  to make room.
     bool  IsTrackWritable (int track) const;
 
     //  Every track the operation needs must be writable. The whole-image
     //  refusal outranks the per-track answer.
     bool  AreTracksWritable (std::span<const int> tracks) const;
+
+    static std::string  FormatQuarterTrack (int quarterTrack);
 
 private:
     std::string   m_imageRefusalReason;

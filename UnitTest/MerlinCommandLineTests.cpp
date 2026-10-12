@@ -8,6 +8,7 @@
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 #include "MerlinSubsetBoundary.h"
+#include "Core/TextEncoding.h"
 
 #include "CppUnitTest.h"
 
@@ -158,7 +159,7 @@ namespace MerlinCommandLineTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

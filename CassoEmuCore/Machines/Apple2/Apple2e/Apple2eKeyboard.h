@@ -18,13 +18,13 @@ class AppleSpeaker;
 //  $C000-$C01F to $C000-$C063 so reads of $C061/$C062/$C063 land here.
 //
 //  Logical ownership (Phase 6 / T061):
-//    - Keyboard owns:  $C000-$C00B (data), $C010 (strobe-clear),
-//                      $C061-$C063 (modifier reads).
-//    - Soft-switch bank owns: $C011-$C01F (status reads — bit 7 from
+//    - Keyboard owns:  $C000-$C00F reads (keyboard data), $C010
+//                      (strobe-clear), $C061-$C063 (modifier reads).
+//    - Soft-switch bank owns: $C000-$C00F writes (MMU switches, 80COL,
+//                      ALTCHARSET), $C011-$C01F (status reads — bit 7 from
 //                      MMU/LC/VideoTiming/SoftSwitchBank, bits 0-6 from
 //                      the keyboard latch via GetLatchedKeyDataBits()),
-//                      $C00C-$C00F (80COL/ALTCHARSET), $C050-$C05F
-//                      (display switches).
+//                      $C050-$C05F (display switches).
 //    - Speaker owns:   $C030-$C03F (toggle).
 //
 //  The bus first-match-wins ordering means this device wins for every

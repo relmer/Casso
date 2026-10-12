@@ -14,8 +14,9 @@ class CharacterRomData;
 //
 //  AppleTextMode
 //
-//  40x24 text mode renderer. Reads from text page memory ($0400 or $0800)
-//  via MemoryBus, renders characters using the supplied CharacterRomData.
+//  40x24 text mode renderer. Reads text page memory ($0400 or $0800) from
+//  main RAM when SetMainMemory has given it, and through MemoryBus
+//  otherwise; renders characters using the supplied CharacterRomData.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,8 +65,13 @@ public:
     // afterward, so the shell leaves this green there.
     void SetOnColor (uint32_t bgra) { m_onColor = bgra; }
 
+    // Main RAM, read directly in preference to the bus; see ReadScreenByte.
+    void SetMainMemory (const Byte * mainMem) { m_mainMem = mainMem; }
+
 private:
     static Word GetRowBaseAddress (int row, Word pageBase);
+
+    Byte ReadScreenByte (const Byte * videoRam, Word addr) const;
 
     // True if the 40 bytes hold any glyph that flashes with the flash clock
     // ($40-$7F, and only when ALTCHARSET is off -- //e alt charset suppresses
@@ -77,6 +83,7 @@ private:
 
     MemoryBus              & m_bus;
     const CharacterRomData & m_charRom;
+    const Byte             * m_mainMem    = nullptr;
     bool                     m_flashOn    = true;
     bool                     m_altCharSet = false;
     uint32_t                 m_onColor    = 0xFF00FF00;   // BGRA green (default)

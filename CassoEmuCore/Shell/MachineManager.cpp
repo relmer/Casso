@@ -3,6 +3,14 @@
 #include "MachineManager.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
+#include "Config/UserConfigStore.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/TapeManager.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
 #include "../resource.h"
@@ -42,8 +50,6 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "../Ui/Disk2DebugPanel.h"
-#include "../Ui/InputDebugPanel.h"
 #include "Core/TextEncoding.h"
 
 
@@ -237,12 +243,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
 
-    if (SUCCEEDED (hrParse) && m_shell.m_userConfigStore != nullptr)
+    if (SUCCEEDED (hrParse) && m_shell.m_settings->GetConfigStore() != nullptr)
     {
-        hrMerge = m_shell.m_userConfigStore->Load (machineNameNarrow,
-                                                   defaultJson,
-                                                   m_shell.m_uiFs,
-                                                   mergedJson);
+        hrMerge = m_shell.m_settings->GetConfigStore()->Load (machineNameNarrow,
+                                                              defaultJson,
+                                                              m_shell.m_settings->GetFileSystem(),
+                                                              mergedJson);
 
         if (SUCCEEDED (hrMerge))
         {
@@ -324,7 +330,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         }
                     }
 
-                    m_shell.m_externalDriveConnected = connected;
+                    m_shell.m_disks->SetExternalDriveConnected (connected);
 
                     // //c mouse peripheral: adopt the switched-to machine's
                     // persisted connected state (default CONNECTED).
@@ -348,7 +354,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                             IGNORE_RETURN_VALUE (hrR, S_OK);
                         }
 
-                        m_shell.m_tapeRecorderConnected = recorder;
+                        m_shell.m_tapeDeck->SetRecorderConnected (recorder);
                     }
 
                     // The block the switched-to machine's input mapping is
@@ -401,7 +407,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // the same fallback a machine that has never stored a mapping gets, rather
     // than leaving the mapping of the machine being left in place. This is the
     // launch path's rule (AdoptInputModeForMachine runs ahead of the bail in
-    // ApplyPersistedAudioPrefs) applied to switching.
+    // ApplyPersistedMachinePrefs) applied to switching.
     //
     // State only -- this runs on the CPU thread, and the selector sync asserts
     // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
@@ -427,38 +433,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     carryDisk1 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 0);
     carryDisk2 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 1);
 
-    // Tear down current machine. The Disk II debug dialog (if open)
-    // holds a raw pointer into the old CPU's cycle counter; revoke it
-    // before the CPU is reset so the dialog can't dereference dangling
-    // memory between here and CreateCpu below.
-    if (m_shell.m_disk2DebugPanel != nullptr)
-    {
-        m_shell.m_disk2DebugPanel->SetCycleCounter (nullptr);
-    }
-
-    if (m_shell.m_inputDebugPanel != nullptr)
-    {
-        m_shell.m_inputDebugPanel->SetCycleCounter (nullptr);
-    }
-
-    if (m_shell.m_machine.GetRefs().keyboard != nullptr)
-    {
-        m_shell.m_machine.GetRefs().keyboard->SetInputEventSink (nullptr);
-    }
-
-    {
-        auto * iieSwitches = m_shell.m_machine.GetRefs().iieSoftSwitches;
-        if (iieSwitches != nullptr)
-        {
-            iieSwitches->SetInputEventSink (nullptr);
-        }
-    }
-
-    if (m_shell.m_machine.GetRefs().gamePort != nullptr)
-    {
-        m_shell.m_machine.GetRefs().gamePort->SetInputEventSink (nullptr);
-    }
-
     // Tear down ALL per-machine state in one atomic move. The refs are a
     // struct of observer pointers into the owning collections
     // (owned devices, video modes); resetting them as a whole keeps
@@ -471,25 +445,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     //
     // Stop the printer drain thread first: its job holds a reference into the
     // card's ring, which clearing the owned devices is about to free.
-    m_shell.m_printerWorker.Stop();
-
-    // Persist the outgoing machine's pending strip before its card is freed --
-    // The host still holds the outgoing machine's name here (FR-026). An empty
-    // strip clears any stale sidecar.
-    if (!m_shell.m_machine.GetCurrentMachineName().empty())
-    {
-        PrinterJob *   printJob = m_shell.m_printerWorker.GetJob();
-
-        if (printJob != nullptr && printJob->HasContent())
-        {
-            HRESULT   hrSave = PrintJobStore::Save (m_shell.GetPendingPrintDir(), printJob->GetRaster());
-            IGNORE_RETURN_VALUE (hrSave, S_OK);
-        }
-        else
-        {
-            PrintJobStore::Clear (m_shell.GetPendingPrintDir());
-        }
-    }
+    //
+    // Persist the outgoing machine's pending strip before its card is freed.
+    m_shell.m_printer->StopAndSavePendingStrip();
 
     {
         // The UI thread reads the machine's devices every frame under the
@@ -502,7 +460,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // among the owned devices, so the mixer's borrowed pointers must be dropped
         // before that collection is cleared below (CreateMemoryDevices
         // re-registers fresh ones for the new machine).
-        m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
+        m_shell.m_audio->GetMockingboardMixer().UnregisterAllSources();
 
         // Reclaim IRQ source tokens before the devices that hold them are
         // destroyed; the rebuilt machine re-registers from a fresh pool.
@@ -551,37 +509,20 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // source. Without this re-poke, the new machine's drive plays in eerie
     // silence (FR-009).
     {
-        std::wstring  currentMechanism = m_shell.m_driveAudioMixer.GetMechanism();
-        HRESULT       hrMech           = m_shell.m_driveAudioMixer.SetMechanism (currentMechanism);
+        std::wstring  currentMechanism = m_shell.m_audio->GetDriveMixer().GetMechanism();
+        HRESULT       hrMech           = m_shell.m_audio->GetDriveMixer().SetMechanism (currentMechanism);
         IGNORE_RETURN_VALUE (hrMech, S_OK);
     }
 
-    // Re-attach the new CPU's cycle counter to the debug dialog (the
-    // pointer was revoked above before the old CPU was destroyed).
-    if (m_shell.m_disk2DebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_disk2DebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
-    }
-
-    if (m_shell.m_inputDebugPanel != nullptr && m_shell.m_machine.GetCpu() != nullptr)
-    {
-        m_shell.m_inputDebugPanel->SetCycleCounter (m_shell.m_machine.GetCpu()->GetCycleCounterPtr());
-    }
-
-    // Re-wire the debug dialog onto the freshly built controller +
-    // audio source. Without this the dialog goes silent after a
-    // machine switch even though it's still on screen.
-    m_shell.AttachDebugSinksIfOpen();
-
-    m_shell.UpdateWindowTitle();
+    m_shell.m_window->UpdateWindowTitle();
 
     // Record the new active machine in GlobalUserPrefs so the next
     // launch boots it by default. SaveGlobalPrefs flushes the change
     // to UserPrefs.json on disk.
-    if (m_shell.m_globalPrefs.lastSelectedMachine != machineNameNarrow)
+    if (m_shell.m_settings->GetPrefs().lastSelectedMachine != machineNameNarrow)
     {
-        m_shell.m_globalPrefs.lastSelectedMachine = machineNameNarrow;
-        m_shell.SaveGlobalPrefs();
+        m_shell.m_settings->GetPrefs().lastSelectedMachine = machineNameNarrow;
+        m_shell.m_settings->SaveGlobalPrefs();
     }
 
     // Same cold-power-on sequence as Initialize() -- seed DRAM and
@@ -607,16 +548,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // non-Apple-II family), drop the carry rather than silently relying
     // on MountDiskInSlot6's nullptr CBR. The disk in DiskImageStore
     // was already flushed above, so no user data is lost.
-    if (!m_shell.m_diskManager->HasSlot6Controller())
+    if (!m_shell.m_disks->GetManager()->HasSlot6Controller())
     {
         carryDisk1.clear();
         carryDisk2.clear();
     }
 
-    m_shell.m_diskManager->MountCommandLineDisks (carryDisk1, carryDisk2);
+    m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisk1, carryDisk2);
 
     // Each machine keeps its own tape, as it keeps its own disks.
-    m_shell.m_tapeManager->OnMachineSwitched();
+    m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.
@@ -654,10 +595,6 @@ Error:
 void MachineManager::SoftReset()
 {
     m_shell.m_machine.SoftReset();
-
-    // Re-zero the Disk II Debug Uptime column on every reset so the user
-    // sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
-    m_shell.ResetUptimeAnchor();
 }
 
 
@@ -673,8 +610,6 @@ void MachineManager::SoftReset()
 void MachineManager::PowerCycle()
 {
     m_shell.m_machine.PowerCycle();
-
-    m_shell.ResetUptimeAnchor();
 }
 
 

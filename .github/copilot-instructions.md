@@ -28,7 +28,35 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
 - **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
+- **The only project headers a `Pch.h` may include are `Ehm.h` and `Dxui.h`.**
+  A change to any header in a precompiled header rebuilds every file in its
+  project, and project headers change constantly. These two are exempt
+  because nearly every file uses them and they rarely change.
 - Individual `.cpp` and `.h` files use only quoted includes (`"header.h"`) for project headers
+
+### Header Includes
+- **A `.h` includes another project header only when it needs that header's
+  full definition**: a base class, a member or array held by value, a type
+  used inside an inline function body, `sizeof`, an enum's values, or a
+  nested type or constant from it.
+- **Everything else is a forward declaration.** A type used only through a
+  pointer, a reference, `std::unique_ptr` or `std::shared_ptr`, or as a
+  parameter or return type of a function the header only declares, gets
+  `class X;` (or `struct X;`), never `#include "X.h"`. The `.cpp` that needs
+  the definition includes it there.
+- **Include what you use; never rely on an include that arrives through
+  another header.** A header that needs `X`'s definition includes `X.h`
+  itself, even when another of its includes already brings it in. Otherwise,
+  removing an include from one header breaks headers that never mentioned it.
+- A `std::unique_ptr` member of a forward-declared type needs the owning
+  class's destructor declared in the header and defined in the `.cpp`
+  (`Foo::~Foo() = default;`), because the destructor is where the type must
+  be complete.
+- **Every header compiles on its own**, after `Pch.h` and nothing else.
+- Why it matters: every file that includes a header parses everything that
+  header includes, all the way down. Before this rule, `EmulatorShell.h`
+  pulled 292 headers into each of the 28 files that include it, and a change
+  to any of those 292 recompiled all 28.
 
 ### Code Style
 - Use spaces for indentation (match existing code style)
@@ -610,8 +638,9 @@ Two specific practices fall out of this:
 above that reduce to a mechanical test: empty-paren spacing, anonymous
 namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 `goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
-messages, lookup tables in an executable (CS0021), the banner/blank-line
-structure rules (CS0014–CS0017), and
+messages, lookup tables in an executable (CS0021), strings converted by
+copying an iterator range (CS0024), the banner/blank-line structure rules
+(CS0014–CS0017), and
 declaration-run column alignment (CS0019, flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
 have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
@@ -645,6 +674,21 @@ notice; the fix was to move them, after which the tests wrote themselves.
 PREFIX, where `Exclude` matches a suffix. Do not reuse one for the other: the
 first version of CS0021 did, matched nothing, and reported a clean tree while
 checking no files at all.
+
+**Narrow/wide conversion by iterator range (CS0024).** `std::wstring
+(s.begin(), s.end())` widens each `char` on its own, and `char` is signed, so
+every byte above 127 sign-extends into U+FF80..U+FFFF instead of the character
+it encodes; the reverse truncates each `wchar_t`. Both are invisible on ASCII,
+which is how they spread (GH #79). Convert through `TextEncoding`:
+`NarrowToWide` for the program's own narrow text (the process code page),
+`Utf8ToWide` for text from a format that specifies UTF-8 (JSON, WOZ META,
+release notes), `WideToNarrow` / `WideToUtf8` for the reverse. Never a local
+lambda or a new converter. The check flags a `wstring` built from one object's
+whole range, and a `string` built or assigned from a `.wstring()` /
+`.native()` result or a variable declared `wstring` on the same line; byte
+buffers, slices and `std::` algorithms are untouched. It cannot see a `.assign`
+or `.append` onto a wide string whose type is declared on another line, so
+those are review's job.
 
 **`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
 approval. Returning it overloads the result with a second, private meaning (

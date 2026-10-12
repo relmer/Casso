@@ -2,6 +2,7 @@
 
 #include "Assembler.h"
 #include "TestHelpers.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -188,12 +189,12 @@ namespace ConformanceTests
         AssemblyResult     result;
 
         Assert::IsFalse (source.empty(),
-            (L"Cannot read source: " + std::wstring (testName.begin(), testName.end())).c_str());
+            (L"Cannot read source: " + TextEncoding::NarrowToWide (testName)).c_str());
 
         expected = ReadBinaryFile (binPath);
 
         Assert::IsFalse (expected.empty(),
-            (L"Cannot read expected: " + std::wstring (testName.begin(), testName.end())).c_str());
+            (L"Cannot read expected: " + TextEncoding::NarrowToWide (testName)).c_str());
 
         result = asm6502.Assemble (source);
 
@@ -206,7 +207,7 @@ namespace ConformanceTests
                 errMsg += "\n  Line " + std::to_string (e.lineNumber) + ": " + e.message;
             }
 
-            Assert::Fail (std::wstring (errMsg.begin(), errMsg.end()).c_str());
+            Assert::Fail (TextEncoding::NarrowToWide (errMsg).c_str());
         }
 
         if (result.bytes.size() != expected.size())
@@ -217,7 +218,7 @@ namespace ConformanceTests
                               + "\n  Expected: " + FormatBytes (expected)
                               + "\n  Actual:   " + FormatBytes (result.bytes);
 
-            Assert::Fail (std::wstring (msg.begin(), msg.end()).c_str());
+            Assert::Fail (TextEncoding::NarrowToWide (msg).c_str());
         }
 
         for (size_t i = 0; i < expected.size(); i++)
@@ -229,7 +230,7 @@ namespace ConformanceTests
                                   + "\n  Expected: " + FormatBytes (expected)
                                   + "\n  Actual:   " + FormatBytes (result.bytes);
 
-                Assert::Fail (std::wstring (msg.begin(), msg.end()).c_str());
+                Assert::Fail (TextEncoding::NarrowToWide (msg).c_str());
             }
         }
     }

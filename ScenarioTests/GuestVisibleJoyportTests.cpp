@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -234,7 +235,7 @@ private:
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 
@@ -464,7 +465,7 @@ private:
                 Assert::AreEqual (expected, actual,
                     std::format (L"{}: row {} ({}), jack {}; the screen row reads '{}'", machine16, i,
                                  static_cast<int> (kRowOrder[i]), jack,
-                                 std::wstring (row.begin(), row.end())).c_str());
+                                 TextEncoding::NarrowToWide (row)).c_str());
                 checked++;
             }
         }

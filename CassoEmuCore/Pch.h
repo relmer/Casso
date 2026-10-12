@@ -3,6 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <aclapi.h>
 
 // <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
 // is the 6502 BIT instruction. CassoCore/Pch.h is where that actually bites --

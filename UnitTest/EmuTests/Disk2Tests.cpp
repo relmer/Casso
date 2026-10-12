@@ -233,6 +233,94 @@ public:
         Assert::AreEqual<Byte> (0x00, disk->Read (s_kQ7Off) & 0x20);
     }
 
+    //  The //c writes the IWM mode register with the motor commanded off and
+    //  Q6 and Q7 both high, and that write goes to the IWM, not to the disk.
+    //  The disk is still spinning down, so the drive must not take the cells
+    //  the data latch shifts out meanwhile. ProDOS does this after it reads a
+    //  drive, which put zero bits on whichever disk was selected.
+    TEST_METHOD (IwmModeWriteInTheSpinDownLeavesEitherDiskAlone)
+    {
+        for (int drive : { 0, 1 })
+        {
+            unique_ptr<Disk2Controller>   disk    = make_unique<Disk2Controller> (6);
+            DiskImage                   * image   = disk->GetDisk (drive);
+            size_t                        cleared = 0;
+            size_t                        i       = 0;
+
+
+
+            disk->SetIwmMode (true);
+            FillTrackWithOnes (*image);
+
+            disk->Read (drive == 0 ? s_kDrive1 : s_kDrive2);
+            disk->Read (s_kMotorOn);
+            disk->Tick (Disk2Controller::kMotorSpinupCycles);
+            disk->Read (s_kMotorOff);
+
+            disk->Read  (s_kQ6On);
+            disk->Write (s_kQ7On, 0x0F);
+            disk->Tick  (Disk2NibbleEngine::kCyclesPerBit * s_kBitsPerNibble);
+            disk->Read  (s_kQ7Off);
+
+            for (i = 0; i < image->GetTrackBitCount (0); i++)
+            {
+                cleared += (image->ReadBit (0, i) == 0) ? 1 : 0;
+            }
+
+            Assert::AreEqual<size_t> (0, cleared, std::format (L"drive {}: no bit on the disk changed", drive + 1).c_str());
+            Assert::IsFalse (image->IsTrackDirty (0), std::format (L"drive {}: the track has nothing to save", drive + 1).c_str());
+        }
+    }
+
+
+    //  With the motor commanded on, the same switches are the //c's write of
+    //  a data field, and the disk takes it.
+    TEST_METHOD (IwmWriteWithTheMotorOnReachesTheDisk)
+    {
+        unique_ptr<Disk2Controller>   disk    = make_unique<Disk2Controller> (6);
+        DiskImage                   * image   = disk->GetDisk (1);
+        size_t                        cleared = 0;
+        size_t                        i       = 0;
+
+
+
+        disk->SetIwmMode (true);
+        FillTrackWithOnes (*image);
+
+        disk->Read (s_kDrive2);
+        disk->Read (s_kMotorOn);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        disk->Read  (s_kQ6On);
+        disk->Write (s_kQ7On, 0x00);
+        disk->Tick  (Disk2NibbleEngine::kCyclesPerBit * s_kBitsPerNibble);
+        disk->Read  (s_kQ7Off);
+
+        for (i = 0; i < image->GetTrackBitCount (0); i++)
+        {
+            cleared += (image->ReadBit (0, i) == 0) ? 1 : 0;
+        }
+
+        Assert::IsTrue (cleared > 0, L"the zeros written reached the disk");
+    }
+
+
+    static void FillTrackWithOnes (DiskImage & image)
+    {
+        size_t  i = 0;
+
+
+
+        image.ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);
+
+        for (i = 0; i < image.GetTrackBitCount (0); i++)
+        {
+            image.WriteBit (0, i, 1);
+        }
+
+        image.ClearDirty();
+    }
+
     TEST_METHOD (DriveSelectViaC0EAC0EB)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);

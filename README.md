@@ -507,9 +507,7 @@ puts the arrow keys on paddle 0/1 with **X** / **Z** on buttons 0/1, so
 *Karateka*, *Choplifter* and *Lode Runner* play from the host keyboard with no
 physical stick. The //e keyboard generates hardware-faithful auto-repeat — initial
 delay, then steady cadence — rather than leaning on host-OS key repeat, so
-timing-sensitive arrow input behaves the way it did on real hardware. An Input
-Debug panel (**Ctrl+Shift+I**) logs host → guest key events, the `$C000`/`$C010`
-strobe, Open/Closed-Apple state, and synthesized paddle reads.
+timing-sensitive arrow input behaves the way it did on real hardware.
 
 Physical game controllers (Xbox controllers, gamepads, joysticks and flight
 sticks) can drive the Apple's paddles and buttons too. Controllers are assigned
@@ -645,48 +643,31 @@ Machine names come from `Resources/Machines/<Name>/`: `Apple2`, `Apple2Plus`,
 
 ### Assemble and run
 
-The dialect is required — `as65` is a subcommand, not an assumption. Every value
-attaches to its flag, which is AS65's grammar; `-o` is the one switch where the
-space before its value is optional. Full reference:
-**[docs/Assembler.md](docs/Assembler.md)**.
+`CassoCli` takes the dialect as a subcommand, and its flags follow AS65's
+command line exactly. A few common builds:
 
 ```powershell
-# Assemble a source file
-CassoCli as65 input.a65 -ooutput.bin
+# Assemble a source file, with a listing
+CassoCli as65 input.a65 -ooutput.bin -llisting.txt
 
-# With a listing file and a symbol table
-CassoCli as65 input.a65 -ooutput.bin -llisting.txt -t
-
-# Motorola S-record (.s19) or Intel HEX (.hex)
-CassoCli as65 input.a65 -s   -ooutput.s19
-CassoCli as65 input.a65 -s2  -ooutput.hex
-
-# The default output is the assembled bytes and nothing else. --flat pads to a
-# full 64KB image at the origin; --dos-bin writes a BLOAD-ready DOS 3.3 binary.
-CassoCli as65 input.a65 --flat     -ooutput.bin
-CassoCli as65 input.a65 --dos-bin  -ooutput.bin
-
-# Pre-define a symbol, or generate a listing with cycle counts
-CassoCli as65 input.a65 -dDEBUG=1 -ooutput.bin
-CassoCli as65 input.a65 -c -llisting.txt
-
-# 65C02 source (STZ, BRA, RMB/SMB/BBR/BBS, ...). The default is a strict 6502;
-# 65C02-only opcodes are rejected without -x.
+# 65C02 source
 CassoCli as65 input.a65c -x -ooutput.bin
 
-# Merlin. Merlin derives its own object file, so -o only overrides the source,
-# and there is no CPU flag: Merlin selects its CPU in the source with XC.
+# Merlin source
 CassoCli merlin SOURCE.S
-CassoCli merlin SOURCE.S -o OBJECT
 
-# Assemble and run in one step. `run` specifies its assembler for the same reason
-# assembling does: a source with neither flag is refused, not guessed at.
+# Assemble and run in one step
 CassoCli run input.a65 --as65
-CassoCli run PROG.S --merlin
 
-# A binary names no assembler, because none reads it
-CassoCli run output.bin --load $8000
+# Assemble straight onto a bootable disk, then BRUN PROG at the prompt
+CassoCli disk create mydisk.dsk --bootable
+CassoCli as65 prog.a65 --disk mydisk.dsk --as PROG
+Casso --disk1 mydisk.dsk
 ```
+
+Every option, output format and exit code is in
+**[docs/Assembler.md](docs/Assembler.md)**, including rebuilding into a disk Casso
+already has mounted.
 
 ## Project Structure
 

@@ -295,6 +295,21 @@ void FluxTrack::GetTransitionTicks (vector<uint64_t> & outTicks) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FluxTrack::AssignTransitionTicks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxTrack::AssignTransitionTicks (const vector<uint64_t> & ticks, uint64_t revolution)
+{
+    Encode (ticks, revolution);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FluxTrack::Encode
 //
 //  Rebuilds the bytes from transition ticks in (0, revolution]. The format has

@@ -356,11 +356,15 @@ public:
     // Pixels go IN and world corners come out, which is the inversion the
     // whole fix rests on: the name is specified in the units it has to be
     // legible in, and the scene is told where that lands.
+    //
+    // `offsetXPx` moves the quad's center that many pixels right of the
+    // anchor, for a part that sits beside the name rather than under it.
     static bool     TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                            int                          drive,
                                            const SIZE                 & labelPx,
                                            int                          gapPx,
-                                           float                        outCorners[4][3]);
+                                           float                        outCorners[4][3],
+                                           int                          offsetXPx = 0);
 
     // The same quad hung under any world point: a constant pixel size,
     // facing the camera, `gapPx` below the point.
@@ -368,7 +372,8 @@ public:
                                            const float                  anchor[3],
                                            const SIZE                 & labelPx,
                                            int                          gapPx,
-                                           float                        outCorners[4][3]);
+                                           float                        outCorners[4][3],
+                                           int                          offsetXPx = 0);
 
 private:
     static void     SolveStandoff (const float             sceneMin[3],

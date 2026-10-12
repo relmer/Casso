@@ -2,6 +2,7 @@
 
 #include "Ui/Chrome/UpdateIndicatorModel.h"
 #include "Core/UnicodeSymbols.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -43,7 +44,7 @@ static constexpr LPCWSTR  s_kIndicatorLines[] =
 std::vector<std::wstring> UpdateIndicatorModel::GetLines (const std::string & version)
 {
     std::vector<std::wstring>  lines;
-    std::wstring               wide (version.begin(), version.end());
+    std::wstring               wide = TextEncoding::NarrowToWide (version);
     wchar_t                    dash = s_kchEmDash;
 
 
