@@ -1087,6 +1087,7 @@ private:
 
     void          BeginSelectionBand      (int lx, int ly, bool ctrl);
     void          UpdateSelectionBand     (int lx, int ly);
+    void          PaintSelectionBand      (IDxuiPainter & painter, const Palette & pal, float x, float y) const;
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).

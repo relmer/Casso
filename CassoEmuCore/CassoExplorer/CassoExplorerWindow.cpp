@@ -3179,13 +3179,21 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    //  An archive's files copy as files do, for the shell to extract on paste.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'C'
-        && m_focus == Pane::Preview && m_previewArchive && !GetSelectedArchiveIds().empty())
+    //  An archive's files copy as files do, for the shell to extract on paste,
+    //  and Ctrl+A selects them all, as in the file list.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'C' || ev.vk == 'A')
+        && m_focus == Pane::Preview && m_previewArchive)
     {
-        HRESULT  hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), GetSelectedArchiveIds(), false);
+        if (ev.vk == 'A')
+        {
+            m_previewList->SelectAllRows();
+            Invalidate();
+        }
+        else
+        {
+            CopyArchiveSelection();
+        }
 
-        IGNORE_RETURN_VALUE (hr, S_OK);
         return true;
     }
 
@@ -3809,8 +3817,7 @@ bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT po
 
         if (!ids.empty())
         {
-            hr = m_shellVerbs.ShowShellMenu (GetHwnd(), ids, screen);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            ShowArchiveContextMenu (point.x, point.y);
         }
 
         return true;
@@ -3847,6 +3854,98 @@ bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT po
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::CopyArchiveSelection
+//
+//  The clipboard's data is rendered at once: an archive's files are the
+//  archive folder's to give, and that folder is gone once the list moves on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::CopyArchiveSelection()
+{
+    std::vector<std::wstring>  ids = GetSelectedArchiveIds();
+    HRESULT                    hr  = S_OK;
+
+
+
+    if (ids.empty())
+    {
+        return;
+    }
+
+    hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), ids, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = OleFlushClipboard();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowArchiveContextMenu
+//
+//  The file list's menu for an archive's files: the clipboard row, Open,
+//  and the shell's full menu under Show more options, Extract All among it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowArchiveContextMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>                   items;
+    std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
+    std::shared_ptr<DxuiCommand>                     copy   = std::make_shared<DxuiCommand>();
+    POINT                                            screen = { x, y };
+
+
+
+    m_menuCommands.clear();
+    ClientToScreen (GetHwnd(), &screen);
+
+    copy->id       = (int) CassoExplorerActions::Verb::Copy;
+    copy->label    = GetVerbLabel (CassoExplorerActions::Verb::Copy);
+    copy->glyph    = GetVerbGlyph (CassoExplorerActions::Verb::Copy);
+    copy->menuSvg  = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::Copy));
+    copy->dispatch = [this]() { CopyArchiveSelection(); };
+    iconCommands.push_back (copy);
+    m_menuCommands.push_back (std::move (copy));
+
+    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()
+    {
+        if (!m_previewList->GetSelectedRows().empty())
+        {
+            OpenArchiveRow (m_previewList->GetSelectedRows()[0]);
+        }
+    });
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, screen]()
+    {
+        HRESULT  hr = m_shellVerbs.ShowShellMenu (GetHwnd(), GetSelectedArchiveIds(), screen);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  A Copy or Cut picked there is rendered now, for the same reason.
+        hr = OleFlushClipboard();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    });
+    m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -5966,8 +6065,85 @@ bool CassoExplorerWindow::IsShellDropFile (int row, std::wstring & outPath) cons
 
     extension = std::filesystem::path (outPath).extension().wstring();
 
-    return item.isArchive || std::any_of (std::begin (kProgramExtensions), std::end (kProgramExtensions),
-                                          [&extension] (const wchar_t * known) { return _wcsicmp (extension.c_str(), known) == 0; });
+    return item.isArchive || IsProgramPath (outPath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsProgramPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsProgramPath (const std::wstring & path)
+{
+    std::wstring  extension = std::filesystem::path (path).extension().wstring();
+
+
+
+    return std::any_of (std::begin (kProgramExtensions), std::end (kProgramExtensions),
+                        [&extension] (const wchar_t * known) { return _wcsicmp (extension.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RunProgramWith
+//
+//  The program starts in its own folder with each dropped file's full path,
+//  quoted, as an argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RunProgramWith (const std::wstring & program, IDataObject * data)
+{
+    FORMATETC     format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM     medium         = {};
+    HDROP         drop           = nullptr;
+    UINT          count          = 0;
+    UINT          index          = 0;
+    HRESULT       hr             = E_FAIL;
+    std::wstring  arguments;
+    std::wstring  folder         = CassoExplorerBrowser::GetParentFolder (program);
+    wchar_t       path[MAX_PATH] = {};
+
+
+
+    if (data != nullptr)
+    {
+        hr = data->GetData (&format, &medium);
+    }
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    drop  = (HDROP) GlobalLock (medium.hGlobal);
+    count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
+
+    for (index = 0; index < count; index++)
+    {
+        if (DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0)
+        {
+            arguments += (arguments.empty() ? L"\"" : L" \"") + std::wstring (path) + L"\"";
+        }
+    }
+
+    if (drop != nullptr)
+    {
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    ReleaseStgMedium (&medium);
+
+    ShellExecuteW (GetHwnd(), nullptr, program.c_str(), arguments.c_str(), folder.c_str(), SW_SHOWNORMAL);
 }
 
 
@@ -6140,6 +6316,19 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
         DescribeDrop   (data, DROPEFFECT_NONE, location);
 
         return DROPEFFECT_NONE;
+    }
+
+    //  A program runs with what is dropped on it, as Explorer's does.
+    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsProgramPath (hostFolder))
+    {
+        LeaveHostDrop();
+        ShowDropTarget (tag, screen, true);
+
+        hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_COPY, L"Open with %1",
+                                                     std::filesystem::path (hostFolder).filename().wstring().c_str());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        return DROPEFFECT_COPY;
     }
 
     if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder))
@@ -6476,6 +6665,14 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     if (TryGetHostDropFolder (tag, screen, hostFolder) && IsDraggedFromFolder (data, hostFolder))
     {
         m_dropTarget.SetDropResult (DROPEFFECT_NONE);
+        return;
+    }
+
+    //  Onto a program: it runs with the dropped files' full paths.
+    if (TryGetHostDropFolder (tag, screen, hostFolder) && IsProgramPath (hostFolder))
+    {
+        RunProgramWith (hostFolder, data);
+        m_dropTarget.SetDropResult (DROPEFFECT_COPY);
         return;
     }
 

@@ -3528,18 +3528,38 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
         painter.PopClipRect();
     }
 
-    //  The rubber band, over everything it selects.
-    if (m_bandActive)
+    PaintSelectionBand (painter, pal, x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PaintSelectionBand
+//
+//  The rubber band, over everything it selects.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintSelectionBand (IDxuiPainter & painter, const Palette & pal, float x, float y) const
+{
+    RECT  band = GetSelectionBandPx();
+
+
+
+    if (!m_bandActive)
     {
-        RECT  band = GetSelectionBandPx();
-
-        OffsetRect (&band, (int) x, (int) y);
-
-        painter.FillRect    ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
-                             (pal.bgSel & 0x00FFFFFFu) | 0x60000000u);
-        painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
-                             1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
+        return;
     }
+
+    OffsetRect (&band, (int) x, (int) y);
+
+    painter.FillRect    ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
+                         (pal.bgSel & 0x00FFFFFFu) | 0x60000000u);
+    painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
+                         1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
 }
 
 
@@ -3631,6 +3651,11 @@ POINT DxuiListView::GetItemScrollOffsetPx() const
 
 
 
+    if (!IsItemsView())
+    {
+        return POINT { m_leftPx, m_topRow * GetRowHeightPx() - GetHeaderHeightPx() - (m_showHeader ? GetHeaderGapPx() : 0) };
+    }
+
     if (GetItemMetrics (m_view).columns)
     {
         return POINT { m_leftPx, 0 };
@@ -3708,16 +3733,31 @@ void DxuiListView::UpdateSelectionBand (int lx, int ly)
     {
         RECT  cell   = {};
         RECT  hit    = {};
-        bool  placed = listGrp ? GetListItemRectPx    (listLay, item, cell)
-                               : itemGrp ? GetGroupedItemRectPx (itemLay, item, cell)
-                                         : GetItemRectPx        (item, cell);
+        int   line   = IsItemsView() ? -1 : GetLineOfRow (item);
+        bool  placed = false;
+
+        //  In Details a row spans every column, at its line's place.
+        if (!IsItemsView())
+        {
+            placed = line >= 0;
+            cell   = RECT { 0, line * GetRowHeightPx(), GetContentWidthPx(), (line + 1) * GetRowHeightPx() };
+        }
+        else
+        {
+            placed = listGrp ? GetListItemRectPx    (listLay, item, cell)
+                             : itemGrp ? GetGroupedItemRectPx (itemLay, item, cell)
+                                       : GetItemRectPx        (item, cell);
+
+            if (placed)
+            {
+                OffsetRect (&cell, offset.x, offset.y);
+            }
+        }
 
         if (!placed)
         {
             continue;
         }
-
-        OffsetRect (&cell, offset.x, offset.y);
 
         if (IntersectRect (&hit, &cell, &band))
         {

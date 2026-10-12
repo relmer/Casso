@@ -651,6 +651,8 @@ private:
     std::vector<std::wstring>  GetSelectedArchiveIds () const;
     bool                       RouteArchiveMouse     (const DxuiMouseEvent & ev, POINT point);
     void                       OpenArchiveRow        (int row);
+    void                       CopyArchiveSelection  ();
+    void                       ShowArchiveContextMenu (int x, int y);
 
     //  Explorer's folder options read again; true when one changed.
     bool  ReadFolderOptions ();
@@ -672,6 +674,8 @@ private:
     void  ReloadKnownFoldersIfChanged ();
     void  RefreshQuickAccessIfChanged ();
     bool  IsShellDropFile     (int row, std::wstring & outPath) const;
+    void  RunProgramWith      (const std::wstring & program, IDataObject * data);
+    static bool  IsProgramPath (const std::wstring & path);
     static bool  IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
 
     //  Files the shell runs, with what is dropped on them as arguments.

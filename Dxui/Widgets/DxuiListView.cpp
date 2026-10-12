@@ -3663,6 +3663,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
         }
 
         PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+        PaintSelectionBand (painter, pal, x, y);
 
         if (bodyTop > 0.0f)
         {
@@ -5077,9 +5078,10 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
     }
-    else if (IsItemsView() && m_multiSelect)
+    else if (m_multiSelect && (IsItemsView() || ly >= GetHeaderHeightPx() + (m_showHeader ? GetHeaderGapPx() : 0)))
     {
-        //  A press between items starts a rubber band, as in Explorer.
+        //  A press on empty space starts a rubber band, as in Explorer: between
+        //  items, below the last row, or past the last column.
         BeginSelectionBand (lx, ly, ev.ctrl);
     }
     else if (!ev.ctrl && !ev.shift && !m_selectedRows.empty())
