@@ -101,6 +101,24 @@ public:
     RECT  GetDriveBandBounds     () const { return m_driveBand.GetBounds(); }
     void  LayoutDriveBandSurface (bool isVisible, const RECT & bounds);
 
+    // The present path's part: a capture band left docked after the grab
+    // ended (true once, then cleared), the tooltips' dwell timers, the band bounds
+    // and drive bar thickness, whether the drive tooltip is up, and the drive
+    // band's background.
+    bool  TakeStandInBandStale       ();
+    void  TickTooltips               (int64_t nowMs);
+    RECT  GetSwitchBandBounds        () const { return m_switchBand.GetBounds(); }
+    int   GetDriveBarThicknessDp     () const { return m_driveBarThicknessDp; }
+    bool  IsDriveTooltipVisible      () const { return m_driveTooltip.IsVisible(); }
+    void  SetDriveBandSurfaceVisible (bool isVisible) { m_driveBandSurface.SetVisible (isVisible); }
+    bool  IsDriveBandSurfaceVisible  () const { return m_driveBandSurface.IsVisible(); }
+    RECT  GetDriveBandSurfaceBounds  () const { return m_driveBandSurface.GetBounds(); }
+
+    // The idle frame loop's timeouts: true while a tooltip, the menu bar or
+    // the toolbar animates, and when the next notice appears or expires.
+    bool                    WantsAnimationTick   () const;
+    std::optional<int64_t>  GetNextNoticeChangeMs () const { return m_notices.GetNextChangeMs(); }
+
     // The left button: a press outside the menu strip closes an open menu,
     // and a press or release on the command toolbar or the //c switch bar is
     // theirs.

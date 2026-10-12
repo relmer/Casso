@@ -188,9 +188,7 @@ HRESULT ShellRenderer::InitializeRenderer()
             // edges) -- and NOT positioned by the projected bounding box,
             // whose keystone slop would shear the texel alignment.
             RECT  glassPx     = m_d3dRenderer.GetTargetBounds();
-            int   measuredH   = (int) lroundf (DeskSceneLayout::MeasurePictureHeightPx (
-                                    m_shell.m_scene->m_deskScene.Composition(), m_shell.m_scene->m_deskScene.MonitorModel().Surface(),
-                                    kFramebufferWidth, kFramebufferHeight));
+            int   measuredH   = (int) lroundf (m_shell.m_scene->MeasurePictureHeightPx (kFramebufferWidth, kFramebufferHeight));
             int   pictureH    = (measuredH > 0) ? measuredH : (int) (glassPx.bottom - glassPx.top);
             int   pictureW    = 0;
             RECT  pictureRect = {};
@@ -224,69 +222,21 @@ HRESULT ShellRenderer::InitializeRenderer()
                                                             kFramebufferWidth, kFramebufferHeight);
                 CrtUvRect                  uv         = ComputeUvRectForFit (fitted,
                                                             pictureW, pictureH);
-                ID3D11ShaderResourceView * displaySrv = m_d3dRenderer.GetSceneContentSrv();
+                ID3D11ShaderResourceView * displaySrv = m_shell.m_scene->GetDisplaySrv (m_d3dRenderer.GetSceneContentSrv(), fitted);
+                int                        bbW        = m_d3dRenderer.GetBackBufferWidth();
+                int                        bbH        = m_d3dRenderer.GetBackBufferHeight();
 
-                // Calibration mode: swap in the stripe pattern so the glass
-                // texel mapping can be verified end to end.
-                if (m_shell.m_scene->m_deskSceneDebug >= 2)
-                {
-                    m_shell.m_scene->EnsureSceneCalibration (fitted);
+                hrComposite = m_shell.m_scene->RenderMonitor (m_shell.m_host->GetBackBufferRtv(), displaySrv, uv,
+                                                              kFramebufferWidth, kFramebufferHeight);
 
-                    if (m_shell.m_scene->m_sceneCalibSrv != nullptr)
-                    {
-                        displaySrv = m_shell.m_scene->m_sceneCalibSrv.Get();
-                    }
-                }
-
-                hrComposite = m_shell.m_scene->m_deskScene.Render (m_shell.m_host->GetBackBufferRtv(),
-                                                                   displaySrv, uv,
-                                                                   kFramebufferWidth, kFramebufferHeight);
-
-                // Fullscreen drive overlay strip: the slid band composed by
-                // TryPresentUiFrame's FSM tick, plus the hidden-state
-                // activity glimmer in the corner (FR-015).
+                // Fullscreen drive overlay strip: the slid band TickStrip
+                // composed, or the hidden strip's activity glimmer (FR-015).
                 if (m_d3dRenderer.IsFullscreen())
                 {
-                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
-                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
-
-                    if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
-                    {
-                        HRESULT  hrStrip = m_shell.m_scene->m_deskScene.RenderStrip (m_shell.m_host->GetBackBufferRtv(), m_shell.m_scene->m_stripComp);
-
-                        IGNORE_RETURN_VALUE (hrStrip, S_OK);
-                    }
-
-                    if (m_shell.m_scene->m_stripState.ActivityIndicator())
-                    {
-                        RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                        m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
-                    }
+                    m_shell.m_scene->RenderStripOverlay (m_shell.m_host->GetBackBufferRtv(), bbW, bbH);
                 }
 
-                // Layout diagnosis overlay: scene viewport red, projected
-                // glass green, drive band yellow, switch band magenta.
-                if (m_shell.m_scene->m_deskSceneDebug)
-                {
-                    int   bbW = m_d3dRenderer.GetBackBufferWidth();
-                    int   bbH = m_d3dRenderer.GetBackBufferHeight();
-
-                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().viewportPx, bbW, bbH, 0xFFFF3030);
-                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().glassRectPx, bbW, bbH, 0xFF30FF30);
-
-                    // The projected drive bounds ARE the drop-target rects the
-                    // hit registry carries, so drawing them shows whether a
-                    // refused drag is a bad rect or something upstream.
-                    for (int i = 0; i < m_shell.m_scene->m_deskScene.Composition().driveCount; i++)
-                    {
-                        m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_deskScene.Composition().driveRectPx[i], bbW, bbH, 0xFFFFA030);
-                    }
-
-                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_chrome->m_driveBand.GetBounds(), bbW, bbH, 0xFFFFFF30);
-                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_chrome->m_switchBand.GetBounds(), bbW, bbH, 0xFFFF30FF);
-                    m_shell.m_scene->m_deskScene.DrawDebugRect (m_shell.m_scene->m_stripRectPx, bbW, bbH, 0xFF30FFFF);
-                }
+                m_shell.m_scene->DrawLayoutDebug (bbW, bbH);
             }
         }
         else
@@ -340,21 +290,11 @@ HRESULT ShellRenderer::InitializeRenderer()
             // Fullscreen without the monitor: the picture owns the client and
             // the drives live in the slide-up overlay strip, same as they do
             // with the monitor on.
-            if (m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top)
-            {
-                hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_stripComp);
-            }
-
-            if (m_shell.m_scene->m_stripState.ActivityIndicator())
-            {
-                RECT  glimmer = { bbW - 34, bbH - 14, bbW - 12, bbH - 8 };
-
-                m_shell.m_scene->m_deskScene.DrawDebugRect (glimmer, bbW, bbH, 0xFFB01818);
-            }
+            m_shell.m_scene->RenderStripOverlay (rtv, bbW, bbH);
         }
         else
         {
-            hrDrives = m_shell.m_scene->m_deskScene.RenderStrip (rtv, m_shell.m_scene->m_deskScene.Composition());
+            hrDrives = m_shell.m_scene->RenderDriveRow (rtv);
         }
 
         IGNORE_RETURN_VALUE (hrDrives, S_OK);
@@ -587,9 +527,8 @@ bool ShellRenderer::TryPresentUiFrame()
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
     //  composed yet. See SyncStandInBanner for what sets this.
-    if (m_shell.m_chrome->m_standInBandStale)
+    if (m_shell.m_chrome->TakeStandInBandStale())
     {
-        m_shell.m_chrome->m_standInBandStale = false;
         m_shell.m_chrome->ReflowChromeForChangeBand();
     }
 
@@ -758,243 +697,11 @@ bool ShellRenderer::TryPresentUiFrame()
         }
     }
 
-    // 3D scene drive visuals: activity lamp, door swing, and the padlock,
-    // pushed from the same per-drive state the 2D widgets mirror. The scene
-    // only rebuilds geometry when a value actually moved.
-    if (m_shell.DeskSceneActive())
-    {
-        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                             std::chrono::steady_clock::now().time_since_epoch()).count();
+    // The 3D scene's drive visuals, recorder and labels.
+    m_shell.m_scene->SyncDeviceVisuals (badgeMoved);
 
-        for (int i = 0; i < 2; i++)
-        {
-            const DriveWidgetState &  st       = m_shell.m_disks->GetDriveWidgetState()[i];
-            float                     t        = std::clamp ((float) (nowMs - st.animationStartTimeMs) /
-                                                             (float) DriveWidgetState::kDoorAnimationMs, 0.0f, 1.0f);
-            float                     progress = 0.0f;
-            bool                      lampOn   = st.motorOn.load    (memory_order_relaxed) ||
-                                                 st.diskActive.load (memory_order_relaxed);
-
-            switch (st.doorState)
-            {
-                case DriveWidgetState::Door::Open:     progress = 1.0f;     break;
-                case DriveWidgetState::Door::Opening:  progress = t;        break;
-                case DriveWidgetState::Door::Closing:  progress = 1.0f - t; break;
-                case DriveWidgetState::Door::Closed:   progress = 0.0f;     break;
-            }
-
-            m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
-        }
-
-        // The volume wheel stands where the tape volume is, however it was
-        // last set -- dragged, or from the Settings slider.
-        m_shell.m_scene->m_deskScene.SetRecorderVolumeTurn (m_shell.m_audio->GetTapeSource().GetVolume() * ShellDeskScene::s_kVolumeWheelTurnRad);
-
-        // A mount or eject changes the basename strip under the drive, and so
-        // does write-protecting the disk, since the padlock is a glyph at the
-        // head of that name, and so does the info icon after it. None of them
-        // runs a layout pass, so watch them here and re-hang the labels (with
-        // their text measurement) on a change.
-        {
-            bool  labelsMoved = badgeMoved;
-
-            for (int i = 0; i < (int) m_shell.m_scene->m_sceneLabelPath.size(); i++)
-            {
-                std::string  source = m_shell.m_machine.GetDiskStore().GetSourcePath (6, i);
-
-                if (source != m_shell.m_scene->m_sceneLabelPath[i])
-                {
-                    m_shell.m_scene->m_sceneLabelPath[i] = source;
-                    labelsMoved         = true;
-                }
-            }
-
-            // The recorder's keys follow the transport, and a clicked key's
-            // dip needs frames until it is back up.
-            if (m_shell.m_scene->SyncRecorderKeys ((int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                                       std::chrono::steady_clock::now().time_since_epoch()).count()))
-            {
-                m_d3dRenderer.MarkRedrawNeeded();
-            }
-
-            // A name scrolling under the pointer moves every frame.
-            if (m_shell.m_scene->m_sceneLabelHover >= 0 && m_shell.m_scene->m_sceneDiskLabelPeriod[(size_t) m_shell.m_scene->m_sceneLabelHover] > 0.0f)
-            {
-                labelsMoved = true;
-            }
-
-            if (labelsMoved)
-            {
-                m_shell.m_scene->SyncSceneDriveLabels();
-                m_d3dRenderer.MarkRedrawNeeded();
-            }
-        }
-    }
-
-    // Fullscreen drive overlay strip (FR-015): tick the FSM from this
-    // frame's observations, apply its capture effects, and compose the slid
-    // band the hook will render. The flat themes ride the same FSM with the
-    // 2D widgets laid into the band, so fullscreen hides the drives the same
-    // way everywhere and brings them back the same way too.
-    bool  stripHasDrives = m_shell.DeskSceneActive()
-                         ? m_shell.m_scene->DeskSceneDriveCount() > 0
-                         : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
-
-    if (m_d3dRenderer.IsFullscreen() && stripHasDrives)
-    {
-        StripInputs   inputs;
-        StripEffects  effects;
-        POINT         cursor  = {};
-        RECT          client  = {};
-        int64_t       stripNowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                       std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        GetClientRect (m_shell.m_hwnd, &client);
-
-        inputs.nowMs = stripNowMs;
-
-        if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
-        {
-            inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
-            inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&m_shell.m_scene->m_stripRectPx, cursor);
-        }
-
-        inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
-        m_shell.m_scene->m_stripHotkeyPending = false;
-
-        inputs.pinned        = m_shell.m_scene->m_stripBrowseOpen || m_shell.m_chrome->m_driveTooltip.IsVisible();
-
-        // LIVE, not Active: Mouse mode being CONFIGURED is not the guest
-        // owning the pointer. At a BASIC prompt in Mouse mode the host
-        // cursor is the only pointer there is, and the bottom edge must
-        // summon the strip -- Active gated the reveal off for the whole
-        // session on a machine whose mouse is built in.
-        inputs.guestPointer  = m_shell.m_input->IsPaddleCaptured()    ? GuestPointerMode::Paddle
-                             : m_shell.m_input->IsGuestMouseLive()    ? GuestPointerMode::Mouse
-                             :                       GuestPointerMode::None;
-        inputs.anyDriveActive = anyDriveLive;
-
-        effects = m_shell.m_scene->m_stripState.Tick (inputs);
-
-        if (effects.releaseCapture)
-        {
-            if (m_shell.m_input->IsPaddleCaptured())
-            {
-                m_shell.m_input->StopPaddleCapture();
-            }
-            else
-            {
-                m_shell.m_scene->m_stripSuppressGuestMouse = true;
-            }
-        }
-
-        if (effects.restoreCapture == GuestPointerMode::Paddle)
-        {
-            m_shell.m_input->StartPaddleCapture();
-        }
-        else if (effects.restoreCapture == GuestPointerMode::Mouse)
-        {
-            m_shell.m_scene->m_stripSuppressGuestMouse = false;
-        }
-
-        // The band slides up from the bottom edge: only the top
-        // `progress * height` sliver is on-screen mid-animation. The flat
-        // widgets' band is the windowed drive bar's height; the scene's is
-        // the row its drives compose into.
-        {
-            float  progress = m_shell.m_scene->m_stripState.SlideProgress (stripNowMs);
-            int    bandH    = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
-                                                        : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
-
-            if (progress > 0.0f)
-            {
-                m_shell.m_scene->m_stripRectPx = { 0, client.bottom - (int) (progress * (float) bandH),
-                                                   client.right, client.bottom - (int) (progress * (float) bandH) + bandH };
-
-                if (m_shell.DeskSceneActive())
-                {
-                    HRESULT  hrStrip  = S_OK;
-                    RECT     driveRow = {};
-
-                    // The drives get the band LESS the name strip, the way the
-                    // windowed drive band reserves it: the disk's name and its
-                    // padlock belong under the drive here too, and a row composed
-                    // into the whole band would put them off the screen's edge.
-                    // The recorder has a second row, its counter, under its
-                    // tape name, so it needs one more strip.
-                    driveRow         = m_shell.m_scene->m_stripRectPx;
-                    driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
-
-                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
-                    {
-                        driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
-                    }
-
-                    // The drive band's calibrated look-down, not the desk's
-                    // near-level default: the band angle is what shows the
-                    // drives' tops, and the fullscreen strip is the same
-                    // drives-only row the windowed band composes.
-                    hrStrip = DeskSceneLayout::ComputeStrip (driveRow, m_shell.m_scaler.GetDpi(),
-                                                             m_shell.m_scene->DeskSceneDriveCount(),
-                                                             m_shell.m_scene->m_deskScene.Metrics(), m_shell.m_scene->m_stripComp,
-                                                             DeskSceneLayout::kDriveBandGazeDownRad);
-                    IGNORE_RETURN_VALUE (hrStrip, S_OK);
-                }
-                else
-                {
-                    // The flat widgets sit in the band wherever the slide has
-                    // put it this frame, bottom-anchored the way the windowed
-                    // bar anchors them, over the band's own surface. They paint
-                    // after the picture, so they ride over it.
-                    m_shell.m_chrome->m_driveBandSurface.SetBounds (m_shell.m_scene->m_stripRectPx);
-                    m_shell.m_chrome->m_driveBandSurface.SetVisible (true);
-                    m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, client.right,
-                                                                      m_shell.m_scene->m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
-                                                                      m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
-
-                    if (!m_shell.m_disks->ShouldShowExternalDrive())
-                    {
-                        m_shell.m_disks->GetDriveChrome()[1].Hide();
-                    }
-                }
-            }
-            else
-            {
-                m_shell.m_scene->m_stripRectPx = {};
-                m_shell.m_scene->m_stripComp   = {};
-
-                if (!m_shell.DeskSceneActive())
-                {
-                    m_shell.m_chrome->m_driveBandSurface.SetVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[0].Hide();
-                    m_shell.m_disks->GetDriveChrome()[1].Hide();
-                }
-            }
-        }
-
-        // The strip's names ride its slide: re-hung every pass so they track
-        // the band on its way in and out, and retire with it. The flat
-        // widgets carry their own names.
-        if (m_shell.DeskSceneActive())
-        {
-            m_shell.m_scene->SyncSceneDriveLabels();
-        }
-
-        if (m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden || m_shell.m_scene->m_stripState.ActivityIndicator())
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-    }
-    else
-    {
-        // Not presenting the strip (windowed, or fullscreen left): never
-        // strand a suppressed guest mouse.
-        m_shell.m_scene->m_stripSuppressGuestMouse = false;
-        m_shell.m_scene->m_stripRectPx             = {};
-    }
+    // The fullscreen drive overlay strip (FR-015).
+    m_shell.m_scene->TickStrip (anyDriveLive);
 
     // Keep presenting while the drives' visible state is CHANGING, plus the
     // one frame after it settles so the last change actually reaches the
@@ -1063,10 +770,7 @@ bool ShellRenderer::TryPresentUiFrame()
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        m_shell.m_chrome->m_toolbarTooltip.Tick   (nowMs);
-        m_shell.m_chrome->m_switchBarTooltip.Tick (nowMs);
-        m_shell.m_chrome->m_driveTooltip.Tick     (nowMs);
-        m_shell.m_chrome->m_captionTooltip.Tick   (nowMs);
+        m_shell.m_chrome->TickTooltips (nowMs);
 
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.
@@ -1096,15 +800,9 @@ bool ShellRenderer::TryPresentUiFrame()
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
-        // A HELD COMPASS ARROW REPEATS, and a held arrow produces no messages
-        // to wake this loop -- the pointer is not moving, which is the very
-        // condition the repeat exists for. So it votes for a present the
-        // whole time it is held, not only on the frames it fires: without
-        // that the loop parks and the repeat stops between steps.
-        if (m_shell.m_scene->m_sceneCompass.WantsTick())
+        // A pressed compass arrow repeats; see ShellDeskScene::TickCompass.
+        if (m_shell.m_scene->TickCompass (nowMs))
         {
-            m_shell.m_scene->m_sceneCompass.Tick (nowMs);
-
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
@@ -1433,11 +1131,11 @@ ScreenshotFacts ShellRenderer::BuildScreenshotFacts (ScreenshotMode mode, const 
     if (m_shell.DeskSceneActive())
     {
         facts.hasScenePose  = true;
-        facts.orbitYawRad   = m_shell.m_scene->m_sceneView.orbitYawRad;
-        facts.orbitPitchRad = m_shell.m_scene->m_sceneView.orbitPitchRad;
-        facts.zoom          = m_shell.m_scene->m_sceneView.zoom;
-        facts.panX          = m_shell.m_scene->m_sceneView.panX;
-        facts.panY          = m_shell.m_scene->m_sceneView.panY;
+        facts.orbitYawRad   = m_shell.m_scene->GetView().orbitYawRad;
+        facts.orbitPitchRad = m_shell.m_scene->GetView().orbitPitchRad;
+        facts.zoom          = m_shell.m_scene->GetView().zoom;
+        facts.panX          = m_shell.m_scene->GetView().panX;
+        facts.panY          = m_shell.m_scene->GetView().panY;
     }
 
     facts.crt.brightness        = crt.brightness;
@@ -1520,7 +1218,7 @@ void ShellRenderer::TakeScreenshot()
     //          back buffer at its target bounds.
     if (m_shell.DeskSceneActive())
     {
-        inputs.viewportPx = m_shell.m_scene->m_deskScene.Composition().viewportPx;
+        inputs.viewportPx = m_shell.m_scene->GetComposition().viewportPx;
         inputs.picturePx  = m_d3dRenderer.GetScenePictureRect();
     }
     else
@@ -1535,9 +1233,9 @@ void ShellRenderer::TakeScreenshot()
         //  The band's surface runs from its top to the bottom of the client,
         //  so the union takes the switch bar between them as well: those
         //  switches are the machine's too.
-        if (m_shell.m_chrome->m_driveBandSurface.IsVisible())
+        if (m_shell.m_chrome->IsDriveBandSurfaceVisible())
         {
-            inputs.machineChromePx = m_shell.m_chrome->m_driveBandSurface.GetBounds();
+            inputs.machineChromePx = m_shell.m_chrome->GetDriveBandSurfaceBounds();
         }
     }
 

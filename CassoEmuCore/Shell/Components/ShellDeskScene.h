@@ -92,6 +92,36 @@ public:
     // with the compass's handlers.
     void  AdoptOverlays (DxuiPanel & root);
 
+    // The present path. With the monitor on, the CRT chain renders the
+    // picture offscreen at MeasurePictureHeightPx, GetDisplaySrv returns the
+    // texture drawn on the glass, RenderMonitor draws the scene, and in
+    // fullscreen RenderStripOverlay draws the drive strip; DrawLayoutDebug
+    // adds the CASSO_SCENE_DEBUG rects. With the monitor off, RenderDriveRow
+    // draws the windowed drives after the chrome, and RenderStripOverlay the
+    // fullscreen strip.
+    float                       MeasurePictureHeightPx (int framebufferW, int framebufferH);
+    ID3D11ShaderResourceView *  GetDisplaySrv          (ID3D11ShaderResourceView * pictureSrv, const RECT & fittedRect);
+    HRESULT                     RenderMonitor          (ID3D11RenderTargetView    * rtv,
+                                                        ID3D11ShaderResourceView  * displaySrv,
+                                                        const CrtUvRect           & uv,
+                                                        int                         framebufferW,
+                                                        int                         framebufferH);
+    void                        RenderStripOverlay     (ID3D11RenderTargetView * rtv, int backBufferW, int backBufferH);
+    void                        DrawLayoutDebug        (int backBufferW, int backBufferH);
+    HRESULT                     RenderDriveRow         (ID3D11RenderTargetView * rtv);
+
+    // Per UI frame: the drives', recorder's and labels' visuals, the
+    // fullscreen strip's state machine, and the compass's repeat, which is
+    // true while it requests presents. WantsAnimationTick is true while the
+    // compass repeats or its hint fades.
+    void  SyncDeviceVisuals  (bool badgeMoved);
+    void  TickStrip          (bool anyDriveLive);
+    bool  TickCompass        (int64_t nowMs);
+    bool  WantsAnimationTick () const;
+
+    // The composition the scene was last solved into.
+    const DeskSceneComposition &  GetComposition () const { return m_deskScene.Composition(); }
+
     // The fullscreen strip's hotkey: summons the strip on the next frame.
     void  RequestStripHotkey () { m_stripHotkeyPending = true; }
     // Settings > Theme antialiasing, in SAMPLES (1 / 2 / 4). Applies to the

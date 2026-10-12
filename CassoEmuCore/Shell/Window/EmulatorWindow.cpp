@@ -1061,7 +1061,7 @@ void EmulatorShell::WaitForFrameOrMessage()
     DWORD                   timeout      = s_kIdleUpkeepMs;
     DWORD                   waited       = 0;
     HANDLE                  frameReady   = nullptr;
-    std::optional<int64_t>  nextChangeMs = m_chrome->m_notices.GetNextChangeMs();
+    std::optional<int64_t>  nextChangeMs = m_chrome->GetNextNoticeChangeMs();
     std::optional<int64_t>  shimmerMs    = m_updater->GetMsUntilShimmer ((int64_t) GetTickCount64());
     int64_t                 untilMs      = 0;
     int64_t                 nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -1069,14 +1069,9 @@ void EmulatorShell::WaitForFrameOrMessage()
 
 
 
-    if (m_chrome->m_switchBarTooltip.WantsTick() ||
-        m_chrome->m_driveTooltip.WantsTick()     ||
-        m_chrome->GetCaptionTooltip().WantsTick()   ||
-        m_scene->m_sceneCompass.WantsTick()     ||
-        m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
-        m_chrome->GetMainMenu().WantsTick()         ||
-        (m_host != nullptr && m_host->GetContextMenu().WantsTick()) ||
-        m_chrome->GetToolbar().WantsTick())
+    if (m_chrome->WantsAnimationTick() ||
+        m_scene->WantsAnimationTick()  ||
+        (m_host != nullptr && m_host->GetContextMenu().WantsTick()))
     {
         timeout = s_kIdleAnimationTickMs;
     }

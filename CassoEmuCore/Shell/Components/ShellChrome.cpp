@@ -2628,3 +2628,68 @@ void ShellChrome::WireToolbarPickers()
             m_shell.m_settings->PersistColorModeForMachine (index);
         });
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::TakeStandInBandStale
+//
+//  True, once, when SyncStandInBanner found a capture band standing with no
+//  capture behind it. The frame loop docks again at the top of the next frame,
+//  because docking again repaints and nothing has been composed yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::TakeStandInBandStale()
+{
+    bool  isStale = m_standInBandStale;
+
+
+
+    m_standInBandStale = false;
+
+    return isStale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::TickTooltips
+//
+//  Each tooltip's popup opens or closes once its open or close delay has
+//  elapsed after a hover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::TickTooltips (int64_t nowMs)
+{
+    m_toolbarTooltip.Tick   (nowMs);
+    m_switchBarTooltip.Tick (nowMs);
+    m_driveTooltip.Tick     (nowMs);
+    m_captionTooltip.Tick   (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::WantsAnimationTick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::WantsAnimationTick() const
+{
+    return m_switchBarTooltip.WantsTick() ||
+           m_driveTooltip.WantsTick()     ||
+           m_captionTooltip.WantsTick()   ||
+           m_mainMenu.WantsTick()         ||
+           m_toolbar.WantsTick();
+}
