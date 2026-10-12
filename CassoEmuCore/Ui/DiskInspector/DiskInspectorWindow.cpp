@@ -292,6 +292,10 @@ HRESULT DiskInspectorWindow::RenderFrame()
     UpdateControls();
     RefreshTables();
 
+    //  While the File map tab is up, the selected file's sectors are marked
+    //  in the platter and the strip as in the grid (FR-090).
+    m_context.isFileHighlighted = m_isDiskGroup && m_diskTab == kTabFileMap && m_context.selectedFile >= 0;
+
     m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
 
     //  The window's own context menu opens with an animation each frame

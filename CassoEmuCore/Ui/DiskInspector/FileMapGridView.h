@@ -16,8 +16,9 @@
 //  per DOS 3.3 logical sector, ProDOS or Pascal block or CP/M sector, each
 //  in its role's color with the role's letter once it fits, and its result
 //  marked apart from the color: a cross for bad, an outline for missing, a
-//  dot for not checked (FR-086). The selected file's sectors carry their
-//  numbers in file order, and the selected sector is outlined. A click
+//  dot for not checked (FR-086). The selected file's sectors have their
+//  numbers in file order inside a marching marquee, every other sector is
+//  dimmed, and the selected sector is outlined. A click
 //  chooses a cell; a disk that is not mapped shows why above each sector's
 //  result by track and physical sector (FR-094).
 //
@@ -54,7 +55,8 @@ private:
     Grid  MakeGrid  () const;
     int   HitTest   (POINT pointPx) const;
     void  PaintMap  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number);
+    void  PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed);
+    void  PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
 
     const FileMap *  m_map          = nullptr;
     int              m_selectedCell = -1;

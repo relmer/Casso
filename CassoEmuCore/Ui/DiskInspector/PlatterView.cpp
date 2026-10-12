@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorTip.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/FluxTiming.h"
@@ -25,6 +26,8 @@ static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr double s_kPanStep          = 0.1;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
+static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
+static constexpr float    s_kMarqueeStepDip = 8.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
 
@@ -80,13 +83,20 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
 {
-    float  hub  = view.outerRadiusPx * PlatterRenderer::kInnerFraction;
-    float  a    = static_cast<float> (m_rotation * 6.283185307179586);
-    float  mark = m_scaler.ToPxf (s_kIndexMarkDip);
+    float            hub  = view.outerRadiusPx * PlatterRenderer::kInnerFraction;
+    float            a    = static_cast<float> (m_rotation * 6.283185307179586);
+    float            mark = m_scaler.ToPxf (s_kIndexMarkDip);
+    vector<FileArc>  arcs;
 
 
 
     painter.DrawCustom (m_boundsDip, [this] (const DxuiCustomDrawArgs & args) { Draw (args); });
+
+    if (m_context.isFileHighlighted)
+    {
+        GetFileArcs    (arcs);
+        DimOutsideFile (painter, view, arcs);
+    }
 
     //  The hub: a raised ring inside the tracks and the spindle hole.
     painter.FillCircle (view.centerXPx, view.centerYPx, hub * s_kHubFraction,     theme.BackgroundElevated());
@@ -124,6 +134,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     if (m_context.isDiffsOverlay && m_context.comparison != nullptr)
     {
         PaintDiffs (painter, view);
+    }
+
+    if (m_context.isFileHighlighted)
+    {
+        PaintMarquee (painter, view, arcs);
     }
 }
 
@@ -486,13 +501,15 @@ const PlatterView::RingTurns & PlatterView::GetRingTurns (int slot, const TrackA
 
 void PlatterView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
 {
-    const FileMap &  map   = *m_context.fileMap;
-    int              half  = 0;
-    int              cell  = -1;
-    int              slot  = -1;
-    double           outer = 0;
-    double           inner = 0;
-    double           band  = 0;
+    const FileMap  & map    = *m_context.fileMap;
+    int              half   = 0;
+    int              cell   = -1;
+    int              slot   = -1;
+    double           outer  = 0;
+    double           inner  = 0;
+    double           band   = 0;
+    uint32_t         color  = 0;
+    bool             isMine = false;
 
 
 
@@ -527,13 +544,193 @@ void PlatterView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, 
             double                b     = turns.nibbles[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), turns.nibbles.size() - 1)];
             const vector<int> &   own   = map.cells[cell].owners;
 
-            ShadeRingArc (painter, view, a, b, inner, outer, (m_context.palette.GetRoleColor (static_cast<MapRole> (map.cells[cell].role)) & 0x00FFFFFFu) | s_kFilesAlpha);
+            isMine = std::find (own.begin(), own.end(), m_context.selectedFile) != own.end();
+            color  = m_context.palette.GetRoleColor (static_cast<MapRole> (map.cells[cell].role));
+            color  = (m_context.isFileHighlighted && !isMine) ? InspectorMarquee::Dim (m_context.palette, color) : color;
 
-            if (std::find (own.begin(), own.end(), m_context.selectedFile) != own.end())
+            ShadeRingArc (painter, view, a, b, inner, outer, (color & 0x00FFFFFFu) | s_kFilesAlpha);
+
+            //  The marquee marks the file's sectors while the File map tab is
+            //  up; a band along the inner edge marks them otherwise.
+            if (isMine && !m_context.isFileHighlighted)
             {
                 ShadeRingArc (painter, view, a, b, inner, band, theme.Accent());
             }
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetFileArcs
+//
+//  Each data field of the selected file's sectors, across its whole track's
+//  rings, as the Files overlay draws it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::GetFileArcs (vector<FileArc> & outArcs) const
+{
+    const FileMap *  map   = m_context.fileMap;
+    int              file  = m_context.selectedFile;
+    int              cell  = -1;
+    int              half  = 0;
+    double           a     = 0;
+    double           b     = 0;
+    bool             isOn  = map != nullptr && map->notMapped == NotMappedReason::None && file >= 0 && file < static_cast<int> (map->files.size());
+
+
+
+    for (int t = 0; isOn && t < map->tracks; t++)
+    {
+        int                    qt    = t * DiskImage::kQuarterTracksPerWholeTrack;
+        const TrackAnalysis *  track = GetRingTrack (qt);
+
+        if (track == nullptr || track->framed.nibbles.empty())
+        {
+            continue;
+        }
+
+        const RingTurns &  turns = GetRingTurns (m_context.analysis->entries[qt].slot, *track);
+
+        for (const AnalyzedSector & sector : track->sectors)
+        {
+            cell = (sector.dataField >= 0) ? map->GetCellOf (t, sector.sector, half) : -1;
+
+            if (cell < 0 || std::find (map->cells[cell].owners.begin(), map->cells[cell].owners.end(), file) == map->cells[cell].owners.end())
+            {
+                continue;
+            }
+
+            const LocatedField &  field = track->fields[sector.dataField];
+
+            a = turns.nibbles[field.firstNibble];
+            b = turns.nibbles[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), turns.nibbles.size() - 1)];
+            outArcs.push_back ({ t, a, (b < a) ? b + 1.0 : b });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::DimOutsideFile
+//
+//  Every whole track's rings shaded by half toward the background, except
+//  where the selected file's data fields lie, so they are the brightest
+//  part of the platter (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const
+{
+    uint32_t                          dim   = (m_context.palette.background & 0x00FFFFFFu) | s_kDimAlpha;
+    vector<std::pair<double, double>> spans;
+    double                            from  = 0;
+    double                            outer = 0;
+    double                            inner = 0;
+
+
+
+    for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < PlatterRenderer::kRingCount; t++)
+    {
+        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        from  = 0;
+        spans.clear();
+
+        for (const FileArc & arc : arcs)
+        {
+            if (arc.wholeTrack == t)
+            {
+                spans.push_back ({ arc.a, std::min (arc.b, 1.0) });
+            }
+
+            if (arc.wholeTrack == t && arc.b > 1.0)
+            {
+                spans.push_back ({ 0.0, arc.b - 1.0 });
+            }
+        }
+
+        std::sort (spans.begin(), spans.end());
+
+        for (const std::pair<double, double> & span : spans)
+        {
+            if (span.first > from)
+            {
+                ShadeRingArc (painter, view, from, span.first, inner, outer, dim);
+            }
+
+            from = std::max (from, span.second);
+        }
+
+        if (from < 1.0)
+        {
+            ShadeRingArc (painter, view, from, 1.0, inner, outer, dim);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintMarquee
+//
+//  A marching marquee around each of the selected file's data fields: out
+//  along the outer edge, in at its end, back along the inner edge and out
+//  at its start, each edge in steps short enough to follow the curve.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const
+{
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+                               static_cast<int64_t> (GetTickCount64()));
+    double            outer  = 0;
+    double            inner  = 0;
+    int               pieces = 0;
+    float             s      = 0;
+    auto              getX = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
+    auto              getY = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+
+
+
+    for (const FileArc & arc : arcs)
+    {
+        outer  = PlatterGeometry::GetRingOuter (arc.wholeTrack * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        inner  = PlatterGeometry::GetRingOuter ((arc.wholeTrack + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        pieces = std::clamp (static_cast<int> (std::ceil ((arc.b - arc.a) * s_kTwoPi * outer / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, 4096);
+        s      = 0;
+
+        for (int k = 0; k < pieces; k++)
+        {
+            double  t0 = arc.a + (arc.b - arc.a) * k / pieces;
+            double  t1 = arc.a + (arc.b - arc.a) * (k + 1) / pieces;
+
+            s = marquee.DrawLine (painter, getX (t0, outer), getY (t0, outer), getX (t1, outer), getY (t1, outer), s);
+        }
+
+        s = marquee.DrawLine (painter, getX (arc.b, outer), getY (arc.b, outer), getX (arc.b, inner), getY (arc.b, inner), s);
+
+        for (int k = pieces; k > 0; k--)
+        {
+            double  t0 = arc.a + (arc.b - arc.a) * k / pieces;
+            double  t1 = arc.a + (arc.b - arc.a) * (k - 1) / pieces;
+
+            s = marquee.DrawLine (painter, getX (t0, inner), getY (t0, inner), getX (t1, inner), getY (t1, inner), s);
+        }
+
+        marquee.DrawLine (painter, getX (arc.a, inner), getY (arc.a, inner), getX (arc.a, outer), getY (arc.a, outer), s);
     }
 }
 

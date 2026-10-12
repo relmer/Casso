@@ -52,6 +52,9 @@ private:
     void           PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
     void           PaintFiles      (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void           GetFileParts    (const TrackAnalysis & track, const StripGeometry & g, vector<StripSegment> & outParts) const;
+    void           DimOutsideFile  (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
+    void           PaintMarquee    (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
     void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
     void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);

@@ -504,6 +504,7 @@
     <ClCompile Include="Ui\DiskInspector\FollowHead.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTables.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTableView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\InspectorMarquee.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorText.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTip.cpp" />
     <ClCompile Include="Ui\DiskInspector\NibblesTab.cpp" />
@@ -972,6 +973,7 @@
     <ClInclude Include="Ui\DiskInspector\FollowHead.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTables.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTableView.h" />
+    <ClInclude Include="Ui\DiskInspector\InspectorMarquee.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorText.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTip.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorView.h" />

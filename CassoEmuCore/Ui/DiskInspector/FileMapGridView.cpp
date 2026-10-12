@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 
 
 
@@ -58,6 +59,8 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
     float         textPx = m_scaler.ToPxf (kSmallDip);
     int           cell   = 0;
     int           number = 0;
+    bool          isFile = false;
+    float         labelH = textPx * 1.4f;
     vector<int>   numbers;
 
 
@@ -81,6 +84,7 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
         if (at >= 0 && numbers[at] == 0)
         {
             numbers[at] = number;
+            isFile      = true;
         }
     }
 
@@ -92,17 +96,21 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
                          theme.ForegroundMuted(), textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
-    //  Rows too thin for every number are labeled every few tracks.
+    //  Rows too thin for every number are labeled every few tracks, each
+    //  label a line of text tall, centered on its row, so a row thinner
+    //  than the text does not clip it.
     for (int t = 0; t < m_map->tracks; t += std::max (1, static_cast<int> (std::ceil (textPx / g.rowH))))
     {
-        text.DrawString (std::to_wstring (t).c_str(), g.left, g.top + t * g.rowH, g.labelW - m_scaler.ToPxf (4.0f), g.rowH, theme.ForegroundMuted(), textPx,
+        text.DrawString (std::to_wstring (t).c_str(), g.left, g.top + (t + 0.5f) * g.rowH - labelH / 2, g.labelW - m_scaler.ToPxf (4.0f), labelH, theme.ForegroundMuted(), textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
     for (cell = 0; cell < static_cast<int> (m_map->cells.size()); cell++)
     {
-        PaintCell (painter, text, theme, g, cell, numbers[cell]);
+        PaintCell (painter, text, theme, g, cell, numbers[cell], isFile && numbers[cell] == 0);
     }
+
+    PaintMarquee (painter, g, numbers);
 }
 
 
@@ -115,7 +123,7 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number)
+void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed)
 {
     const MapCell &  at     = m_map->cells[cell];
     float            x      = g.left + g.labelW + m_map->GetColumn (cell) * g.cellW;
@@ -129,6 +137,11 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     std::wstring     label;
 
 
+
+    //  Every sector but the selected file's is dimmed, so the file's are the
+    //  brightest in the grid wherever they lie.
+    color = isDimmed ? InspectorMarquee::Dim (m_context.palette, color) : color;
+    ink   = isDimmed ? InspectorMarquee::Dim (m_context.palette, ink)   : ink;
 
     painter.FillRect (x, y, w, h, color);
 
@@ -154,11 +167,6 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
                          number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
     }
 
-    if (number > 0)
-    {
-        painter.OutlineRect (x, y, w, h, 1.0f, theme.Accent());
-    }
-
     //  While comparing, a cell of the selected file pair that differs (FR-120).
     if (m_context.diffCells != nullptr && std::find (m_context.diffCells->begin(), m_context.diffCells->end(), cell) != m_context.diffCells->end())
     {
@@ -169,6 +177,72 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     if (cell == m_selectedCell)
     {
         painter.OutlineRect (x - 1, y - 1, w + 2, h + 2, m_scaler.ToPxf (s_kOutlineDip), theme.FocusRing());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::PaintMarquee
+//
+//  A marching marquee around the selected file's sectors: an edge of a
+//  numbered cell is drawn where its neighbor is not numbered, each edge in
+//  the direction that runs clockwise around the file's sectors, its dashes
+//  counted from the grid's origin so that edges in a line join up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const
+{
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+                               static_cast<int64_t> (GetTickCount64()));
+    int               tracks  = m_map->tracks;
+    int               columns = m_map->cellsPerTrack;
+    float             x0      = 0;
+    float             y0      = 0;
+    float             x1      = 0;
+    float             y1      = 0;
+    auto              isMarked = [&] (int t, int c) { return t >= 0 && t < tracks && c >= 0 && c < columns && t * columns + c < static_cast<int> (numbers.size()) && numbers[t * columns + c] > 0; };
+
+
+
+    for (int t = 0; t < tracks; t++)
+    {
+        for (int c = 0; c < columns; c++)
+        {
+            if (!isMarked (t, c))
+            {
+                continue;
+            }
+
+            x0 = g.left + g.labelW + c * g.cellW;
+            y0 = g.top + t * g.rowH;
+            x1 = x0 + g.cellW - 1.0f;
+            y1 = y0 + g.rowH - 1.0f;
+
+            if (!isMarked (t - 1, c))
+            {
+                marquee.DrawLine (painter, x0, y0, x1, y0, x0);
+            }
+
+            if (!isMarked (t, c + 1))
+            {
+                marquee.DrawLine (painter, x1, y0, x1, y1, y0);
+            }
+
+            if (!isMarked (t + 1, c))
+            {
+                marquee.DrawLine (painter, x1, y1, x0, y1, -x1);
+            }
+
+            if (!isMarked (t, c - 1))
+            {
+                marquee.DrawLine (painter, x0, y1, x0, y0, -y1);
+            }
+        }
     }
 }
 

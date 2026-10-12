@@ -55,12 +55,24 @@ private:
         vector<double>         cells;
     };
 
+    //  A data field of the selected file on a whole track's rings, between
+    //  two turns;  passes 1 when the field crosses the index.
+    struct FileArc
+    {
+        int     wholeTrack = 0;
+        double  a          = 0;
+        double  b          = 0;
+    };
+
     void           Draw           (const DxuiCustomDrawArgs & args);
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
     void           PaintFiles     (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintDiffs     (IDxuiPainter & painter, const PlatterPlacement & view);
+    void           GetFileArcs    (vector<FileArc> & outArcs) const;
+    void           DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
+    void           PaintMarquee   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
     static void    GetDiffTurns   (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB);
     static void    ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);

@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Core/UnicodeSymbols.h"
 #include "Ui/DiskInspector/FluxTiming.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/InspectorTip.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -101,6 +102,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                        textH     = 0;
     float                        digitsW   = 0;
     std::wstring                 label;
+    vector<StripSegment>         fileParts;
 
 
 
@@ -168,8 +170,20 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
         PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
     }
 
+    if (m_context.isFileHighlighted)
+    {
+        GetFileParts   (track, g, fileParts);
+        DimOutsideFile (painter, fileParts);
+    }
+
     PaintFiles     (painter, theme, track, g);
     PaintDividers  (painter, theme, g, top, height);
+
+    if (m_context.isFileHighlighted)
+    {
+        PaintMarquee (painter, fileParts);
+    }
+
     PaintDiffs     (painter, track, g);
     PaintSelection (painter, theme, g);
     PaintSeam      (painter, text, theme, track, g);
@@ -1078,26 +1092,145 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
             continue;
         }
 
-        const LocatedField  & field  = track.fields[sector.dataField];
-        double                a      = m_turns[field.firstNibble];
-        double                b      = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
-        const vector<int>   & own    = map->cells[cell].owners;
-        bool                  isMine = std::find (own.begin(), own.end(), m_context.selectedFile) != own.end();
+        const LocatedField  & field     = track.fields[sector.dataField];
+        double                a         = m_turns[field.firstNibble];
+        double                b         = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
+        const vector<int>   & own       = map->cells[cell].owners;
+        bool                  isMine    = std::find (own.begin(), own.end(), m_context.selectedFile) != own.end();
+        uint32_t              roleColor = m_context.palette.GetRoleColor (static_cast<MapRole> (map->cells[cell].role));
 
         count = g.GetSegments (a, b - a, parts);
 
         for (int k = 0; k < count; k++)
         {
             painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - height * s_kFilesShare, parts[k].x1 - parts[k].x0, height * s_kFilesShare,
-                              m_context.palette.GetRoleColor (static_cast<MapRole> (map->cells[cell].role)));
+                              (m_context.isFileHighlighted && !isMine) ? InspectorMarquee::Dim (m_context.palette, roleColor) : roleColor);
 
             //  A dark line sets the band off from the nibbles above it.
             painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - height * s_kFilesShare, parts[k].x1 - parts[k].x0, 1.0f, theme.Background());
 
-            if (isMine)
+            if (isMine && !m_context.isFileHighlighted)
             {
                 painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, height, m_scaler.ToPxf (s_kOutlineDip), theme.Accent());
             }
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetFileParts
+//
+//  Where the selected file's data fields lie across the bar, on a whole
+//  track, in order from left to right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::GetFileParts (const TrackAnalysis & track, const StripGeometry & g, vector<StripSegment> & outParts) const
+{
+    const FileMap *              map   = m_context.fileMap;
+    int                          qt    = m_context.model->GetQuarterTrack();
+    int                          file  = m_context.selectedFile;
+    std::array<StripSegment, 2>  parts = {};
+    int                          count = 0;
+    int                          cell  = -1;
+    int                          half  = 0;
+    bool                         isOn  = map != nullptr && map->notMapped == NotMappedReason::None && qt % DiskImage::kQuarterTracksPerWholeTrack == 0 && file >= 0;
+
+
+
+    for (const AnalyzedSector & sector : isOn ? track.sectors : vector<AnalyzedSector>())
+    {
+        cell = (sector.dataField >= 0) ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector.sector, half) : -1;
+
+        if (cell < 0 || std::find (map->cells[cell].owners.begin(), map->cells[cell].owners.end(), file) == map->cells[cell].owners.end())
+        {
+            continue;
+        }
+
+        const LocatedField &  field = track.fields[sector.dataField];
+        double                a     = m_turns[field.firstNibble];
+        double                b     = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
+
+        count = g.GetSegments (a, b - a, parts);
+        outParts.insert (outParts.end(), parts.begin(), parts.begin() + count);
+    }
+
+    std::sort (outParts.begin(), outParts.end(), [] (const StripSegment & x, const StripSegment & y) { return x.x0 < y.x0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::DimOutsideFile
+//
+//  The bar shaded by half toward the background except under the selected
+//  file's data fields (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::DimOutsideFile (IDxuiPainter & painter, const vector<StripSegment> & parts) const
+{
+    RECT      bar  = GetBarRect();
+    uint32_t  dim  = (m_context.palette.background & 0x00FFFFFFu) | 0x80000000u;
+    float     from = static_cast<float> (bar.left);
+
+
+
+    for (const StripSegment & part : parts)
+    {
+        if (part.x0 > from)
+        {
+            painter.FillRect (from, static_cast<float> (bar.top), part.x0 - from, static_cast<float> (bar.bottom - bar.top), dim);
+        }
+
+        from = std::max (from, part.x1);
+    }
+
+    if (from < static_cast<float> (bar.right))
+    {
+        painter.FillRect (from, static_cast<float> (bar.top), static_cast<float> (bar.right) - from, static_cast<float> (bar.bottom - bar.top), dim);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintMarquee
+//
+//  A marching marquee around each of the selected file's data fields, the
+//  height of the bar, inset so the selected sector's outline over it does
+//  not cover it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintMarquee (IDxuiPainter & painter, const vector<StripSegment> & parts) const
+{
+    InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), m_scaler.ToPxf (InspectorMarquee::kThicknessDip),
+                               static_cast<int64_t> (GetTickCount64()));
+    RECT              bar    = GetBarRect();
+    float             inset  = m_scaler.ToPxf (InspectorMarquee::kThicknessDip) * 1.5f;
+    float             top    = static_cast<float> (bar.top) + inset;
+    float             bottom = static_cast<float> (bar.bottom) - inset;
+    float             s      = 0;
+
+
+
+    for (const StripSegment & part : parts)
+    {
+        s = marquee.DrawLine (painter, part.x0 + inset, top,    part.x1 - inset, top,    0);
+        s = marquee.DrawLine (painter, part.x1 - inset, top,    part.x1 - inset, bottom, s);
+        s = marquee.DrawLine (painter, part.x1 - inset, bottom, part.x0 + inset, bottom, s);
+        marquee.DrawLine (painter, part.x0 + inset, bottom, part.x0 + inset, top, s);
     }
 }
