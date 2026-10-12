@@ -107,6 +107,12 @@ public:
     //  is read for its preview.
     static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;
 
+    //  An archive's preview as the file list would show it opened: the list's
+    //  first columns, with its icons.
+    static constexpr size_t                    s_kArchivePreviewColumns = 4;
+    static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
+    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
+
     //  Whether a file's first bytes are plain text, and how many are looked at.
     static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
     static bool              LooksLikePlainText (std::span<const Byte> sample);

@@ -45,6 +45,10 @@ struct PreviewContent
     int                        height = 0;
     std::vector<CatalogRow>    rows;
 
+    //  The rows are what an archive holds, shown as the file list shows a
+    //  folder rather than as a catalog.
+    bool                       archive = false;
+
     //  What an image with no file system says about itself, as label and value.
     std::vector<std::pair<std::wstring, std::wstring>>  details;
     std::wstring                                        message;

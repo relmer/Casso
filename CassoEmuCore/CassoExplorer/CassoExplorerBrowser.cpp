@@ -1353,16 +1353,20 @@ void CassoExplorerBrowser::PreviewArchive (const std::wstring & path)
         return;
     }
 
-    m_preview.kind = PreviewContent::Kind::Catalog;
+    m_preview.kind    = PreviewContent::Kind::Catalog;
+    m_preview.archive = true;
 
     for (const IShellItemVerbs::ShellFolderItem & item : items)
     {
         CatalogRow  row;
 
-        row.name        = item.name;
-        row.typeText    = item.typeText;
-        row.sizeBytes   = item.sizeBytes;
-        row.isDirectory = item.isFolder;
+        row.name         = item.name;
+        row.typeText     = item.typeText;
+        row.sizeBytes    = item.sizeBytes;
+        row.modifiedUnix = item.modifiedUnix;
+        row.hasModified  = item.hasModified;
+        row.isDirectory  = item.isFolder;
+        row.shellId      = item.id;
 
         m_preview.rows.push_back (std::move (row));
     }
@@ -1371,6 +1375,60 @@ void CassoExplorerBrowser::PreviewArchive (const std::wstring & path)
     {
         return (a.isDirectory != b.isDirectory) ? a.isDirectory : StrCmpLogicalW (a.name.c_str(), b.name.c_str()) < 0;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetArchivePreviewColumns
+//
+//  The file list's first columns in their default order: Name, Date
+//  modified, Type and Size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Column> CassoExplorerBrowser::GetArchivePreviewColumns()
+{
+    std::vector<DxuiListView::Column>  columns = GetColumns();
+
+
+
+    columns.resize ((std::min) (columns.size(), s_kArchivePreviewColumns));
+
+    //  Fitted to what the archive holds, so the narrow pane shows them all.
+    for (DxuiListView::Column & column : columns)
+    {
+        column.widthDip = 0;
+        column.stretch  = false;
+    }
+
+    return columns;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetArchivePreviewCells
+//
+//  A row as the file list draws it inside the archive, icon and all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Cell> CassoExplorerBrowser::GetArchivePreviewCells (const CatalogRow & row) const
+{
+    std::vector<DxuiListView::Cell>  cells = ToCells (row, Location::MakeShellFolder (row.shellId, row.name), m_shellIcons);
+
+
+
+    cells.resize ((std::min) (cells.size(), s_kArchivePreviewColumns));
+
+    return cells;
 }
 
 
@@ -1920,7 +1978,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });

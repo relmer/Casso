@@ -1697,14 +1697,21 @@ void CassoExplorerWindow::FillPreview()
     //  A catalog of any volume but DOS 3.3 or ProDOS arrives as rows under
     //  sortable columns. Everything else shown as text goes to the text view,
     //  where it wraps and selects by character.
+    //  An archive's rows look as the file list would show them inside it.
     if (columns)
     {
-        m_previewList->SetShowHeader (true);
-        m_previewList->SetColumns (CassoExplorerBrowser::GetCatalogPreviewColumns());
+        m_previewList->SetShowHeader      (true);
+        m_previewList->SetMonospace       (!preview.archive);
+        m_previewList->SetExplorerDetails (preview.archive);
+        m_previewList->SetIconColumn      (preview.archive ? 0 : -1);
+        m_previewList->SetFontDip         (preview.archive ? kProseFontDip : 0.0f);
+        m_previewList->SetRowHeightDip    (kPreviewRowHeightDip);
+        m_previewList->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&CassoExplorerWindow::GetListRowHeightPx) : nullptr);
+        m_previewList->SetColumns         (preview.archive ? CassoExplorerBrowser::GetArchivePreviewColumns() : CassoExplorerBrowser::GetCatalogPreviewColumns());
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (CassoExplorerBrowser::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_browser.GetArchivePreviewCells (row) : CassoExplorerBrowser::ToCatalogPreviewCells (row));
         }
     }
 
