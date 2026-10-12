@@ -70,6 +70,17 @@ public:
         m_scaler = scaler;
     }
 
+    //  The color of what is under a point and the tooltip line that says
+    //  why, for a swatch beside that line; false when the tip explains no
+    //  color.
+    virtual bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+    {
+        (void) pointPx;
+        (void) outLine;
+        (void) outArgb;
+        return false;
+    }
+
     //  The text and the rectangle it describes, for the window's tooltip.
     virtual bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
     {

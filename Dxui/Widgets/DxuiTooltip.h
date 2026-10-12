@@ -79,6 +79,15 @@ public:
 
     //  A fixed-width face, for a tip whose lines are columns.
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  Whether a tip dismisses itself after a while. On by default; off for a
+    //  tip that reads out whatever the pointer rests on, which should stay
+    //  for as long as the pointer does.
+    void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
+
+    //  A square of the given color beside one line of the tip, for a tip
+    //  that explains a color; a line of -1 shows none.
+    void  SetSwatch       (int line, uint32_t argb);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -156,6 +165,15 @@ private:
     void  ShowPopup          ();
 
     //
+    //  Apply the current text, anchor and swatch to the balloon already up,
+    //  or show a new one when there is none to update.
+    //
+    void  UpdatePopup        ();
+    void  MeasureBox         (RECT & outAnchorScreen, SIZE & outSizeDip);
+    float    GetSwatchColumnPx () const;
+    int64_t  GetHideAtMs       (int64_t nowMs) const;
+
+    //
     //  Return the live popup to the host pool (hiding its HWND) and
     //  drop the pointer. Safe to call when none is active.
     //
@@ -193,6 +211,11 @@ private:
     bool               m_pending           = false;
     bool               m_fadingOut         = false;
     bool               m_isInstant         = false;
+    bool               m_hasLifetime       = true;
+    int                m_swatchLine        = -1;
+    uint32_t           m_swatchArgb        = 0;
+    bool               m_isSwatchChanged   = false;
+    float              m_lineHeightPx      = 0.0f;
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;

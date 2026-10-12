@@ -223,6 +223,14 @@ public:
     HRESULT  Show      (ShowParams params);
 
     //
+    //  Moves and resizes an open popup against a new anchor and repaints
+    //  it, without hiding it: for content that changes while it is up,
+    //  such as a tip that follows the pointer, where closing and showing
+    //  again would blink. The popup must be open.
+    //
+    HRESULT  Update    (const RECT & anchorRectScreen, SIZE sizeDip);
+
+    //
     //  Hide the popup HWND, release its content panel, and resolve
     //  the GetCompletion() future with resultCode. Idempotent.
     //

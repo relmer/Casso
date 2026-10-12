@@ -27,7 +27,6 @@ static constexpr float  s_kLineDip         = 1.5f;
 static constexpr float  s_kSeamRuleDip     = 3.0f;
 static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
-static constexpr uint32_t  s_kSelectionAlpha = 0x60000000u;
 static constexpr float     s_kFilesShare     = 0.3f;
 static constexpr float     s_kDiffBandDip    = 4.0f;
 
@@ -598,6 +597,42 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::GetTooltipSwatch
+//
+//  The nibble's color beside the line that gives its kind, or its timing in
+//  Timing mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+{
+    const TrackAnalysis *  track  = m_context.GetTrack();
+    RECT                   bar    = GetBarRect();
+    int                    nibble = -1;
+
+
+
+    if (track != nullptr && !m_isPanning && PtInRect (&bar, pointPx))
+    {
+        UpdateTurns (*track);
+        nibble = GetNibbleAtX (*track, static_cast<float> (pointPx.x));
+    }
+
+    if (nibble >= 0)
+    {
+        outLine = InspectorText::GetNibbleColorLine (*track, m_context.isTimingMode);
+        outArgb = m_context.palette.GetNibbleColor (*track, nibble, m_context.isTimingMode, m_context.timingRange);
+    }
+
+    return nibble >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::UpdateTurns
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -886,7 +921,8 @@ void TrackStripView::PaintDiffs (IDxuiPainter & painter, const TrackAnalysis & t
 //
 //  TrackStripView::PaintSelection
 //
-//  A run of selected nibbles shaded across the bar (FR-043).
+//  A run of selected nibbles outlined across the bar (FR-043). An outline,
+//  not a shade, so each nibble keeps the color its kind gives it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -908,8 +944,8 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 
     for (k = 0; k < count; k++)
     {
-        painter.FillRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 1.0f), static_cast<float> (bar.bottom - bar.top),
-                          (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha);
+        painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 1.0f), static_cast<float> (bar.bottom - bar.top),
+                             m_scaler.ToPxf (s_kOutlineDip), theme.Accent());
     }
 }
 

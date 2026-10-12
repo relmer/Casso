@@ -565,6 +565,57 @@ std::wstring InspectorText::FormatPlatterTooltip (const DiskAnalysis & analysis,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorText::GetPlatterColorLine
+//
+//  The line FormatPlatterTooltip gives the kind on, after the track's
+//  title, or the cell time line, after the sectors line when there is one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InspectorText::GetPlatterColorLine (const DiskAnalysis & analysis, int quarterTrack, double turn, bool isTimingMode)
+{
+    static constexpr int  kKindLine = 1;
+
+
+
+    const QuarterTrackEntry  & entry = analysis.entries[quarterTrack];
+    const TrackAnalysis      * track = (entry.slot >= 0 && entry.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[entry.slot].get() : nullptr;
+    bool                       isTimed = isTimingMode && track != nullptr && track->framed.isFlux && entry.content != QuarterTrackContent::Damaged &&
+                                         PlatterGeometry::GetCellAtTurn (*track, turn) < track->framed.cellTicks.size();
+
+
+
+    return isTimed ? kKindLine + 1 + ((track->sectorsFound > 0) ? 1 : 0) : kKindLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::GetNibbleColorLine
+//
+//  The line FormatNibbleTooltip gives the kind on, after the value and the
+//  cell lines, or the cell time line after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InspectorText::GetNibbleColorLine (const TrackAnalysis & track, bool isTimingMode)
+{
+    static constexpr int  kKindLine = 2;
+
+
+
+    return (isTimingMode && track.framed.isFlux && track.framed.cellTicks.size() >= track.framed.cellCount) ? kKindLine + 1 : kKindLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::FormatNibbleTooltip
 //
 //  A nibble's value, its cell and width in cells, its kind and sector, and

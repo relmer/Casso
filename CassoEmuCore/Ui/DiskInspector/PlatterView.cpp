@@ -881,6 +881,58 @@ bool PlatterView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outA
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterView::GetTooltipSwatch
+//
+//  The color of the cell under the pointer: what a damaged or empty ring
+//  shows, random bits, or the nibble's kind or timing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+{
+    PlatterHit             hit     = HitTest (pointPx);
+    bool                   hasTip  = m_context.hasDisk && !m_isPanning && hit.isOnDisk && m_context.analysis != nullptr;
+    const TrackAnalysis *  track   = hasTip ? GetRingTrack (hit.quarterTrack) : nullptr;
+    uint32_t               cell    = 0;
+    int                    nibble  = -1;
+
+
+
+    if (hasTip)
+    {
+        outLine = InspectorText::GetPlatterColorLine (*m_context.analysis, hit.quarterTrack, hit.turn, m_context.isTimingMode);
+        outArgb = (m_context.analysis->entries[hit.quarterTrack].content == QuarterTrackContent::Damaged) ? m_context.palette.colors.damaged
+                                                                                                        : m_context.palette.colors.nothingRecorded;
+    }
+
+    if (track != nullptr && track->framed.cellCount > 0 && m_context.analysis->entries[hit.quarterTrack].content != QuarterTrackContent::Damaged)
+    {
+        cell   = PlatterGeometry::GetCellAtTurn (*track, hit.turn);
+        nibble = PlatterGeometry::GetNibbleAt (*track, cell);
+
+        if (cell < track->framed.isRandomCell.size() && track->framed.isRandomCell[cell] != 0)
+        {
+            outArgb = m_context.palette.GetKindColor (PlatterKind::RandomBits);
+        }
+        else if (m_context.isTimingMode && track->framed.isFlux && cell < track->framed.cellTicks.size())
+        {
+            outArgb = m_context.palette.GetTimingColor (track->framed.cellTicks[cell] / TrackAnalyzer::kNominalCellTicks - 1.0, m_context.timingRange);
+        }
+        else if (nibble >= 0)
+        {
+            outArgb = m_context.palette.GetNibbleColor (*track, nibble, false, m_context.timingRange);
+        }
+    }
+
+    return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterView::HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////

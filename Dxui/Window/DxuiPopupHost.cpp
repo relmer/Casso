@@ -636,6 +636,64 @@ void DxuiPopupHost::SetParentPopup (DxuiPopupHost * parent)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Update
+//
+//  The placement Show computes, against the new anchor and size, applied to
+//  the window already on screen: the swap chain resized when the size
+//  changed, the window moved in place, and the content drawn again at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::Update (const RECT & anchorRectScreen, SIZE sizeDip)
+{
+    HRESULT  hr         = S_OK;
+    SIZE     sizePx     = {};
+    RECT     workArea   = {};
+    RECT     placedRect = {};
+    RECT     windowRect = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_open);
+
+    m_params.anchorRectScreen = anchorRectScreen;
+    m_params.sizeDip          = sizeDip;
+
+    sizePx.cx  = MulDiv (sizeDip.cx, (int) m_dpi, (int) s_kDefaultDpi);
+    sizePx.cy  = MulDiv (sizeDip.cy, (int) m_dpi, (int) s_kDefaultDpi);
+    workArea   = GetWorkAreaForRect (anchorRectScreen);
+    placedRect = ComputePlacementForTest (anchorRectScreen, workArea, m_params.placement, sizePx, m_params.flipIfOffscreen);
+
+    windowRect.left   = placedRect.left   - m_shadowMarginPx;
+    windowRect.top    = placedRect.top    - m_shadowMarginPx;
+    windowRect.right  = placedRect.right  + m_shadowMarginPx;
+    windowRect.bottom = placedRect.bottom + m_shadowMarginPx;
+
+    m_placedRectScreenPx = placedRect;
+    m_windowRectScreenPx = windowRect;
+
+    BAIL_OUT_IF (m_testMode, S_OK);
+
+    hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+    CHRA (hr);
+
+    SetWindowPos (m_hwnd, HWND_TOPMOST, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
+                  SWP_NOACTIVATE);
+
+    RenderNow();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleDpiChanged
 //
 //  Called by DxuiHwndSource's WM_DPICHANGED_BEFOREPARENT handler so

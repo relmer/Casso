@@ -33,6 +33,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const override;
 
     void          ZoomAboutCenter (double factor);
     void          PanBy           (double fractionOfView);

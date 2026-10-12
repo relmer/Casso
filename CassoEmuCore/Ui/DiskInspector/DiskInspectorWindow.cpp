@@ -397,6 +397,10 @@ void DiskInspectorWindow::OnCreate()
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
+    //  The tips read out what the pointer rests on, so they stay while it
+    //  does rather than dismissing themselves.
+    m_tooltip.SetHasLifetime (false);
+
     ShowTrackTab (kTabSectorData);
     ShowDiskTab  (kTabTracks);
 }
@@ -1050,6 +1054,8 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
             m_changedSlots.insert (slot);
         }
 
+        m_isFilesDefaulted = false;
+
         //  The copy's own write counts are where the guest's writes start.
         m_writeCounts.clear();
         m_writtenSlots.clear();
@@ -1202,6 +1208,7 @@ void DiskInspectorWindow::UpdateControls()
     {
         m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
         m_fit->SetEnabled       (!m_model.IsAtFit());
+        m_zoomOut->SetEnabled   (!m_model.IsAtFit());
         m_zoomOut->SetVisible   (m_context.hasDisk);
         m_decodeButton->SetVisible (m_context.hasDisk);
         m_exportButton->SetVisible (m_context.hasDisk);
@@ -1233,6 +1240,7 @@ void DiskInspectorWindow::UpdateControls()
         m_stripIn->SetVisible      (m_context.hasDisk);
         m_stripWhole->SetVisible   (m_context.hasDisk);
         m_stripWhole->SetEnabled   (m_model.GetStripSpan() < 1.0);
+        m_stripOut->SetEnabled     (m_model.GetStripSpan() < 1.0);
         m_stripReadout->SetVisible (m_context.hasDisk);
         m_stripReadout->SetText    (m_stripView->GetReadout() + ((m_model.GetTrack() != nullptr && m_model.GetNibbleCount() > 0)
                                     ? L"    " + InspectorText::FormatSelection (*m_model.GetTrack(), m_model.GetFirstNibble(), m_model.GetNibbleCount()) : L""));
@@ -1321,15 +1329,17 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     std::wstring                          tip;
     RECT                                  anchor = {};
     int64_t                               now    = static_cast<int64_t> (GetTickCount64());
+    int                                   line   = -1;
+    uint32_t                              argb   = 0;
     const std::array<InspectorView *, 7>  views  = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
 
 
 
     for (InspectorView * view : views)
     {
-        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx))
+        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
         {
-            view->GetTooltip (pointPx, tip, anchor);
+            line = view->GetTooltipSwatch (pointPx, line, argb) ? line : -1;
         }
     }
 
@@ -1350,6 +1360,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     }
     else if (tip != m_tooltipText)
     {
+        m_tooltip.SetSwatch   (line, argb);
         m_tooltip.RequestShow (anchor, tip, now);
     }
 
@@ -1500,6 +1511,16 @@ void DiskInspectorWindow::RefreshTables()
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
         m_findingsTab->Refresh();
+
+        //  A disk with a volume the map reads opens on the Files overlay, the
+        //  most telling view of it; the user's choice stands after that.
+        if (!m_isFilesDefaulted && GetFileMap() != nullptr && GetFileMap()->notMapped == NotMappedReason::None)
+        {
+            m_isFilesDefaulted       = true;
+            m_context.isFilesOverlay = true;
+            m_filesCheck->SetChecked (true);
+        }
+
         m_imageTab->SetRows (m_context.hasDisk ? InspectorTables::BuildImage (m_analysis.image) : vector<TableRow>());
         RefreshFileList();
 
@@ -2225,40 +2246,48 @@ void DiskInspectorWindow::ShowContextMenu (POINT pointPx)
 //
 //  DiskInspectorWindow::GetButtonTip
 //
-//  Every button's tooltip (FR-059), with the key that does the same.
+//  Every button's tooltip (FR-059), with the key that does the same, or
+//  for one that is unavailable, why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorPx) const
 {
-    const std::pair<const IDxuiControl *, LPCWSTR>  tips[] =
+    //  Each control's tip, and for one that can be unavailable, why it is.
+    struct ButtonTip
     {
-        { m_zoomOut,        L"Zoom the platter out (minus)" },
-        { m_zoomIn,         L"Zoom the platter in (plus)" },
-        { m_fit,            L"Show the whole disk (0)" },
-        { m_alignmentCheck, L"Mark where sector 0 and the longest sync start on each track" },
-        { m_filesCheck,     L"Color each sector's data field by what the file map says it holds" },
-        { m_stripOut,       L"Zoom the strip out" },
-        { m_stripIn,        L"Zoom the strip in" },
-        { m_stripWhole,     L"Show the whole track in the strip" },
-        { m_rangeDown,      L"Narrow the timing range" },
-        { m_rangeUp,        L"Widen the timing range" },
-        { m_goToButton,     L"Go to a track, sector, block, nibble or cell (Ctrl+G)" },
-        { m_findButton,     L"Find nibbles, bytes or text (Ctrl+F)" },
-        { m_copySector,     L"Copy the whole sector as a hex dump (Ctrl+Shift+C)" },
-        { m_exportButton,   L"Save sectors, nibbles or this quarter track's bits to a file" },
-        { m_decodeButton,   L"Change the marks and checks used to decode tracks" },
-        { m_compareButton,  L"Compare two disks track by track and file by file" },
-        { m_followCheck,    L"Show the track the head is on" },
-        { m_goToHead,       L"Select the track the head is on now" },
-        { m_prevDiff,       L"Go to the previous difference" },
-        { m_nextDiff,       L"Go to the next difference" },
-        { m_swapButton,     L"Make A the disk B is, and B the disk A is" },
-        { m_bSettingsButton, L"Give B decode settings of its own" },
-        { m_stopButton,     L"End the comparison" },
-        { m_diffsCheck,     L"Mark the quarter tracks that differ" },
+        const IDxuiControl  * control;
+        LPCWSTR               text;
+        LPCWSTR               whyUnavailable;
     };
 
+    const ButtonTip  tips[] =
+    {
+        { m_zoomOut,         L"Zoom the platter out (minus)",                                    L"The whole disk is shown, so the platter cannot zoom out further" },
+        { m_zoomIn,          L"Zoom the platter in (plus)",                                      nullptr },
+        { m_fit,             L"Show the whole disk (0)",                                         L"The whole disk is already shown" },
+        { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
+        { m_filesCheck,      L"Color each sector's data field by what the file map says it holds", nullptr },
+        { m_stripOut,        L"Zoom the strip out",                                              L"The strip already shows the whole track" },
+        { m_stripIn,         L"Zoom the strip in",                                               nullptr },
+        { m_stripWhole,      L"Show the whole track in the strip",                               L"The strip already shows the whole track" },
+        { m_rangeDown,       L"Narrow the timing range",                                         nullptr },
+        { m_rangeUp,         L"Widen the timing range",                                          nullptr },
+        { m_goToButton,      L"Go to a track, sector, block, nibble or cell (Ctrl+G)",           nullptr },
+        { m_findButton,      L"Find nibbles, bytes or text (Ctrl+F)",                            nullptr },
+        { m_copySector,      L"Copy the whole sector as a hex dump (Ctrl+Shift+C)",              L"The selected sector has no data field to copy" },
+        { m_exportButton,    L"Save sectors, nibbles or this quarter track's bits to a file",    nullptr },
+        { m_decodeButton,    L"Change the marks and checks used to decode tracks",               nullptr },
+        { m_compareButton,   L"Compare two disks track by track and file by file",               nullptr },
+        { m_followCheck,     L"Show the track the head is on",                                   nullptr },
+        { m_goToHead,        L"Select the track the head is on now",                             L"There is no disk in the drive" },
+        { m_prevDiff,        L"Go to the previous difference",                                   L"There are no differences to step through" },
+        { m_nextDiff,        L"Go to the next difference",                                       L"There are no differences to step through" },
+        { m_swapButton,      L"Make A the disk B is, and B the disk A is",                       L"B is still being read" },
+        { m_bSettingsButton, L"Give B decode settings of its own",                               L"B is still being read" },
+        { m_stopButton,      L"End the comparison",                                              nullptr },
+        { m_diffsCheck,      L"Mark the quarter tracks that differ",                             nullptr },
+    };
 
 
     RECT          modes = m_modeTabs->GetBounds();
@@ -2266,12 +2295,12 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
 
 
-    for (const auto & [control, text] : tips)
+    for (const ButtonTip & entry : tips)
     {
-        if (tip.empty() && control != nullptr && control->IsVisible() && IsInside (control->GetBounds(), pointPx))
+        if (tip.empty() && entry.control != nullptr && entry.control->IsVisible() && IsInside (entry.control->GetBounds(), pointPx))
         {
-            tip         = text;
-            outAnchorPx = control->GetBounds();
+            tip         = (entry.control->IsEnabled() || entry.whyUnavailable == nullptr) ? entry.text : entry.whyUnavailable;
+            outAnchorPx = entry.control->GetBounds();
         }
     }
 

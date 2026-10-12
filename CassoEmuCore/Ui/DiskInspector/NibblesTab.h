@@ -35,6 +35,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const override;
 
     //  Scrolls so the given nibble's row is about a third of the way down.
     void  ScrollTo (int nibble);

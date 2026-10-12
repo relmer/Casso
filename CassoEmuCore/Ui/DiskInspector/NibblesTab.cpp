@@ -250,6 +250,36 @@ bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibblesTab::GetTooltipSwatch
+//
+//  The color of the bar under the nibble, beside the line giving its kind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool NibblesTab::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+{
+    const TrackAnalysis *  track  = m_context.GetTrack();
+    int                    nibble = (track != nullptr) ? HitTest (pointPx) : -1;
+    bool                   failed = false;
+
+
+
+    if (nibble >= 0)
+    {
+        failed  = nibble < static_cast<int> (track->isFailedChecksum.size()) && track->isFailedChecksum[nibble] != 0;
+        outLine = InspectorText::GetNibbleColorLine (*track, false);
+        outArgb = m_context.palette.GetKindColor (failed ? PlatterKind::FailedChecksum : PlatterCells::GetKindOf (track->nibbleKinds[nibble]));
+    }
+
+    return nibble >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibblesTab::ScrollTo
 //
 ////////////////////////////////////////////////////////////////////////////////

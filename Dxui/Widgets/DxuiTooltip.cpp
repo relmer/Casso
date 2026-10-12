@@ -27,6 +27,13 @@ static constexpr float     s_kMaxTextWidthDip = 340.0f;
 static constexpr float     s_kEstCharWidthEm  = 0.62f;
 static constexpr float     s_kEstLineHeightEm = 1.4f;
 
+//
+//  A swatch is a square a little smaller than the text's height, set off
+//  from the text by a small gap.
+//
+static constexpr float     s_kSwatchEm        = 0.85f;
+static constexpr float     s_kSwatchGapDip    = 6.0f;
+
 
 
 
@@ -268,12 +275,11 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // sixty times a second and the tip never dismissed itself -- the
         // lifetime existed and could not once be reached. A move to a
         // DIFFERENT control is a new tip and starts its own clock.
-        if (changed && m_popupHost != nullptr)
+        if ((changed || m_isSwatchChanged) && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+            m_hideAtMs = GetHideAtMs (nowMs);
 
-            ReleaseActivePopup();
-            ShowPopup();
+            UpdatePopup();
         }
 
         return;
@@ -301,7 +307,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    bool  isSame = m_visible && !m_fadingOut && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isSame = m_visible && !m_fadingOut && !m_isSwatchChanged && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
 
 
 
@@ -316,10 +322,9 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_visible   = true;
     m_fadingOut = false;
     m_isInstant = true;
-    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+    m_hideAtMs  = GetHideAtMs (nowMs);
 
-    ReleaseActivePopup();
-    ShowPopup();
+    UpdatePopup();
 }
 
 
@@ -348,10 +353,9 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
     m_isInstant = false;
     m_hideAtMs  = nowMs + (int64_t) durationMs;
 
-    if (m_popupHost != nullptr && (changed || m_activePopup == nullptr))
+    if (m_popupHost != nullptr && (changed || m_isSwatchChanged || m_activePopup == nullptr))
     {
-        ReleaseActivePopup();
-        ShowPopup();
+        UpdatePopup();
     }
 }
 
@@ -397,13 +401,14 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_visible  = true;
         m_pending  = false;
 
-        // A TOOLTIP HAS A LIFETIME. A hover tip used to set no hide time at
+        // A TOOLTIP HAS A LIFETIME, unless its owner turned that off for a
+        // tip that reads out what the pointer rests on. A hover tip used to set no hide time at
         // all, so it stayed up for as long as the pointer rested -- and a
         // pointer that has been captured, or simply parked, rests forever.
         // The OS dismisses its own after a few seconds for the same reason:
         // the tip has been read by then, and what is left is an obstruction
         // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        m_hideAtMs = GetHideAtMs (nowMs);
 
         ShowPopup();
 
@@ -511,20 +516,7 @@ void DxuiTooltip::HideImmediate()
 void DxuiTooltip::ShowPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
-    RECT                       anchor   = {};
-    POINT                      topLeft  = {};
-    POINT                      botRight = {};
-    HWND                       owner    = nullptr;
     HRESULT                    hr       = S_OK;
-    UINT                       dpi      = 0;
-    float                      fontPx   = 0.0f;
-    float                      maxWPx   = 0.0f;
-    float                      padXPx   = 0.0f;
-    float                      padYPx   = 0.0f;
-    float                      textWPx  = 0.0f;
-    float                      textHPx  = 0.0f;
-    float                      boxWPx   = 0.0f;
-    float                      boxHPx   = 0.0f;
     bool                       shows    = false;
 
 
@@ -541,7 +533,6 @@ void DxuiTooltip::ShowPopup()
         // an explicit SetDpi push from the consumer into the show path.
         m_scaler.SetDpi (m_popupHost->GetScaler().GetDpi());
 
-        owner         = m_popupHost->GetHwnd();
         m_activePopup = m_popupHost->AcquirePopup();
 
         // The pool can be exhausted, leaving no balloon to fill in.
@@ -550,65 +541,14 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
-        // MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup
-        // draws at the DPI-scaled font, and a string's width at that size is
-        // not its width at 96 DPI scaled up -- hinting rounds each glyph. A
-        // balloon sized from the DIP measurement therefore came out a hair
-        // narrow, which is all DWrite needs to wrap at the last break
-        // opportunity and hide a trailing glyph on a second line the balloon
-        // has no room for. "Power-cycle the Apple //e" lost its "e" that way,
-        // to the break after the slashes.
-        dpi    = m_scaler.GetDpi();
-        dpi    = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
-        fontPx = m_scaler.ToPxf (m_fontDip);
-        maxWPx = m_scaler.ToPxf (s_kMaxTextWidthDip);
-        padXPx = m_scaler.ToPxf (s_kPadXDip);
-        padYPx = m_scaler.ToPxf (s_kPadYDip);
+        MeasureBox (showParams.anchorRectScreen, showParams.sizeDip);
 
-        // The pooled popup's renderer is bound at 96 DPI, so its logical units
-        // ARE pixels and it measures whatever size it is handed. If it is
-        // unavailable (test mode) fall back to a glyph-count estimate wrapped
-        // the same way.
-        hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(),
-                                                maxWPx, textWPx, textHPx);
-        if (FAILED (hr) || textWPx <= 0.0f)
-        {
-            float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
-            float  estLines = std::ceil (estWPx / maxWPx);
-
-            textWPx = std::min (estWPx, maxWPx);
-            textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
-        }
-
-        if (textHPx <= 0.0f)
-        {
-            textHPx = fontPx * s_kEstLineHeightEm;
-        }
-
-        boxWPx = std::ceil (textWPx) + padXPx * 2.0f;
-        boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
-
-        // Anchor arrives in client pixels; the popup wants screen pixels.
-        anchor     = GetPlacementAnchor();
-        topLeft.x  = anchor.left;
-        topLeft.y  = anchor.top;
-        botRight.x = anchor.right;
-        botRight.y = anchor.bottom;
-        ClientToScreen (owner, &topLeft);
-        ClientToScreen (owner, &botRight);
-
-        showParams.ownerHwnd        = owner;
-        showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+        showParams.ownerHwnd        = m_popupHost->GetHwnd();
         showParams.placement        = DxuiPopupPlacement::Below;
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
         showParams.shadow           = true;
-        // Show scales these back up by the owner DPI, so the trip into DIPs
-        // rounds UP -- rounding down here would hand back the pixel the
-        // measurement above exists to keep.
-        showParams.sizeDip.cx       = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
-        showParams.sizeDip.cy       = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
         showParams.backgroundArgb   = m_bgArgb;
 
         // A tip fades in rather than appearing. Same switch the menus read,
@@ -627,6 +567,187 @@ void DxuiTooltip::ShowPopup()
             m_activePopup = nullptr;
         }
     }
+
+    m_isSwatchChanged = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePopup
+//
+//  A tip already up takes its new text, anchor or swatch in place, so a tip
+//  that follows the pointer does not blink at each change. One fading out,
+//  or one the popup cannot update, is shown afresh.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::UpdatePopup()
+{
+    HRESULT  hr      = E_FAIL;
+    RECT     anchor  = {};
+    SIZE     sizeDip = {};
+
+
+
+    if (m_activePopup != nullptr && !m_fadingOut && !m_text.empty())
+    {
+        MeasureBox (anchor, sizeDip);
+        hr = m_activePopup->Update (anchor, sizeDip);
+    }
+
+    if (FAILED (hr))
+    {
+        ReleaseActivePopup();
+        ShowPopup();
+    }
+
+    m_isSwatchChanged = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureBox
+//
+//  The balloon's size in DIPs and the anchor in screen pixels, for the
+//  active popup.
+//
+//  Text is measured on the pooled popup's own text renderer BEFORE Show builds
+//  the swap chain, so the balloon is created at the right size rather than
+//  resized after appearing. When that renderer is unavailable -- test mode has
+//  no device -- it falls back to a glyph-count estimate, so placement logic
+//  stays testable without a GPU. A swatch takes a column of its own before
+//  the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
+{
+    HRESULT  hr       = S_OK;
+    RECT     anchor   = GetPlacementAnchor();
+    POINT    topLeft  = { anchor.left,  anchor.top };
+    POINT    botRight = { anchor.right, anchor.bottom };
+    HWND     owner    = m_popupHost->GetHwnd();
+    UINT     dpi      = m_scaler.GetDpi();
+    float    fontPx   = m_scaler.ToPxf (m_fontDip);
+    float    maxWPx   = m_scaler.ToPxf (s_kMaxTextWidthDip);
+    float    padXPx   = m_scaler.ToPxf (s_kPadXDip);
+    float    padYPx   = m_scaler.ToPxf (s_kPadYDip);
+    float    textWPx  = 0.0f;
+    float    textHPx  = 0.0f;
+    float    lineWPx  = 0.0f;
+    float    boxWPx   = 0.0f;
+    float    boxHPx   = 0.0f;
+
+
+
+    dpi = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
+
+    // MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup
+    // draws at the DPI-scaled font, and a string's width at that size is
+    // not its width at 96 DPI scaled up -- hinting rounds each glyph. A
+    // balloon sized from the DIP measurement therefore came out a hair
+    // narrow, which is all DWrite needs to wrap at the last break
+    // opportunity and hide a trailing glyph on a second line the balloon
+    // has no room for. "Power-cycle the Apple //e" lost its "e" that way,
+    // to the break after the slashes.
+    hr = m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx);
+
+    if (FAILED (hr) || textWPx <= 0.0f)
+    {
+        float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
+        float  estLines = std::ceil (estWPx / maxWPx);
+
+        textWPx = std::min (estWPx, maxWPx);
+        textHPx = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
+    }
+
+    if (textHPx <= 0.0f)
+    {
+        textHPx = fontPx * s_kEstLineHeightEm;
+    }
+
+    //  One line's height places the swatch beside its line.
+    hr = m_activePopup->MeasureTextWrapped (L"Ag", fontPx, GetFace(), maxWPx, lineWPx, m_lineHeightPx);
+    m_lineHeightPx = (FAILED (hr) || m_lineHeightPx <= 0.0f) ? fontPx * s_kEstLineHeightEm : m_lineHeightPx;
+
+    boxWPx = std::ceil (textWPx) + padXPx * 2.0f + GetSwatchColumnPx();
+    boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
+
+    // Anchor arrives in client pixels; the popup wants screen pixels.
+    ClientToScreen (owner, &topLeft);
+    ClientToScreen (owner, &botRight);
+
+    outAnchorScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+
+    // Show scales these back up by the owner DPI, so the trip into DIPs
+    // rounds UP -- rounding down here would hand back the pixel the
+    // measurement above exists to keep.
+    outSizeDip.cx = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+    outSizeDip.cy = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSwatchColumnPx
+//
+//  The room a swatch takes before the text, or none without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetSwatchColumnPx() const
+{
+    return (m_swatchLine >= 0) ? m_scaler.ToPxf (m_fontDip * s_kSwatchEm + s_kSwatchGapDip) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHideAtMs
+//
+//  When a tip shown now dismisses itself, or never for one without a
+//  lifetime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTooltip::GetHideAtMs (int64_t nowMs) const
+{
+    return m_hasLifetime ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSwatch
+//
+//  A square of the given color beside one line of the tip, for a tip that
+//  explains a color; a line of -1 shows none. Takes effect with the next
+//  show or change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::SetSwatch (int line, uint32_t argb)
+{
+    m_isSwatchChanged = m_isSwatchChanged || line != m_swatchLine || (line >= 0 && argb != m_swatchArgb);
+    m_swatchLine      = line;
+    m_swatchArgb      = argb;
 }
 
 
@@ -752,7 +873,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     hr = text.DrawString (m_text.c_str(),
                           boxLeft + padX,
                           boxTop  + padY,
-                          width  - padX * 2.0f,
+                          width  - padX * 2.0f - GetSwatchColumnPx(),
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
@@ -820,6 +941,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     float    padY     = m_scaler.ToPxf (s_kPadYDip);
     float    borderPx = m_scaler.ToPxf (s_kBorderDip);
     float    fontPx   = m_scaler.ToPxf (m_fontDip);
+    float    swatch   = m_scaler.ToPxf (m_fontDip * s_kSwatchEm);
 
 
 
@@ -834,10 +956,18 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
 
+    //  A swatch beside its line, outlined so a color near the balloon's own
+    //  still shows.
+    if (m_swatchLine >= 0)
+    {
+        painter.FillRect    (padX, padY + m_swatchLine * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, m_swatchArgb);
+        painter.OutlineRect (padX, padY + m_swatchLine * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
+    }
+
     hr = text.DrawString (m_text.c_str(),
-                          padX,
+                          padX + GetSwatchColumnPx(),
                           padY,
-                          width  - padX * 2.0f,
+                          width  - padX * 2.0f - GetSwatchColumnPx(),
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
