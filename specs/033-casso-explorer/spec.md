@@ -535,6 +535,129 @@ picture between color and monochrome and see it redrawn each way.
 5. **Given** a monitor is chosen in Casso Explorer, **When** Casso's own
    display settings change, **Then** Casso Explorer's are unchanged, and
    the other way around.
+### User Story 10 - Previews of everything File Explorer previews (Priority: P3)
+
+A user selecting a Word document, a PDF, a picture or any other file
+Windows can preview sees the same preview File Explorer would show, in
+Casso Explorer's Preview pane, so there is no reason to switch programs to
+glance at a file.
+
+**Why this priority**: Casso Explorer is meant to be usable as a file
+manager in its own right; hex in the Preview pane where File Explorer draws
+the document reads as broken.
+
+**Independent Test**: Select a .docx, a .pdf, a .png and a .txt file, and
+see each previewed as File Explorer previews it; select an Apple file in a
+disk image and a disk image itself and see Casso Explorer's own previews;
+select a file of a type nothing previews and see its bytes.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file on the host of a type Windows has a preview for,
+   **When** it is selected, **Then** that preview is drawn in the Preview
+   pane, as in File Explorer's.
+2. **Given** an Apple file or a disk image, **When** it is selected,
+   **Then** Casso Explorer's own preview is shown, whatever Windows offers.
+3. **Given** a file nothing previews, **When** it is selected, **Then** its
+   bytes are shown, as now.
+4. **Given** a shell preview is showing, **When** the pane is resized,
+   hidden, or the selection moves, **Then** the preview follows at once and
+   never outlives the selection.
+
+---
+
+### User Story 11 - The menus File Explorer has (Priority: P3)
+
+A user right-clicking a file, a folder, or a node in the navigation tree
+finds the same commands, in the same order and with the same icons, as
+File Explorer offers for the same item, including what other programs add.
+
+**Why this priority**: A user's habits are built on File Explorer's menus;
+a command missing or moved sends them back to File Explorer.
+
+**Independent Test**: Right-click the same file, folder and tree node in
+both programs, with the same programs installed, and compare the menus
+item for item.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file or folder in the list, **When** it is right-clicked,
+   **Then** the menu's first level matches File Explorer's for it: the
+   clipboard row, the same commands in the same order, the same icons, and
+   the items other programs add.
+2. **Given** a node in the tree, **When** it is right-clicked, **Then** the
+   menu matches File Explorer's for that node, and the node is neither
+   selected nor opened, nor does the tree take the keyboard.
+3. **Given** a selection of several items, **When** one of them is
+   right-clicked, **Then** the menu applies to the whole selection, as File
+   Explorer's does.
+
+---
+
+### User Story 12 - Archives are folders (Priority: P3)
+
+A user browses into a zip, or any archive Windows opens, as into a folder:
+in the tree, the list and the address bar; sees what one holds by selecting
+it; and copies, drags out or extracts its files.
+
+**Why this priority**: Disk images and their companion files often arrive
+in zips; opening each in another program to see what it holds breaks the
+flow of finding and inserting a disk.
+
+**Independent Test**: Find a zip in the tree and expand it; open it in the
+list; select it and see its contents in the preview; copy a file from it,
+drag one out to the desktop, and extract it all.
+
+**Acceptance Scenarios**:
+
+1. **Given** a folder with an archive in it, **When** it is listed, **Then**
+   the archive appears in the tree after the folders and can be expanded,
+   and in the list it opens as a folder.
+2. **Given** an archive is open, **When** the address bar is read, **Then**
+   it reads as the folders on the disk around the archive, then the archive
+   and any folders inside it.
+3. **Given** an archive is selected, **When** the Preview pane is shown,
+   **Then** it lists the archive's contents as the list would show them
+   opened: the same columns, font, icons and selection.
+4. **Given** files inside an archive are selected, in the list or the
+   preview, **When** the user copies, drags them out, or chooses Extract All,
+   **Then** they arrive where they are pasted or dropped, and a copy stays on
+   the clipboard after the archive is closed.
+
+---
+
+### User Story 13 - Drop onto what File Explorer drops onto (Priority: P3)
+
+A user dragging files sees each place they could land lit as they pass
+over it, with words under the pointer for what a drop there would do,
+and drops onto folders, drives, disk images, archives and programs as in
+File Explorer.
+
+**Why this priority**: Drag and drop is how many users move files; a target
+that does nothing, or does something unannounced, costs trust.
+
+**Independent Test**: Drag a file over a folder, a drive, a disk image, a
+zip, a program and the folder it came from, reading the highlight and the
+words at each, and drop on each.
+
+**Acceptance Scenarios**:
+
+1. **Given** a drag over a valid target, **When** the pointer is over it,
+   **Then** it is drawn as a selected item other than the focused one, and
+   the words under the pointer give what a drop would do: Move to, Copy to or
+   Open with, and the target's name.
+2. **Given** a drag over an archive, **When** dropped, **Then** the files are
+   copied into it.
+3. **Given** a drag over a program, **When** dropped, **Then** the program
+   starts with each dropped file's full path as an argument.
+4. **Given** a drag over the folder the files came from, or over a plain
+   file in it, **When** the pointer is there, **Then** it is the no-drop
+   pointer, and a drop does nothing.
+5. **Given** a press on empty space in any view, **When** the pointer is
+   dragged, **Then** a rectangle selects every item it touches, as File
+   Explorer's does.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -609,6 +732,15 @@ picture between color and monochrome and see it redrawn each way.
   existing window launched by that Casso is brought to the front. A
   standalone Casso Explorer is a separate instance from one Casso launched.
 
+- **Shell preview unavailable**: a file whose preview program fails or takes
+  too long is previewed as its bytes instead, and Casso Explorer never stops
+  responding while one loads.
+- **Archive on a network share**: an archive on an unreachable share is
+  listed as unavailable, never read on the window's own thread.
+- **Archive that cannot be read**: a damaged or password-protected archive
+  is reported with the reason in the preview and the list, rather than as
+  an empty folder.
+- **Drop onto a read-only target**: the pointer over it is the no-drop one.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -1033,7 +1165,35 @@ picture between color and monochrome and see it redrawn each way.
 - **FR-072**: A double hi-res picture's preview MUST offer a switch between
   color and monochrome, overriding the automatic choice for that picture
   while it is shown.
-
+- **FR-073**: A file of a type Windows has a preview for MUST be previewed
+  in the Preview pane as File Explorer previews it, unless Casso Explorer
+  has a preview of its own for it, which MUST take priority for Apple files
+  and disk images.
+- **FR-074**: A shell preview MUST follow the pane's size, visibility and
+  the selection, MUST be shown within the same time File Explorer takes,
+  and MUST fall back to the bytes when it fails or does not arrive.
+- **FR-075**: The context menu of a file, a folder, a selection, or a tree
+  node MUST match File Explorer's for the same item: its clipboard row, the
+  same commands in the same order, the same icons, and the commands other
+  programs add to its first level.
+- **FR-076**: A right-click on a tree node MUST NOT select it, open it or
+  move keyboard focus to the tree.
+- **FR-077**: Any file the shell opens as a folder MUST be browsable as one
+  in the tree, the list and the address bar, read-only unless the shell
+  allows writing to it.
+- **FR-078**: A selected archive MUST be previewed as its contents, drawn as
+  the list would draw them opened; its files MUST support selection,
+  select all, copy, drag out, open, and Extract All.
+- **FR-079**: Folders, drives, disk images, archives and programs MUST be
+  drop targets; while a drag is over one it MUST be drawn as a selected item
+  other than the focused one, with words under the pointer for what a drop
+  would do.
+- **FR-080**: A drop on an archive MUST copy into it; a drop on a program
+  MUST start it with each dropped file's full path, quoted, as an argument;
+  a drop on the folder the files came from MUST do nothing, under the
+  no-drop pointer.
+- **FR-081**: A press on empty space in every view, Details included, MUST
+  start a selection rectangle that selects every item it touches.
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -1132,7 +1292,15 @@ picture between color and monochrome and see it redrawn each way.
   same size.
 - **SC-021**: Switching the monitor redraws the preview within a quarter
   second, and the choice survives a restart.
-
+- **SC-022**: For a .docx, a .pdf and a .png, the Preview pane draws the
+  same preview as File Explorer's, within a second of selection.
+- **SC-023**: For the same file, folder and tree node on the same machine,
+  the context menus of the two programs list the same first-level items in
+  the same order.
+- **SC-024**: A user opens a zip, previews a file in it, and extracts it,
+  without leaving Casso Explorer, in under a minute.
+- **SC-025**: Over a folder, a drive, a disk image, an archive and a program, the highlight and the
+  words under the pointer match File Explorer's for the same drag.
 ## Assumptions
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and
