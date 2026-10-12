@@ -81,6 +81,31 @@ public:
 
 
 
+    //  Whether a pixel is the color given, made lighter or darker by the
+    //  platter's texture (FR-149): every channel scaled by one factor.
+    static bool IsShadeOf (uint32_t pixel, uint32_t color)
+    {
+        static constexpr double  kMaxChannelError = 4.0;
+
+
+
+        double  sumP   = ((pixel >> 16) & 0xFF) + ((pixel >> 8) & 0xFF) + (pixel & 0xFF);
+        double  sumC   = ((color >> 16) & 0xFF) + ((color >> 8) & 0xFF) + (color & 0xFF);
+        double  factor = sumP / std::max (sumC, 1.0);
+        bool    isOk   = true;
+
+
+
+        for (int shift = 0; shift <= 16; shift += 8)
+        {
+            isOk = isOk && std::abs (((pixel >> shift) & 0xFF) - ((color >> shift) & 0xFF) * factor) <= kMaxChannelError;
+        }
+
+        return isOk;
+    }
+
+
+
     TEST_METHOD (ThePlatterDrawsBetweenTheFillsBeforeAndAfterIt)
     {
         WarpRenderHarness               harness;
@@ -128,8 +153,8 @@ public:
 
         Assert::AreEqual (kBackground, pixels[0] | 0xFF000000, L"outside the disk the fill before shows");
         Assert::AreEqual (kMarker, PixelAt (pixels, 0, 0), L"the fill after covers the hub");
-        Assert::AreEqual (palette.GetKindColor (PlatterKind::DataField), PixelAt (pixels, 45,  outer - 20.5f * ringPx), L"the first quarter turn is data");
-        Assert::AreEqual (palette.GetKindColor (PlatterKind::Sync),      PixelAt (pixels, 200, outer - 20.5f * ringPx), L"the rest is sync");
+        Assert::IsTrue (IsShadeOf (PixelAt (pixels, 45,  outer - 20.5f * ringPx), palette.GetKindColor (PlatterKind::DataField)), L"the first quarter turn is data");
+        Assert::IsTrue (IsShadeOf (PixelAt (pixels, 200, outer - 20.5f * ringPx), palette.GetKindColor (PlatterKind::Sync)),      L"the rest is sync");
     }
 
 
@@ -182,7 +207,7 @@ public:
 
         Assert::IsTrue (seen.contains (palette.colors.pendingPattern | 0xFF000000));
         Assert::IsTrue (seen.contains (palette.colors.nothingRecorded | 0xFF000000));
-        Assert::IsFalse (seen.contains (palette.GetKindColor (PlatterKind::DataField)), L"a pending ring shows no cells");
+        Assert::IsFalse (std::any_of (seen.begin(), seen.end(), [&] (uint32_t c) { return IsShadeOf (c, palette.GetKindColor (PlatterKind::DataField)); }), L"a pending ring shows no cells");
     }
 
 

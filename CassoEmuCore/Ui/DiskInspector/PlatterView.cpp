@@ -16,6 +16,8 @@
 static constexpr float  s_kIndexMarkDip     = 10.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
+static constexpr float  s_kHubLightDip     = 2.0f;
+static constexpr float  s_kHubLightShare   = 0.35f;
 static constexpr float  s_kHoverOutlineDip  = 1.0f;
 static constexpr float  s_kSelectOutlineDip = 2.0f;
 static constexpr float  s_kAlignmentDotDip  = 2.5f;
@@ -101,6 +103,12 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     //  The hub: a raised ring inside the tracks and the spindle hole.
     painter.FillCircle (view.centerXPx, view.centerYPx, hub * s_kHubFraction,     theme.BackgroundElevated());
     painter.FillCircle (view.centerXPx, view.centerYPx, hub * s_kSpindleFraction, theme.Background());
+
+    //  A lit edge around the spindle hole and around the raised ring (FR-149).
+    OutlineCircle (painter, view.centerXPx, view.centerYPx, hub * s_kSpindleFraction + m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip),
+                   DxuiColor::Lerp (theme.BackgroundElevated(), 0xFFFFFFFF, s_kHubLightShare));
+    OutlineCircle (painter, view.centerXPx, view.centerYPx, hub * s_kHubFraction - m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip) / 2.0f,
+                   DxuiColor::Lerp (theme.BackgroundElevated(), 0xFFFFFFFF, s_kHubLightShare / 2.0f));
 
     //  The index mark just outside the rim, where each track starts.
     painter.DrawLine (view.centerXPx + (view.outerRadiusPx + 2.0f) * std::sin (a),        view.centerYPx - (view.outerRadiusPx + 2.0f) * std::cos (a),
