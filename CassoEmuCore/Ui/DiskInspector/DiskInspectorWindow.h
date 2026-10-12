@@ -68,8 +68,8 @@ enum class KeyTarget
 class DiskInspectorWindow : public DxuiWindow
 {
 public:
-    static constexpr int     kOpeningWidthDip  = 980;
-    static constexpr int     kOpeningHeightDip = 660;
+    static constexpr int     kOpeningWidthDip  = 1200;
+    static constexpr int     kOpeningHeightDip = 800;
     static constexpr int     kMinWidthDip      = 640;
     static constexpr int     kMinHeightDip     = 460;
     static constexpr double  kZoomStep         = 1.25;
@@ -144,6 +144,11 @@ private:
     void  UpdateControls   ();
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
+    void  ShowTabContent   ();
+    bool  IsImageShown     () const;
+    void  LayoutPlatterControls (const RECT & area, const DxuiDpiScaler & scaler);
+    int   LayoutTabs       (const RECT & area, const DxuiDpiScaler & scaler);
+    static int  GetLabelWidthPx (LPCWSTR label, int padDip, const DxuiDpiScaler & scaler);
     static bool  IsStripKey (WPARAM vk);
     KeyTarget    GetKeyTarget (POINT pointPx) const;
     void  SelectAll       ();
@@ -225,7 +230,11 @@ private:
     std::wstring                                                                                 m_tooltipText;
 
     DxuiTabStrip                          * m_driveTabs          = nullptr;
-    DxuiTabStrip                          * m_trackTabs          = nullptr;
+    DxuiTabStrip                          * m_tabs               = nullptr;
+    DxuiButton                            * m_legendButton       = nullptr;
+    bool                                    m_isDiskGroup        = false;
+    bool                                    m_isHintShown        = false;
+    RECT                                    m_stripAreaPx        = {};
     DxuiButton                            * m_zoomOut            = nullptr;
     DxuiButton                            * m_zoomIn             = nullptr;
     DxuiButton                            * m_fit                = nullptr;
@@ -274,7 +283,6 @@ private:
     SectorRowView                         * m_sectorRow          = nullptr;
     SectorByteView                        * m_byteView           = nullptr;
     NibblesTab                            * m_nibblesTab         = nullptr;
-    DxuiTabStrip                          * m_diskTabs           = nullptr;
     DxuiButton                            * m_decodeButton       = nullptr;
     DxuiCheckbox                          * m_alignmentCheck     = nullptr;
     DxuiCheckbox                          * m_filesCheck         = nullptr;

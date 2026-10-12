@@ -20,6 +20,7 @@ static constexpr float  s_kHeaderGapDip    = 20.0f;
 static constexpr uint32_t  s_kSelectionAlpha = 0x50000000u;
 static constexpr uint32_t  s_kDiffAlpha      = 0x50000000u;
 static constexpr float     s_kDiffLineDip    = 2.0f;
+static constexpr float     s_kMinRowDip      = 11.0f;
 
 
 
@@ -163,12 +164,12 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 
 
-    //  Both grids and B's title share the height.
-    if (isB)
-    {
-        rowH = std::min (rowH, (static_cast<float> (m_boundsDip.bottom) - y) / (2.0f * rows + 2.5f));
-        fit  = std::min (fit, rowH / m_scaler.ToPxf (static_cast<float> (kRowDip)) / 0.75f);
-    }
+    //  The rows shrink to the height there is, both grids and B's title
+    //  sharing it while comparing, down to the smallest legible row.
+    rows = rows * (isB ? 2 : 1);
+    rowH = std::min (rowH, std::max (m_scaler.ToPxf (s_kMinRowDip), (static_cast<float> (m_boundsDip.bottom) - y) / (rows + (isB ? 2.5f : 0.0f) + (isBad ? 1.25f : 0.0f))));
+    fit  = std::min (fit, rowH / m_scaler.ToPxf (static_cast<float> (kRowDip)));
+    rows = rows / (isB ? 2 : 1);
 
     textPx = m_scaler.ToPxf (kTextDip) * fit;
     grid   = { y, rowH, left + m_scaler.ToPxf (s_kOffsetCharsDip) * fit, 0.0f, m_scaler.ToPxf (s_kByteDip) * fit, m_scaler.ToPxf (s_kCharDip) * fit, true };
@@ -234,6 +235,13 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
         col    = static_cast<int> (i) % kBytesPerRow;
         rowTop = grid.top + row * grid.rowH;
         color  = (bytes[i] == 0) ? theme.ForegroundMuted() : ((bytes[i] & s_kHighBit) ? theme.Accent() : theme.Foreground());
+
+        //  A row that does not fit in the view is left out rather than drawn
+        //  over what lies below it.
+        if (rowTop + grid.rowH > static_cast<float> (m_boundsDip.bottom))
+        {
+            continue;
+        }
 
         if (col == 0)
         {

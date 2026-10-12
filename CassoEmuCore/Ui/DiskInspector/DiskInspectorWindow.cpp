@@ -67,13 +67,17 @@ static constexpr float    s_kAnalyzingDip   = 90.0f;
 static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
-static constexpr double   s_kPlatterShare   = 0.55;
-static constexpr double   s_kMapPlatterShare = 0.32;
 static constexpr double   s_kMapGridShare   = 0.62;
 static constexpr int      s_kMapCheckDip    = 190;
 static constexpr int      s_kMapButtonDip   = 170;
 static constexpr int      s_kMapVolumeDip   = 150;
-static constexpr int      s_kOverlayDip     = 130;
+static constexpr int      s_kFitDip         = 48;
+static constexpr int      s_kMinPlatterColumnDip = 420;
+static constexpr int      s_kZoomLabelDip   = 40;
+static constexpr int      s_kCheckLabelPadDip = 30;
+static constexpr int      s_kTabLabelPadDip = 24;
+static constexpr int      s_kLegendButtonDip = 80;
+static constexpr double   s_kCharWidthDip   = 7.2;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
 static constexpr int      s_kExportButtonDip = 80;
@@ -98,6 +102,7 @@ enum TrackTab
     kTabNibbles,
     kTabFields,
     kTabFluxTiming,
+    kTrackTabCount,
 };
 
 
@@ -108,6 +113,7 @@ enum DiskTab
     kTabFileMap,
     kTabImage,
     kTabDifferences,
+    kDiskTabCount,
 };
 
 
@@ -307,14 +313,14 @@ void DiskInspectorWindow::OnCreate()
     m_stripIn     = CreateChild<DxuiButton> (L"+");
     m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
     m_stripReadout = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
-    m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Left);
+    m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Right);
     m_sectorRow   = CreateChild<SectorRowView>   (m_context);
-    m_trackTabs   = CreateChild<DxuiTabStrip>();
+    m_tabs        = CreateChild<DxuiTabStrip>();
     m_byteView    = CreateChild<SectorByteView>  (m_context);
     m_nibblesTab  = CreateChild<NibblesTab>      (m_context);
     m_fieldsTab   = CreateChild<InspectorTableView> (m_context);
     m_fluxTab     = CreateChild<FluxTimingTab>   (m_context);
-    m_diskTabs    = CreateChild<DxuiTabStrip>();
+    m_legendButton = CreateChild<DxuiButton> (L"Legend");
     m_decodeButton = CreateChild<DxuiButton> (L"Decode settings...");
     m_exportButton = CreateChild<DxuiButton> (L"Export...");
     m_goToButton   = CreateChild<DxuiButton> (L"Go to");
@@ -350,8 +356,7 @@ void DiskInspectorWindow::OnCreate()
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
-    m_trackTabs->SetOnChange ([this] (int index) { ShowTrackTab (index); });
-    m_diskTabs->SetOnChange  ([this] (int index) { ShowDiskTab (index); });
+    m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (index - kTrackTabCount); } });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
@@ -401,8 +406,8 @@ void DiskInspectorWindow::OnCreate()
     //  does rather than dismissing themselves.
     m_tooltip.SetHasLifetime (false);
 
+    m_diskTab = kTabTracks;
     ShowTrackTab (kTabSectorData);
-    ShowDiskTab  (kTabTracks);
 }
 
 
@@ -431,9 +436,11 @@ void DiskInspectorWindow::OnWindowClose()
 //
 //  DiskInspectorWindow::Layout
 //
-//  A toolbar across the top; under it the platter column on the left, the
-//  platter kept square, with its zoom row and hint below; past the splitter
-//  the track column: header, strip, sector row, tabs and the tab's content.
+//  A toolbar across the top. Under it the platter column, the platter as
+//  large as the column allows with its controls on one row beneath it; past
+//  the splitter the track column: header, sector row, one tab strip with the
+//  track tabs then the disk tabs, and the chosen tab's content. Along the
+//  bottom, across both columns, the strip with its controls and hint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -454,19 +461,30 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     int                        bar       = m_comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
     int                        top       = boundsDip.top + rows * toolbar + bar;
     int                        ctlLeft   = static_cast<int> (boundsDip.right) - margin;
-    int                        column    = splitX - boundsDip.left - 2 * margin;
-    int                        below     = 4 * margin + 2 * scaler.ToPx (s_kRowDip) + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows + s_kTabsDip + s_kMinTableDip);
-    int                        side      = std::max (0, std::min ({ column, static_cast<int> ((boundsDip.bottom - top) * s_kPlatterShare), static_cast<int> (boundsDip.bottom - top) - below }));
+    int                        strip     = scaler.ToPx (s_kStripDip);
+    int                        band      = 2 * margin + strip + (m_comparison.IsComparing() ? strip + margin / 2 : 0) + margin / 2 + row;
+    int                        bandTop   = std::max (top, static_cast<int> (boundsDip.bottom) - band);
     int                        x         = boundsDip.left + margin;
+    int                        column    = splitX - boundsDip.left - 2 * margin;
+    int                        areaH     = std::max (0, bandTop - top - 2 * margin - row);
+    int                        side      = std::max (0, std::min (column, areaH));
     int                        y         = 0;
     int                        i         = 0;
     int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
-    int                        diskTab   = std::min (tab, (column + margin) / (m_comparison.IsComparing() ? 5 : 4));
     RECT                       right     = {};
     RECT                       platter   = {};
     vector<DxuiTabStrip::Tab>  tabs;
 
 
+
+    //  A platter its height limits leaves its column no wider than it and its
+    //  control row need, and the track column gains the rest.
+    if (column > std::max (areaH, scaler.ToPx (s_kMinPlatterColumnDip)))
+    {
+        column = std::max (areaH, scaler.ToPx (s_kMinPlatterColumnDip));
+        splitX = boundsDip.left + 2 * margin + column;
+        side   = std::min (column, areaH);
+    }
 
     SetBounds (boundsDip);
     m_scaler  = scaler;
@@ -476,8 +494,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar };
     m_barPx      = { boundsDip.left, top - bar, boundsDip.right, top };
-    m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), boundsDip.bottom };
-    right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, boundsDip.bottom - margin };
+    m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
+    right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, bandTop - margin / 2 };
 
     for (i = 0; i < drives; i++)
     {
@@ -498,6 +516,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     m_fileNamePx = { nameLeft, boundsDip.top, std::min (nameLeft + scaler.ToPx (s_kFileNameDip), ctlLeft), rowBottom };
     m_chipsPx    = { m_fileNamePx.right + margin, boundsDip.top, ctlLeft, rowBottom };
+
     //  The comparison bar's buttons from the right, its sources on the left.
     i = boundsDip.right - margin;
 
@@ -509,103 +528,183 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         i -= w + margin / 2;
     }
 
-    //  The File map takes most of the column; the platter stays in view for
-    //  the Files overlay, and the legend and hint give way.
-    side = (m_diskTab == kTabFileMap) ? std::min (side, static_cast<int> ((boundsDip.bottom - top) * s_kMapPlatterShare)) : side;
-
+    //  The platter as large as its column allows; its hint shows only where
+    //  the column has height to spare once the platter fills its width.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
 
-    y = platter.bottom + margin;
-    m_zoomOut->Layout   ({ x,              y, x + button,     y + row }, scaler);
-    m_zoomIn->Layout    ({ x + button,     y, x + 2 * button, y + row }, scaler);
-    m_fit->Layout       ({ x + 2 * button, y, x + 4 * button, y + row }, scaler);
-    m_zoomLabel->Layout ({ x + 4 * button + margin, y, x + 6 * button, y + row }, scaler);
-    m_alignmentCheck->Layout ({ x + 6 * button + margin, y, x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y + row }, scaler);
-    m_filesCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (s_kOverlayDip), y, x + 6 * button + margin + scaler.ToPx (2 * s_kOverlayDip), y + row }, scaler);
-    m_diffsCheck->Layout     ({ x + 6 * button + margin + scaler.ToPx (2 * s_kOverlayDip), y, splitX - margin, y + row }, scaler);
-    m_hintLabel->Layout ({ x, y + row, splitX - margin, y + 2 * row }, scaler);
+    m_isHintShown = areaH - side >= row;
+    m_hintLabel->Layout ({ x, platter.bottom + margin / 2, splitX - margin, platter.bottom + margin / 2 + row }, scaler);
 
-    if (m_diskTab == kTabFileMap)
-    {
-        y += row + margin / 2;
-    }
-    else
-    {
-        y += 2 * row;
-        m_legend->Layout ({ x, y, splitX - margin, y + scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows) }, scaler);
-        y += scaler.ToPx (PlatterLegendView::kRowDip * PlatterLegendView::kRows);
-    }
+    LayoutPlatterControls ({ x, bandTop - margin - row, splitX - margin, bandTop - margin }, scaler);
 
-    tabs.clear();
+    m_platterAreaPx = { boundsDip.left, top, splitX, bandTop };
 
-    for (LPCWSTR label : { L"Tracks", L"Findings", L"File map", L"Image", L"Differences" })
-    {
-        i = static_cast<int> (tabs.size());
-
-        if (i == kTabDifferences && !m_comparison.IsComparing())
-        {
-            break;
-        }
-
-        tabs.push_back ({ { x + i * diskTab, y, x + (i + 1) * diskTab, y + scaler.ToPx (s_kTabsDip) }, label });
-    }
-
-    m_diskTabs->SetTabs     (std::move (tabs));
-    m_diskTabs->SetSelected (m_diskTab);
-    m_diskTabs->Layout      ({ x, y, splitX - margin, y + scaler.ToPx (s_kTabsDip) }, scaler);
-    y += scaler.ToPx (s_kTabsDip) + margin / 2;
-
-    m_tracksTab->Layout   ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
-    m_findingsTab->Layout ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
-    m_imageTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
-    m_diffsTab->Layout    ({ x, y, splitX - margin, boundsDip.bottom - margin }, scaler);
-    LayoutFileMap ({ x, y, splitX - margin, static_cast<int> (boundsDip.bottom) - margin }, scaler);
-    m_diskContentPx = { x, y, splitX - margin, boundsDip.bottom - margin };
-    m_platterAreaPx = { boundsDip.left, top, splitX, y - scaler.ToPx (s_kTabsDip) - margin / 2 };
-    m_trackAreaPx   = { m_splitterPx.right, top, boundsDip.right, boundsDip.bottom };
-
+    //  The track column.
     y = right.top;
     m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
     y += header;
-    m_stripView->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kStripDip) }, scaler);
-    y += scaler.ToPx (s_kStripDip) + margin / 2;
-
-    //  While comparing, B's strip under A's (FR-121).
-    m_stripB->Layout ({ right.left, y, right.right, y + (m_comparison.IsComparing() ? scaler.ToPx (s_kStripDip) : 0) }, scaler);
-    y += m_comparison.IsComparing() ? scaler.ToPx (s_kStripDip) + margin / 2 : 0;
-    m_stripOut->Layout     ({ right.left,          y, right.left + button,     y + row }, scaler);
-    m_stripIn->Layout      ({ right.left + button, y, right.left + 2 * button, y + row }, scaler);
-    m_stripWhole->Layout   ({ right.left + 2 * button, y, right.left + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
-    m_stripReadout->Layout ({ right.left + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, right.right, y + row }, scaler);
-    y += row;
-    m_stripHint->Layout    ({ right.left, y, right.right, y + scaler.ToPx (s_kHintRowDip) }, scaler);
-    y += scaler.ToPx (s_kHintRowDip) + margin / 2;
     m_sectorRow->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kSectorRowDip) }, scaler);
     y += scaler.ToPx (s_kSectorRowDip);
+    m_trackAreaPx = { m_splitterPx.right, top, boundsDip.right, y };
 
-    tabs.clear();
+    y = LayoutTabs ({ right.left, y, right.right, right.bottom }, scaler);
 
-    //  The track tabs share their row with "Copy sector", narrowing to fit.
-    i   = std::min (tab, static_cast<int> (right.right - right.left - scaler.ToPx (s_kCopySectorDip) - margin) / 4);
-    tab = i;
+    m_diskContentPx = { right.left, y, right.right, right.bottom };
 
-    for (LPCWSTR label : { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_byteView, m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab })
     {
-        i = static_cast<int> (tabs.size());
-        tabs.push_back ({ { right.left + i * tab, y, right.left + (i + 1) * tab, y + scaler.ToPx (s_kTabsDip) }, label });
+        content->Layout (m_diskContentPx, scaler);
     }
 
-    m_trackTabs->SetTabs (std::move (tabs));
-    m_trackTabs->SetSelected (m_trackTab);
-    m_trackTabs->Layout  ({ right.left, y, right.right - scaler.ToPx (s_kCopySectorDip) - margin, y + scaler.ToPx (s_kTabsDip) }, scaler);
-    m_copySector->Layout ({ right.right - scaler.ToPx (s_kCopySectorDip), y + margin / 4, right.right, y + scaler.ToPx (s_kTabsDip) - margin / 4 }, scaler);
-    y += scaler.ToPx (s_kTabsDip) + margin;
+    LayoutFileMap (m_diskContentPx, scaler);
 
-    m_byteView->Layout   ({ right.left, y, right.right, right.bottom }, scaler);
-    m_nibblesTab->Layout ({ right.left, y, right.right, right.bottom }, scaler);
-    m_fieldsTab->Layout  ({ right.left, y, right.right, right.bottom }, scaler);
-    m_fluxTab->Layout    ({ right.left, y, right.right, right.bottom }, scaler);
+    //  The strip across the bottom, B's under it while comparing (FR-121).
+    y = bandTop + margin;
+    m_stripView->Layout ({ x, y, boundsDip.right - margin, y + strip }, scaler);
+    y += strip + margin / 2;
+    m_stripB->Layout ({ x, y, boundsDip.right - margin, y + (m_comparison.IsComparing() ? strip : 0) }, scaler);
+    y += m_comparison.IsComparing() ? strip + margin / 2 : 0;
+    m_stripOut->Layout     ({ x,              y, x + button,     y + row }, scaler);
+    m_stripIn->Layout      ({ x + button,     y, x + 2 * button, y + row }, scaler);
+    m_stripWhole->Layout   ({ x + 2 * button, y, x + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
+    m_stripReadout->Layout ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip), y + row }, scaler);
+    m_stripHint->Layout    ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
+
+    m_stripAreaPx = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::LayoutPlatterControls
+//
+//  One row under the platter: the zoom controls, then each overlay that is
+//  offered, as wide as its label, then "Legend" at the row's right end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDpiScaler & scaler)
+{
+    int  button = scaler.ToPx (s_kButtonDip);
+    int  gap    = scaler.ToPx (s_kMarginDip) / 2;
+    int  x      = area.left;
+
+
+
+    m_zoomOut->Layout   ({ x, area.top, x + button, area.bottom }, scaler);
+    x += button;
+    m_zoomIn->Layout    ({ x, area.top, x + button, area.bottom }, scaler);
+    x += button;
+    m_fit->Layout       ({ x, area.top, x + scaler.ToPx (s_kFitDip), area.bottom }, scaler);
+    x += scaler.ToPx (s_kFitDip) + gap;
+    m_zoomLabel->Layout ({ x, area.top, x + scaler.ToPx (s_kZoomLabelDip), area.bottom }, scaler);
+    x += scaler.ToPx (s_kZoomLabelDip) + gap;
+
+    for (const auto & [check, label] : { std::pair { m_alignmentCheck, L"Alignment" }, std::pair { m_filesCheck, L"Files" }, std::pair { m_diffsCheck, L"Differences" } })
+    {
+        int  w = GetLabelWidthPx (label, s_kCheckLabelPadDip, scaler);
+
+        check->Layout ({ x, area.top, x + w, area.bottom }, scaler);
+        x += (check == m_diffsCheck && !m_comparison.IsComparing()) ? 0 : w + gap;
+    }
+
+    m_legendButton->Layout ({ area.right - scaler.ToPx (s_kLegendButtonDip), area.top, area.right, area.bottom }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::LayoutTabs
+//
+//  The one tab strip: the track tabs, a gap, then the disk tabs, each as
+//  wide as its label; the disk tabs take a row of their own when the column
+//  is too narrow for both groups beside "Copy sector". Returns where the
+//  tabs' content starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & scaler)
+{
+    static constexpr LPCWSTR  kpszTrackTabs[] = { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" };
+    static constexpr LPCWSTR  kpszDiskTabs[]  = { L"Tracks", L"Findings", L"File map", L"Image", L"Differences" };
+
+
+
+    int                        tabsH  = scaler.ToPx (s_kTabsDip);
+    int                        margin = scaler.ToPx (s_kMarginDip);
+    int                        copyW  = scaler.ToPx (s_kCopySectorDip);
+    int                        disks  = m_comparison.IsComparing() ? kDiskTabCount : kDiskTabCount - 1;
+    int                        trackW = 0;
+    int                        diskW  = 0;
+    int                        x      = area.left;
+    int                        y      = area.top;
+    bool                       isOne  = false;
+    vector<DxuiTabStrip::Tab>  tabs;
+
+
+
+    for (LPCWSTR label : kpszTrackTabs)
+    {
+        trackW += GetLabelWidthPx (label, s_kTabLabelPadDip, scaler);
+    }
+
+    for (int i = 0; i < disks; i++)
+    {
+        diskW += GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
+    }
+
+    isOne = trackW + 2 * margin + diskW <= area.right - area.left - copyW - margin;
+
+    for (LPCWSTR label : kpszTrackTabs)
+    {
+        int  w = GetLabelWidthPx (label, s_kTabLabelPadDip, scaler);
+
+        tabs.push_back ({ { x, y, x + w, y + tabsH }, label });
+        x += w;
+    }
+
+    x  = isOne ? x + 2 * margin : area.left;
+    y += isOne ? 0 : tabsH;
+
+    for (int i = 0; i < disks; i++)
+    {
+        int  w = GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
+
+        tabs.push_back ({ { x, y, x + w, y + tabsH }, kpszDiskTabs[i] });
+        x += w;
+    }
+
+    m_tabs->SetTabs     (std::move (tabs));
+    m_tabs->SetSelected (m_isDiskGroup ? kTrackTabCount + m_diskTab : m_trackTab);
+    m_tabs->Layout      ({ area.left, area.top, area.right - copyW - margin, y + tabsH }, scaler);
+    m_copySector->Layout ({ area.right - copyW, area.top + margin / 4, area.right, area.top + tabsH - margin / 4 }, scaler);
+
+    return y + tabsH + margin / 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetLabelWidthPx
+//
+//  A control's width for its label at the window's text size, estimated
+//  from the label's length, plus the room the control needs around it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetLabelWidthPx (LPCWSTR label, int padDip, const DxuiDpiScaler & scaler)
+{
+    return scaler.ToPx (static_cast<int> (std::ceil (wcslen (label) * s_kCharWidthDip)) + padDip);
 }
 
 
@@ -1214,7 +1313,7 @@ void DiskInspectorWindow::UpdateControls()
         m_exportButton->SetVisible (m_context.hasDisk);
         m_goToButton->SetVisible   (m_context.hasDisk);
         m_findButton->SetVisible   (m_context.hasDisk);
-        m_copySector->SetVisible   (m_context.hasDisk && m_trackTab == kTabSectorData);
+        m_copySector->SetVisible   (m_context.hasDisk && !m_isDiskGroup && m_trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
         m_compareButton->SetVisible   (m_context.hasDisk || m_comparison.IsComparing());
         m_followCheck->SetVisible     (IsHeadShown());
@@ -1233,8 +1332,9 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
-        m_hintLabel->SetVisible (m_context.hasDisk && m_diskTab != kTabFileMap);
-        m_legend->SetVisible    (m_diskTab != kTabFileMap);
+        m_hintLabel->SetVisible    (m_context.hasDisk && m_isHintShown);
+        m_legend->SetVisible       (false);
+        m_legendButton->SetVisible (m_context.hasDisk);
         SyncFileMapSelection();
         m_stripOut->SetVisible     (m_context.hasDisk);
         m_stripIn->SetVisible      (m_context.hasDisk);
@@ -1303,12 +1403,9 @@ void DiskInspectorWindow::OnSelection()
 
 void DiskInspectorWindow::ShowTrackTab (int tab)
 {
-    m_trackTab = tab;
-    m_byteView->SetVisible   (tab == kTabSectorData);
-    m_nibblesTab->SetVisible (tab == kTabNibbles);
-    m_fieldsTab->SetVisible  (tab == kTabFields);
-    m_fluxTab->SetVisible    (tab == kTabFluxTiming);
-    m_trackTabs->SetSelected (tab);
+    m_trackTab    = tab;
+    m_isDiskGroup = false;
+    ShowTabContent();
 }
 
 
@@ -1453,19 +1550,45 @@ bool DiskInspectorWindow::IsInside (const RECT & rect, POINT pointPx)
 
 void DiskInspectorWindow::ShowDiskTab (int tab)
 {
-    m_diskTab = tab;
-    m_tracksTab->SetVisible   (tab == kTabTracks);
-    m_findingsTab->SetVisible (tab == kTabFindings);
-    m_imageTab->SetVisible    (tab == kTabImage);
-    m_diffsTab->SetVisible    (tab == kTabDifferences);
-    ShowFileMap (tab == kTabFileMap);
+    m_diskTab     = tab;
+    m_isDiskGroup = true;
+    ShowTabContent();
 
     if (m_scaler.GetDpi() != 0)
     {
         Layout (m_boundsDip, m_scaler);
     }
+}
 
-    m_diskTabs->SetSelected   (tab);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowTabContent
+//
+//  The track tabs and the disk tabs share one strip and one content area:
+//  only the chosen tab of the group chosen last has its content shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowTabContent()
+{
+    bool  isTrack = !m_isDiskGroup;
+
+
+
+    m_byteView->SetVisible    (isTrack && m_trackTab == kTabSectorData);
+    m_nibblesTab->SetVisible  (isTrack && m_trackTab == kTabNibbles);
+    m_fieldsTab->SetVisible   (isTrack && m_trackTab == kTabFields);
+    m_fluxTab->SetVisible     (isTrack && m_trackTab == kTabFluxTiming);
+    m_tracksTab->SetVisible   (!isTrack && m_diskTab == kTabTracks);
+    m_findingsTab->SetVisible (!isTrack && m_diskTab == kTabFindings);
+    m_imageTab->SetVisible    (!isTrack && m_diskTab == kTabImage);
+    m_diffsTab->SetVisible    (!isTrack && m_diskTab == kTabDifferences);
+    ShowFileMap (!isTrack && m_diskTab == kTabFileMap);
+    m_tabs->SetSelected (isTrack ? m_trackTab : kTrackTabCount + m_diskTab);
 }
 
 
@@ -2421,7 +2544,7 @@ void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer 
 
 
 
-    for (const RECT & area : { m_platterAreaPx, m_trackAreaPx, m_diskTab == kTabImage ? empty : m_diskContentPx })
+    for (const RECT & area : { m_platterAreaPx, m_trackAreaPx, m_stripAreaPx, IsImageShown() ? empty : m_diskContentPx })
     {
         if (!IsRectEmpty (&area))
         {
@@ -2446,7 +2569,23 @@ void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer 
 
 bool DiskInspectorWindow::IsCovered (POINT pointPx) const
 {
-    return m_is35 && (IsInside (m_platterAreaPx, pointPx) || IsInside (m_trackAreaPx, pointPx) || (m_diskTab != kTabImage && IsInside (m_diskContentPx, pointPx)));
+    return m_is35 && (IsInside (m_platterAreaPx, pointPx) || IsInside (m_trackAreaPx, pointPx) || IsInside (m_stripAreaPx, pointPx) ||
+                      (!IsImageShown() && IsInside (m_diskContentPx, pointPx)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsImageShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsImageShown() const
+{
+    return m_isDiskGroup && m_diskTab == kTabImage;
 }
 
 
@@ -2583,7 +2722,7 @@ void DiskInspectorWindow::RefreshFileList()
 
     m_context.fileMap      = map;
     m_context.selectedFile = m_mapFile;
-    ShowFileMap (m_diskTab == kTabFileMap);
+    ShowFileMap (m_isDiskGroup && m_diskTab == kTabFileMap);
 }
 
 

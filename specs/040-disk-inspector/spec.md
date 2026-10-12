@@ -1609,7 +1609,7 @@ legend, and tilt the platter and back.
   for tables", "Save decode settings..." and "Load decode settings..." (FR-125
   to FR-127) and a switch for each custom track format decoder (FR-141), and
   "Compare with..." a choice of quarter tracks of the window's disk (FR-145).
-  The window MUST open at 980×660 and not shrink below 640×460, both scaled
+  The window MUST open at 1200×800 and not shrink below 640×460, both scaled
   for the display, and the platter MUST stay square.
 
 **Analysis**
