@@ -1040,6 +1040,18 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.location  = Location::MakeHostFolder (JoinPath (path, entry.name));
             node.canExpand = HasTreeChildren (JoinPath (path, entry.name));
 
+            //  Only a read-only or system folder's desktop.ini is honored, so
+            //  no other folder costs a read.
+            if ((entry.isReadOnly || entry.isSystem) && m_localizedName)
+            {
+                std::wstring  localized = m_localizedName (JoinPath (path, entry.name));
+
+                if (!localized.empty())
+                {
+                    node.label = localized;
+                }
+            }
+
             folders.push_back (node);
         }
         else if (IsSupportedImage (entry.name))

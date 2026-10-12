@@ -65,6 +65,9 @@ class TreeModel
 public:
     using DirectoryProbe = std::function<bool (const std::wstring & path)>;
 
+    //  A folder's localized name from its desktop.ini, or empty for none.
+    using LocalizedNameLookup = std::function<std::wstring (const std::wstring & path)>;
+
     explicit TreeModel (IFileSystem & fs);
 
     void  SetKnownFolders   (std::vector<std::wstring> folders);
@@ -72,6 +75,7 @@ public:
     void  SetDrives         (std::vector<std::wstring> driveRoots);
     void  SetDirectoryProbe (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool  IsDirectory       (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
+    void  SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
 
     //  Which hidden folders and images are listed. A change applies to the
     //  folders listed after it; the caller invalidates what is cached.
@@ -175,6 +179,7 @@ private:
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
     DirectoryProbe                                   m_directoryProbe;
+    LocalizedNameLookup                              m_localizedName;
     FolderOptions                                    m_folderOptions;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     int                                              m_fetchCount = 0;

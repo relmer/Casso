@@ -47,6 +47,10 @@ struct FileSystemEntry
     bool          isSystem     = false;
     bool          isCompressed = false;
     bool          isEncrypted  = false;
+
+    //  A folder marked read-only or system may have a desktop.ini with a
+    //  name to show in place of its own, as Explorer shows "Camera Roll".
+    bool          isReadOnly   = false;
 };
 
 

@@ -508,6 +508,7 @@ HRESULT Win32FileSystem::ListEntries (
         entry.isSystem     = (findData.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)     != 0;
         entry.isCompressed = (findData.dwFileAttributes & FILE_ATTRIBUTE_COMPRESSED) != 0;
         entry.isEncrypted  = (findData.dwFileAttributes & FILE_ATTRIBUTE_ENCRYPTED)  != 0;
+        entry.isReadOnly   = (findData.dwFileAttributes & FILE_ATTRIBUTE_READONLY)   != 0;
 
         outEntries.push_back (std::move (entry));
     }

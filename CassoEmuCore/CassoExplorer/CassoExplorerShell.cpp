@@ -325,6 +325,56 @@ void CassoExplorerShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::GetLocalizedFolderName
+//
+//  SHGetLocalizedName returns the module and string id the desktop.ini
+//  refers to; the string is loaded from that module as data, never run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::GetLocalizedFolderName (const std::wstring & path)
+{
+    HRESULT       hr                 = S_OK;
+    wchar_t       module[MAX_PATH]   = {};
+    wchar_t       expanded[MAX_PATH] = {};
+    wchar_t       text[MAX_PATH]     = {};
+    int           id                 = 0;
+    HMODULE       library            = nullptr;
+    int           length             = 0;
+    std::wstring  name;
+
+
+
+    hr = SHGetLocalizedName (path.c_str(), module, ARRAYSIZE (module), &id);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    BAIL_OUT_IF (ExpandEnvironmentStringsW (module, expanded, ARRAYSIZE (expanded)) == 0, S_OK);
+
+    library = LoadLibraryExW (expanded, nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
+    BAIL_OUT_IF (library == nullptr, S_OK);
+
+    length = LoadStringW (library, (UINT) id, text, ARRAYSIZE (text));
+
+    if (length > 0)
+    {
+        name.assign (text, (size_t) length);
+    }
+
+Error:
+    if (library != nullptr)
+    {
+        FreeLibrary (library);
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::GetDriveRoots
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +450,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     m_browser.GetTreeModel().SetKnownFolders (folders);
     m_browser.GetTreeModel().SetDrives (GetDriveRoots());
+    m_browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
     m_browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());
