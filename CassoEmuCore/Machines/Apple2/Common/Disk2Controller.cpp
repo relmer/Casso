@@ -171,6 +171,8 @@ void Disk2Controller::HandleSwitch (int offset)
                 m_motorSpindownCycles = kMotorSpindownCycles;
             }
 
+            UpdateEngineWriteMode();
+
             // Spec-006 FR-006: every $C0E8 strobe is a logical
             // "motor command off" event, including no-op strobes
             // (when the motor is already off or already spinning
@@ -206,6 +208,7 @@ void Disk2Controller::HandleSwitch (int offset)
                 m_motorSpindownCycles = 0;
                 m_motorOn = true;
                 m_engine[m_activeDrive].SetMotorOn (true);
+                UpdateEngineWriteMode();
 
                 if (edge)
                 {
@@ -266,11 +269,11 @@ void Disk2Controller::HandleSwitch (int offset)
             break;
         case 0xE:
             m_q7 = false;
-            m_engine[m_activeDrive].SetWriteMode (false);
+            UpdateEngineWriteMode();
             break;
         case 0xF:
             m_q7 = true;
-            m_engine[m_activeDrive].SetWriteMode (true);
+            UpdateEngineWriteMode();
             break;
         default:
             break;
@@ -501,7 +504,34 @@ void Disk2Controller::UpdateEngineSelection()
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
-    m_engine[m_activeDrive].SetWriteMode    (m_q7);
+    UpdateEngineWriteMode();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateEngineWriteMode
+//
+//  Whether the selected drive takes the cells the data latch shifts out: Q7
+//  high, and on the //c's IWM the motor commanded on as well. The IWM keeps
+//  the disk turning through the spin-down after $C0E8 but writes nothing to
+//  it then; with Q6 and Q7 high in that window it loads the mode register
+//  instead. A Disk II card keeps its drive enabled through the spin-down, so
+//  it writes there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::UpdateEngineWriteMode()
+{
+    bool  isMotorCommandedOn = m_motorOn && m_motorSpindownCycles == 0;
+    bool  isWriting          = m_q7 && (!m_iwmMode || isMotorCommandedOn);
+
+
+
+    m_engine[m_activeDrive].SetWriteMode (isWriting);
 }
 
 

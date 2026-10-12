@@ -29,6 +29,9 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- On the //c, writes to the IWM mode register while the disk motor was running
+  (even if only spinning down) caused 0 bits to be written at the head's
+  current position, causing disk corruption.
 - Infocom's 128K games, such as Border Zone, no longer hang on the //e and //c.
   In 80-column text mode, a program writing auxiliary memory at $2000-$3FFF
   wrote main memory instead.
