@@ -646,6 +646,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::DeletePermanently
+//
+//  No undo and no recycling, so Windows asks before deleting, as it does for
+//  File Explorer's Shift+Delete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::DeletePermanently (HWND owner, const std::vector<std::wstring> & ids)
+{
+    CenterDialogsOver        centered (owner);
+    HRESULT                  hr = S_OK;
+    ComPtr<IFileOperation>   operation;
+    ComPtr<IShellItemArray>  items;
+
+
+
+    hr = GetItemArray (ids, &items);
+    CHR (hr);
+
+    hr = CreateOperation (owner, &operation);
+    CHR (hr);
+
+    hr = operation->SetOperationFlags (FOF_NOCONFIRMMKDIR);
+    CHR (hr);
+
+    hr = operation->DeleteItems (items.Get());
+    CHR (hr);
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::RestoreRecycled
 //
 //  Each path's most recently deleted copy in the Recycle Bin, found by where
@@ -2465,7 +2506,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids)
+HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects)
 {
     HRESULT                  hr     = S_OK;
     ComPtr<IShellItemArray>  items;
@@ -2480,7 +2521,7 @@ HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids)
     hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
     CHR (hr);
 
-    hr = SHDoDragDrop (nullptr, data.Get(), nullptr, DROPEFFECT_COPY, &effect);
+    hr = SHDoDragDrop (nullptr, data.Get(), nullptr, allowedEffects, &effect);
     CHR (hr);
 
 Error:
@@ -2821,7 +2862,10 @@ Error:
 
 bool Win32ShellItemVerbs::ClipboardHasFiles() const
 {
-    return IsClipboardFormatAvailable (CF_HDROP) != FALSE;
+    //  Files copied from inside a zip come as the shell's item list alone,
+    //  with no file list; the shell's paste takes either.
+    return IsClipboardFormatAvailable (CF_HDROP) != FALSE
+        || IsClipboardFormatAvailable (RegisterClipboardFormatW (CFSTR_SHELLIDLIST)) != FALSE;
 }
 
 

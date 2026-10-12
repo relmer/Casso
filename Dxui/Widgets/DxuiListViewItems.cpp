@@ -3545,9 +3545,13 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 void DxuiListView::PaintSelectionBand (IDxuiPainter & painter, const Palette & pal, float x, float y) const
 {
-    RECT  band = GetSelectionBandPx();
+    RECT      band      = GetSelectionBandPx();
+    COLORREF  highlight = GetSysColor (COLOR_HIGHLIGHT);
+    uint32_t  rgb       = ((uint32_t) GetRValue (highlight) << 16) | ((uint32_t) GetGValue (highlight) << 8) | GetBValue (highlight);
 
 
+
+    UNREFERENCED_PARAMETER (pal);
 
     if (!m_bandActive)
     {
@@ -3556,10 +3560,12 @@ void DxuiListView::PaintSelectionBand (IDxuiPainter & painter, const Palette & p
 
     OffsetRect (&band, (int) x, (int) y);
 
+    //  Explorer's band is the system highlight, #0078D7 by default: a solid
+    //  edge over a fill of about a third, measured.
     painter.FillRect    ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
-                         (pal.bgSel & 0x00FFFFFFu) | 0x60000000u);
+                         s_kBandFillAlpha | rgb);
     painter.OutlineRect ((float) band.left, (float) band.top, (float) (band.right - band.left), (float) (band.bottom - band.top),
-                         1.0f, pal.edgeSel != 0 ? pal.edgeSel : pal.fg);
+                         1.0f, 0xFF000000u | rgb);
 }
 
 

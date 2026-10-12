@@ -272,6 +272,7 @@ public:
     bool     AdvanceReveal (int64_t nowMs);
     void     ApplyReveal    (float t);
     void     StartCompositorSlide (int fullW, int fullH);
+    void  SetSlideCloaked (bool cloaked);
     void     SetSlide      (float offsetY, const D2D1_RECT_F * clip);
     static constexpr float  kSlideFraction = 0.5f;
 
@@ -442,6 +443,7 @@ private:
     bool        m_revealFade         = false;
     bool        m_revealOut          = false;
     bool        m_revealUpward       = false;
+    bool        m_slideCloaked       = false;   // hidden from DWM until the slide's first frame has landed
     int         m_revealDurationMs   = 0;
     int64_t     m_revealStartMs      = 0;
     float       m_revealAlpha        = 1.0f;

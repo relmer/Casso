@@ -232,6 +232,15 @@ STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 {
     UNREFERENCED_PARAMETER (effect);
 
+    //  While the shell's drag window is up, it draws the drop's icon and words
+    //  itself, as under File Explorer's drags; OLE's own cursors would cover
+    //  them, so the pointer is a plain arrow.
+    if (GetStoredDword (L"IsShowingLayered", 0) != 0)
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_ARROW));
+        return S_OK;
+    }
+
     return DRAGDROP_S_USEDEFAULTCURSORS;
 }
 

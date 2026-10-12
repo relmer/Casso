@@ -543,6 +543,7 @@ void DxuiPopupHost::Close (int resultCode)
             ReleaseCapture();
         }
 
+        SetSlideCloaked (false);
         ShowWindow (m_hwnd, SW_HIDE);
 
         //  A submenu took the mouse from the menu it opened from; closing hands
@@ -1940,6 +1941,8 @@ void DxuiPopupHost::ApplyReveal (float t)
     // row above the one under the cursor.
     if (t >= 1.0f && !m_revealOut)
     {
+        SetSlideCloaked (false);
+
         SetWindowPos (m_hwnd, nullptr,
                       m_windowRectScreenPx.left,
                       m_windowRectScreenPx.top,
@@ -1957,11 +1960,21 @@ void DxuiPopupHost::ApplyReveal (float t)
     // and the clip that hides it above the card are animations the compositor
     // plays at the display's own rate. Stepping the window from a timer, as
     // the upward case still does, moves in visible jumps.
+    //
+    //  THE FIRST FRAME IS CLOAKED. The compositor applies the slide's starting
+    //  offset and clip on its own commit, after the window is shown, so for a
+    //  frame DWM drew the visual as it last stood: the menu fully open. The
+    //  window stays cloaked until the next tick, by when they have landed.
     if (!m_revealUpward && m_comp)
     {
         if (t <= 0.0f)
         {
             StartCompositorSlide (fullW, fullH);
+            SetSlideCloaked (true);
+        }
+        else
+        {
+            SetSlideCloaked (false);
         }
 
         return;
@@ -2090,6 +2103,34 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSlideCloaked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::SetSlideCloaked (bool cloaked)
+{
+    BOOL     value = cloaked ? TRUE : FALSE;
+    HRESULT  hr    = S_OK;
+
+
+
+    if (m_slideCloaked == cloaked || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    hr = DwmSetWindowAttribute (m_hwnd, DWMWA_CLOAK, &value, sizeof (value));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_slideCloaked = cloaked;
 }
 
 

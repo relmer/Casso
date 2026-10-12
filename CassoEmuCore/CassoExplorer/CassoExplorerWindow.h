@@ -674,7 +674,9 @@ private:
     void  ReloadKnownFoldersIfChanged ();
     void  RefreshQuickAccessIfChanged ();
     bool  IsShellDropFile     (int row, std::wstring & outPath) const;
-    void  RunProgramWith      (const std::wstring & program, IDataObject * data);
+    bool  TryGetSelectedShellIds  (std::vector<std::wstring> & outIds) const;
+    void  DeleteSelectionPermanently ();
+
     static bool  IsProgramPath (const std::wstring & path);
     static bool  IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
 

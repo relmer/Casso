@@ -155,10 +155,14 @@ public:
     //  zip: an item that is both a folder and a stream.
     virtual bool     IsArchive (const std::wstring & path)                                           { (void) path; return false; }
 
+    //  Deletes items for good, not to the Recycle Bin, after Windows' own
+    //  confirmation, as Shift+Delete does in File Explorer; nothing to undo.
+    virtual HRESULT  DeletePermanently (HWND owner, const std::vector<std::wstring> & ids)          { (void) owner; (void) ids; return E_NOTIMPL; }
+
     //  Drags items out through the shell's own data object, for items with no
     //  file of their own, such as files inside a zip, which the shell extracts
     //  where they are dropped.
-    virtual HRESULT  DragItems (const std::vector<std::wstring> & ids)                               { (void) ids; return E_NOTIMPL; }
+    virtual HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects)         { (void) ids; (void) allowedEffects; return E_NOTIMPL; }
 
     //  Up to `maxBytes` of an item the shell lists, read through its stream,
     //  for one with no file on a disk, such as a file inside a zip.

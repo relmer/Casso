@@ -3292,7 +3292,17 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.vk == VK_DELETE && m_focus == Pane::List && !m_browser.GetSelectedRows().empty())
     {
-        RunVerb (CassoExplorerActions::Verb::Delete);
+        //  Shift+Delete deletes for good, as in File Explorer; inside a disk
+        //  image every deletion is for good and asks first already.
+        if (ev.shift && !m_browser.IsImageLocation())
+        {
+            DeleteSelectionPermanently();
+        }
+        else
+        {
+            RunVerb (CassoExplorerActions::Verb::Delete);
+        }
+
         return true;
     }
 
@@ -3846,7 +3856,7 @@ bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT po
 
         if (!ids.empty())
         {
-            hr = m_shellVerbs.DragItems (ids);
+            hr = m_shellVerbs.DragItems (ids, DROPEFFECT_COPY);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
@@ -3864,8 +3874,8 @@ bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT po
 //
 //  CassoExplorerWindow::CopyArchiveSelection
 //
-//  The clipboard's data is rendered at once: an archive's files are the
-//  archive folder's to give, and that folder is gone once the list moves on.
+//  The shell's data object goes on the clipboard, which keeps the archive's
+//  folder open for a paste after the list has moved on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3882,9 +3892,6 @@ void CassoExplorerWindow::CopyArchiveSelection()
     }
 
     hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), ids, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = OleFlushClipboard();
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -3937,10 +3944,6 @@ void CassoExplorerWindow::ShowArchiveContextMenu (int x, int y)
     {
         HRESULT  hr = m_shellVerbs.ShowShellMenu (GetHwnd(), GetSelectedArchiveIds(), screen);
 
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        //  A Copy or Cut picked there is rendered now, for the same reason.
-        hr = OleFlushClipboard();
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
     m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
@@ -6037,6 +6040,81 @@ bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::DeleteSelectionPermanently
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::DeleteSelectionPermanently()
+{
+    std::vector<std::wstring>  ids;
+    HRESULT                    hr = S_OK;
+
+
+
+    if (!TryGetSelectedShellIds (ids))
+    {
+        return;
+    }
+
+    hr = m_shellVerbs.DeletePermanently (GetHwnd(), ids);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TryGetSelectedShellIds
+//
+//  The selection by the shell's names for it, when every selected row is a
+//  host file or an item the shell lists; false when any is inside a disk
+//  image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const
+{
+    const std::vector<CatalogRow> &  rows = m_browser.GetRows();
+
+
+
+    outIds.clear();
+
+    if (m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        m_browser.GetSelectedHostPaths (outIds);
+        return !outIds.empty();
+    }
+
+    if (m_browser.GetLocation().kind != Location::Kind::ShellFolder)
+    {
+        return false;
+    }
+
+    for (int row : m_browser.GetSelectedRows())
+    {
+        if (row < 0 || (size_t) row >= rows.size() || !rows[(size_t) row].imagePath.empty())
+        {
+            outIds.clear();
+            return false;
+        }
+
+        outIds.push_back (rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].shellId : rows[(size_t) row].hostPath);
+    }
+
+    return !outIds.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::IsShellDropFile
 //
 //  A file in the list that the shell's own drop target handles: an archive,
@@ -6086,64 +6164,6 @@ bool CassoExplorerWindow::IsProgramPath (const std::wstring & path)
 
     return std::any_of (std::begin (kProgramExtensions), std::end (kProgramExtensions),
                         [&extension] (const wchar_t * known) { return _wcsicmp (extension.c_str(), known) == 0; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::RunProgramWith
-//
-//  The program starts in its own folder with each dropped file's full path,
-//  quoted, as an argument.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::RunProgramWith (const std::wstring & program, IDataObject * data)
-{
-    FORMATETC     format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM     medium         = {};
-    HDROP         drop           = nullptr;
-    UINT          count          = 0;
-    UINT          index          = 0;
-    HRESULT       hr             = E_FAIL;
-    std::wstring  arguments;
-    std::wstring  folder         = CassoExplorerBrowser::GetParentFolder (program);
-    wchar_t       path[MAX_PATH] = {};
-
-
-
-    if (data != nullptr)
-    {
-        hr = data->GetData (&format, &medium);
-    }
-
-    if (FAILED (hr))
-    {
-        return;
-    }
-
-    drop  = (HDROP) GlobalLock (medium.hGlobal);
-    count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
-
-    for (index = 0; index < count; index++)
-    {
-        if (DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0)
-        {
-            arguments += (arguments.empty() ? L"\"" : L" \"") + std::wstring (path) + L"\"";
-        }
-    }
-
-    if (drop != nullptr)
-    {
-        GlobalUnlock (medium.hGlobal);
-    }
-
-    ReleaseStgMedium (&medium);
-
-    ShellExecuteW (GetHwnd(), nullptr, program.c_str(), arguments.c_str(), folder.c_str(), SW_SHOWNORMAL);
 }
 
 
@@ -6318,18 +6338,6 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
         return DROPEFFECT_NONE;
     }
 
-    //  A program runs with what is dropped on it, as Explorer's does.
-    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsProgramPath (hostFolder))
-    {
-        LeaveHostDrop();
-        ShowDropTarget (tag, screen, true);
-
-        hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_COPY, L"Open with %1",
-                                                     std::filesystem::path (hostFolder).filename().wstring().c_str());
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        return DROPEFFECT_COPY;
-    }
 
     if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder))
     {
@@ -6668,13 +6676,6 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         return;
     }
 
-    //  Onto a program: it runs with the dropped files' full paths.
-    if (TryGetHostDropFolder (tag, screen, hostFolder) && IsProgramPath (hostFolder))
-    {
-        RunProgramWith (hostFolder, data);
-        m_dropTarget.SetDropResult (DROPEFFECT_COPY);
-        return;
-    }
 
     //  Onto a host folder, the folder's own target does the drop.
     if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsSameFolder (hostFolder, m_hostDropFolder))
@@ -7522,11 +7523,15 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Delete:
             if (!m_browser.IsImageLocation())
             {
-                //  Windows asks, and the Recycle Bin keeps it.
-                m_browser.GetSelectedHostPaths (hostPaths);
-                hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+                //  Windows asks, and the Recycle Bin keeps it. An item the
+                //  shell lists, such as a file inside a zip, goes by the
+                //  shell's name for it.
+                if (TryGetSelectedShellIds (hostPaths))
+                {
+                    hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+                }
 
-                if (SUCCEEDED (hr) && !hostPaths.empty())
+                if (SUCCEEDED (hr) && !hostPaths.empty() && m_browser.GetLocation().kind == Location::Kind::HostFolder)
                 {
                     PushUndo (UndoStep { UndoStep::Kind::Recycle, Location(), hostPaths });
                 }
@@ -10914,6 +10919,7 @@ void CassoExplorerWindow::BeginDragOut()
     POINT                                    start   = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;
+    std::vector<std::wstring>                shellIds;
     bool                                     inImage = m_browser.IsImageLocation();
     std::string                              image   = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
     CassoExplorerActions::Outcome            outcome;
@@ -10924,6 +10930,20 @@ void CassoExplorerWindow::BeginDragOut()
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_list->OnMouse (release);
+
+    //  Files on the disk, and items the shell lists, drag as File Explorer's
+    //  do: the shell's own data object, with its thumbnails, its drop words,
+    //  and what each target does with it. Only an image's entries need the
+    //  formats built here.
+    if (TryGetSelectedShellIds (shellIds))
+    {
+        hr = m_shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        RefreshAfterHostChange();
+        Invalidate();
+        return;
+    }
 
     if (formats.empty())
     {

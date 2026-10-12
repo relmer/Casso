@@ -453,7 +453,8 @@ public:
     static constexpr int    s_kRowBoxEndInsetDip = 4;
 
     //  How opaque a ghosted icon is: Explorer's hidden items, measured.
-    static constexpr float  s_kGhostedIconAlpha = 0.5f;
+    static constexpr float     s_kGhostedIconAlpha = 0.5f;
+    static constexpr uint32_t  s_kBandFillAlpha    = 0x50000000u;   // the band's fill, about a third, as measured off Explorer
 
     //  Explorer's drive usage bar, measured: its size, its fill, track and
     //  edge, and the red it turns once the drive is nearly full.
