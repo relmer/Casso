@@ -7,6 +7,9 @@
 #include "Ui/DiskInspector/PlatterRenderer.h"
 
 
+class InspectorTip;
+
+
 
 
 
@@ -33,7 +36,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
-    bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const override;
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     PlatterRenderer &  GetRenderer ()       { return m_renderer; }
     PlatterHit         HitTest     (POINT pointPx) const;
@@ -65,6 +68,7 @@ private:
     static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
     void           DrawUpright    (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
                                    float textPx, uint32_t argb) const;
+    bool           BuildTip       (POINT pointPx, InspectorTip & outTip) const;
     bool           IsShowingValues (const PlatterPlacement & view, int quarterTrack) const;
     bool           IsShowingTicks  (const PlatterPlacement & view, int quarterTrack) const;
     const TrackAnalysis *  GetRingTrack (int quarterTrack) const;

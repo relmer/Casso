@@ -26,6 +26,13 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct DxuiTooltipSwatch
+{
+    int       line = 0;
+    uint32_t  argb = 0;
+};
+
+
 class DxuiTooltip : public IDxuiControl
 {
 public:
@@ -95,9 +102,9 @@ public:
     //  for as long as the pointer does.
     void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
 
-    //  A square of the given color beside one line of the tip, for a tip
-    //  that explains a color; a line of -1 shows none.
-    void  SetSwatch       (int line, uint32_t argb);
+    //  A square of a color beside each of the given lines, for a tip about
+    //  colors; with an empty list, no squares are drawn.
+    void  SetSwatches     (const std::vector<DxuiTooltipSwatch> & swatches);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -201,34 +208,33 @@ private:
     //
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
-    DxuiDpiScaler      m_scaler;
-    RECT               m_anchor            = {};
-    std::wstring       m_text;
-    std::wstring       m_pendingText;
-    RECT               m_pendingAnchor     = {};
-    int64_t            m_showAtMs          = 0;
-    int64_t            m_hideAtMs          = 0;
-    int                m_dwellOpenMs       = 500;
-    int                m_dwellCloseMs      = 100;
-    float              m_fontDip           = 12.0f;
-    bool               m_monospace         = false;
-    uint32_t           m_bgArgb            = 0xFF2D2D2D;
-    uint32_t           m_borderArgb        = 0xFF606060;
-    uint32_t           m_textArgb          = 0xFFE8EEF4;
-    int                m_viewportWPx       = 0;
-    int                m_viewportHPx       = 0;
-    bool               m_visible           = false;
-    bool               m_pending           = false;
-    bool               m_fadingOut         = false;
-    bool               m_isInstant         = false;
-    bool               m_hasLifetime       = true;
-    int                m_swatchLine        = -1;
-    uint32_t           m_swatchArgb        = 0;
-    bool               m_isSwatchChanged   = false;
-    float              m_lineHeightPx      = 0.0f;
-    DxuiHwndSource   * m_popupHost         = nullptr;
-    DxuiPopupHost    * m_activePopup       = nullptr;
-    PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
-    PointerLocator     m_pfnLocatePointer  = LocatePointer;
-    bool               m_isPointerTip      = true;
+    DxuiDpiScaler                     m_scaler;
+    RECT                              m_anchor            = {};
+    std::wstring                      m_text;
+    std::wstring                      m_pendingText;
+    RECT                              m_pendingAnchor     = {};
+    int64_t                           m_showAtMs          = 0;
+    int64_t                           m_hideAtMs          = 0;
+    int                               m_dwellOpenMs       = 500;
+    int                               m_dwellCloseMs      = 100;
+    float                             m_fontDip           = 12.0f;
+    bool                              m_monospace         = false;
+    uint32_t                          m_bgArgb            = 0xFF2D2D2D;
+    uint32_t                          m_borderArgb        = 0xFF606060;
+    uint32_t                          m_textArgb          = 0xFFE8EEF4;
+    int                               m_viewportWPx       = 0;
+    int                               m_viewportHPx       = 0;
+    bool                              m_visible           = false;
+    bool                              m_pending           = false;
+    bool                              m_fadingOut         = false;
+    bool                              m_isInstant         = false;
+    bool                              m_hasLifetime       = true;
+    std::vector<DxuiTooltipSwatch>    m_swatches;
+    bool                              m_isSwatchChanged   = false;
+    float                             m_lineHeightPx      = 0.0f;
+    DxuiHwndSource                  * m_popupHost         = nullptr;
+    DxuiPopupHost                   * m_activePopup       = nullptr;
+    PointerMeasurer                   m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator                    m_pfnLocatePointer  = LocatePointer;
+    bool                              m_isPointerTip      = true;
 };

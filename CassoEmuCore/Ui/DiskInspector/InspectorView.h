@@ -70,14 +70,12 @@ public:
         m_scaler = scaler;
     }
 
-    //  The color of what is under a point and the tooltip line that says
-    //  why, for a swatch beside that line; false when the tip explains no
-    //  color.
-    virtual bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+    //  A swatch beside each tooltip line about a color under a point; false
+    //  when the tip has no color lines.
+    virtual bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
     {
         (void) pointPx;
-        (void) outLine;
-        (void) outArgb;
+        (void) outSwatches;
         return false;
     }
 

@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/InspectorTip.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -861,14 +862,14 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
 
 bool PlatterView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
-    PlatterHit  hit     = HitTest (pointPx);
-    bool        hasTip  = m_context.hasDisk && !m_isPanning && hit.isOnDisk && m_context.analysis != nullptr;
+    InspectorTip  tip;
+    bool          hasTip = BuildTip (pointPx, tip);
 
 
 
     if (hasTip)
     {
-        outText     = InspectorText::FormatPlatterTooltip (*m_context.analysis, hit.quarterTrack, hit.turn, IsShowingValues (MakeView(), hit.quarterTrack));
+        outText     = tip.GetText();
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
@@ -881,47 +882,52 @@ bool PlatterView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outA
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterView::GetTooltipSwatch
-//
-//  The color of the cell under the pointer: what a damaged or empty ring
-//  shows, random bits, or the nibble's kind or timing.
+//  PlatterView::GetTooltipSwatches
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PlatterView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+bool PlatterView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
-    PlatterHit             hit     = HitTest (pointPx);
-    bool                   hasTip  = m_context.hasDisk && !m_isPanning && hit.isOnDisk && m_context.analysis != nullptr;
-    const TrackAnalysis *  track   = hasTip ? GetRingTrack (hit.quarterTrack) : nullptr;
-    uint32_t               cell    = 0;
-    int                    nibble  = -1;
+    InspectorTip  tip;
+    bool          hasTip = BuildTip (pointPx, tip);
 
 
 
     if (hasTip)
     {
-        outLine = InspectorText::GetPlatterColorLine (*m_context.analysis, hit.quarterTrack, hit.turn, m_context.isTimingMode);
-        outArgb = (m_context.analysis->entries[hit.quarterTrack].content == QuarterTrackContent::Damaged) ? m_context.palette.colors.damaged
-                                                                                                        : m_context.palette.colors.nothingRecorded;
+        outSwatches = tip.GetSwatches();
     }
 
-    if (track != nullptr && track->framed.cellCount > 0 && m_context.analysis->entries[hit.quarterTrack].content != QuarterTrackContent::Damaged)
-    {
-        cell   = PlatterGeometry::GetCellAtTurn (*track, hit.turn);
-        nibble = PlatterGeometry::GetNibbleAt (*track, cell);
+    return hasTip;
+}
 
-        if (cell < track->framed.isRandomCell.size() && track->framed.isRandomCell[cell] != 0)
-        {
-            outArgb = m_context.palette.GetKindColor (PlatterKind::RandomBits);
-        }
-        else if (m_context.isTimingMode && track->framed.isFlux && cell < track->framed.cellTicks.size())
-        {
-            outArgb = m_context.palette.GetTimingColor (track->framed.cellTicks[cell] / TrackAnalyzer::kNominalCellTicks - 1.0, m_context.timingRange);
-        }
-        else if (nibble >= 0)
-        {
-            outArgb = m_context.palette.GetNibbleColor (*track, nibble, false, m_context.timingRange);
-        }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::BuildTip
+//
+//  The tip for the cells one pixel covers at the pointer: a pixel's width
+//  along the ring there, as a fraction of a turn. None during a drag
+//  (FR-027).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::BuildTip (POINT pointPx, InspectorTip & outTip) const
+{
+    PlatterPlacement  view   = MakeView();
+    PlatterHit        hit    = HitTest (pointPx);
+    bool              hasTip = m_context.hasDisk && !m_isPanning && hit.isOnDisk && m_context.analysis != nullptr;
+    double            radius = std::hypot (pointPx.x + 0.5 - view.centerXPx, pointPx.y + 0.5 - view.centerYPx);
+
+
+
+    if (hasTip)
+    {
+        outTip = InspectorTip::BuildPlatterTip (m_context, hit.quarterTrack, hit.turn, 1.0 / (s_kTwoPi * std::max (radius, 1.0)),
+                                                IsShowingValues (view, hit.quarterTrack));
     }
 
     return hasTip;

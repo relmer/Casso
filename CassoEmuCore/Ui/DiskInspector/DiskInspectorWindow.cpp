@@ -1456,8 +1456,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     std::wstring                          tip;
     RECT                                  anchor = {};
     int64_t                               now    = static_cast<int64_t> (GetTickCount64());
-    int                                   line   = -1;
-    uint32_t                              argb   = 0;
+    vector<DxuiTooltipSwatch>             swatches;
     const std::array<InspectorView *, 7>  views  = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
 
 
@@ -1466,7 +1465,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     {
         if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
         {
-            line = view->GetTooltipSwatch (pointPx, line, argb) ? line : -1;
+            view->GetTooltipSwatches (pointPx, swatches);
         }
     }
 
@@ -1487,7 +1486,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     }
     else if (tip != m_tooltipText)
     {
-        m_tooltip.SetSwatch   (line, argb);
+        m_tooltip.SetSwatches (swatches);
         m_tooltip.RequestShow (anchor, tip, now);
     }
 

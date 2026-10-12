@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Ui/DiskInspector/ComparisonText.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/InspectorTip.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 
 
@@ -228,7 +229,7 @@ bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAn
 
     if (nibble >= 0)
     {
-        outText = InspectorText::FormatNibbleTooltip (*track, nibble);
+        outText = InspectorTip::BuildNibbleTip (m_context, *track, nibble, track->framed.nibbles[nibble].startCell, GetOwnCells (*track, nibble), false).GetText();
 
         //  A nibble that differs gives B's value (FR-121).
         if (m_context.nibbleDiffs != nullptr && trackB != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, nibble, nibbleB))
@@ -250,28 +251,46 @@ bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetTooltipSwatch
+//  NibblesTab::GetTooltipSwatches
 //
-//  The color of the bar under the nibble, beside the line giving its kind.
+//  The colors of the nibble's own cells, the cells its bar is drawn for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+bool NibblesTab::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     int                    nibble = (track != nullptr) ? HitTest (pointPx) : -1;
-    bool                   failed = false;
 
 
 
     if (nibble >= 0)
     {
-        failed  = nibble < static_cast<int> (track->isFailedChecksum.size()) && track->isFailedChecksum[nibble] != 0;
-        outLine = InspectorText::GetNibbleColorLine (*track, false);
-        outArgb = m_context.palette.GetKindColor (failed ? PlatterKind::FailedChecksum : PlatterCells::GetKindOf (track->nibbleKinds[nibble]));
+        outSwatches = InspectorTip::BuildNibbleTip (m_context, *track, nibble, track->framed.nibbles[nibble].startCell, GetOwnCells (*track, nibble), false).GetSwatches();
     }
 
     return nibble >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblesTab::GetOwnCells
+//
+//  A nibble's eight bits and any extra zero cells after them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t NibblesTab::GetOwnCells (const TrackAnalysis & track, int nibble)
+{
+    static constexpr uint32_t  kBitsCells = 8;
+
+
+
+    return kBitsCells + track.framed.nibbles[nibble].extraZeroCells;
 }
 
 

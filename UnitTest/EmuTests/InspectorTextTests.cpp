@@ -20,8 +20,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The words the views show, against the spec's quoted examples: the
 //  summary chips and when they hide (FR-018), the track header (FR-032), the
-//  sector row's tooltips and empty texts (FR-039), the Sector data header and
-//  its empty states (FR-040), and the platter tooltip (FR-027).
+//  sector row's tooltips and empty texts (FR-039), and the Sector data header
+//  and its empty states (FR-040).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,31 +188,5 @@ public:
         Assert::IsTrue   (InspectorText::FormatNoSectorData (damaged, nullptr).starts_with (L"This quarter track is damaged: its data lies outside the file"));
         Assert::AreEqual (std::wstring (L"No track"),                  InspectorText::FormatNoSectors (QuarterTrackEntry()));
         Assert::AreEqual (std::wstring (L"None in a standard format"), InspectorText::FormatNoSectors (empty));
-    }
-
-
-
-    TEST_METHOD (ThePlatterTooltipDescribesWhatIsUnderThePointer)
-    {
-        DiskAnalysis           analysis;
-        const TrackAnalysis *  track    = nullptr;
-        std::wstring           tip;
-        double                 turn     = 0;
-
-
-
-        AnalyzeDsk (analysis);
-        track = analysis.tracks[analysis.entries[68].slot].get();
-        turn  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[track->fields[track->sectors[3].dataField].bodyNibble + 20].startCell);
-        tip   = InspectorText::FormatPlatterTooltip (analysis, 68, turn, false);
-
-        Assert::IsTrue (tip.starts_with (L"Track 17\nData field \x00B7 Sector $3\n16 of 16 sectors good"), tip.c_str());
-        Assert::IsTrue (tip.find (L"Nibble") == std::wstring::npos, L"no nibble line before nibble values show");
-
-        tip = InspectorText::FormatPlatterTooltip (analysis, 68, turn, true);
-        Assert::IsTrue (tip.find (L"\nNibble 96 at offset $") != std::wstring::npos && tip.find (L"cell ") != std::wstring::npos, tip.c_str());
-
-        tip = InspectorText::FormatPlatterTooltip (analysis, DiskImage::kQuarterTrackCount - 1, 0.5, false);
-        Assert::IsTrue (tip.find (L"Nothing recorded\nThe drive reads random bits here") != std::wstring::npos, tip.c_str());
     }
 };

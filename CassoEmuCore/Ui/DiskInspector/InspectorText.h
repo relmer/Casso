@@ -55,8 +55,8 @@ struct HeaderItem
 //
 //  The words the inspector's views show, kept out of the views so they can
 //  be tested: the summary chips (FR-018), the track header (FR-032), the
-//  sector row and its tooltips (FR-039), the Sector data header and its
-//  empty states (FR-040), and the platter's tooltip (FR-027).
+//  sector row and its tooltips (FR-039), and the Sector data header and its
+//  empty states (FR-040).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,14 +79,6 @@ public:
     static std::wstring         FormatNoSectorData  (const QuarterTrackEntry & entry, const TrackAnalysis * track);
 
     static std::wstring         FormatNibbleKind    (NibbleKind kind, bool isFailedChecksum);
-    static std::wstring         FormatPlatterTooltip (const DiskAnalysis & analysis, int quarterTrack, double turn, bool isShowingNibbles);
-    static std::wstring         FormatNibbleTooltip  (const TrackAnalysis & track, int nibble, int cell = -1);
-
-    //  Which line of each tooltip says why the thing under the pointer has
-    //  its color: the kind line, or in Timing mode on a flux track the cell
-    //  time line. For the swatch beside it.
-    static int                  GetNibbleColorLine   (const TrackAnalysis & track, bool isTimingMode);
-    static int                  GetPlatterColorLine  (const DiskAnalysis & analysis, int quarterTrack, double turn, bool isTimingMode);
     static std::wstring         FormatStripReadout   (double span, uint32_t firstCell, uint32_t lastCell);
     static std::wstring         FormatSelection      (const TrackAnalysis & track, int firstNibble, int nibbleCount);
 };

@@ -6,6 +6,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/InspectorTip.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 
@@ -576,19 +577,14 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     RECT                   bar    = GetBarRect();
-    int                    nibble = -1;
+    InspectorTip           tip;
+    bool                   hasTip = BuildTip (pointPx, tip);
 
 
 
-    if (track != nullptr && !m_isPanning && PtInRect (&bar, pointPx))
+    if (hasTip)
     {
-        UpdateTurns (*track);
-        nibble = GetNibbleAtX (*track, static_cast<float> (pointPx.x));
-    }
-
-    if (nibble >= 0)
-    {
-        outText     = InspectorText::FormatNibbleTooltip (*track, nibble, GetCellAtX (*track, static_cast<float> (pointPx.x)));
+        outText     = tip.GetText();
         outAnchorPx = { pointPx.x, bar.top, pointPx.x + 1, bar.bottom };
     }
     else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && IsOverSeam (*track, static_cast<float> (pointPx.x)))
@@ -596,10 +592,10 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
         outText     = std::format (L"Longest sync run, {} nibbles at cell {}\nThe likely write seam", track->measurements.longestSync.count,
                                    InspectorFormat::FormatCount (track->measurements.longestSync.startCell));
         outAnchorPx = { pointPx.x, m_boundsDip.top, pointPx.x + 1, bar.top };
-        nibble      = 0;
+        hasTip      = true;
     }
 
-    return nibble >= 0;
+    return hasTip;
 }
 
 
@@ -608,19 +604,45 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TrackStripView::GetTooltipSwatch
-//
-//  The nibble's color beside the line that gives its kind, or its timing in
-//  Timing mode.
+//  TrackStripView::GetTooltipSwatches
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TrackStripView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const
+bool TrackStripView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    InspectorTip  tip;
+    bool          hasTip = BuildTip (pointPx, tip);
+
+
+
+    if (hasTip)
+    {
+        outSwatches = tip.GetSwatches();
+    }
+
+    return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::BuildTip
+//
+//  The tip for the nibble under the pointer, with the colors of the cells
+//  its pixel covers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::BuildTip (POINT pointPx, InspectorTip & outTip) const
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     RECT                   bar    = GetBarRect();
     int                    nibble = -1;
-    int                    cell   = 0;
+    uint32_t               first  = 0;
+    uint32_t               next   = 0;
 
 
 
@@ -632,15 +654,10 @@ bool TrackStripView::GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & 
 
     if (nibble >= 0)
     {
-        cell    = GetCellAtX (*track, static_cast<float> (pointPx.x));
-        outLine = InspectorText::GetNibbleColorLine (*track, m_context.isTimingMode);
-        outArgb = m_context.palette.GetNibbleColor (*track, nibble, m_context.isTimingMode, m_context.timingRange);
-
-        //  The strip paints random bits over the nibble they follow.
-        if (cell < static_cast<int> (track->framed.isRandomCell.size()) && track->framed.isRandomCell[cell] != 0)
-        {
-            outArgb = m_context.palette.GetKindColor (PlatterKind::RandomBits);
-        }
+        first  = static_cast<uint32_t> (GetCellAtX (*track, static_cast<float> (pointPx.x)));
+        next   = static_cast<uint32_t> (GetCellAtX (*track, static_cast<float> (pointPx.x + 1)));
+        outTip = InspectorTip::BuildNibbleTip (m_context, *track, nibble, first, (next + track->framed.cellCount - first) % track->framed.cellCount,
+                                               m_context.isTimingMode);
     }
 
     return nibble >= 0;

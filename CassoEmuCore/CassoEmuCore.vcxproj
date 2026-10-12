@@ -505,6 +505,7 @@
     <ClCompile Include="Ui\DiskInspector\InspectorTables.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTableView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorText.cpp" />
+    <ClCompile Include="Ui\DiskInspector\InspectorTip.cpp" />
     <ClCompile Include="Ui\DiskInspector\NibblesTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterView.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorByteView.cpp" />
@@ -972,6 +973,7 @@
     <ClInclude Include="Ui\DiskInspector\InspectorTables.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTableView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorText.h" />
+    <ClInclude Include="Ui\DiskInspector\InspectorTip.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorView.h" />
     <ClInclude Include="Ui\DiskInspector\NibblesTab.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterView.h" />

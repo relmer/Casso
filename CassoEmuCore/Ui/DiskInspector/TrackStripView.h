@@ -6,6 +6,9 @@
 #include "Ui/DiskInspector/StripGeometry.h"
 
 
+class InspectorTip;
+
+
 
 
 
@@ -34,7 +37,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
-    bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const override;
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void          ZoomAboutCenter (double factor);
     void          PanBy           (double fractionOfView);
@@ -56,6 +59,7 @@ private:
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
     bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
+    bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;
     float          GetCellPx       (const TrackAnalysis & track) const;
     static bool    IsTimed         (const TrackAnalysis & track);
     void           UpdateTurns  (const TrackAnalysis & track) const;

@@ -35,7 +35,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
-    bool  GetTooltipSwatch (POINT pointPx, int & outLine, uint32_t & outArgb) const override;
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     //  Scrolls so the given nibble's row is about a third of the way down.
     void  ScrollTo (int nibble);
@@ -50,6 +50,7 @@ private:
     bool  IsInSelection (const TrackAnalysis & track, int nibble) const;
     bool  IsInRange     (int nibble) const;
     static bool  IsOutsideTable (const TrackAnalysis & track, int nibble);
+    static uint32_t  GetOwnCells (const TrackAnalysis & track, int nibble);
 
     int   m_firstRow   = 0;
     bool  m_isDragging = false;

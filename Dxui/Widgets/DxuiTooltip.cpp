@@ -657,7 +657,7 @@ void DxuiTooltip::UpdatePopup()
 //  the swap chain, so the balloon is created at the right size rather than
 //  resized after appearing. When that renderer is unavailable -- test mode has
 //  no device -- it falls back to a glyph-count estimate, so placement logic
-//  stays testable without a GPU. A swatch takes a column of its own before
+//  stays testable without a GPU. Swatches take a column of their own before
 //  the text.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -742,7 +742,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
 
 float DxuiTooltip::GetSwatchColumnPx() const
 {
-    return (m_swatchLine >= 0) ? m_scaler.ToPxf (m_fontDip * s_kSwatchEm + s_kSwatchGapDip) : 0.0f;
+    return m_swatches.empty() ? 0.0f : m_scaler.ToPxf (m_fontDip * s_kSwatchEm + s_kSwatchGapDip);
 }
 
 
@@ -769,19 +769,24 @@ int64_t DxuiTooltip::GetHideAtMs (int64_t nowMs) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetSwatch
+//  SetSwatches
 //
-//  A square of the given color beside one line of the tip, for a tip that
-//  explains a color; a line of -1 shows none. Takes effect with the next
-//  show or change.
+//  A square of a color beside each of the given lines, for a tip about
+//  colors; with an empty list, no squares are drawn. Applies from the next
+//  RequestShow or RequestShowNow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::SetSwatch (int line, uint32_t argb)
+void DxuiTooltip::SetSwatches (const std::vector<DxuiTooltipSwatch> & swatches)
 {
-    m_isSwatchChanged = m_isSwatchChanged || line != m_swatchLine || (line >= 0 && argb != m_swatchArgb);
-    m_swatchLine      = line;
-    m_swatchArgb      = argb;
+    bool  isSame = swatches.size() == m_swatches.size() &&
+                   std::equal (swatches.begin(), swatches.end(), m_swatches.begin(),
+                               [] (const DxuiTooltipSwatch & a, const DxuiTooltipSwatch & b) { return a.line == b.line && a.argb == b.argb; });
+
+
+
+    m_isSwatchChanged = m_isSwatchChanged || !isSame;
+    m_swatches        = swatches;
 }
 
 
@@ -990,12 +995,12 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), borderPx, m_borderArgb);
 
-    //  A swatch beside its line, outlined so a color near the balloon's own
-    //  still shows.
-    if (m_swatchLine >= 0)
+    //  Each swatch beside its line, outlined so a color close to the
+    //  balloon's own is visible against it.
+    for (const DxuiTooltipSwatch & s : m_swatches)
     {
-        painter.FillRect    (padX, padY + m_swatchLine * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, m_swatchArgb);
-        painter.OutlineRect (padX, padY + m_swatchLine * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
+        painter.FillRect    (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, s.argb);
+        painter.OutlineRect (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
     }
 
     hr = text.DrawString (m_text.c_str(),
