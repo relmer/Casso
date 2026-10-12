@@ -89,7 +89,7 @@ void DxuiSelectableText::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     }
 
     m_face   = (font.face != nullptr) ? font.face : L"Segoe UI";
-    m_fontPx = m_scaler.ToPxf (font.sizeDip);
+    m_fontPx = m_scaler.ToPxf (m_fontDip > 0.0f ? m_fontDip : font.sizeDip);
 
     if (HasSelection())
     {

@@ -1128,7 +1128,7 @@ void CassoExplorerWindow::RecomputeLayout()
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
-        m_previewMessage->Layout (GetMessageRect (previewRect), m_scaler);
+        m_previewMessage->Layout (m_previewPrompt ? GetPromptRect (previewRect) : GetMessageRect (previewRect), m_scaler);
     }
     else
     {
@@ -1744,6 +1744,18 @@ void CassoExplorerWindow::FillPreview()
                                : (hostFile && !opened) ? FormatPreviewError (L"The file could not be read")
                                                        : FormatPreviewError (preview.message));
     m_previewMessage->SetVisible (visible && (error || blank));
+
+    //  Explorer's prompt is body text near the pane's top; an error is muted
+    //  and centered.
+    m_previewMessage->SetTextRole (blank ? DxuiTextRole::Body : DxuiTextRole::Muted);
+    m_previewMessage->SetFontDip  (blank ? kPromptFontDip : 0.0f);
+    m_previewMessage->SetAlign    (DxuiTextHAlign::Center, blank ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
+
+    if (blank != m_previewPrompt)
+    {
+        m_previewPrompt = blank;
+        RecomputeLayout();
+    }
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
     m_textView->SetVisible (visible && !picture && !error && !hex && !columns && !blank);
@@ -3617,6 +3629,29 @@ std::vector<std::wstring> CassoExplorerWindow::SplitLineNumber (const std::wstri
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetPromptRect
+//
+//  The Preview pane's prompt, below the pane's top by Explorer's margin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetPromptRect (const RECT & pane) const
+{
+    RECT  rect = GetMessageRect (pane);
+
+
+
+    rect.top = (std::min) (pane.top + m_scaler.ToPx (kPromptTopDip), pane.bottom);
+
+    return rect;
 }
 
 

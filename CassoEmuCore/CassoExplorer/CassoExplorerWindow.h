@@ -92,6 +92,8 @@ public:
 
     static constexpr const wchar_t *  kCassoNodeTip    = L"Folders Casso has opened disk images from, most recently used first";
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
+    static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
+    static constexpr int              kPromptTopDip    = 18;      // the prompt's top below the pane's, measured off Explorer
     static constexpr const wchar_t *  kMissingNodeTip  = L"This folder is on a removable drive which is not currently connected.";
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
@@ -635,6 +637,7 @@ private:
 
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
+    RECT  GetPromptRect  (const RECT & pane) const;
 
     //  Explorer's folder options read again; true when one changed.
     bool  ReadFolderOptions ();
@@ -804,6 +807,7 @@ private:
     //  What the preview toolbar holds: 0 for nothing, 1 for a listing's
     //  toggle, 2 for the hex view's commands.
     int                    m_previewBarMode  = 0;
+    bool                   m_previewPrompt   = false;   // the Preview pane shows its select-a-file prompt
     int                    m_previewBarFocus = 0;
 
     //  The last search, as typed and as the bytes it matches.

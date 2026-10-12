@@ -31,6 +31,7 @@ class DxuiSelectableText : public IDxuiControl
 public:
     void  SetText         (const std::wstring & text) { m_text = text; m_anchor = m_caret = 0; m_dragging = false; }
     void  SetTextRole     (DxuiTextRole role)         { m_role = role; }
+    void  SetFontDip      (float dip)                 { m_fontDip = dip; }   // 0: the theme's body size
     void  SetAlign        (DxuiTextHAlign h, DxuiTextVAlign v) { m_hAlign = h; m_vAlign = v; }
     void  SetTextRenderer (IDxuiTextRenderer * text)  { m_renderer = text; }
     void  SetOwnerWindow  (HWND hwnd)                 { m_hwnd = hwnd; }
@@ -73,4 +74,5 @@ private:
     //  against the layout drawn.
     std::wstring          m_face      = L"Segoe UI";
     float                 m_fontPx    = 0.0f;
+    float                 m_fontDip   = 0.0f;
 };
