@@ -476,7 +476,7 @@ InspectorViewModel::Point InspectorViewModel::GetDiskPoint (int quarterTrack, do
 PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx, double rotation) const
 {
     PlatterPlacement  view;
-    double            fit  = std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0;
+    double            fit  = std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
 
 
 

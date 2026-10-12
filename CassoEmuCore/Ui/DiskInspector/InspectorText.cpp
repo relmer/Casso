@@ -649,7 +649,7 @@ std::wstring InspectorText::FormatNibbleTooltip (const TrackAnalysis & track, in
 
     //  A nibble's own cells: its eight bits and any zero cells after them,
     //  the "+N" (or for a sync nibble, the width) the Nibbles tab shows.
-    text = std::format (L"{:02X} at offset {}\nCell {}, ", n.value, InspectorFormat::FormatHexOffset (nibble), InspectorFormat::FormatCount (n.startCell));
+    text = std::format (L"{:02X} at offset {}\nCell {}: ", n.value, InspectorFormat::FormatHexOffset (nibble), InspectorFormat::FormatCount (n.startCell));
     text += (n.extraZeroCells == 0) ? FormatCount (static_cast<int> (own), L"cell", L"cells")
                                     : std::format (L"{}: 8 bits and {}", FormatCount (static_cast<int> (own), L"cell", L"cells"),
                                                    FormatCount (n.extraZeroCells, L"extra zero cell", L"extra zero cells"));

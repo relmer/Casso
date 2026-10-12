@@ -105,7 +105,7 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
     if (m_hoverRing >= 0 && m_hoverRing != m_context.model->GetQuarterTrack())
     {
-        OutlineRing (painter, view, m_hoverRing, m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
+        OutlineRing (painter, view, m_hoverRing, m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
     }
 
     OutlineRing (painter, view, m_context.model->GetQuarterTrack(), m_scaler.ToPxf (s_kSelectOutlineDip), theme.Accent());

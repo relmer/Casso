@@ -43,8 +43,8 @@ struct LegendSection
 //  colors for its mode (in Structure mode a swatch per kind, the damaged
 //  hatch, the pending pattern and the beyond-reach dimming; in Timing mode
 //  fast, nominal and slow with the numeric scale, and a note that only flux
-//  tracks record timing), the file map's roles while the Files overlay is
-//  on, and the colors of the Sector data bytes.
+//  tracks record timing), and the file map's roles while the Files overlay
+//  is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,9 +61,9 @@ public:
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     //  The legend's height for the sections it has now, padding included.
-    int   GetHeightDip (const IDxuiTheme & theme) const;
+    int   GetHeightDip () const;
 
     static vector<LegendEntry>    BuildEntries  (const DiskInspectorPalette & palette, bool isTimingMode, double range);
     static std::wstring           GetNote       (bool isTimingMode);
-    static vector<LegendSection>  BuildSections (const InspectorViewContext & context, const IDxuiTheme & theme);
+    static vector<LegendSection>  BuildSections (const InspectorViewContext & context);
 };

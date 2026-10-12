@@ -234,7 +234,7 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
         row    = static_cast<int> (i) / kBytesPerRow;
         col    = static_cast<int> (i) % kBytesPerRow;
         rowTop = grid.top + row * grid.rowH;
-        color  = (bytes[i] == 0) ? theme.ForegroundMuted() : ((bytes[i] & s_kHighBit) ? theme.Accent() : theme.Foreground());
+        color  = (bytes[i] == 0) ? theme.ForegroundMuted() : theme.Foreground();
 
         //  A row that does not fit in the view is left out rather than drawn
         //  over what lies below it.

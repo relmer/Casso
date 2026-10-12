@@ -1609,7 +1609,7 @@ legend, and tilt the platter and back.
   for tables", "Save decode settings..." and "Load decode settings..." (FR-125
   to FR-127) and a switch for each custom track format decoder (FR-141), and
   "Compare with..." a choice of quarter tracks of the window's disk (FR-145).
-  The window MUST open at 1200×800 and not shrink below 640×460, both scaled
+  The window MUST open at 1200×800 and not shrink below 960×720, both scaled
   for the display, and the platter MUST stay square.
 
 **Analysis**
@@ -1792,9 +1792,8 @@ legend, and tilt the platter and back.
   damaged hatch, the pending pattern and the beyond-reach dimming; in Timing
   mode, "Fast cells", "Nominal 3.91µs" and "Slow cells" with the numeric
   scale and the note "Only flux tracks record timing; other tracks are
-  dimmed"; and in both, the colors of the Sector data bytes: zero bytes, and
-  bytes of $80 or more, which is how the Apple II stores normal text. The
-  legend MUST NOT take room from the platter.
+  dimmed"; and while the Files overlay is on, the color of each file map role.
+  The legend MUST NOT take room from the platter.
 - **FR-031**: The platter MUST have an "Alignment" overlay that marks each
   track's sector 0 address field and its longest sync run, so their angles
   can be compared across tracks. In Casso it MUST also have a "Reads" overlay
@@ -1872,7 +1871,7 @@ legend, and tilt the platter and back.
   volume, the CP/M sector and allocation block the physical sector holds
   (FR-085). Below the header it MUST show the 256 bytes as 16 rows of 16 with
   hex offsets and a text column (high bit masked, "." for anything not
-  printable), with zero bytes and bytes of $80 or more in their own colors.
+  printable), with zero bytes dimmed.
   Bad data MUST be shown and marked. With no sectors it MUST show "No standard
   sectors on this track. The Nibbles tab shows what is recorded on it." For an
   empty quarter track it MUST show "Nothing recorded on this quarter track.",

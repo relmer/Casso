@@ -120,11 +120,6 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
             w = parts[k].x1 - parts[k].x0;
             painter.FillRect (parts[k].x0, top, std::max (w, 1.0f), height, color);
 
-            if (w >= m_scaler.ToPxf (s_kDividerMinDip))
-            {
-                painter.FillRect (parts[k].x0, top, 1.0f, height, theme.Background());
-            }
-
             if (w >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
             {
 
@@ -173,6 +168,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     PaintFiles     (painter, theme, track, g);
+    PaintDividers  (painter, theme, g, top, height);
     PaintDiffs     (painter, track, g);
     PaintSelection (painter, theme, g);
     PaintSeam      (painter, text, theme, track, g);
@@ -999,6 +995,40 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::PaintDividers
+//
+//  A divider before each nibble wide enough to tell from its neighbors,
+//  drawn after the Files band so it runs the bar's full height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintDividers (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height)
+{
+    std::array<StripSegment, 2>  parts = {};
+    int                          count = 0;
+
+
+
+    for (size_t i = 0; i + 1 < m_turns.size(); i++)
+    {
+        count = g.GetSegments (m_turns[i], m_turns[i + 1] - m_turns[i], parts);
+
+        for (int k = 0; k < count; k++)
+        {
+            if (parts[k].x1 - parts[k].x0 >= m_scaler.ToPxf (s_kDividerMinDip))
+            {
+                painter.FillRect (parts[k].x0, top, 1.0f, height, theme.Background());
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::PaintFiles
 //
 //  With the "Files" overlay on a whole track of a mapped volume, each data
@@ -1043,6 +1073,9 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
         {
             painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - height * s_kFilesShare, parts[k].x1 - parts[k].x0, height * s_kFilesShare,
                               m_context.palette.GetRoleColor (static_cast<MapRole> (map->cells[cell].role)));
+
+            //  A dark line sets the band off from the nibbles above it.
+            painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - height * s_kFilesShare, parts[k].x1 - parts[k].x0, 1.0f, theme.Background());
 
             if (isMine)
             {

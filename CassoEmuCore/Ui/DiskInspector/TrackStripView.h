@@ -51,6 +51,7 @@ private:
     void           PaintFiles      (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
     void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
+    void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;

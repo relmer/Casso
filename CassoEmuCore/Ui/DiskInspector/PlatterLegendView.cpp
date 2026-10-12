@@ -38,7 +38,7 @@ void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
-    for (const LegendSection & section : BuildSections (m_context, theme))
+    for (const LegendSection & section : BuildSections (m_context))
     {
         text.DrawString (section.title.c_str(), left, y, GetWidth() - 2 * pad, rowH, theme.HeadingForeground(), textPx, DxuiTheme::kBodyFace,
                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
@@ -78,13 +78,13 @@ void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PlatterLegendView::GetHeightDip (const IDxuiTheme & theme) const
+int PlatterLegendView::GetHeightDip() const
 {
     int  rows = 0;
 
 
 
-    for (const LegendSection & section : BuildSections (m_context, theme))
+    for (const LegendSection & section : BuildSections (m_context))
     {
         rows += 2 + static_cast<int> ((section.entries.size() + kColumns - 1) / kColumns) * 2 + (section.note.empty() ? 0 : 2) + 1;
     }
@@ -100,12 +100,12 @@ int PlatterLegendView::GetHeightDip (const IDxuiTheme & theme) const
 //
 //  PlatterLegendView::BuildSections
 //
-//  The platter for its mode, the file map's roles while the Files overlay
-//  colors the platter, and the Sector data bytes, in that order.
+//  The platter for its mode, then the file map's roles while the Files
+//  overlay colors the platter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewContext & context, const IDxuiTheme & theme)
+vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewContext & context)
 {
     vector<LegendSection>  sections;
     LegendSection          files;
@@ -128,12 +128,6 @@ vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewConte
 
         sections.push_back (files);
     }
-
-    sections.push_back ({ L"Sector data bytes",
-                          { { theme.ForegroundMuted(), L"$00" },
-                            { theme.Foreground(),      L"$01 to $7F" },
-                            { theme.Accent(),          L"$80 to $FF" } },
-                          L"The Apple II stores ordinary text with the high bit set, so text reads as $80 and up" });
 
     return sections;
 }

@@ -78,6 +78,20 @@ static constexpr int      s_kCheckLabelPadDip = 30;
 static constexpr int      s_kTabLabelPadDip = 24;
 static constexpr int      s_kLegendButtonDip = 80;
 static constexpr int64_t  s_kLegendReopenMs = 300;
+
+//  The tab strip's tips, in its order: the track tabs, then the disk tabs.
+static constexpr LPCWSTR  s_kpszTabTips[] =
+{
+    L"The selected sector's 256 bytes, under the details of its address and data fields",
+    L"Every nibble on the track, as the disk controller reads them",
+    L"Every address field and data field on the track: its marks, sector and volume numbers, and checksum results",
+    L"How fast or slow each cell runs, on a track recorded as flux",
+    L"Every quarter track: what is recorded there and how well it reads",
+    L"Anything unusual or damaged on the disk",
+    L"Which file owns each sector of the disk's volume",
+    L"What the image file itself contains",
+    L"Everything that differs between disk A and disk B",
+};
 static constexpr double   s_kCharWidthDip   = 7.2;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
@@ -279,6 +293,14 @@ HRESULT DiskInspectorWindow::RenderFrame()
     RefreshTables();
 
     m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
+
+    //  The window's own context menu opens with an animation each frame
+    //  advances, as the main window's does.
+    if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
+    {
+        GetPopupHost()->GetContextMenu().Tick (static_cast<int64_t> (GetTickCount64()));
+    }
+
     m_tracksTab->Tick   (static_cast<int64_t> (GetTickCount64()));
     m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
     m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
@@ -2435,6 +2457,18 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         }
     }
 
+    //  Each tab says what its content is (FR-059).
+    if (tip.empty() && m_tabs->IsVisible() && IsInside (m_tabs->GetBounds(), pointPx))
+    {
+        int  index = m_tabs->HitTest (pointPx.x, pointPx.y);
+
+        if (index >= 0 && index < static_cast<int> (std::size (s_kpszTabTips)))
+        {
+            tip         = s_kpszTabTips[index];
+            outAnchorPx = m_tabs->GetTabs()[index].rect;
+        }
+    }
+
     if (tip.empty() && m_modeTabs->IsVisible() && IsInside (modes, pointPx))
     {
         tip         = (pointPx.x < (modes.left + modes.right) / 2) ? L"Color the platter by what each cell holds" : L"Color flux tracks by how fast or slow each cell runs";
@@ -3812,11 +3846,11 @@ void DiskInspectorWindow::ShowLegend (bool isPinned)
     params.flipIfOffscreen  = true;
     params.dismiss          = isPinned ? DxuiPopupDismiss::OnClickOutside : DxuiPopupDismiss::Manual;
     params.input            = isPinned ? DxuiPopupInput::Interactive : DxuiPopupInput::PassThrough;
-    params.sizeDip          = { PlatterLegendView::kWidthDip, m_legend->GetHeightDip (*m_theme) };
+    params.sizeDip          = { PlatterLegendView::kWidthDip, m_legend->GetHeightDip() };
     params.backgroundArgb   = m_theme->BackgroundElevated();
     params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text)
                               {
-                                  m_legend->Layout ({ 0, 0, m_scaler.ToPx (PlatterLegendView::kWidthDip), m_scaler.ToPx (m_legend->GetHeightDip (*m_theme)) }, m_scaler);
+                                  m_legend->Layout ({ 0, 0, m_scaler.ToPx (PlatterLegendView::kWidthDip), m_scaler.ToPx (m_legend->GetHeightDip()) }, m_scaler);
                                   m_legend->Paint  (painter, text, *m_theme);
                               };
     params.onClosed         = [this] ()

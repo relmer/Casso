@@ -31,6 +31,10 @@ public:
     static constexpr double  kViewMargin       = 0.1;
     static constexpr double  kDefaultStripSpan = 0.125;
 
+    //  The disk's edge sits this far inside the view, so the view's bounds
+    //  never clip it flat at the top, bottom and sides.
+    static constexpr double  kRimInsetPx       = 2.0;
+
     struct Point
     {
         double  x = 0.0;

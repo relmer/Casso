@@ -70,8 +70,8 @@ class DiskInspectorWindow : public DxuiWindow
 public:
     static constexpr int     kOpeningWidthDip  = 1200;
     static constexpr int     kOpeningHeightDip = 800;
-    static constexpr int     kMinWidthDip      = 640;
-    static constexpr int     kMinHeightDip     = 460;
+    static constexpr int     kMinWidthDip      = 960;
+    static constexpr int     kMinHeightDip     = 720;
     static constexpr double  kZoomStep         = 1.25;
 
     DiskInspectorWindow  ();
