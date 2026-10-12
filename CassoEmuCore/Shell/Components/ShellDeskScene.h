@@ -88,6 +88,10 @@ public:
     DxuiShadowedText  & GetViewReadout () { return m_sceneViewReadout; }
     DeskSceneView     & GetView        () { return m_sceneView; }
 
+    // The scene's chrome over the picture, added to the window's root panel,
+    // with the compass's handlers.
+    void  AdoptOverlays (DxuiPanel & root);
+
     // The fullscreen strip's hotkey: summons the strip on the next frame.
     void  RequestStripHotkey () { m_stripHotkeyPending = true; }
     // Settings > Theme antialiasing, in SAMPLES (1 / 2 / 4). Applies to the

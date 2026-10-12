@@ -12,6 +12,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -2353,4 +2354,277 @@ void ShellChrome::LayoutDriveBandSurface (bool isVisible, const RECT & bounds)
 {
     m_driveBandSurface.SetVisible (isVisible);
     m_driveBandSurface.SetBounds (bounds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AdoptMenuBar
+//
+//  The root panel registers raw pointers; the controls' lifetime is the
+//  chrome's. The title bar is not here: the host owns the caption strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AdoptMenuBar (DxuiPanel & root)
+{
+    root.Adopt (m_mainMenu);
+    root.Adopt (m_driveBandSurface);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AdoptFrameRateReadout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AdoptFrameRateReadout (DxuiPanel & root)
+{
+    root.Adopt (m_fpsReadout);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AdoptToolbar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AdoptToolbar (DxuiPanel & root)
+{
+    root.Adopt (m_toolbar);
+    root.Adopt (m_switchBar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AdoptBanners
+//
+//  The capture bar and the notices, after everything else, so they paint on
+//  top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AdoptBanners (DxuiPanel & root)
+{
+    //  The backing goes in FIRST: the root paints its children in the order
+    //  they were adopted, so the panel lands under the words rather than over
+    //  them.
+    m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
+    root.Adopt (m_standInBarSurface);
+    root.Adopt (m_standInBar);
+
+    //  FIXED WORDS, SET ONCE. The bar has the same text every time it is up,
+    //  and its band is measured from that text before the bar first appears,
+    //  so the text is set before the first capture.
+    m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+
+    //  CENTERED, because this bar spans the window rather than sitting in a
+    //  dialog: one short line against the leading edge of a wide strip looks
+    //  like something that failed to lay out.
+    m_standInBar.SetCentered (true);
+    m_standInBar.SetVisible  (false);
+
+    //  THE NOTICES, ADOPTED AFTER THE CAPTURE BAR so that when both are up
+    //  the notices are on top: they are the newer, and the older one is
+    //  readable in the strip above them.
+    root.Adopt (m_notices);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AttachPopupHost
+//
+//  The menu bar's open submenu renders through the host popup pool as a real
+//  top-level window, so it can extend past the client area; the strip stays in
+//  the window. The tooltips render through the pool too, with their dwell
+//  timers driven from the main frame loop's Tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AttachPopupHost (DxuiHwndSource & host)
+{
+    m_mainMenu.SetPopupHost (&host);
+
+    for (DxuiTooltip * tooltip : { &m_toolbarTooltip, &m_switchBarTooltip, &m_driveTooltip, &m_captionTooltip })
+    {
+        tooltip->SetPopupHost (&host);
+        tooltip->SetTheme     (m_chromeTheme);
+
+        // Visual Studio's frame, as the debugger's tips have: tighter corners,
+        // a border on whole pixels and a small shadow.
+        tooltip->ApplyVisualStudioLook();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::SetTextRendererForMeasure
+//
+//  The same text renderer UiShell paints with, so the controls follow the
+//  IDxuiControl::Layout contract without a renderer parameter on every Layout
+//  call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SetTextRendererForMeasure (IDxuiTextRenderer * text)
+{
+    m_mainMenu.SetTextRendererForMeasure (text);
+    m_switchBar.SetTextRenderer (text);
+    m_toolbar.SetTextRenderer (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::BuildToolbar
+//
+//  A toolbar click dispatches through the same command table as a menu row.
+//  The volume flyout drives the master output gain and saves the level in
+//  GlobalUserPrefs, deferred, since the slider reports every intermediate
+//  value and a save per report would rewrite the prefs file on each step of
+//  a drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::BuildToolbar (PrinterStatusLed & printerLed)
+{
+    GlobalUserPrefs &  prefs = m_shell.m_settings->GetPrefs();
+
+
+
+    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, printerLed, m_volumeFlyout);
+
+    m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
+    {
+        m_shell.m_settings->GetPrefs().masterVolume = volume01;
+        m_shell.m_settings->GetPrefs().masterMuted  = muted;
+        m_shell.m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
+        m_mainMenu.GetCommands().SetMuted (muted);
+        m_shell.m_settings->SaveGlobalPrefsDeferred();
+    });
+
+    m_volumeFlyout.SetVolume (prefs.masterVolume, prefs.masterMuted);
+    m_mainMenu.GetCommands().SetMuted (prefs.masterMuted);
+    m_shell.m_audio->GetOutput().SetMasterGain (prefs.masterMuted ? 0.0f : prefs.masterVolume);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::WireToolbarPickers
+//
+//  The command bar's theme and monitor-color pickers, wired to the same
+//  live-apply channels the Settings panel uses, so a pick has the same effect
+//  in either.
+//
+//  A HIGHLIGHT PREVIEWS: it activates the theme (or the color treatment)
+//  without writing anything down, because moving the pointer down a list is
+//  not a choice. The toolbar replays that same sink with the row the list
+//  opened on when the list is dismissed, which is what snaps the chrome and
+//  the picture back.
+//
+//  A PICK COMMITS, and only a pick writes the prefs file: the theme into
+//  GlobalUserPrefs, the color mode into the machine's UI prefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::WireToolbarPickers()
+{
+    m_toolbar.SetPopupHost (m_shell.m_host.get());
+
+    //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
+    //  closing the drop-down that was open. The drop-down has the mouse
+    //  capture, so the click goes to it and not to the title, and every other
+    //  application on the desktop moves from one menu to the next on it.
+    //
+    //  Only the titles. Anywhere else the click closes the picker and stops
+    //  there, which is what a menu does everywhere: dismissing is not a
+    //  reason to fire the button that happened to be underneath.
+    m_toolbar.SetDropDownClickOutsideFn (
+        [this] (POINT screenPx)
+        {
+            POINT  client = screenPx;
+
+            if (m_shell.m_hwnd == nullptr || !ScreenToClient (m_shell.m_hwnd, &client))
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_mainMenu.GetMenuCount(); i++)
+            {
+                RECT  title = m_mainMenu.GetMenuRect (i);
+
+                if (PtInRect (&title, client))
+                {
+                    m_mainMenu.Open (i, false);
+                    return;
+                }
+            }
+        });
+
+    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                hrTheme = m_shell.m_settings->ApplyThemeLive (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        },
+        [this] (int index)
+        {
+            HRESULT  hrTheme = S_OK;
+            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
+
+            if (inRange)
+            {
+                m_mainMenu.GetCommands().SetThemeIndex (index);
+                hrTheme = m_shell.m_settings->ApplyAndPersistTheme (m_toolbarThemeIds[index]);
+                IGNORE_RETURN_VALUE (hrTheme, S_OK);
+            }
+        });
+
+    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
+        [this] (int index)
+        {
+            m_shell.m_renderer->SetColorModeLive (index);
+        },
+        [this] (int index)
+        {
+            m_mainMenu.GetCommands().SetMonitorColorIndex  (index);
+            m_shell.m_renderer->SetColorModeLive           (index);
+            m_shell.m_settings->PersistColorModeForMachine (index);
+        });
 }

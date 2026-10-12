@@ -12,6 +12,7 @@
 
 class DriveWidget;
 class EmulatorShell;
+class PrinterStatusLed;
 
 
 
@@ -57,6 +58,30 @@ public:
 
     // Registers the chrome bands and the center with the dock layout, once.
     void  RegisterDock ();
+
+    // The chrome's controls, added to the window's root panel, which paints
+    // them in the order they were added. Split so the shell can add them in
+    // that order across components: the menu bar and the drive band's background
+    // under the drive row; the frame rate readout after it; the toolbar and
+    // the //c switch bar; and last the capture bar and the notices.
+    void  AdoptMenuBar          (DxuiPanel & root);
+    void  AdoptFrameRateReadout (DxuiPanel & root);
+    void  AdoptToolbar          (DxuiPanel & root);
+    void  AdoptBanners          (DxuiPanel & root);
+
+    // The host popup pool for the menu bar's drop-downs and the tooltips, and
+    // the tooltips' theme and Visual Studio frame.
+    void  AttachPopupHost (DxuiHwndSource & host);
+
+    // The text renderer the menu bar, the switch bar and the toolbar measure
+    // their labels with during Layout.
+    void  SetTextRendererForMeasure (IDxuiTextRenderer * text);
+
+    // The toolbar's entries from the command table the menu reads, the volume
+    // flyout's sink and starting level, and the theme and monitor color
+    // pickers.
+    void  BuildToolbar       (PrinterStatusLed & printerLed);
+    void  WireToolbarPickers ();
 
     // Hides the toolbar, drive and switch bar tooltips at once.
     void  HideTooltipsNow ();

@@ -4159,3 +4159,109 @@ SceneHitResult ShellDeskScene::StorageHit (int x, int y) const
 
     return hit;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::AdoptOverlays
+//
+//  The scene's chrome over the picture, added to the window's root panel: the
+//  pose readout, the drive labels and info icons, the strip's recorder labels,
+//  the compass and its hint. The compass's handlers are set here too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::AdoptOverlays (DxuiPanel & root)
+{
+    root.Adopt (m_sceneViewReadout);
+    root.Adopt (m_sceneDriveLabel[0]);
+    root.Adopt (m_sceneDriveLabel[1]);
+    root.Adopt (m_sceneDriveInfoIcon[0]);
+    root.Adopt (m_sceneDriveInfoIcon[1]);
+    root.Adopt (m_stripTapeLabel[0]);
+    root.Adopt (m_stripTapeLabel[1]);
+    root.Adopt (m_stripTapeLabel[2]);
+    root.Adopt (m_sceneCompass);
+    root.Adopt (m_compassHint);
+
+    // The compass's gestures. The CONTENT moves the way the arrow points, as
+    // in a drag, so the right arrow and a rightward drag turn the scene the
+    // same way. With Ctrl down the compass pans instead, as Ctrl does to a drag on the
+    // scene itself: an arrow click moves the scene a pan step its way, and a
+    // drag moves it with the pointer.
+    m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
+    {
+        float  step = s_kScenePanStep;
+
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            switch (part)
+            {
+                case DxuiOrbitControl::Part::Left:   PanSceneByCompass (-step, 0.0f); break;
+                case DxuiOrbitControl::Part::Right:  PanSceneByCompass ( step, 0.0f); break;
+                case DxuiOrbitControl::Part::Up:     PanSceneByCompass (0.0f, -step); break;
+                case DxuiOrbitControl::Part::Down:   PanSceneByCompass (0.0f,  step); break;
+                default: break;
+            }
+
+            return;
+        }
+
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:   OrbitSceneBy ( kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-kCompassStepYawRad,   0.0f); break;
+            case DxuiOrbitControl::Part::Up:     OrbitSceneBy (0.0f, -kCompassStepPitchRad); break;
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  kCompassStepPitchRad); break;
+            default: break;
+        }
+    });
+
+    m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
+    {
+        float  rate = OrbitRadPerPx();
+
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            const RECT &  vp = m_deskScene.Composition().viewportPx;
+
+            if (vp.right > vp.left && vp.bottom > vp.top)
+            {
+                PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
+                                            dyPx / (float) (vp.bottom - vp.top) * 2.0f);
+            }
+
+            return;
+        }
+
+        // Axis-locked to the arrow the drag started on: each arrow is one
+        // axis, and a free two-axis tumble from a single arrow would make
+        // the four of them meaningless.
+        switch (part)
+        {
+            case DxuiOrbitControl::Part::Left:
+            case DxuiOrbitControl::Part::Right:  OrbitSceneBy (-dxPx * rate, 0.0f); break;
+            case DxuiOrbitControl::Part::Up:
+            case DxuiOrbitControl::Part::Down:   OrbitSceneBy (0.0f,  dyPx * rate); break;
+            default: break;
+        }
+    });
+
+    // Ctrl+click on the center is Ctrl+0: the whole view reset, zoom and
+    // window size included, with the window's placement saved.
+    m_sceneCompass.SetOnHome ([this] ()
+    {
+        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        {
+            PostMessage (m_shell.m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
+            return;
+        }
+
+        m_sceneView.orbitYawRad   = 0.0f;
+        m_sceneView.orbitPitchRad = 0.0f;
+        InvalidateSceneComposition();
+    });
+}

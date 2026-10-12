@@ -954,7 +954,7 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // host panel tree; UiShell only routes input, hit-tests, and
     // supplies the theme / viewport metrics the settings panel reads.
     m_uiShell.SetMainMenu (&m_chrome->GetMainMenu());
-    m_uiShell.SetTheme    (&m_chrome->m_chromeTheme);
+    m_uiShell.SetTheme    (&m_chrome->GetTheme());
 
     // Inject the shared text renderer into chrome controls that
     // need to measure label strings during Layout. Mirrors the
@@ -962,9 +962,7 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     // controls participate in the standard IDxuiControl::Layout
     // contract without needing the renderer passed as a Layout
     // parameter on every call.
-    m_chrome->GetMainMenu().SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
-    m_chrome->m_switchBar.SetTextRenderer          (&m_uiShell.GetTextRenderer());
-    m_chrome->GetToolbar().SetTextRenderer            (&m_uiShell.GetTextRenderer());
+    m_chrome->SetTextRendererForMeasure (&m_uiShell.GetTextRenderer());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
@@ -977,100 +975,6 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WireToolbarPickers
-//
-//  The command bar's theme and monitor-color pickers, wired to the same
-//  live-apply channels the Settings panel drives so the two behave alike.
-//
-//  A HIGHLIGHT PREVIEWS: it activates the theme (or the color treatment)
-//  without writing anything down, because moving the pointer down a list is
-//  not a choice. The toolbar replays that same sink with the row the list
-//  opened on when the list is dismissed, which is what snaps the chrome and
-//  the picture back.
-//
-//  A PICK COMMITS, which is where the choice reaches the prefs file: the
-//  theme into GlobalUserPrefs, the color mode into the machine's UI prefs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::WireToolbarPickers()
-{
-    m_chrome->GetToolbar().SetPopupHost (m_host.get());
-
-    //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
-    //  closing the drop-down that was open. The drop-down holds capture, so
-    //  the title never sees the click on its own -- and every other
-    //  application on the desktop rolls from one menu to the next on it.
-    //
-    //  Only the titles. Anywhere else the click closes the picker and stops
-    //  there, which is what a menu does everywhere: dismissing is not a
-    //  reason to fire the button that happened to be underneath.
-    m_chrome->GetToolbar().SetDropDownClickOutsideFn (
-        [this] (POINT screenPx)
-        {
-            POINT  client = screenPx;
-
-            if (m_hwnd == nullptr || !ScreenToClient (m_hwnd, &client))
-            {
-                return;
-            }
-
-            for (int i = 0; i < m_chrome->GetMainMenu().GetMenuCount(); i++)
-            {
-                RECT  title = m_chrome->GetMainMenu().GetMenuRect (i);
-
-                if (PtInRect (&title, client))
-                {
-                    m_chrome->GetMainMenu().Open (i, false);
-                    return;
-                }
-            }
-        });
-
-    m_chrome->GetToolbar().SetDropDownSinks (EmulatorCommands::kIdTheme,
-        [this] (int index)
-        {
-            HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_chrome->m_toolbarThemeIds.size();
-
-            if (inRange)
-            {
-                hrTheme = m_settings->ApplyThemeLive (m_chrome->m_toolbarThemeIds[index]);
-                IGNORE_RETURN_VALUE (hrTheme, S_OK);
-            }
-        },
-        [this] (int index)
-        {
-            HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_chrome->m_toolbarThemeIds.size();
-
-            if (inRange)
-            {
-                m_chrome->GetMainMenu().GetCommands().SetThemeIndex (index);
-                hrTheme = m_settings->ApplyAndPersistTheme (m_chrome->m_toolbarThemeIds[index]);
-                IGNORE_RETURN_VALUE (hrTheme, S_OK);
-            }
-        });
-
-    m_chrome->GetToolbar().SetDropDownSinks (EmulatorCommands::kIdColor,
-        [this] (int index)
-        {
-            m_renderer->SetColorModeLive (index);
-        },
-        [this] (int index)
-        {
-            m_chrome->GetMainMenu().GetCommands().SetMonitorColorIndex (index);
-            m_renderer->SetColorModeLive              (index);
-            m_settings->PersistColorModeForMachine    (index);
-        });
 }
 
 

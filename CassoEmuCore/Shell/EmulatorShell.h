@@ -602,7 +602,6 @@ private:
     // drag-drop target.
     std::unique_ptr<ShellWindow>  m_window;
 
-    void  WireToolbarPickers               ();
 
 protected:
 

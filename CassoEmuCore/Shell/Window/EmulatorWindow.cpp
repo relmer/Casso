@@ -407,165 +407,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
-    m_host->GetRoot().Adopt (m_chrome->GetMainMenu());
-    m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
+    m_chrome->AdoptMenuBar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
-    m_host->GetRoot().Adopt (m_chrome->m_fpsReadout);
-    m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
-    m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[0]);
-    m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[1]);
-    m_host->GetRoot().Adopt (m_scene->m_sceneDriveInfoIcon[0]);
-    m_host->GetRoot().Adopt (m_scene->m_sceneDriveInfoIcon[1]);
-    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[0]);
-    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[1]);
-    m_host->GetRoot().Adopt (m_scene->m_stripTapeLabel[2]);
-    m_host->GetRoot().Adopt (m_scene->m_sceneCompass);
-    m_host->GetRoot().Adopt (m_scene->m_compassHint);
-
-    // The compass reports gestures; the shell owns what they mean. The signs
-    // follow the drag's bargain -- the CONTENT goes where the arrow points --
-    // so the right arrow and a rightward drag turn the scene the same way.
-    // With Ctrl held the compass pans instead, as Ctrl does to a drag on the
-    // scene itself: an arrow click moves the scene a pan step its way, and a
-    // drag moves it with the pointer.
-    m_scene->m_sceneCompass.SetOnStep ([this] (DxuiOrbitControl::Part part)
-    {
-        float  step = ShellDeskScene::s_kScenePanStep;
-
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
-        {
-            switch (part)
-            {
-                case DxuiOrbitControl::Part::Left:   m_scene->PanSceneByCompass (-step, 0.0f); break;
-                case DxuiOrbitControl::Part::Right:  m_scene->PanSceneByCompass ( step, 0.0f); break;
-                case DxuiOrbitControl::Part::Up:     m_scene->PanSceneByCompass (0.0f, -step); break;
-                case DxuiOrbitControl::Part::Down:   m_scene->PanSceneByCompass (0.0f,  step); break;
-                default: break;
-            }
-
-            return;
-        }
-
-        switch (part)
-        {
-            case DxuiOrbitControl::Part::Left:   m_scene->OrbitSceneBy ( ShellDeskScene::kCompassStepYawRad,   0.0f); break;
-            case DxuiOrbitControl::Part::Right:  m_scene->OrbitSceneBy (-ShellDeskScene::kCompassStepYawRad,   0.0f); break;
-            case DxuiOrbitControl::Part::Up:     m_scene->OrbitSceneBy (0.0f, -ShellDeskScene::kCompassStepPitchRad); break;
-            case DxuiOrbitControl::Part::Down:   m_scene->OrbitSceneBy (0.0f,  ShellDeskScene::kCompassStepPitchRad); break;
-            default: break;
-        }
-    });
-
-    m_scene->m_sceneCompass.SetOnDrag ([this] (DxuiOrbitControl::Part part, float dxPx, float dyPx)
-    {
-        float  rate = m_scene->OrbitRadPerPx();
-
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
-        {
-            const RECT &  vp = m_scene->m_deskScene.Composition().viewportPx;
-
-            if (vp.right > vp.left && vp.bottom > vp.top)
-            {
-                m_scene->PanSceneByCompass (dxPx / (float) (vp.right - vp.left) * 2.0f,
-                                            dyPx / (float) (vp.bottom - vp.top) * 2.0f);
-            }
-
-            return;
-        }
-
-        // Axis-locked to the arrow the drag started on: the arrow names an
-        // axis, and a free two-axis tumble from a single arrow would make
-        // the four of them meaningless.
-        switch (part)
-        {
-            case DxuiOrbitControl::Part::Left:
-            case DxuiOrbitControl::Part::Right:  m_scene->OrbitSceneBy (-dxPx * rate, 0.0f); break;
-            case DxuiOrbitControl::Part::Up:
-            case DxuiOrbitControl::Part::Down:   m_scene->OrbitSceneBy (0.0f,  dyPx * rate); break;
-            default: break;
-        }
-    });
-
-    // Ctrl+click on the center is Ctrl+0: the whole view reset, zoom and
-    // window size included, with the window's placement saved.
-    m_scene->m_sceneCompass.SetOnHome ([this] ()
-    {
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
-        {
-            PostMessage (m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
-            return;
-        }
-
-        m_scene->m_sceneView.orbitYawRad   = 0.0f;
-        m_scene->m_sceneView.orbitPitchRad = 0.0f;
-        m_scene->InvalidateSceneComposition();
-    });
-    m_host->GetRoot().Adopt (m_chrome->GetToolbar());
-    m_host->GetRoot().Adopt (m_chrome->m_switchBar);
+    m_chrome->AdoptFrameRateReadout (m_host->GetRoot());
+    m_scene->AdoptOverlays (m_host->GetRoot());
+    m_chrome->AdoptToolbar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
-    //  The backing goes in FIRST: the root paints its children in the order
-    //  they were adopted, so the panel lands under the words rather than over
-    //  them.
-    m_chrome->m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
-    m_host->GetRoot().Adopt (m_chrome->m_standInBarSurface);
-    m_host->GetRoot().Adopt (m_chrome->m_standInBar);
-
-    //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
-    //  and its band is measured from that text before the bar has ever been
-    //  shown -- so the text cannot wait until the first capture to exist.
-    m_chrome->m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
-
-    //  CENTERED, because this bar spans the window rather than sitting in a
-    //  dialog: one short line held against the leading edge of a wide strip
-    //  reads as something that failed to lay out.
-    m_chrome->m_standInBar.SetCentered (true);
-    m_chrome->m_standInBar.SetVisible  (false);
-
-    //  THE NOTICES, ADOPTED AFTER THE CAPTURE BAR so that when both are up
-    //  the notices are on top -- they are the newer, and the older one is
-    //  still readable in the strip above them.
-    m_host->GetRoot().Adopt (m_chrome->m_notices);
+    m_chrome->AdoptBanners (m_host->GetRoot());
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
     // m_chromeTheme is reassigned in place on theme switches, so this
     // pointer stays valid and the host reads the updated palette on the
     // next paint.
-    m_host->SetTheme (&m_chrome->m_chromeTheme);
+    m_host->SetTheme (&m_chrome->GetTheme());
 
-    // Route the menu bar's open submenu through the host popup pool so
-    // the dropdown renders as a real top-level window (escapes the
-    // client area + occludes). The strip stays in-window. The
-    // full-ownership host owns the device, so its pool makes real popups.
-    m_chrome->GetMainMenu().SetPopupHost (m_host.get());
-
-    // The hover tooltips render through the host popup pool too; their
-    // dwell timers are driven from the main frame loop's Tick. SetTheme
-    // seeds the tooltip surface colors.
-    m_chrome->m_toolbarTooltip.SetPopupHost  (m_host.get());
-    m_chrome->m_toolbarTooltip.SetTheme      (m_chrome->m_chromeTheme);
-
-    // The //c switch strip shares the same deferred-tooltip pattern.
-    m_chrome->m_switchBarTooltip.SetPopupHost (m_host.get());
-    m_chrome->m_switchBarTooltip.SetTheme     (m_chrome->m_chromeTheme);
-    // The drive-widget write-protect tooltip shares the host popup pool.
-    // It surfaces on a dwell over a write-protected drive and names the
-    // protection source(s).
-    m_chrome->m_driveTooltip.SetPopupHost (m_host.get());
-    m_chrome->m_driveTooltip.SetTheme     (m_chrome->m_chromeTheme);
-
-    // The caption buttons' tooltip, in place of the stock system one.
-    m_chrome->GetCaptionTooltip().SetPopupHost (m_host.get());
-    m_chrome->GetCaptionTooltip().SetTheme     (m_chrome->m_chromeTheme);
-
-    // The emulator's tips take Visual Studio's frame, as the debugger's do:
-    // tighter corners, a border on whole pixels and a small shadow.
-    m_chrome->m_toolbarTooltip.ApplyVisualStudioLook();
-    m_chrome->m_switchBarTooltip.ApplyVisualStudioLook();
-    m_chrome->m_driveTooltip.ApplyVisualStudioLook();
-    m_chrome->GetCaptionTooltip().ApplyVisualStudioLook();
+    m_chrome->AttachPopupHost (*m_host);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -628,7 +487,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_chrome->GetMainMenu().GetCommands().BuildToolbar (m_chrome->GetToolbar(), m_printer->GetLed(), m_chrome->m_volumeFlyout);
+    m_chrome->BuildToolbar (m_printer->GetLed());
 
     // Mouse mode routes through the same toggle the band selector used, so
     // the leave-time release of a held guest button runs identically. It is
@@ -638,26 +497,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         [this] () { return m_machine.GetMouse() != nullptr && m_input->IsMouseConnected(); },
         [this] () { m_input->ToggleInputMappingMode (InputMappingMode::Mouse); });
 
-    m_chrome->m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
-    {
-        m_settings->GetPrefs().masterVolume = volume01;
-        m_settings->GetPrefs().masterMuted  = muted;
-        m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
-        m_chrome->GetMainMenu().GetCommands().SetMuted (muted);
-
-        // Deferred, not immediate: the slider reports every intermediate
-        // value, so a save here would rewrite the prefs file on each tick of
-        // a drag.
-        m_settings->SaveGlobalPrefsDeferred();
-    });
-    m_chrome->m_volumeFlyout.SetVolume (m_settings->GetPrefs().masterVolume, m_settings->GetPrefs().masterMuted);
-    m_chrome->GetMainMenu().GetCommands().SetMuted (m_settings->GetPrefs().masterMuted);
-    m_audio->GetOutput().SetMasterGain (m_settings->GetPrefs().masterMuted ? 0.0f : m_settings->GetPrefs().masterVolume);
-
     // The theme + monitor-color pickers, and the catalog behind the first of
     // them. Both option lists render through the host popup pool for the same
     // reason the menu bar's does: they hang off the strip over the viewport.
-    WireToolbarPickers();
+    m_chrome->WireToolbarPickers();
     m_chrome->RefreshToolbarThemeList();
     m_chrome->SyncToolbarState();
     m_chrome->GetMainMenu().SetCheckQuery ([this] (WORD commandId) -> bool
@@ -808,7 +651,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     {
         RECT  vr            = m_chrome->ComputeViewportRect (clientW, clientH);
-        RECT  driveRect     = m_chrome->m_driveBand.GetBounds();
+        RECT  driveRect     = m_chrome->GetDriveBandBounds();
         int   bottomInsetPx = clientH - driveRect.top;   // drive band height only
 
         (void) vr;                                        // dock side-effect: bands arranged
@@ -819,12 +662,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
         else
         {
-            m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->m_chromeSceneScale,
+            m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->GetSceneScale(),
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->m_driveBandSurface.SetVisible (!DeskSceneActive());
-        m_chrome->m_driveBandSurface.SetBounds (RECT{ 0, driveRect.top, clientW, clientH });
+        m_chrome->LayoutDriveBandSurface (!DeskSceneActive(), RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
     }
