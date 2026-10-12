@@ -3000,3 +3000,43 @@ void ShellInput::PressGuestMouseButton (int x, int y)
 
     m_machine.GetMouse()->SetButton (true);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInput::ReleaseGuestMouseButton
+//
+//  Any left release drops the //c guest mouse button, over the picture or
+//  not, so a press inside the picture released outside it also releases the
+//  button. Behind live the release is deferred until the machine is live, and
+//  a deferred press the guest has not read yet is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::ReleaseGuestMouseButton()
+{
+    std::shared_lock<std::shared_mutex>  gate;
+    bool                                 isGateOpen = false;
+
+
+
+    if (!IsGuestMouseActive())
+    {
+        return;
+    }
+
+    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
+
+    if (!isGateOpen)
+    {
+        m_debugger.GetDivergenceGate().ReleaseMousePress();
+        m_debugger.PublishHeldInput();
+        return;
+    }
+
+    m_machine.GetMouse()->SetButton (false);
+}

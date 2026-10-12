@@ -164,6 +164,18 @@ public:
     // the press.
     DxuiMessageResult  OnLButtonDown (int x, int y, WPARAM keys, const ScenePointerContext & context);
 
+    // The left button's release. ReleaseRecorderKey raises a desk recorder key
+    // the press put down; EndLButtonDrag ends a drag the press began, and is
+    // true when the release ends one; OnLButtonUp is a click on the desk's
+    // drives and recorder, true when one took it.
+    void  ReleaseRecorderKey ();
+    bool  EndLButtonDrag     (int x, int y);
+    bool  OnLButtonUp        (int x, int y);
+
+    // A browse opened from the fullscreen strip pins the strip while the
+    // dialog is up.
+    void  SetStripBrowseOpen (bool open) { m_stripBrowseOpen = open; }
+
     void    ZoomSceneAt          (POINT clientPt, float factor);
     DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
     void    OrbitSceneBy         (float yawRad, float pitchRad);

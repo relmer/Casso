@@ -1025,20 +1025,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     bool                                 wasSuppressed = false;
     bool                                 driveTook     = false;
     bool                                 canGrabPaddle = false;
-    bool                                 isGateOpen    = false;
-    std::shared_lock<std::shared_mutex>  gate;
 
 
 
     UNREFERENCED_PARAMETER (wParam);
 
-    // A desk recorder key held under the pointer comes back up with the
-    // button, wherever the pointer has gone since.
-    if (m_scene->m_recorderHeldKey >= 0)
-    {
-        m_scene->m_recorderHeldKey = -1;
-        m_renderer->GetD3D().MarkRedrawNeeded();
-    }
+    m_scene->ReleaseRecorderKey();
 
     //  THE CLICK-CAPTURE GOES BACK FIRST, whatever this release turns out to
     //  mean. OnLButtonDown takes it unconditionally, so every path out of
@@ -1072,57 +1064,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    // Letting go of the volume wheel keeps where it was left, and the release
-    // is the drag's, not a click's.
-    if (m_scene->m_volumeDragging)
+    // A drag the press began on the scene ends with the release.
+    if (m_scene->EndLButtonDrag (x, y))
     {
-        m_scene->m_volumeDragging = false;
-        m_scene->PersistTapeVolume();
-        return DxuiMessageResult::Handled;
-    }
-
-    // Ending a pan consumes the release. The press it began with never
-    // reached a widget, so letting the release run the click chain would fire
-    // whatever the cursor happened to land on after the drag.
-    if (m_scene->m_scenePanning)
-    {
-        m_scene->m_scenePanning = false;
-        return DxuiMessageResult::Handled;
-    }
-
-    // The compass's release fires its click or ends its drag, and either
-    // way the press never reached a widget, so the click chain stays out
-    // of it.
-    if (m_scene->m_sceneCompass.OnPointerUp (x, y))
-    {
-        return DxuiMessageResult::Handled;
-    }
-
-    // Likewise a drag orbit's release -- BUT ONLY IF IT TURNED. A press that
-    // armed one and never travelled is a click, and swallowing its release
-    // would make every press on the machine do nothing at all. Fall through
-    // and let the chain below read it as the click it was.
-    if (m_scene->m_sceneOrbiting && m_scene->m_sceneOrbitLeftBtn)
-    {
-        bool  turned = m_scene->m_sceneOrbitMoved;
-
-        m_scene->m_sceneOrbiting   = false;
-        m_scene->m_sceneOrbitMoved = false;
-
-        if (turned)
-        {
-            return DxuiMessageResult::Handled;
-        }
-    }
-
-    // ...and a bezel tilt's, which also writes where it came to rest. Saved
-    // on release rather than on every step of the drag: the tilt is a
-    // preference, not an animation, and a file rewritten per mouse-move is a
-    // file rewritten a hundred times a second.
-    if (m_scene->m_bezelTilting)
-    {
-        m_scene->m_bezelTilting = false;
-        m_scene->PersistBezelTilt();
         return DxuiMessageResult::Handled;
     }
 
@@ -1136,27 +1080,10 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
 
-    // Command toolbar release: click dispatch / mute toggle / slider drop.
-    toolbarTook = m_chrome->m_toolbar.OnToolbarLButtonUp (x, y);
-
-    if (toolbarTook)
-    {
-        m_renderer->GetD3D().MarkRedrawNeeded();
-    }
+    // The command toolbar, and the //c switch bar's part under the release.
+    toolbarTook = m_chrome->OnLButtonUp (x, y, switchPart);
 
     BAIL_OUT_IF (toolbarTook, S_OK);
-
-    // //c switch strip: latch the switch / fire the (Ctrl-gated) reset on
-    // release over a part. Captured before the pressed-part is cleared.
-    if (MachineHasCaseSwitches())
-    {
-        switchPart = m_chrome->m_switchBar.GetPartAt (x, y);
-
-        if (m_chrome->m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
-        {
-            m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-    }
 
     shellTook = m_uiShell.OnLButtonUp (x, y);
 
@@ -1189,65 +1116,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // found, never what they do.
     if (DeskSceneActive())
     {
-        POINT           pt      = { x, y };
-        bool            inStrip = m_renderer->GetD3D().IsFullscreen() &&
-                                  m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                                  PtInRect (&m_scene->m_stripRectPx, pt);
-        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
-
-        // ONLY THE DOOR ACTS. The body region stays for hover -- the
-        // tooltip that names the disk -- but a click there does nothing:
-        // opening a drive is done by its door, and a whole case that
-        // browses on any touch turned every stray click into a dialog.
-        if (sceneHit.target == SceneHitResult::Target::Drive &&
-            sceneHit.region == DriveWidgetRegion::Eject)
-        {
-            m_disks->Eject (6, sceneHit.driveIndex);
-
-            // A browse opened from the strip pins it (the FSM must not
-            // auto-hide under the dialog).
-            m_scene->m_stripBrowseOpen = inStrip;
-            m_disks->BrowseForDisk (sceneHit.driveIndex,
-                                    inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
-                                            : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
-            m_scene->m_stripBrowseOpen = false;
-
-            driveTook = true;
-        }
-
-        // The labels under the recorder: its counter sets the position and
-        // its name picks a tape, as on the flat deck -- on the strip too,
-        // which a dialog opened from it pins, as a drive's browse does.
-        m_scene->m_stripBrowseOpen = inStrip;
-
-        if (PtInRect (&m_scene->m_sceneTapeCounterRect, pt))
-        {
-            m_tapeDeck->HandleTapeClick (TapeDeckRegion::Counter);
-            driveTook = true;
-        }
-        else if (PtInRect (&m_scene->m_sceneTapeNameRect, pt))
-        {
-            m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
-            driveTook = true;
-        }
-
-        // A key does what the flat deck's button of the same name does, and
-        // dips as it is pressed; the rest of the case picks a tape.
-        else if (sceneHit.target == SceneHitResult::Target::Recorder)
-        {
-            if (sceneHit.recorderKey >= 0)
-            {
-                m_tapeDeck->HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
-            }
-            else
-            {
-                m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
-            }
-
-            driveTook = true;
-        }
-
-        m_scene->m_stripBrowseOpen = false;
+        driveTook = m_scene->OnLButtonUp (x, y);
     }
     else
     {
@@ -1275,9 +1144,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                 // auto-hide under the dialog).
                 RECT  driveRect = drive.GetOuterRect();
 
-                m_scene->m_stripBrowseOpen = m_renderer->GetD3D().IsFullscreen();
+                m_scene->SetStripBrowseOpen (m_renderer->GetD3D().IsFullscreen());
                 m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
-                m_scene->m_stripBrowseOpen = false;
+                m_scene->SetStripBrowseOpen (false);
 
                 driveTook = true;
                 break;
@@ -1312,27 +1181,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (canGrabPaddle, S_OK);
 
-    // //c Mouse mode: any left-release drops the guest mouse button --
-    // unconditionally (not viewport-gated), so a press inside the viewport
-    // released outside it can never leave the guest button stuck. Behind
-    // live the release is kept for when the machine is live again, and a
-    // press held there that the guest has not read yet is dropped.
-    if (m_input->IsGuestMouseActive())
-    {
-        isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
-        m_input->GetHeldHostInputs().OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
-    }
-
-    if (m_input->IsGuestMouseActive() && !isGateOpen)
-    {
-        m_debugger->GetDivergenceGate().ReleaseMousePress();
-        m_debugger->PublishHeldInput();
-    }
-
-    if (m_input->IsGuestMouseActive() && isGateOpen)
-    {
-        m_machine.GetMouse()->SetButton (false);
-    }
+    // //c Mouse mode: any left release drops the guest mouse button.
+    m_input->ReleaseGuestMouseButton();
 
 Error:
     return result;

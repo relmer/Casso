@@ -2072,3 +2072,47 @@ bool ShellChrome::OnLButtonDown (int x, int y)
 
     return isTaken;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::OnLButtonUp
+//
+//  A release on the command toolbar dispatches a button, toggles mute or drops
+//  the slider; true when the toolbar took it. Otherwise, on the //c, the
+//  switch bar's pressed part is cleared and outSwitchPart is set to the part
+//  under the release, which latches a switch or fires the reset once the UI
+//  shell has passed on the release.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::OnLButtonUp (int x, int y, Apple2cSwitchBar::Part & outSwitchPart)
+{
+    bool  toolbarTook = false;
+
+
+
+    outSwitchPart = Apple2cSwitchBar::Part::None;
+    toolbarTook   = m_toolbar.OnToolbarLButtonUp (x, y);
+
+    if (toolbarTook)
+    {
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        return true;
+    }
+
+    if (m_shell.MachineHasCaseSwitches())
+    {
+        outSwitchPart = m_switchBar.GetPartAt (x, y);
+
+        if (m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None))
+        {
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        }
+    }
+
+    return false;
+}

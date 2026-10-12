@@ -3584,3 +3584,180 @@ DxuiMessageResult ShellDeskScene::OnLButtonDown (int x, int y, WPARAM keys, cons
 Error:
     return result;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ReleaseRecorderKey
+//
+//  A desk recorder key down under the pointer comes back up with the button,
+//  wherever the pointer has moved since.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ReleaseRecorderKey()
+{
+    if (m_recorderHeldKey < 0)
+    {
+        return;
+    }
+
+    m_recorderHeldKey = -1;
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::EndLButtonDrag
+//
+//  The release that ends a drag the press began on the scene: the volume
+//  wheel, a pan, the compass, an orbit and a bezel tilt. True when the release
+//  ends one, so the click chain does not run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::EndLButtonDrag (int x, int y)
+{
+    bool  isTaken = false;
+
+
+
+    // Letting go of the volume wheel saves the volume it was left at, and the
+    // release ends the drag rather than clicking.
+    if (m_volumeDragging)
+    {
+        m_volumeDragging = false;
+        PersistTapeVolume();
+        isTaken = true;
+    }
+
+    // The release ends a pan. No widget received the press that began it, so
+    // running the click chain on the release would fire whatever is under the
+    // cursor after the drag.
+    else if (m_scenePanning)
+    {
+        m_scenePanning = false;
+        isTaken        = true;
+    }
+
+    // The compass's release fires its click or ends its drag, and either way
+    // no widget received the press.
+    else if (m_sceneCompass.OnPointerUp (x, y))
+    {
+        isTaken = true;
+    }
+
+    // An orbit's release, BUT ONLY IF IT TURNED. A press that armed one and
+    // never moved past the slop is a click, and ending the chain there would
+    // make every press on the machine do nothing at all, so the click chain
+    // runs on it.
+    else if (m_sceneOrbiting && m_sceneOrbitLeftBtn)
+    {
+        isTaken = m_sceneOrbitMoved;
+
+        m_sceneOrbiting   = false;
+        m_sceneOrbitMoved = false;
+    }
+
+    // A bezel tilt's release saves where the tilt came to rest. Saved on
+    // release rather than on every step of the drag: the tilt is a
+    // preference, not an animation, and a file rewritten per mouse move is a
+    // file rewritten a hundred times a second.
+    else if (m_bezelTilting)
+    {
+        m_bezelTilting = false;
+        PersistBezelTilt();
+        isTaken = true;
+    }
+
+    return isTaken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnLButtonUp
+//
+//  A click on the desk's drives and recorder, or on the fullscreen strip's;
+//  true when one took it. The actions are the 2D widgets' own handlers: the
+//  scene changes how a hit is found, never what it does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::OnLButtonUp (int x, int y)
+{
+    POINT           pt       = { x, y };
+    bool            inStrip  = m_shell.m_renderer->GetD3D().IsFullscreen() &&
+                               m_stripRectPx.bottom > m_stripRectPx.top &&
+                               PtInRect (&m_stripRectPx, pt);
+    SceneHitResult  sceneHit = inStrip ? StripHit (x, y) : DeskSceneHit (x, y);
+    bool            isTaken  = false;
+
+
+
+    // ONLY THE DOOR ACTS. The body region is there for hover, the tooltip
+    // with the disk's name, but a click there does nothing: a drive is opened
+    // by its door, and a whole case that browses on any touch turned every
+    // stray click into a dialog.
+    if (sceneHit.target == SceneHitResult::Target::Drive &&
+        sceneHit.region == DriveWidgetRegion::Eject)
+    {
+        m_shell.m_disks->Eject (6, sceneHit.driveIndex);
+
+        // A browse opened from the strip pins it, so the strip does not
+        // hide under the dialog.
+        m_stripBrowseOpen = inStrip;
+        m_shell.m_disks->BrowseForDisk (sceneHit.driveIndex,
+                                        inStrip ? &m_stripComp.driveRectPx[sceneHit.driveIndex]
+                                                : &m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
+        m_stripBrowseOpen = false;
+
+        isTaken = true;
+    }
+
+    // The labels under the recorder: its counter sets the position and its
+    // name picks a tape, as on the flat deck, on the strip too, which a
+    // dialog opened from it pins, as a drive's browse does.
+    m_stripBrowseOpen = inStrip;
+
+    if (PtInRect (&m_sceneTapeCounterRect, pt))
+    {
+        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Counter);
+        isTaken = true;
+    }
+    else if (PtInRect (&m_sceneTapeNameRect, pt))
+    {
+        m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
+        isTaken = true;
+    }
+
+    // A key does what the flat deck's button of the same name does, and dips
+    // as it is pressed; the rest of the case picks a tape.
+    else if (sceneHit.target == SceneHitResult::Target::Recorder)
+    {
+        if (sceneHit.recorderKey >= 0)
+        {
+            m_shell.m_tapeDeck->HandleTapeClick (TapeDeckWidget::GetButtonRegion ((size_t) sceneHit.recorderKey));
+        }
+        else
+        {
+            m_shell.m_tapeDeck->HandleTapeClick (TapeDeckRegion::Name);
+        }
+
+        isTaken = true;
+    }
+
+    m_stripBrowseOpen = false;
+
+    return isTaken;
+}

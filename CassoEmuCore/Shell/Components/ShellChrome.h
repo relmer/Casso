@@ -51,9 +51,11 @@ public:
     bool  IsMenuOpen () const { return m_mainMenu.IsOpen(); }
 
     // The left button: a press outside the menu strip closes an open menu,
-    // and a press on the command toolbar or the //c switch bar is theirs.
+    // and a press or release on the command toolbar or the //c switch bar is
+    // theirs.
     void  DismissMenuOutside (int x, int y);
     bool  OnLButtonDown      (int x, int y);
+    bool  OnLButtonUp        (int x, int y, Apple2cSwitchBar::Part & outSwitchPart);
 
     // The caption buttons' tooltip, which the update indicator in the caption
     // shares.

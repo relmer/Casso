@@ -134,8 +134,10 @@ public:
     void  UpdatePaddleFromMouse    (int xClient, int yClient);
     void  PushPaddleButton         (int index, bool pressed);
 
-    // A left-button press over the picture, as the //c guest mouse's button.
+    // A left-button press over the picture, as the //c guest mouse's button,
+    // and any left-button release.
     void  PressGuestMouseButton    (int x, int y);
+    void  ReleaseGuestMouseButton  ();
     bool  IsPaddleCaptured         () const { return m_paddleCaptured; }
 
     // Controllers and players. PickPlayer and PickControllerProfile take
