@@ -112,7 +112,9 @@ public:
     static bool              LooksLikePlainText (std::span<const Byte> sample);
 
 private:
-    void  PreviewShellItem (const CatalogRow & row);
+    void  PreviewShellItem   (const CatalogRow & row);
+    void  PreviewArchive     (const std::wstring & path);
+    bool  IsLocalArchivePath (const std::wstring & id) const;
 
 public:
     std::wstring  GetTabLabel (size_t index) const;

@@ -321,6 +321,24 @@ public:
         Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"notes.zip"), target));
         Assert::IsTrue (target == Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
         Assert::IsFalse (host.browser.TryGetRowLocation (FindRow (host.browser, L"readme.txt"), target), L"A plain file does not open");
+
+        //  Selected, it previews as what it holds, folders first.
+        {
+            IShellItemVerbs::ShellFolderItem  file;
+            IShellItemVerbs::ShellFolderItem  folder;
+
+            file.name       = L"a.txt";
+            file.sizeBytes  = 12;
+            folder.name     = L"docs";
+            folder.isFolder = true;
+            shell.shellItems = { file, folder };
+
+            host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
+
+            Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
+            Assert::AreEqual ((size_t) 2, host.browser.GetPreview().rows.size());
+            Assert::AreEqual (std::wstring (L"docs"), host.browser.GetPreview().rows[0].name);
+        }
     }
 
 

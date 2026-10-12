@@ -380,7 +380,13 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
 
     //  A slow folder, Network above all, reads on a thread of its own; the
     //  list says so meanwhile, as Explorer's does, and fills when it arrives.
-    if (!m_shellListings.TryTake (s_kListKey + id, id, items, hr))
+    //  A path inside an archive on a local drive is read at once: the read is
+    //  quick, and a placeholder would only flash.
+    if (IsLocalArchivePath (id))
+    {
+        hr = m_shellVerbs->ListShellFolder (id, items);
+    }
+    else if (!m_shellListings.TryTake (s_kListKey + id, id, items, hr))
     {
         m_listError = L"Working on it...";
         return S_OK;
@@ -1231,6 +1237,13 @@ void CassoExplorerBrowser::UpdatePreview()
         return;
     }
 
+    //  An archive previews as what it holds, as a disk image does.
+    if (m_rows[m_selectedRows[0]].isArchive)
+    {
+        PreviewArchive (JoinPath (folder, m_rows[m_selectedRows[0]].name));
+        return;
+    }
+
     //  Any other file in a host folder shows its bytes, which the window reads
     //  from the file as it draws them rather than loading them here.
     if (!m_rows[m_selectedRows[0]].isDiskImage)
@@ -1286,6 +1299,78 @@ void CassoExplorerBrowser::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsLocalArchivePath
+//
+//  A path on a lettered drive that the shell, not the file system, lists:
+//  an archive or a folder inside one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsLocalArchivePath (const std::wstring & id) const
+{
+    return m_shellVerbs != nullptr && id.size() > 3 && id[1] == L':' && id[2] == L'\\'
+        && !m_fs.DirectoryExists (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::PreviewArchive
+//
+//  What an archive holds, folders first, in the columns a catalog uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::PreviewArchive (const std::wstring & path)
+{
+    HRESULT                                        hr = S_OK;
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+
+
+
+    if (m_shellVerbs == nullptr)
+    {
+        return;
+    }
+
+    hr = m_shellVerbs->ListShellFolder (path, items);
+
+    if (FAILED (hr))
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"The archive could not be read";
+        return;
+    }
+
+    m_preview.kind = PreviewContent::Kind::Catalog;
+
+    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    {
+        CatalogRow  row;
+
+        row.name        = item.name;
+        row.typeText    = item.typeText;
+        row.sizeBytes   = item.sizeBytes;
+        row.isDirectory = item.isFolder;
+
+        m_preview.rows.push_back (std::move (row));
+    }
+
+    std::stable_sort (m_preview.rows.begin(), m_preview.rows.end(), [] (const CatalogRow & a, const CatalogRow & b)
+    {
+        return (a.isDirectory != b.isDirectory) ? a.isDirectory : StrCmpLogicalW (a.name.c_str(), b.name.c_str()) < 0;
+    });
 }
 
 
