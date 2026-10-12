@@ -172,6 +172,11 @@ public:
     bool  EndLButtonDrag     (int x, int y);
     bool  OnLButtonUp        (int x, int y);
 
+    // The right button: a drag on the scene orbits it. Each is true when the
+    // press began an orbit or the release ended one.
+    bool  OnRButtonDown      (int x, int y);
+    bool  OnRButtonUp        (int x, int y);
+
     // A browse opened from the fullscreen strip pins the strip while the
     // dialog is up.
     void  SetStripBrowseOpen (bool open) { m_stripBrowseOpen = open; }

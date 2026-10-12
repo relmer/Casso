@@ -3761,3 +3761,89 @@ bool ShellDeskScene::OnLButtonUp (int x, int y)
 
     return isTaken;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnRButtonDown
+//
+//  A right drag orbits the scene, anywhere on it: unlike the left button there
+//  is no widget to share the button with, and an orbit is useful at any zoom.
+//  Not in fullscreen, where the desk is not on screen. True when the press
+//  began an orbit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::OnRButtonDown (int x, int y)
+{
+    if (!m_shell.DeskSceneActive() || m_shell.m_renderer->GetD3D().IsFullscreen())
+    {
+        return false;
+    }
+
+    BeginSceneOrbit (x, y);
+    m_sceneOrbitLeftBtn = false;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::OnRButtonUp
+//
+//  The release that ends a right-drag orbit; true when one was in progress.
+//  A motionless right click on a drive or the recorder opens its menu, and two
+//  motionless right clicks within the double-click time reset the orbit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::OnRButtonUp (int x, int y)
+{
+    bool     isStill = false;
+    int      device  = -1;
+    int64_t  nowMs   = 0;
+
+
+
+    if (!m_sceneOrbiting || m_sceneOrbitLeftBtn)
+    {
+        return false;
+    }
+
+    isStill = std::abs (x - m_sceneOrbitStartPx.x) <= 3 &&
+              std::abs (y - m_sceneOrbitStartPx.y) <= 3;
+    nowMs   = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                  std::chrono::steady_clock::now().time_since_epoch()).count();
+    device  = isStill ? m_shell.StorageDeviceAt (x, y) : -1;
+
+    m_sceneOrbiting = false;
+    ReleaseCapture();
+
+    // A motionless right click on a drive or the recorder opens its menu; a
+    // drag that began there turns the scene instead.
+    if (device >= 0)
+    {
+        m_shell.ShowStorageContextMenu (device, x, y);
+        m_sceneOrbitTapMs = 0;
+    }
+    else if (isStill && nowMs - m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
+    {
+        m_sceneView.orbitYawRad   = 0.0f;
+        m_sceneView.orbitPitchRad = 0.0f;
+        m_sceneOrbitTapMs         = 0;
+        InvalidateSceneComposition();
+    }
+    else if (isStill)
+    {
+        m_sceneOrbitTapMs = nowMs;
+    }
+
+    return true;
+}

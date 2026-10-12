@@ -1196,8 +1196,10 @@ Error:
 //
 //  OnRButtonDown / OnRButtonUp
 //
-//  In Paddle mode the right mouse button is fire button 1; otherwise the
-//  message falls through to the default handler.
+//  In Paddle mode the right mouse button is fire button 1. Otherwise a right
+//  drag on the desk scene orbits it, and a right click on a drive or the
+//  recorder opens its menu; anything else falls through to the default
+//  handler.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1214,15 +1216,11 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         m_input->PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
     }
-    else if (DeskSceneActive() && !m_renderer->GetD3D().IsFullscreen())
+    else if (m_scene->OnRButtonDown ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam)))
     {
-        // Right-drag orbits the scene. Unconditionally on the scene -- unlike
-        // the pan there is no widget interaction to share the button with,
-        // and orbit is useful at any zoom. Not in fullscreen, where the desk
-        // is not on screen and there is no camera to swing.
+        // Capture for the drag, so its release arrives here wherever it
+        // lands.
         SetCapture (m_hwnd);
-        m_scene->BeginSceneOrbit ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam));
-        m_scene->m_sceneOrbitLeftBtn = false;
         result = DxuiMessageResult::Handled;
     }
 
@@ -1247,44 +1245,8 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
-    if (m_scene->m_sceneOrbiting && !m_scene->m_sceneOrbitLeftBtn)
+    if (m_scene->OnRButtonUp ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam)))
     {
-        int      x     = (int) (short) LOWORD (lParam);
-        int      y     = (int) (short) HIWORD (lParam);
-        bool     still = std::abs (x - m_scene->m_sceneOrbitStartPx.x) <= 3 &&
-                         std::abs (y - m_scene->m_sceneOrbitStartPx.y) <= 3;
-        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                             std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        m_scene->m_sceneOrbiting = false;
-        ReleaseCapture();
-
-        // A motionless right-click on a drive or the recorder opens its
-        // menu; a drag that began there still turned the scene.
-        if (still && StorageDeviceAt (x, y) >= 0)
-        {
-            ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
-            m_scene->m_sceneOrbitTapMs = 0;
-            return DxuiMessageResult::Handled;
-        }
-
-        // Two motionless right-clicks in double-click time reset the orbit
-        // -- the pose home button, without stealing a key.
-        if (still)
-        {
-            if (nowMs - m_scene->m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
-            {
-                m_scene->m_sceneView.orbitYawRad   = 0.0f;
-                m_scene->m_sceneView.orbitPitchRad = 0.0f;
-                m_scene->m_sceneOrbitTapMs         = 0;
-                m_scene->InvalidateSceneComposition();
-            }
-            else
-            {
-                m_scene->m_sceneOrbitTapMs = nowMs;
-            }
-        }
-
         return DxuiMessageResult::Handled;
     }
 
@@ -1293,7 +1255,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         m_input->PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
-    else if (!m_chrome->m_mainMenu.IsOpen() && !m_input->IsGuestMouseLive())
+    else if (!m_chrome->IsMenuOpen() && !m_input->IsGuestMouseLive())
     {
         // The drive band and the fullscreen strip have no orbit to share the
         // button with: a right-click there is the device's menu.
