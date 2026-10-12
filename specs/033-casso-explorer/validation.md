@@ -107,8 +107,10 @@ with the same folders open.
 | SC-016: section order | Matches: Home, Gallery, the OneDrive root; a line; Quick access; a line; iCloud Drive, iCloud Photos, This PC with its drives, Libraries, Network, Linux. Casso's own root comes first, as specified |
 | SC-016: Quick access content | Matches after fixes: the pinned folders with a pin each, then the frequent folders (Screenshots, Assets, Demos) with none, and no expanders on either |
 | SC-016: folder content | Matches after a fix: OneDrive's `SkyDrive camera roll` is listed as Camera Roll, from its desktop.ini |
-| SC-016: a pin made in File Explorer | A scratch folder pinned with the shell's Pin to Quick access verb appears in Casso Explorer's Quick access, with its pin, when Casso Explorer opens |
-| SC-016: a pin removed in Casso Explorer | Not yet checked: a posted right-click does not open the pane's menu, so this one is done by hand |
+| SC-016: a pin made in File Explorer | A scratch folder pinned with the shell's Pin to Quick access verb appears in Casso Explorer's Quick access, with its pin |
+| SC-016: a pin removed in Casso Explorer | Unpin from Quick access in Casso Explorer's pane; the folder left File Explorer's Quick access |
+| SC-016: a pin changed while Casso Explorer is open | A folder pinned and then unpinned through the shell appears with its pin, then leaves Casso Explorer's Quick access, within seconds and without a refresh |
+| SC-016: OneDrive's zip files | Not matched: File Explorer's tree lists the .zip files under the OneDrive root as folders, and Casso Explorer's lists none |
 | SC-017: first results | 1,000 text files in an indexed folder under the user profile, 100 of them containing the word "zephyrine". With a restored search tab for the word, the first results were on screen 0.86 s after the process started, startup included |
 | SC-017: same files as File Explorer | 100 results, the same 100 the Windows Search index returns for the word over that folder |
 

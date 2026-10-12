@@ -258,6 +258,11 @@ public:
     static constexpr UINT_PTR  kRecycleBinTimerId    = 0x5156;   // settles the bin's changes before a re-read
     static constexpr UINT_PTR  kDriveTimerId         = 0x5157;   // polls for drives attached or removed
     static constexpr UINT      kDrivePollMs          = 2000;
+
+    //  File Explorer's Quick access, pinned and frequent folders alike, is the
+    //  jump list of this application id, in the Recent folder's
+    //  AutomaticDestinations.
+    static constexpr const wchar_t *  kQuickAccessFile = L"f01b4d95cf55d32a.automaticDestinations-ms";
     static constexpr int       kRestoreRetries       = 5;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
@@ -657,6 +662,8 @@ private:
     void  ShowHostProperties     (const std::wstring & path);
     void  ReloadKnownFolders     ();
     void  ReloadKnownFoldersIfChanged ();
+    void  RefreshQuickAccessIfChanged ();
+    static int64_t  GetQuickAccessStamp (const std::wstring & directory);
     void  CheckDrives            ();
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
 
@@ -725,6 +732,8 @@ private:
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
     DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
     std::string                               m_knownFoldersText;          // KnownFolders.json as last read
+    std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
+    int64_t                                   m_quickAccessStamp    = 0;   // its file's last write at the last look
     int                                       m_cassoDriveCount     = 0;
     int                                       m_defaultDriveCount   = -1;  // the default machine's, once read
     DxuiDragDropTarget                        m_dropTarget;

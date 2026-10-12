@@ -848,6 +848,18 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_driveMask = GetLogicalDrives();
     SetTimer (GetHwnd(), kDriveTimerId, kDrivePollMs, nullptr);
 
+    {
+        PWSTR  recent = nullptr;
+
+        if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent)))
+        {
+            m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
+            m_quickAccessStamp = GetQuickAccessStamp (m_quickAccessDir);
+        }
+
+        CoTaskMemFree (recent);
+    }
+
     m_tree->OnFocusChanged (true);
 
     if (!m_context.openPath.empty())
@@ -8331,6 +8343,70 @@ void CassoExplorerWindow::ReloadKnownFoldersIfChanged()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::RefreshQuickAccessIfChanged
+//
+//  Every program's jump list is written to the same folder, so only a change
+//  to Quick access's own file reads the tree's roots again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RefreshQuickAccessIfChanged()
+{
+    int64_t  stamp = 0;
+
+
+
+    if (m_quickAccessDir.empty())
+    {
+        return;
+    }
+
+    stamp = GetQuickAccessStamp (m_quickAccessDir);
+
+    if (stamp != m_quickAccessStamp)
+    {
+        m_quickAccessStamp = stamp;
+        m_browser.RefreshShellRoots();
+        RefreshTree();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetQuickAccessStamp
+//
+//  Quick access's file's last write, or zero where it cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t CassoExplorerWindow::GetQuickAccessStamp (const std::wstring & directory)
+{
+    WIN32_FILE_ATTRIBUTE_DATA  data  = {};
+    ULARGE_INTEGER             when  = {};
+
+
+
+    if (!GetFileAttributesExW ((directory + L"\\" + kQuickAccessFile).c_str(), GetFileExInfoStandard, &data))
+    {
+        return 0;
+    }
+
+    when.LowPart  = data.ftLastWriteTime.dwLowDateTime;
+    when.HighPart = data.ftLastWriteTime.dwHighDateTime;
+
+    return (int64_t) when.QuadPart;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::CheckDrives
 //
 //  A drive attached or removed while the window is open changes This PC, and
@@ -8788,10 +8864,16 @@ void CassoExplorerWindow::UpdateWatchedFolders()
         }
     }
 
-    //  Casso's known folders file, which Casso writes while this window is open.
+    //  Casso's known folders file, which Casso writes while this window is open,
+    //  and File Explorer's Quick access, which a pin made there changes.
     if (!m_context.baseDir.empty())
     {
         folders.push_back (m_context.baseDir);
+    }
+
+    if (!m_quickAccessDir.empty())
+    {
+        folders.push_back (m_quickAccessDir);
     }
 
     m_folderWatch->SetWatched (folders);
@@ -8941,6 +9023,7 @@ void CassoExplorerWindow::RefreshChangedFolders()
     }
 
     ReloadKnownFoldersIfChanged();
+    RefreshQuickAccessIfChanged();
 
     //  A folder written to often -- a disk image Casso has mounted, say --
     //  must not cost the tree or the list anything when neither shows it.
