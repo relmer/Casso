@@ -93,7 +93,9 @@ public:
     static constexpr const wchar_t *  kCassoNodeTip    = L"Folders Casso has opened disk images from, most recently used first";
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
     static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
-    static constexpr int              kPromptTopDip    = 18;      // the prompt's top below the pane's, measured off Explorer
+    static constexpr uint32_t         kPreviewLift     = 7;       // the dark Preview pane over the list, per channel
+    static uint32_t  GetPreviewBackground (const IDxuiTheme & theme);
+
     static constexpr const wchar_t *  kMissingNodeTip  = L"This folder is on a removable drive which is not currently connected.";
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
@@ -642,7 +644,7 @@ private:
 
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
-    RECT  GetPromptRect  (const RECT & pane) const;
+
 
     //  The archive files selected in the preview, by the shell's names for
     //  them, and what happens to them.
@@ -822,7 +824,7 @@ private:
     //  What the preview toolbar holds: 0 for nothing, 1 for a listing's
     //  toggle, 2 for the hex view's commands.
     int                    m_previewBarMode  = 0;
-    bool                   m_previewPrompt   = false;   // the Preview pane shows its select-a-file prompt
+
     bool                   m_previewArchive  = false;   // the preview list is an archive's files, as the file list
     bool                   m_archiveDrag     = false;   // a left press on one of them, which may become a drag
     bool                   m_archiveMenu     = false;   // a right press on one, whose menu opens on release

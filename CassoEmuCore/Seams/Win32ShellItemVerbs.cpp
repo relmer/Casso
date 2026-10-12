@@ -416,6 +416,56 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::RemoveExtraSeparators
+//
+//  The shell's handlers each add their own separators, so two can meet, or
+//  one can open or close the menu; Explorer shows none of those.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellItemVerbs::RemoveExtraSeparators (HMENU menu)
+{
+    int   count         = GetMenuItemCount (menu);
+    bool  lastSeparator = true;
+    int   index         = 0;
+
+
+
+    for (index = 0; index < count; )
+    {
+        MENUITEMINFOW  item = { sizeof (item) };
+
+        item.fMask = MIIM_FTYPE;
+
+        if (!GetMenuItemInfoW (menu, (UINT) index, TRUE, &item))
+        {
+            index++;
+            continue;
+        }
+
+        if ((item.fType & MFT_SEPARATOR) != 0 && lastSeparator)
+        {
+            DeleteMenu (menu, (UINT) index, MF_BYPOSITION);
+            count--;
+            continue;
+        }
+
+        lastSeparator = (item.fType & MFT_SEPARATOR) != 0;
+        index++;
+    }
+
+    if (count > 0 && lastSeparator)
+    {
+        DeleteMenu (menu, (UINT) (count - 1), MF_BYPOSITION);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::TrackMenu
 //
 //  A shell menu shown at a point from the menu host, and whatever is picked
@@ -440,6 +490,8 @@ HRESULT Win32ShellItemVerbs::TrackMenu (HWND owner, IContextMenu * menu, POINT s
 
     hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, CMF_NORMAL);
     CHR (hr);
+
+    RemoveExtraSeparators (popup);
 
     hasMenu2 = menu->QueryInterface (IID_PPV_ARGS (&menu2));
 
@@ -783,6 +835,21 @@ LRESULT CALLBACK Win32ShellItemVerbs::CenterDialogsOver::OnCbt (int code, WPARAM
     bool         isDialog          = false;
 
 
+
+    //  Created where the owner is, so it is laid out at that monitor's scale.
+    //  Moved there only once shown, a shell dialog laid out at another scale
+    //  rescales badly and cuts off its buttons.
+    if (code == HCBT_CREATEWND && s_owner != nullptr && GetClassNameW (dialog, className, ARRAYSIZE (className)) > 0
+        && wcscmp (className, L"#32770") == 0 && GetWindowRect (s_owner, &owner))
+    {
+        CREATESTRUCTW *  create = ((CBT_CREATEWNDW *) lParam)->lpcs;
+
+        if (create != nullptr && create->hwndParent != nullptr)
+        {
+            create->x = (owner.left + owner.right  - (std::max) (create->cx, 0)) / 2;
+            create->y = (owner.top  + owner.bottom - (std::max) (create->cy, 0)) / 2;
+        }
+    }
 
     if (code == HCBT_ACTIVATE && s_owner != nullptr && GetClassNameW (dialog, className, ARRAYSIZE (className)) > 0)
     {

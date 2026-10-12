@@ -658,6 +658,18 @@ void CassoExplorerWindow::ConfigureWidgets()
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+        else
+        {
+            //  Any other file on the disk opens as Explorer opens it.
+            std::wstring  path;
+            HRESULT       hr = S_OK;
+
+            if (m_browser.TryGetRowPath (row, path))
+            {
+                hr = m_shellVerbs.Open (GetHwnd(), path);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+        }
     });
 
     m_previewList->SetShowHeader (false);
@@ -1157,7 +1169,7 @@ void CassoExplorerWindow::RecomputeLayout()
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
-        m_previewMessage->Layout (m_previewPrompt ? GetPromptRect (previewRect) : GetMessageRect (previewRect), m_scaler);
+        m_previewMessage->Layout (GetMessageRect (previewRect), m_scaler);
     }
     else
     {
@@ -1204,10 +1216,44 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         painter.FillRect ((float) m_previewRect.left, (float) m_previewRect.top,
                           (float) (m_previewRect.right - m_previewRect.left), (float) (m_previewRect.bottom - m_previewRect.top),
-                          theme.ContentBackground());
+                          GetPreviewBackground (theme));
     }
 
     DxuiWindow::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetPreviewBackground
+//
+//  Explorer's Preview pane is a shade lighter than its file list in dark
+//  mode: #1F1F1F beside #181818, measured. Light mode keeps the list's color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t CassoExplorerWindow::GetPreviewBackground (const IDxuiTheme & theme)
+{
+    uint32_t  color = theme.ContentBackground();
+    uint32_t  red   = (color >> 16) & 0xFF;
+    uint32_t  green = (color >>  8) & 0xFF;
+    uint32_t  blue  =  color        & 0xFF;
+
+
+
+    if (red + green + blue >= 3 * 128)
+    {
+        return color;
+    }
+
+    red   = (std::min) (red   + kPreviewLift, 0xFFu);
+    green = (std::min) (green + kPreviewLift, 0xFFu);
+    blue  = (std::min) (blue  + kPreviewLift, 0xFFu);
+
+    return (color & 0xFF000000) | (red << 16) | (green << 8) | blue;
 }
 
 
@@ -1783,17 +1829,10 @@ void CassoExplorerWindow::FillPreview()
                                                        : FormatPreviewError (preview.message));
     m_previewMessage->SetVisible (visible && (error || blank));
 
-    //  Explorer's prompt is body text near the pane's top; an error is muted
-    //  and centered.
+    //  Explorer's prompt is smaller body text; an error is muted. Both are
+    //  centered in the pane.
     m_previewMessage->SetTextRole (blank ? DxuiTextRole::Body : DxuiTextRole::Muted);
     m_previewMessage->SetFontDip  (blank ? kPromptFontDip : 0.0f);
-    m_previewMessage->SetAlign    (DxuiTextHAlign::Center, blank ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
-
-    if (blank != m_previewPrompt)
-    {
-        m_previewPrompt = blank;
-        RecomputeLayout();
-    }
 
     m_picture->SetVisible (visible && picture);
     m_previewList->SetVisible (visible && columns);
@@ -2791,7 +2830,9 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (Contains (m_tree->GetBounds(), point))
     {
-        if (press)
+        //  A right-click neither selects nor takes focus, as in Explorer: the
+        //  node under the pointer keeps its hover, and the menu is its own.
+        if (press && ev.button != DxuiMouseButton::Right)
         {
             SetFocusPane (Pane::Tree);
         }
@@ -2805,15 +2846,16 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (press && ev.button == DxuiMouseButton::Right)
         {
-            DxuiMouseEvent  left = ev;
+            int                   row  = m_tree->HitTestRow (point.x, point.y);
+            const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
 
-            left.button = DxuiMouseButton::Left;
-            left.kind   = DxuiMouseEventKind::Down;
-            m_tree->OnMouse (left);
-            left.kind   = DxuiMouseEventKind::Up;
-            m_tree->OnMouse (left);
+            if (node != nullptr)
+            {
+                m_tree->SetHoverRow (row);
+                Invalidate();
+                ShowTreeContextMenu (point.x, point.y, node->id);
+            }
 
-            ShowTreeContextMenu (point.x, point.y, m_tree->GetHighlightedId());
             return true;
         }
 
@@ -3839,31 +3881,8 @@ void CassoExplorerWindow::OpenArchiveRow (int row)
         return;
     }
 
-    hr = m_shellVerbs.Open (GetHwnd(), rows[(size_t) row].shellId);
+    hr = m_shellVerbs.OpenShellItem (GetHwnd(), rows[(size_t) row].shellId);
     IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::GetPromptRect
-//
-//  The Preview pane's prompt, below the pane's top by Explorer's margin.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT CassoExplorerWindow::GetPromptRect (const RECT & pane) const
-{
-    RECT  rect = GetMessageRect (pane);
-
-
-
-    rect.top = (std::min) (pane.top + m_scaler.ToPx (kPromptTopDip), pane.bottom);
-
-    return rect;
 }
 
 
