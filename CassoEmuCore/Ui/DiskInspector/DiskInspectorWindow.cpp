@@ -77,6 +77,7 @@ static constexpr int      s_kZoomLabelDip   = 40;
 static constexpr int      s_kCheckLabelPadDip = 30;
 static constexpr int      s_kTabLabelPadDip = 24;
 static constexpr int      s_kLegendButtonDip = 80;
+static constexpr int64_t  s_kLegendReopenMs = 300;
 static constexpr double   s_kCharWidthDip   = 7.2;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
@@ -356,6 +357,7 @@ void DiskInspectorWindow::OnCreate()
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
+    m_legendButton->SetOnClick ([this] () { if (m_isLegendPinned) { HideLegend(); } else if (static_cast<int64_t> (GetTickCount64()) - m_legendClosedMs > s_kLegendReopenMs) { ShowLegend (true); } });
     m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (index - kTrackTabCount); } });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
@@ -423,6 +425,7 @@ void DiskInspectorWindow::OnCreate()
 void DiskInspectorWindow::OnWindowClose()
 {
     m_tooltip.HideImmediate();
+    HideLegend();
     m_host->SetHeadStateWanted (false);
     Hide();
     m_host->OnInspectorClosed();
@@ -905,6 +908,11 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (!isHandled)
     {
         isHandled = DxuiWindow::OnMouse (ev);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        TrackLegendHover (p);
     }
 
     if (ev.kind == DxuiMouseEventKind::Move)
@@ -3761,4 +3769,122 @@ uint32_t DiskInspectorWindow::GetToolSig() const
 bool DiskInspectorWindow::IsHeadShown() const
 {
     return m_context.hasDisk && m_headState != nullptr && IsWindowDiskA();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowLegend
+//
+//  The legend in a popup above the "Legend" button (FR-030). A preview on
+//  hover lets the pointer through and closes when the pointer leaves the
+//  button; a pinned one, after a click, stays until the next click outside
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowLegend (bool isPinned)
+{
+    HRESULT                    hr       = S_OK;
+    DxuiHwndSource           * host     = GetPopupHost();
+    DxuiPopupHost::ShowParams  params;
+    RECT                       button   = m_legendButton->GetBounds();
+    POINT                      topLeft  = { button.left,  button.top };
+    POINT                      botRight = { button.right, button.bottom };
+
+
+
+    HideLegend();
+    BAIL_OUT_IF (host == nullptr, S_OK);
+
+    m_legendPopup = host->AcquirePopup();
+    BAIL_OUT_IF (m_legendPopup == nullptr, S_OK);
+
+    ClientToScreen (GetHwnd(), &topLeft);
+    ClientToScreen (GetHwnd(), &botRight);
+
+    params.ownerHwnd        = GetHwnd();
+    params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+    params.placement        = DxuiPopupPlacement::Above;
+    params.flipIfOffscreen  = true;
+    params.dismiss          = isPinned ? DxuiPopupDismiss::OnClickOutside : DxuiPopupDismiss::Manual;
+    params.input            = isPinned ? DxuiPopupInput::Interactive : DxuiPopupInput::PassThrough;
+    params.sizeDip          = { PlatterLegendView::kWidthDip, m_legend->GetHeightDip (*m_theme) };
+    params.backgroundArgb   = m_theme->BackgroundElevated();
+    params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text)
+                              {
+                                  m_legend->Layout ({ 0, 0, m_scaler.ToPx (PlatterLegendView::kWidthDip), m_scaler.ToPx (m_legend->GetHeightDip (*m_theme)) }, m_scaler);
+                                  m_legend->Paint  (painter, text, *m_theme);
+                              };
+    params.onClosed         = [this] ()
+                              {
+                                  m_legendPopup    = nullptr;
+                                  m_isLegendPinned = false;
+                                  m_legendClosedMs = static_cast<int64_t> (GetTickCount64());
+                              };
+
+    hr = m_legendPopup->Show (std::move (params));
+    CHRF (hr, host->ReleasePopup (m_legendPopup); m_legendPopup = nullptr);
+
+    m_isLegendPinned = isPinned;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::HideLegend
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::HideLegend()
+{
+    DxuiPopupHost  * popup = m_legendPopup;
+
+
+
+    m_legendPopup    = nullptr;
+    m_isLegendPinned = false;
+
+    if (popup != nullptr && GetPopupHost() != nullptr)
+    {
+        GetPopupHost()->ReleasePopup (popup);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TrackLegendHover
+//
+//  The pointer over the "Legend" button previews the legend; leaving the
+//  button closes the preview, and leaves a pinned legend open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TrackLegendHover (POINT pointPx)
+{
+    bool  isOver = m_legendButton->IsVisible() && IsInside (m_legendButton->GetBounds(), pointPx);
+
+
+
+    if (isOver && m_legendPopup == nullptr)
+    {
+        ShowLegend (false);
+    }
+    else if (!isOver && m_legendPopup != nullptr && !m_isLegendPinned)
+    {
+        HideLegend();
+    }
 }

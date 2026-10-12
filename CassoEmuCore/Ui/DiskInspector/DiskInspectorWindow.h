@@ -145,6 +145,9 @@ private:
     void  OnSelection      ();
     void  ShowTrackTab     (int tab);
     void  ShowTabContent   ();
+    void  ShowLegend       (bool isPinned);
+    void  HideLegend       ();
+    void  TrackLegendHover (POINT pointPx);
     bool  IsImageShown     () const;
     void  LayoutPlatterControls (const RECT & area, const DxuiDpiScaler & scaler);
     int   LayoutTabs       (const RECT & area, const DxuiDpiScaler & scaler);
@@ -232,6 +235,9 @@ private:
     DxuiTabStrip                          * m_driveTabs          = nullptr;
     DxuiTabStrip                          * m_tabs               = nullptr;
     DxuiButton                            * m_legendButton       = nullptr;
+    DxuiPopupHost                         * m_legendPopup        = nullptr;
+    bool                                    m_isLegendPinned     = false;
+    int64_t                                 m_legendClosedMs     = 0;
     bool                                    m_isDiskGroup        = false;
     bool                                    m_isHintShown        = false;
     RECT                                    m_stripAreaPx        = {};

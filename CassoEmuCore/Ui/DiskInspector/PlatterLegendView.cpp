@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Ui/DiskInspector/FileMapText.h"
 
 
 
@@ -19,43 +20,122 @@ static constexpr float  s_kGapDip    = 6.0f;
 //
 //  PlatterLegendView::Paint
 //
-//  Entries fill a grid of kColumns columns, row by row, and the note takes
-//  the row after the last, so the legend's height never depends on how
-//  wide its labels are.
+//  Each section under its title, its entries in a grid of kColumns columns
+//  filled row by row, then its note.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float                rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip));
-    float                swatch  = m_scaler.ToPxf (s_kSwatchDip);
-    float                gap     = m_scaler.ToPxf (s_kGapDip);
-    float                textPx  = m_scaler.ToPxf (kSmallDip);
-    float                columnW = GetWidth() / kColumns;
-    float                left    = static_cast<float> (m_boundsDip.left);
-    float                top     = static_cast<float> (m_boundsDip.top);
-    vector<LegendEntry>  entries = BuildEntries (m_context.palette, m_context.isTimingMode, m_context.timingRange);
-    std::wstring         note    = GetNote (m_context.isTimingMode);
-    int                  rows    = static_cast<int> ((entries.size() + kColumns - 1) / kColumns);
+    float  rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip));
+    float  swatch  = m_scaler.ToPxf (s_kSwatchDip);
+    float  gap     = m_scaler.ToPxf (s_kGapDip);
+    float  pad     = m_scaler.ToPxf (static_cast<float> (kPadDip));
+    float  textPx  = m_scaler.ToPxf (kSmallDip);
+    float  left    = static_cast<float> (m_boundsDip.left) + pad;
+    float  y       = static_cast<float> (m_boundsDip.top) + pad;
+    float  columnW = (GetWidth() - 2 * pad) / kColumns;
 
 
 
-    if (m_context.hasDisk)
+    for (const LegendSection & section : BuildSections (m_context, theme))
     {
-        for (size_t i = 0; i < entries.size(); i++)
-        {
-            float  x = left + static_cast<float> (i % kColumns) * columnW;
-            float  y = top  + static_cast<float> (i / kColumns) * rowH;
+        text.DrawString (section.title.c_str(), left, y, GetWidth() - 2 * pad, rowH, theme.HeadingForeground(), textPx, DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+        y += rowH;
 
-            painter.FillRect    (x, y + (rowH - swatch) / 2, swatch, swatch, entries[i].argb);
-            painter.OutlineRect (x, y + (rowH - swatch) / 2, swatch, swatch, 1.0f, theme.Border());
-            text.DrawString (entries[i].label.c_str(), x + swatch + gap, y, columnW - swatch - gap, rowH, theme.ForegroundMuted(), textPx,
+        for (size_t i = 0; i < section.entries.size(); i++)
+        {
+            float  x  = left + static_cast<float> (i % kColumns) * columnW;
+            float  ey = y + static_cast<float> (i / kColumns) * rowH;
+
+            painter.FillRect    (x, ey + (rowH - swatch) / 2, swatch, swatch, section.entries[i].argb);
+            painter.OutlineRect (x, ey + (rowH - swatch) / 2, swatch, swatch, 1.0f, theme.Border());
+            text.DrawString (section.entries[i].label.c_str(), x + swatch + gap, ey, columnW - swatch - gap, rowH, theme.Foreground(), textPx,
                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
-        text.DrawString (note.c_str(), left, top + static_cast<float> (rows) * rowH, GetWidth(), rowH, theme.ForegroundMuted(), textPx,
-                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        y += static_cast<float> ((section.entries.size() + kColumns - 1) / kColumns) * rowH;
+
+        if (!section.note.empty())
+        {
+            text.DrawString (section.note.c_str(), left, y, GetWidth() - 2 * pad, rowH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            y += rowH;
+        }
+
+        y += rowH / 2;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterLegendView::GetHeightDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterLegendView::GetHeightDip (const IDxuiTheme & theme) const
+{
+    int  rows = 0;
+
+
+
+    for (const LegendSection & section : BuildSections (m_context, theme))
+    {
+        rows += 2 + static_cast<int> ((section.entries.size() + kColumns - 1) / kColumns) * 2 + (section.note.empty() ? 0 : 2) + 1;
+    }
+
+    return rows * kRowDip / 2 + 2 * kPadDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterLegendView::BuildSections
+//
+//  The platter for its mode, the file map's roles while the Files overlay
+//  colors the platter, and the Sector data bytes, in that order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewContext & context, const IDxuiTheme & theme)
+{
+    vector<LegendSection>  sections;
+    LegendSection          files;
+    int                    role     = 0;
+
+
+
+    sections.push_back ({ context.isTimingMode ? L"Platter: Timing" : L"Platter: Structure",
+                          BuildEntries (context.palette, context.isTimingMode, context.timingRange), GetNote (context.isTimingMode) });
+
+    if (context.isFilesOverlay && context.fileMap != nullptr && context.fileMap->notMapped == NotMappedReason::None)
+    {
+        files.title = L"Files overlay: " + FileMapText::FormatVolume (*context.fileMap);
+
+        for (role = 0; role < static_cast<int> (MapRole::Count); role++)
+        {
+            files.entries.push_back ({ context.palette.GetRoleColor (static_cast<MapRole> (role)),
+                                       FileMapText::FormatRole (context.fileMap->fileSystem, static_cast<SectorRole> (role)) });
+        }
+
+        sections.push_back (files);
+    }
+
+    sections.push_back ({ L"Sector data bytes",
+                          { { theme.ForegroundMuted(), L"$00" },
+                            { theme.Foreground(),      L"$01 to $7F" },
+                            { theme.Accent(),          L"$80 to $FF" } },
+                          L"The Apple II stores ordinary text with the high bit set, so text reads as $80 and up" });
+
+    return sections;
 }
 
 
