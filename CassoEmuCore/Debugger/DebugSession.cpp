@@ -1619,6 +1619,7 @@ std::optional<std::pair<uint32_t, uint32_t>> DebugSession::GetVideoBreak() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebugSession::ClearVideoBreak

@@ -101,6 +101,7 @@ std::string WinDbgFormatter::FormatRegister (const Cpu6502Registers & registers,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WinDbgFormatter::FormatFlags

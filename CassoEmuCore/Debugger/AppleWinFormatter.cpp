@@ -404,6 +404,7 @@ void AppleWinFormatter::AppendVideoBreak (const BreakpointListData & data, std::
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleWinFormatter::FormatBreakpointList
