@@ -353,9 +353,9 @@ private:
     wchar_t         GetCharFor       (uint8_t byte) const;
     static wchar_t  GetCodePageChar  (UINT codePage, DWORD flags, uint8_t byte);
 
-    static constexpr UINT  s_kDosCodePage     = 437;
-    static constexpr UINT  s_kWindowsCodePage = 1252;
-    static constexpr uint8_t  s_kFormFeed     = 0x0C;
+    static constexpr UINT     s_kDosCodePage     = 437;
+    static constexpr UINT     s_kWindowsCodePage = 1252;
+    static constexpr uint8_t  s_kFormFeed        = 0x0C;
 
     //  The rows' height, less the horizontal scrollbar when it shows; the
     //  full width a row needs; and the width left for rows beside the
