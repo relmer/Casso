@@ -1043,10 +1043,17 @@ against the expected slipped nibbles.
 
 ### User Story 13 - Identify the copy protection (Priority: P12)
 
-A preservationist opens a protected disk and sees a verdict chip, "Protection
-found", and a Protection category in Findings giving each technique the disk
-uses, with its evidence, a confidence, and what a copy must keep for the disk
-to work. The boot loader is identified from its boot sector when its family is
+A preservationist opens a protected disk. The verdict chip is "Copy
+protected", "Probably copy protected" or "May be copy protected", and the
+Findings tab has a Protection category with each technique the disk uses, its
+evidence, a confidence, and which image formats preserve it. The same level
+is in the platter's and strip's tooltips, the legend, the track header and
+the Tracks list for each track or sector a finding covers. Not every
+nonstandard track is protection: some custom formats exist for speed or
+space, and some formatting tools write tracks of sync alone, so the level is
+a measure of how strong the evidence is. A sector image (.dsk, .do or .po)
+cannot be copy protected, so the inspector has no protection information for
+one. The boot loader is identified from its boot sector when its family is
 in the pattern table, and "Trace boot" finds the disk's own read routine when
 the loader is encrypted. The Image tab lists the findings that the image's
 format has no room for.
@@ -1067,7 +1074,8 @@ was planted.
 1. **Given** a made-up disk with one technique, **When** it is opened,
    **Then** the Protection category lists that technique exactly once with
    its evidence, confidence and what a copy must keep, and the verdict
-   chip shows "Protection found".
+   chip is "Copy protected" for Certain, "Probably copy protected" for
+   Likely and "May be copy protected" for Possible.
 2. **Given** a standard DOS 3.3 disk, **When** it is opened, **Then** the
    Protection category is empty and the verdict chip shows "Standard".
 3. **Given** a track of random noise among standard tracks, **When** the disk
@@ -1085,6 +1093,19 @@ was planted.
    running machine are unchanged.
 7. **Given** a WOZ with timing-bit findings, **When** the Image tab is shown,
    **Then** it lists those findings as lost in a DSK or NIB copy.
+8. **Given** a DSK, DO or PO image, **When** it is opened, **Then** there is
+   no protection verdict, no Protection category, and no tooltip or legend
+   entry mentions protection.
+9. **Given** a NIB whose tracks all use address prologue D4 AA 96 and whose
+   read routine on track 0 reads it, **When** it is opened, **Then** the chip
+   is "Copy protected", and the platter's tooltip over any track and the
+   legend entry for its color contain "Copy protected: modified address
+   prologue D4 AA 96".
+10. **Given** a WOZ with one nonstandard track that matches no technique,
+    among standard tracks, **When** it is opened, **Then** the Protection
+    category has a Possible finding, "Unrecognized track format", for that
+    track, the chip is "May be copy protected", and the track's tooltip has
+    the same level.
 
 ---
 
@@ -1555,8 +1576,10 @@ legend, and tilt the platter and back.
   explain, naming the file's format (.dsk, .do or .po), that Casso builds the
   tracks from its sector data, so they have no timing or copy protection. For
   NIB and NB2 the tab MUST explain that a nibble image has no timing between
-  bits, and for a WOZ track imaged as bits, that only flux tracks have
-  timing.
+  bits. For a WOZ file before 2.1, the tab's note MUST be that only WOZ 2.1
+  and later files can image a track as flux, which includes timing; for a
+  track imaged as bits in a WOZ 2.1 or later file, the note MUST have the
+  file's version and that only tracks imaged as flux include timing.
   The track lengths of sector, NIB and NB2 images come from the format, so
   those tracks get these notes and no track-length finding.
 - **FR-004**: The inspector MUST cover all 160 quarter tracks, 0 to 39.75, and
@@ -2958,7 +2981,17 @@ release (Delivery). The first release MUST NOT depend on them.
   with its quarter track, cell or angle and bytes; a confidence of Certain,
   Likely or Possible; and what a copy must keep for the disk to work (for
   example "Lost in DSK and NIB, kept in WOZ" or "Kept only on a flux track").
-  These findings can use the word protection (FR-048).
+  These findings can use the word protection (FR-048). A finding MUST be
+  Certain when the disk's own code relies on the technique: its boot loader
+  matches a protection pattern (FR-133), or its read routine, read in place
+  or found by "Trace boot" (FR-134), reads the marks, checksums or format the
+  technique found. It MUST be Likely when only protection uses the technique
+  (timing bits, bit-slip streams, wide tracks, sector 0 lined up across
+  tracks, weak bits) or the technique recurs the same way on several tracks,
+  and Possible otherwise, as for modified marks on one track, a track length
+  far from nominal or data on a half track alone. A nonstandard track that no
+  technique accounts for MUST get a Possible finding, "Unrecognized track
+  format".
 - **FR-132**: From the disk's data alone, without running its code, the
   inspector MUST detect and report as Protection findings: address or data
   marks other than the standard ones, with their values; address or data
@@ -2994,7 +3027,8 @@ release (Delivery). The first release MUST NOT depend on them.
   table can still be read. When no such read happens within the limit, it
   MUST show that none was found.
 - **FR-135**: A verdict chip MUST show the first of these that applies:
-  "Protection found", when a Protection finding is Certain or Likely;
+  "Copy protected", "Probably copy protected" or "May be copy protected",
+  for the most certain Protection finding (FR-131);
   "Damaged", when the image has damaged records or its checksum does not
   match; "Bad sectors", when a 13-sector or 16-sector track has bad sectors;
   "Nonstandard format", when a track is nonstandard or the decode settings are
@@ -3005,6 +3039,20 @@ release (Delivery). The first release MUST NOT depend on them.
   as zero cells; a WOZ flux track keeps one turn; an A2R keeps every
   revolution captured. It MUST list the Protection findings on this disk that
   a copy in each other format would lose.
+- **FR-155**: For a DSK, DO or PO image, the window MUST have no protection
+  information: no protection verdict, no Protection category, and no
+  protection wording in a tooltip, the legend or the Tracks list, as Casso
+  builds its tracks from sector data in the standard format. A NIB or NB2
+  image MUST be checked for each technique detectable in its nibbles, but
+  not for those that depend on what the format does not record: the bits
+  between nibbles, track lengths, flux and weak bits.
+- **FR-156**: For each track or sector a Protection finding covers, the
+  finding's level and technique MUST appear, as in "Probably copy protected:
+  nibble-count track": in the platter's and strip's tooltips and the track
+  header's tooltip, beside the color in the legend of each kind of track a
+  finding covers on this disk, and in a Protection column of the Tracks list.
+  Without protection identification, as in the first release, these places
+  MUST use FR-048's neutral wording.
 - **FR-137**: Explorer's inspector MUST open A2R 2 and A2R 3 captures of 5.25"
   disks with "Inspect disk image", which MUST also appear on the right-click
   menu of an A2R file (FR-073), and MUST show a capture of any other drive
