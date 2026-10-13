@@ -346,7 +346,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "SOURCE",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SOURCE needs a link to an assembler listing." },
     { "SYNC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SYNC needs a link to an assembler listing." },
     { "NTSC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "NTSC reads an AppleWin palette file, which Casso does not use." },
-    { "DISASM",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "DISASM sets AppleWin's console layout; the disassembly view's check boxes set its options." },
+    { "DISASM",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "Not supported. Use the check boxes in the disassembly window." },
 };
 
 

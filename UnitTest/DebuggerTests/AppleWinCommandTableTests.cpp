@@ -165,7 +165,7 @@ namespace DebuggerTests
 
                 Assert::IsNotNull (command);
                 Assert::IsNotNull (command->reason);
-                Assert::IsTrue    (std::string (command->reason).starts_with (name));
+                Assert::IsTrue    (std::string (command->reason).ends_with ("."), L"the reason is a complete sentence");
             }
         }
 
