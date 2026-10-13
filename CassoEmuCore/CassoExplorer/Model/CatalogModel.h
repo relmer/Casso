@@ -83,6 +83,10 @@ struct CatalogRow
     //  whether or not it is a file; hostPath holds its path when it has one.
     std::wstring  shellId;
 
+    //  A desktop entry such as OneDrive, whose icon is the entry's own rather
+    //  than its folder's: the shell's name for the entry.
+    std::wstring  iconId;
+
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
     size_t        sourceIndex  = 0;

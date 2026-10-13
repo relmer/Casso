@@ -455,6 +455,7 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
         row.sourceIndex  = index;
         row.shellOrder   = items[index].shellOrder;
+        row.iconId       = items[index].iconId;
 
         m_rows.push_back (std::move (row));
     }
@@ -3622,11 +3623,11 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
         return icons.GetForKind (GetAppleTypeIconKind (row.typeText));
     }
 
-    //  A shell folder's item has the icon the shell draws for it, by its path
-    //  when it has one.
+    //  A shell folder's item has the icon the shell draws for it: a desktop
+    //  entry's own, else by its path when it has one.
     if (at.kind == Location::Kind::ShellFolder && !row.shellId.empty())
     {
-        return icons.GetForPath (row.hostPath.empty() ? row.shellId : row.hostPath, row.isDirectory);
+        return icons.GetForPath (!row.iconId.empty() ? row.iconId : row.hostPath.empty() ? row.shellId : row.hostPath, row.isDirectory);
     }
 
     //  A deleted item still has its file, under the bin's own folder on its

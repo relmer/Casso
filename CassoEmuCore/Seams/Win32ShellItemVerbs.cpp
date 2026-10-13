@@ -1313,6 +1313,13 @@ HRESULT Win32ShellItemVerbs::ReadShellFolder (const std::wstring & id, std::vect
 
         hrItem = DescribeShellItem (item.Get(), entry);
 
+        //  A desktop entry such as OneDrive has the entry's icon, its cloud,
+        //  rather than its folder's, as in ListDesktopNamespace.
+        if (SUCCEEDED (hrItem) && id == kDesktopNamespaceId)
+        {
+            entry.iconId = GetJunctionId (item.Get());
+        }
+
         if (SUCCEEDED (hrItem))
         {
             outItems.push_back (std::move (entry));
@@ -1350,6 +1357,36 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::GetJunctionId
+//
+//  The item's name in its folder when that name is a CLSID, as "::{...}";
+//  empty for any other item.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ShellItemVerbs::GetJunctionId (IShellItem * item)
+{
+    PWSTR         name = nullptr;
+    std::wstring  id;
+    HRESULT       hr   = item->GetDisplayName (SIGDN_PARENTRELATIVEPARSING, &name);
+
+
+
+    if (SUCCEEDED (hr) && name != nullptr && wcsncmp (name, L"::", 2) == 0)
+    {
+        id = name;
+    }
+
+    CoTaskMemFree (name);
+    return id;
 }
 
 

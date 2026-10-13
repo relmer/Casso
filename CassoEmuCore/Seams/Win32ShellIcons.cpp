@@ -449,7 +449,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
     if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0
         || (path.size() > 2 && path[1] == L':' && !PathResolver::IsNetworkPath (path) && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
     {
-        return LoadShellItemIcon (path, (std::max) (sizePx, GetSystemMetrics (SM_CXICON)), SIIGBF_ICONONLY);
+        return (sizePx <= s_kLargeIconPx) ? LoadForShellName (path, overlays) : LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
     }
 
     //  A folder at a large size shows what is in it, as Explorer's does.
@@ -469,6 +469,43 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
     }
 
     return LoadForPath (path, SHGFI_LARGEICON, overlays);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadForShellName
+//
+//  An item by the shell's name for it, with the large icon its entry draws,
+//  and with `overlays` its overlays, such as a cloud folder's sync state; the
+//  shell item's own image when the name does not parse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON Win32ShellIcons::LoadForShellName (const std::wstring & name, bool overlays)
+{
+    HRESULT           hr     = S_OK;
+    PIDLIST_ABSOLUTE  pidl   = nullptr;
+    SHFILEINFOW       info   = {};
+    DWORD_PTR         result = 0;
+
+
+
+    hr = SHParseDisplayName (name.c_str(), nullptr, &pidl, 0, nullptr);
+    CHR (hr);
+
+    result = SHGetFileInfoW ((LPCWSTR) pidl, 0, &info, sizeof (info),
+                             SHGFI_PIDL | SHGFI_ICON | SHGFI_LARGEICON | (overlays ? SHGFI_ADDOVERLAYS : 0));
+
+Error:
+    CoTaskMemFree (pidl);
+
+    return FAILED (hr)    ? LoadShellItemIcon (name, GetSystemMetrics (SM_CXICON), SIIGBF_ICONONLY)
+         : (result != 0)  ? info.hIcon
+                          : nullptr;
 }
 
 

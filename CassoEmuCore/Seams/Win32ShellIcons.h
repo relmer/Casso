@@ -95,6 +95,7 @@ private:
     static HICON                           LoadByAttributes  (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon (const std::wstring & path, int sizePx, SIIGBF flags);
+    static HICON                           LoadForShellName  (const std::wstring & name, bool overlays);
     static std::shared_ptr<DxuiIconImage>  Rasterize         (HICON icon, int sizePx, UINT dpi = 0);
     static HICON                           LoadForKind       (Kind kind, UINT sizeFlag);
     static HICON                           CropToCorner      (HICON icon, bool & outCropped);

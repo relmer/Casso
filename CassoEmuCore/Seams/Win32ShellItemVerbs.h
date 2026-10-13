@@ -160,6 +160,7 @@ private:
     //  is, as a listing shows it.
     static HRESULT       DescribeShellItem (IShellItem * item, ShellFolderItem & outEntry);
     static PITEMID_CHILD GetChildId (IShellItem * item);
+    static std::wstring  GetJunctionId (IShellItem * item);
 
     //  A shell item by the shell's name for it, the desktop namespace's own
     //  root included.

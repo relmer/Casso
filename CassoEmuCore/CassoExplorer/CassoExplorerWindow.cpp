@@ -1306,8 +1306,8 @@ void CassoExplorerWindow::OnThemeChanged()
 //  CassoExplorerWindow::RevealLocationInTree
 //
 //  Expands This PC, or with the all-folders option on the desktop, down to the
-//  current location's folder and highlights it, as File Explorer's navigation
-//  pane does when a window opens on a folder.
+//  current location's folder, highlights it and expands it, as File Explorer's
+//  navigation pane does when a window opens on a folder.
 //  Each path component is matched against the child labels without regard to
 //  case, since a restored path need not match the case on disk.
 //
@@ -1349,9 +1349,11 @@ void CassoExplorerWindow::RevealLocationInTree()
     }
 
     //  A node the user clicked already shows the location, possibly under the
-    //  Casso root rather than This PC, so it stays highlighted, and in view.
+    //  Casso root rather than This PC, so it stays highlighted, opened, and in
+    //  view.
     if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
+        m_tree->SetRowExpanded (m_tree->GetHighlight(), true);
         ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
@@ -1420,7 +1422,9 @@ void CassoExplorerWindow::RevealLocationInTree()
         return;
     }
 
+    //  The open folder's own row is opened too, as Explorer's is.
     m_tree->HighlightRow (row);
+    m_tree->SetRowExpanded (row, true);
     ScrollTreeToRow (row);
 }
 
