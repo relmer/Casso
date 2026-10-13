@@ -1612,8 +1612,11 @@ legend, and tilt the platter and back.
   for tables", "Save decode settings..." and "Load decode settings..." (FR-125
   to FR-127) and a switch for each custom track format decoder (FR-141), and
   "Compare with..." a choice of quarter tracks of the window's disk (FR-145).
-  The window MUST open at 1200×800 and not shrink below 960×720, both scaled
-  for the display, and the platter MUST stay square.
+  The window MUST open at 1280×800, wide enough for the track tabs and the
+  disk tabs on one row with Differences among them, and not shrink below
+  960×720, all scaled for the display, and the platter MUST stay square. A
+  "Default size" command on the window's system menu MUST return it to the
+  size it opens at, centered over the main window.
 
 **Analysis**
 
@@ -1844,10 +1847,17 @@ legend, and tilt the platter and back.
 - **FR-037**: Hovering the strip MUST show the nibble's value, its cell and
   width in cells, its kind and sector, and on flux tracks its timing.
   Clicking a nibble MUST select its sector and scroll the Nibbles tab to it.
-- **FR-038**: When the selection changes from any view, the strip and, when
-  zoomed, the platter MUST pan, keeping their zoom, until the selected sector
-  or nibble is in view, the platter centering it when it fits in view; the
-  File map grid MUST scroll to the selected sector's cell. The platter MUST
+- **FR-038**: When the selection changes from any view, the strip MUST pan,
+  keeping its zoom, until the selected sector or nibble is in view, and the
+  File map grid MUST scroll to the selected sector's cell. When the user
+  chooses a new sector anywhere but on the platter, the platter MUST zoom
+  out smoothly from its view to the whole disk, then in until the sector is
+  centered and the chord from its start to its end is 75% of the line
+  through the view's center along that chord, from edge to edge. A sector
+  chosen on the platter or by Follow head MUST NOT start this flight, and
+  the user zooming or panning the platter MUST end it. A pan MUST stop with
+  the disk's edge at the view's center, so a sector on the outermost ring
+  can be centered. The platter MUST
   outline the selected sector or nibbles in the selection color on a
   contrasting edge, at least 8 DIP across at any zoom, and the selection MUST
   shimmer continuously in the platter, the strip and the File map grid, lit
