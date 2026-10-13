@@ -139,6 +139,12 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Do the video and sound logs and the trace buffer change? -> A: Yes, they follow the same rule (FR-198 amended).
 - Q: Does the debugger stay inside the emulator's shell? -> A: No; it becomes one component the shell holds through a narrow interface, as does input, with no measurable cost to emulation speed and host time (FR-218, SC-052).
 
+### Session 2026-10-12 (owner: automatic save and resume of machine states)
+
+- Q: Can a machine continue across a restart of Casso? -> A: Yes, with a setting on the General page, "Automatically save the machine state at exit and resume at startup", on by default. Each machine kind has its own automatic state, saved at exit and on switching away from that machine, and resumed at startup or on switching to it (FR-219 to FR-221).
+- Q: What if the automatic state cannot be resumed? -> A: A notice with the reason appears, the machine starts cold, and the file is not modified; the next automatic save replaces it (FR-222).
+- Q: What does a launch with disks or a tape on the command line do? -> A: It starts cold with the command line's media, so the automatic state is not resumed. At exit the existing automatic state is replaced only if the user chooses to replace it, in a prompt with that state's date and time and a thumbnail of its screen. A command line with only a machine option resumes that machine (FR-223).
+- Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\States\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -1239,6 +1245,47 @@ without the scrolling stalling.
 
 ---
 
+### User Story 25 - Pick up the machine where I left it (Priority: P2)
+
+A user playing a game or partway through a program closes Casso. With the
+automatic save setting on, the next time Casso starts the same machine is back
+at the same point, the same disks in its drives with the same contents, and the
+program continues from there. Switching to another machine and back returns
+each one to where it was left.
+
+**Why this priority**: the machine state files built for T464 already save and
+load a whole machine; doing it at exit and startup removes the steps between
+closing Casso and continuing, and saves one machine's progress when the user
+moves to another.
+
+**Independent Test**: Turn the setting on, boot a //e from a disk and run a
+program to a recognizable screen, and close Casso. Start Casso: the //e's
+screen matches the one at exit and the program continues, with no file dialog. Switch to the //c,
+run something, switch back to the //e: it is where it was left.
+
+**Acceptance Scenarios**:
+
+1. **Given** the setting on and a running machine, **When** the user closes
+   Casso and starts it again, **Then** the machine resumes at the point where
+   Casso closed, with the same disks and disk contents, and no file dialog
+   appears.
+2. **Given** the setting on and two machine kinds used in one session,
+   **When** the user switches from one to the other and back, **Then** each
+   resumes where it was left.
+3. **Given** an automatic state saved with ROM images that have since changed,
+   **When** Casso starts, **Then** a notice with the reason appears, the
+   machine starts cold, and the automatic state file is not modified.
+4. **Given** the setting on and an automatic state for the //e, **When** Casso
+   starts with a disk on the command line, **Then** the //e starts cold with
+   that disk, and at exit a prompt with the saved state's date, time and
+   screen thumbnail offers to replace it or not.
+5. **Given** the setting off, **When** the user closes and starts Casso,
+   **Then** no state is saved or resumed, and automatic states saved earlier
+   are left on disk untouched.
+6. **Given** a machine state file saved before this change, **When** the user
+   loads it, **Then** it loads.
+
+---
 ### Edge Cases
 
 - **An event older than history**: Scrolling a log back past the oldest
@@ -1487,6 +1534,20 @@ without the scrolling stalling.
 - **Edit instruction over ROM or a soft switch**: refused, saying why.
 - **Compare with an overlapping range**: allowed; each cell compares with the
   byte at its offset in the other range as it was when compared.
+- **Automatic save setting turned off**: automatic states already saved are
+  not deleted, written or resumed; turning the setting on again resumes them.
+- **Exit prompt closed without a choice**: the existing automatic state is
+  not replaced.
+- **Disk image file changed outside Casso since the automatic save**: the
+  resumed machine has the disk as the state saved it, as loading a state does;
+  the change is seen once the disk is mounted again.
+- **Machine kind no longer available** (its definition removed or renamed):
+  its automatic state is not resumed; FR-222 applies when that machine was the
+  one running at exit.
+- **Casso closed by a crash or by ending its process**: no automatic state is
+  written, and the one saved before stays.
+- **Two copies of Casso running the same machine kind**: each saves at its own
+  exit, and the last to exit replaces the other's automatic state.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2798,6 +2859,41 @@ without the scrolling stalling.
   debugger's own headers; the shell's input handling MUST be one component held the same
   way. Neither MUST add a call through an interface to any path run per
   instruction or per cycle, and SC-052 MUST hold across the change.
+- **FR-219**: The Settings sheet's General page MUST have a setting labeled
+  "Automatically save the machine state at exit and resume at startup", on by
+  default and saved with the user's other preferences.
+- **FR-220**: With the setting on, each machine kind MUST have at most one
+  automatic state, a machine state file written when Casso exits and when the
+  user switches from that machine to another. Writing it MUST NOT write any
+  disk image file, as saving a state does today.
+- **FR-221**: With the setting on, Casso MUST start the machine that was
+  running at exit by resuming its automatic state when one exists, and
+  switching to a machine MUST resume that machine's automatic state when one
+  exists, each in place of a cold boot. Resuming MUST be the same as loading a
+  machine state: the disks come from the state's own bytes, and history starts
+  again at the resumed point.
+- **FR-222**: An automatic state that cannot be resumed (different ROM images,
+  a newer format, a damaged or cut-short file, a machine that cannot be
+  opened) MUST NOT be modified or deleted; a notice with the reason MUST
+  appear, and the machine MUST start cold. The next automatic save replaces the file.
+- **FR-223**: A launch whose command line mounts a disk or a tape MUST start
+  cold with that media and MUST NOT resume the automatic state. When that
+  session ends, or the user switches away from that machine, an existing
+  automatic state for it MUST be replaced only after a prompt with the
+  existing state's saved date and time and its screen thumbnail offers to
+  replace it and the user accepts; with no existing automatic state it is
+  written with no prompt. A command line with only a machine option MUST resume
+  that machine's automatic state.
+- **FR-224**: Every machine state file MUST record the date and time it was
+  saved and a thumbnail of the emulated screen at that moment. A file saved
+  before this change MUST load; a prompt about such a file has its file time
+  and no thumbnail.
+- **FR-225**: Machine state files MUST default to %LOCALAPPDATA%\Casso\States\.
+  The automatic states MUST be saved there, one per machine kind, and the Save
+  state and Load state dialogs MUST open in that folder by default. An
+  automatic state MUST be replaced only by a complete new file, so after a
+  save that fails partway the previous one is intact, and a failed save MUST
+  NOT stop Casso from closing.
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
@@ -2881,6 +2977,13 @@ without the scrolling stalling.
   produced them, bounded, recorded from the start of the session and cut back
   on rewind; a cache of what replaying history would produce, never a second
   record.
+- **Automatic state**: The machine state file for one machine kind in the
+  state folder, written at exit and on switching away from that machine, and
+  resumed at startup or on switching to it while the automatic save setting is
+  on.
+- **Machine state file** (amended 2026-10-12): in addition to the machine and
+  its disks, the date and time it was saved and a thumbnail of the emulated
+  screen at that moment.
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -3031,6 +3134,19 @@ without the scrolling stalling.
 - **SC-055**: Every feature on the approved FR-217 list works in the new
   panes, and neither standalone debug window remains.
 
+- **SC-056**: With the automatic save setting on, a user who closes Casso
+  mid-program and starts it again is back at the same point, with the same
+  screen and disk contents and the program continuing, with no action beyond
+  starting Casso.
+- **SC-057**: Starting Casso by resuming an automatic state takes no more than
+  one second longer than starting the same machine cold, with two 140 KB disks
+  mounted.
+- **SC-058**: In every tested case (a resume that fails, a session started
+  with command-line media, a save at exit that fails partway) the previous
+  automatic state is intact afterward unless the user chose to replace it.
+
+**Out of scope for the automatic states**: a state picker or browser, more than
+one automatic state per machine kind, and states saved on a timer.
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
 files with seamless scroll-back (kept in User Story 21's debug projects),
@@ -3251,6 +3367,17 @@ debug channel.
   than sectors read; the story's first task checks this on a DOS 3.3 boot and
   files a GitHub issue if so.
 
+- **Exit**: closing the main window by any route (its close button, Alt+F4,
+  File > Exit, or the restart that applies an update) counts as exit for
+  FR-220. A crash or an ended process does not.
+- **The machine running at exit** is the one the existing preferences already
+  record as last used, so FR-221 requires no new record of it.
+- **Switching away from a command-line session's machine** is treated as its
+  end for FR-223's prompt, since a silent automatic save there would replace
+  the earlier state the prompt exists to protect. The owner's decision was
+  about exit; this extends it to the switch, which has the same effect.
+- **The thumbnail** is of the emulated screen alone, without the window's
+  chrome or the desk scene, small enough to add little to the file.
 ### References
 
 - GH #51 (debugger), GH #59 (merged into #51), GH #121 (whole-program
