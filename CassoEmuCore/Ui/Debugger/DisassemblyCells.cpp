@@ -131,6 +131,48 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyCells::IsDimmed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::IsDimmed (const DisassemblyOptions & options, bool isSourceShown, bool isSourceRow, bool isPcRow)
+{
+    DisassemblyOptions::Dim  kind = isSourceRow ? DisassemblyOptions::Dim::Source : DisassemblyOptions::Dim::Code;
+
+
+
+    return isSourceShown && !isPcRow && options.GetDim() == kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::DimRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyCells::DimRow (std::vector<DxuiListView::Cell> & cells, uint32_t foregroundArgb, uint32_t backgroundArgb)
+{
+    for (DxuiListView::Cell & cell : cells)
+    {
+        cell.argb = DxuiColor::Mix ((cell.argb != 0) ? cell.argb : foregroundArgb, backgroundArgb, kDimMix);
+
+        for (auto & [first, end, argb] : cell.colorRanges)
+        {
+            argb = DxuiColor::Mix (argb, backgroundArgb, kDimMix);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyCells::GetOperandAndResultCell
 //
 ////////////////////////////////////////////////////////////////////////////////

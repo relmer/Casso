@@ -110,10 +110,10 @@ public:
         }
 
         sheet.GetDisassemblyPage()->GetCheckbox (Option::AddressColon).SetChecked (true);
-        sheet.GetDisassemblyPage()->GetCheckbox (Option::Pointers).SetChecked (true);
+        sheet.GetDisassemblyPage()->GetCheckbox (Option::Pointers).SetChecked (false);
 
         Assert::IsTrue  (sheet.GetOptions().disassembly.IsOn (Option::AddressColon));
-        Assert::IsTrue  (sheet.GetOptions().disassembly.IsOn (Option::Pointers));
+        Assert::IsFalse (sheet.GetOptions().disassembly.IsOn (Option::Pointers));
         Assert::IsFalse (sheet.GetOptions().disassembly.IsOn (Option::CodeBytes), L"an option the user left alone");
     }
 
@@ -173,11 +173,10 @@ public:
         lda     = DisassemblyOptions::GetRowOfLine (preview->GetSampleRows(), 1);
 
         Assert::AreEqual ((size_t) 12, preview->GetSampleRows().size(),                              L"each instruction under its source line");
-        Assert::AreEqual (std::wstring (L"Y=05 $1235=C1"),  preview->GetCellsOfRow (lda)[5].text,    L"the default: no pointer");
+        Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=C1"), preview->GetCellsOfRow (lda)[5].text, L"the default: both");
         Assert::AreEqual (std::wstring (L"0302"),           preview->GetCellsOfRow (lda)[1].text,    L"the default: no colon");
         Assert::AreEqual (std::wstring (L"LDA (PTR),Y"),    preview->GetCellsOfRow (lda)[4].text);
 
-        Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::Pointers));
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::AddressColon));
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::Symbols));
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::OperandValues));
@@ -213,5 +212,49 @@ public:
         (void) PaintPreview (sheet, painter, theme);
 
         Assert::IsTrue (withArrow > CountLines (painter), L"the arrow's segments go with the check");
+    }
+
+    //  A row's address color with the given choice of what to dim.
+    static uint32_t  GetAddressArgb (DebuggerOptionsSheet & sheet, DisassemblyOptions::Dim dim, int row, const CassoTheme & theme)
+    {
+        DebuggerOptions   options;
+        MockDxuiPainter   painter;
+
+
+
+        options.disassembly.SetDim (dim);
+        sheet.GetDisassemblyPage()->SetOptions (options.disassembly);
+
+        return PaintPreview (sheet, painter, theme).GetCellsOfRow (row)[1].argb;
+    }
+
+
+    TEST_METHOD (ThePreviewDimsTheChosenRowsButNotThePcRow)
+    {
+        CassoTheme            theme  = CassoTheme::MakeSkeuomorphic();
+        DebuggerOptionsSheet  sheet;
+        DebuggerOptions       current;
+        ReverseBudgetRange    range  = { 1, 1000, 99 };
+        int                   lda    = 0;
+        int                   pc     = 0;
+        int                   source = 0;
+        MockDxuiPainter       painter;
+
+
+
+        sheet.BuildForTest (current, range);
+        (void) PaintPreview (sheet, painter, theme);
+        lda    = DisassemblyOptions::GetRowOfLine (sheet.GetDisassemblyPage()->GetPreview().GetSampleRows(), 1);
+        pc     = DisassemblyOptions::GetRowOfLine (sheet.GetDisassemblyPage()->GetPreview().GetSampleRows(), 4);
+        source = lda - 1;
+
+        Assert::AreNotEqual (GetAddressArgb (sheet, DisassemblyOptions::Dim::None, lda, theme),
+                             GetAddressArgb (sheet, DisassemblyOptions::Dim::Code, lda, theme),    L"a disassembly row");
+        Assert::AreEqual    (GetAddressArgb (sheet, DisassemblyOptions::Dim::None, pc, theme),
+                             GetAddressArgb (sheet, DisassemblyOptions::Dim::Code, pc, theme),     L"the PC's row");
+        Assert::AreEqual    (GetAddressArgb (sheet, DisassemblyOptions::Dim::None, source, theme),
+                             GetAddressArgb (sheet, DisassemblyOptions::Dim::Code, source, theme), L"a source row, with disassembly dimmed");
+        Assert::AreNotEqual (GetAddressArgb (sheet, DisassemblyOptions::Dim::None, source, theme),
+                             GetAddressArgb (sheet, DisassemblyOptions::Dim::Source, source, theme), L"a source row, with source dimmed");
     }
 };

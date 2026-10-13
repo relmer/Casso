@@ -164,8 +164,8 @@ namespace DisassemblyViewingTests
 
 
 
-        //  Every option but the pointers and the address colon starts checked.
-        TEST_METHOD (EveryViewingOptionButPointersAndTheColonStartsChecked)
+        //  Every option but the address colon starts checked.
+        TEST_METHOD (EveryViewingOptionButTheColonStartsChecked)
         {
             DisassemblyOptions  options;
 
@@ -173,7 +173,7 @@ namespace DisassemblyViewingTests
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
             {
-                Assert::AreEqual ((Option) i != Option::AddressColon && (Option) i != Option::Pointers, options.IsOn ((Option) i), DisassemblyOptions::GetLabel ((Option) i));
+                Assert::AreEqual ((Option) i != Option::AddressColon, options.IsOn ((Option) i), DisassemblyOptions::GetLabel ((Option) i));
             }
         }
 

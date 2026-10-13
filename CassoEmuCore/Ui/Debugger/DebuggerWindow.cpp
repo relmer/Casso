@@ -6602,6 +6602,7 @@ void DebuggerWindow::ApplyCodeView (int view)
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
     bool                                                 numbers       = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    bool                                                 hasSourceRows = false;
     std::string                                          annotation;
     std::wstring                                         text;
 
@@ -6620,6 +6621,8 @@ void DebuggerWindow::ApplyCodeView (int view)
     m_codeRows[(size_t) view] = DisassemblyOptions::BuildRows (lines, source,
                                                               [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
 
+    hasSourceRows = std::ranges::any_of (m_codeRows[(size_t) view], [] (const DisassemblyOptions::Row & row) { return row.codeLine < 0; });
+
     for (const DisassemblyOptions::Row & each : m_codeRows[(size_t) view])
     {
         std::vector<DxuiListView::Cell>          cells (kCodeColumnCount);
@@ -6636,6 +6639,11 @@ void DebuggerWindow::ApplyCodeView (int view)
             text    = hasText ? text : std::wstring();
 
             DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u);
+
+            if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, true, false))
+            {
+                DisassemblyCells::DimRow (cells, m_theme->Foreground(), m_theme->TextViewBackground());
+            }
 
             rows.push_back (std::move (cells));
             continue;
@@ -6681,6 +6689,11 @@ void DebuggerWindow::ApplyCodeView (int view)
         }
 
         annotation = DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
+
+        if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, false, line->isCurrent))
+        {
+            DisassemblyCells::DimRow (cells, m_theme->Foreground(), m_theme->TextViewBackground());
+        }
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.

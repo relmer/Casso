@@ -15,7 +15,8 @@
 DisassemblyOptionsPage::DisassemblyOptionsPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
-    int  i = 0;
+    std::vector<DxuiRadioOption>  dimOptions;
+    int                           i          = 0;
 
 
 
@@ -28,10 +29,22 @@ DisassemblyOptionsPage::DisassemblyOptionsPage (std::wstring title)
         m_checks[(size_t) i].SetOnChange        ([this] (bool) { m_preview.SetOptions (GetOptions()); });
     }
 
+    Adopt (m_dimLabel);
+    Adopt (m_dim);
     Adopt (m_previewLabel);
     Adopt (m_preview);
 
+    //  The labels go in now, so SetSelected before the first layout has
+    //  options to select from; Layout places them.
+    for (i = 0; i < DisassemblyOptions::kDimCount; i++)
+    {
+        dimOptions.push_back ({ {}, DisassemblyOptions::GetDimLabel ((DisassemblyOptions::Dim) i) });
+    }
+
+    m_dim.SetOptions       (std::move (dimOptions));
+    m_dimLabel.SetText     (L"While source is visible, dim");
     m_previewLabel.SetText (L"Preview");
+    m_dim.SetOnChange      ([this] (int) { m_preview.SetOptions (GetOptions()); });
 }
 
 
@@ -55,6 +68,7 @@ void DisassemblyOptionsPage::SetOptions (const DisassemblyOptions & options)
         m_checks[(size_t) i].SetChecked (options.IsOn ((DisassemblyOptions::Option) i));
     }
 
+    m_dim.SetSelected    ((int) options.GetDim());
     m_preview.SetOptions (options);
 }
 
@@ -79,6 +93,8 @@ DisassemblyOptions DisassemblyOptionsPage::GetOptions() const
     {
         options.Set ((DisassemblyOptions::Option) i, m_checks[(size_t) i].IsChecked());
     }
+
+    options.SetDim ((DisassemblyOptions::Dim) std::clamp (m_dim.GetSelected(), 0, DisassemblyOptions::kDimCount - 1));
 
     return options;
 }
@@ -118,21 +134,22 @@ RECT DisassemblyOptionsPage::MakeRect (int l, int t, int w, int h)
 
 void DisassemblyOptionsPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT  dpi        = scaler.GetDpi();
-    int   pad        = scaler.ToPx (kPagePadDp);
-    int   rowHeight  = scaler.ToPx (kRowHeightDp);
-    int   rowStep    = rowHeight + scaler.ToPx (kRowGapDp);
-    int   sectionGap = scaler.ToPx (kSectionGapDp);
-    int   x          = rect.left + pad;
-    int   y          = rect.top  + pad;
-    int   innerW     = std::max (0, (int) (rect.right - rect.left) - pad * 2);
-    int   columnGap  = scaler.ToPx (kColumnGapDp);
-    int   columnW    = std::max (0, (innerW - columnGap) / 2);
-    int   top        = y;
-    int   bottom     = y;
-    int   column     = 0;
-    int   row        = 0;
-    int   i          = 0;
+    UINT                          dpi        = scaler.GetDpi();
+    int                           pad        = scaler.ToPx (kPagePadDp);
+    int                           rowHeight  = scaler.ToPx (kRowHeightDp);
+    int                           rowStep    = rowHeight + scaler.ToPx (kRowGapDp);
+    int                           sectionGap = scaler.ToPx (kSectionGapDp);
+    int                           x          = rect.left + pad;
+    int                           y          = rect.top  + pad;
+    int                           innerW     = std::max (0, (int) (rect.right - rect.left) - pad * 2);
+    int                           columnGap  = scaler.ToPx (kColumnGapDp);
+    int                           columnW    = std::max (0, (innerW - columnGap) / 2);
+    int                           top        = y;
+    int                           bottom     = y;
+    int                           column     = 0;
+    int                           row        = 0;
+    int                           i          = 0;
+    std::vector<DxuiRadioOption>  dimOptions;
 
 
 
@@ -149,6 +166,20 @@ void DisassemblyOptionsPage::Layout (const RECT & rect, const DxuiDpiScaler & sc
     }
 
     y = bottom + sectionGap;
+
+    m_dimLabel.SetRect (MakeRect (x, y, innerW, rowHeight));
+    m_dimLabel.SetDpi  (dpi);
+    y += rowStep;
+
+    for (i = 0; i < DisassemblyOptions::kDimCount; i++)
+    {
+        dimOptions.push_back ({ MakeRect (x + i * scaler.ToPx (kDimOptionDp), y, scaler.ToPx (kDimOptionDp), rowHeight),
+                                DisassemblyOptions::GetDimLabel ((DisassemblyOptions::Dim) i) });
+    }
+
+    m_dim.SetOptions (std::move (dimOptions));
+    m_dim.Layout     (MakeRect (x, y, scaler.ToPx (kDimOptionDp) * DisassemblyOptions::kDimCount, rowHeight), scaler);
+    y += rowStep + sectionGap;
 
     m_previewLabel.SetRect (MakeRect (x, y, innerW, rowHeight));
     m_previewLabel.SetDpi  (dpi);

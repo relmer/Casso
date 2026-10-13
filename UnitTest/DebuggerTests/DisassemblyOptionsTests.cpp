@@ -204,7 +204,7 @@ namespace DisassemblyOptionsTests
 
             options.Toggle (Option::CodeBytes);
             options.Toggle (Option::LineNumbers);
-            Assert::AreEqual (std::string ("address -bytes source symbols -lines values -pointers arrow -colon"), options.ToText());
+            Assert::AreEqual (std::string ("address -bytes source symbols -lines values pointers arrow -colon dim=code"), options.ToText());
             Assert::IsTrue   (DisassemblyOptions::FromText (options.ToText()) == options);
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
@@ -213,6 +213,26 @@ namespace DisassemblyOptionsTests
             }
 
             Assert::IsTrue (DisassemblyOptions::FromText (none.ToText()) == none, L"every option off survives the round trip");
+        }
+
+
+
+        //  The kind of row to dim is saved as dim= and its key, and a text
+        //  without it dims the disassembly.
+        TEST_METHOD (TheDimChoiceIsSaved)
+        {
+            DisassemblyOptions  options;
+
+
+
+            Assert::IsTrue (options.GetDim() == DisassemblyOptions::Dim::Code, L"the default");
+            Assert::IsTrue (DisassemblyOptions::FromText ("address source").GetDim() == DisassemblyOptions::Dim::Code, L"an earlier text");
+
+            options.SetDim (DisassemblyOptions::Dim::Source);
+            Assert::IsTrue (DisassemblyOptions::FromText (options.ToText()).GetDim() == DisassemblyOptions::Dim::Source);
+
+            options.SetDim (DisassemblyOptions::Dim::None);
+            Assert::IsTrue (DisassemblyOptions::FromText (options.ToText()) == options, L"the whole set survives the round trip");
         }
 
 
@@ -230,7 +250,7 @@ namespace DisassemblyOptionsTests
             Assert::IsFalse (options.IsOn  (Option::CodeBytes),     L"not listed, so off");
             Assert::IsFalse (options.IsOn  (Option::LineNumbers),   L"not listed, so off");
             Assert::IsTrue  (options.IsOn  (Option::OperandValues), L"the default");
-            Assert::IsFalse (options.IsOn  (Option::Pointers),      L"the default");
+            Assert::IsTrue  (options.IsOn  (Option::Pointers),      L"the default");
             Assert::IsTrue  (options.IsOn  (Option::BranchArrow),   L"the default");
             Assert::IsFalse (options.IsOn  (Option::AddressColon),  L"the default");
 
@@ -306,7 +326,7 @@ namespace DisassemblyOptionsTests
             window.ToggleCodeOption (Option::Addresses);
 
             Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (1), L"no address column");
-            Assert::AreEqual (std::string ("-address bytes -source symbols -lines values -pointers arrow -colon"), host.options, L"the choice is saved");
+            Assert::AreEqual (std::string ("-address bytes -source symbols -lines values pointers arrow -colon dim=code"), host.options, L"the choice is saved");
             Assert::IsNotNull (window.GetCodeBar (0), L"each view has its options bar");
         }
 
@@ -482,13 +502,13 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeIndirectSnapshot(), 0);
 
-            Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text, L"the default: no pointer");
+            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text, L"the default: both");
 
             window.ToggleCodeOption (Option::Pointers);
-            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+            Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
 
             window.ToggleCodeOption (Option::OperandValues);
-            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+            Assert::AreEqual (std::wstring (L"Y=05"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
         }
 
 

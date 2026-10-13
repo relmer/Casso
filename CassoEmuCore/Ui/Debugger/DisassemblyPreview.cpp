@@ -149,15 +149,17 @@ std::wstring DisassemblyPreview::GetSampleSource (int sourceLine)
 //  DisassemblyPreview::BuildRows
 //
 //  The rows a disassembly view builds from these lines and options, with the
-//  PC's arrow in the glyph margin and its row's fill.
+//  PC's arrow in the glyph margin and its row's fill, and the kind of row
+//  the options dim drawn dimmed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisassemblyPreview::BuildRows (const DebuggerTextColors::Set & colors, uint32_t numberArgb, uint32_t pcMarkerArgb)
+void DisassemblyPreview::BuildRows (const DebuggerTextColors::Set & colors, const IDxuiTheme & theme, uint32_t pcMarkerArgb)
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     bool                                          source  = m_options.IsOn (DisassemblyOptions::Option::Source);
     bool                                          numbers = source && m_options.IsOn (DisassemblyOptions::Option::LineNumbers);
+    bool                                          isPc    = false;
 
 
 
@@ -172,21 +174,26 @@ void DisassemblyPreview::BuildRows (const DebuggerTextColors::Set & colors, uint
 
 
 
+        isPc = each.codeLine >= 0 && m_lines[(size_t) each.codeLine].isCurrent;
+
         if (each.codeLine < 0)
         {
-            DisassemblyCells::FillSourceRow (cells, *this, each.sourceLine, GetSampleSource (each.sourceLine), numbers, colors, numberArgb);
+            DisassemblyCells::FillSourceRow (cells, *this, each.sourceLine, GetSampleSource (each.sourceLine), numbers, colors, theme.ForegroundMuted());
         }
         else
         {
-            const DebuggerViewSnapshot::CodeLine & line = m_lines[(size_t) each.codeLine];
+            (void) DisassemblyCells::FillCodeRow (cells, m_lines[(size_t) each.codeLine], m_options, colors);
+        }
 
-            (void) DisassemblyCells::FillCodeRow (cells, line, m_options, colors);
+        if (DisassemblyCells::IsDimmed (m_options, source, each.codeLine < 0, isPc))
+        {
+            DisassemblyCells::DimRow (cells, theme.Foreground(), theme.TextViewBackground());
+        }
 
-            if (line.isCurrent)
-            {
-                cells[DisassemblyCells::kGutterColumn].icon = GutterGlyph::MakeMarked (nullptr, GutterGlyph::MakeArrow (pcMarkerArgb));
-                fill                                        = colors.pcRow;
-            }
+        if (isPc)
+        {
+            cells[DisassemblyCells::kGutterColumn].icon = GutterGlyph::MakeMarked (nullptr, GutterGlyph::MakeArrow (pcMarkerArgb));
+            fill                                        = colors.pcRow;
         }
 
         for (DxuiListView::Cell & cell : cells)
@@ -225,7 +232,7 @@ void DisassemblyPreview::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 
 
-    BuildRows (colors, theme.ForegroundMuted(), pcMarker);
+    BuildRows (colors, theme, pcMarker);
 
     DxuiListView::Paint (painter, text, theme);
 

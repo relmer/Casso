@@ -27,6 +27,8 @@ std::string DisassemblyOptions::ToText() const
         text += GetKey ((Option) i);
     }
 
+    text += std::string (" ") + kDimPrefix + GetDimKey (m_dim);
+
     return text;
 }
 
@@ -61,6 +63,14 @@ DisassemblyOptions DisassemblyOptions::FromText (const std::string & text)
 
     while (words >> word)
     {
+        for (i = 0; i < kDimCount && word.starts_with (kDimPrefix); i++)
+        {
+            if (word.substr (std::strlen (kDimPrefix)) == GetDimKey ((Dim) i))
+            {
+                options.m_dim = (Dim) i;
+            }
+        }
+
         isOn = !word.starts_with ('-');
         word = isOn ? word : word.substr (1);
 
@@ -127,6 +137,50 @@ const char * DisassemblyOptions::GetKey (Option option)
     case Option::Pointers:      return "pointers";
     case Option::BranchArrow:   return "arrow";
     case Option::AddressColon:  return "colon";
+    }
+
+    return "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetDimLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DisassemblyOptions::GetDimLabel (Dim dim)
+{
+    switch (dim)
+    {
+    case Dim::Source: return L"Source lines";
+    case Dim::Code:   return L"Disassembly lines";
+    case Dim::None:   return L"Neither";
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetDimKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * DisassemblyOptions::GetDimKey (Dim dim)
+{
+    switch (dim)
+    {
+    case Dim::Source: return "source";
+    case Dim::Code:   return "code";
+    case Dim::None:   return "none";
     }
 
     return "";

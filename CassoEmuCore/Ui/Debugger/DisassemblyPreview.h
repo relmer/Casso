@@ -42,7 +42,7 @@ public:
     static std::wstring                                 GetSampleSource (int sourceLine);
 
 private:
-    void  BuildRows (const DebuggerTextColors::Set & colors, uint32_t numberArgb, uint32_t pcMarkerArgb);
+    void  BuildRows (const DebuggerTextColors::Set & colors, const IDxuiTheme & theme, uint32_t pcMarkerArgb);
 
     std::vector<DebuggerViewSnapshot::CodeLine>  m_lines;
     std::vector<DisassemblyOptions::Row>         m_rows;
