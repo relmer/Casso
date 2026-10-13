@@ -152,7 +152,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are; the view's options are set by its check boxes and the Disassembly tab of Tools > Options (FR-200, FR-228).
 - Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
 - Q: What does the debugger's Tools > Options have? -> A: Tabs, as Casso's Settings sheet has: History, with recording on or off and the memory history may use as a slider from 1 MB to the lower of 90% of the memory available and the memory available less 4 MB, in 1 MB steps with about ten tick marks; and Disassembly (FR-227).
-- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values, Pointers and Branch arrow, on by default, and Address colon, off by default. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
+- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values and Branch arrow, on by default, and Pointers and Address colon, off by default, since the view has never displayed the pointer or a colon. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2933,8 +2933,9 @@ run something, switch back to the //e: it is where it was left.
   Operand values, the address an operand touches and the value there, in the
   annotation; Pointers, the pointer an indirect mode reads, in the
   annotation; Branch arrow, the PC's branch arrow; and Address colon, a colon
-  after each address. Operand values, Pointers and Branch arrow are on by
-  default and Address colon is off, as the view is today. No option packs
+  after each address. Operand values and Branch arrow are on by default,
+  and Pointers and Address colon are off, matching the view before the
+  options existed (amended 2026-10-13). No option packs
   opcode bytes together, as AppleWin's DISASM SPACES does: the bytes would
   misread as one little-endian number.
 

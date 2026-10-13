@@ -557,7 +557,7 @@ plumbing).
   `AddressColon`. The toolbar and the page read and write the one
   `GlobalUserPrefs::debugger.disassemblyOptions` text, so a change on either
   appears on both. A saved text without the new keys takes their defaults
-  (on, on, on, off), so an option turned off is written to the text as well
+  (on, off, on, off), so an option turned off is written to the text as well
   as one turned on. In the code pane, Operand values and Pointers filter the
   annotation's parts, Branch arrow gates `BranchArrow`, and Address colon
   adds `:` to the address cell.
