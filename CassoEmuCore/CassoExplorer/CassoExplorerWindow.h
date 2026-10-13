@@ -591,6 +591,7 @@ private:
     void                      UpdateCrtPicture      (bool force);
     void                      SelectMonitor         (PicturePreview::Monitor monitor);
     void                      PreviewMonitor        (int index);
+    void                      ShowPictureContextMenu (int x, int y);
 
     static constexpr const char *  s_kpszMonitorNames[] = { "color", "green", "amber", "white" };
     void  RefreshContentDetails  ();

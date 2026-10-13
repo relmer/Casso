@@ -3193,6 +3193,16 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A double hi-res picture's own menu switches it between color and its
+    //  bits, whichever the file's name or dots chose.
+    if (press && ev.button == DxuiMouseButton::Right && m_picture->IsVisible() && Contains (m_picture->GetBounds(), point)
+        && m_browser.CanTogglePictureColor())
+    {
+        SetFocusPane (Pane::Preview);
+        ShowPictureContextMenu (point.x, point.y);
+        return true;
+    }
+
     //  A zoomed picture pans by dragging, its scrollbars and the wheel, and
     //  keeps the pointer while a drag is under way.
     if (m_picture->IsInteracting()
@@ -4638,6 +4648,46 @@ void CassoExplorerWindow::FindNext (bool incremental)
     m_hexView->EnsureByteVisible ((uint64_t) found);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowPictureContextMenu
+//
+//  Color and Monochrome for a double hi-res picture, one of them checked;
+//  the choice lasts for this picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowPictureContextMenu (int x, int y)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    bool                            color = m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+
+
+
+    m_menuCommands.clear();
+
+    for (bool asColor : { true, false })
+    {
+        AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]()
+        {
+            if ((m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != asColor && m_browser.TogglePictureColor())
+            {
+                FillPreview();
+                Invalidate();
+            }
+        });
+
+        m_menuCommands.back()->radio     = true;
+        m_menuCommands.back()->isChecked = [color, asColor]() { return color == asColor; };
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
 }
 
 
