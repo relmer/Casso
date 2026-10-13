@@ -171,7 +171,8 @@ void Win32ShellIcons::RunLoader()
     {
         Request                         request;
         std::shared_ptr<DxuiIconImage>  image;
-        bool                            post = false;
+        bool                            post    = false;
+        int                             overlay = 0;
 
         {
             std::unique_lock<std::mutex>  guard (m_lock);
@@ -187,7 +188,12 @@ void Win32ShellIcons::RunLoader()
             m_requests.pop_back();
         }
 
-        image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays), request.sizePx, m_dpi);
+        image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
+
+        if (image != nullptr && overlay > 0)
+        {
+            AddOverlay (*image, overlay);
+        }
 
         if (image != nullptr && !request.isDirectory && RunsElevated (request.path))
         {
@@ -301,23 +307,127 @@ void Win32ShellIcons::AddShield (DxuiIconImage & image)
         return;
     }
 
-    for (int y = 0; y < side; y++)
-    {
-        for (int x = 0; x < side; x++)
-        {
-            uint32_t    top   = shield.bgraPremul[(size_t) y * side + x];
-            uint32_t &  under = image.bgraPremul[(size_t) (image.height - side + y) * image.width + (image.width - side + x)];
-            uint32_t    keep  = 255 - (top >> 24);
-            uint32_t    out   = 0;
+    DrawOver (image, shield, image.width - side, image.height - side);
+}
 
-            for (int shift = 0; shift < 32; shift += 8)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::AddOverlay
+//
+//  The shell's overlay image, a badge in a corner of an icon's square, from
+//  its small image list scaled to the image's size, as Explorer's list draws
+//  it over a row's icon rather than scaled down with the icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay)
+{
+    HRESULT               hr      = S_OK;
+    ComPtr<IImageList>    list;
+    int                   index   = -1;
+    HICON                 icon    = nullptr;
+    ICONINFO              info    = {};
+    BITMAP                art     = {};
+    BOOL                  hasInfo = FALSE;
+    DxuiIconImage         badge;
+
+
+
+    hr = SHGetImageList (SHIL_SMALL, IID_PPV_ARGS (&list));
+    CHR (hr);
+
+    hr = list->GetOverlayImage (overlay, &index);
+    CHR (hr);
+
+    hr = list->GetIcon (index, ILD_TRANSPARENT, &icon);
+    CHR (hr);
+    CBR (icon != nullptr);
+
+    hasInfo = GetIconInfo (icon, &info);
+    CBR (hasInfo);
+
+    if (info.hbmColor != nullptr)
+    {
+        GetObjectW (info.hbmColor, sizeof (art), &art);
+    }
+
+    DeleteObject (info.hbmColor);
+    DeleteObject (info.hbmMask);
+    CBR (art.bmWidth > 0);
+
+    hr = DxuiIconImage::FromHicon (icon, art.bmWidth, badge);
+    CHR (hr);
+
+    DrawOver (image, DxuiIconImage::Resample (badge, image.width), 0, 0);
+
+Error:
+    if (icon != nullptr)
+    {
+        DestroyIcon (icon);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::DrawOver
+//
+//  `top` drawn over the image at `left`, `topY`, premultiplied as both are;
+//  what falls outside the image is cut off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::DrawOver (DxuiIconImage & image, const DxuiIconImage & top, int left, int topY)
+{
+    for (int y = 0; y < top.height; y++)
+    {
+        for (int x = 0; x < top.width; x++)
+        {
+            int       ix   = left + x;
+            int       iy   = topY + y;
+            bool      in   = ix >= 0 && iy >= 0 && ix < image.width && iy < image.height;
+            uint32_t  over = top.bgraPremul[(size_t) y * top.width + x];
+            uint32_t  keep = 255 - (over >> 24);
+            uint32_t  out  = 0;
+
+            for (int shift = 0; in && shift < 32; shift += 8)
             {
-                out |= (((top >> shift) & 0xFF) + ((under >> shift) & 0xFF) * keep / 255) << shift;
+                out |= (((over >> shift) & 0xFF) + ((image.bgraPremul[(size_t) iy * image.width + ix] >> shift) & 0xFF) * keep / 255) << shift;
             }
 
-            under = out;
+            if (in)
+            {
+                image.bgraPremul[(size_t) iy * image.width + ix] = out;
+            }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetOverlayFlags
+//
+//  With `outOverlay` the overlay's index, for AddOverlay; without it the
+//  overlay drawn into the icon itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT Win32ShellIcons::GetOverlayFlags (bool overlays, const int * outOverlay)
+{
+    return !overlays              ? 0u
+         : (outOverlay != nullptr) ? (UINT) SHGFI_OVERLAYINDEX
+                                   : (UINT) SHGFI_ADDOVERLAYS;
 }
 
 
@@ -393,7 +503,12 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
         return (found != m_cache.end()) ? found->second : Remember (key, LoadByAttributes (path, isDirectory, m_sizePx));
     }
 
-    return Remember (key, LoadSized (path, isDirectory, m_sizePx, overlays));
+    {
+        int    overlay = 0;
+        HICON  icon    = LoadSized (path, isDirectory, m_sizePx, overlays, &overlay);
+
+        return Remember (key, icon, overlay);
+    }
 }
 
 
@@ -437,7 +552,7 @@ HICON Win32ShellIcons::LoadByAttributes (const std::wstring & path, bool isDirec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, int sizePx, bool overlays)
+HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, int sizePx, bool overlays, int * outOverlay)
 {
     HICON  preview = nullptr;
 
@@ -449,7 +564,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
     if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0
         || (path.size() > 2 && path[1] == L':' && !PathResolver::IsNetworkPath (path) && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
     {
-        return (sizePx <= s_kLargeIconPx) ? LoadForShellName (path, overlays) : LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
+        return (sizePx <= s_kLargeIconPx) ? LoadForShellName (path, overlays, outOverlay) : LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
     }
 
     //  A folder at a large size shows what is in it, as Explorer's does.
@@ -468,7 +583,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
         return LoadLargerForPath (path, isDirectory, sizePx);
     }
 
-    return LoadForPath (path, SHGFI_LARGEICON, overlays);
+    return LoadForPath (path, SHGFI_LARGEICON, overlays, outOverlay);
 }
 
 
@@ -480,12 +595,14 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
 //  Win32ShellIcons::LoadForShellName
 //
 //  An item by the shell's name for it, with the large icon its entry draws,
-//  and with `overlays` its overlays, such as a cloud folder's sync state; the
-//  shell item's own image when the name does not parse.
+//  and with `overlays` its overlay, such as a cloud folder's sync state: as
+//  an index in `outOverlay` when there is one to fill, for AddOverlay to draw
+//  at the row's size, and drawn in otherwise. The shell item's own image when
+//  the name does not parse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadForShellName (const std::wstring & name, bool overlays)
+HICON Win32ShellIcons::LoadForShellName (const std::wstring & name, bool overlays, int * outOverlay)
 {
     HRESULT           hr     = S_OK;
     PIDLIST_ABSOLUTE  pidl   = nullptr;
@@ -497,8 +614,12 @@ HICON Win32ShellIcons::LoadForShellName (const std::wstring & name, bool overlay
     hr = SHParseDisplayName (name.c_str(), nullptr, &pidl, 0, nullptr);
     CHR (hr);
 
-    result = SHGetFileInfoW ((LPCWSTR) pidl, 0, &info, sizeof (info),
-                             SHGFI_PIDL | SHGFI_ICON | SHGFI_LARGEICON | (overlays ? SHGFI_ADDOVERLAYS : 0));
+    result = SHGetFileInfoW ((LPCWSTR) pidl, 0, &info, sizeof (info), SHGFI_PIDL | SHGFI_ICON | SHGFI_LARGEICON | GetOverlayFlags (overlays, outOverlay));
+
+    if (result != 0 && overlays && outOverlay != nullptr)
+    {
+        *outOverlay = info.iIcon >> 24;
+    }
 
 Error:
     CoTaskMemFree (pidl);
@@ -1054,11 +1175,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstring & key, HICON icon)
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstring & key, HICON icon, int overlay)
 {
-    std::shared_ptr<const DxuiIconImage>  image = Rasterize (icon, m_sizePx, m_dpi);
+    std::shared_ptr<DxuiIconImage>  image = Rasterize (icon, m_sizePx, m_dpi);
 
 
+
+    if (image != nullptr && overlay > 0)
+    {
+        AddOverlay (*image, overlay);
+    }
 
     m_cache[key] = image;
 
@@ -1186,7 +1312,7 @@ std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path, bool isDir
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag, bool overlays)
+HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag, bool overlays, int * outOverlay)
 {
     SHFILEINFOW  info       = {};
     DWORD        attributes = GetFileAttributesW (path.c_str());
@@ -1204,14 +1330,19 @@ HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag, bo
                     : (path.rfind (L'.') == std::wstring::npos) ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
         flags      |= SHGFI_USEFILEATTRIBUTES;
     }
-    else if (overlays)
+    else
     {
-        //  A file asked about by its own path has its overlays, as the shield
-        //  on a program that runs elevated.
-        flags |= SHGFI_ADDOVERLAYS;
+        //  A file read by its own path has its overlay, such as a cloud
+        //  file's sync state, as LoadForShellName has it.
+        flags |= GetOverlayFlags (overlays, outOverlay);
     }
 
     result = SHGetFileInfoW (path.c_str(), attributes, &info, sizeof (info), flags);
+
+    if (result != 0 && (flags & SHGFI_OVERLAYINDEX) != 0)
+    {
+        *outOverlay = info.iIcon >> 24;
+    }
 
     return (result != 0) ? info.hIcon : nullptr;
 }

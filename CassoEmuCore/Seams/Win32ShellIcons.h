@@ -79,7 +79,7 @@ private:
         std::shared_ptr<DxuiIconImage>   image;
     };
 
-    std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);
+    std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon, int overlay = 0);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
     std::shared_ptr<const DxuiIconImage>  Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays);
@@ -89,18 +89,21 @@ private:
     static constexpr int  s_kExtraLargeIconPx = 48;
 
     static std::wstring                    GetCacheKey       (const std::wstring & path, bool isDirectory);
-    static HICON                           LoadForPath       (const std::wstring & path, UINT sizeFlag, bool overlays = true);
+    static HICON                           LoadForPath       (const std::wstring & path, UINT sizeFlag, bool overlays = true, int * outOverlay = nullptr);
     static HICON                           LoadLargerForPath (const std::wstring & path, bool isDirectory, int sizePx);
-    static HICON                           LoadSized         (const std::wstring & path, bool isDirectory, int sizePx, bool overlays = true);
+    static HICON                           LoadSized         (const std::wstring & path, bool isDirectory, int sizePx, bool overlays = true, int * outOverlay = nullptr);
     static HICON                           LoadByAttributes  (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon (const std::wstring & path, int sizePx, SIIGBF flags);
-    static HICON                           LoadForShellName  (const std::wstring & name, bool overlays);
+    static HICON                           LoadForShellName  (const std::wstring & name, bool overlays, int * outOverlay = nullptr);
     static std::shared_ptr<DxuiIconImage>  Rasterize         (HICON icon, int sizePx, UINT dpi = 0);
     static HICON                           LoadForKind       (Kind kind, UINT sizeFlag);
     static HICON                           CropToCorner      (HICON icon, bool & outCropped);
     static bool                            RunsElevated      (const std::wstring & path);
     static void                            AddShield         (DxuiIconImage & image);
+    static void                            AddOverlay        (DxuiIconImage & image, int overlay);
+    static void                            DrawOver          (DxuiIconImage & image, const DxuiIconImage & top, int left, int topY);
+    static UINT                            GetOverlayFlags   (bool overlays, const int * outOverlay);
 
     static std::shared_ptr<const DxuiIconImage>  DrawAppleTypeIcon  (Kind kind, std::shared_ptr<DxuiIconImage> page, int sizePx);
     static float                                 GetRoundedCoverage (int x, int y, int side, float radius);
