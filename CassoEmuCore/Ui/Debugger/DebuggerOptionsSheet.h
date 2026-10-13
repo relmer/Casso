@@ -60,8 +60,9 @@ protected:
     HRESULT  OnOk         () override;
 
 private:
-    static constexpr int  kSheetWidthDip  = 560;
-    static constexpr int  kSheetHeightDip = 420;
+    static constexpr int  kSheetWidthDip     = 560;
+    static constexpr int  kSheetHeightDip    = 420;
+    static constexpr int  kSheetMinHeightDip = 300;
 
     DebuggerOptions                 m_current;
     ReverseBudgetRange              m_range;

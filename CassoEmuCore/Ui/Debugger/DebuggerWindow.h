@@ -15,6 +15,7 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
 #include "Ui/Debugger/RegisterHistory.h"
 #include "Ui/Debugger/StackHistory.h"
@@ -314,7 +315,9 @@ public:
     DebuggerWindow();
     ~DebuggerWindow() override;
 
-    static DxuiListView::Cell  GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb);
+    //  The dense look every pane's list has, public so the Options sheet's
+    //  preview matches the disassembly views.
+    static void  MakeDense (DxuiListView * list);
 
     //  An Undo or Redo item and tip, quoting the edit: Undo "changed 2 bytes
     //  at $0300", or the bare verb when there is nothing to say.
@@ -789,16 +792,16 @@ private:
     //  arrow, as Visual Studio's is: each glyph centered 8.4 DIP in from the
     //  pane's body, 10.5 pixels at 125%, so its left edge is 2.8 DIP inside
     //  it, in a column twice that wide; the address follows the column.
-    static constexpr float  kGlyphCenterDip        = 8.4f;
-    static constexpr int    kGutterColumnDip       = 17;
-    static constexpr size_t kCodeGutterColumn      = 0;
-    static constexpr size_t kCodeAddressColumn     = 1;
-    static constexpr size_t kCodeBytesColumn       = 2;
-    static constexpr size_t kCodeLabelColumn       = 3;
-    static constexpr size_t kCodeInstructionColumn = 4;
-    static constexpr size_t kCodeOperandColumn     = 5;
+    static constexpr float  kGlyphCenterDip        = DisassemblyCells::kGlyphCenterDip;
+    static constexpr int    kGutterColumnDip       = DisassemblyCells::kGutterColumnDip;
+    static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
+    static constexpr size_t kCodeAddressColumn     = DisassemblyCells::kAddressColumn;
+    static constexpr size_t kCodeBytesColumn       = DisassemblyCells::kBytesColumn;
+    static constexpr size_t kCodeLabelColumn       = DisassemblyCells::kLabelColumn;
+    static constexpr size_t kCodeInstructionColumn = DisassemblyCells::kInstructionColumn;
+    static constexpr size_t kCodeOperandColumn     = DisassemblyCells::kOperandColumn;
     static constexpr size_t kCodeFirstTextColumn   = kCodeAddressColumn;
-    static constexpr size_t kCodeColumnCount       = 6;
+    static constexpr size_t kCodeColumnCount       = DisassemblyCells::kColumnCount;
 
     //  The panes' text size runs from half to three times the usual, in
     //  steps of ten percentage points.
@@ -806,7 +809,6 @@ private:
     static constexpr float  kMaxTextZoom           = 3.0f;
     static constexpr float  kTextZoomStep          = 0.1f;
 
-    static void  MakeDense (DxuiListView * list);
     static std::wstring  GetPromptText  (CommandMode mode);
     static std::wstring  GetHelpCommand (CommandMode mode);
 

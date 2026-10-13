@@ -121,7 +121,8 @@ std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxu
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kSheetWidthDip, kSheetHeightDip };
-    params.minSizeDip               = { kSheetWidthDip, kSheetHeightDip };
+    params.minSizeDip               = { kSheetWidthDip, kSheetMinHeightDip };
+    params.fitToWorkArea            = true;
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -130,6 +131,9 @@ std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxu
     hr = sheet.Create (params);
     CHR (hr);
 
+    //  As large as the tallest and widest page, within the work area of the
+    //  monitor it opens on; a page scrolls only when that is too small.
+    sheet.FitToMaxSize();
     sheet.SetTheme (theme);
     sheet.ShowModalDialog (IDOK);
 

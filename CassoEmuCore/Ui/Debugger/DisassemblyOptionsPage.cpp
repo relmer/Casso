@@ -25,7 +25,13 @@ DisassemblyOptionsPage::DisassemblyOptionsPage (std::wstring title)
 
         m_checks[(size_t) i].SetLabel           (DisassemblyOptions::GetLabel ((DisassemblyOptions::Option) i));
         m_checks[(size_t) i].SetSingleLineLabel (true);
+        m_checks[(size_t) i].SetOnChange        ([this] (bool) { m_preview.SetOptions (GetOptions()); });
     }
+
+    Adopt (m_previewLabel);
+    Adopt (m_preview);
+
+    m_previewLabel.SetText (L"Preview");
 }
 
 
@@ -48,6 +54,8 @@ void DisassemblyOptionsPage::SetOptions (const DisassemblyOptions & options)
     {
         m_checks[(size_t) i].SetChecked (options.IsOn ((DisassemblyOptions::Option) i));
     }
+
+    m_preview.SetOptions (options);
 }
 
 
@@ -102,8 +110,9 @@ RECT DisassemblyOptionsPage::MakeRect (int l, int t, int w, int h)
 //
 //  DisassemblyOptionsPage::Layout
 //
-//  One check box a row, down the left inside the page pad, with a gap
-//  between the toolbar's options and the four after them.
+//  The toolbar's options down the left column and the four after them down
+//  the right, then the preview across the page under them. The page's
+//  content width is at least the preview's minimum width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,24 +126,39 @@ void DisassemblyOptionsPage::Layout (const RECT & rect, const DxuiDpiScaler & sc
     int   x          = rect.left + pad;
     int   y          = rect.top  + pad;
     int   innerW     = std::max (0, (int) (rect.right - rect.left) - pad * 2);
+    int   columnGap  = scaler.ToPx (kColumnGapDp);
+    int   columnW    = std::max (0, (innerW - columnGap) / 2);
+    int   top        = y;
+    int   bottom     = y;
+    int   column     = 0;
+    int   row        = 0;
     int   i          = 0;
 
 
 
     for (i = 0; i < DisassemblyOptions::kOptionCount; i++)
     {
-        if (i == DisassemblyOptions::kFirstTextOptionCount)
-        {
-            y += sectionGap;
-        }
+        column = (i < DisassemblyOptions::kFirstTextOptionCount) ? 0 : 1;
+        row    = (column == 0) ? i : i - DisassemblyOptions::kFirstTextOptionCount;
+        y      = top + row * rowStep;
 
-        m_checks[(size_t) i].Layout (MakeRect (x, y, innerW, rowHeight), scaler);
+        m_checks[(size_t) i].Layout (MakeRect (x + column * (columnW + columnGap), y, columnW, rowHeight), scaler);
         m_checks[(size_t) i].SetDpi (dpi);
-        y += rowStep;
+
+        bottom = std::max (bottom, y + rowStep);
     }
+
+    y = bottom + sectionGap;
+
+    m_previewLabel.SetRect (MakeRect (x, y, innerW, rowHeight));
+    m_previewLabel.SetDpi  (dpi);
+    y += rowStep;
+
+    m_preview.Layout (MakeRect (x, y, innerW, scaler.ToPx (DisassemblyPreview::kHeightDip)), scaler);
 
     DxuiPanel::SetBounds (rect);
 
+    SetContentWidthPx  (scaler.ToPx (DisassemblyPreview::kMinWidthDip) + pad * 2);
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
 }
 

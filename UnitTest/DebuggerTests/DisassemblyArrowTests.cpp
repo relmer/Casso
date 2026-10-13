@@ -134,7 +134,7 @@ namespace DebuggerTests
 
         TEST_METHOD (TheResultFollowsTheOperandInTheResultColor)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
 
 
 
@@ -148,7 +148,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AResultAloneTakesTheWholeCell)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("", "A=41", 0xFF00FFFF);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("", "A=41", 0xFF00FFFF);
 
 
 

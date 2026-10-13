@@ -147,7 +147,7 @@ namespace OperandResultTipTests
         //  after it in the result color.
         static DxuiListView::Cell  MakeCell (const std::string & annotation, const std::string & effect)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell (annotation, effect, kResult);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell (annotation, effect, kResult);
 
 
 

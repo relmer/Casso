@@ -5316,19 +5316,7 @@ bool DebuggerWindow::HasDragLayer() const
 
 bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
 {
-    DxuiListView                                       * list     = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
-    int                                                  current  = -1;
-    int                                                  target   = -1;
-    int                                                  firstRow = 0;
-    int                                                  endRow   = 0;
-    RECT                                                 bounds   = {};
-    RECT                                                 column   = {};
-    RECT                                                 cell     = {};
-    float                                                scale    = 1.0f;
-    float                                                top      = 0.0f;
-    float                                                bottom   = 0.0f;
-    int                                                  rowPx    = 0;
+    DxuiListView  * list = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
 
 
 
@@ -5349,71 +5337,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
         return false;
     }
 
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        current = lines[i].isCurrent ? (int) i : current;
-    }
-
-    firstRow = list->GetTopRow();
-
-    if (current < 0 || !lines[(size_t) current].target.has_value() ||
-        !list->GetCellTextRectPx (firstRow, kCodeInstructionColumn, column))
-    {
-        return false;
-    }
-
-    goesTo  = *lines[(size_t) current].target;
-    isTaken = lines[(size_t) current].isTargetTaken;
-
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        target = (lines[i].address == goesTo) ? DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], (int) i) : target;
-    }
-
-    //  From here on, rows: a source row shown above an instruction moves it.
-    current = DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], current);
-
-    bounds = list->GetBounds();
-    rowPx  = column.bottom - column.top;
-    scale  = (float) rowPx / (float) (std::max) (1, list->GetRowHeightDip());
-    endRow = firstRow + (std::min) (list->GetVisibleRowCapacity(), list->GetRowCount() - firstRow);
-    top    = (float) (bounds.top + column.top);
-    bottom = top + (float) ((endRow - firstRow) * rowPx);
-
-    input.mnemonicX     = (float) (bounds.left + column.left);
-    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) GetCodeLineOfRow (view, current)].address;
-    input.edgeY         = input.isTargetBelow ? bottom : top;
-    input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
-    input.marginPx     *= scale;
-    input.stubPx       *= scale;
-    input.radiusPx     *= scale;
-    input.headPx       *= scale;
-    input.slopPx       *= scale;
-
-    //  A source out of view counts only while the line runs on across the
-    //  rows: above them toward a target below, or below toward one above.
-    if (current < firstRow || current >= endRow)
-    {
-        bool  above = current < firstRow;
-
-        if (above != input.isTargetBelow ||
-            (target >= 0 && (above ? target < firstRow : target >= endRow)))
-        {
-            return false;
-        }
-    }
-    else if (list->GetCellTextRectPx (current, kCodeInstructionColumn, cell))
-    {
-        input.sourceY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
-    }
-
-    if (target >= 0 && list->GetCellTextRectPx (target, kCodeInstructionColumn, cell))
-    {
-        input.targetY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
-    }
-
-    //  Scrolled sideways past the mnemonics, there is no room for it.
-    return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken);
 }
 
 
@@ -5431,33 +5355,15 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 
 void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 {
-    BranchArrow::Input   input;
-    BranchArrow::Result  arrow;
-    Word                 goesTo  = 0;
-    bool                 isTaken = true;
-    uint32_t             argb    = 0;
-    float                width   = 1.5f;
+    BranchArrow::Input  input;
+    Word                goesTo  = 0;
+    bool                isTaken = true;
 
 
 
-    if (!GetBranchArrow (view, input, goesTo, isTaken))
+    if (GetBranchArrow (view, input, goesTo, isTaken))
     {
-        return;
-    }
-
-    argb  = isTaken ? GetPcMarkerArgb() : ((m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
-    width = 1.5f * input.radiusPx / BranchArrow::Input().radiusPx;
-    arrow = BranchArrow::Build (input);
-
-    for (const BranchArrow::Segment & segment : arrow.segments)
-    {
-        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, width, argb);
-    }
-
-    if (arrow.hasHead)
-    {
-        painter.FillConvexQuad (arrow.head[0], arrow.head[1], arrow.head[2], arrow.head[3],
-                                arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], argb);
+        DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
     }
 }
 
@@ -6692,23 +6598,16 @@ void DebuggerWindow::ApplyCodeView (int view)
     int                                                  selected      = -1;
     std::optional<Word>                                  target;
     DebuggerTextColors::Set                              textColors    = GetTextColors();
-    SourceSyntax::Colors                                 syntax        = textColors.syntax;
-    bool                                                 symbols       = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
     bool                                                 source        = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
     bool                                                 numbers       = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
-    bool                                                 operandValues = m_codeOptions.IsOn (DisassemblyOptions::Option::OperandValues);
-    bool                                                 pointers      = m_codeOptions.IsOn (DisassemblyOptions::Option::Pointers);
-    bool                                                 colon         = m_codeOptions.IsOn (DisassemblyOptions::Option::AddressColon);
     std::string                                          annotation;
     std::wstring                                         text;
 
 
 
-    list->SetColumnVisible (kCodeAddressColumn, m_codeOptions.IsOn (DisassemblyOptions::Option::Addresses));
-    list->SetColumnVisible (kCodeBytesColumn,   m_codeOptions.IsOn (DisassemblyOptions::Option::CodeBytes));
-    list->SetColumnVisible (kCodeLabelColumn,   symbols);
+    DisassemblyCells::ShowColumns (*list, m_codeOptions);
 
     for (const DebuggerViewSnapshot::CodeLine & line : lines)
     {
@@ -6733,29 +6632,10 @@ void DebuggerWindow::ApplyCodeView (int view)
         //  colors, from the first column shown after the glyph margin.
         if (each.codeLine < 0)
         {
-            std::wstring  prefix = numbers ? std::format (L"{:>5}  ", each.sourceLine) : std::wstring();
-            size_t        column = kCodeFirstTextColumn;
-
             hasText = TryGetSourceText (each.fileId, each.sourceLine, text);
             text    = hasText ? text : std::wstring();
 
-            while (column < kCodeColumnCount - 1 && !list->IsColumnVisible (column))
-            {
-                column++;
-            }
-
-            cells[column].text     = prefix + text;
-            cells[column].spansRow = true;
-
-            if (numbers)
-            {
-                cells[column].colorRanges.push_back ({ 0, (int) prefix.size(), (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u });
-            }
-
-            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (text))
-            {
-                cells[column].colorRanges.push_back ({ (int) prefix.size() + run.start, (int) prefix.size() + run.start + run.length, syntax.Get (run.token) });
-            }
+            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u);
 
             rows.push_back (std::move (cells));
             continue;
@@ -6800,19 +6680,7 @@ void DebuggerWindow::ApplyCodeView (int view)
             rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
-        annotation = DebuggerViewState::ComposeAnnotation (line->annotationParts, operandValues, pointers);
-
-        cells[kCodeAddressColumn].text     = std::format (L"{:04X}{}", line->address, colon ? L":" : L"");
-        cells[kCodeBytesColumn].text       = Widen (line->bytes);
-        cells[kCodeLabelColumn].text       = Widen (line->label);
-        cells[kCodeInstructionColumn].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
-        cells[kCodeOperandColumn]          = GetOperandAndResultCell (annotation, line->effect, GetResultArgb());
-
-        cells[kCodeOperandColumn].argb     = GetAnnotationArgb();
-        cells[kCodeLabelColumn].argb       = syntax.symbol;
-        cells[kCodeAddressColumn].argb     = syntax.address;
-        cells[kCodeBytesColumn].argb       = syntax.bytes;
-        cells[kCodeInstructionColumn].argb = syntax.address;
+        annotation = DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.
@@ -6820,8 +6688,6 @@ void DebuggerWindow::ApplyCodeView (int view)
         {
             cells[kCodeBytesColumn].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
         }
-
-        cells[kCodeInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kCodeInstructionColumn].text, textColors);
 
         //  What each color on the row means, for the tip over its cell: the
         //  row's fill on every cell, then a changed byte's color and the
@@ -10241,16 +10107,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
         }
     });
 
-    //  Every column fits its contents and none stretches, so a pane is as wide
-    //  as what it shows and no wider (FR-026a). The glyph margin alone has a
-    //  set width, since its glyphs are not text a fit could measure; it holds
-    //  the breakpoints and the PC's arrow, and the address follows it.
-    list->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left },
-                        { L"Address",     0, false, DxuiTextHAlign::Left },
-                        { L"Bytes",       0, false, DxuiTextHAlign::Left },
-                        { L"Label",       0, false, DxuiTextHAlign::Left },
-                        { L"Instruction", 0, false, DxuiTextHAlign::Left },
-                        { L"Operand and result", 0, false, DxuiTextHAlign::Left } });
+    DisassemblyCells::Configure (*list);
 
     //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
     //  The rest of the pane is TEXT (FR-076): a drag selects characters, a
@@ -10259,11 +10116,6 @@ void DebuggerWindow::ConfigureCodeList (int view)
     list->SetActivateOnDoubleClick (true);
     list->SetTextSelection         (true);
     list->SetOwnerWindow           (GetHwnd());
-
-    //  The breakpoint column is a glyph margin, as an editor's is, and the
-    //  rows are code on a text view's background.
-    list->SetGlyphCenterDip        (kGlyphCenterDip);
-    list->SetTextViewSurface       (true);
 }
 
 
@@ -10783,7 +10635,7 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::share
 
 uint32_t DebuggerWindow::GetPcMarkerArgb() const
 {
-    return IsDarkTheme() ? 0xFFFFE34D : 0xFFA88300;
+    return DisassemblyCells::GetPcMarkerArgb ((m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000);
 }
 
 
@@ -10907,40 +10759,6 @@ uint32_t DebuggerWindow::GetResultArgb() const
 uint32_t DebuggerWindow::GetAnnotationArgb() const
 {
     return GetTextColors().annotation;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetOperandAndResultCell
-//
-//  What an instruction reads, then what it would leave behind, in one cell:
-//  the result follows the operand after "Result: ", both in the result
-//  color, so it needs no column of its own to push the pane wide.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb)
-{
-    DxuiListView::Cell  cell;
-    std::wstring        result = Widen (effect);
-
-
-
-    cell.text = Widen (annotation);
-
-    if (!result.empty())
-    {
-        result     = SourcePane::kpszResultPrefix + result;
-        cell.text += cell.text.empty() ? L"" : L"  ";
-        cell.colorRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()), resultArgb);
-        cell.text += result;
-    }
-
-    return cell;
 }
 
 
