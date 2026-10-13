@@ -1144,8 +1144,11 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 
     //  The arrows, the page keys, Home and End move the selection, and Ctrl+C
     //  copies it, so F9, run to cursor and the edit keys can act on a row
-    //  chosen without the mouse.
+    //  chosen without the mouse. A keyboard move is reported as a click is,
+    //  so the pane's record of the selection, which each snapshot restores,
+    //  follows it.
     list->SetKeyboardColumnNav       (true);
+    list->SetKeyboardMoveNotify      (true);
 }
 
 

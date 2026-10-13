@@ -273,6 +273,11 @@ public:
     // off: OnKey is inert for every existing consumer.
     void  SetKeyboardColumnNav    (bool enabled)           { m_kbColNavEnabled = enabled; }
 
+    // Opt-in: a single-select list calls the selection-changed callback for
+    // a keyboard move too, as it does for a click. Default off, so existing
+    // consumers, which track keyboard moves themselves, are unaffected.
+    void  SetKeyboardMoveNotify   (bool enabled)           { m_kbMoveNotify = enabled; }
+
     // Selects the header keyboard model (only meaningful when column nav is
     // on). Off (default): the header is a single Tab sub-stop after the body
     // and Left/Right cycle the focused column -- File-Explorer details view.
@@ -788,6 +793,7 @@ private:
     int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;
     bool                       m_kbColNavEnabled   = false;
+    bool                       m_kbMoveNotify      = false;
     bool                       m_kbColResize       = false;
     int                        m_kbColFocus        = -1;
     bool                       m_vertDragging      = false;

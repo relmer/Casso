@@ -4650,10 +4650,10 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift)
             SetSelectedRow (next);
         }
 
-        //  Reported only with multiple selection on, where a keyboard move is
-        //  a selection change like any click; a single-select list has always
-        //  left keyboard moves unreported.
-        if (m_multiSelect && m_onSelectionChanged)
+        //  Reported with multiple selection on, where a keyboard move is a
+        //  selection change like any click, and in a single-select list that
+        //  opted in with SetKeyboardMoveNotify.
+        if ((m_multiSelect || m_kbMoveNotify) && m_onSelectionChanged)
         {
             m_onSelectionChanged (next);
         }

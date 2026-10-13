@@ -199,6 +199,30 @@ public:
     }
 
 
+    //  A single-select list calls the selection callback for a keyboard
+    //  move only once it opts in, as the debugger's panes do.
+    TEST_METHOD (SingleSelect_KeyboardMoveIsReportedWhenAsked)
+    {
+        DxuiListView  list;
+        int           reported = -1;
+
+        ConfigureList (list, 10);
+        list.SetMultiSelect        (false);
+        list.SetOnSelectionChanged ([&reported] (int row) { reported = row; });
+        list.ClickRow              (2, false, false);
+        reported = -1;
+
+        Assert::IsTrue   (list.OnKey (MakeKey (VK_TAB)));
+        Assert::IsTrue   (list.OnKey (MakeKey (VK_DOWN)));
+        Assert::AreEqual (-1, reported, L"not reported by default");
+
+        list.SetKeyboardMoveNotify (true);
+
+        Assert::IsTrue   (list.OnKey (MakeKey (VK_DOWN)));
+        Assert::AreEqual (4, reported, L"reported once asked");
+    }
+
+
     TEST_METHOD (Enter_ReportsActivateForTheKeyboardRow)
     {
         DxuiListView  list;
