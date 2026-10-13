@@ -573,6 +573,13 @@ private:
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
     HRESULT       FlushEveryBay     (FlushMoment moment);
 
+    //  FlushEntry's steps: moving the guest's version to a file of its own
+    //  when another program changed the bay's file, telling the user a save
+    //  failed, and recording the file the save committed.
+    HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved);
+    static void   ReportSaveFailure       (const string & path, HRESULT hr, const string & recoveryPath);
+    void          RecordCommittedFile     (Entry & entry);
+
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be
     //  answered, and as a notice where it cannot.

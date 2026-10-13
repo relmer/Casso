@@ -1072,21 +1072,17 @@ Error:
 //  hook is installed; otherwise writes to the host filesystem. Does nothing
 //  if the image is clean or no source path is recorded. A genuine failure
 //  to persist a dirty image is surfaced to the user via the shared EHM
-//  notifier (CHRN/CBRN), because every caller drops the return value.
+//  notifier (ReportSaveFailure), because every caller drops the return value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
 {
-    HRESULT        hr           = S_OK;
-    HRESULT        hrRecovery   = S_OK;
-    bool           unchanged    = true;
-    bool           keptExternal = false;
+    HRESULT        hr          = S_OK;
+    HRESULT        hrRecovery  = S_OK;
+    bool           isPreserved = false;
     string         recoveryPath;
-    string         preservedPath;
     vector<Byte>   bytes;
-    vector<Byte>   external;
-    ImageIdentity  current;
 
 
 
@@ -1129,93 +1125,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // so the gate above returns before this point and the file is never
     // rewritten. The user is told at mount instead, which is earlier and is
     // where the decision actually gets made.
-    //  Immediately before committing, and whatever any watcher has or has not
-    //  reported. THIS IS THE GUARANTEE AND NOTIFICATION IS ONLY PROMPTNESS: a
-    //  missed notification, an unwatchable share, a change that arrived while
-    //  the machine was busy -- all of them end here, one stat before the write.
-    //
-    //  A BAY THAT NEVER RECORDED AN IDENTITY IS NOT CHECKED. MountFromBytes has
-    //  no file behind it, and a test that redirects reads into memory has none
-    //  either; comparing against a stat that never ran would refuse writes that
-    //  nothing has endangered.
-    if (entry.sharedState.GetIdentity().recorded)
-    {
-        current   = ReadIdentity (entry.path);
-        unchanged = entry.sharedState.GetIdentity().Matches (current);
+    hr = PreserveConflictingCopy (entry, moment, isPreserved);
+    CHR (hr);
 
-        //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
-        //  Notification failed, or the change landed while this write was
-        //  already under way, and the guest's version is about to go over a
-        //  version this store never took up.
-        //
-        //  THE FILE STAYS WITH WHOEVER CHANGED IT. The guest's version moves to
-        //  a file of its own and the bay follows it; the original keeps what
-        //  the other program wrote and is not touched here at all. The watcher
-        //  path applies exactly this rule, so one collision produces the same
-        //  two files whichever end found it. It did not use to: which version
-        //  kept the original name came down to which side was quicker.
-        if (!unchanged)
-        {
-            string   original = entry.path;
-            bool     asked    = entry.sharedState.IsAskOutstanding();
-            HRESULT  hrKeep   = S_OK;
-
-            //  Under the name the question already showed, when there is a
-            //  question. Reserving happens once, wherever it happens first.
-            preservedPath = entry.sharedState.GetPreservedPath();
-
-            hrKeep = SaveLoadedImage (entry, preservedPath);
-
-            //  A preserve that did not happen stops the write. The image KEEPS
-            //  ITS DIRTY BIT, which is the difference between refusing and
-            //  losing: the guest's writes are still in memory and still
-            //  flushable once there is somewhere to put them.
-            //  STG_E_NOTCURRENT says precisely this -- the object changed since
-            //  it was last read.
-            keptExternal = SUCCEEDED (hrKeep);
-
-            //  The name it tried is held whether or not the write landed, so a
-            //  retry goes to the file the user was told about.
-            entry.sharedState.SetPreservedPath (preservedPath);
-
-            CBRFEx (keptExternal, STG_E_NOTCURRENT,
-                    ReportPreserveFailure (entry, moment, preservedPath, hrKeep, original));
-
-            //  On disk under its own name, so the bay carries nothing unsaved.
-            entry.sharedState.SetPreservedWritten (true);
-
-            entry.image->SetSourceCrcMismatch (false);
-            entry.image->ClearDirty();
-
-            //  A QUESTION ALREADY ON SCREEN OWNS WHAT HAPPENS NEXT. Writing the
-            //  copy is not optional -- the guest's work would be gone otherwise
-            //  -- but moving the bay and reporting are the ANSWER's job. Doing
-            //  them here settled the matter underneath an open dialog, which
-            //  left the user being asked about a file the bay no longer had.
-            //  The copy is on disk under the name that dialog is showing, so
-            //  either answer still does what it says.
-            if (asked)
-            {
-                BAIL_OUT_IF (true, S_OK);
-            }
-
-            hrKeep = RepointBayToFile (entry.slot, entry.drive, preservedPath);
-            IGNORE_RETURN_VALUE (hrKeep, S_OK);
-
-            //  Composed from the path the bay HAD, since that is the file the
-            //  message is about and the repoint above has already moved it.
-            if (m_reportSink)
-            {
-                m_reportSink (entry.slot, entry.drive,
-                              ChangePrompt::ComposeConflictReport (original, entry.drive,
-                                                                  preservedPath));
-            }
-
-            //  Nothing is written over the original. It is not this bay's file
-            //  any more.
-            BAIL_OUT_IF (true, S_OK);
-        }
-    }
+    //  Nothing is written over the original. It is not this bay's file any
+    //  more.
+    BAIL_OUT_IF (isPreserved, S_OK);
 
     hr = entry.image->Serialize (bytes);
 
@@ -1225,12 +1140,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
         IGNORE_RETURN_VALUE (hrRecovery, S_OK);
     }
 
-    CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+    CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+        CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
     }
     else if (!entry.path.empty())
     {
@@ -1243,30 +1158,177 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
         // a flush that cannot land is exactly when the session's only
         // lossless copy of the disk is the one sitting beside the original.
         hr = WriteFileAtomically (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+        CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
     }
 
-    // The file now carries a freshly computed CRC that matches it, so the
-    // mismatch is no longer true of what is on disk -- and the warning above
-    // must not repeat on every later eject or power cycle.
+    RecordCommittedFile (entry);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreserveConflictingCopy
+//
+//  Immediately before committing, and whatever any watcher has or has not
+//  reported. THIS IS THE GUARANTEE AND NOTIFICATION IS ONLY PROMPTNESS: a
+//  missed notification, an unwatchable share, a change that arrived while
+//  the machine was busy -- all of them end here, one stat before the write.
+//
+//  A BAY THAT NEVER RECORDED AN IDENTITY IS NOT CHECKED. MountFromBytes has
+//  no file behind it, and a test that redirects reads into memory has none
+//  either; comparing against a stat that never ran would refuse writes that
+//  nothing has endangered.
+//
+//  isPreserved is true when the guest's version went to a file of its own,
+//  and FlushEntry then writes nothing over the original.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved)
+{
+    HRESULT        hr           = S_OK;
+    HRESULT        hrKeep       = S_OK;
+    bool           unchanged    = true;
+    bool           keptExternal = false;
+    bool           asked        = false;
+    string         original;
+    string         preservedPath;
+    ImageIdentity  current;
+
+
+
+    isPreserved = false;
+
+    BAIL_OUT_IF (!entry.sharedState.GetIdentity().recorded, S_OK);
+
+    current   = ReadIdentity (entry.path);
+    unchanged = entry.sharedState.GetIdentity().Matches (current);
+
+    //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
+    //  Notification failed, or the change landed while this write was
+    //  already under way, and the guest's version is about to go over a
+    //  version this store never took up.
+    //
+    //  THE FILE STAYS WITH WHOEVER CHANGED IT. The guest's version moves to
+    //  a file of its own and the bay follows it; the original keeps what
+    //  the other program wrote and is not touched here at all. The watcher
+    //  path applies exactly this rule, so one collision produces the same
+    //  two files whichever end found it. It did not use to: which version
+    //  kept the original name came down to which side was quicker.
+    BAIL_OUT_IF (unchanged, S_OK);
+
+    original = entry.path;
+    asked    = entry.sharedState.IsAskOutstanding();
+
+    //  Under the name the question already showed, when there is a
+    //  question. Reserving happens once, wherever it happens first.
+    preservedPath = entry.sharedState.GetPreservedPath();
+
+    hrKeep = SaveLoadedImage (entry, preservedPath);
+
+    //  A preserve that did not happen stops the write. The image KEEPS
+    //  ITS DIRTY BIT, which is the difference between refusing and
+    //  losing: the guest's writes are still in memory and still
+    //  flushable once there is somewhere to put them.
+    //  STG_E_NOTCURRENT says precisely this -- the object changed since
+    //  it was last read.
+    keptExternal = SUCCEEDED (hrKeep);
+
+    //  The name it tried is held whether or not the write landed, so a
+    //  retry goes to the file the user was told about.
+    entry.sharedState.SetPreservedPath (preservedPath);
+
+    CBRFEx (keptExternal, STG_E_NOTCURRENT,
+            ReportPreserveFailure (entry, moment, preservedPath, hrKeep, original));
+
+    //  On disk under its own name, so the bay carries nothing unsaved.
+    entry.sharedState.SetPreservedWritten (true);
+
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
 
-    //  The file this store just wrote is a change to it, and without this the
-    //  next flush would find its own commit sitting where the mount-time
-    //  identity used to be and refuse itself. NOT SEPARABLE FROM THE CHECK
-    //  ABOVE: the two are one mechanism, and the first one alone breaks the
-    //  second flush of every ordinary session.
-    //
-    //  Only for a bay that had an identity to begin with, so a mount from bytes
-    //  does not acquire one by being flushed.
-    if (entry.sharedState.GetIdentity().recorded)
+    isPreserved = true;
+
+    //  A QUESTION ALREADY ON SCREEN OWNS WHAT HAPPENS NEXT. Writing the
+    //  copy is not optional -- the guest's work would be gone otherwise
+    //  -- but moving the bay and reporting are the ANSWER's job. Doing
+    //  them here settled the matter underneath an open dialog, which
+    //  left the user being asked about a file the bay no longer had.
+    //  The copy is on disk under the name that dialog is showing, so
+    //  either answer still does what it says.
+    BAIL_OUT_IF (asked, S_OK);
+
+    hrKeep = RepointBayToFile (entry.slot, entry.drive, preservedPath);
+    IGNORE_RETURN_VALUE (hrKeep, S_OK);
+
+    //  Composed from the path the bay HAD, since that is the file the
+    //  message is about and the repoint above has already moved it.
+    if (m_reportSink)
     {
-        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+        m_reportSink (entry.slot, entry.drive,
+                      ChangePrompt::ComposeConflictReport (original, entry.drive, preservedPath));
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportSaveFailure
+//
+//  Tells the user a dirty image could not be saved, through the shared EHM
+//  notifier, with the recovery copy's path when one was written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ReportSaveFailure (const string & path, HRESULT hr, const string & recoveryPath)
+{
+    EhmNotifyUser (FormatFlushLossMessage (path, hr, recoveryPath).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordCommittedFile
+//
+//  After a save lands. The file now carries a freshly computed CRC that
+//  matches it, so the mismatch is no longer true of what is on disk -- and
+//  the warning must not repeat on every later eject or power cycle.
+//
+//  The file this store just wrote is a change to it, and without the
+//  identity refresh the next flush would find its own commit sitting where
+//  the mount-time identity used to be and refuse itself. NOT SEPARABLE FROM
+//  PreserveConflictingCopy's CHECK: the two are one mechanism, and the first
+//  one alone breaks the second flush of every ordinary session.
+//
+//  Only for a bay that had an identity to begin with, so a mount from bytes
+//  does not acquire one by being flushed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::RecordCommittedFile (Entry & entry)
+{
+    entry.image->SetSourceCrcMismatch (false);
+    entry.image->ClearDirty();
+
+    if (entry.sharedState.GetIdentity().recorded)
+    {
+        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    }
 }
 
 
