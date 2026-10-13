@@ -580,6 +580,10 @@ public:
                                                std::string & value, CommandLineOptions & options);
 
 private:
+    //  Whether an argument is a disk image Casso mounts, by its extension.
+    static bool  IsDiskImagePath (const std::string & path);
+    static constexpr const char *  s_kpszDiskImageExtensions[] = { ".dsk", ".do", ".po", ".woz", ".nib", ".nb2" };
+
     //  Words the refusal for one emulator argument, and records the verdict.
     //  `canonical` is the argument after `/name` was rewritten, so a value left
     //  off `/disk1` is told apart from a flag nothing has.

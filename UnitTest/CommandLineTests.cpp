@@ -3268,38 +3268,30 @@ namespace CommandLineTests
         }
 
 
-        //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
-        //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.
-        //
-        //  It WAS read as drive 1 for one revision, on the reasoning that
-        //  dragging an image onto Casso.exe should boot it. That bought a second
-        //  way to say --disk1 and a precedence rule to go with it, and the
-        //  assembler grammars gave up a bare source file rather than keep the
-        //  same bargain. Refusing is not the old silence: the reader is told,
-        //  and the two options that do take an image are on the screen with the
-        //  message.
-        TEST_METHOD (Emulator_RefusesABareImagePath)
+        //  A BARE DISK IMAGE GOES IN A DRIVE, as images dropped on Casso.exe in
+        //  File Explorer arrive: the first in drive 1, a second in drive 2, and a
+        //  third has nowhere to go.
+        TEST_METHOD (Emulator_BareImagesFillDrive1ThenDrive2)
         {
             ArgVector  alone   = { "C:\\Disks\\work.dsk" };
-            ArgVector  withRun = { "--machine", "Apple2e", "work.dsk" };
+            ArgVector  two     = { "--machine", "Apple2e", "a.WOZ", "b.po" };
+            ArgVector  three   = { "a.dsk", "b.dsk", "c.dsk" };
 
             CommandLineOptions::EmulatorOptions  onlyPath =
                 CommandLineParser::ParseEmulator (alone.Count(), alone.Data());
-            CommandLineOptions::EmulatorOptions  after    =
-                CommandLineParser::ParseEmulator (withRun.Count(), withRun.Data());
+            CommandLineOptions::EmulatorOptions  both     =
+                CommandLineParser::ParseEmulator (two.Count(), two.Data());
+            CommandLineOptions::EmulatorOptions  extra    =
+                CommandLineParser::ParseEmulator (three.Count(), three.Data());
 
-            Assert::AreEqual (std::string ("Error: unexpected argument C:\\Disks\\work.dsk"),
-                onlyPath.refusalMessage);
+            Assert::IsTrue   (onlyPath.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual (std::string ("C:\\Disks\\work.dsk"), onlyPath.disk1);
 
-            Assert::IsTrue (after.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused,
-                L"the invocation that sent a session chasing a speech bug on the wrong "
-                L"disk is now reported rather than half-obeyed");
+            Assert::AreEqual (std::string ("a.WOZ"), both.disk1, L"any case of the extension");
+            Assert::AreEqual (std::string ("b.po"),  both.disk2);
 
-            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"),
-                after.refusalMessage);
-
-            Assert::IsTrue (after.disk1.empty(),
-                L"and nothing was mounted on the strength of a guess");
+            Assert::IsTrue   (extra.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+            Assert::AreEqual (std::string ("Error: unexpected argument c.dsk"), extra.refusalMessage);
         }
 
 
@@ -3309,7 +3301,7 @@ namespace CommandLineTests
         //  needs to see the word they got wrong.
         TEST_METHOD (Emulator_APathAndAMistypedFlagGetDifferentMessages)
         {
-            ArgVector  path = { "work.dsk" };
+            ArgVector  path = { "work.txt" };
             ArgVector  typo = { "--work.dsk" };
 
             CommandLineOptions::EmulatorOptions  a =
@@ -3317,7 +3309,7 @@ namespace CommandLineTests
             CommandLineOptions::EmulatorOptions  b =
                 CommandLineParser::ParseEmulator (typo.Count(), typo.Data());
 
-            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"), a.refusalMessage);
+            Assert::AreEqual (std::string ("Error: unexpected argument work.txt"), a.refusalMessage);
             Assert::AreEqual (std::string ("Error: unknown option --work.dsk"),     b.refusalMessage);
         }
 

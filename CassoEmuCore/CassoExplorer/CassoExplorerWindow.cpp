@@ -5620,9 +5620,8 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
                 hr = m_shellVerbs.ShowRecycledMenu (GetHwnd(), paths, screen);
                 RefreshAfterHostChange();
             }
-            else
+            else if (TryGetSelectedShellIds (paths))
             {
-                m_browser.GetSelectedHostPaths (paths);
                 hr = m_shellVerbs.ShowShellMenu (GetHwnd(), paths, screen);
             }
 
@@ -7528,8 +7527,11 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 break;
             }
 
-            m_browser.GetSelectedHostPaths (hostPaths);
-            hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
+            if (TryGetSelectedShellIds (hostPaths))
+            {
+                hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
+            }
+
             m_cutPaths = (SUCCEEDED (hr) && verb == CassoExplorerActions::Verb::Cut) ? hostPaths : std::vector<std::wstring>();
             FillList();
             break;

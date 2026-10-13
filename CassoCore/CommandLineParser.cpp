@@ -4290,14 +4290,12 @@ std::string CommandLineParser::ApplyListingExtension (const std::string & name)
 //  a typo, and answering a typo by booting the last disk is how a session
 //  spends an afternoon capturing audio from the wrong image.
 //
-//  THERE IS NO OPERAND. A drive is filled by --disk1 or --disk2 and by nothing
-//  else, so a bare image path is refused rather than taken as either. It was
-//  read as drive 1 for one revision, on the reasoning that dragging a disk onto
-//  the executable should boot it -- but no file association is registered
-//  anywhere, dropping a disk on the RUNNING window already works, and the whole
-//  of what it bought was a second way to say --disk1. The assembler grammars
-//  gave up a bare source file for the same reason: an operand makes the tool
-//  guess at what the caller can state.
+//  A BARE DISK IMAGE IS A DRIVE'S DISK. Dropping images on Casso.exe in File
+//  Explorer, and opening one through Casso's file association, pass each path
+//  alone, so the first goes in drive 1 and a second in drive 2, as --disk1 and
+//  --disk2 would put them. Only a path with a disk image's extension is taken;
+//  any other bare argument is refused, since there is nothing else it could
+//  mean.
 //
 //  THE FIRST REFUSAL IS THE ONE REPORTED. The walk runs to the end regardless,
 //  since a refused command line starts nothing and what it reads afterward is
@@ -4405,6 +4403,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             ApplyCleanupPid (argv[++i], parsed);
         }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk1.empty())
+        {
+            parsed.disk1 = raw;
+        }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk2.empty())
+        {
+            parsed.disk2 = raw;
+        }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
             RefuseEmulatorArgument (raw, arg, parsed);
@@ -4412,6 +4418,30 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsDiskImagePath
+//
+//  The six extensions Casso mounts, compared without regard to case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsDiskImagePath (const std::string & path)
+{
+    size_t       dot       = path.find_last_of ('.');
+    size_t       slash     = path.find_last_of ("\\/");
+    std::string  extension = (dot == std::string::npos || (slash != std::string::npos && slash > dot)) ? std::string() : path.substr (dot);
+
+
+
+    return std::any_of (std::begin (s_kpszDiskImageExtensions), std::end (s_kpszDiskImageExtensions),
+                        [&extension] (const char * known) { return _stricmp (extension.c_str(), known) == 0; });
 }
 
 
@@ -4455,10 +4485,9 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
 
     if (!isFlag)
     {
-        //  A disk goes in a drive by being put there, so an image path with no
-        //  option in front of it is a reader assuming an operand this grammar
-        //  has never had. The options beside this message show the two that
-        //  take one.
+        //  A bare argument that is not a disk image, or a third image with
+        //  both drives filled, has nowhere to go. The options beside this
+        //  message show what does take one.
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
     else if (canonical == "--machine" || canonical == "--disk1"

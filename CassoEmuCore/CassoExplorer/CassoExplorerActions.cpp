@@ -153,6 +153,17 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
         verbs.push_back (Verb::MoreOptions);
     }
 
+    //  What the shell lists, such as the files inside a zip, copies, cuts and
+    //  deletes through the shell, and has the shell's own menu; a match inside
+    //  a disk image is the image's to act on.
+    if (location.kind == Location::Kind::ShellFolder && selected > 0 && !m_browser.AreSelectedRowsSearchMatches())
+    {
+        verbs.push_back (Verb::Cut);
+        verbs.push_back (Verb::Copy);
+        verbs.push_back (Verb::Delete);
+        verbs.push_back (Verb::MoreOptions);
+    }
+
     //  Into the folder shown, from its background.
     if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected == 0)
     {
