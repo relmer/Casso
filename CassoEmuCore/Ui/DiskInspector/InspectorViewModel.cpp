@@ -565,10 +565,12 @@ void InspectorViewModel::SelectFirstSector()
 //
 //  InspectorViewModel::BringSelectionIntoView
 //
-//  The strip and, when zoomed, the platter pan the least that puts the
-//  selection's start in view with a margin, keeping their zoom (FR-038). A
-//  strip whose part of the turn already contains the selection stays put, so on
-//  a new track it keeps the same part of the turn.
+//  The strip pans the least that puts the selection's start in view with a
+//  margin, and when zoomed the platter centers a selection not wholly in
+//  view that fits in it, or else pans the least that puts its start in view,
+//  each at its zoom (FR-038). A strip
+//  whose part of the turn already contains the selection stays put, so on a
+//  new track the same part of the turn is in view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -578,7 +580,11 @@ void InspectorViewModel::BringSelectionIntoView()
     double  start  = GetSelectionTurn (end);
     double  offset = 0;
     double  limit  = 1.0 - kViewMargin;
+    bool    isFit  = false;
     Point   point;
+    Point   first;
+    Point   last;
+    Point   shift;
 
 
 
@@ -590,15 +596,47 @@ void InspectorViewModel::BringSelectionIntoView()
         SetStrip (start - kViewMargin * m_stripSpan, m_stripSpan);
     }
 
+    //  Zoomed in, a selection not wholly in view moves to the view's center
+    //  when it fits there, and otherwise only far enough to bring its start
+    //  into view.
     if (start >= 0 && !IsAtFit())
     {
-        point = GetDiskPoint (m_quarterTrack, start);
+        end   = (end < start) ? end + 1.0 : end;
+        first = GetDiskPoint (m_quarterTrack, start);
+        last  = GetDiskPoint (m_quarterTrack, end);
+        point = GetDiskPoint (m_quarterTrack, (start + end) / 2);
 
-        m_pan.x -= std::max (0.0, point.x - limit) + std::min (0.0, point.x + limit);
-        m_pan.y -= std::max (0.0, point.y - limit) + std::min (0.0, point.y + limit);
+        if (!IsInView (first, limit) || !IsInView (last, limit) || !IsInView (point, limit))
+        {
+            isFit   = std::abs (first.x - last.x) <= 2 * limit && std::abs (first.y - last.y) <= 2 * limit;
+            point   = isFit ? point : first;
+            shift.x = isFit ? point.x : std::max (0.0, point.x - limit) + std::min (0.0, point.x + limit);
+            shift.y = isFit ? point.y : std::max (0.0, point.y - limit) + std::min (0.0, point.y + limit);
+
+            m_pan.x -= shift.x;
+            m_pan.y -= shift.y;
+        }
 
         ClampPan();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::IsInView
+//
+//  Whether a point of the view, from -1 to 1 on each axis, lies within
+//  `limit` of its center on both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorViewModel::IsInView (const Point & point, double limit)
+{
+    return std::abs (point.x) <= limit && std::abs (point.y) <= limit;
 }
 
 

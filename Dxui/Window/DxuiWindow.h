@@ -349,6 +349,7 @@ private:
     DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseLeave  () override;
     DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
     DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;

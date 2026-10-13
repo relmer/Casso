@@ -186,6 +186,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     PaintDiffs     (painter, track, g);
     PaintSelection (painter, theme, g);
+    PaintShimmer   (painter, g);
     PaintSeam      (painter, text, theme, track, g);
     PaintLabels    (painter, text, theme, track, g);
 }
@@ -1017,6 +1018,62 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
     {
         painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 1.0f), static_cast<float> (bar.bottom - bar.top),
                              m_scaler.ToPxf (s_kOutlineDip), theme.Accent());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintShimmer
+//
+//  While a new selection flashes, its light over the selection in slices a
+//  few pixels wide, each as bright as the shimmer is at its place (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry & g) const
+{
+    static constexpr float  kSliceDip = 4.0f;
+
+
+
+    int64_t                      now    = static_cast<int64_t> (GetTickCount64());
+    RECT                         bar    = GetBarRect();
+    std::array<StripSegment, 2>  parts  = {};
+    double                       end    = 0;
+    double                       start  = m_context.model->GetSelectionTurn (end);
+    float                        slice  = m_scaler.ToPxf (kSliceDip);
+    float                        total  = 0;
+    float                        done   = 0;
+    int                          count  = 0;
+
+
+
+    if (start < 0 || !InspectorMarquee::IsFlashing (m_context.flashStartMs, now))
+    {
+        return;
+    }
+
+    end   = (end <= start) ? end + 1.0 : end;
+    count = g.GetSegments (start, end - start, parts);
+
+    for (int k = 0; k < count; k++)
+    {
+        total += parts[k].x1 - parts[k].x0;
+    }
+
+    for (int k = 0; k < count; k++)
+    {
+        for (float x = parts[k].x0; x < parts[k].x1; x += slice)
+        {
+            painter.FillRect (x, static_cast<float> (bar.top), std::min (slice, parts[k].x1 - x), static_cast<float> (bar.bottom - bar.top),
+                              InspectorMarquee::GetShimmer (m_context.flashStartMs, now, (done + x - parts[k].x0) / std::max (total, 1.0f)));
+        }
+
+        done += parts[k].x1 - parts[k].x0;
     }
 }
 

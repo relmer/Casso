@@ -81,6 +81,40 @@ uint32_t InspectorMarquee::Dim (const DiskInspectorPalette & palette, uint32_t a
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorMarquee::GetShimmer
+//
+//  A soft band of light on a faint glow: the band's center sweeps from just
+//  before the start to just past the end, so the band moves fully onto the
+//  selection and fully off it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t InspectorMarquee::GetShimmer (int64_t startMs, int64_t nowMs, double position)
+{
+    static constexpr double  kPeakAlpha = 200.0;
+    static constexpr double  kGlowShare = 0.3;
+    static constexpr double  kBandWidth = 0.18;
+    static constexpr double  kOverrun   = 0.3;
+
+
+
+    double  elapsed  = static_cast<double> (nowMs - startMs);
+    double  envelope = 1.0 - elapsed / kFlashMs;
+    double  center   = std::fmod (elapsed / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
+    double  band     = std::exp (-std::pow ((position - center) / kBandWidth, 2.0));
+    double  alpha    = IsFlashing (startMs, nowMs) ? kPeakAlpha * envelope * (kGlowShare + (1.0 - kGlowShare) * band) : 0.0;
+
+
+
+    return (static_cast<uint32_t> (std::clamp (alpha, 0.0, 255.0)) << 24) | 0x00FFFFFFu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorMarquee::GetFileSpans
 //
 //  The track's sectors in the order they pass the head, each from its first

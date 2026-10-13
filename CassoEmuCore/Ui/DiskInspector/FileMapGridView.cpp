@@ -13,12 +13,15 @@ static constexpr float     s_kLabelDip      = 34.0f;
 static constexpr float     s_kHeaderDip     = 16.0f;
 static constexpr float     s_kAxisDip       = 16.0f;
 static constexpr float     s_kNoteDip       = 34.0f;
-static constexpr float     s_kMinRowDip     = 9.0f;
+//  Rows no shorter than a label's text, so every cell has room for its
+//  number or role letter.
+static constexpr float     s_kMinRowDip     = InspectorView::kSmallDip;
 static constexpr float     s_kMaxRowDip     = 16.0f;
 static constexpr float     s_kLetterMinDip  = 12.0f;
 static constexpr float     s_kOutlineDip    = 2.0f;
 static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
+static constexpr int       s_kShimmerSlices = 8;
 
 
 
@@ -178,6 +181,13 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         painter.FillRect    (x, y + h - m_scaler.ToPxf (s_kDiffBandDip), w, m_scaler.ToPxf (s_kDiffBandDip), m_context.palette.colors.difference);
         painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
+    }
+
+    //  A new selection shimmers, its light sweeping across the cell (FR-090).
+    for (int k = 0; cell == m_selectedCell && k < s_kShimmerSlices && InspectorMarquee::IsFlashing (m_context.flashStartMs, static_cast<int64_t> (GetTickCount64())); k++)
+    {
+        painter.FillRect (x + w * k / s_kShimmerSlices, y, w / s_kShimmerSlices, h,
+                          InspectorMarquee::GetShimmer (m_context.flashStartMs, static_cast<int64_t> (GetTickCount64()), (k + 0.5) / s_kShimmerSlices));
     }
 
     if (cell == m_selectedCell)
@@ -400,6 +410,32 @@ int FileMapGridView::GetHeightFor (int widthPx) const
 
 
     return static_cast<int> (header + 35.0f * rowH + 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetCellRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::GetCellRect (int cell, RECT & outRectPx) const
+{
+    Grid  g      = MakeGrid();
+    bool  isCell = m_map != nullptr && cell >= 0 && cell < static_cast<int> (m_map->cells.size());
+
+
+
+    if (isCell)
+    {
+        outRectPx = { static_cast<LONG> (g.left + g.labelW + m_map->GetColumn (cell) * g.cellW), static_cast<LONG> (g.top + m_map->GetTrack (cell) * g.rowH),
+                      static_cast<LONG> (g.left + g.labelW + (m_map->GetColumn (cell) + 1) * g.cellW), static_cast<LONG> (g.top + (m_map->GetTrack (cell) + 1) * g.rowH) };
+    }
+
+    return isCell;
 }
 
 

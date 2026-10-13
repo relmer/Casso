@@ -615,6 +615,27 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  The pointer left the client area: DxuiMouseEventKind::Leave is dispatched
+//  at a point outside every control, so hover state and a tooltip that
+//  follows the pointer end with it. DefWindowProc runs as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMouseLeave()
+{
+    (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, SHRT_MIN, SHRT_MIN, 0.0f);
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseWheel
 //
 //  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the

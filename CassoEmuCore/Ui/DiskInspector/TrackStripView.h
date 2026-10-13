@@ -56,6 +56,7 @@ private:
     void           DimOutsideFile  (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
     void           PaintMarquee    (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
     void           PaintSelection  (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
+    void           PaintShimmer    (IDxuiPainter & painter, const StripGeometry & g) const;
     void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);

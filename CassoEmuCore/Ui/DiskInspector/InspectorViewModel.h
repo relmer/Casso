@@ -88,12 +88,16 @@ public:
 
     static double  GetRingRadius (int quarterTrack);
 
+    //  Where the selection starts and ends as fractions of the turn, or -1
+    //  with nothing selected.
+    double  GetSelectionTurn (double & outEnd) const;
+
 private:
     void    SelectFirstSector      ();
     void    ClearBytes             ();
     void    BringSelectionIntoView ();
     void    ClampPan               ();
-    double  GetSelectionTurn       (double & outEnd) const;
+    static bool  IsInView          (const Point & point, double limit);
 
     const DiskAnalysis *  m_analysis      = nullptr;
     uint64_t              m_mediaId       = 0;

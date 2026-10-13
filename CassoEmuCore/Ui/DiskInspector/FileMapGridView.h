@@ -43,6 +43,9 @@ public:
     //  The grid's height for a width, so the file list gets the rest.
     int   GetHeightFor   (int widthPx) const;
 
+    //  Where a cell is drawn; false for a cell not on the grid.
+    bool  GetCellRect    (int cell, RECT & outRectPx) const;
+
 private:
     struct Grid
     {

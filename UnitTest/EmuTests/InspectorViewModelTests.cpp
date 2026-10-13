@@ -232,4 +232,31 @@ public:
         Assert::IsTrue (std::abs (point.x) <= 1.0 && std::abs (point.y) <= 1.0, L"the sector is in view");
         Assert::IsTrue (model.GetStripStart() > 0.25, L"the strip moved to the sector");
     }
+
+
+
+    TEST_METHOD (ASelectionThatFitsIsCenteredOnTheZoomedPlatter)
+    {
+        DiskAnalysis                analysis;
+        InspectorViewModel          model;
+        InspectorViewModel::Point   point;
+        double                      end   = 0;
+        double                      start = 0;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk     (7);
+        model.SetAnalysis (&analysis);
+        //  Track 17, as the disk's edge cannot pan to the center.
+        model.ZoomAbout   (4.0, model.GetDiskPoint (68, 0.0));
+        model.SelectSector (68, 8);
+
+        start = model.GetSelectionTurn (end);
+        end   = (end < start) ? end + 1.0 : end;
+        point = model.GetDiskPoint (68, (start + end) / 2);
+
+        Assert::AreEqual (4.0, model.GetZoom(), L"the zoom is kept");
+        Assert::IsTrue (std::abs (point.x) < 0.01 && std::abs (point.y) < 0.01, L"the sector's middle is at the center");
+    }
 };

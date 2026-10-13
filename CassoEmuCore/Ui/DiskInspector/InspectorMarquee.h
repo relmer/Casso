@@ -24,6 +24,8 @@ class InspectorMarquee
 public:
     static constexpr float  kDashDip     = 4.0f;
     static constexpr int    kStepMs      = 80;
+    static constexpr int    kFlashMs     = 1600;
+    static constexpr int    kSweepMs     = 500;
 
     //  One device pixel at any scale, as thin as the platter's and the grid's
     //  own lines.
@@ -47,6 +49,13 @@ public:
     //  length along it, counted from `startPx`; returns the distance at its
     //  end, so a polyline's next segment continues the pattern.
     float  DrawLine (IDxuiPainter & painter, float x0, float y0, float x1, float y1, float startPx) const;
+
+    //  The light a newly selected sector shimmers with for kFlashMs: white,
+    //  brightest in a band that sweeps from the selection's start to its end
+    //  every kSweepMs, fading out as the flash ends. `position` runs from 0
+    //  at the start to 1 at the end; fully clear outside the flash.
+    static uint32_t  GetShimmer (int64_t startMs, int64_t nowMs, double position);
+    static bool      IsFlashing (int64_t startMs, int64_t nowMs) { return startMs > 0 && nowMs >= startMs && nowMs - startMs < kFlashMs; }
 
     //  A color dimmed by half toward the palette's background.
     static uint32_t  Dim (const DiskInspectorPalette & palette, uint32_t argb);

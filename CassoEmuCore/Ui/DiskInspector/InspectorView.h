@@ -33,6 +33,7 @@ struct InspectorViewContext
     int                         selectedFile      = -1;
     bool                        isFilesOverlay    = false;
     bool                        isFileHighlighted = false;
+    int64_t                     flashStartMs      = 0;
     bool                        isDiffsOverlay    = false;
     const DiskComparison      * comparison        = nullptr;
     const DiskAnalysis        * analysisB         = nullptr;

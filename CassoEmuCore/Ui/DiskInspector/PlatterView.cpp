@@ -32,6 +32,7 @@ static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
 static constexpr float    s_kMarqueeStepDip = 8.0f;
 static constexpr float    s_kShadeStepDip   = 24.0f;
 static constexpr int      s_kMaxPieces      = 4096;
+static constexpr float    s_kMinMarkDip     = 8.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
 
@@ -150,6 +151,8 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     {
         PaintMarquee (painter, view, arcs);
     }
+
+    PaintSelectedArc (painter, theme, view);
 }
 
 
@@ -821,6 +824,82 @@ void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement &
                 s = marquee.DrawLine (painter, getX (span.second, outer), getY (span.second, outer), getX (span.second, inner), getY (span.second, inner), s);
             }
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintSelectedArc
+//
+//  The selected sector or nibbles outlined on their ring in the selection
+//  color over a contrasting edge, so the outline is plain on every ring
+//  color, at least s_kMinMarkDip across so it is plain at fit; and while a
+//  new selection flashes, the shimmer over it (FR-090).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const
+{
+    int64_t  now    = static_cast<int64_t> (GetTickCount64());
+    int      qt     = m_context.model->GetQuarterTrack();
+    double   end    = 0;
+    double   start  = m_context.model->GetSelectionTurn (end);
+    double   outer  = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
+    double   inner  = PlatterGeometry::GetRingOuter (qt + 1) * view.outerRadiusPx;
+    double   half   = std::max ((outer - inner) / 2, static_cast<double> (m_scaler.ToPxf (s_kMinMarkDip)) / 2);
+    double   r0     = (outer + inner) / 2 - half;
+    double   r1     = (outer + inner) / 2 + half;
+    float    thick  = m_scaler.ToPxf (s_kSelectOutlineDip);
+    uint32_t ink    = m_context.palette.colors.selection;
+    uint32_t edge   = DiskInspectorPalette::GetTextColorOn (ink);
+    int      pieces = 0;
+    double   a      = 0;
+    double   b      = 0;
+    auto     getX   = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
+    auto     getY   = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+
+
+
+    if (start < 0 || !IsBandVisible (view, r0, r1))
+    {
+        return;
+    }
+
+    end = (end <= start) ? end + 1.0 : end;
+
+    (void) theme;
+
+    //  The edge first, wider, then the selection color over it.
+    for (int pass = 0; pass < 2; pass++)
+    {
+        float     w     = (pass == 0) ? thick + 2.0f : thick;
+        uint32_t  color = (pass == 0) ? edge : ink;
+
+        for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
+        {
+            pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, s_kMaxPieces);
+
+            for (int k = 0; k < pieces; k++)
+            {
+                a = part.first + (part.second - part.first) * k / pieces;
+                b = part.first + (part.second - part.first) * (k + 1) / pieces;
+
+                if (pass == 0 && InspectorMarquee::IsFlashing (m_context.flashStartMs, now))
+                {
+                    ShadeArc (painter, view, a, b, r0, r1, InspectorMarquee::GetShimmer (m_context.flashStartMs, now, ((a + b) / 2 - start) / (end - start)));
+                }
+
+                painter.DrawLine (getX (a, r1), getY (a, r1), getX (b, r1), getY (b, r1), w, color);
+                painter.DrawLine (getX (a, r0), getY (a, r0), getX (b, r0), getY (b, r0), w, color);
+            }
+        }
+
+        painter.DrawLine (getX (start, r0), getY (start, r0), getX (start, r1), getY (start, r1), w, color);
+        painter.DrawLine (getX (end, r0),   getY (end, r0),   getX (end, r1),   getY (end, r1),   w, color);
     }
 }
 

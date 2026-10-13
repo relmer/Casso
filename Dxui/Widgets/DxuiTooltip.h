@@ -144,6 +144,7 @@ public:
     void  HideImmediate   ();
 
     bool                 IsVisible () const { return m_visible; }
+    bool                 IsPending () const { return m_pending; }
 
     // True while a dwell timer (deferred open or timed close) is still
     // pending, so a host that idle-blocks knows to keep calling Tick on a

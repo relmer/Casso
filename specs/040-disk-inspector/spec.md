@@ -1843,8 +1843,14 @@ legend, and tilt the platter and back.
   Clicking a nibble MUST select its sector and scroll the Nibbles tab to it.
 - **FR-038**: When the selection changes from any view, the strip and, when
   zoomed, the platter MUST pan, keeping their zoom, until the selected sector
-  or nibble is in view. On a new track, the strip MUST keep the same fraction
-  of the turn in view unless the new selection is outside it. If analyzing a
+  or nibble is in view, the platter centering it when it fits in view; the
+  File map grid MUST scroll to the selected sector's cell. The platter MUST
+  outline the selected sector or nibbles in the selection color on a
+  contrasting edge, at least 8 DIP across at any zoom, and a selection made
+  by hand MUST shimmer, a band of light sweeping across it, in the platter,
+  the strip and the File map grid for about 1.5 seconds. On a new track, the
+  strip MUST keep the same fraction of the turn in view unless the new
+  selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
   MUST be selected.
 
@@ -2342,7 +2348,11 @@ legend, and tilt the platter and back.
   to 34, and one cell per DOS 3.3 logical sector, $0 to $F, on a DOS 3.3
   volume, per ProDOS or Pascal block, eight per track, on a ProDOS or Pascal
   volume, or per CP/M sector, $0 to $F in CP/M's own order, on a CP/M volume,
-  each cell showing its role and result. Below the grid, a file list MUST show
+  each cell showing its role and result. The rows MUST be no shorter than a
+  cell's label, the row numbers MUST be titled "Track" and the columns titled
+  with what they number; the grid and the file list MUST scroll together,
+  with a scrollbar at the right, when they do not fit. Below the grid, a file
+  list MUST show
   each file's path, type, size, sectors used and state, sortable by each
   column and filterable to "Files touching bad sectors". The state MUST list
   every one that applies, in this order: "Chain broken", "Cross-linked",

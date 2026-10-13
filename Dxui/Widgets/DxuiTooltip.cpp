@@ -592,7 +592,19 @@ void DxuiTooltip::ShowPopup()
                                           ? kFadeMs : 0;
         showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
-        showParams.onClosed         = [this] () { m_activePopup = nullptr; };
+        //  When the host closes the balloon on its own, as when another popup
+        //  takes its place, the tip is marked hidden, so the next request
+        //  opens it again. A balloon this tip releases is no longer the active
+        //  one by the time it closes.
+        showParams.onClosed         = [this, popup = m_activePopup] ()
+        {
+            if (m_activePopup == popup)
+            {
+                m_activePopup = nullptr;
+                m_visible     = false;
+                m_fadingOut   = false;
+            }
+        };
 
         hr = m_activePopup->Show (std::move (showParams));
         if (FAILED (hr))

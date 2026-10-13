@@ -67,7 +67,6 @@ static constexpr float    s_kAnalyzingDip   = 90.0f;
 static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
-static constexpr double   s_kMapGridShare   = 0.62;
 static constexpr int      s_kMapCheckDip    = 190;
 static constexpr int      s_kMapButtonDip   = 30;
 static constexpr int      s_kMapStepLabelDip = 200;
@@ -380,8 +379,9 @@ void DiskInspectorWindow::OnCreate()
     m_tracksTab   = CreateChild<InspectorTableView> (m_context);
     m_findingsTab = CreateChild<FindingsTab>     (m_context);
     m_imageTab    = CreateChild<InspectorTableView> (m_context);
-    m_mapGrid     = CreateChild<FileMapGridView>    (m_context);
-    m_fileList    = CreateChild<InspectorTableView> (m_context);
+    m_mapScroll   = CreateChild<DxuiScrollPanel>();
+    m_mapGrid     = m_mapScroll->CreateChild<FileMapGridView>    (m_context);
+    m_fileList    = m_mapScroll->CreateChild<InspectorTableView> (m_context);
     m_mapVolumes  = CreateChild<DxuiTabStrip>();
     m_mapDeleted  = CreateChild<DxuiCheckbox> (L"Show deleted files");
     m_mapBadOnly  = CreateChild<DxuiCheckbox> (L"Files touching bad sectors");
@@ -1428,6 +1428,9 @@ void DiskInspectorWindow::OnSelection()
     m_nibblesTab->ScrollTo (nibble);
     SyncTables();
 
+    //  The selected sector shimmers in every map (FR-090).
+    m_context.flashStartMs = m_isHeadSelecting ? m_context.flashStartMs : static_cast<int64_t> (GetTickCount64());
+
     //  A selection made by hand ends Follow head (FR-067).
     if (!m_isHeadSelecting && m_followHead.IsOn())
     {
@@ -1480,7 +1483,10 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
 
     for (InspectorView * view : views)
     {
-        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
+        //  The File map grid scrolls, so only its part in the viewport counts.
+        bool  isShown = view != m_mapGrid || IsInside (m_mapScroll->GetViewportPx(), pointPx);
+
+        if (tip.empty() && isShown && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
         {
             view->GetTooltipSwatches (pointPx, swatches);
             isInstant = view == m_platterView || view == m_stripView || view == m_stripB || view == m_mapGrid;
@@ -1502,7 +1508,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     {
         m_tooltip.RequestHide (now);
     }
-    else if (tip != m_tooltipText)
+    else if (tip != m_tooltipText || (!m_tooltip.IsVisible() && !m_tooltip.IsPending()))
     {
         m_tooltip.SetSwatches (swatches);
 
@@ -2702,7 +2708,9 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
     int                        volume  = scaler.ToPx (s_kMapVolumeDip);
     int                        label   = scaler.ToPx (s_kMapStepLabelDip);
     int                        y       = area.top;
+    int                        width   = 0;
     int                        gridH   = 0;
+    int                        listH   = 0;
     bool                       isList  = map != nullptr && map->notMapped == NotMappedReason::None;
     vector<DxuiTabStrip::Tab>  tabs;
 
@@ -2731,9 +2739,25 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
     m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label, y, area.right - scaler.ToPx (s_kExportButtonDip) - margin, y + row }, scaler);
     y += row + margin / 2;
 
-    gridH = isList ? std::min (m_mapGrid->GetHeightFor (area.right - area.left), static_cast<int> ((area.bottom - y) * s_kMapGridShare)) : area.bottom - y;
-    m_mapGrid->Layout  ({ area.left, y, area.right, y + gridH }, scaler);
-    m_fileList->Layout ({ area.left, y + gridH + margin / 2, area.right, area.bottom }, scaler);
+    //  The grid and the file list scroll together under the rows above: the
+    //  grid's rows no shorter than its labels, the list at least
+    //  s_kMinTableDip tall, and a scrollbar at the right when both do not
+    //  fit.
+    width = area.right - area.left;
+    gridH = isList ? m_mapGrid->GetHeightFor (width) : area.bottom - y;
+    listH = std::max (scaler.ToPx (s_kMinTableDip), static_cast<int> (area.bottom - y - gridH - margin / 2));
+
+    if (isList && gridH + margin / 2 + listH > area.bottom - y)
+    {
+        width -= scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip) + margin / 2;
+        gridH  = m_mapGrid->GetHeightFor (width);
+        listH  = std::max (scaler.ToPx (s_kMinTableDip), static_cast<int> (area.bottom - y - gridH - margin / 2));
+    }
+
+    m_mapScroll->SetLineStepPx (scaler.ToPx (s_kRowDip));
+    m_mapScroll->PlaceChild    (*m_mapGrid,  { area.left, y, area.left + width, y + gridH });
+    m_mapScroll->PlaceChild    (*m_fileList, { area.left, y + gridH + margin / 2, area.left + width, y + gridH + margin / 2 + (isList ? listH : 0) });
+    m_mapScroll->Layout        ({ area.left, y, area.right, area.bottom }, scaler);
 }
 
 
@@ -2753,6 +2777,7 @@ void DiskInspectorWindow::ShowFileMap (bool isShown)
 
 
 
+    m_mapScroll->SetVisible  (isShown);
     m_mapGrid->SetVisible    (isShown);
     m_fileList->SetVisible   (isList);
     m_mapDeleted->SetVisible (isList);
@@ -2950,7 +2975,20 @@ int DiskInspectorWindow::GetSelectedMapCell() const
 
 void DiskInspectorWindow::SyncFileMapSelection()
 {
-    m_mapGrid->SetSelected (GetSelectedMapCell(), m_mapFile);
+    int   cell   = GetSelectedMapCell();
+    RECT  target = {};
+
+
+
+    m_mapGrid->SetSelected (cell, m_mapFile);
+
+    //  A sector selected anywhere is scrolled into view in the grid, once.
+    if (cell >= 0 && cell != m_revealedCell && m_mapGrid->GetCellRect (cell, target))
+    {
+        m_mapScroll->SetScrollPosPx (DxuiScrollPanel::GetScrollPosToReveal (m_mapScroll->GetScrollPosPx(), target, m_mapScroll->GetViewportPx()));
+    }
+
+    m_revealedCell = cell;
 }
 
 
