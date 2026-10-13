@@ -1449,6 +1449,8 @@ public:
 
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\demo.a65", "\xEF\xBB\xBF; caf\xC3\xA9\tx\r\n\tLDA #1\r\n"));
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.txt", "a \xE2\x80\x94 b\n"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\wide.txt",  std::string ("\xFF\xFEh\0i\0\r\0\n\0", 10)));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\big.txt",   std::string ("\xFE\xFF\0h\0i", 6)));
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"demo.a65") });
@@ -1461,6 +1463,12 @@ public:
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text);
         Assert::IsFalse (host.browser.GetPreview().source);
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"a \u2014 b" }));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"wide.txt") });
+        Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"UTF-16 with its mark, little-endian");
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"big.txt") });
+        Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"and big-endian");
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");

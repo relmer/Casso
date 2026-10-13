@@ -1614,9 +1614,9 @@ void CassoExplorerBrowser::ReadTextPreview (const std::wstring & path, const std
 //  CassoExplorerBrowser::TryPreviewText
 //
 //  A file's bytes as lines of text: an assembler's source, in whatever
-//  character set it is, or any text in UTF-8. Anything else, binary above
-//  all, stays as it was. A UTF-8 byte order mark is dropped, and tabs are
-//  expanded to the next stop of eight.
+//  character set it is, or any text in UTF-8, or in UTF-16 when a byte order
+//  mark leads it. Anything else, binary above all, stays as it was. A byte
+//  order mark is dropped, and tabs are expanded to the next stop of eight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1624,10 +1624,12 @@ bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<
 {
     HostCharset   charset = GetHostCharset (bytes.subspan (0, (std::min) (bytes.size(), s_kTextSampleBytes)));
     bool          source  = IsSourceName (name);
+    bool          wideLe  = bytes.size() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE;
+    bool          wideBe  = bytes.size() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF;
     std::string   narrow ((const char *) bytes.data(), bytes.size());
     std::wstring  text;
     std::wstring  line;
-    bool          isText  = (source && charset != HostCharset::None) || charset == HostCharset::Utf8;
+    bool          isText  = (source && charset != HostCharset::None) || charset == HostCharset::Utf8 || wideLe || wideBe;
 
 
 
@@ -1636,9 +1638,19 @@ bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<
         return false;
     }
 
-    text = (charset == HostCharset::Utf8) ? TextEncoding::Utf8ToWide (narrow)
-         : (charset == HostCharset::Dos)  ? TextEncoding::NarrowToWide (narrow, s_kDosCodePage)
-                                          : TextEncoding::NarrowToWide (narrow, s_kWindowsCodePage);
+    if (wideLe || wideBe)
+    {
+        for (size_t at = 0; at + 1 < bytes.size(); at += 2)
+        {
+            text.push_back ((wchar_t) (wideLe ? (bytes[at] | (bytes[at + 1] << 8)) : ((bytes[at] << 8) | bytes[at + 1])));
+        }
+    }
+    else
+    {
+        text = (charset == HostCharset::Utf8) ? TextEncoding::Utf8ToWide (narrow)
+             : (charset == HostCharset::Dos)  ? TextEncoding::NarrowToWide (narrow, s_kDosCodePage)
+                                              : TextEncoding::NarrowToWide (narrow, s_kWindowsCodePage);
+    }
 
     if (!text.empty() && text[0] == s_kByteOrderMark)
     {
