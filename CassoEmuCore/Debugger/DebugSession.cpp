@@ -6,6 +6,7 @@
 #include "OpcodeTable.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Disassembler.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugCommandHandler.h"
@@ -2401,10 +2402,10 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
-        // Monitor mode reaches PAUSE only through the `/` escape.
+        //  PAUSE as the line's mode types it: /PAUSE in Monitor mode, !PAUSE in
+        //  WinDbg mode.
         SetError (reply, CommandStatus::Error, "already running",
-                  command.mode == CommandMode::Monitor ? "A run is in progress. Use /PAUSE to stop it."
-                                                       : "A run is in progress. Use PAUSE to stop it.");
+                  std::format ("A run is in progress. Use {} to stop it.", CommandModeHelp::GetTypedName (command.mode, "PAUSE")));
         return;
     }
 

@@ -5,6 +5,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
 #include "Microcode.h"
@@ -1092,7 +1093,7 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
 
     if (!isFound)
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1138,7 +1139,7 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 
     if (!session.GetBreakpoints().TrySetEnabled (id, enabled) && !session.GetWatchpoints().TrySetEnabled (id, enabled))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1175,7 +1176,7 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
     if (command.text == "*" || !TryFindInfo (session, id, old))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1354,7 +1355,7 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
 
     if (command.text == "*" || !TryFindInfo (session, id, info))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1658,9 +1659,9 @@ bool BreakpointHandlers::TryFindInfo (DebugSession & session, int id, Breakpoint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHandlers::SetNoSuch (Reply & reply, int id)
+void BreakpointHandlers::SetNoSuch (const DebugSession & session, Reply & reply, int id)
 {
-    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. Use BPL to list them.", id));
+    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. Use {} to list them.", id, CommandModeHelp::GetTypedName (session.GetLineMode(), "BPL")));
 }
 
 
