@@ -17,3 +17,4 @@ static constexpr wchar_t s_kchEllipsis       = L'\x2026';       // U+2026 HORIZO
 static constexpr LPCWSTR s_kpszCheckMark     = L"\x2713";       // U+2713 CHECK MARK (✓)
 static constexpr LPCWSTR s_kpszTriangleUp    = L"\x25B2";       // U+25B2 BLACK UP-POINTING TRIANGLE (▲)
 static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK DOWN-POINTING TRIANGLE (▼)
+static constexpr LPCWSTR s_kpszMinusSign    = L"\x2212";       // U+2212 MINUS SIGN (-)

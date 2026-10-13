@@ -2865,6 +2865,16 @@ legend, and tilt the platter and back.
   step back and forth and to close it at any step. A "?" button in a circle
   MUST reopen it at any time. Its text MUST be plain enough for someone new
   to disk internals.
+- **FR-154**: The window MUST zoom from 50% to 300%, every size and font in
+  it except the status band along its bottom multiplied by the zoom. Ctrl and
+  the mouse wheel, Ctrl with + or -, and the "-" and "+" buttons MUST step
+  through 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250 and 300%, and
+  Ctrl+0 MUST return to 100%. The status band MUST show the zoom as a
+  percentage at its right end; clicking it MUST show a slider between the
+  "-" and "+" buttons, and clicking it again MUST hide them. The status band
+  MUST show the hint for the view under the pointer. The zoom MUST be saved
+  with the rest of the window's state (FR-080).
+
 **Preservation, later release**
 
 These requirements belong to User Stories 11 to 16 and ship in the later

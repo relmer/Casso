@@ -165,6 +165,9 @@ private:
     const FileMap *  GetFileMap () const;
     void  LayoutFileMap        (const RECT & area, const DxuiDpiScaler & scaler);
     void  OpenFilePicker       (bool isOpen);
+    void  SetZoom              (double zoom);
+    void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
+    static bool  IsZoomKey     (WPARAM vk);
     void  PaintPickerChevron   (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     void  ShowFileMap          (bool isShown);
     void  RefreshFileList      ();
@@ -315,6 +318,11 @@ private:
     DxuiLabel                             * m_mapStepLabel       = nullptr;
     DxuiButton                            * m_filePicker         = nullptr;
     bool                                    m_isPickerOpen       = true;
+    DxuiLabel                             * m_statusText         = nullptr;
+    RECT                                    m_statusPx           = {};
+    DxuiZoomControl                       * m_zoomControl        = nullptr;
+    DxuiDpiScaler                           m_hostScaler;
+    double                                  m_zoom               = 1.0;
     DxuiScrollPanel                       * m_mapScroll          = nullptr;
     int                                     m_revealedCell       = -1;
     RECT                                    m_tabGapPx           = {};

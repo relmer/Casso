@@ -72,6 +72,7 @@ static constexpr int      s_kMapButtonDip   = 30;
 static constexpr int      s_kMapStepLabelDip = 150;
 static constexpr int      s_kFilePickerDip  = 240;
 static constexpr int      s_kChevronDip     = 5;
+static constexpr int      s_kStatusDip      = 28;
 static constexpr int      s_kMapVolumeDip   = 150;
 static constexpr int      s_kFitDip         = 48;
 static constexpr int      s_kMinPlatterColumnDip = 420;
@@ -391,6 +392,8 @@ void DiskInspectorWindow::OnCreate()
     m_mapNext     = CreateChild<DxuiButton> (L">");
     m_mapStepLabel = CreateChild<DxuiLabel> (L"Previous/next sector in", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_filePicker   = CreateChild<DxuiButton> (L"Choose a file");
+    m_statusText   = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left);
+    m_zoomControl  = CreateChild<DxuiZoomControl>();
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
@@ -408,6 +411,7 @@ void DiskInspectorWindow::OnCreate()
     m_mapBadOnly->SetOnChange ([this] (bool) { RefreshFileList(); });
     m_mapPrev->SetOnClick    ([this] () { StepFileSector (-1); });
     m_filePicker->SetOnClick ([this] () { OpenFilePicker (!m_isPickerOpen); });
+    m_zoomControl->SetOnZoom ([this] (double zoom) { SetZoom (zoom); });
     m_mapNext->SetOnClick    ([this] () { StepFileSector (1); });
     m_mapCopy->SetOnClick    ([this] () { CopyFileMap(); });
     m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
@@ -478,6 +482,72 @@ void DiskInspectorWindow::OnWindowClose()
 //
 //  DiskInspectorWindow::Layout
 //
+//  A status band along the bottom at the window's own scale, with the hint
+//  for the view under the pointer and the zoom control, and the rest at the
+//  zoom: every size and font multiplied by it (FR-154).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    DxuiDpiScaler  zoomed;
+    int            status  = scaler.ToPx (s_kStatusDip);
+    int            pad     = scaler.ToPx (s_kMarginDip);
+    int            zoomW   = scaler.ToPx (DxuiZoomControl::kWidthDip);
+    RECT           content = { boundsDip.left, boundsDip.top, boundsDip.right, boundsDip.bottom - status };
+
+
+
+    m_hostScaler = scaler;
+    zoomed.SetDpi (static_cast<UINT> (std::lround (scaler.GetDpi() * m_zoom)));
+
+    SetBounds (boundsDip);
+    m_statusPx = { boundsDip.left, content.bottom, boundsDip.right, boundsDip.bottom };
+    m_statusText->Layout  ({ boundsDip.left + pad, content.bottom, boundsDip.right - zoomW - 2 * pad, boundsDip.bottom }, scaler);
+    m_zoomControl->Layout ({ boundsDip.right - zoomW - pad, content.bottom + 1, boundsDip.right - pad, boundsDip.bottom - 1 }, scaler);
+    LayoutContent (content, zoomed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SetZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SetZoom (double zoom)
+{
+    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
+    m_zoomControl->SetZoom (m_zoom);
+    Layout (m_boundsDip, m_hostScaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsZoomKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsZoomKey (WPARAM vk)
+{
+    return vk == '0' || vk == VK_NUMPAD0 || vk == VK_OEM_PLUS || vk == VK_ADD || vk == VK_OEM_MINUS || vk == VK_SUBTRACT;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::LayoutContent
+//
 //  A toolbar across the top. Under it the platter column, the platter as
 //  large as the column allows with its controls on one row beneath it; past
 //  the splitter the track column: header, sector row, one tab strip with the
@@ -486,7 +556,7 @@ void DiskInspectorWindow::OnWindowClose()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int                        margin    = scaler.ToPx (s_kMarginDip);
     int                        row       = scaler.ToPx (s_kRowDip);
@@ -528,7 +598,6 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         side   = std::min (column, areaH);
     }
 
-    SetBounds (boundsDip);
     m_scaler  = scaler;
     m_toolSig = GetToolSig();
     m_tooltip.SetDpi (scaler.GetDpi());
@@ -776,6 +845,12 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       static_cast<float> (m_boundsDip.right - m_boundsDip.left), static_cast<float> (m_boundsDip.bottom - m_boundsDip.top),
                       theme.Background());
 
+    //  The status band's surface, with a divider along its top.
+    painter.FillRect (static_cast<float> (m_statusPx.left), static_cast<float> (m_statusPx.top), static_cast<float> (m_statusPx.right - m_statusPx.left),
+                      static_cast<float> (m_statusPx.bottom - m_statusPx.top), theme.BackgroundElevated());
+    painter.FillRect (static_cast<float> (m_statusPx.left), static_cast<float> (m_statusPx.top), static_cast<float> (m_statusPx.right - m_statusPx.left), 1.0f,
+                      theme.Divider());
+
     painter.FillRect (static_cast<float> (m_splitterPx.left), static_cast<float> (m_splitterPx.top),
                       static_cast<float> (m_splitterPx.right - m_splitterPx.left), static_cast<float> (m_splitterPx.bottom - m_splitterPx.top),
                       theme.Divider());
@@ -928,6 +1003,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  Ctrl and the wheel zoom the whole window (FR-154); no view in it takes
+    //  Ctrl and the wheel for itself.
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal)
+    {
+        SetZoom (DxuiZoomControl::StepZoom (m_zoom, (ev.wheelDelta > 0) ? 1 : -1));
+        isHandled = true;
+    }
+
     //  Over a 3.5" disk's notes, the views under them take nothing.
     if (!isCovered && ev.kind == DxuiMouseEventKind::Down)
     {
@@ -950,7 +1033,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     else if (ev.kind == DxuiMouseEventKind::Move && m_isSplitting && width > 0)
     {
         m_splitFraction = std::clamp (static_cast<double> (p.x - m_boundsDip.left) / width, s_kMinSplit, s_kMaxSplit);
-        Layout (m_boundsDip, m_scaler);
+        Layout (m_boundsDip, m_hostScaler);
         isHandled = true;
     }
     else if (ev.kind == DxuiMouseEventKind::Up && m_isSplitting)
@@ -975,6 +1058,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move)
     {
         UpdateTooltip (p);
+        m_statusText->SetText (!m_context.hasDisk ? L"" : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : L"");
     }
     else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
     {
@@ -1015,7 +1099,13 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
-    if (ev.kind == DxuiKeyEventKind::Down && !ev.alt && m_context.hasDisk)
+    //  Ctrl with 0, + or - zooms the whole window (FR-154).
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && IsZoomKey (ev.vk))
+    {
+        SetZoom ((ev.vk == '0' || ev.vk == VK_NUMPAD0) ? 1.0 : DxuiZoomControl::StepZoom (m_zoom, (ev.vk == VK_OEM_PLUS || ev.vk == VK_ADD) ? 1 : -1));
+        isHandled = true;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && !ev.alt && m_context.hasDisk)
     {
         isHandled = true;
 
@@ -1365,7 +1455,7 @@ void DiskInspectorWindow::UpdateControls()
     //  A control shown or hidden moves the others along the toolbar.
     if (m_zoomLabel != nullptr && m_scaler.GetDpi() != 0 && GetToolSig() != m_toolSig)
     {
-        Layout (m_boundsDip, m_scaler);
+        Layout (m_boundsDip, m_hostScaler);
     }
 
     if (m_zoomLabel != nullptr)
@@ -1397,7 +1487,7 @@ void DiskInspectorWindow::UpdateControls()
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
-        m_hintLabel->SetVisible    (m_context.hasDisk && m_isHintShown);
+        m_hintLabel->SetVisible    (false);
         m_legend->SetVisible       (false);
         m_legendButton->SetVisible (m_context.hasDisk);
         SyncFileMapSelection();
@@ -1409,7 +1499,7 @@ void DiskInspectorWindow::UpdateControls()
         m_stripReadout->SetVisible (m_context.hasDisk);
         m_stripReadout->SetText    (m_stripView->GetReadout() + ((m_model.GetTrack() != nullptr && m_model.GetNibbleCount() > 0)
                                     ? L"    " + InspectorText::FormatSelection (*m_model.GetTrack(), m_model.GetFirstNibble(), m_model.GetNibbleCount()) : L""));
-        m_stripHint->SetVisible    (m_context.hasDisk);
+        m_stripHint->SetVisible    (false);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
         m_filesCheck->SetVisible     (m_context.hasDisk);
         m_modeTabs->SetVisible   (m_context.hasDisk);
@@ -1634,7 +1724,7 @@ void DiskInspectorWindow::ShowDiskTab (int tab)
 
     if (m_scaler.GetDpi() != 0)
     {
-        Layout (m_boundsDip, m_scaler);
+        Layout (m_boundsDip, m_hostScaler);
     }
 }
 
@@ -1734,7 +1824,7 @@ void DiskInspectorWindow::RefreshTables()
             ShowDiskTab (kTabImage);
         }
 
-        Layout (m_boundsDip, m_scaler);
+        Layout (m_boundsDip, m_hostScaler);
     }
 
     if (m_isTablesDirty || qt != m_fieldsOf || track != m_fieldsTrack)
@@ -2837,7 +2927,7 @@ void DiskInspectorWindow::OpenFilePicker (bool isOpen)
 {
     m_isPickerOpen = isOpen;
     ShowFileMap (m_isDiskGroup && m_diskTab == kTabFileMap);
-    Layout      (m_boundsDip, m_scaler);
+    Layout      (m_boundsDip, m_hostScaler);
 }
 
 
