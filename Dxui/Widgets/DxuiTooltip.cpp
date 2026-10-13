@@ -616,6 +616,10 @@ void DxuiTooltip::ShowPopup()
             m_popupHost->ReleasePopup (m_activePopup);
             m_activePopup = nullptr;
         }
+
+        //  A new balloon replaces one that was fading out.
+        m_fadingOut = false;
+        AssertPopupShown();
     }
 
     m_isSwatchChanged = false;
@@ -629,9 +633,12 @@ void DxuiTooltip::ShowPopup()
 //
 //  UpdatePopup
 //
-//  A tip already up takes its new text, anchor or swatch in place, so a tip
-//  that follows the pointer does not blink at each change. One fading out,
-//  or one the popup cannot update, is shown afresh.
+//  The balloon already up is updated in place with the new text, anchor or
+//  swatch, so a tip that follows the pointer does not blink at each change. A
+//  balloon fading out, or one that fails to update, is replaced by a new one.
+//  The popup's own fade state is tested, since a request clears m_fadingOut
+//  before this runs; updated in place, a fading balloon ended its fade open
+//  and invisible, and every later tip went to it unseen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -643,10 +650,11 @@ void DxuiTooltip::UpdatePopup()
 
 
 
-    if (m_activePopup != nullptr && !m_fadingOut && !m_text.empty())
+    if (m_activePopup != nullptr && !m_fadingOut && !m_activePopup->IsFadingOut() && !m_text.empty())
     {
         MeasureBox (anchor, sizeDip);
         hr = m_activePopup->Update (anchor, sizeDip);
+        AssertPopupShown();
     }
 
     if (FAILED (hr))
@@ -656,6 +664,49 @@ void DxuiTooltip::UpdatePopup()
     }
 
     m_isSwatchChanged = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssertPopupShown
+//
+//  Debug builds only. Asserts that a balloon just opened or updated is on
+//  screen: visible, not fading out, and above its owner window in the
+//  z-order. A test-mode popup has no window and is not checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::AssertPopupShown() const
+{
+#if defined(_DEBUG)
+    HRESULT  hr    = S_OK;
+    HWND     hwnd  = (m_activePopup != nullptr) ? m_activePopup->GetHwnd() : nullptr;
+    HWND     owner = (m_popupHost != nullptr) ? GetAncestor (m_popupHost->GetHwnd(), GA_ROOT) : nullptr;
+    HWND     next  = hwnd;
+    bool     isUp  = false;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr || owner == nullptr, S_OK);
+
+    isUp = IsWindowVisible (hwnd) != FALSE && !m_activePopup->IsFadingOut();
+    CBRA (isUp);
+
+    //  The owner comes after the balloon in the z-order.
+    while (next != nullptr && next != owner)
+    {
+        next = GetWindow (next, GW_HWNDNEXT);
+    }
+
+    CBRA (next == owner);
+
+Error:
+    return;
+#endif
 }
 
 

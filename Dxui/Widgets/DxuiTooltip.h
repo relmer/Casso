@@ -191,6 +191,7 @@ private:
     //  or show a new one when there is none to update.
     //
     void  UpdatePopup        ();
+    void  AssertPopupShown   () const;
     void  MeasureBox         (RECT & outAnchorScreen, SIZE & outSizeDip);
     float    GetSwatchColumnPx () const;
     int64_t  GetHideAtMs       (int64_t nowMs) const;

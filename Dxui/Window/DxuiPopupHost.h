@@ -272,6 +272,10 @@ public:
     void     ApplyReveal    (float t);
     bool     IsRevealing   () const { return m_revealing; }
 
+    //  True from BeginFadeOut until the popup opens again: it is fading out, or
+    //  open at zero opacity.
+    bool     IsFadingOut   () const { return m_revealOut; }
+
     //
     //  Measure the natural extent of `text` (in DIPs) through the
     //  popup's own text renderer. Available any time after Initialize()
