@@ -2846,7 +2846,9 @@ bool CassoExplorerBrowser::OpenRow (int row)
         return true;
     }
 
-    if (!TryGetRowLocation (row, target))
+    //  A disk image opens as one even when it cannot be listed, so the reason
+    //  appears in the list rather than another program opening it.
+    if (!TryGetRowLocation (row, target) && !TryGetImageLocation (row, target))
     {
         return false;
     }
@@ -2854,6 +2856,43 @@ bool CassoExplorerBrowser::OpenRow (int row)
     m_model.NavigateTo (target);
     ReloadAfterNavigation();
 
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TryGetImageLocation
+//
+//  A disk image row on the disk, by its path, whatever its contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryGetImageLocation (int row, Location & outLocation) const
+{
+    Location      location = GetLocation();
+    std::wstring  path;
+
+
+
+    if (row < 0 || row >= (int) m_rows.size() || !m_rows[(size_t) row].isDiskImage)
+    {
+        return false;
+    }
+
+    path = (location.kind == Location::Kind::HostFolder)  ? JoinPath (location.path, m_rows[(size_t) row].name)
+         : (location.kind == Location::Kind::ShellFolder) ? m_rows[(size_t) row].hostPath
+                                                          : std::wstring();
+
+    if (path.empty())
+    {
+        return false;
+    }
+
+    outLocation = Location::MakeDiskImage (path);
     return true;
 }
 

@@ -1468,6 +1468,22 @@ public:
     }
 
 
+    //  A disk image opens as one even with no file system on it, and the
+    //  reason appears in the list, rather than another program opening it.
+    TEST_METHOD (ImageWithNoFileSystem_OpensAndSaysWhy)
+    {
+        Host  host;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\blank.dsk", std::string (143360, '\0')));
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        Assert::IsTrue (host.browser.OpenRow (FindRow (host.browser, L"blank.dsk")));
+        Assert::IsTrue (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\blank.dsk"));
+        Assert::IsTrue (host.browser.GetRows().empty());
+        Assert::IsFalse (host.browser.GetListError().empty(), L"with the reason the list is empty");
+    }
+
+
     TEST_METHOD (LocationLabels)
     {
         Assert::AreEqual (std::wstring (L"C:\\"),    CassoExplorerBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));

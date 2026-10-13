@@ -396,6 +396,7 @@ private:
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
+    bool     TryGetImageLocation   (int row, Location & outLocation) const;
     bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
 
     static constexpr const wchar_t *  s_kpszSourceExtensions[] = { L".a65", L".asm", L".s", L".inc", L".a", L".src", L".mac", L".ca65" };
