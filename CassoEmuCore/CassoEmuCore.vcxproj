@@ -425,6 +425,7 @@
     <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceSyntax.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\ProfileDialogOverlay.cpp" />
@@ -844,6 +845,7 @@
     <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />
+    <ClInclude Include="Ui\Debugger\SourceSyntax.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />
