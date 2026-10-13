@@ -2354,9 +2354,12 @@ legend, and tilt the platter and back.
   volume, or per CP/M sector, $0 to $F in CP/M's own order, on a CP/M volume,
   each cell showing its role and result. The rows MUST be no shorter than a
   cell's label, the row numbers MUST be titled "Track" and the columns titled
-  with what they number; the grid and the file list MUST scroll together,
-  with a scrollbar at the right, when they do not fit. Below the grid, a file
-  list MUST show
+  with what they number, with a scrollbar at the right when the grid does
+  not fit. A file picker above the grid MUST open, as a drop-down list does,
+  to the file list with its filters in place of the grid, and close to the
+  chosen file's name with the grid in view; it MUST start open, and the row
+  with it MUST read "Previous/next sector in" before it, after the "<" and
+  ">" buttons that step through the file's sectors. The file list MUST show
   each file's path, type, size, sectors used and state, sortable by each
   column and filterable to "Files touching bad sectors". The state MUST list
   every one that applies, in this order: "Chain broken", "Cross-linked",

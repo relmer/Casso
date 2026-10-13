@@ -69,7 +69,9 @@ static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr int      s_kMapCheckDip    = 190;
 static constexpr int      s_kMapButtonDip   = 30;
-static constexpr int      s_kMapStepLabelDip = 200;
+static constexpr int      s_kMapStepLabelDip = 150;
+static constexpr int      s_kFilePickerDip  = 240;
+static constexpr int      s_kChevronDip     = 5;
 static constexpr int      s_kMapVolumeDip   = 150;
 static constexpr int      s_kFitDip         = 48;
 static constexpr int      s_kMinPlatterColumnDip = 420;
@@ -387,7 +389,8 @@ void DiskInspectorWindow::OnCreate()
     m_mapBadOnly  = CreateChild<DxuiCheckbox> (L"Files touching bad sectors");
     m_mapPrev     = CreateChild<DxuiButton> (L"<");
     m_mapNext     = CreateChild<DxuiButton> (L">");
-    m_mapStepLabel = CreateChild<DxuiLabel> (L"Previous/next sector in file", DxuiTextRole::Body, DxuiTextHAlign::Left);
+    m_mapStepLabel = CreateChild<DxuiLabel> (L"Previous/next sector in", DxuiTextRole::Body, DxuiTextHAlign::Left);
+    m_filePicker   = CreateChild<DxuiButton> (L"Choose a file");
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
@@ -404,6 +407,7 @@ void DiskInspectorWindow::OnCreate()
     m_mapDeleted->SetOnChange ([this] (bool) { RefreshFileList(); });
     m_mapBadOnly->SetOnChange ([this] (bool) { RefreshFileList(); });
     m_mapPrev->SetOnClick    ([this] () { StepFileSector (-1); });
+    m_filePicker->SetOnClick ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapNext->SetOnClick    ([this] () { StepFileSector (1); });
     m_mapCopy->SetOnClick    ([this] () { CopyFileMap(); });
     m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
@@ -784,6 +788,11 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     DxuiWindow::Paint (painter, text, theme);
+
+    if (m_filePicker->IsVisible())
+    {
+        PaintPickerChevron (painter, theme);
+    }
 
     painter.FillRect (static_cast<float> (m_tabGapPx.left), static_cast<float> (m_tabGapPx.top), static_cast<float> (m_tabGapPx.right - m_tabGapPx.left),
                       static_cast<float> (m_tabGapPx.bottom - m_tabGapPx.top), theme.Divider());
@@ -2461,6 +2470,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
         { m_filesCheck,      L"Color each sector's data field by its role in the file map",     nullptr },
         { m_mapPrev,         L"Select the previous sector in the selected file",                 nullptr },
+        { m_filePicker,      L"Choose the file whose sectors the map marks",                      nullptr },
         { m_mapNext,         L"Select the next sector in the selected file",                     nullptr },
         { m_stripOut,        L"Zoom the strip out",                                              L"The strip already shows the whole track" },
         { m_stripIn,         L"Zoom the strip in",                                               nullptr },
@@ -2715,56 +2725,64 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
     int                        button  = scaler.ToPx (s_kMapButtonDip);
     int                        volume  = scaler.ToPx (s_kMapVolumeDip);
     int                        label   = scaler.ToPx (s_kMapStepLabelDip);
+    int                        picker  = scaler.ToPx (s_kFilePickerDip);
     int                        y       = area.top;
     int                        width   = 0;
     int                        gridH   = 0;
-    int                        listH   = 0;
     bool                       isList  = map != nullptr && map->notMapped == NotMappedReason::None;
     vector<DxuiTabStrip::Tab>  tabs;
 
 
 
-    m_mapDeleted->Layout ({ area.left,         y, area.left + check,     y + row }, scaler);
-    m_mapBadOnly->Layout ({ area.left + check, y, area.left + 2 * check, y + row }, scaler);
-    y += row + margin / 2;
-
-    //  The step buttons and their label, the volume tabs, and "Copy map" at
-    //  the right, on one row.
+    //  The step buttons, their label and the file picker, the volume tabs,
+    //  and "Copy map" at the right, on one row.
     m_mapPrev->Layout      ({ area.left,          y, area.left + button,     y + row }, scaler);
     m_mapNext->Layout      ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
     m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
+    m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, area.left + 2 * button + margin + label + picker, y + row }, scaler);
     m_mapCopy->Layout      ({ area.right - scaler.ToPx (s_kExportButtonDip), y, area.right, y + row }, scaler);
 
     for (size_t v = 0; v < m_analysis.fileMaps.size() && m_analysis.fileMaps.size() > 1; v++)
     {
-        int  left = area.left + 2 * button + 2 * margin + label + static_cast<int> (v) * volume;
+        int  left = area.left + 2 * button + 2 * margin + label + picker + static_cast<int> (v) * volume;
 
         tabs.push_back ({ { left, y, left + volume, y + row }, FileMapText::FormatVolume (m_analysis.fileMaps[v]) });
     }
 
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_mapIndex);
-    m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label, y, area.right - scaler.ToPx (s_kExportButtonDip) - margin, y + row }, scaler);
+    m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, area.right - scaler.ToPx (s_kExportButtonDip) - margin, y + row }, scaler);
     y += row + margin / 2;
 
-    //  The grid and the file list scroll together under the rows above: the
-    //  grid's rows no shorter than its labels, the list at least
-    //  s_kMinTableDip tall, and a scrollbar at the right when both do not
-    //  fit.
+    //  Open, the picker has the list's filters and the file list in the rest
+    //  of the tab; closed, the tab has the grid, its rows no shorter than its
+    //  labels, with a scrollbar at the right when it does not fit.
     width = area.right - area.left;
-    gridH = isList ? m_mapGrid->GetHeightFor (width) : area.bottom - y;
-    listH = std::max (scaler.ToPx (s_kMinTableDip), static_cast<int> (area.bottom - y - gridH - margin / 2));
 
-    if (isList && gridH + margin / 2 + listH > area.bottom - y)
+    if (isList && m_isPickerOpen)
     {
-        width -= scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip) + margin / 2;
-        gridH  = m_mapGrid->GetHeightFor (width);
-        listH  = std::max (scaler.ToPx (s_kMinTableDip), static_cast<int> (area.bottom - y - gridH - margin / 2));
+        m_mapDeleted->Layout ({ area.left,         y, area.left + check,     y + row }, scaler);
+        m_mapBadOnly->Layout ({ area.left + check, y, area.left + 2 * check, y + row }, scaler);
+        y += row + margin / 2;
+
+        m_mapScroll->PlaceChild (*m_fileList, { area.left, y, area.right, area.bottom });
+        m_mapScroll->PlaceChild (*m_mapGrid,  { area.left, y, area.right, y });
+    }
+    else
+    {
+        gridH = isList ? m_mapGrid->GetHeightFor (width) : area.bottom - y;
+
+        if (isList && gridH > area.bottom - y)
+        {
+            width -= scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip) + margin / 2;
+            gridH  = m_mapGrid->GetHeightFor (width);
+        }
+
+        m_mapScroll->PlaceChild (*m_mapGrid,  { area.left, y, area.left + width, y + gridH });
+        m_mapScroll->PlaceChild (*m_fileList, { area.left, y + gridH, area.left + width, y + gridH });
     }
 
     m_mapScroll->SetLineStepPx (scaler.ToPx (s_kRowDip));
-    m_mapScroll->PlaceChild    (*m_mapGrid,  { area.left, y, area.left + width, y + gridH });
-    m_mapScroll->PlaceChild    (*m_fileList, { area.left, y + gridH + margin / 2, area.left + width, y + gridH + margin / 2 + (isList ? listH : 0) });
     m_mapScroll->Layout        ({ area.left, y, area.right, area.bottom }, scaler);
 }
 
@@ -2785,16 +2803,68 @@ void DiskInspectorWindow::ShowFileMap (bool isShown)
 
 
 
+    bool             isOpen = isList && m_isPickerOpen;
+
+
+
     m_mapScroll->SetVisible  (isShown);
-    m_mapGrid->SetVisible    (isShown);
-    m_fileList->SetVisible   (isList);
-    m_mapDeleted->SetVisible (isList);
-    m_mapBadOnly->SetVisible (isList);
+    m_mapGrid->SetVisible    (isShown && !isOpen);
+    m_fileList->SetVisible   (isOpen);
+    m_mapDeleted->SetVisible (isOpen);
+    m_mapBadOnly->SetVisible (isOpen);
+    m_filePicker->SetVisible (isList);
     m_mapPrev->SetVisible    (isList);
     m_mapNext->SetVisible    (isList);
     m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
     m_mapVolumes->SetVisible (isShown && m_analysis.fileMaps.size() > 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenFilePicker
+//
+//  The file picker opens to the file list and closes to the chosen file's
+//  map, as a drop-down list does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenFilePicker (bool isOpen)
+{
+    m_isPickerOpen = isOpen;
+    ShowFileMap (m_isDiskGroup && m_diskTab == kTabFileMap);
+    Layout      (m_boundsDip, m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PaintPickerChevron
+//
+//  A chevron at the picker's right, as a drop-down list draws one: pointing
+//  down while the picker is closed and up while it is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintPickerChevron (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT   b    = m_filePicker->GetBounds();
+    float  half = m_scaler.ToPxf (static_cast<float> (s_kChevronDip));
+    float  cx   = static_cast<float> (b.right) - 3 * half;
+    float  cy   = (b.top + b.bottom) / 2.0f;
+    float  tip  = m_isPickerOpen ? -half / 2 : half / 2;
+
+
+
+    painter.DrawLine (cx - half, cy - tip, cx,        cy + tip, 1.5f, theme.Foreground());
+    painter.DrawLine (cx,        cy + tip, cx + half, cy - tip, 1.5f, theme.Foreground());
 }
 
 
@@ -2829,6 +2899,7 @@ void DiskInspectorWindow::RefreshFileList()
 
     m_context.fileMap      = map;
     m_context.selectedFile = m_mapFile;
+    m_filePicker->SetLabel ((map != nullptr && m_mapFile >= 0) ? map->files[m_mapFile].path : std::wstring (L"Choose a file"));
     ShowFileMap (m_isDiskGroup && m_diskTab == kTabFileMap);
 }
 
@@ -2853,6 +2924,10 @@ void DiskInspectorWindow::ChooseFile (int file)
 
     m_mapFile              = file;
     m_context.selectedFile = file;
+
+    //  A chosen file closes the picker, which then has the file's name.
+    m_filePicker->SetLabel ((map != nullptr && file >= 0) ? map->files[file].path : std::wstring (L"Choose a file"));
+    OpenFilePicker (false);
 
     for (const FilePlace & place : (map != nullptr && file >= 0) ? map->files[file].sectors : vector<FilePlace>())
     {

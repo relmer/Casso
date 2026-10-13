@@ -164,6 +164,8 @@ private:
     bool  IsCovered  (POINT pointPx) const;
     const FileMap *  GetFileMap () const;
     void  LayoutFileMap        (const RECT & area, const DxuiDpiScaler & scaler);
+    void  OpenFilePicker       (bool isOpen);
+    void  PaintPickerChevron   (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     void  ShowFileMap          (bool isShown);
     void  RefreshFileList      ();
     void  ChooseFile           (int file);
@@ -311,6 +313,8 @@ private:
     DxuiButton                            * m_mapNext            = nullptr;
     DxuiButton                            * m_mapCopy            = nullptr;
     DxuiLabel                             * m_mapStepLabel       = nullptr;
+    DxuiButton                            * m_filePicker         = nullptr;
+    bool                                    m_isPickerOpen       = true;
     DxuiScrollPanel                       * m_mapScroll          = nullptr;
     int                                     m_revealedCell       = -1;
     RECT                                    m_tabGapPx           = {};
