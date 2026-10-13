@@ -149,8 +149,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-10-13 (owner review: DISASM, disassembly annotations)
 
-- Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are, and Tools > Options has no page for its settings (FR-200).
+- Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are; the view's options are set by its check boxes and the Disassembly tab of Tools > Options (FR-200, FR-228).
 - Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
+- Q: What does the debugger's Tools > Options have? -> A: Tabs, as Casso's Settings sheet has: History, with recording on or off and the memory history may use as a slider from 1 MB to the lower of 90% of the memory available and the memory available less 4 MB, in 1 MB steps with about ten tick marks; and Disassembly (FR-227).
+- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values, Pointers and Branch arrow, on by default, and Address colon, off by default. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2783,11 +2785,11 @@ run something, switch back to the //e: it is where it was left.
 - **FR-199**: Copy text from the emulator window MUST render inverse and
   flashing characters as the characters they show, not as other characters.
 - **FR-200**: DISASM MUST be reported as not available, as other AppleWin
-  commands with no meaning in Casso are: the disassembly view's own check
-  boxes set its options, and Tools > Options has no page for DISASM's
-  settings. *(Amended 2026-10-13.)*
+  commands with no meaning in Casso are: the disassembly view's check boxes
+  and the Disassembly tab of Tools > Options set its options (FR-228).
+  *(Amended 2026-10-13.)*
 - **FR-201**: The PC's row MUST have a glyph for the way its branch goes (up or
-  down). *(Amended 2026-10-13.)*
+  down), while the Branch arrow option is on (FR-228). *(Amended 2026-10-13.)*
 - **FR-202**: The PC row's result annotation MUST also have the cycles its
   instruction will take with the current registers: for a branch, taken or
   not taken, and a page crossing where one applies. Other rows have no
@@ -2912,6 +2914,29 @@ run something, switch back to the //e: it is where it was left.
   value. A state from a newer version of Casso, or saved
   with different ROM images, MUST fail with a message that distinguishes the
   two cases from each other and from a damaged file.
+
+**The debugger's options (owner decisions 2026-10-13)**
+
+- **FR-227**: The debugger's Tools > Options MUST be a dialog with tabs, built
+  as Casso's Settings sheet is, with a History tab and a Disassembly tab. The
+  History tab has the setting that turns history recording on and off, and
+  the memory history may use with the estimate of the minutes of history it
+  has room for. The memory is a slider from 1 MB to the lower of 90% of the
+  memory available and the memory available less 4 MB, and never less than
+  1 MB, the memory available read as the dialog opens. It moves in 1 MB
+  steps, a tenth of its range for Page Up and Page Down, with about ten tick
+  marks. A saved value above the slider's maximum puts the slider at its
+  maximum, and the saved value changes only when the slider moves.
+- **FR-228**: The Disassembly tab MUST have a check box for each disassembly
+  view option: the disassembly toolbar's Addresses, Code bytes, Source,
+  Symbols and Line numbers, each the same setting as its toolbar check box;
+  Operand values, the address an operand touches and the value there, in the
+  annotation; Pointers, the pointer an indirect mode reads, in the
+  annotation; Branch arrow, the PC's branch arrow; and Address colon, a colon
+  after each address. Operand values, Pointers and Branch arrow are on by
+  default and Address colon is off, as the view is today. No option packs
+  opcode bytes together, as AppleWin's DISASM SPACES does: the bytes would
+  misread as one little-endian number.
 
 ### Key Entities
 
