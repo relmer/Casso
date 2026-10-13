@@ -3303,9 +3303,9 @@ namespace DebuggerViewStateTests
 
 
             Assert::AreEqual ((size_t) 4,                   lines.size());
-            Assert::AreEqual (std::wstring (L"a       b"),  lines[0], L"to the next multiple of eight, not eight spaces");
+            Assert::AreEqual (std::wstring (L"a   b"),      lines[0], L"to the next multiple of four, not four spaces");
             Assert::AreEqual (std::wstring (L"c"),          lines[1]);
-            Assert::AreEqual (std::wstring (L"        e"),  lines[3]);
+            Assert::AreEqual (std::wstring (L"    e"),      lines[3]);
         }
 
 

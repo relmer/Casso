@@ -197,7 +197,7 @@ public:
     static std::pair<int, int>  GetPlace (const DebuggerViewSnapshot::SourceState & state, int level);
 
 private:
-    static constexpr int  kTabWidth = 8;
+    static constexpr int  kTabWidth = 4;
 
     void  LoadFile   (int fileId);
     void  Rebuild    ();

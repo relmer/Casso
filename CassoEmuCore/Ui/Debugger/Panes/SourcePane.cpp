@@ -817,7 +817,7 @@ std::string SourcePane::GetFileName (int fileId) const
 //
 //  SourcePane::SplitLines
 //
-//  Lines ending in LF, CR LF or CR, with tabs expanded to every eighth
+//  Lines ending in LF, CR LF or CR, with tabs expanded to every fourth
 //  column: the view reads a tab as the break between cells.
 //
 ////////////////////////////////////////////////////////////////////////////////
