@@ -709,14 +709,65 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
         return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_APPLESOFT_FILE), IMAGE_ICON, m_sizePx, m_sizePx, 0));
     }
 
-    //  Any other Apple file type's icon is Explorer's page with the type's badge.
+    //  Any other Apple file type's icon is Explorer's page with the type's
+    //  badge, the page drawn at the size it is shown at.
     if (kind >= Kind::AppleText)
     {
-        m_cache[key] = DrawAppleTypeIcon (kind, Rasterize (LoadForKind (Kind::File, flag), m_sizePx), m_sizePx);
+        HICON  page = (m_sizePx > s_kLargeIconPx) ? LoadLargerByAttributes (false, m_sizePx) : LoadForKind (Kind::File, flag);
+
+        m_cache[key] = DrawAppleTypeIcon (kind, Rasterize (page, m_sizePx), m_sizePx);
         return m_cache[key];
     }
 
+    //  Past the large icon, the generic folder and file come from the shell's
+    //  bigger image lists, as a host folder's own icon does.
+    if ((kind == Kind::Folder || kind == Kind::File) && m_sizePx > s_kLargeIconPx)
+    {
+        return Remember (key, LoadLargerByAttributes (kind == Kind::Folder, m_sizePx));
+    }
+
     return Remember (key, LoadForKind (kind, flag));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadLargerByAttributes
+//
+//  The generic folder or file at an extra large or jumbo size, from its
+//  attributes alone, cut to the art when the image list pads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON Win32ShellIcons::LoadLargerByAttributes (bool isDirectory, int sizePx)
+{
+    SHFILEINFOW         info    = {};
+    ComPtr<IImageList>  list;
+    HICON               icon    = nullptr;
+    HRESULT             hr      = S_OK;
+    bool                cropped = false;
+    int                 which   = (sizePx > s_kExtraLargeIconPx) ? SHIL_JUMBO : SHIL_EXTRALARGE;
+    DWORD_PTR           result  = SHGetFileInfoW (isDirectory ? L"folder" : L"file", isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+                                                  &info, sizeof (info), SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES);
+
+
+
+    if (result != 0)
+    {
+        hr = SHGetImageList (which, IID_PPV_ARGS (&list));
+    }
+
+    if (result != 0 && SUCCEEDED (hr))
+    {
+        hr = list->GetIcon (info.iIcon & 0x00FFFFFF, ILD_TRANSPARENT, &icon);
+    }
+
+    icon = CropToCorner (icon, cropped);
+
+    return (icon != nullptr) ? icon : LoadForKind (isDirectory ? Kind::Folder : Kind::File, SHGFI_LARGEICON);
 }
 
 

@@ -114,6 +114,19 @@ with the same folders open.
 | SC-017: first results | 1,000 text files in an indexed folder under the user profile, 100 of them containing the word "zephyrine". With a restored search tab for the word, the first results were on screen 0.86 s after the process started, startup included |
 | SC-017: same files as File Explorer | 100 results, the same 100 the Windows Search index returns for the word over that folder |
 
+### Apple file-type icons, 2026-10-13
+
+Debug x64 at 150%. A ProDOS image built for the check with CassoCli: 12 text
+(TXT), 12 Applesoft (BAS), 12 binary (BIN) and 12 system (SYS) files, and 2
+directories, 50 entries in all.
+
+| Check | Result |
+|---|---|
+| SC-019: Details, List, Small icons | Each kind has its own icon at 16-24 px: the orange B page, the slate T page, the BASIC monitor, the red S page and the folder |
+| SC-019: Medium, Large, Extra large icons | The same icons, drawn at each size. Directories drew as a small folder in a dark box at these sizes until a fix in this pass, and the pages drew blurred at Extra large |
+| SC-019: Tiles, Content | The same icons, beside the name, the type and the size |
+| SC-018 | Not run: the check registers the six formats in the user's own associations, so it is left to the owner |
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
