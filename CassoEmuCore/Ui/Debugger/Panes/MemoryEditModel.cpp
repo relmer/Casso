@@ -439,7 +439,7 @@ bool MemoryEditModel::Undo()
 
 
 
-    if (m_history.empty())
+    if (!CanUndo())
     {
         return false;
     }
@@ -478,7 +478,7 @@ bool MemoryEditModel::Redo()
 
 
 
-    if (m_redo.empty())
+    if (!CanRedo())
     {
         return false;
     }

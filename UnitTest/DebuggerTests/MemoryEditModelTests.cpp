@@ -242,6 +242,34 @@ namespace DebuggerTests
         }
 
 
+        //  The session takes no memory writes while the machine runs, so an
+        //  undo then would drop the edit from the history and change nothing.
+        TEST_METHOD (UndoAndRedoWaitForThePausedMachine)
+        {
+            Rig  rig;
+
+
+
+            rig.Write (0x0300, { 0xA9 });
+            rig.lines.clear();
+            rig.model.SetPaused (false);
+
+            Assert::IsFalse (rig.model.CanUndo(), L"undo is unavailable while the machine runs");
+            Assert::IsFalse (rig.model.Undo());
+            Assert::IsTrue  (rig.lines.empty(), L"no PATCH reaches the running machine");
+
+            rig.model.SetPaused (true);
+
+            Assert::IsTrue   (rig.model.Undo(), L"the edit is in the history once the machine pauses");
+            Assert::AreEqual (std::string ("PATCH 0300 00"), rig.lines.at (0));
+
+            rig.model.SetPaused (false);
+
+            Assert::IsFalse (rig.model.CanRedo(), L"redo is unavailable while the machine runs");
+            Assert::IsFalse (rig.model.Redo());
+        }
+
+
         TEST_METHOD (MarksTellIoAndRomApart)
         {
             Rig      rig;

@@ -27,7 +27,8 @@
 //  UNDO IS THIS WINDOW'S. Each edit records the bytes it replaced, and undo
 //  sends them back, most recent first, whatever the machine has done to those
 //  bytes since. Redo writes an undone edit's bytes again; a new edit clears
-//  what could be redone.
+//  what could be redone. Neither runs while the machine runs, which is when
+//  the session takes no memory writes, so the edit stays in the history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,8 +103,8 @@ public:
 
     bool  Undo         ();
     bool  Redo         ();
-    bool  CanUndo      () const { return !m_history.empty(); }
-    bool  CanRedo      () const { return !m_redo.empty(); }
+    bool  CanUndo      () const { return m_isPaused && !m_history.empty(); }
+    bool  CanRedo      () const { return m_isPaused && !m_redo.empty(); }
     void  ClearHistory ()       { m_history.clear(); m_redo.clear(); }
 
     //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
