@@ -76,19 +76,25 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (AnOutOfRangeSlot_PrintsTheSlotTheRomUsed)
+        TEST_METHOD (AnOutOfRangeSlot_UsesItsLowHexDigit)
         {
             Rig    rig;
             Reply  output = rig.RunOk ("10^P");
             Reply  input  = rig.RunOk ("13^K");
+            Reply  nine;
 
 
 
-            Assert::IsTrue (HasLine (output, "Slot 10 is out of range; the ROM uses slot 0"));
-            Assert::AreEqual ((int) 0xF0, (int) rig.target.memory[0x36], L"the ROM's behavior is kept");
+            Assert::IsTrue   (HasLine (output, "There is no slot 10; only its low hex digit is used."));
+            Assert::AreEqual ((int) 0xF0, (int) rig.target.memory[0x36], L"slot 0 restores the ROM's output routine, as the ROM does");
 
-            Assert::IsTrue (HasLine (input, "Slot 13 is out of range; the ROM uses slot 3"));
-            Assert::AreEqual ((int) 0xC3, (int) rig.target.memory[0x39], L"the ROM's behavior is kept");
+            Assert::IsTrue   (HasLine (input, "There is no slot 13; only its low hex digit is used."));
+            Assert::AreEqual ((int) 0xC3, (int) rig.target.memory[0x39], L"slot 3, as the ROM does");
+
+            nine = rig.RunOk ("9^K");
+
+            Assert::IsTrue   (HasLine (nine, "There is no slot 9; only its low hex digit is used."));
+            Assert::AreEqual ((int) 0xC9, (int) rig.target.memory[0x39], L"$C900, as the ROM does");
         }
 
         TEST_METHOD (AnInRangeSlot_PrintsNoNote)

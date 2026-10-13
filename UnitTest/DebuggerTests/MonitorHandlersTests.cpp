@@ -125,6 +125,31 @@ namespace DebuggerTests
         }
 
 
+        //  The ROM's LIST knows the documented instructions only: an
+        //  undocumented opcode such as LAX ($A7) is ??? over one byte, and the
+        //  listing goes on from the byte after it.
+        TEST_METHOD (List_AnUndocumentedOpcodeIsOneByteOfQuestionMarks)
+        {
+            Rig          rig;
+            TestCpu      cpu;
+            std::string  first;
+            std::string  second;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+            rig.RunOk ("300: A7 EA EA");
+
+            first  = rig.Line ("300L", 0);
+            second = rig.Line ("300L", 1);
+
+            Assert::IsTrue (first.starts_with ("0300") && first.find ("???") != std::string::npos, Widen (first).c_str());
+            Assert::IsTrue (first.find ("LAX") == std::string::npos, Widen (first).c_str());
+            Assert::IsTrue (second.starts_with ("0301") && second.find ("NOP") != std::string::npos, Widen (second).c_str());
+        }
+
+
         ////////////////////////////////////////////////////////////////////////
         //
         //  Scenario 1: examine
