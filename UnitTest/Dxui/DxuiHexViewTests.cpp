@@ -850,6 +850,8 @@ public:
             L"and ASCII as itself");
         Assert::AreEqual (std::wstring (L"\x25BA"), view.GetTextFor (0x10, 1),
             L"and a control code as the symbol DOS draws for it");
+        Assert::AreEqual (std::wstring (L" "), view.GetTextFor (0x0C, 1),
+            L"but a page break as a blank");
 
         view.SetTextEncoding (DxuiHexView::TextEncoding::Windows);
         Assert::AreEqual (std::wstring (L"\x00E9\x00EA"), view.GetTextFor (0xE9, 2),

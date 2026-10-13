@@ -2920,6 +2920,13 @@ wchar_t DxuiHexView::GetCharFor (uint8_t byte) const
 
 
 
+    //  A page break in text is drawn blank, as the line break before it is.
+    if (value == s_kFormFeed
+        && (!m_showValues || m_encoding == TextEncoding::Dos || m_encoding == TextEncoding::Windows))
+    {
+        return L' ';
+    }
+
     //  Control codes decode to code page 437's symbols, all but the line breaks and
     //  tabs that lay the text out.
     if (m_encoding == TextEncoding::Dos
