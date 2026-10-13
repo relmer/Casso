@@ -7410,6 +7410,7 @@ void CassoExplorerWindow::ShowOptions()
 
 
     Win32UserClasses  classes;
+    Win32UserClasses  fileExts         (Win32UserClasses::kFileExtsRoot);
     bool              wasRegistered    = FileAssociations::IsRegistered (classes);
     wchar_t           module[MAX_PATH] = {};
     std::wstring      folder;
@@ -7451,7 +7452,7 @@ void CassoExplorerWindow::ShowOptions()
         folder.resize (folder.find_last_of (L"\\/"));
 
         hr = choices.registered ? FileAssociations::Register (classes, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe), module)
-                                : FileAssociations::Unregister (classes);
+                                : FileAssociations::Unregister (classes, fileExts);
 
         if (FAILED (hr))
         {

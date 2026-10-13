@@ -125,7 +125,20 @@ directories, 50 entries in all.
 | SC-019: Details, List, Small icons | Each kind has its own icon at 16-24 px: the orange B page, the slate T page, the BASIC monitor, the red S page and the folder |
 | SC-019: Medium, Large, Extra large icons | The same icons, drawn at each size. Directories drew as a small folder in a dark box at these sizes until a fix in this pass, and the pages drew blurred at Extra large |
 | SC-019: Tiles, Content | The same icons, beside the name, the type and the size |
-| SC-018 | Not run: the check registers the six formats in the user's own associations, so it is left to the owner |
+
+### File associations, 2026-10-13
+
+Debug x64, the owner's own account, registered and unregistered from Casso
+Explorer's Options. `HKCU\Software\Classes` and File Explorer's `FileExts`
+record were exported before the first registration and after the last.
+
+| Check | Result |
+|---|---|
+| SC-018: the program and icon Windows resolves | All six formats open with `Casso.exe --disk1 "%1"` and take the icon `Casso.exe,-108`, by AssocQueryString in a new process. Before a fix in this pass, .do, .po, .nib and .nb2 resolved to Windows' Open with prompt and a blank page: Casso Explorer was a second type under each, and for two types with no choice made, Windows displays that prompt |
+| SC-018: Open with | Casso and Casso Explorer are both recommended for all six formats |
+| SC-018: the icon on screen | Casso's floppy icon on all six in a new process, by SHGetFileInfo and in Casso Explorer's own listing. A File Explorer window open from before the registration drew blank pages after it, after a refresh, and after the icon was moved to another file, so that process does not reread the types |
+| SC-018: Open | The resolved command, run on a copy of the Casso Rocks disk, started Casso with the image in drive 1 and booted it to its first prompt |
+| SC-018: after unregistering | No association differs. `Classes` differs only in Windows' own caches (MuiCache and timestamps). `FileExts` has three keys more, for .do, .nib and .nb2, each with an empty OpenWithList and no values; Windows adds these for an extension it handles, and .po had one before Casso was registered. Before a fix in this pass, Casso's type stayed in the .do record |
 
 ### Picture previews on Casso's monitors, 2026-10-13
 

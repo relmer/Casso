@@ -12,9 +12,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring Win32UserClasses::GetFullKey (const std::wstring & key)
+std::wstring Win32UserClasses::GetFullKey (const std::wstring & key) const
 {
-    return L"Software\\Classes\\" + key;
+    return m_root + L"\\" + key;
 }
 
 

@@ -21,7 +21,10 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
     hr = WriteProgId (classes, kCassoProgId, L"Casso", cassoExe, L"\"" + cassoExe + L"\" --disk1 \"%1\"");
     CHR (hr);
 
-    hr = WriteProgId (classes, kExplorerProgId, L"Casso Explorer", cassoExe, L"\"" + explorerExe + L"\" \"%1\"");
+    hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp, L"FriendlyAppName", L"Casso Explorer");
+    CHR (hr);
+
+    hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\shell\\open\\command", L"", L"\"" + explorerExe + L"\" \"%1\"");
     CHR (hr);
 
     for (const wchar_t * extension : kExtensions)
@@ -104,7 +107,7 @@ HRESULT FileAssociations::TakeType (IUserClasses & classes, const std::wstring &
     hr = classes.SetValue (extension + L"\\OpenWithProgids", kCassoProgId, L"");
     CHR (hr);
 
-    hr = classes.SetValue (extension + L"\\OpenWithProgids", kExplorerProgId, L"");
+    hr = classes.SetValue (extension + L"\\OpenWithList\\" + kExplorerApp, L"", L"");
     CHR (hr);
 
 Error:
@@ -121,7 +124,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FileAssociations::Unregister (IUserClasses & classes)
+HRESULT FileAssociations::Unregister (IUserClasses & classes, IUserClasses & fileExts)
 {
     HRESULT  hr = S_OK;
 
@@ -131,12 +134,18 @@ HRESULT FileAssociations::Unregister (IUserClasses & classes)
     {
         hr = ReturnType (classes, extension);
         CHR (hr);
+
+        hr = ClearRecord (fileExts, extension);
+        CHR (hr);
     }
 
     hr = classes.DeleteKey (kCassoProgId);
     CHR (hr);
 
     hr = classes.DeleteKey (kExplorerProgId);
+    CHR (hr);
+
+    hr = classes.DeleteKey (std::wstring (L"Applications\\") + kExplorerApp);
     CHR (hr);
 
 Error:
@@ -163,6 +172,7 @@ HRESULT FileAssociations::ReturnType (IUserClasses & classes, const std::wstring
     std::wstring  current;
     std::wstring  previous;
     std::wstring  withKey  = extension + L"\\OpenWithProgids";
+    std::wstring  listKey  = extension + L"\\OpenWithList";
 
 
 
@@ -188,9 +198,55 @@ HRESULT FileAssociations::ReturnType (IUserClasses & classes, const std::wstring
         CHR (hr);
     }
 
+    hr = classes.DeleteKey (listKey + L"\\" + kExplorerApp);
+    CHR (hr);
+
+    if (classes.IsEmpty (listKey))
+    {
+        hr = classes.DeleteKey (listKey);
+        CHR (hr);
+    }
+
     if (classes.IsEmpty (extension))
     {
         hr = classes.DeleteKey (extension);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::ClearRecord
+//
+//  File Explorer lists each type an extension had under its OpenWithProgids
+//  record; Casso's entries go, and the key goes when they were its only
+//  values. The programs the user picked in Open with are the user's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::ClearRecord (IUserClasses & fileExts, const std::wstring & extension)
+{
+    HRESULT       hr      = S_OK;
+    std::wstring  withKey = extension + L"\\OpenWithProgids";
+
+
+
+    hr = fileExts.DeleteValue (withKey, kCassoProgId);
+    CHR (hr);
+
+    hr = fileExts.DeleteValue (withKey, kExplorerProgId);
+    CHR (hr);
+
+    if (fileExts.IsEmpty (withKey))
+    {
+        hr = fileExts.DeleteKey (withKey);
         CHR (hr);
     }
 
