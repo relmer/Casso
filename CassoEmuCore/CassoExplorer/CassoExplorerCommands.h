@@ -119,6 +119,10 @@ public:
         kMonitorWhite,
         kMonitorCustom,
 
+        //  A double hi-res picture's form, on the preview toolbar.
+        kPictureMonochrome,
+        kPictureColor,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -164,8 +168,16 @@ public:
 
     //  The preview pane's toolbar: Go to and the byte grouping over a hex
     //  view, or the line address toggle over a BASIC listing.
-    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
-    static std::vector<int>          GetPreviewToolbarCommandIds (bool hex);
+    //  What the preview toolbar has: nothing, a listing's toggle, the hex
+    //  view's commands, or a double hi-res picture's two forms.
+    static constexpr int  kPreviewBarNone    = 0;
+    static constexpr int  kPreviewBarListing = 1;
+    static constexpr int  kPreviewBarHex     = 2;
+    static constexpr int  kPreviewBarPicture = 3;
+
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
+    static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
+    static int                       GetPreviewBar               (int id);
 
     //  The toolbar entries' commands in strip order, so a host moving focus
     //  along the strip can check whether each one is enabled.
@@ -292,6 +304,8 @@ private:
         { kMonitorAmber,      Menu::Count, L"Amber",               nullptr,     true  },
         { kMonitorWhite,      Menu::Count, L"White",               nullptr,     true  },
         { kMonitorCustom,     Menu::Count, L"Custom",              nullptr,     true  },
+        { kPictureMonochrome, Menu::Count, L"Monochrome",          nullptr,     true  },
+        { kPictureColor,      Menu::Count, L"Color",               nullptr,     true  },
         { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
         { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
         { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },
@@ -380,10 +394,12 @@ private:
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
-        { kLineAddresses, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Show address",   L"Show where each line starts in memory" },
+        { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, nullptr, L"Show address", L"Show where each line starts in memory"                   },
         //  The Go to and search boxes, which the host supplies as custom entries.
-        { kGoToOffset,    DxuiToolbar::Kind::Command,  0, nullptr, L"Go to",         L""                            },
-        { kFind,          DxuiToolbar::Kind::Command,  1, nullptr, L"Search",        L"",                           false, true },
+        { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr, L"Go to",        L""                                                       },
+        { kFind,              DxuiToolbar::Kind::Command, 1, nullptr, L"Search",       L"",                                                       false, true },
+        { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Monochrome",   L"Draw the picture as its bits, on a monochrome monitor" },
+        { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, nullptr, L"Color",        L"Draw the picture in color, on the color monitor"      },
     };
 
     static constexpr Key  kKeys[] =

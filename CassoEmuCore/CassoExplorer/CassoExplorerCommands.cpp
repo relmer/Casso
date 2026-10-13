@@ -41,7 +41,8 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         command->radio       = (row.id >= kSortByColumn) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
-                            || (row.id >= kMonitorColor && row.id <= kMonitorCustom);
+                            || (row.id >= kMonitorColor && row.id <= kMonitorCustom)
+                            || (row.id >= kPictureMonochrome && row.id <= kPictureColor);
 
         command->dispatch = [this, id]()
         {
@@ -518,7 +519,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildEntries (std::span<c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntries (bool hex, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
+std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntries (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const
 {
     std::vector<DxuiToolbar::Entry>  entries;
 
@@ -528,7 +529,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
     {
         DxuiToolbar::Entry  entry;
 
-        if ((row.id == kLineAddresses) == hex)
+        if (GetPreviewBar (row.id) != bar)
         {
             continue;
         }
@@ -559,7 +560,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (bool hex)
+std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
 {
     std::vector<int>  ids;
 
@@ -567,11 +568,30 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (bool hex)
 
     for (const ToolbarRow & row : kPreviewToolbarRows)
     {
-        if ((row.id == kLineAddresses) != hex)
+        if (GetPreviewBar (row.id) == bar)
         {
             ids.push_back (row.id);
         }
     }
 
     return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::GetPreviewBar
+//
+//  The preview toolbar a command of it is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerCommands::GetPreviewBar (int id)
+{
+    return (id == kLineAddresses)                            ? kPreviewBarListing
+         : (id == kPictureMonochrome || id == kPictureColor) ? kPreviewBarPicture
+                                                             : kPreviewBarHex;
 }

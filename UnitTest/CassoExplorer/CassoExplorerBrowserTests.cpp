@@ -816,6 +816,25 @@ public:
     }
 
 
+    //  A double hi-res picture's monitor follows its form: color on the color
+    //  monitor, its bits on the chosen monochrome one, or the white one when
+    //  the color monitor is chosen. Any other picture is on the chosen one.
+    TEST_METHOD (DoubleHiResForm_PicksTheMonitor)
+    {
+        using Mode    = PicturePreview::Mode;
+        using Monitor = PicturePreview::Monitor;
+
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Green,  Mode::DoubleHiRes)     == Monitor::Color);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::DoubleHiRes)     == Monitor::Color);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Amber,  Mode::DoubleHiResMono) == Monitor::Amber);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Custom, Mode::DoubleHiResMono) == Monitor::Custom);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::DoubleHiResMono) == Monitor::White);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Green,  Mode::HiRes)           == Monitor::Green);
+        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::LoRes)           == Monitor::Color);
+    }
+
+
+
     TEST_METHOD (MultipleSelection_PreviewsNothingAndCounts)
     {
         Host          host;

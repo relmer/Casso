@@ -135,4 +135,22 @@ public:
         Assert::IsTrue  (bar[9].seeMoreOnly, L"About lives in See more");
         Assert::IsTrue  (bar[10].trailing && bar[11].trailing && bar[12].trailing, L"The monitor, the theme and the preview toggle sit at the far end");
         Assert::IsFalse (bar[8].trailing);
+    }
+
+
+
+    //  Each preview bar has its own commands: a listing's address toggle, the
+    //  hex view's Go to and search, or a double hi-res picture's two forms,
+    //  which are a choice of one.
+    TEST_METHOD (PreviewBars_HaveTheirOwnCommands)
+    {
+        CassoExplorerCommands  commands ({});
+
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarListing) == std::vector<int> { CassoExplorerCommands::kLineAddresses });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());
+
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureMonochrome)->radio);
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureColor)->radio);
     }};

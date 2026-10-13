@@ -204,6 +204,17 @@ public:
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
     PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
 
+    //  The monitor the current picture is drawn on: the chosen one, except
+    //  for a double hi-res picture, whose monitor follows its form. Its color
+    //  form is drawn on the color monitor, and its monochrome form on the
+    //  chosen monochrome monitor, or the white one when the color monitor is
+    //  chosen.
+    PicturePreview::Monitor  GetPictureMonitor () const;
+
+    //  The monitor a picture drawn in `mode` is drawn on, with `chosen` the
+    //  monitor chosen: the rule above, for any picture.
+    static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
+
     //  A double hi-res picture drawn in color or as its bits, whichever the
     //  automatic choice was not; again to go back. False for any other preview.
     bool  TogglePictureColor ();

@@ -1597,9 +1597,52 @@ void CassoExplorerBrowser::SetPreviewMonitor (PicturePreview::Monitor monitor, u
     if (m_preview.kind == PreviewContent::Kind::Picture && m_preview.pictureMode != PicturePreview::Mode::None)
     {
         hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                     m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor, m_customArgb);
+                                     m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetPictureMonitor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PicturePreview::Monitor CassoExplorerBrowser::GetPictureMonitor() const
+{
+    return CanTogglePictureColor() ? ChooseMonitor (m_previewMonitor, m_preview.pictureMode) : m_previewMonitor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ChooseMonitor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PicturePreview::Monitor CassoExplorerBrowser::ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode)
+{
+    PicturePreview::Monitor  monitor = chosen;
+
+
+
+    if (mode == PicturePreview::Mode::DoubleHiRes)
+    {
+        monitor = PicturePreview::Monitor::Color;
+    }
+    else if (mode == PicturePreview::Mode::DoubleHiResMono && chosen == PicturePreview::Monitor::Color)
+    {
+        monitor = PicturePreview::Monitor::White;
+    }
+
+    return monitor;
 }
 
 
@@ -1645,7 +1688,7 @@ bool CassoExplorerBrowser::TogglePictureColor()
                                                                                          : PicturePreview::Mode::DoubleHiRes;
 
     hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                 m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor, m_customArgb);
+                                 m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
 
     return SUCCEEDED (hr);
 }
@@ -1739,6 +1782,14 @@ void CassoExplorerBrowser::PreviewEntry (const std::wstring & imagePath, const s
     }
 
     hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview, m_previewMonitor, m_customArgb);
+
+    //  A double hi-res picture's monitor follows its form, which is known once
+    //  it is decoded.
+    if (SUCCEEDED (hr) && GetPictureMonitor() != m_previewMonitor)
+    {
+        hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
+                                     m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
+    }
 
     if (FAILED (hr) && m_preview.message.empty())
     {

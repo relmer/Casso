@@ -592,6 +592,7 @@ private:
     void                      SelectMonitor         (PicturePreview::Monitor monitor);
     void                      PreviewMonitor        (int index);
     void                      ShowPictureContextMenu (int x, int y);
+    void                      ShowPictureForm        (bool color);
 
     void  RefreshContentDetails  ();
     void  RefreshListIcons    ();
@@ -868,9 +869,9 @@ private:
     DxuiToolbar          * m_toolbar         = nullptr;
     DxuiToolbar          * m_previewToolbar  = nullptr;
 
-    //  What the preview toolbar holds: 0 for nothing, 1 for a listing's
-    //  toggle, 2 for the hex view's commands.
-    int                    m_previewBarMode  = 0;
+    //  The preview toolbar's commands, as one of CassoExplorerCommands'
+    //  preview bars.
+    int                    m_previewBarMode  = CassoExplorerCommands::kPreviewBarNone;
 
     bool                   m_previewArchive  = false;   // the preview list is an archive's files, as the file list
     bool                   m_archiveDrag     = false;   // a left press on one of them, which may become a drag

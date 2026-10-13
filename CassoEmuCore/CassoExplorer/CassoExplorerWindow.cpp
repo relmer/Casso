@@ -1160,10 +1160,10 @@ void CassoExplorerWindow::RecomputeLayout()
         int   barPx       = m_scaler.ToPx (m_previewToolbar->GetBandDp());
 
         m_previewRect = previewRect;
-        m_previewToolbar->SetVisible (m_previewBarMode != 0);
+        m_previewToolbar->SetVisible (m_previewBarMode != CassoExplorerCommands::kPreviewBarNone);
 
         //  The preview's toolbar sits across its top, and the content below it.
-        if (m_previewBarMode != 0)
+        if (m_previewBarMode != CassoExplorerCommands::kPreviewBarNone)
         {
             m_previewToolbar->PlanForWidth (previewRect.right - previewRect.left, m_scaler);
             barPx = m_scaler.ToPx (m_previewToolbar->GetBandDp());
@@ -1890,7 +1890,7 @@ const ThemeCrtDefaults * CassoExplorerWindow::GetPreviewCrtDefaults()
 //
 //  CassoExplorerWindow::UpdateCrtPicture
 //
-//  The picture preview drawn through Casso's CRT pass on the chosen monitor,
+//  The picture preview drawn through Casso's CRT pass on the picture's monitor,
 //  at the view's drawn size, again only when that size changed
 //  unless `force`. A preview has a single frame, so persistence, which blends a
 //  frame into the next, is left out. The picture's glow spills past its
@@ -1924,8 +1924,8 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
         return;
     }
 
-    found              = m_prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) GetPreviewMonitor()]);
-    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (GetPreviewMonitor())), GetPreviewCrtDefaults(),
+    found              = m_prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_browser.GetPictureMonitor()]);
+    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_browser.GetPictureMonitor())), GetPreviewCrtDefaults(),
                                                (found != m_prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
@@ -1968,7 +1968,12 @@ void CassoExplorerWindow::FillPreview()
     bool                                            hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
     bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    int                                             mode     = !visible ? 0 : hex ? 2 : program ? 1 : 0;
+    bool                                            forms    = picture && m_browser.CanTogglePictureColor();
+    int                                             mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
+                                                             : hex      ? CassoExplorerCommands::kPreviewBarHex
+                                                             : program  ? CassoExplorerCommands::kPreviewBarListing
+                                                             : forms    ? CassoExplorerCommands::kPreviewBarPicture
+                                                                        : CassoExplorerCommands::kPreviewBarNone;
     bool                                            blank    = false;
 
 
@@ -2019,13 +2024,13 @@ void CassoExplorerWindow::FillPreview()
     {
         m_previewBarMode = mode;
 
-        if (mode != 0)
+        if (mode != CassoExplorerCommands::kPreviewBarNone)
         {
-            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode == 2, &m_searchBox, &m_goToBox));
+            m_previewToolbar->SetEntries (m_commands.BuildPreviewToolbarEntries (mode, &m_searchBox, &m_goToBox));
         }
 
         //  The boxes go with the hex view's toolbar, and their focus with it.
-        if (mode != 2 && (m_focus == Pane::Search || m_focus == Pane::GoTo))
+        if (mode != CassoExplorerCommands::kPreviewBarHex && (m_focus == Pane::Search || m_focus == Pane::GoTo))
         {
             SetFocusPane (Pane::Preview);
         }
@@ -2347,7 +2352,7 @@ void CassoExplorerWindow::SetFocusPane (Pane pane)
 {
     if ((pane == Pane::Preview && !m_prefs.previewVisible)
         || (pane == Pane::PreviewToolbar && !m_previewToolbar->IsVisible())
-        || ((pane == Pane::Search || pane == Pane::GoTo) && m_previewBarMode != 2))
+        || ((pane == Pane::Search || pane == Pane::GoTo) && m_previewBarMode != CassoExplorerCommands::kPreviewBarHex))
     {
         pane = Pane::Tree;
     }
@@ -2568,7 +2573,7 @@ std::vector<FocusStop> CassoExplorerWindow::BuildFocusStops() const
         enabled.push_back (IsToolbarEntryAvailable (i));
     }
 
-    for (int id : (m_previewBarMode != 0) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_previewBarMode == 2) : std::vector<int>())
+    for (int id : (m_previewBarMode != CassoExplorerCommands::kPreviewBarNone) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_previewBarMode) : std::vector<int>())
     {
         previewEnabled.push_back (IsEnabled (id));
     }
@@ -2644,7 +2649,7 @@ void CassoExplorerWindow::StepToolbarFocus (bool preview, bool forward)
 
     if (preview)
     {
-        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_previewBarMode == 2);
+        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_previewBarMode);
     }
     else
     {
@@ -3647,7 +3652,9 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassoExplorerCommands::kUp:                return m_browser.CanGoUp();
         case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs();
-        case CassoExplorerCommands::kLineAddresses:     return m_previewBarMode == 1;
+        case CassoExplorerCommands::kLineAddresses:     return m_previewBarMode == CassoExplorerCommands::kPreviewBarListing;
+        case CassoExplorerCommands::kPictureMonochrome:
+        case CassoExplorerCommands::kPictureColor:      return m_browser.CanTogglePictureColor();
         case CassoExplorerCommands::kFindNext:          return IsHexPreviewShowing() && !m_findBytes.empty();
         case CassoExplorerCommands::kFind:
         case CassoExplorerCommands::kNoData:
@@ -3740,6 +3747,8 @@ bool CassoExplorerWindow::IsChecked (int id) const
         case CassoExplorerCommands::kMonitorAmber:
         case CassoExplorerCommands::kMonitorWhite:
         case CassoExplorerCommands::kMonitorCustom:      return (int) GetPreviewMonitor() == id - CassoExplorerCommands::kMonitorColor;
+        case CassoExplorerCommands::kPictureMonochrome: return m_browser.CanTogglePictureColor() && m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureColor:      return m_browser.CanTogglePictureColor() && m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
         case CassoExplorerCommands::kNoData:            return !m_hexView->IsShowingValues();
         case CassoExplorerCommands::kGroup1:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 1;
         case CassoExplorerCommands::kGroup2:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 2;
@@ -4483,7 +4492,7 @@ int CassoExplorerWindow::GetPreviewStopIndex (int commandId) const
 
 
 
-    if (m_previewBarMode != 2)
+    if (m_previewBarMode != CassoExplorerCommands::kPreviewBarHex)
     {
         return -1;
     }
@@ -4680,20 +4689,36 @@ void CassoExplorerWindow::ShowPictureContextMenu (int x, int y)
 
     for (bool asColor : { true, false })
     {
-        AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]()
-        {
-            if ((m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != asColor && m_browser.TogglePictureColor())
-            {
-                FillPreview();
-                Invalidate();
-            }
-        });
+        AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]() { ShowPictureForm (asColor); });
 
         m_menuCommands.back()->radio     = true;
         m_menuCommands.back()->isChecked = [color, asColor]() { return color == asColor; };
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowPictureForm
+//
+//  A double hi-res picture drawn in color or as its bits, on the monitor that
+//  form is drawn on; the form already drawn is left as it is, so one of the
+//  two is always the one drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowPictureForm (bool color)
+{
+    if ((m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != color && m_browser.TogglePictureColor())
+    {
+        FillPreview();
+        Invalidate();
+    }
 }
 
 
@@ -4901,6 +4926,8 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kMonitorAmber:       SelectMonitor (PicturePreview::Monitor::Amber);        break;
         case CassoExplorerCommands::kMonitorWhite:       SelectMonitor (PicturePreview::Monitor::White);        break;
         case CassoExplorerCommands::kMonitorCustom:      SelectMonitor (PicturePreview::Monitor::Custom);       break;
+        case CassoExplorerCommands::kPictureMonochrome:  ShowPictureForm (false);                               break;
+        case CassoExplorerCommands::kPictureColor:       ShowPictureForm (true);                                break;
 
         case CassoExplorerCommands::kGoToOffset:
             if (IsHexPreviewShowing())
