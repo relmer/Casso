@@ -127,6 +127,18 @@ directories, 50 entries in all.
 | SC-019: Tiles, Content | The same icons, beside the name, the type and the size |
 | SC-018 | Not run: the check registers the six formats in the user's own associations, so it is left to the owner |
 
+### Picture previews on Casso's monitors, 2026-10-13
+
+Debug x64 at 150%, a scratch DOS 3.3 image with a hi-res and a double
+hi-res picture.
+
+| Check | Result |
+|---|---|
+| SC-021: redraw on a monitor switch | 36 to 41 ms from the command to the redrawn picture, over six switches through all four monitors; the picture is decoded again, drawn through the CRT pass and read back in that time |
+| SC-021: the choice after a restart | Amber chosen from the Monitor drop-down, and a brightness of 198% set on the Display page, were both in effect after Casso Explorer was closed and started again |
+| SC-021: Cancel | A brightness change on the Display page brightened the preview at once (mean level 68 to 146), and Cancel put it back to 68 |
+| SC-020 | Not run yet: the check compares the same picture on Casso's own screen, at the same size |
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
