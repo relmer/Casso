@@ -288,6 +288,25 @@ namespace DebuggerTests
         }
 
 
+        //  A register set can move PC, and the Monitor's line has no PC, so
+        //  its reply is the AppleWin line.
+        TEST_METHOD (ARegisterSetHasThePc)
+        {
+            RegistersData  data;
+            Reply          reply;
+            std::string    line;
+
+
+
+            data.registers.pc = 0x0300;
+            reply             = MakeReply (data);
+            reply.verb        = DebugVerb::SetRegister;
+            line              = Render (reply).at (0);
+
+            Assert::IsTrue (line.find ("PC:0300") != std::string::npos, Widen (line).c_str());
+        }
+
+
 
         //  A stop prints the registers; with the instruction line the step's
         //  reply carries, that is the original ]['s step display.

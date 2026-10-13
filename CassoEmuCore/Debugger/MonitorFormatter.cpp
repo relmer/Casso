@@ -15,17 +15,25 @@
 //  The Monitor's own layouts where it has one, and the AppleWin text
 //  otherwise -- which is what a reader who typed `/` asked for.
 //
+//  The Monitor's register line has no PC. A register set (/R PC 300, or R
+//  under OUTPUT MONITOR) can change PC, so its reply is the AppleWin line,
+//  which has PC.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorFormatter::Format (Reply & reply)
 {
+    bool  isRegisterSet = std::holds_alternative<RegistersData> (reply.data) && reply.verb == DebugVerb::SetRegister;
+
+
+
     if (reply.status != CommandStatus::Ok)
     {
         FormatError (reply);
         return;
     }
 
-    if (!TryFormatData (reply.data, reply.text))
+    if (isRegisterSet || !TryFormatData (reply.data, reply.text))
     {
         AppleWinFormatter::Format (reply);
     }
