@@ -6934,6 +6934,13 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
     PlaceLateFocus();
 
+    //  At a stop, focus moves from the console to the disassembly unless the
+    //  console received the last input.
+    if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && GetPaneOfFocus() == DebuggerLayout::kConsole)
+    {
+        FocusPane (DebuggerLayout::GetCodePaneId (m_activeCode));
+    }
+
     //  The drop-downs carry the mode and the panels they were built with, so
     //  they are rebuilt when either changes.
     if (GetMenuState() != m_menuState)
@@ -11249,6 +11256,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_openingFocus.OnUserInput();
+        m_stopFocus.OnInput ((m_routingPane.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_routingPane) == DebuggerLayout::kConsole);
         m_lastPressPx = POINT { x, y };
     }
 
@@ -12322,6 +12330,14 @@ void DebuggerWindow::SyncFloats()
 
 void DebuggerWindow::OnWindowFocusChanged (bool focused)
 {
+    //  Input in another window comes next, so the console did not receive
+    //  the last of it; a click or key routed back from a floating console
+    //  marks it again.
+    if (!focused)
+    {
+        m_stopFocus.OnInput (false);
+    }
+
     m_accentOwner.OnMainFocusChanged (focused);
     ShowFocusAccent();
     Invalidate();
@@ -13464,6 +13480,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {
         m_openingFocus.OnUserInput();
+        m_stopFocus.OnInput (GetPaneOfFocus() == DebuggerLayout::kConsole);
     }
 
     //  A key can scroll, step or resize what the operand tip lies over, so

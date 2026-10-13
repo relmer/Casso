@@ -21,6 +21,7 @@
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
+#include "Ui/Debugger/StopFocus.h"
 #include "Ui/Debugger/FocusAccentOwner.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
@@ -1243,6 +1244,7 @@ private:
     bool                                                                             m_syncFloats         = false;
     bool                                                                             m_isOpeningFocusDue  = true;
     OpeningFocusDeferral                                                             m_openingFocus;
+    StopFocus                                                                        m_stopFocus;
     std::wstring                                                                     m_tornOffPane;
     std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = BreakpointColumns::GetDefaultShown();
     std::vector<size_t>                                                              m_breakpointOrder;
