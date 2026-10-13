@@ -14,7 +14,8 @@
 //
 //  The History tab of the debugger's Options: the check box that turns
 //  history recording on, and the memory budget as a slider over
-//  ReverseBudget's range, with the estimated minutes of history under it.
+//  ReverseBudget's range, with the estimated time of history under it, at
+//  the recording's own rate once it has one.
 //
 //  A SAVED BUDGET ABOVE THE RANGE IS NOT CHANGED BY OPENING THE PAGE. The
 //  slider is placed at its maximum, and the page returns the saved value while
@@ -27,7 +28,7 @@ class HistoryOptionsPage : public DxuiPropertyPage
 public:
     explicit HistoryOptionsPage (std::wstring title);
 
-    void            SetOptions (const ReverseOptions & options, const ReverseBudgetRange & range);
+    void            SetOptions (const ReverseOptions & options, const ReverseBudgetRange & range, const HistoryStatus & status);
     ReverseOptions  GetOptions () const;
 
     void  Layout (const RECT & rect, const DxuiDpiScaler & scaler) override;
@@ -53,4 +54,5 @@ private:
     DxuiLabel     m_estimate;
     int           m_savedBudgetMb  = ReverseOptions::kDefaultBudgetMb;
     int           m_placedMb       = ReverseOptions::kDefaultBudgetMb;
+    HistoryStatus m_status;
 };

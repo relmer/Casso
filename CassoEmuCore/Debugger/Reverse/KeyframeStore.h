@@ -217,6 +217,7 @@ public:
     bool                      IsFull          () const { return m_isFull; }
     size_t                    GetReservedBytes() const;
     size_t                    GetCapacity     () const { return m_entries.size(); }
+    size_t                    GetArenaBytes   () const { return m_arenaBytes; }
     const KeyframeSettings  & GetSettings     () const { return m_settings; }
     uint64_t                  GetNextDueCycle () const { return m_nextDueCycle; }
 

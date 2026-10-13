@@ -391,6 +391,8 @@ void ReverseHost::FillBudget (
 
     status.budgetBytes   = budget;
     status.usedBytes     = store.GetUsedBytes();
+    status.storedBytes   = store.GetByteCount();
+    status.arenaBytes    = store.GetArenaBytes();
     status.hasHistory    = count > 0;
     status.isFull        = store.IsFull();
     status.beginCycle    = (count > 0) ? store.GetInfo (0).cycle    : 0;

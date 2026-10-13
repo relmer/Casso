@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Debugger/Reverse/HistoryStatus.h"
+
 
 
 
@@ -53,16 +55,26 @@ struct ReverseBudgetRange
 //  ReverseBudget
 //
 //  The arithmetic behind the History slider: its range from the memory
-//  available, a saved budget placed on it, and the minutes of history a
-//  budget has room for.
+//  available, a saved budget placed on it, and the time of history a budget
+//  has room for, at the recording's own rate once it has measured one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ReverseBudget
 {
 public:
-    static constexpr int     kTickCount       = 10;
-    static constexpr double  kMaxHistoryHours = 48.0;
+    static constexpr int     kTickCount            = 10;
+    static constexpr double  kMaxHistoryHours      = 48.0;
+
+    //  Bytes of history a second for a //e at the default interval, measured
+    //  by HistoryRateTests: a machine-language loop rewriting the whole
+    //  hi-res page, the busiest, and the DOS prompt waiting for a key, the
+    //  idlest.
+    static constexpr double  kBusyBytesPerSecond   = 69540.0;
+    static constexpr double  kIdleBytesPerSecond   = 694.0;
+
+    //  A recording's own rate is used once it covers this much time.
+    static constexpr double  kLeastMeasuredSeconds = 30.0;
 
     //  1 MB to the lowest of 90% of availableBytes, availableBytes less 4 MB,
     //  and the memory a busy program fills in kMaxHistoryHours, never below
@@ -75,10 +87,17 @@ public:
     //  The physical memory available now.
     static uint64_t  GetAvailableBytes ();
 
-    //  Minutes of history a budget has room for at an interval: low for a
-    //  busy program, high for a quiet one, from measured recordings.
-    static void          EstimateMinutes (int budgetMb, int intervalFrames, double & outLow, double & outHigh);
-    static std::wstring  GetEstimateText (int budgetMb);
+    //  Minutes of history a budget has room for at a rate, with share the
+    //  part of the budget left to the snapshots.
+    static double  GetMinutes (int budgetMb, double bytesPerSecond, double share);
+
+    //  The recording's own rate, and the part of its budget left to the
+    //  snapshots; false until it covers kLeastMeasuredSeconds.
+    static bool  TryGetMeasuredRate (const HistoryStatus & status, double & outBytesPerSecond, double & outShare);
+
+    //  At the recording's rate when it has one, otherwise from the busiest
+    //  to the idlest measured rate.
+    static std::wstring  GetEstimateText (int budgetMb, const HistoryStatus & status);
 
     //  The budget a busy program fills in a number of hours.
     static int  GetBudgetForHours (double hours);
@@ -89,15 +108,11 @@ private:
     static constexpr uint64_t  kPercentUsable    = 90;
     static constexpr uint64_t  kPercent          = 100;
 
-    //  Minutes 64 MB filled at the default interval, measured: a game, the
-    //  busiest workload, and a program drawing hi-res, the quietest.
-    static constexpr double  kBusyMinutesPer64Mb  = 24.1;
-    static constexpr double  kQuietMinutesPer64Mb = 43.8;
-    static constexpr double  kMeasuredBudgetMb    = 64.0;
 
     //  Below two hours a time is given in minutes.
+    static constexpr double  kSecondsPerMinute    = 60.0;
     static constexpr double  kMinutesPerHour      = 60.0;
     static constexpr double  kMinutesShownUnder   = 120.0;
 
-    static std::wstring  FormatDuration (double minutes, bool withUnit);
+    static std::wstring  FormatDuration (double minutes);
 };

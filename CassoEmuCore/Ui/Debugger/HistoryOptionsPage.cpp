@@ -45,8 +45,9 @@ HistoryOptionsPage::HistoryOptionsPage (std::wstring title)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HistoryOptionsPage::SetOptions (const ReverseOptions & options, const ReverseBudgetRange & range)
+void HistoryOptionsPage::SetOptions (const ReverseOptions & options, const ReverseBudgetRange & range, const HistoryStatus & status)
 {
+    m_status        = status;
     m_savedBudgetMb = options.budgetMb;
     m_placedMb      = ReverseBudget::PlaceOnRange (options.budgetMb, range);
 
@@ -94,7 +95,7 @@ ReverseOptions HistoryOptionsPage::GetOptions() const
 
 void HistoryOptionsPage::UpdateEstimate()
 {
-    m_estimate.SetText (ReverseBudget::GetEstimateText (GetOptions().budgetMb));
+    m_estimate.SetText (ReverseBudget::GetEstimateText (GetOptions().budgetMb, m_status));
 }
 
 

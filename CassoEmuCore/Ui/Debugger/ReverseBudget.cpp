@@ -71,26 +71,46 @@ uint64_t ReverseBudget::GetAvailableBytes()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReverseBudget::EstimateMinutes
-//
-//  History grows with the snapshots taken, so a longer interval stretches
-//  the same memory over proportionally more time. That is roughly true: a
-//  snapshot further from the one before differs from it in more bytes.
+//  ReverseBudget::GetMinutes
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReverseBudget::EstimateMinutes (
-    int       budgetMb,
-    int       intervalFrames,
-    double  & outLow,
-    double  & outHigh)
+double ReverseBudget::GetMinutes (int budgetMb, double bytesPerSecond, double share)
 {
-    double  scale = (double) budgetMb / kMeasuredBudgetMb * (double) intervalFrames / (double) ReverseOptions::kDefaultIntervalFrames;
+    return (double) budgetMb * (double) kBytesPerMb * share / std::max (bytesPerSecond, 1.0) / kSecondsPerMinute;
+}
 
 
 
-    outLow  = kBusyMinutesPer64Mb  * scale;
-    outHigh = kQuietMinutesPer64Mb * scale;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseBudget::TryGetMeasuredRate
+//
+//  The snapshots' size over the emulated time from the oldest to the newest.
+//  The budget also pays for the store's table and work state, so only the
+//  room left to the snapshots fills at that rate.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseBudget::TryGetMeasuredRate (const HistoryStatus & status, double & outBytesPerSecond, double & outShare)
+{
+    uint64_t  endCycle = status.cycle + status.cyclesBehind;
+    double    seconds  = (endCycle > status.beginCycle) ? (double) (endCycle - status.beginCycle) / HistoryStatus::kCyclesPerSecond : 0.0;
+
+
+
+    if (!status.isRecording || !status.hasHistory || seconds < kLeastMeasuredSeconds ||
+        status.storedBytes == 0 || status.budgetBytes == 0)
+    {
+        return false;
+    }
+
+    outBytesPerSecond = (double) status.storedBytes / seconds;
+    outShare          = std::clamp ((double) status.arenaBytes / (double) status.budgetBytes, 0.0, 1.0);
+
+    return true;
 }
 
 
@@ -101,22 +121,25 @@ void ReverseBudget::EstimateMinutes (
 //
 //  ReverseBudget::GetEstimateText
 //
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ReverseBudget::GetEstimateText (int budgetMb)
+std::wstring ReverseBudget::GetEstimateText (int budgetMb, const HistoryStatus & status)
 {
-    double  low  = 0.0;
-    double  high = 0.0;
+    double  rate  = 0.0;
+    double  share = 1.0;
+    double  low   = GetMinutes (budgetMb, kBusyBytesPerSecond, share);
+    double  high  = GetMinutes (budgetMb, kIdleBytesPerSecond, share);
 
 
 
-    EstimateMinutes (budgetMb, ReverseOptions::kDefaultIntervalFrames, low, high);
+    if (TryGetMeasuredRate (status, rate, share))
+    {
+        return std::format (L"At this program's rate so far, room for about {} of history.", FormatDuration (GetMinutes (budgetMb, rate, share)));
+    }
 
-    //  The unit follows each figure only when the two differ: 24 to 44
-    //  minutes, but 95 minutes to 3 hours.
-    return std::format (L"Room for about {} to {} of history; a busy program fills it sooner.",
-                        FormatDuration (low, (low < kMinutesShownUnder) != (high < kMinutesShownUnder)),
-                        FormatDuration (high, true));
+    return std::format (L"Room for about {} of history for a program that redraws the whole screen, up to {} for one waiting for a key.",
+                        FormatDuration (low), FormatDuration (high));
 }
 
 
@@ -127,18 +150,24 @@ std::wstring ReverseBudget::GetEstimateText (int budgetMb)
 //
 //  ReverseBudget::FormatDuration
 //
-//  Whole minutes below two hours, whole hours from there on.
+//  Whole minutes below two hours, never fewer than one, and whole hours
+//  from there on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ReverseBudget::FormatDuration (double minutes, bool withUnit)
+std::wstring ReverseBudget::FormatDuration (double minutes)
 {
     bool    isHours = minutes >= kMinutesShownUnder;
-    double  value   = isHours ? minutes / kMinutesPerHour : minutes;
+    double  value   = std::max (std::round (isHours ? minutes / kMinutesPerHour : minutes), 1.0);
 
 
 
-    return std::format (L"{:.0f}{}", value, !withUnit ? L"" : isHours ? L" hours" : L" minutes");
+    if (isHours)
+    {
+        return std::format (L"{:.0f} hours", value);
+    }
+
+    return std::format (L"{:.0f} {}", value, (value == 1.0) ? L"minute" : L"minutes");
 }
 
 
@@ -155,7 +184,7 @@ std::wstring ReverseBudget::FormatDuration (double minutes, bool withUnit)
 
 int ReverseBudget::GetBudgetForHours (double hours)
 {
-    return (int) std::ceil (hours * kMinutesPerHour / kBusyMinutesPer64Mb * kMeasuredBudgetMb);
+    return (int) std::ceil (hours * kMinutesPerHour * kSecondsPerMinute * kBusyBytesPerSecond / (double) kBytesPerMb);
 }
 
 

@@ -21,7 +21,9 @@
 //  cycle its oldest snapshot was taken at, where history begins. Once the
 //  budget is full the oldest snapshots are dropped, so that cycle moves
 //  forward, and isFull says so. beginWallTime is the host's clock when that
-//  snapshot was taken, as a UTC FILETIME, or 0 when unknown.
+//  snapshot was taken, as a UTC FILETIME, or 0 when unknown. storedBytes is
+//  the snapshots' own size, and arenaBytes the part of the budget for them
+//  after the store's table and work state.
 //
 //  cycle is the machine's CPU cycle count since power-on, where it stands,
 //  and wallTime the host's clock when the machine stood there live, counted
@@ -44,6 +46,8 @@ struct HistoryStatus
     uint64_t                       beginWallTime      = 0;
     size_t                         budgetBytes        = 0;
     size_t                         usedBytes          = 0;
+    size_t                         storedBytes        = 0;
+    size_t                         arenaBytes         = 0;
 
     uint64_t                       cycle              = 0;
     uint64_t                       wallTime           = 0;

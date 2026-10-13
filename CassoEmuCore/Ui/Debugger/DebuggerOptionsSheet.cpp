@@ -19,7 +19,7 @@ void DebuggerOptionsSheet::OnBuildPages()
     m_history     = CreatePage<HistoryOptionsPage>     (L"History");
     m_disassembly = CreatePage<DisassemblyOptionsPage> (L"Disassembly");
 
-    m_history->SetOptions     (m_current.reverse, m_range);
+    m_history->SetOptions     (m_current.reverse, m_range, m_historyStatus);
     m_disassembly->SetOptions (m_current.disassembly);
 }
 
@@ -33,10 +33,11 @@ void DebuggerOptionsSheet::OnBuildPages()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerOptionsSheet::BuildForTest (const DebuggerOptions & current, const ReverseBudgetRange & range)
+void DebuggerOptionsSheet::BuildForTest (const DebuggerOptions & current, const ReverseBudgetRange & range, const HistoryStatus & history)
 {
-    m_current = current;
-    m_range   = range;
+    m_current       = current;
+    m_range         = range;
+    m_historyStatus = history;
 
     OnBuildPages();
 }
@@ -103,7 +104,7 @@ HRESULT DebuggerOptionsSheet::OnOk()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxuiTheme * theme, const DebuggerOptions & current)
+std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxuiTheme * theme, const DebuggerOptions & current, const HistoryStatus & history)
 {
     HRESULT                   hr     = S_OK;
     DebuggerOptionsSheet      sheet;
@@ -111,8 +112,9 @@ std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxu
 
 
 
-    sheet.m_current = current;
-    sheet.m_range   = ReverseBudget::GetRange (ReverseBudget::GetAvailableBytes());
+    sheet.m_current       = current;
+    sheet.m_range         = ReverseBudget::GetRange (ReverseBudget::GetAvailableBytes());
+    sheet.m_historyStatus = history;
 
     sheet.SetApplyVisible   (false);
     sheet.SetDesignWidthDip (kSheetWidthDip);

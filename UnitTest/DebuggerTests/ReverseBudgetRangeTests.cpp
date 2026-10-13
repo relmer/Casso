@@ -33,8 +33,8 @@ public:
 
     TEST_METHOD (TheMaximumIsNoMoreThanFortyEightHoursOfABusyProgram)
     {
-        Assert::AreEqual (7649, ReverseBudget::GetBudgetForHours (48.0), L"2880 minutes at 24.1 minutes per 64 MB, rounded up");
-        Assert::AreEqual (7649, ReverseBudget::GetRange (65536 * kMb).maxMb, L"64 GB available");
+        Assert::AreEqual (11460, ReverseBudget::GetBudgetForHours (48.0), L"172,800 seconds at 69,540 bytes a second, rounded up");
+        Assert::AreEqual (11460, ReverseBudget::GetRange (65536 * kMb).maxMb, L"64 GB available");
     }
 
 
@@ -64,30 +64,40 @@ public:
     }
 
 
-    TEST_METHOD (TheEstimateFollowsTheMeasuredRecordings)
+    //  A recording of the given emulated seconds at 1,000 bytes a second,
+    //  with half its budget left to the snapshots.
+    static HistoryStatus MakeRecording (uint64_t seconds)
     {
-        double  low  = 0.0;
-        double  high = 0.0;
+        HistoryStatus  status;
 
 
 
-        ReverseBudget::EstimateMinutes (64, 10, low, high);
-        Assert::AreEqual (24.1, low,  0.001, L"a game filled 64 MB in 24.1 minutes");
-        Assert::AreEqual (43.8, high, 0.001, L"hi-res drawing in 43.8");
+        status.isRecording = true;
+        status.hasHistory  = true;
+        status.beginCycle  = 0;
+        status.cycle       = (uint64_t) (seconds * HistoryStatus::kCyclesPerSecond);
+        status.storedBytes = (size_t) (seconds * 1000);
+        status.budgetBytes = 64 * kMb;
+        status.arenaBytes  = 32 * kMb;
 
-        ReverseBudget::EstimateMinutes (128, 20, low, high);
-        Assert::AreEqual (24.1 * 4, low, 0.001, L"twice the memory at half the snapshots lasts four times as long");
-
-        Assert::AreEqual (std::wstring (L"Room for about 24 to 44 minutes of history; a busy program fills it sooner."),
-                          ReverseBudget::GetEstimateText (64));
+        return status;
     }
 
 
-    TEST_METHOD (TwoHoursOrMoreIsGivenInHours)
+    TEST_METHOD (WithoutARecordingTheEstimateRunsFromTheBusiestToTheIdlest)
     {
-        Assert::AreEqual (std::wstring (L"Room for about 113 minutes to 3 hours of history; a busy program fills it sooner."),
-                          ReverseBudget::GetEstimateText (300), L"113 and 205 minutes");
-        Assert::AreEqual (std::wstring (L"Room for about 48 to 87 hours of history; a busy program fills it sooner."),
-                          ReverseBudget::GetEstimateText (7649));
+        Assert::AreEqual (std::wstring (L"Room for about 16 minutes of history for a program that redraws the whole screen, up to 27 hours for one waiting for a key."),
+                          ReverseBudget::GetEstimateText (64, HistoryStatus()));
+        Assert::AreEqual (std::wstring (L"Room for about 1 minute of history for a program that redraws the whole screen, up to 25 minutes for one waiting for a key."),
+                          ReverseBudget::GetEstimateText (1, HistoryStatus()), L"never fewer than one minute");
+    }
+
+
+    TEST_METHOD (ARecordingOfThirtySecondsOrMoreUsesItsOwnRate)
+    {
+        Assert::AreEqual (std::wstring (L"At this program's rate so far, room for about 9 hours of history."),
+                          ReverseBudget::GetEstimateText (64, MakeRecording (60)), L"559 minutes for 32 MB at 1,000 bytes a second");
+        Assert::AreEqual (std::wstring (L"Room for about 16 minutes of history for a program that redraws the whole screen, up to 27 hours for one waiting for a key."),
+                          ReverseBudget::GetEstimateText (64, MakeRecording (20)), L"20 seconds is too short to measure");
     }
 };

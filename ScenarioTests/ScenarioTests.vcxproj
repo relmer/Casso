@@ -175,6 +175,7 @@
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />
+    <ClCompile Include="HistoryRateTests.cpp" />
     <ClCompile Include="MachineStateCompatibilityTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />

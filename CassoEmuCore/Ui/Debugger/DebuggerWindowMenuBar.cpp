@@ -450,7 +450,7 @@ void DebuggerWindow::OpenOptions()
     current.reverse     = m_host->GetReverseOptions();
     current.disassembly = m_codeOptions;
 
-    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current);
+    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
 
     if (!chosen.has_value())
     {
