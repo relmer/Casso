@@ -61,6 +61,11 @@ struct CatalogRow
     //  A root's row: the folder or drive it opens, whose icon it shows.
     std::wstring  hostPath;
 
+    //  The name in a folder's desktop.ini, which Explorer lists it by, as
+    //  iCloud Drive for the folder iCloudDrive; empty for every other row,
+    //  which is listed by its own name.
+    std::wstring  label;
+
     //  A shell folder's item: 1 and up, its place in the folder's own Name
     //  order, which Explorer's Name column follows; 0 for any other row.
     int  shellOrder = 0;

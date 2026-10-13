@@ -263,11 +263,13 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
     //  volume names. Names go as Explorer's do, numbers by their value: f2
     //  before f10. A shell folder's items go in the folder's own order, as
     //  Explorer's do, which puts its system items ahead of its folders.
-    bool  drives = a.isDrive && b.isDrive;
-    bool  shell  = a.shellOrder > 0 && b.shellOrder > 0;
-    int   byName = drives ? _wcsicmp (a.hostPath.c_str(), b.hostPath.c_str())
-                 : shell  ? a.shellOrder - b.shellOrder
-                          : StrCmpLogicalW (a.name.c_str(), b.name.c_str());
+    bool                   drives = a.isDrive && b.isDrive;
+    bool                   shell  = a.shellOrder > 0 && b.shellOrder > 0;
+    const std::wstring  &  nameA  = a.label.empty() ? a.name : a.label;
+    const std::wstring  &  nameB  = b.label.empty() ? b.name : b.label;
+    int                    byName = drives ? _wcsicmp (a.hostPath.c_str(), b.hostPath.c_str())
+                                  : shell  ? a.shellOrder - b.shellOrder
+                                           : StrCmpLogicalW (nameA.c_str(), nameB.c_str());
 
 
 

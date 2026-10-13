@@ -76,7 +76,8 @@ public:
     void  SetDrives         (std::vector<std::wstring> driveRoots);
     void  SetDirectoryProbe (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool  IsDirectory       (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
-    void  SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
+    void                          SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
+    const LocalizedNameLookup &   GetLocalizedNameLookup () const { return m_localizedName; }
 
     //  Which hidden folders and images are listed. A change applies to the
     //  folders listed after it; the caller invalidates what is cached.

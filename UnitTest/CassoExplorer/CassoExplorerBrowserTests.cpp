@@ -865,6 +865,25 @@ public:
 
 
 
+    //  A folder with a name in its desktop.ini sorts by that name, the one it
+    //  is listed by, as Explorer's do.
+    TEST_METHOD (SortByName_UsesTheNameShown)
+    {
+        std::vector<CatalogRow>  rows (2);
+
+        rows[0].name  = L"iCloudPhotos";
+        rows[1].name  = L"iCloudDrive";
+        rows[1].label = L"iCloud Drive";
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+        Assert::AreEqual (std::wstring (L"iCloudDrive"), rows[0].name, L"\"iCloud Drive\" sorts ahead of \"iCloudPhotos\" by its space");
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, true);
+        Assert::AreEqual (std::wstring (L"iCloudPhotos"), rows[0].name);
+    }
+
+
+
     TEST_METHOD (MultipleSelection_PreviewsNothingAndCounts)
     {
         Host          host;

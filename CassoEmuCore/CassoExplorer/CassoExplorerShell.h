@@ -92,6 +92,7 @@ public:
     //  The name a folder's desktop.ini gives it, such as "Camera Roll", or
     //  empty for none.
     static std::wstring  GetLocalizedFolderName (const std::wstring & path);
+    static std::wstring  GetPlainFolderName     (const std::wstring & path);
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);

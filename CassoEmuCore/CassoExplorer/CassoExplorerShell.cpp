@@ -333,10 +333,36 @@ void CassoExplorerShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::GetPlainFolderName
+//
+//  The LocalizedResourceName of a folder's desktop.ini when it is text rather
+//  than a reference to a module's string, which starts with an at sign.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::GetPlainFolderName (const std::wstring & path)
+{
+    wchar_t       text[MAX_PATH] = {};
+    std::wstring  ini            = path + L"\\desktop.ini";
+    DWORD         length         = GetPrivateProfileStringW (L".ShellClassInfo", L"LocalizedResourceName", L"", text, ARRAYSIZE (text), ini.c_str());
+
+
+
+    return (length > 0 && text[0] != L'@') ? std::wstring (text, length) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::GetLocalizedFolderName
 //
 //  SHGetLocalizedName returns the module and string id the desktop.ini
-//  refers to; the string is loaded from that module as data, never run.
+//  refers to; the string is loaded from that module as data, never run. A
+//  desktop.ini whose name is plain text, as iCloud's is, has no module, and
+//  its text is the name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -374,7 +400,7 @@ Error:
         FreeLibrary (library);
     }
 
-    return name;
+    return name.empty() ? GetPlainFolderName (path) : name;
 }
 
 

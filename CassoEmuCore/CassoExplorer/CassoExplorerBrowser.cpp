@@ -362,6 +362,13 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
         m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
         m_rows.back().isArchive = !entry.isFolder && !isImage && m_tree.IsArchive (JoinPath (path, entry.name));
 
+        //  A folder is listed by the name in its desktop.ini, as in the tree,
+        //  read only for a read-only or system folder on this computer.
+        if (entry.isFolder && (entry.isReadOnly || entry.isSystem) && !PathResolver::IsNetworkPath (path) && m_tree.GetLocalizedNameLookup())
+        {
+            m_rows.back().label = m_tree.GetLocalizedNameLookup() (JoinPath (path, entry.name));
+        }
+
         //  The shell's own type name, as Explorer's Type column shows.
         if (m_shellIcons != nullptr)
         {
@@ -2332,7 +2339,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCatalogPreviewCells (con
 
 
 
-    name.text = CatalogModel::GetDisplayName (row.name, name.dimRanges);
+    name.text = CatalogModel::GetDisplayName (row.label.empty() ? row.name : row.label, name.dimRanges);
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.typeText, false });
@@ -2365,7 +2372,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
 
 
 
-    name.text = CatalogModel::GetDisplayName (row.name, name.dimRanges);
+    name.text = CatalogModel::GetDisplayName (row.label.empty() ? row.name : row.label, name.dimRanges);
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });
