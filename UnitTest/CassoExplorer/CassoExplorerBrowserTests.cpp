@@ -482,6 +482,22 @@ public:
         Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Home", L"Documents", L"This PC", L"Recycle Bin" }));
         Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), children[2].id, L"Casso's own This PC, with its drives");
         Assert::AreEqual (std::wstring (Location::kRecycleBinId), children[3].id);
+
+        //  Once Quick access is read, the shell's desktop lists Downloads a
+        //  second time, ahead of Home; it is listed once, in its own place.
+        IShellItemVerbs::ShellFolderItem  downloads { L"C:\\Downloads", L"Downloads", L"C:\\Downloads" };
+
+        shell.desktopItems = { downloads, home, docs, downloads, pc, bin };
+        host.browser.GetTreeModel().Invalidate (TreeModel::kDesktopRootId);
+        children = host.browser.GetTreeChildren (TreeModel::kDesktopRootId);
+        labels.clear();
+
+        for (const DxuiTreeNode & child : children)
+        {
+            labels.push_back (child.label);
+        }
+
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Home", L"Documents", L"Downloads", L"This PC", L"Recycle Bin" }));
     }
 
 

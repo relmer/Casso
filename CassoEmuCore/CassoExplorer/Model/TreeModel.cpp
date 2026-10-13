@@ -526,6 +526,10 @@ TreeNode TreeModel::MakeRootNode (const std::wstring & id) const
 //  The desktop's folders in the shell's order, with Casso's own This PC and
 //  Recycle Bin in theirs, and the roots the pane's options hide left out.
 //
+//  A folder listed twice is listed once, in its later place: once Quick
+//  access is read, the shell's desktop has a second item for Downloads, which
+//  sorts ahead of Home.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT TreeModel::ListDesktopRoot (std::vector<TreeNode> & outNodes)
@@ -542,20 +546,23 @@ HRESULT TreeModel::ListDesktopRoot (std::vector<TreeNode> & outNodes)
     hr = m_shellVerbs->ListDesktopNamespace (items);
     CHR (hr);
 
-    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    for (auto item = items.begin(); item != items.end(); item++)
     {
-        bool  hidden = (item.isThisPc    && !IsNavRootShown (NavRoot::ThisPc))
-                    || (item.isNetwork   && !IsNavRootShown (NavRoot::Network))
-                    || (item.isLibraries && !IsNavRootShown (NavRoot::Libraries));
+        bool  repeated = std::any_of (item + 1, items.end(), [&item] (const IShellItemVerbs::ShellFolderItem & later)
+                                      { return _wcsicmp (later.id.c_str(), item->id.c_str()) == 0; });
+        bool  hidden   = repeated
+                      || (item->isThisPc    && !IsNavRootShown (NavRoot::ThisPc))
+                      || (item->isNetwork   && !IsNavRootShown (NavRoot::Network))
+                      || (item->isLibraries && !IsNavRootShown (NavRoot::Libraries));
 
         if (hidden)
         {
             continue;
         }
 
-        outNodes.push_back (item.isThisPc     ? MakeRootNode (kThisPcRootId)
-                          : item.isRecycleBin ? MakeRootNode (Location::kRecycleBinId)
-                          :                     MakeShellNode (item));
+        outNodes.push_back (item->isThisPc     ? MakeRootNode (kThisPcRootId)
+                          : item->isRecycleBin ? MakeRootNode (Location::kRecycleBinId)
+                          :                      MakeShellNode (*item));
     }
 
 Error:
