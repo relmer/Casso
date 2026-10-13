@@ -1029,7 +1029,8 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 //
 //  TrackStripView::PaintShimmer
 //
-//  The selection lit by the window's shimmer in slices two pixels wide
+//  The selection lit by the window's shimmer in columns two pixels wide,
+//  each a gradient from top to bottom so the band crosses at 45 degrees
 //  (FR-038), and the nibble under the pointer lit faintly and outlined, so
 //  the tooltip's subject is plain (FR-148).
 //
@@ -1041,12 +1042,11 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
 
 
 
-    int64_t                      now    = static_cast<int64_t> (GetTickCount64());
+    double                       now    = InspectorMarquee::GetClockMs();
     RECT                         bar    = GetBarRect();
     std::array<StripSegment, 2>  parts  = {};
     double                       end    = 0;
     double                       start  = m_context.model->GetSelectionTurn (end);
-    float                        middle = (bar.top + bar.bottom) / 2.0f;
     float                        height = static_cast<float> (bar.bottom - bar.top);
     int                          count  = 0;
     int                          nibble = -1;
@@ -1063,8 +1063,9 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
     {
         for (float x = parts[k].x0; x < parts[k].x1; x += kSlicePx)
         {
-            painter.FillRect (x, static_cast<float> (bar.top), std::min (kSlicePx, parts[k].x1 - x), height,
-                              InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, middle, m_context.scenePx));
+            painter.FillGradientRect (x, static_cast<float> (bar.top), std::min (kSlicePx, parts[k].x1 - x), height,
+                                      InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, static_cast<float> (bar.top), m_context.scenePx),
+                                      InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, static_cast<float> (bar.bottom), m_context.scenePx));
         }
     }
 

@@ -53,6 +53,13 @@ void InspectorViewModel::SetAnalysis (const DiskAnalysis * analysis)
     m_analysis = analysis;
     track      = GetTrack();
 
+    //  The current track's analysis arrives after the disk; the strip is
+    //  fitted to it then.
+    if (!m_isStripFitted)
+    {
+        FitStripToTrack();
+    }
+
     if (track == nullptr || track->sectors.empty())
     {
         m_sectorIndex = -1;
@@ -108,7 +115,61 @@ void InspectorViewModel::SelectQuarterTrack (int quarterTrack)
     ClearBytes();
 
     SelectFirstSector();
+    FitStripToTrack();
     BringSelectionIntoView();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::FitStripToTrack
+//
+//  The strip spans the whole of a track with no standard sectors, and is set
+//  back to the usual span on the next track with sectors.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::FitStripToTrack()
+{
+    const TrackAnalysis *  track = GetTrack();
+
+
+
+    m_isStripFitted = (track != nullptr);
+
+    if (track != nullptr && track->sectorsFound == 0)
+    {
+        SetStrip (0.0, 1.0);
+        m_isStripWhole = true;
+    }
+    else if (m_isStripWhole)
+    {
+        SetStrip (m_stripStart, kDefaultStripSpan);
+        m_isStripWhole = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::ClearSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::ClearSelection()
+{
+    m_sectorIndex  = -1;
+    m_firstNibble  = -1;
+    m_nibbleCount  = 0;
+    m_nibbleAnchor = -1;
+    m_hasAnchor    = false;
+    ClearBytes();
 }
 
 
@@ -123,7 +184,8 @@ void InspectorViewModel::SelectQuarterTrack (int quarterTrack)
 
 void InspectorViewModel::SelectSector (int quarterTrack, int sectorIndex)
 {
-    const TrackAnalysis *  track = nullptr;
+    const TrackAnalysis *  track     = nullptr;
+    int                    previous  = m_quarterTrack;
 
 
 
@@ -133,6 +195,11 @@ void InspectorViewModel::SelectSector (int quarterTrack, int sectorIndex)
     m_nibbleAnchor = -1;
     ClearBytes();
     track          = GetTrack();
+
+    if (m_quarterTrack != previous)
+    {
+        FitStripToTrack();
+    }
 
     if (track != nullptr && sectorIndex >= 0 && sectorIndex < static_cast<int> (track->sectors.size()))
     {
@@ -693,7 +760,9 @@ double InspectorViewModel::GetSelectionTurn (double & outEnd) const
 
     if (track != nullptr && m_firstNibble >= 0)
     {
-        last   = std::min (m_firstNibble + m_nibbleCount, static_cast<int> (track->framed.nibbles.size())) - 1;
+        //  The selection ends where the nibble after its last one starts, so a
+        //  single nibble spans its own cells rather than none.
+        last   = (m_firstNibble + std::max (m_nibbleCount, 1)) % static_cast<int> (track->framed.nibbles.size());
         start  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[m_firstNibble].startCell);
         outEnd = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[last].startCell);
     }

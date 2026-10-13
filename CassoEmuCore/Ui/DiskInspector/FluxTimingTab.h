@@ -38,8 +38,9 @@ public:
 
     explicit FluxTimingTab (InspectorViewContext & context) : InspectorView (context) {}
 
-    //  Why a track has no timing, for the image's format (FR-003).
-    static std::wstring  FormatNoTiming (DiskFormat format);
+    //  Why a track has no timing, for the image's format and, for a WOZ file,
+    //  its INFO chunk version (FR-003).
+    static std::wstring  FormatNoTiming (DiskFormat format, int wozInfoVersion);
 
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;

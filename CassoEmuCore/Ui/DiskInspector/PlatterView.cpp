@@ -889,7 +889,7 @@ void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & t
 
 void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const
 {
-    int64_t   now    = static_cast<int64_t> (GetTickCount64());
+    double    now    = InspectorMarquee::GetClockMs();
     double    outer  = PlatterGeometry::GetRingOuter (quarterTrack) * view.outerRadiusPx;
     double    inner  = PlatterGeometry::GetRingOuter (quarterTrack + 1) * view.outerRadiusPx;
     double    half   = std::max ((outer - inner) / 2, static_cast<double> (m_scaler.ToPxf (s_kMinMarkDip)) / 2);
@@ -1365,6 +1365,11 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
                             m_context.model->SelectSector (hit.quarterTrack, sector);
                         }
 
+                        NotifySelection();
+                    }
+                    else
+                    {
+                        m_context.model->ClearSelection();
                         NotifySelection();
                     }
                 }

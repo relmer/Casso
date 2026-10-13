@@ -168,7 +168,9 @@ private:
     void  SetZoom              (double zoom);
     void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool  IsZoomKey     (WPARAM vk);
-    void  PaintPickerChevron   (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    void  PaintPicker          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  SetPickerLabel       (const std::wstring & label);
+    int   GetPickerWidthPx     (const DxuiDpiScaler & scaler) const;
     void  ShowFileMap          (bool isShown);
     void  RefreshFileList      ();
     void  ChooseFile           (int file);
@@ -202,6 +204,7 @@ private:
     NullDiskInspectorHost                                                                        m_nullHost;
     int                                                                                          m_drive             = 0;
     uint64_t                                                                                     m_pendingRequest    = 0;
+    uint64_t                                                                                     m_requestedMediaId  = 0;
     DiskAnalysis                                                                                 m_analysis;
     InspectorViewModel                                                                           m_model;
     InspectorViewContext                                                                         m_context;
@@ -318,6 +321,9 @@ private:
     DxuiLabel                             * m_mapStepLabel       = nullptr;
     DxuiButton                            * m_filePicker         = nullptr;
     bool                                    m_isPickerOpen       = true;
+    std::wstring                            m_pickerLabel        = L"Choose a file";
+    float                                   m_pickerTextPx       = 0.0f;
+    bool                                    m_isLayoutStale      = false;
     DxuiLabel                             * m_statusText         = nullptr;
     RECT                                    m_statusPx           = {};
     DxuiZoomControl                       * m_zoomControl        = nullptr;

@@ -183,12 +183,13 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
     }
 
-    //  The selected cell lit by the window's shimmer, in slices two pixels
-    //  wide (FR-038).
+    //  The selected cell lit by the window's shimmer, in columns two pixels
+    //  wide, each a gradient from top to bottom (FR-038).
     for (float sx = x; cell == m_selectedCell && sx < x + w; sx += s_kShimmerSlicePx)
     {
-        painter.FillRect (sx, y, std::min (s_kShimmerSlicePx, x + w - sx), h,
-                          InspectorMarquee::GetShimmer (static_cast<int64_t> (GetTickCount64()), sx + s_kShimmerSlicePx / 2, y + h / 2, m_context.scenePx));
+        painter.FillGradientRect (sx, y, std::min (s_kShimmerSlicePx, x + w - sx), h,
+                                  InspectorMarquee::GetShimmer (InspectorMarquee::GetClockMs(), sx + s_kShimmerSlicePx / 2, y,     m_context.scenePx),
+                                  InspectorMarquee::GetShimmer (InspectorMarquee::GetClockMs(), sx + s_kShimmerSlicePx / 2, y + h, m_context.scenePx));
     }
 
     //  The cell under the pointer lit faintly and outlined, so the tooltip's

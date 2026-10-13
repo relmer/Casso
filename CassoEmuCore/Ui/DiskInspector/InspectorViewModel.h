@@ -51,6 +51,9 @@ public:
     void  SelectSector       (int quarterTrack, int sectorIndex);
     void  SelectNibbles      (int quarterTrack, int firstNibble, int nibbleCount);
 
+    //  Nothing selected on the quarter track: no sector, nibbles or bytes.
+    void  ClearSelection     ();
+
     //  Ranges (FR-043): from the nibble or byte last clicked to another, all
     //  of the track's nibbles, or the sector's bytes in the hex or the text
     //  column.
@@ -95,6 +98,7 @@ public:
 
 private:
     void    SelectFirstSector      ();
+    void    FitStripToTrack        ();
     void    ClearBytes             ();
     void    BringSelectionIntoView ();
     void    ClampPan               ();
@@ -117,4 +121,6 @@ private:
     Point                 m_pan;
     double                m_stripStart    = 0.0;
     double                m_stripSpan     = kDefaultStripSpan;
+    bool                  m_isStripWhole  = false;
+    bool                  m_isStripFitted = false;
 };

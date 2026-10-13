@@ -60,6 +60,38 @@ public:
 
 
 
+    TEST_METHOD (ATrackWithNoStandardSectorsShowsWholeInTheStrip)
+    {
+        DiskAnalysis                    analysis;
+        DiskAnalysis                    pending;
+        InspectorViewModel              model;
+        int                             slot   = 0;
+        std::shared_ptr<TrackAnalysis>  track;
+
+
+
+        AnalyzeDsk (analysis);
+        slot                  = analysis.entries[0].slot;
+        track                 = std::make_shared<TrackAnalysis> (*analysis.tracks[slot]);
+        track->sectorsFound   = 0;
+        analysis.tracks[slot] = track;
+
+        model.SetDisk     (7);
+        model.SetAnalysis (&pending);
+        Assert::AreEqual (InspectorViewModel::kDefaultStripSpan, model.GetStripSpan(), L"no track analyzed yet");
+
+        model.SetAnalysis (&analysis);
+        Assert::AreEqual (1.0, model.GetStripSpan(), L"the first track, once analyzed");
+
+        model.SelectQuarterTrack (8);
+        Assert::AreEqual (InspectorViewModel::kDefaultStripSpan, model.GetStripSpan(), L"a track with sectors returns to the usual span");
+
+        model.SelectQuarterTrack (0);
+        Assert::AreEqual (1.0, model.GetStripSpan(), L"a track chosen later");
+    }
+
+
+
     TEST_METHOD (RangesExtendFromWhereTheyStartedInEitherDirection)
     {
         DiskAnalysis        analysis;

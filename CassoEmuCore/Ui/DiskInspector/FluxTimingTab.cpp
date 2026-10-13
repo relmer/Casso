@@ -44,6 +44,7 @@ static constexpr uint8_t s_kPair            = 4;
 void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     const TrackAnalysis *  track   = m_context.GetTrack();
+    const DiskCopy *       copy    = (m_context.analysis != nullptr) ? m_context.analysis->copy.get() : nullptr;
     bool                   isTimed = track != nullptr && track->framed.isFlux && track->framed.turnTicks > 0;
 
 
@@ -56,7 +57,7 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     }
     else if (track != nullptr && track->framed.cellCount > 0)
     {
-        text.DrawString (FormatNoTiming ((m_context.analysis->copy != nullptr) ? m_context.analysis->copy->format : DiskFormat::Woz).c_str(),
+        text.DrawString (FormatNoTiming (copy != nullptr ? copy->format : DiskFormat::Woz, copy != nullptr ? copy->woz.info.version : 0).c_str(),
                          static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(), m_scaler.ToPxf (s_kScopeRowDip) * 4,
                          theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal,
                          true);
@@ -71,41 +72,23 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 //  FluxTimingTab::FormatNoTiming
 //
-//  A sector image has only each sector's 256 bytes, from which Casso builds
-//  every track; a nibble image has each track's nibbles; a WOZ track imaged
-//  as bits has bits of one length. None of them has the time each bit took.
+//  Only a WOZ file of version 2.1 or later can image a track as flux, which
+//  has each bit's timing. A WOZ file's INFO chunk version is 3 for 2.1, 4 for
+//  2.2 and so on; in such a file, a track imaged as bits has no timing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format)
+std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersion)
 {
-    std::wstring  text;
+    static constexpr int  kFluxInfoVersion = 3;
 
 
 
-    switch (format)
-    {
-        case DiskFormat::Dsk:
-        case DiskFormat::Do:
-        case DiskFormat::Po:
-            text = std::format (L"This track has no timing. The disk came from a {} file, which has only the bytes of each sector, "
-                                L"so Casso built every track from those bytes. Copy protection, and anything else outside the sectors' bytes, "
-                                L"can't survive in a file like this.",
-                                format == DiskFormat::Dsk ? L".dsk" : format == DiskFormat::Do ? L".do" : L".po");
-            break;
-
-        case DiskFormat::Nib:
-            text = L"This track has no timing. The disk came from a nibble image, which has each track's nibbles but not "
-                   L"how long each bit took to pass the head.";
-            break;
-
-        default:
-            text = L"This track has no timing. It was imaged as bits all the same length, so how long each bit took "
-                   L"to pass the head wasn't recorded. Only tracks imaged as flux, in a WOZ 2.1 file, have timing.";
-            break;
-    }
-
-    return text;
+    return (format == DiskFormat::Woz && wozInfoVersion >= kFluxInfoVersion)
+               ? std::format (L"This is a WOZ 2.{} disk image, but this track does not contain timing information because it was imaged as bits. "
+                              L"Only tracks imaged as flux include timing information.", wozInfoVersion - kFluxInfoVersion + 1)
+               : std::wstring (L"This track does not have timing information. Only WOZ 2.1 and later files support imaging tracks as flux, "
+                               L"which includes timing information.");
 }
 
 

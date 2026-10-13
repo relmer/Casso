@@ -89,7 +89,7 @@ uint32_t InspectorMarquee::Dim (const DiskInspectorPalette & palette, uint32_t a
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t InspectorMarquee::GetShimmer (int64_t nowMs, float xPx, float yPx, const RECT & scenePx)
+uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx)
 {
     static constexpr double  kPeakAlpha = 150.0;
     static constexpr double  kGlowShare = 0.2;
@@ -100,7 +100,7 @@ uint32_t InspectorMarquee::GetShimmer (int64_t nowMs, float xPx, float yPx, cons
 
     double  span   = std::max (1.0, static_cast<double> ((scenePx.right - scenePx.left) + (scenePx.bottom - scenePx.top)));
     double  place  = ((xPx - scenePx.left) + (yPx - scenePx.top)) / span;
-    double  center = std::fmod (static_cast<double> (nowMs) / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
+    double  center = std::fmod (nowMs / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
     double  band   = std::exp (-std::pow ((place - center) / kBandWidth, 2.0));
     double  alpha  = kPeakAlpha * (kGlowShare + (1.0 - kGlowShare) * band);
 
@@ -199,4 +199,19 @@ vector<InspectorMarquee::Span> InspectorMarquee::GetFileSpans (const TrackAnalys
     }
 
     return spans;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::GetClockMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorMarquee::GetClockMs()
+{
+    return std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now().time_since_epoch()).count();
 }

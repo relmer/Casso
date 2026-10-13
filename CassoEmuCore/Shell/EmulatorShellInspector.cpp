@@ -26,7 +26,8 @@ void EmulatorShell::OpenDiskInspector (int drive)
     HRESULT    hr         = S_OK;
     HINSTANCE  hInstance  = nullptr;
     HWND       foreground = GetForegroundWindow();
-    bool       activate   = foreground != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_hwnd;
+    bool       activate   = foreground != nullptr && (GetAncestor (foreground, GA_ROOTOWNER) == m_hwnd ||
+                            (m_diskInspector != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_diskInspector->GetHwnd()));
 
 
 

@@ -56,7 +56,9 @@ void SectorByteView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         }
         else
         {
-            empty = InspectorText::FormatNoSectorData (m_context.analysis->entries[m_context.model->GetQuarterTrack()], track);
+            empty = (sector == nullptr && track != nullptr && !track->sectors.empty())
+                        ? std::wstring (L"No sector is selected. Click a sector on the platter, in the strip or in the row of sectors to see its bytes.")
+                        : InspectorText::FormatNoSectorData (m_context.analysis->entries[m_context.model->GetQuarterTrack()], track);
             text.DrawString (empty.c_str(), static_cast<float> (m_boundsDip.left), y, GetWidth(), m_scaler.ToPxf (static_cast<float> (kRowDip * 3)),
                              theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
         }

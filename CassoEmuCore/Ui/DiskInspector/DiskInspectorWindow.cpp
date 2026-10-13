@@ -70,7 +70,7 @@ static constexpr double   s_kPanStep        = 0.1;
 static constexpr int      s_kMapCheckDip    = 190;
 static constexpr int      s_kMapButtonDip   = 30;
 static constexpr int      s_kMapStepLabelDip = 150;
-static constexpr int      s_kFilePickerDip  = 240;
+static constexpr int      s_kPickerPadDip   = 8;
 static constexpr int      s_kChevronDip     = 5;
 static constexpr int      s_kStatusDip      = 28;
 static constexpr int      s_kMapVolumeDip   = 150;
@@ -195,7 +195,10 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
 
     params.title                    = s_kpszWindowTitle;
     params.hInstance                = hInstance;
-    params.ownerHwnd                = hwndOwner;
+    //  Not owned, so the main window can cover it; it opens centered over
+    //  the main window.
+    params.ownerHwnd                = nullptr;
+    params.placementAnchorHwnd      = hwndOwner;
     params.initialSizeDip           = { kOpeningWidthDip, kOpeningHeightDip };
     params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
     params.resizable                = true;
@@ -252,8 +255,9 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
         ShowDiskTab (m_diskTab == kTabDifferences ? kTabTracks : m_diskTab);
     }
 
-    m_drive   = drive;
-    m_sourceA = { ComparisonSourceKind::DriveNow, drive };
+    m_drive            = drive;
+    m_sourceA          = { ComparisonSourceKind::DriveNow, drive };
+    m_requestedMediaId = 0;
     m_host->SetHeadStateWanted (true);
 
     if (m_driveTabs != nullptr)
@@ -305,6 +309,13 @@ HRESULT DiskInspectorWindow::RenderFrame()
     //  While the File map tab is up, the selected file's sectors are marked
     //  in the platter and the strip as in the grid (FR-090).
     m_context.isFileHighlighted = m_isDiskGroup && m_diskTab == kTabFileMap && m_context.selectedFile >= 0;
+
+    //  The picker's width matches its label, measured as it is drawn.
+    if (m_isLayoutStale)
+    {
+        m_isLayoutStale = false;
+        Layout (m_boundsDip, m_hostScaler);
+    }
 
     m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
 
@@ -391,7 +402,7 @@ void DiskInspectorWindow::OnCreate()
     m_mapPrev     = CreateChild<DxuiButton> (L"<");
     m_mapNext     = CreateChild<DxuiButton> (L">");
     m_mapStepLabel = CreateChild<DxuiLabel> (L"Previous/next sector in", DxuiTextRole::Body, DxuiTextHAlign::Left);
-    m_filePicker   = CreateChild<DxuiButton> (L"Choose a file");
+    m_filePicker   = CreateChild<DxuiButton> (L"");
     m_statusText   = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left);
     m_zoomControl  = CreateChild<DxuiZoomControl>();
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
@@ -866,7 +877,7 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     if (m_filePicker->IsVisible())
     {
-        PaintPickerChevron (painter, theme);
+        PaintPicker (painter, text, theme);
     }
 
     painter.FillRect (static_cast<float> (m_tabGapPx.left), static_cast<float> (m_tabGapPx.top), static_cast<float> (m_tabGapPx.right - m_tabGapPx.left),
@@ -1123,6 +1134,11 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case 'G':      OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
+        }
+        else if (ev.vk == VK_ESCAPE && !ev.shift)
+        {
+            m_model.ClearSelection();
+            OnSelection();
         }
         else if (ev.shift && (m_keyTarget == KeyTarget::Nibbles || m_keyTarget == KeyTarget::SectorData) &&
                  (ev.vk == VK_LEFT || ev.vk == VK_RIGHT || ev.vk == VK_UP || ev.vk == VK_DOWN))
@@ -2815,7 +2831,7 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
     int                        button  = scaler.ToPx (s_kMapButtonDip);
     int                        volume  = scaler.ToPx (s_kMapVolumeDip);
     int                        label   = scaler.ToPx (s_kMapStepLabelDip);
-    int                        picker  = scaler.ToPx (s_kFilePickerDip);
+    int                        picker  = GetPickerWidthPx (scaler);
     int                        y       = area.top;
     int                        width   = 0;
     int                        gridH   = 0;
@@ -2903,6 +2919,11 @@ void DiskInspectorWindow::ShowFileMap (bool isShown)
     m_mapDeleted->SetVisible (isOpen);
     m_mapBadOnly->SetVisible (isOpen);
     m_filePicker->SetVisible (isList);
+
+    //  The step buttons are enabled only with a file chosen and the picker
+    //  closed.
+    m_mapPrev->SetEnabled (!m_isPickerOpen && m_mapFile >= 0);
+    m_mapNext->SetEnabled (!m_isPickerOpen && m_mapFile >= 0);
     m_mapPrev->SetVisible    (isList);
     m_mapNext->SetVisible    (isList);
     m_mapStepLabel->SetVisible (isList);
@@ -2936,25 +2957,80 @@ void DiskInspectorWindow::OpenFilePicker (bool isOpen)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::PaintPickerChevron
+//  DiskInspectorWindow::PaintPicker
 //
-//  A chevron at the picker's right, as a drop-down list draws one: pointing
-//  down while the picker is closed and up while it is open.
+//  The picker's label at its left and a chevron at its right, as in a
+//  drop-down list: pointing down while the picker is closed and up while it
+//  is open. A label of a new width causes a relayout of the row, so the
+//  picker is as wide as its label and chevron.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::PaintPickerChevron (IDxuiPainter & painter, const IDxuiTheme & theme) const
+void DiskInspectorWindow::PaintPicker (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT   b    = m_filePicker->GetBounds();
-    float  half = m_scaler.ToPxf (static_cast<float> (s_kChevronDip));
-    float  cx   = static_cast<float> (b.right) - 3 * half;
-    float  cy   = (b.top + b.bottom) / 2.0f;
-    float  tip  = m_isPickerOpen ? -half / 2 : half / 2;
+    RECT   b      = m_filePicker->GetBounds();
+    float  half   = m_scaler.ToPxf (static_cast<float> (s_kChevronDip));
+    float  cx     = static_cast<float> (b.right) - 3 * half;
+    float  cy     = (b.top + b.bottom) / 2.0f;
+    float  tip    = m_isPickerOpen ? -half / 2 : half / 2;
+    float  textPx = m_scaler.ToPxf (DxuiTheme::kBodySizeDip);
+    float  w      = 0;
+    float  h      = 0;
 
 
+
+    text.MeasureString (m_pickerLabel.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+
+    if (std::abs (w - m_pickerTextPx) > 0.5f)
+    {
+        m_pickerTextPx  = w;
+        m_isLayoutStale = true;
+    }
+
+    text.DrawString (m_pickerLabel.c_str(), static_cast<float> (b.left) + m_scaler.ToPxf (static_cast<float> (s_kPickerPadDip)), static_cast<float> (b.top),
+                     static_cast<float> (b.right - b.left), static_cast<float> (b.bottom - b.top), theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                     DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
 
     painter.DrawLine (cx - half, cy - tip, cx,        cy + tip, 1.5f, theme.Foreground());
     painter.DrawLine (cx,        cy + tip, cx + half, cy - tip, 1.5f, theme.Foreground());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SetPickerLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SetPickerLabel (const std::wstring & label)
+{
+    m_pickerLabel   = label;
+    m_isLayoutStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetPickerWidthPx
+//
+//  The label's measured width, or before it has been drawn a guess from its
+//  length, with padding and room for the chevron.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetPickerWidthPx (const DxuiDpiScaler & scaler) const
+{
+    float  label = (m_pickerTextPx > 0) ? m_pickerTextPx : static_cast<float> (m_pickerLabel.size()) * scaler.ToPxf (static_cast<float> (s_kCharWidthDip));
+
+
+
+    return static_cast<int> (std::ceil (label)) + scaler.ToPx (2 * s_kPickerPadDip + 4 * s_kChevronDip);
 }
 
 
@@ -2989,7 +3065,7 @@ void DiskInspectorWindow::RefreshFileList()
 
     m_context.fileMap      = map;
     m_context.selectedFile = m_mapFile;
-    m_filePicker->SetLabel ((map != nullptr && m_mapFile >= 0) ? map->files[m_mapFile].path : std::wstring (L"Choose a file"));
+    SetPickerLabel ((map != nullptr && m_mapFile >= 0) ? map->files[m_mapFile].path : std::wstring (L"Choose a file"));
     ShowFileMap (m_isDiskGroup && m_diskTab == kTabFileMap);
 }
 
@@ -3016,7 +3092,7 @@ void DiskInspectorWindow::ChooseFile (int file)
     m_context.selectedFile = file;
 
     //  A chosen file closes the picker, which then has the file's name.
-    m_filePicker->SetLabel ((map != nullptr && file >= 0) ? map->files[file].path : std::wstring (L"Choose a file"));
+    SetPickerLabel ((map != nullptr && file >= 0) ? map->files[file].path : std::wstring (L"Choose a file"));
     OpenFilePicker (false);
 
     for (const FilePlace & place : (map != nullptr && file >= 0) ? map->files[file].sectors : vector<FilePlace>())
@@ -3155,10 +3231,13 @@ void DiskInspectorWindow::SyncFileMapSelection()
 
     m_mapGrid->SetSelected (cell, m_mapFile);
 
-    //  A sector selected anywhere is scrolled into view in the grid, once.
+    //  A sector selected anywhere is scrolled to the middle of the grid's
+    //  view, once.
     if (cell >= 0 && cell != m_revealedCell && m_mapGrid->GetCellRect (cell, target))
     {
-        m_mapScroll->SetScrollPosPx (DxuiScrollPanel::GetScrollPosToReveal (m_mapScroll->GetScrollPosPx(), target, m_mapScroll->GetViewportPx()));
+        RECT  view = m_mapScroll->GetViewportPx();
+
+        m_mapScroll->SetScrollPosPx (m_mapScroll->GetScrollPosPx() + (target.top + target.bottom) / 2 - (view.top + view.bottom) / 2);
     }
 
     m_revealedCell = cell;
@@ -3675,6 +3754,15 @@ void DiskInspectorWindow::TickHead()
 
 
     m_headState = m_host->GetHeadState (m_drive);
+
+    //  A disk inserted, swapped or ejected has a new media id; a copy of it is
+    //  requested once, and the reply replaces the analysis on screen.
+    if (m_headState != nullptr && IsWindowDiskA() && m_pendingRequest == 0 && m_headState->mediaId != m_analysis.mediaId &&
+        m_headState->mediaId != m_requestedMediaId)
+    {
+        m_requestedMediaId = m_headState->mediaId;
+        RequestCopy();
+    }
 
     RequestWrittenTracks();
 

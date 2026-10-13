@@ -53,7 +53,11 @@ public:
     //  white, brightest in a band at 45 degrees that sweeps across the whole
     //  window from its top left to its bottom right every kSweepMs, so every
     //  map's selection lights up as the band crosses it.
-    static uint32_t  GetShimmer (int64_t nowMs, float xPx, float yPx, const RECT & scenePx);
+    static uint32_t  GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx);
+
+    //  A clock in milliseconds fine enough that the shimmer moves a little
+    //  every frame; GetTickCount64 advances only every 15.6 ms or so.
+    static double    GetClockMs ();
 
     //  The selection color, or white, at the given alpha, for a hover mark.
     static uint32_t  GetHoverFill () { return 0x38FFFFFFu; }

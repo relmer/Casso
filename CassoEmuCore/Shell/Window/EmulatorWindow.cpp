@@ -23,6 +23,7 @@
 #include "Config/CrtResolver.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Ui/PrinterPanel.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -1027,7 +1028,13 @@ int EmulatorShell::RunMessageLoop()
             bool  settingsActive = (m_settings->GetSheet() != nullptr &&
                                     m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
-            if (settingsActive ||
+            // Keystrokes sent to the disk inspector, or a popup owned by it,
+            // skip the main window's accelerators: Ctrl+0 there resets the
+            // inspector's zoom, not the main window's size.
+            bool  inspectorTarget = (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr && msg.hwnd != nullptr &&
+                                     GetAncestor (msg.hwnd, GA_ROOTOWNER) == m_diskInspector->GetHwnd());
+
+            if (settingsActive || inspectorTarget ||
                 m_window->m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_window->m_accelTable, &msg))
             {
