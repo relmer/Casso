@@ -267,6 +267,8 @@ private:
     DxuiButton                            * m_goToHead           = nullptr;
     FollowHead                              m_followHead;
     bool                                    m_isHeadSelecting    = false;
+    int                                     m_flownQuarterTrack  = -1;
+    int                                     m_flownSector        = -1;
     bool                                    m_isFilesDefaulted   = false;
     std::shared_ptr<const DriveHeadState>   m_headState;
     uint64_t                                m_countsGeneration   = 0;

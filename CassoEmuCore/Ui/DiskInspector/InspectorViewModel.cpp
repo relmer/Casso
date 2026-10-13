@@ -459,6 +459,7 @@ void InspectorViewModel::ZoomAbout (double zoom, Point anchor)
 
 
 
+    m_isFlying = false;
     m_pan.x = anchor.x - (anchor.x - m_pan.x) * ratio;
     m_pan.y = anchor.y - (anchor.y - m_pan.y) * ratio;
     m_zoom  = next;
@@ -478,8 +479,9 @@ void InspectorViewModel::ZoomAbout (double zoom, Point anchor)
 
 void InspectorViewModel::Fit()
 {
-    m_zoom = 1.0;
-    m_pan  = Point();
+    m_isFlying = false;
+    m_zoom     = 1.0;
+    m_pan      = Point();
 }
 
 
@@ -494,7 +496,8 @@ void InspectorViewModel::Fit()
 
 void InspectorViewModel::PanBy (Point delta)
 {
-    m_pan.x += delta.x;
+    m_isFlying = false;
+    m_pan.x   += delta.x;
     m_pan.y += delta.y;
 
     ClampPan();
@@ -515,19 +518,189 @@ void InspectorViewModel::PanBy (Point delta)
 
 InspectorViewModel::Point InspectorViewModel::GetDiskPoint (int quarterTrack, double turn) const
 {
+    Point  fit = GetFitPoint (quarterTrack, turn);
+
+
+
+    return { m_pan.x + m_zoom * fit.x, m_pan.y + m_zoom * fit.y };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetFitPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorViewModel::Point InspectorViewModel::GetFitPoint (int quarterTrack, double turn)
+{
     static constexpr double  kTwoPi = 6.283185307179586;
 
 
 
-    double  r     = GetRingRadius (quarterTrack);
-    Point   point;
+    double  r = GetRingRadius (quarterTrack);
 
 
 
-    point.x = m_pan.x + m_zoom * r * std::sin (kTwoPi * turn);
-    point.y = m_pan.y - m_zoom * r * std::cos (kTwoPi * turn);
+    return { r * std::sin (kTwoPi * turn), -r * std::cos (kTwoPi * turn) };
+}
 
-    return point;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetChordView
+//
+//  The view runs from -1 to 1 on each axis, so the line through its center
+//  along a chord is 2 / max (|dx|, |dy|) times the chord's length. A chord
+//  too long to fit at kFlightFill gets the view at fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorViewModel::View InspectorViewModel::GetChordView (Point from, Point to)
+{
+    double  span = std::max (std::abs (to.x - from.x), std::abs (to.y - from.y));
+    View    view;
+
+
+
+    view.zoom = (span > 0) ? std::clamp (2.0 * kFlightFill / span, 1.0, kMaxZoom) : 1.0;
+
+    if (view.zoom > 1.0)
+    {
+        view.pan.x = -view.zoom * (from.x + to.x) / 2;
+        view.pan.y = -view.zoom * (from.y + to.y) / 2;
+    }
+
+    return view;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetBetweenView
+//
+//  A point d of the disk is at pan + zoom * d in the view. The point both
+//  views put in the same place is d = (to.pan - from.pan) / (from.zoom -
+//  to.zoom); the zoom moves from one to the other at an even rate in scale,
+//  and the pan places d where both views put it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorViewModel::View InspectorViewModel::GetBetweenView (const View & from, const View & to, double t)
+{
+    View   view;
+    Point  fixed;
+    Point  at;
+
+
+
+    if (std::abs (from.zoom - to.zoom) < 1e-9)
+    {
+        view.zoom  = to.zoom;
+        view.pan.x = from.pan.x + (to.pan.x - from.pan.x) * t;
+        view.pan.y = from.pan.y + (to.pan.y - from.pan.y) * t;
+    }
+    else
+    {
+        fixed.x    = (to.pan.x - from.pan.x) / (from.zoom - to.zoom);
+        fixed.y    = (to.pan.y - from.pan.y) / (from.zoom - to.zoom);
+        at.x       = from.pan.x + from.zoom * fixed.x;
+        at.y       = from.pan.y + from.zoom * fixed.y;
+        view.zoom  = from.zoom * std::pow (to.zoom / from.zoom, t);
+        view.pan.x = at.x - view.zoom * fixed.x;
+        view.pan.y = at.y - view.zoom * fixed.y;
+    }
+
+    return view;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::StartFlight
+//
+//  From the view as it is, out to fit, then in to the view centered on the
+//  selection's chord. From a view already at fit, the first leg is skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::StartFlight (double nowMs)
+{
+    double  end   = 0;
+    double  start = GetSelectionTurn (end);
+
+
+
+    if (start >= 0)
+    {
+        end             = (end < start) ? end + 1.0 : end;
+        m_flightFrom    = GetView();
+        m_flightTo      = GetChordView (GetFitPoint (m_quarterTrack, start), GetFitPoint (m_quarterTrack, end));
+        m_flightStartMs = nowMs;
+        m_isFlying      = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::StepFlight
+//
+//  The view for the moment, each leg eased in and out. Returns whether the
+//  flight goes on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorViewModel::StepFlight (double nowMs)
+{
+    double  outMs   = (m_flightFrom.zoom > 1.0) ? kFlightLegMs : 0.0;
+    double  elapsed = nowMs - m_flightStartMs;
+    double  t       = std::clamp ((elapsed - outMs) / kFlightLegMs, 0.0, 1.0);
+    View    view    = (elapsed < outMs) ? GetBetweenView (m_flightFrom, View(), Ease (elapsed / outMs))
+                                        : GetBetweenView (View(), m_flightTo, Ease (t));
+
+
+
+    if (m_isFlying)
+    {
+        m_zoom     = view.zoom;
+        m_pan      = view.pan;
+        m_isFlying = elapsed < outMs || t < 1.0;
+    }
+
+    return m_isFlying;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::Ease
+//
+//  Slow at each end of a leg, fastest in its middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorViewModel::Ease (double t)
+{
+    return t * t * (3.0 - 2.0 * t);
 }
 
 
@@ -633,11 +806,9 @@ void InspectorViewModel::SelectFirstSector()
 //  InspectorViewModel::BringSelectionIntoView
 //
 //  The strip pans the least that puts the selection's start in view with a
-//  margin, and when zoomed the platter centers a selection not wholly in
-//  view that fits in it, or else pans the least that puts its start in view,
-//  each at its zoom (FR-038). A strip
-//  whose part of the turn already contains the selection stays put, so on a
-//  new track the same part of the turn is in view.
+//  margin (FR-038). A strip whose part of the turn already contains the
+//  selection stays put, so on a new track the same part of the turn is in
+//  view. The platter is brought to the selection by a flight, StartFlight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,65 +816,16 @@ void InspectorViewModel::BringSelectionIntoView()
 {
     double  end    = 0;
     double  start  = GetSelectionTurn (end);
-    double  offset = 0;
-    double  limit  = 1.0 - kViewMargin;
-    bool    isFit  = false;
-    Point   point;
-    Point   first;
-    Point   last;
-    Point   shift;
+    double  offset = start - m_stripStart;
 
 
 
-    offset = start - m_stripStart;
     offset = offset - std::floor (offset);
 
     if (start >= 0 && offset > m_stripSpan)
     {
         SetStrip (start - kViewMargin * m_stripSpan, m_stripSpan);
     }
-
-    //  Zoomed in, a selection not wholly in view moves to the view's center
-    //  when it fits there, and otherwise only far enough to bring its start
-    //  into view.
-    if (start >= 0 && !IsAtFit())
-    {
-        end   = (end < start) ? end + 1.0 : end;
-        first = GetDiskPoint (m_quarterTrack, start);
-        last  = GetDiskPoint (m_quarterTrack, end);
-        point = GetDiskPoint (m_quarterTrack, (start + end) / 2);
-
-        if (!IsInView (first, limit) || !IsInView (last, limit) || !IsInView (point, limit))
-        {
-            isFit   = std::abs (first.x - last.x) <= 2 * limit && std::abs (first.y - last.y) <= 2 * limit;
-            point   = isFit ? point : first;
-            shift.x = isFit ? point.x : std::max (0.0, point.x - limit) + std::min (0.0, point.x + limit);
-            shift.y = isFit ? point.y : std::max (0.0, point.y - limit) + std::min (0.0, point.y + limit);
-
-            m_pan.x -= shift.x;
-            m_pan.y -= shift.y;
-        }
-
-        ClampPan();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InspectorViewModel::IsInView
-//
-//  Whether a point of the view, from -1 to 1 on each axis, lies within
-//  `limit` of its center on both.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InspectorViewModel::IsInView (const Point & point, double limit)
-{
-    return std::abs (point.x) <= limit && std::abs (point.y) <= limit;
 }
 
 
@@ -714,14 +836,15 @@ bool InspectorViewModel::IsInView (const Point & point, double limit)
 //
 //  InspectorViewModel::ClampPan
 //
-//  Panning stops before the disk leaves the view: its center can move no
-//  farther from the view's than the disk's radius past fit.
+//  Panning stops with the disk's edge at the view's center: the disk's
+//  center can move no farther from the view's than the disk's radius, so
+//  a sector on the outermost ring can be centered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorViewModel::ClampPan()
 {
-    double  reach = m_zoom - 1.0;
+    double  reach = m_zoom;
 
 
 

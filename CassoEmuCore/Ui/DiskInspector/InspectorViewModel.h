@@ -31,6 +31,12 @@ public:
     static constexpr double  kViewMargin       = 0.1;
     static constexpr double  kDefaultStripSpan = 0.125;
 
+    //  A flight to a sector ends with its chord this share of the line
+    //  through the view's center along it, from edge to edge; each of its
+    //  two legs takes kFlightLegMs.
+    static constexpr double  kFlightFill       = 0.75;
+    static constexpr double  kFlightLegMs      = 400.0;
+
     //  The disk's edge sits this far inside the view, so the view's bounds
     //  clip neither the disk nor the marks drawn across its outermost ring:
     //  the selected sector's outline and the selected file's marquee.
@@ -40,6 +46,13 @@ public:
     {
         double  x = 0.0;
         double  y = 0.0;
+    };
+
+    //  The platter's zoom and pan.
+    struct View
+    {
+        double  zoom = 1.0;
+        Point   pan;
     };
 
     //  Disk and analysis.
@@ -83,6 +96,27 @@ public:
     double  GetZoom         () const { return m_zoom; }
     Point   GetPan          () const { return m_pan; }
     Point   GetDiskPoint    (int quarterTrack, double turn) const;
+    View    GetView         () const { return { m_zoom, m_pan }; }
+
+    //  A point on a ring at fit, zoom 1 and no pan.
+    static Point  GetFitPoint (int quarterTrack, double turn);
+
+    //  The view that centers the chord from `from` to `to`, given at fit, at
+    //  the zoom that makes it kFlightFill of the line through the view's
+    //  center along it, from edge to edge.
+    static View   GetChordView (Point from, Point to);
+
+    //  A view `t` of the way from `from` to `to`, 0 to 1: a zoom about the
+    //  one point both views put in the same place, or a pan between two
+    //  views at one zoom.
+    static View   GetBetweenView (const View & from, const View & to, double t);
+
+    //  A flight zooms the platter out to the whole disk, then in to the
+    //  selection (FR-038). ZoomAbout, PanBy, Fit and StopFlight end the flight.
+    void    StartFlight     (double nowMs);
+    bool    StepFlight      (double nowMs);
+    void    StopFlight      () { m_isFlying = false; }
+    bool    IsFlying        () const { return m_isFlying; }
     PlatterPlacement  GetPlacement (const RECT & boundsPx, double rotation) const;
 
     //  Strip.
@@ -102,7 +136,7 @@ private:
     void    ClearBytes             ();
     void    BringSelectionIntoView ();
     void    ClampPan               ();
-    static bool  IsInView          (const Point & point, double limit);
+    static double  Ease            (double t);
 
     const DiskAnalysis *  m_analysis      = nullptr;
     uint64_t              m_mediaId       = 0;
@@ -123,4 +157,8 @@ private:
     double                m_stripSpan     = kDefaultStripSpan;
     bool                  m_isStripWhole  = false;
     bool                  m_isStripFitted = false;
+    View                  m_flightFrom;
+    View                  m_flightTo;
+    double                m_flightStartMs = 0.0;
+    bool                  m_isFlying      = false;
 };

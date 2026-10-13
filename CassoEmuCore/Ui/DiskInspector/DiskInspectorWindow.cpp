@@ -27,6 +27,7 @@
 #include "Ui/DiskInspector/GoToDialog.h"
 #include "Ui/DiskInspector/NibblesTab.h"
 #include "Ui/DiskInspector/FluxTiming.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Ui/DiskInspector/PlatterView.h"
@@ -328,6 +329,11 @@ HRESULT DiskInspectorWindow::RenderFrame()
     {
         m_isLayoutStale = false;
         Layout (m_boundsDip, m_hostScaler);
+    }
+
+    if (m_model.IsFlying())
+    {
+        m_model.StepFlight (InspectorMarquee::GetClockMs());
     }
 
     m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
@@ -1596,6 +1602,21 @@ void DiskInspectorWindow::OnSelection()
 
     m_nibblesTab->ScrollTo (nibble);
     SyncTables();
+
+    //  A new sector the user chooses anywhere but on the platter starts a
+    //  flight to it. One chosen on the platter is in view there, and one
+    //  chosen by Follow head starts none.
+    if (m_context.selectionSource == m_platterView)
+    {
+        m_model.StopFlight();
+    }
+    else if (!m_isHeadSelecting && sector != nullptr && (m_model.GetQuarterTrack() != m_flownQuarterTrack || m_model.GetSectorIndex() != m_flownSector))
+    {
+        m_model.StartFlight (InspectorMarquee::GetClockMs());
+    }
+
+    m_flownQuarterTrack = m_model.GetQuarterTrack();
+    m_flownSector       = m_model.GetSectorIndex();
 
     //  A selection made by hand ends Follow head (FR-067).
     if (!m_isHeadSelecting && m_followHead.IsOn())

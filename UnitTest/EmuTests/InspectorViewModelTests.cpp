@@ -226,7 +226,7 @@ public:
 
 
 
-    TEST_METHOD (PanningStopsBeforeTheDiskLeavesTheView)
+    TEST_METHOD (PanningStopsWithTheDisksEdgeAtTheCenter)
     {
         InspectorViewModel  model;
 
@@ -238,17 +238,17 @@ public:
         model.ZoomAbout (3.0, { 0.0, 0.0 });
         model.PanBy ({ 50.0, -50.0 });
 
-        Assert::AreEqual ( 2.0, model.GetPan().x);
-        Assert::AreEqual (-2.0, model.GetPan().y);
+        Assert::AreEqual ( 3.0, model.GetPan().x);
+        Assert::AreEqual (-3.0, model.GetPan().y);
     }
 
 
 
-    TEST_METHOD (ASelectionOutOfViewPansTheZoomedPlatterAndTheStrip)
+    TEST_METHOD (ASelectionMovesTheStripButNotThePlatter)
     {
         DiskAnalysis                analysis;
         InspectorViewModel          model;
-        InspectorViewModel::Point   point;
+        InspectorViewModel::Point   pan;
 
 
 
@@ -256,39 +256,99 @@ public:
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.ZoomAbout   (50.0, model.GetDiskPoint (0, 0.0));
+        pan = model.GetPan();
         model.SelectSector (0, 8);
 
-        point = model.GetDiskPoint (0, TrackAnalyzer::GetAngle (*model.GetTrack(), model.GetTrack()->fields[model.GetSector()->addressField].startCell));
-
-        Assert::AreEqual (50.0, model.GetZoom(), L"the zoom is kept");
-        Assert::IsTrue (std::abs (point.x) <= 1.0 && std::abs (point.y) <= 1.0, L"the sector is in view");
-        Assert::IsTrue (model.GetStripStart() > 0.25, L"the strip moved to the sector");
+        Assert::AreEqual (50.0,  model.GetZoom(), L"the zoom does not change");
+        Assert::AreEqual (pan.x, model.GetPan().x, L"no pan before a flight");
+        Assert::AreEqual (pan.y, model.GetPan().y);
+        Assert::IsTrue   (model.GetStripStart() > 0.25, L"the strip moved to the sector");
     }
 
 
 
-    TEST_METHOD (ASelectionThatFitsIsCenteredOnTheZoomedPlatter)
+    //  The chord's middle at the center, and the chord three quarters of the
+    //  line through the center along it, edge to edge.
+    TEST_METHOD (AChordViewCentersTheChordAtThreeQuartersOfTheView)
+    {
+        InspectorViewModel::View  level    = InspectorViewModel::GetChordView ({ -0.1, 0.5 }, { 0.1, 0.5 });
+        InspectorViewModel::View  diagonal = InspectorViewModel::GetChordView ({ 0.0, 0.0 }, { 0.1, 0.1 });
+        InspectorViewModel::View  huge     = InspectorViewModel::GetChordView ({ -0.9, 0.0 }, { 0.9, 0.0 });
+
+
+
+        Assert::AreEqual ( 7.5,  level.zoom,  1e-9, L"0.2 wide fills 1.5 of the 2 across");
+        Assert::AreEqual ( 0.0,  level.pan.x, 1e-9);
+        Assert::AreEqual (-3.75, level.pan.y, 1e-9);
+        Assert::AreEqual (-0.75, level.pan.x + level.zoom * -0.1, 1e-9, L"the chord's ends at -0.75 and 0.75");
+
+        Assert::AreEqual (15.0,  diagonal.zoom, 1e-9, L"along the diagonal, the line is corner to corner");
+        Assert::AreEqual (-0.75, diagonal.pan.x, 1e-9);
+
+        Assert::AreEqual (1.0, huge.zoom, L"a chord too long gets the view at fit");
+        Assert::AreEqual (0.0, huge.pan.x);
+    }
+
+
+
+    //  Between two views the zoom moves evenly in scale about the point both
+    //  put in the same place; at one zoom the pan moves evenly.
+    TEST_METHOD (TheViewBetweenTwoZoomsAboutTheirSharedPoint)
+    {
+        InspectorViewModel::View  fit;
+        InspectorViewModel::View  to   = { 4.0, { -2.0, 1.0 } };
+        InspectorViewModel::View  half = InspectorViewModel::GetBetweenView (fit, to, 0.5);
+        InspectorViewModel::View  end  = InspectorViewModel::GetBetweenView (fit, to, 1.0);
+        InspectorViewModel::View  pan  = InspectorViewModel::GetBetweenView ({ 2.0, { 0.0, 0.0 } }, { 2.0, { 1.0, -1.0 } }, 0.25);
+        double                    dX   = (to.pan.x - fit.pan.x) / (fit.zoom - to.zoom);
+
+
+
+        Assert::AreEqual (2.0,  half.zoom, 1e-9, L"halfway in scale from 1 to 4");
+        Assert::AreEqual (fit.pan.x + fit.zoom * dX, half.pan.x + half.zoom * dX, 1e-9, L"the shared point does not move");
+        Assert::AreEqual (to.pan.x, end.pan.x, 1e-9);
+        Assert::AreEqual (to.pan.y, end.pan.y, 1e-9);
+        Assert::AreEqual (0.25, pan.pan.x, 1e-9);
+        Assert::AreEqual (2.0,  pan.zoom);
+    }
+
+
+
+    TEST_METHOD (AFlightGoesOutToFitThenInToTheSector)
     {
         DiskAnalysis                analysis;
         InspectorViewModel          model;
         InspectorViewModel::Point   point;
         double                      end   = 0;
         double                      start = 0;
+        constexpr double            kLeg  = InspectorViewModel::kFlightLegMs;
 
 
 
         AnalyzeDsk (analysis);
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
-        //  Track 17, as the disk's edge cannot pan to the center.
         model.ZoomAbout   (4.0, model.GetDiskPoint (68, 0.0));
-        model.SelectSector (68, 8);
+        model.SelectSector (0, 8);
+        model.StartFlight (1000.0);
 
-        start = model.GetSelectionTurn (end);
-        end   = (end < start) ? end + 1.0 : end;
-        point = model.GetDiskPoint (68, (start + end) / 2);
+        Assert::IsTrue (model.StepFlight (1000.0 + kLeg / 2));
+        Assert::IsTrue (model.GetZoom() > 1.0 && model.GetZoom() < 4.0, L"on the way out");
 
-        Assert::AreEqual (4.0, model.GetZoom(), L"the zoom is kept");
-        Assert::IsTrue (std::abs (point.x) < 0.01 && std::abs (point.y) < 0.01, L"the sector's middle is at the center");
-    }
-};
+        Assert::IsTrue   (model.StepFlight (1000.0 + kLeg));
+        Assert::AreEqual (1.0, model.GetZoom(), 1e-9, L"the whole disk between the legs");
+
+        Assert::IsFalse (model.StepFlight (1000.0 + 2 * kLeg), L"landed");
+
+        start   = model.GetSelectionTurn (end);
+        end     = (end < start) ? end + 1.0 : end;
+        point.x = (model.GetDiskPoint (0, start).x + model.GetDiskPoint (0, end).x) / 2;
+        point.y = (model.GetDiskPoint (0, start).y + model.GetDiskPoint (0, end).y) / 2;
+
+        Assert::IsTrue (model.GetZoom() > 1.0, L"zoomed in on the sector");
+        Assert::IsTrue (std::abs (point.x) < 1e-6 && std::abs (point.y) < 1e-6, L"its chord's middle at the center, on the outermost ring");
+
+        model.StartFlight (5000.0);
+        model.PanBy ({ 0.1, 0.0 });
+        Assert::IsFalse (model.IsFlying(), L"a pan ends a flight");
+    }};
