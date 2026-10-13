@@ -1305,8 +1305,9 @@ void CassoExplorerWindow::OnThemeChanged()
 //
 //  CassoExplorerWindow::RevealLocationInTree
 //
-//  Expands This PC down to the current location's folder and highlights it,
-//  as File Explorer's navigation pane does when a window opens on a folder.
+//  Expands This PC, or with the all-folders option on the desktop, down to the
+//  current location's folder and highlights it, as File Explorer's navigation
+//  pane does when a window opens on a folder.
 //  Each path component is matched against the child labels without regard to
 //  case, since a restored path need not match the case on disk.
 //
@@ -1318,7 +1319,9 @@ void CassoExplorerWindow::RevealLocationInTree()
     std::wstring          path     = location.path;
     std::wstring          current  = m_tree->GetHighlightedId();
     int                   casso    = m_tree->FindRowById (TreeModel::kCassoRootId);
+    int                   desktop  = m_tree->FindRowById (TreeModel::kDesktopRootId);
     size_t                prefix   = wcslen (TreeModel::kCassoRootId);
+    size_t                pcPrefix = wcslen (TreeModel::kThisPcRootId);
     const DxuiTreeNode *  root     = nullptr;
     bool                  wasOpen  = false;
     size_t                known    = 0;
@@ -1382,6 +1385,30 @@ void CassoExplorerWindow::RevealLocationInTree()
         if (knownId.empty() && !wasOpen)
         {
             m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kCassoRootId), false);
+        }
+    }
+
+    //  With the all-folders option on, This PC is under the desktop, beside the
+    //  desktop's own folders, as the user's and OneDrive's; the deepest of
+    //  those that contains the location is where the walk starts.
+    if (knownId.empty() && desktop >= 0)
+    {
+        m_tree->SetRowExpanded (desktop, true);
+        root = m_tree->GetNodeAt (m_tree->FindRowById (TreeModel::kDesktopRootId));
+
+        for (size_t i = 0; root != nullptr && i < root->children.size(); i++)
+        {
+            const std::wstring &  id     = root->children[i].id;
+            std::wstring          folder = (id.size() > pcPrefix && id.starts_with (TreeModel::kThisPcRootId)) ? id.substr (pcPrefix) : std::wstring();
+            bool                  within = !folder.empty() && folder.size() > known
+                                        && _wcsnicmp (path.c_str(), folder.c_str(), folder.size()) == 0
+                                        && (path.size() == folder.size() || path[folder.size()] == L'\\' || folder.back() == L'\\');
+
+            if (within)
+            {
+                known   = folder.size();
+                knownId = id;
+            }
         }
     }
 
