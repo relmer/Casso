@@ -271,6 +271,11 @@ public:
     void     FitToMaxSize ();
 
     //
+    //  A client size plus the frame around the window's client.
+    //
+    SIZE     AddFrameSizePx (const SIZE & clientPx) const;
+
+    //
     //  The window rect grown to maxPx in whichever dimension maxPx exceeds
     //  it, cut to the work area and kept inside it; false when it would not
     //  grow in either dimension.

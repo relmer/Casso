@@ -1014,8 +1014,8 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 //
 //  Clamps the OS minimum track size to the configured minimum client
 //  size scaled to the current DPI, and the maximum to what the subclass
-//  reports, never below the minimum. Borderless, so client size and
-//  window size coincide.
+//  reports, never below the minimum. The maximum is a client size, so the
+//  frame around a resizable window's client is added to it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1041,6 +1041,8 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 
     if (TryGetMaxClientSizePx (maxPx))
     {
+        maxPx = AddFrameSizePx (maxPx);
+
         info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
         info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);
         result = DxuiMessageResult::Handled;
@@ -1191,6 +1193,15 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
     hasMax = TryGetMaxClientSizePx (maxPx);
     BAIL_OUT_IF (!hasMax, S_OK);
 
+    //  Windows computes a borderless window's resize borders only at a frame
+    //  change, and a hidden window has had none since its creation: its
+    //  client fills the window and the frame measures zero. A frame change is
+    //  forced first.
+    done = SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (done);
+
+    maxPx = AddFrameSizePx (maxPx);
+
     done = GetWindowRect (hwnd, &rect);
     CWRA (done);
 
@@ -1228,6 +1239,40 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddFrameSizePx
+//
+//  A client size as the window size around it: a resizable window has
+//  invisible resize borders outside its client, and a window size without
+//  them makes the client that much smaller. Before the window has a client
+//  to measure, the client size is returned as given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DxuiWindow::AddFrameSizePx (const SIZE & clientPx) const
+{
+    HWND  hwnd   = GetHwnd();
+    RECT  window = {};
+    RECT  client = {};
+    SIZE  sizePx = clientPx;
+
+
+
+    if (hwnd != nullptr && GetWindowRect (hwnd, &window) && GetClientRect (hwnd, &client) &&
+        client.right > 0 && client.bottom > 0)
+    {
+        sizePx.cx += (window.right - window.left) - client.right;
+        sizePx.cy += (window.bottom - window.top) - client.bottom;
+    }
+
+    return sizePx;
 }
 
 
