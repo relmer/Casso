@@ -11,7 +11,7 @@
 //  DiskCopy::MakeFromImage
 //
 //  Every record, both maps of quarter tracks to records (what each quarter
-//  track plays, and what the map gives it even when that holds nothing), and
+//  track plays, and what the map gives it even when that has nothing), and
 //  everything about the file the inspector shows. The caller makes it where
 //  nothing can change the image meanwhile.
 //

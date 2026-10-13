@@ -101,7 +101,7 @@ void FluxTiming::BuildDeviations (const TrackAnalysis & track, vector<Byte> & ou
 //
 //  FluxTiming::BuildLevels
 //
-//  Coarser levels hold the deviation furthest from nominal in each pair, so
+//  Coarser levels have the deviation furthest from nominal in each pair, so
 //  one odd cell still shows at fit, as PlatterCells keeps the most important
 //  kind.
 //

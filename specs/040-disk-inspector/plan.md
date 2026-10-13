@@ -16,7 +16,7 @@ shows it as a platter, a track strip, sector, nibble, field and flux timing
 views, a findings list, the image file's own structure, a file and sector map,
 sector editing, and comparison of two disks (GH #159). The plan:
 
-- **Loader**: `WozLoader` keeps what the file holds (INFO through one parser,
+- **Loader**: `WozLoader` keeps what the file has (INFO through one parser,
   the maps as stored, every record's fields, chunks, META) and splits
   zero-length records into empty and damaged (FR-053).
 - **Analyzer**: a pure core library over immutable track copies. A latch

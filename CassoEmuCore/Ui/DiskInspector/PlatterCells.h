@@ -12,11 +12,11 @@
 //
 //  PlatterCells
 //
-//  What the platter samples for one ring: a byte per cell holding its kind,
-//  and coarser levels for when a pixel covers many cells. Each byte holds the
+//  What the platter samples for one ring: a byte per cell with its kind,
+//  and coarser levels for when a pixel covers many cells. Each byte has the
 //  kind's priority above the kind, so the larger of two bytes is the one to
 //  draw: a failed checksum over noise, noise over random bits, and those over
-//  every other kind (FR-023). Level k holds the largest byte of each run of
+//  every other kind (FR-023). Level k has the largest byte of each run of
 //  2^k cells, which keeps a feature narrower than a pixel one pixel wide.
 //
 ////////////////////////////////////////////////////////////////////////////////

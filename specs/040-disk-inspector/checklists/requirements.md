@@ -74,7 +74,7 @@
   the standard layouts, gives quarter tracks with nothing recorded their own
   verdict, decodes B with the window's decode settings, and gains "Ignore
   volume numbers" (FR-117 to FR-121); an edit reaches the drive only at a
-  safe point with the machine held paused until it is saved or rolled back,
+  safe point with the machine paused until it is saved or rolled back,
   and a failed save restores the tracks and keeps the edits pending (FR-103,
   FR-104); redo has the same guards as undo, and both obey write protection
   (FR-107); pending edits follow their fields after a guest write or reload
@@ -86,12 +86,12 @@
 - The owner's decisions on the questions that revision left open were applied
   in the next revision, and every requirement and success criterion was
   renumbered by script, with every cross-reference checked afterward:
-  1. An edit Explorer saves to an image a running Casso holds is a change made
+  1. An edit Explorer saves to an image a running Casso has is a change made
      outside Casso, sent with the reload intent and handled exactly as
      Explorer's other writes to a mounted image are (033's FR-024), through
      Casso's external-change handling, which spec 041 reworks (FR-106). The
      confirmation note and the description of two outcomes are gone; Casso's
-     inspector shows which file the drive holds afterward, Explorer's
+     inspector shows which file the drive has afterward, Explorer's
      inspector shows Casso's reply when it is anything other than a reload
      (FR-105), and Assumptions assigns any inconsistency in that handling to
      Casso's external-change handling (FR-001, User Story 9, Edge Cases,
@@ -146,7 +146,7 @@
   success criterion added or removed, so no renumbering was needed; every
   cross-reference was checked by script afterward. The quarter-track finding
   now exempts every layout the shared writer accepts, including Casso's own
-  and a track the guest formats where the file held none (FR-048, FR-118,
+  and a track the guest formats where the file had none (FR-048, FR-118,
   SC-013). "Recompute the checksum" turned off keeps the stored checksum
   nibble, and whether the sector then reads as good or bad depends on the new
   bytes, as the running XOR of 6-and-2 and 5-and-3 data gives (FR-098, User
@@ -170,7 +170,7 @@
   problem, not damage, so the image stays writable, its quarter tracks show
   what the drive reads there, and the guest can format the track; a record
   that claims bits or bytes while its start block or block count is zero, or
-  whose start block is below 3, is damage, because the file may hold its data
+  whose start block is below 3, is damage, because the file may have its data
   (FR-051, FR-053, Assumptions; owner-confirmed); 4-and-4 sectors are not
   editable (FR-096, FR-112, FR-124); "Save edited copy..." over an existing
   file the user confirms replacing uses the replacing commit (FR-116,
@@ -181,7 +181,7 @@
   were added to Edge Cases: a failed save, a save to a preserved copy, a pause
   while the drive writes or the head is inside an edited field, a guest write
   during the apply wait, redo after a guest write, quitting or changing the
-  machine with pending edits, and an Explorer edit of an image Casso holds. It
+  machine with pending edits, and an Explorer edit of an image Casso has. It
   was rechecked again in the owner's revision for the head limit, the empty
   tracks Casso keeps for the guest to format, writes of the `disk` command and
   Explorer to standard-layout, non-254-volume, incompletely decoded and
@@ -215,7 +215,7 @@
   file formats the feature inspects, which are its subject, not
   implementation choices. "Written for non-technical stakeholders" is checked
   on that basis: the readers are Apple II disk users, and the requirements
-  hold no class, file, thread or rendering detail. Assumptions give the class
+  contain no class, file, thread or rendering detail. Assumptions give the class
   names and threads of spec 041 and of today's sector writers where planning
   needs them, and nowhere else. Requirements on what Casso keeps and makes
   available to the inspector (FR-052, FR-053, FR-062, FR-063, FR-068, and the
@@ -237,7 +237,7 @@
   lists the additions from other tools, which of them are in the later
   release, the two later-release features of the spec's own, the shared sector
   writer and its effect on the `disk` command and Explorer, and what stays out
-  of scope. Delivery is two releases, each one merge: the first holds User
+  of scope. Delivery is two releases, each one merge: the first has User
   Stories 1 to 10, with the shared sector writer and the Pascal and CP/M
   readers, and the later one User Stories 11 to 16. Priorities give build
   order only (analyzer, views, Casso host, then the map with its Pascal and

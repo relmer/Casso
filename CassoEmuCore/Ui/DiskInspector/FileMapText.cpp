@@ -62,7 +62,7 @@ vector<std::wstring> FileMapText::GetFileColumns (const FileMap & map)
 //  FileMapText::BuildFileRows
 //
 //  Each file, deleted ones only when shown, or only those touching bad
-//  sectors; sorted by a column, numbers by value. A row's finding holds the
+//  sectors; sorted by a column, numbers by value. A row's finding has the
 //  file's index.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +177,7 @@ std::wstring FileMapText::FormatResult (SectorResult result)
 //
 //  FileMapText::FormatCell
 //
-//  A cell and the physical sector that holds it (FR-089): a DOS 3.3 logical
+//  A cell and the physical sector that contains it (FR-089): a DOS 3.3 logical
 //  sector, a block and the sectors of its halves, or a CP/M sector with its
 //  allocation block.
 //

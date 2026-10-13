@@ -69,7 +69,7 @@ Every command is reachable with Tab and the keys above (SC-011).
 |---|---|---|
 | Sectors | `<image> T17 sectors.bin` (track range: `T03-T05`) | 256 bytes per sector in the chosen order; missing sectors as zeros, listed before writing |
 | Track nibbles | `<image> T17.25 nibbles.bin` | One byte per framed nibble, one turn from the index |
-| Track bits | `<image> T17.25.woz` | WOZ 2.1 holding only that quarter track, as a bit or flux record, unchanged |
+| Track bits | `<image> T17.25.woz` | WOZ 2.1 with only that quarter track, as a bit or flux record, unchanged |
 
 Written through `DurableCommit` (`CreateNew`; `Replace` only after the user
 confirms). The image is never changed.

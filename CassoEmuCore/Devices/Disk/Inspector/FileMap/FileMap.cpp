@@ -24,7 +24,7 @@ static constexpr int  s_kStandardBlocks  = 280;
 //
 //  NotMapped
 //
-//  A map that holds only why the disk is not mapped, and each sector's
+//  A map that has only why the disk is not mapped, and each sector's
 //  result by track and physical sector (FR-094).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
 //
 //  FileMap::GetPhysical
 //
-//  A map that is not mapped holds its grid by physical sector already.
+//  A map that is not mapped has its grid by physical sector already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

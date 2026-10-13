@@ -156,7 +156,7 @@ void InspectorViewModel::SelectSector (int quarterTrack, int sectorIndex)
 //
 //  InspectorViewModel::SelectNibbles
 //
-//  The sector whose field holds the first nibble is selected with them.
+//  The sector whose field contains the first nibble is selected with them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -567,7 +567,7 @@ void InspectorViewModel::SelectFirstSector()
 //
 //  The strip and, when zoomed, the platter pan the least that puts the
 //  selection's start in view with a margin, keeping their zoom (FR-038). A
-//  strip whose part of the turn already holds the selection stays put, so on
+//  strip whose part of the turn already contains the selection stays put, so on
 //  a new track it keeps the same part of the turn.
 //
 ////////////////////////////////////////////////////////////////////////////////

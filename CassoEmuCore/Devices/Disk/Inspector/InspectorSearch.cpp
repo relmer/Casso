@@ -634,7 +634,7 @@ int InspectorGoTo::FindSector (const TrackAnalysis & track, GoToKind kind, int v
 //  InspectorGoTo::FindFile
 //
 //  A file of any mapped volume whose path matches without regard to case,
-//  and the physical sector that holds its first sector.
+//  and the physical sector that contains its first sector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

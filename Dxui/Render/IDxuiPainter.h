@@ -152,7 +152,7 @@ public:
 
     // Runs `draw` to render D3D11 content of its own into `rectPx`, between
     // the shapes drawn before this call, which it covers, and the shapes and
-    // text drawn after it, which cover it. The painter draws what it holds
+    // text drawn after it, which cover it. The painter draws its queued shapes
     // first; `draw` sets every pipeline state it uses and must leave the
     // render target, viewport and scissor for the painter to set again. Not
     // called where the painter has no render target to share, as in a popup;

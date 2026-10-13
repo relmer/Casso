@@ -329,7 +329,7 @@ static HRESULT ParseV2Track (
     blockCount = Read16LE (trkRecord + 2);
     bitCount   = Read32LE (trkRecord + 4);
 
-    // A record with no bits holds nothing: the all-zero record the format
+    // A record with no bits is empty: the all-zero record the format
     // gives an unused one, or an empty track. Its quarter tracks read as
     // nothing recorded and the image stays writable.
     BAIL_OUT_IF (bitCount == 0, S_OK);

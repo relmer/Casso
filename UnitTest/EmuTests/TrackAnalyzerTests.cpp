@@ -101,7 +101,7 @@ public:
         analysis = Analyze (builder);
         po       = NibblizationLayer::GetPoFileIndexForDosLogicalSector (analysis.sectors[1].dos33Logical);
 
-        Assert::AreEqual (7, analysis.sectors[1].dos33Logical, L"physical sector 1 holds DOS 3.3 logical sector 7");
+        Assert::AreEqual (7, analysis.sectors[1].dos33Logical, L"physical sector 1 has DOS 3.3 logical sector 7");
         Assert::AreEqual (17 * 8 + po / 2, analysis.sectors[1].prodosBlock);
         Assert::AreEqual (po % 2, analysis.sectors[1].prodosHalf);
     }

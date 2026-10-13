@@ -23,8 +23,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  through one parser, and how a track record a map points at loads (FR-053).
 //  An all-zero record is an empty track and leaves the image writable; a
 //  record that claims data at a location it misstates, or inside the header,
-//  or more data than its blocks hold, is damage; and a map entry from 160 to
-//  254 is damage to its quarter track.
+//  or more data than fits in its blocks, is damage; and a map entry from 160
+//  to 254 is damage to its quarter track.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,7 +232,7 @@ public:
         Assert::AreEqual (1, static_cast<int> (disk.GetDamagedTracks().size()));
         Assert::IsTrue (disk.GetDamagedTracks()[0].reason == reason);
         Assert::AreEqual (2, disk.GetDamagedTracks()[0].trkIndex);
-        Assert::IsTrue (disk.IsWriteProtected(), L"a damaged image is held read-only");
+        Assert::IsTrue (disk.IsWriteProtected(), L"a damaged image is write-protected");
         Assert::AreEqual (2, disk.GetMappedSlot (8), L"the damaged record stays mapped");
     }
 
@@ -367,7 +367,7 @@ public:
 
 
     //  A WOZ 1 file with two records: record 0 mapped at track 0, record 1
-    //  holding 100 bytes that no map entry points at.
+    //  with 100 bytes that no map entry points at.
     static vector<Byte> MakeWoz1()
     {
         static constexpr size_t  kRecord  = WozLoader::kV1TrackRecordSize;

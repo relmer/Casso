@@ -43,9 +43,9 @@ map entry of a damaged image stays as loaded, whatever its `DamageReason`.
 ## Image file problems (FR-051)
 
 Reported in Findings and the Image tab: checksum mismatch; INFO largest track
-smaller than the largest record; a count larger than its blocks hold; a META
-value outside the WOZ lists (`language`, `requires_ram`, `requires_machine`);
-an `image_date` not in RFC 3339; duplicate or out-of-order chunks; data past
-the last chunk; an unreferenced record; a map entry pointing at an all-zero
-record; a NIB track with no sync. Only the checksum mismatch, a record that
-cannot be read and an out-of-range map entry are called damaged.
+smaller than the largest record; a count larger than its blocks have room for; a
+META value outside the WOZ lists (`language`, `requires_ram`,
+`requires_machine`); an `image_date` not in RFC 3339; duplicate or out-of-order
+chunks; data past the last chunk; an unreferenced record; a map entry pointing
+at an all-zero record; a NIB track with no sync. Only the checksum mismatch, a
+record that cannot be read and an out-of-range map entry are called damaged.

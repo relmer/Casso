@@ -216,7 +216,7 @@ bool FileMapWriter::Step (int cell, std::set<int> & visited, ChainReason & outRe
 //
 //  FileMapWriter::AddFinding
 //
-//  A file system finding, placed at the physical sector that holds the cell
+//  A file system finding, placed at the physical sector that contains the cell
 //  (the first half of a block), its text whole in the detail.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -476,7 +476,7 @@ std::wstring FileMapWriter::DescribeReason (ChainReason reason)
         case ChainReason::OutsideVolume: text = L"which is outside the volume";       break;
         case ChainReason::BadSector:     text = L"which is bad";                      break;
         case ChainReason::MissingSector: text = L"which is missing";                  break;
-        case ChainReason::TooLong:       text = L"longer than the volume can hold";   break;
+        case ChainReason::TooLong:       text = L"longer than the volume";            break;
         default:                                                                      break;
     }
 

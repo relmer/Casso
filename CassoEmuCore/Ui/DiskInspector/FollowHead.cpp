@@ -30,8 +30,8 @@ int FollowHead::SetOn (bool isOn, int headQuarterTrack, int64_t nowMs)
 //
 //  FollowHead::Tick
 //
-//  A new track under the head starts the wait over; one held for the whole
-//  wait is selected once.
+//  A new track under the head starts the wait over; one that stays for the
+//  whole wait is selected once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

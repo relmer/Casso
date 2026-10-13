@@ -45,7 +45,7 @@ struct ExportProblem
 //  them through DurableCommit. Sectors: 256 decoded bytes each, a bad or
 //  unchecked sector as decoded and a missing one as zeros, each listed.
 //  Track nibbles: one byte per framed nibble, one turn from the index, with
-//  the random-bit regions listed. Track bits: a WOZ 2.1 file holding only
+//  the random-bit regions listed. Track bits: a WOZ 2.1 file with only
 //  that quarter track, its record unchanged. Pure.
 //
 ////////////////////////////////////////////////////////////////////////////////

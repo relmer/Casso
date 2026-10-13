@@ -2,7 +2,7 @@
 
 **Feature**: 040-disk-inspector | **Plan**: [plan.md](plan.md)
 
-How to prove each part works. Contracts and data model hold the details;
+How to prove each part works. Contracts and data model have the details;
 this page gives the commands and what to expect.
 
 ## 1. Prerequisites

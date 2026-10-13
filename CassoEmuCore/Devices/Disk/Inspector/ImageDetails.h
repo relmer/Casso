@@ -13,7 +13,7 @@
 //
 //  ImageDetails
 //
-//  What the image file itself holds, for the Image tab (FR-050): its format,
+//  What the image file itself has, for the Image tab (FR-050): its format,
 //  size and read-only attribute, and for a WOZ every INFO field, every META
 //  entry, the maps and record table as stored, and the problems the file has
 //  (FR-051). Built from a DiskCopy alone, so it describes the file as read.

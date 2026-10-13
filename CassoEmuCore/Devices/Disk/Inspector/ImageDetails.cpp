@@ -247,7 +247,7 @@ void ImageDetails::CheckChunks (const WozFileLayout & layout, vector<Finding> & 
 //
 //  ImageDetails::CheckRecords
 //
-//  A record that holds something but that no map refers to, and a map
+//  A record that has something but that no map refers to, and a map
 //  entry that points at a record whose fields are all zero (the form the
 //  format gives an unused record; not damage).
 //
@@ -295,7 +295,7 @@ void ImageDetails::CheckRecords (const WozFileLayout & layout, vector<Finding> &
     }
 
     //  A v1 file keeps no record fields to test, so its list is the records
-    //  the loader found holding bytes with no map entry.
+    //  the loader found with bytes and no map entry.
     for (r = 0; !layout.isV2 && r < layout.unreferenced.size(); r++)
     {
         AddProblem (inOut, FindingKind::UnreferencedRecord, layout.unreferenced[r].index, 0, "");

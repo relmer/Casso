@@ -198,7 +198,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  TrackStripView::PaintCells
 //
-//  Under the values, a band holding each cell in view: its 1 or 0 with a
+//  Under the values, a band with each cell in view: its 1 or 0 with a
 //  pulse over each 1, and on a flux track its own timing once that fits
 //  (FR-035).
 //

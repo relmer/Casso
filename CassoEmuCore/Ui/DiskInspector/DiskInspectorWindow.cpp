@@ -2340,7 +2340,7 @@ void DiskInspectorWindow::OpenExport()
         list += note + L"\n";
     }
 
-    isGoingOn = list.empty() || DxuiMessageBox (GetHwnd(), m_theme, (L"The export will hold these as noted:\n\n" + list + L"\nExport anyway?").c_str(),
+    isGoingOn = list.empty() || DxuiMessageBox (GetHwnd(), m_theme, (L"The export will include these as noted:\n\n" + list + L"\nExport anyway?").c_str(),
                                                 L"Export", MB_OKCANCEL | MB_ICONWARNING) == IDOK;
     BAIL_OUT_IF (!isGoingOn, S_OK);
 
@@ -2498,7 +2498,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
     if (tip.empty() && m_modeTabs->IsVisible() && IsInside (modes, pointPx))
     {
-        tip         = (pointPx.x < (modes.left + modes.right) / 2) ? L"Color the platter by what each cell holds" : L"Color flux tracks by how fast or slow each cell runs";
+        tip         = (pointPx.x < (modes.left + modes.right) / 2) ? L"Color the platter by what each cell contains" : L"Color flux tracks by how fast or slow each cell runs";
         outAnchorPx = modes;
     }
 
@@ -2605,7 +2605,7 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
 
 void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    static constexpr LPCWSTR  kpszNote = L"Casso does not analyze 3.5\" disks. The Image tab shows what the file holds.";
+    static constexpr LPCWSTR  kpszNote = L"Casso does not analyze 3.5\" disks. The Image tab lists what the file contains.";
 
 
 
@@ -2839,7 +2839,7 @@ void DiskInspectorWindow::ChooseFile (int file)
 //
 //  DiskInspectorWindow::SelectMapCell
 //
-//  The physical sector that holds a cell, or the first half of a block, on
+//  The physical sector that contains a cell, or the first half of a block, on
 //  its whole track, from the first field with that number and an address
 //  field that reads (FR-090).
 //

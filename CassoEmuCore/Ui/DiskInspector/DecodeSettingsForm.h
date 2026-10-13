@@ -12,7 +12,7 @@
 //
 //  DecodeSettingsForm
 //
-//  What the "Decode settings" dialog holds, as text and switches, and the
+//  What the "Decode settings" dialog has, as text and switches, and the
 //  decode range it makes (FR-019): a track range, the five marks with ?? for
 //  any byte and an empty field for none, whether the standard marks are
 //  matched too, and the three checks. Kept apart from the dialog so the

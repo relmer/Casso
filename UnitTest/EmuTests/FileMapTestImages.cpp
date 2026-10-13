@@ -288,7 +288,7 @@ vector<Byte> FileMapTestImages::MakeProDos()
     //  GONE: deleted, its seedling in block 19 free again.
     setEntry (entry (key, 5), 0x0, "GONE", 0x04, 19, 1, 50);
 
-    //  DIR1 at block 20 holds DIR2 at block 21, which holds DEEP in block 22.
+    //  DIR1 at block 20 has DIR2 at block 21, which has DEEP in block 22.
     setEntry (entry (key, 6), 0xD, "DIR1", 0x0F, 20, 1, 512);
     setHeader (GetBlock (image, 20), 0xE, "DIR1", 1);
     setEntry (entry (GetBlock (image, 20), 1), 0xD, "DIR2", 0x0F, 21, 1, 512);

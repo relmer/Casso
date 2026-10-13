@@ -44,12 +44,12 @@ public:
 
     HistogramScope  GetScope () const { return m_scope; }
 
-    //  The histogram's bins that hold any transitions and their counts,
+    //  The histogram's bins that have any transitions and their counts,
     //  tab-separated, for Copy (FR-057).
     std::wstring    GetHistogramText () const;
 
     //  The clusters of a histogram worth a count over them: each bin that
-    //  is the most in its neighborhood and holds a tenth of the peak.
+    //  is the most in its neighborhood and has a tenth of the peak.
     static vector<int>  FindPeaks (const FluxHistogram & histogram);
 
 private:

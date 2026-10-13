@@ -30,7 +30,7 @@ public:
     static constexpr int  kTextSector = 5;
     static constexpr int  kTextOffset = 0x20;
 
-    //  Sector 5 holds "HELLO" in high-bit ASCII at $20; the rest the pattern.
+    //  Sector 5 has "HELLO" in high-bit ASCII at $20; the rest the pattern.
     static void FillWithText (int sector, std::array<Byte, DiskFieldFormat::kSectorBytes> & bytes)
     {
         InspectorTrackBuilder::FillPattern (sector, bytes);

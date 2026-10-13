@@ -360,8 +360,8 @@ public:
 
 
 
-        //  The DSK holds, at each track's DOS order position, what the WOZ's
-        //  standard track holds in the physical sector there.
+        //  The DSK has, at each track's DOS order position, what the WOZ's
+        //  standard track has in the physical sector there.
         for (int t = 0; t < 35; t++)
         {
             for (int p = 0; p < 16; p++)

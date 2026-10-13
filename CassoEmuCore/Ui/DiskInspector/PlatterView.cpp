@@ -939,7 +939,7 @@ bool PlatterView::IsBandVisible (const PlatterPlacement & view, double r0, doubl
 //
 //  The "Differences" overlay (FR-121): where each difference lies on A's
 //  ring, across the whole track for a whole track as the Files overlay
-//  marks it; a track only one disk holds, or a volume number that differs,
+//  marks it; a track only one disk has, or a volume number that differs,
 //  marks its whole ring.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,7 @@ std::wstring FindingFormatter::FormatDamageReason (DamageReason reason)
     switch (reason)
     {
         case DamageReason::OutsideFile:           text = L"its data lies outside the file";                                   break;
-        case DamageReason::CountExceedsBlocks:    text = L"its bit or byte count needs more than its blocks hold";            break;
+        case DamageReason::CountExceedsBlocks:    text = L"its bit or byte count is more than its blocks have room for";      break;
         case DamageReason::TruncatedRun:          text = L"its flux data ends inside a run of 255s";                          break;
         case DamageReason::V1RecordPastTrks:      text = L"the record is past the end of the TRKS chunk";                     break;
         case DamageReason::RecordLocationMissing: text = L"it claims data but gives a start block or block count of zero";    break;
@@ -147,7 +147,7 @@ std::wstring FindingFormatter::FormatFieldFinding (const Finding & finding)
             break;
 
         case FindingKind::NibblesOutsideTable:
-            text = std::format (L"{}data field holds nibbles outside the {} table:", sector, table);
+            text = std::format (L"{}data field has nibbles outside the {} table:", sector, table);
 
             for (const InvalidNibbleCount & n : finding.nibbles)
             {
@@ -259,11 +259,11 @@ std::wstring FindingFormatter::FormatImageFinding (const Finding & finding)
         case FindingKind::ChecksumMismatch:     text = L"The file's checksum does not match its contents; the file is damaged";                                       break;
         case FindingKind::LargestTrackTooSmall: text = std::format (L"INFO gives a largest track of {} blocks, but a track record takes {}", finding.value, finding.value2); break;
         case FindingKind::ImageDateNotRfc3339:  text = L"META image_date \"" + TextEncoding::Utf8ToWide (finding.detail) + L"\" is not an RFC 3339 date";                               break;
-        case FindingKind::DuplicateChunk:       text = L"The file holds more than one " + TextEncoding::Utf8ToWide (finding.detail) + L" chunk";                                          break;
+        case FindingKind::DuplicateChunk:       text = L"The file has more than one " + TextEncoding::Utf8ToWide (finding.detail) + L" chunk";                                            break;
         case FindingKind::ChunkOutOfOrder:      text = L"The " + TextEncoding::Utf8ToWide (finding.detail) + L" chunk is out of order";                                                   break;
-        case FindingKind::DataPastLastChunk:    text = L"The file holds data past its last chunk";                                                                     break;
+        case FindingKind::DataPastLastChunk:    text = L"The file has data past its last chunk";                                                                       break;
         case FindingKind::UnreferencedRecord:   text = std::format (L"Track record {} is not read by any quarter track", finding.value);                                 break;
-        case FindingKind::NibTrackWithoutSync:  text = L"Track holds no sync nibbles";                                                                                 break;
+        case FindingKind::NibTrackWithoutSync:  text = L"Track has no sync nibbles";                                                                                   break;
 
         case FindingKind::MetaValueOutsideList:
             text = L"META " + TextEncoding::Utf8ToWide (finding.detail.substr (0, tab)) + L" is \"" + TextEncoding::Utf8ToWide (tab == std::string::npos ? std::string() : finding.detail.substr (tab + 1))

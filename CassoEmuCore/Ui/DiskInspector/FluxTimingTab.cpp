@@ -304,7 +304,7 @@ void FluxTimingTab::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //
 //  FluxTimingTab::PaintScope
 //
-//  The histogram's two scopes as tabs, and the count it holds.
+//  The histogram's two scopes as tabs, and the count it has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

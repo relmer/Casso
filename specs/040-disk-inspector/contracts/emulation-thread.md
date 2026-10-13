@@ -18,7 +18,7 @@ std::shared_ptr<const InspectorDriveStatus> InspectorStatusPublisher::Take() con
 
 - Published at the end of `RunCpuThreadFrame`, swapped under a leaf mutex;
   `Take` works from any thread and never returns null.
-- Holds a `DriveHeadState` for drive 1 and drive 2 of slot 6
+- Has a `DriveHeadState` for drive 1 and drive 2 of slot 6
   (data-model.md, section 5), and `hasController`.
 - Write and visit counts are included only when `countsGeneration` changes.
 - When 041's `DriveStatus` is on master, these fields move into its
@@ -38,7 +38,7 @@ Same rule as 035's FR-161; built once, by whichever spec merges first.
 
 Posted with `InspectorRequestQueue::Post`, drained at the end of each service
 pass; replies land in a mailbox the window takes once per window frame. Every
-request holds the drive's `mediaId`; a mismatch gets the reply `DiskChanged`
+request has the drive's `mediaId`; a mismatch gets the reply `DiskChanged`
 and does nothing.
 
 | Request | Effect | Reply |
@@ -52,7 +52,7 @@ and does nothing.
 
 ## Safe point
 
-All must hold, checked at the end of a service pass:
+All must be true, checked at the end of a service pass:
 
 - the drive is not turning, or
 - no write latch since the last pass, Q7 off, no open flux write burst, and
@@ -64,7 +64,7 @@ record the apply changes, while it waits, ends the wait with `WaitEnded`.
 
 Once 035 is on master: Apply, Undo and Redo are state-changing for its
 divergence gate and get the reply `NotApplied` while history replays or flushes
-are held.
+are suspended.
 
 ## As-inserted copies
 

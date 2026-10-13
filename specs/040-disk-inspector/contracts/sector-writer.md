@@ -61,8 +61,8 @@ line, then complete sentences. Wording goes to the owner for approval before
 it ships.
 
 ```text
-Error: quarter track holds its own record
-       Quarter track 2.5 maps to track record 41, which holds data of its own
+Error: quarter track has its own record
+       Quarter track 2.5 maps to track record 41, which has data of its own
        between whole tracks. Writes to this image would change what that
        quarter track reads, so the image was left unchanged.
 
@@ -75,6 +75,6 @@ Error: track does not decode completely
 ## Saving
 
 Every save of a changed image goes through `DurableCommit::Commit`
-(`Replace`, or `CreateNew` for a new file): the file holds the old contents or
+(`Replace`, or `CreateNew` for a new file): the file has the old contents or
 the new ones whole. A failure at any step leaves the file as it was, and the
 caller reports the step and the reason.

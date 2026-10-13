@@ -149,7 +149,7 @@ DiskComparison DiskComparer::Compare (const DiskAnalysis & a, const DiskAnalysis
 //
 //  DiskComparer::IsStandardLayout
 //
-//  A quarter track that holds nothing, or the record its disk holds at the
+//  A quarter track with nothing, or the record its disk has at the
 //  whole track below or above (FR-118).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +174,7 @@ bool DiskComparer::IsStandardLayout (const DiskAnalysis & disk, int quarterTrack
 //
 //  DiskComparer::CompareTrack
 //
-//  The strongest verdict that holds, and the differences at that level: none
+//  The strongest verdict that applies, and the differences at that level: none
 //  for the same cells but the timing runs that differ, the sync and zero
 //  cell hunks for the same nibbles, the sectors for sectors that differ, and
 //  every hunk where neither side has standard sectors. A volume number that
@@ -606,7 +606,7 @@ void DiskComparer::ListTiming (const TrackAnalysis & a, const TrackAnalysis & b,
 //  DiskComparer::Align
 //
 //  On the first address field in A's passing order whose sector B also
-//  holds; with none, the offset most shared 8-nibble runs propose.
+//  has; with none, the offset most shared 8-nibble runs propose.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -821,8 +821,8 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
 
     if (mapA == nullptr || mapB == nullptr)
     {
-        inOut.fileNote = (mapA == nullptr) ? L"A holds no volume the file map reads, so its files are not compared"
-                                           : L"B holds no volume of A's file system, so their files are not compared";
+        inOut.fileNote = (mapA == nullptr) ? L"A has no volume the file map reads, so its files are not compared"
+                                           : L"B has no volume of A's file system, so their files are not compared";
     }
     else
     {
@@ -871,7 +871,7 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
                 {
                     pair.isSame  = false;
                     pair.outcome = DifferenceKind::FileNotCompared;
-                    pair.reason  = std::format (L"{} holds a bad or missing sector, or its chain is broken", isReadA ? L"B's copy" : L"A's copy");
+                    pair.reason  = std::format (L"{} has a bad or missing sector, or its chain is broken", isReadA ? L"B's copy" : L"A's copy");
                     inOut.differences.push_back ({ DifferenceKind::FileNotCompared, -1, -1, -1, 0, -1, 0, 0, 0, -1, false, fa.path, pair.reason });
                 }
                 else

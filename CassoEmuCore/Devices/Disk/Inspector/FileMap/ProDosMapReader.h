@@ -16,7 +16,7 @@
 //  key block in block 2, then every directory entry at any depth: seedling,
 //  sapling and tree files with the holes of a sparse file, both forks of a
 //  forked file under its extended key block, subdirectories and what they
-//  hold, and deleted entries; and the volume bitmap for what the volume
+//  contain, and deleted entries; and the volume bitmap for what the volume
 //  marks used. Every walk is bounded (FR-092).
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -189,7 +189,7 @@ void TrackExport::ExportNibbles (const TrackAnalysis & track, vector<Byte> & out
 //
 //  TrackExport::ExportTrackBits
 //
-//  The record exactly as Casso holds it, mapped at its quarter track alone:
+//  The record exactly as Casso has it, mapped at its quarter track alone:
 //  a bit track with its bit count, or a flux track with every interval.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,7 +271,7 @@ std::wstring TrackExport::GetBitsName (const std::wstring & image, int quarterTr
 //  TrackExport::FindSector
 //
 //  The sector at a position of the chosen order: by its number, by its DOS
-//  3.3 logical sector, or by the half of the ProDOS block it holds.
+//  3.3 logical sector, or by the half of the ProDOS block it has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -140,7 +140,7 @@ int SectorSource::GetDos33Physical (int logical)
 //
 //  SectorSource::GetBlockPhysical
 //
-//  The physical sector holding a half of a ProDOS block, which Pascal shares.
+//  The physical sector with a half of a ProDOS block, which Pascal shares.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

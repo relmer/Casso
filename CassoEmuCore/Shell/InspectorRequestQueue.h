@@ -44,7 +44,7 @@ public:
 //  InspectorRequest / InspectorReply
 //
 //  What the inspector window asks of the emulation thread, and what comes
-//  back (contracts/emulation-thread.md). A request holds the mediaId of the
+//  back (contracts/emulation-thread.md). A request has the mediaId of the
 //  disk it is about; a different disk in the drive gets DiskChanged and
 //  nothing is done. A mediaId of 0 means whatever disk is in the drive,
 //  which is how the window asks for its first copy.

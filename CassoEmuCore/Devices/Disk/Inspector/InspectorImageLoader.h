@@ -13,7 +13,7 @@
 //  InspectorImageLoader
 //
 //  An image file read into a copy the inspector can analyze, for a disk no
-//  drive holds: an image file compared with the window's disk, or a drive's
+//  drive has: an image file compared with the window's disk, or a drive's
 //  file as saved now (FR-117). Every format a drive mounts loads the same
 //  way it mounts, and a file that cannot be opened gives the reason a mount
 //  would. Each load gets a media id of its own, apart from the drives' ids.

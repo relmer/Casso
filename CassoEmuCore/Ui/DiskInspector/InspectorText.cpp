@@ -361,7 +361,7 @@ std::wstring InspectorText::FormatNoSectors (const QuarterTrackEntry & entry)
 //
 //  The Sector data header (FR-040): the sector, its address fields, both
 //  results and the encoding, and on a 16-sector track the DOS 3.3 sector and
-//  ProDOS block it holds under the standard skew.
+//  ProDOS block it has under the standard skew.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

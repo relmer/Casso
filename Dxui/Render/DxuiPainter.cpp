@@ -1225,7 +1225,7 @@ Error:
 //
 //  Flush
 //
-//  Draws the shapes held so far and empties the list, leaving the pass open.
+//  Draws the shapes queued so far and empties the list, leaving the pass open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,14 +2,14 @@
 //
 //  Each pixel's distance from the center gives a ring, track 0 at the rim,
 //  and its angle clockwise from 12 o'clock gives a position along the ring.
-//  Kinds holds every ring's cells, one byte each, followed by its coarser
-//  levels, all laid end to end across rows of kTextureWidth; Rings holds,
+//  Kinds has every ring's cells, one byte each, followed by its coarser
+//  levels, all laid end to end across rows of kTextureWidth; Rings has,
 //  per ring, the cell count, the ring's state and where each level starts.
 //  The level drawn is the finest one whose texels are each at least as long
-//  as the pixel's arc, so a pixel samples one texel holding the most
+//  as the pixel's arc, so a pixel samples one texel with the most
 //  important kind under it.
 //
-//  Timing holds each cell's deviation from the nominal cell, 128 at nominal
+//  Timing has each cell's deviation from the nominal cell, 128 at nominal
 //  and 1 and 255 at full scale, at the same texels as its kind.
 //
 //  Texture changes brightness alone, never a ring's color (FR-149): a grain

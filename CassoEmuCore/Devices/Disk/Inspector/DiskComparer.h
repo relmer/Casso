@@ -16,8 +16,8 @@
 //  Compares what the drive reads on two analyzed disks (FR-118 to FR-120):
 //  each whole track once, quarter tracks of the standard layouts set aside,
 //  every other quarter track against the same one on the other disk. A
-//  track's verdict is the strongest that holds; its differences are found
-//  after aligning B to A on the first address field both hold, or on the
+//  track's verdict is the strongest that applies; its differences are found
+//  after aligning B to A on the first address field both have, or on the
 //  rotation most 8-nibble runs agree on, with a Myers diff bounded at
 //  kMaxEdits so a sync run of another length marks only that run. Files of
 //  the volumes the map reads pair by path. Pure; neither disk changes.

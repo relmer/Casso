@@ -15,7 +15,7 @@
 //  FileMapText
 //
 //  The File map tab's words (FR-086 to FR-095): each role as its file
-//  system calls it, a cell's tooltip with the sector that holds it and each
+//  system calls it, a cell's tooltip with the sector that contains it and each
 //  owner's place ("HELLO, data sector 3 of 5"), the file list's rows and
 //  states, why a disk is not mapped, and "Copy map": a row per track, a
 //  letter per sector, and the key.

@@ -18,7 +18,7 @@ each item before the phase that relies on it.
 | `033-casso-explorer` `019af0c9a` | 137 of 150 tasks; 5 behind master, 270 ahead; T082 (merge master) open | ProDOS subdirectory reading; `DiskOperations::CommitEdit` with the `ReloadInPlace` intent; `CassoExplorerPrefs`; Light and Dark themes; the list verbs and context menus | A modeless second window (Explorer has none); an async preview (it is synchronous on the UI thread); an editable hex view (033's `DxuiHexView` is read-only) |
 | `035-debugger` `d3c15b55c` | US20 (disk breakpoints) is only on `035-disk-breakpoints-spec-2` `eae182ff5`; none of T712-T734 is built | The design of the three shared parts (T713 field formats and `??` matcher, T714 per-drive head, T715 write hook); the snapshot publish pattern (`DebugViewPublisher`, `PublishDebugSnapshot`) | `DiskTrackSnapshot`, `TouchTrack`, `GetTrackGeneration`, machine state, docking, `DebuggerThemes`: all 035-only, none on master |
 | `041-disk-integrity` `e32b2b68c` | One code commit (soft-reset flush); T001 of 68 (140 in its working copy) done; 197 behind master, built on 035 | The contracts of `DurableCommit`, `DriveStatus` / `DriveStatusPublisher`, `ThreadOwnership`, the head stop at 158, `ReserveBlankTracks` | Any of them in code: `git grep` finds none of them on the branch |
-| GH #170, #171, #172 | All open, no comments, **no fix on any branch, worktree or stash**; no live session holds them | Nothing yet | That a map-based track lookup or an in-place bit-track writer will exist before 040 builds its own |
+| GH #170, #171, #172 | All open, no comments, **no fix on any branch, worktree or stash**; no live session has them | Nothing yet | That a map-based track lookup or an in-place bit-track writer will exist before 040 builds its own |
 
 ## R1. Where the code lives
 
@@ -52,7 +52,7 @@ and a fourth core library adds build plumbing for no testability gain.
 
 **Decision**: The analyzer takes a `TrackCopy` per track record: the record's
 kind (bit or flux), its bits and bit count or its flux bytes, the record index,
-and the guest-write count when copied. A `DiskCopy` holds every record, the
+and the guest-write count when copied. A `DiskCopy` has every record, the
 quarter-track map, and the image details (R8). Both are `shared_ptr<const>`
 values; nothing in the analyzer touches a live `DiskImage`.
 
@@ -63,7 +63,7 @@ values; nothing in the analyzer touches a live `DiskImage`.
 change it, and 041 will assert on any window-thread read. The same type serves
 both hosts and every test.
 
-**Alternatives**: Analyze the live image under a lock. Rejected: it would hold
+**Alternatives**: Analyze the live image under a lock. Rejected: it would block
 the emulation thread for the whole analysis (SC-005) and conflicts with 041's
 ownership rule.
 
@@ -152,7 +152,7 @@ are private to the codec, 6-and-2 only, and 035 needs them from CassoCore.
 - **Per-drive head (035 T714, GH #135)**: 040 does not fix GH #135. The spec's
   edge cases give what the marker shows while it is open, and 035's US20
   specifies the fix. 040 reads each drive's engine for its own quarter track
-  (`Disk2NibbleEngine::GetCurrentTrack`), which is what Casso holds for that
+  (`Disk2NibbleEngine::GetCurrentTrack`), which is what Casso has for that
   drive today. If 035's T714 lands first, 040 reads `GetQuarterTrack (drive)`
   instead; the drive record (R11) hides the difference.
 - **Write hook (035 T715, FR-161)**: 040 builds the hook if it merges first,
@@ -205,7 +205,7 @@ latch), and covers every use the spec has for it: re-analysis (FR-069), marks
   cleaned, creator, sides, boot sector format, optimal bit timing, compatible
   hardware, required RAM, largest track, flux block, largest flux track).
   Filled by one parser, `static void WozLoader::ReadInfo (const std::vector<Byte> &, WozInfo &)`.
-  `WozLoader::Description` holds a `WozInfo` that `Describe` fills through
+  `WozLoader::Description` has a `WozInfo` that `Describe` fills through
   `ReadInfo`, and `WozCompatibility::ReadRequirements` reads from it with its
   signature unchanged. The sides offset becomes public
   (`kInfoOffsetDiskSides = 37`) and the file-static `kInfoDiskSidesOff` goes.
@@ -313,7 +313,7 @@ Requests:
 | `UndoApply` / `RedoApply` | Same, with the stored records | Result |
 | `Export (drive, quarter track)` | Copy one record | The copy |
 
-Each request holds the drive's `mediaId`; a request for a disk that has
+Each request has the drive's `mediaId`; a request for a disk that has
 since changed gets the reply "disk changed" and does nothing.
 
 This follows 041's rule that disk state changes only on its owner. The posted
@@ -399,7 +399,7 @@ inspector agree on every field's place by construction.
 - **NIB, NB2**: the same as a bit track; their nibbles have no extra zero
   cells, so the field changes in whole nibbles in place.
 - **DSK, DO, PO**: through `DiskImage`, the same bit-track write on the built
-  track; `Serialize` denibblizes it, so the file holds the logical sector's new
+  track; `Serialize` denibblizes it, so the file has the logical sector's new
   bytes. Through `VolumeImage` (the `disk` command), the flat buffer is already
   the file, and the writer is not involved.
 - **Map lookup**: `DiskImage::ResolveWholeTrack (N)` returns
@@ -494,7 +494,7 @@ decision recorded by 041, 2026-10-08).
 **Decision**: Each inspector window owns one `BackgroundWorkQueue`
 (`CassoEmuCore/Shell/BackgroundWorkQueue.h`) for analysis. Work items are per
 record, newest wins per record (a pending analysis of record 7 is replaced by
-a newer copy of record 7), and each result holds the `mediaId` and the copy's
+a newer copy of record 7), and each result has the `mediaId` and the copy's
 write count, so a result for a disk or a record state that is gone is dropped.
 The window shows "Analyzing" for records not yet done (FR-021). Explorer's
 preview uses one shared queue that keeps only the last selection.
@@ -510,8 +510,8 @@ small pool, since they are independent.
 
 **Decision**: The platter is drawn on the GPU by a polar-mapping pixel shader:
 each pixel's radius and angle select a ring and a position along it, which
-index a texture holding one byte per cell (its kind) and, for Timing mode, a
-second texture holding each cell's deviation. A palette constant buffer maps
+index a texture with one byte per cell (its kind) and, for Timing mode, a
+second texture with each cell's deviation. A palette constant buffer maps
 kinds to the theme's colors. Rings longer than the device's texture width wrap
 onto several texture rows. Text and marks (nibble values, cell ticks, the
 selection outline, the head marker, overlays) are drawn by the Dxui painter
@@ -539,7 +539,7 @@ at the current zoom; that path is measured against SC-004 the same way.
 level-of-detail problem; a shader samples exactly the cells under each pixel
 at every zoom with no tessellation, so frame time does not depend on zoom.
 
-**Spike result (2026-10-09)**: The shader path holds, so the CPU fallback is
+**Spike result (2026-10-09)**: The shader path works, so the CPU fallback is
 not needed. The hook is `IDxuiPainter::DrawCustom`, used through the
 `DxuiCustomVisual` control. It flushes the shapes painted so far, then runs
 the custom draw, and the shapes and text painted after it cover the result.
@@ -551,7 +551,7 @@ before.
 
 `PlatterRenderer` lays every distinct record's cells and their priority-max
 levels end to end in one R8_UINT texture, 4096 texels wide. A per-ring table
-holds each ring's cell count, state and level starts.
+has each ring's cell count, state and level starts.
 
 `PlatterRendererTests` measured it on the development machine's GPU with GPU
 timestamps:
@@ -705,7 +705,7 @@ code is used.
 
 **Decision**:
 
-- **Alignment**: on the first address field both tracks hold (by sector and
+- **Alignment**: on the first address field both tracks have (by sector and
   encoding); with none, by the rotation at which the most cells match, found
   by voting over shared 8-nibble sequences (each match proposes an offset), then
   checked at the cell level. This is linear in track length, where trying every
@@ -769,10 +769,10 @@ first release:
   (FR-124).
 - The analyzer's per-track decoders are a list of `ITrackFormatDecoder`, with
   the 16-sector and 13-sector decoders as its first two members (FR-141).
-- A `TrackCopy` holds one revolution, inside a `TrackCaptures` holding a list
+- A `TrackCopy` has one revolution, inside a `TrackCaptures` with a list
   of them, so A2R's several revolutions (FR-137) fit without a type change.
 - The Nibbles tab's lane list has one lane, so the slipped framing (FR-128)
   adds a second.
-- Findings hold a category enum with a reserved `Protection` value.
+- Findings have a category enum with a reserved `Protection` value.
 - "Compare with..." takes a source list in which quarter tracks of the same
   disk can be a source (FR-145).

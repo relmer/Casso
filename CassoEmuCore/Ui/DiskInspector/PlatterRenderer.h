@@ -46,7 +46,7 @@ struct PlatterPlacement
 //  PlatterRenderer
 //
 //  Draws the platter on the GPU through a Dxui custom draw (R19). Each ring
-//  holds its cells and their coarser levels (PlatterCells); rings that play
+//  has its cells and their coarser levels (PlatterCells); rings that play
 //  the same record share one copy. Changes are uploaded at the next draw.
 //
 ////////////////////////////////////////////////////////////////////////////////

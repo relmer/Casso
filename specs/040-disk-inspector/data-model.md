@@ -23,7 +23,7 @@ Every INFO field of the file's version, each later-version field with a
 
 ### WozFileLayout (in `WozMetadata.h`)
 
-What the file holds, as read (FR-052).
+What the file has, as read (FR-052).
 
 - `tmap[160]`, `flux[160]`: the maps as stored; `hasFluxMap`.
 - `records`: one `TrackRecordFields` per TRKS entry: v2 `startBlock`,
@@ -85,7 +85,7 @@ table, damaged record).
 
 - `TrackCopy`: slot, kind (bits, flux), bits and bit count or flux bytes,
   `guestWriteCount` at copy time. Immutable, shared. Later release:
-  `TrackCaptures` holds several (R30).
+  `TrackCaptures` has several (R30).
 - `DiskCopy`: `mediaId`, format, the quarter-track map, a `TrackCopy` per
   record (shared pointers, so unchanged records are shared between copies),
   `ImageDetails`, the write-protect causes.

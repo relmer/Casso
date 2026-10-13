@@ -93,7 +93,7 @@ void ShellInspectorHost::PublishStatus()
 //
 //  ShellInspectorHost::GetImage
 //
-//  The disk in a slot 6 drive, as the CPU thread holds it, with its file's
+//  The disk in a slot 6 drive, as the CPU thread has it, with its file's
 //  size and read-only attribute for the Image tab (FR-050); both are left at
 //  zero and clear when the file cannot be read. The file is looked at once
 //  per disk, not on every frame the head state is published.

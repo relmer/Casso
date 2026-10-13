@@ -151,8 +151,8 @@ struct FileMap
     int  GetTrack  (int cell) const { return cell / cellsPerTrack; }
     int  GetColumn (int cell) const { return cell % cellsPerTrack; }
 
-    //  The physical sector that holds a cell, or a half of a block; and the
-    //  cell a physical sector holds, with which half of a block it is, or -1.
+    //  The physical sector that contains a cell, or a half of a block; and the
+    //  cell a physical sector has, with which half of a block it is, or -1.
     int  GetPhysical (int cell, int half = 0) const;
     int  GetCellOf   (int track, int physical, int & outHalf) const;
 
@@ -169,7 +169,7 @@ struct FileMap
 //
 //  FileMapBuilder
 //
-//  Every volume a disk holds (FR-084, FR-085), each mapped from the sectors
+//  Every volume a disk has (FR-084, FR-085), each mapped from the sectors
 //  the analysis decoded, never decoding a track again (FR-083); or one map
 //  that only says why the disk is not mapped (FR-094) and gives each
 //  sector's result by track and physical sector. Pure.

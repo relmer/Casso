@@ -197,7 +197,7 @@ uint32_t PlatterGeometry::GetCellAtTurn (const TrackAnalysis & track, double tur
 //
 //  PlatterGeometry::GetFieldAt
 //
-//  The field whose cells hold the given one, from its prologue to the end
+//  The field whose cells contain the given one, from its prologue to the end
 //  of its epilogue, or -1 between fields.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +228,7 @@ int PlatterGeometry::GetFieldAt (const TrackAnalysis & track, uint32_t cell)
 //
 //  PlatterGeometry::GetSectorAt
 //
-//  The sector one of whose fields holds the cell: that sector, not the
+//  The sector one of whose fields contains the cell: that sector, not the
 //  first with the same number.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +260,7 @@ int PlatterGeometry::GetSectorAt (const TrackAnalysis & track, uint32_t cell)
 //
 //  PlatterGeometry::GetNibbleAt
 //
-//  The nibble whose cells hold the given one: the last that starts at or
+//  The nibble whose cells contain the given one: the last that starts at or
 //  before it, or the last nibble of the track for the cells before the first.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,7 +349,7 @@ void PlatterGeometry::GetVisibleRings (const PlatterPlacement & view, const RECT
 //
 //  PlatterGeometry::GetVisibleTurns
 //
-//  A rectangle that holds the center shows the whole turn; one that does not
+//  A rectangle that contains the center shows the whole turn; one that does not
 //  spans less than half a turn, between the angles of two of its corners.
 //
 ////////////////////////////////////////////////////////////////////////////////

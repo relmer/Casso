@@ -42,7 +42,7 @@ enum class TrackKind
 enum class DamageReason
 {
     OutsideFile,           // the track's blocks lie outside the file
-    CountExceedsBlocks,    // its bit or byte count needs more than its blocks hold
+    CountExceedsBlocks,    // its bit or byte count is more than its blocks have room for
     TruncatedRun,          // flux data ending in a 255 with nothing to end the run
     V1RecordPastTrks,      // a WOZ 1 track record past the end of TRKS
     RecordLocationMissing, // a count above zero with a start block or block count of zero

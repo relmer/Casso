@@ -300,7 +300,7 @@ void TrackAnalyzer::BuildSectors (TrackAnalysis & inOut, const DecodeChecks & ch
 //  TrackAnalyzer::MapLogical
 //
 //  On a 16-sector track, the DOS 3.3 logical sector and the ProDOS block and
-//  half the physical sector holds under the standard skew.
+//  half the physical sector has under the standard skew.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

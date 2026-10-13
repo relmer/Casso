@@ -555,7 +555,7 @@ vector<std::wstring> InspectorTables::GetImageColumns()
 //  The Image tab (FR-050): the file, then for a WOZ its checksum, INFO,
 //  META, maps, records, records no map refers to and chunks, and for a
 //  sector image its order; then the file's problems (FR-051). A section
-//  starts with a row holding only its title.
+//  starts with a row with only its title.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -695,7 +695,7 @@ void InspectorTables::AddMetaRows (vector<TableRow> & inOut, const WozFileLayout
 //
 //  InspectorTables::AddMapRows
 //
-//  A map as the file holds it, each run of quarter tracks with the same
+//  A map as the file has it, each run of quarter tracks with the same
 //  entry on one row.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -728,7 +728,7 @@ void InspectorTables::AddMapRows (vector<TableRow> & inOut, LPCWSTR title, const
 //
 //  InspectorTables::AddRecordRows
 //
-//  Each record the file holds, in the fields its version stores, and then
+//  Each record the file has, in the fields its version stores, and then
 //  the records no map refers to. A v2 record with every field zero is an
 //  unused slot, not a record, and is left out.
 //

@@ -41,7 +41,7 @@ public:
     static PlatterHit  HitTest           (const PlatterPlacement & view, POINT pointPx);
 
     //  The rings and the stretch of the turn a view shows: every ring the
-    //  rectangle reaches, and when it does not hold the center, the turns
+    //  rectangle reaches, and when it does not contain the center, the turns
     //  between its corners, as data turns that may run past 1.
     static void        GetVisibleRings   (const PlatterPlacement & view, const RECT & boundsPx, int & outFirst, int & outLast);
     static bool        GetVisibleTurns   (const PlatterPlacement & view, const RECT & boundsPx, double & outStart, double & outEnd);

@@ -191,7 +191,7 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
     if (isB)
     {
         grid.top += rows * rowH + rowH * 0.5f;
-        text.DrawString (!bytesB.empty() ? L"B" : L"B holds no sector to pair with this one", left, grid.top, GetWidth(), rowH, theme.HeadingForeground(),
+        text.DrawString (!bytesB.empty() ? L"B" : L"B has no sector to pair with this one", left, grid.top, GetWidth(), rowH, theme.HeadingForeground(),
                          m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
         grid.top += rowH;
 

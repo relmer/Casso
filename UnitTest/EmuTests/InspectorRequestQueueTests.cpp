@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Copy requests from the inspector window to the emulation thread
 //  (contracts/emulation-thread.md): answered in order at Drain, a reply for
-//  each, DiskChanged when the drive holds another disk, and one wake-up per
+//  each, DiskChanged when the drive has another disk, and one wake-up per
 //  Drain that answered something.
 //
 ////////////////////////////////////////////////////////////////////////////////

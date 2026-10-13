@@ -20,7 +20,7 @@ using Pairs = ComparisonTestImages;
 //
 //  FakeComparisonHost
 //
-//  A host whose drives hold made-up disks: each request is kept, and the
+//  A host whose drives have made-up disks: each request is kept, and the
 //  test answers it with the drive's copy.
 //
 ////////////////////////////////////////////////////////////////////////////////

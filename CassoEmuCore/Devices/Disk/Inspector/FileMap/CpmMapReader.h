@@ -17,7 +17,7 @@
 //  its user and name with its extents' blocks in extent order, a block of 0
 //  a hole, and each 1 KB allocation block four CP/M sectors. The system
 //  entry of user 31, whose blocks lie on tracks 0 to 2, is the system area,
-//  not a file; a free entry that still holds a name and blocks is a deleted
+//  not a file; a free entry that still has a name and blocks is a deleted
 //  file. CP/M keeps no bitmap, so a sector no file owns is free.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +45,7 @@ public:
         std::array<Byte, 16>  blocks    = {};
     };
 
-    //  Whether track 3's directory holds a CP/M volume (FR-085): a valid
+    //  Whether track 3's directory contains a CP/M volume (FR-085): a valid
     //  entry in use and no invalid one, or more than four valid ones in use;
     //  a directory of free entries alone is an empty volume.
     static bool  IsFound (const SectorSource & source);

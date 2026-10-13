@@ -10,7 +10,7 @@
 //
 //  DiskInspectorColors
 //
-//  The disk inspector's colors, as packed ARGB, held by every DxuiTheme: one
+//  The disk inspector's colors, as packed ARGB, stored in every DxuiTheme: one
 //  per platter kind, sector state, map role, timing extreme, and mark the
 //  views draw. A zero color means the inspector uses its fallback for the
 //  surface, so a theme that sets none still draws. MakeDark and MakeLight are

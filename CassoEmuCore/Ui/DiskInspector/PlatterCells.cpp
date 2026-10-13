@@ -146,8 +146,8 @@ void PlatterCells::BuildCells (const TrackAnalysis & analysis, vector<Byte> & ou
 //
 //  PlatterCells::BuildLevels
 //
-//  Level 0 is the cells; each level after holds the larger of each pair in
-//  the one before, until a level holds one byte.
+//  Level 0 is the cells; each level after has the larger of each pair in
+//  the one before, until a level has one byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,7 +38,7 @@ fields with a good checksum, and data fields whose epilogue the guest reads.
 
 AppleEm's Disk Inspector (mikedaley/web-a2e and its core,
 mikedaley/applem-core, MIT license) draws the disk as a platter with one ring
-per quarter track, colored by what each stretch of a track holds, and unrolls
+per quarter track, colored by what each stretch of a track has, and unrolls
 the selected track as a strip with its sectors, their bytes and its nibbles.
 On flux tracks it colors each stretch by how much faster or slower than
 nominal its cells are, which is what *Bandits*' protection checks. This spec
@@ -50,13 +50,13 @@ AppleEm leaves unchecked, shows flux timing without rounding it to cells, and
 shows every error it finds on screen.
 
 Beyond AppleEm, the inspector maps DOS 3.3, ProDOS, Apple Pascal and CP/M
-files to the sectors that hold them, edits a sector's data in place without
+files to the sectors that contain them, edits a sector's data in place without
 rebuilding its track, and compares two disks, or one disk before and after the
 guest writes to it. The in-place writer the editor uses becomes the one way
 Casso's tools change an existing sector, so the `disk` command and Casso
 Explorer stop rebuilding the tracks they write. A later release of the same
 feature adds what disk preservation needs: identifying the copy protection,
-finding weak bits in flux captures that hold several revolutions, viewing a
+finding weak bits in flux captures that have several revolutions, viewing a
 track at another latch framing, decoding data fields with a disk's own
 translate table, decoding documented custom track formats such as RW18, and
 comparing two quarter tracks of one disk.
@@ -66,7 +66,7 @@ comparing two quarter tracks of one disk.
 ### Session 2026-10-08
 
 - Q: Does Casso's inspector show the disk in the drive or its file? → A: The
-  disk as the drive holds it in memory, unsaved guest writes included; Explorer's
+  disk as the drive has it in memory, unsaved guest writes included; Explorer's
   inspector shows the file (unchanged from Key Entities, FR-063, FR-069).
 - Q: When a state restore (035's history rewind, or loading a saved state)
   changes a drive's tracks without a guest write, what does the inspector do?
@@ -156,7 +156,7 @@ is 040's fix for GH #170: it moves the writers onto the shared writer, and
 makes the `disk` command's and Explorer's sector, block and file reads find
 each whole track through the image's map, as the writer does (FR-111).
 
-**Delivery.** The feature ships in two releases. The first release holds User
+**Delivery.** The feature ships in two releases. The first release has User
 Stories 1 to 10 and 17, everything except the preservation stories, and no story in
 it ships without the others. It includes the shared sector writer with the
 move of the `disk` command's and Explorer's writes onto it, the fix to flux
@@ -179,10 +179,10 @@ depend on it. The Explorer hosts, editing and comparing in Explorer, the move
 of Explorer's writes onto the shared sector writer, and ProDOS subdirectories
 in the map, which need 033's reading of subdirectories, are built last, after
 master is merged into 033 and 040 is rebased onto 033. 040 merges to master
-only after 033 is on master, so the first release's second merge holds 040's
+only after 033 is on master, so the first release's second merge has 040's
 work alone. The first merge does not depend on 033; Explorer's writes take the
 shared writer when 033 merges master. Spec 041 (disk integrity) moves the drive's head stop, keeps an empty
-track for the guest to format wherever a WOZ file holds none, makes saves
+track for the guest to format wherever a WOZ file has none, makes saves
 durable and publishes each drive's status; 041 is built on 035 and merges
 after it, and whichever of 040 and 041 merges second adapts to the other
 (Assumptions).
@@ -250,7 +250,7 @@ except the last four, which are in the later release:
   records and checksum (Applesauce, wozardry).
 - Find with wildcards, at any bit offset, in decoded sector data and for
   timing bits (Applesauce, Locksmith).
-- The DOS 3.3 logical sector and ProDOS block each physical sector holds
+- The DOS 3.3 logical sector and ProDOS block each physical sector has
   (Applesauce, Disk Fixer, CiderPress II).
 - The angle of each track's sector 0 and its write seam, and an overlay that
   lines them up across tracks, for track alignment (EDD, AppleWin).
@@ -317,7 +317,7 @@ documented custom track formats into sectors, starting with RW18 (User Story
 ### User Story 1 - See how a disk is recorded (Priority: P1)
 
 A user opens the inspector on a disk image and sees the whole disk drawn as a
-platter, one ring per quarter track, colored by what each stretch holds: sync,
+platter, one ring per quarter track, colored by what each stretch has: sync,
 address and data marks, address and data fields, failed checksums, other
 valid nibbles, noise and random-bit regions. Chips across the top summarize
 the disk. Selecting a track shows it unrolled as a strip, its sectors in the
@@ -344,7 +344,7 @@ the known contents of the image.
 2. **Given** a made-up 13-sector WOZ, **When** track 0 is selected, **Then**
    13 sectors are listed, each sector's 256 bytes are decoded from 5-and-3 and
    match the source, and each address and data checksum shows as good.
-3. **Given** a track holding both 13-sector and 16-sector fields, **When** it
+3. **Given** a track with both 13-sector and 16-sector fields, **When** it
    is analyzed, **Then** both kinds of sector are decoded, the track is
    classified "13 and 16 sector", and the format chip shows "13 and 16
    sector".
@@ -494,28 +494,28 @@ its known contents.
 4. **Given** a disk, **When** the user goes to sector $5 on track 17,
    **Then** that track and sector are selected and shown in every view.
 5. **Given** a DOS 3.3 disk, **When** the user goes to DOS 3.3 logical sector
-   $1 on track 17, **Then** the physical sector that holds it under the
+   $1 on track 17, **Then** the physical sector that contains it under the
    standard skew is selected, and the Sector data header shows logical sector
-   $1 and the ProDOS block and half that the sector holds.
+   $1 and the ProDOS block and half that the sector has.
 6. **Given** a disk, **When** the user searches the whole disk for D5 AA 96
    with "Any bit offset" on, **Then** the results list every match, including
    matches not aligned to the nibbles as framed.
 7. **Given** a disk, **When** the user searches decoded sector data for
-   20 00 BF, **Then** the results list every sector that holds those bytes,
+   20 00 BF, **Then** the results list every sector that contains those bytes,
    with the offset of each match.
 8. **Given** a range of nibbles selected with Shift+drag in the strip,
-   **When** the user copies, **Then** the clipboard holds them as hex text,
+   **When** the user copies, **Then** the clipboard has them as hex text,
    and the readout shows the range's length in nibbles and cells.
 9. **Given** the Nibbles tab, **When** the user clicks a nibble, **Then** the
    strip and the platter show that nibble.
 10. **Given** a made-up 16-sector disk with one bad sector on track 17 and a
     flux track, **When** the user exports track 17's sectors in DOS 3.3
     logical order, then track 17's nibbles, then the flux track's bits,
-    **Then** the sector file holds 4,096 bytes matching the source with the
+    **Then** the sector file has 4,096 bytes matching the source with the
     bad sector's decoded bytes in its place and the export reports that
-    sector as bad; the nibble file holds the track's framed nibbles, one byte
+    sector as bad; the nibble file has the track's framed nibbles, one byte
     each, from the index; the bit file reopens in the inspector as a WOZ
-    holding only that quarter track, with every cell time equal to the
+    with only that quarter track, with every cell time equal to the
     original's; and the image itself is unchanged.
 
 ---
@@ -523,7 +523,7 @@ its known contents.
 ### User Story 5 - Check the image file itself (Priority: P2)
 
 A user who suspects the image file rather than the disk opens the Image tab
-and sees what the file holds: its format and size, and for a WOZ every INFO
+and sees what the file has: its format and size, and for a WOZ every INFO
 field, every META entry, the quarter-track maps, each track record's location
 and length, its checksum result, and any damage found while loading it.
 
@@ -596,7 +596,7 @@ written tracks and the emulation speed.
    the window shows "No disk in drive 1"; **When** a disk is inserted,
    **Then** it is analyzed and shown.
 6. **Given** the platter zoomed in while the disk turns, **When** the drive
-   reads, **Then** the platter holds still and the head marker moves around
+   reads, **Then** the platter is stationary and the head marker moves around
    it instead.
 7. **Given** a write-protected disk in drive 1, **When** the guest writes to
    it, **Then** the head marker shows write blocked, the window
@@ -605,7 +605,7 @@ written tracks and the emulation speed.
 8. **Given** the disk has booted, **When** the Tracks tab is shown, **Then**
    each quarter track the drive read is marked with its number of visits, and
    the "Reads" overlay marks the same quarter tracks on the platter.
-9. **Given** a WOZ in drive 1 whose file holds no track record for track 20,
+9. **Given** a WOZ in drive 1 whose file has no track record for track 20,
    **When** the inspector shows the disk, **Then** track 20 shows "Nothing
    recorded" and the Image tab lists no record for it, although Casso keeps
    an empty track there for the guest to format; **When** the guest formats
@@ -676,7 +676,7 @@ file list and Findings with the layouts and the planted damage.
 
 **Acceptance Scenarios**:
 
-1. **Given** a standard DOS 3.3 disk holding files, **When** the File map tab
+1. **Given** a standard DOS 3.3 disk with files, **When** the File map tab
    is shown, **Then** tracks 0 to 2 show as boot and DOS image, track 17
    sector $0 as the VTOC, the catalog sectors as catalog, each file's
    track/sector list and data sectors as that file's, the rest as free, and
@@ -685,8 +685,8 @@ file list and Findings with the layouts and the planted damage.
    selected in the file list, **Then** its sectors are numbered in file order
    in the grid, each list followed by the data sectors it lists, and "Next
    sector in file" steps through them across tracks.
-3. **Given** a ProDOS disk with a tree file holding a sparse hole and a
-   subdirectory holding files, **When** the File map tab is shown, **Then**
+3. **Given** a ProDOS disk with a tree file with a sparse hole and a
+   subdirectory with files, **When** the File map tab is shown, **Then**
    the tree file's master index, index and data blocks, the subdirectory's
    blocks and the blocks of the files in it each show their owner, the hole
    shows at its place in the tree file's order, and Findings lists nothing.
@@ -719,15 +719,15 @@ file list and Findings with the layouts and the planted damage.
     built and every file's chain is followed, no file shows "Touches bad
     sectors", and Findings lists one finding for the disk: the map was built
     from sectors not checked.
-12. **Given** a disk that holds both a DOS 3.3 VTOC and a ProDOS volume
+12. **Given** a disk that has both a DOS 3.3 VTOC and a ProDOS volume
     directory, **When** the File map tab is shown, **Then** both volumes are
     mapped and the tab offers a choice between them.
-13. **Given** an Apple Pascal disk holding files with a gap between two of
+13. **Given** an Apple Pascal disk with files and a gap between two of
     them, **When** the File map tab is shown, **Then** blocks 0 and 1 show as
     boot blocks, blocks 2 to 5 as the directory, each file's run of blocks as
     that file's, the gap and the blocks after the last file as free, the file
     list gives each file's name, type and size, and Findings lists nothing.
-14. **Given** a CP/M disk holding a file of two extents, a file in user area
+14. **Given** a CP/M disk with a file of two extents, a file in user area
     5 and a deleted file, **When** the File map tab is shown, **Then** tracks
     0 to 2 show as the system area, the directory's blocks as the directory,
     each file's blocks as that file's in extent order, the file in user area 5
@@ -782,7 +782,7 @@ written change.
    the user changes two bytes of sector $5 on track 17 and applies, **Then**
    the sector decodes to the new bytes with a good data checksum, every cell
    of the track outside the data field's body and checksum is unchanged, the
-   track keeps its length, and the saved file holds the change.
+   track keeps its length, and the saved file has the change.
 2. **Given** a sector on a flux track, **When** it is edited and applied,
    **Then** the track is still a flux track, the time of one turn and every
    transition outside the data field are unchanged, and the sector decodes to
@@ -799,13 +799,13 @@ written change.
 5. **Given** a DSK, **When** the user edits a sector, **Then** "Recompute the
    checksum" is on and unavailable, its tooltip shows that sector images store
    only sector data, and once the edit is applied the file is saved as a DSK
-   holding the new bytes.
+   with the new bytes.
 6. **Given** a sector with no data field, or whose address checksum fails,
    **When** it is selected, **Then** "Edit sector" is unavailable and the
    Sector data tab shows why.
 7. **Given** a write-protected disk in drive 1, **When** the user edits a
    sector, **Then** "Apply" is unavailable, the window shows each cause, and
-   "Save edited copy..." writes a new file holding the edit while the disk in
+   "Save edited copy..." writes a new file with the edit while the disk in
    the drive and its file stay unchanged.
 8. **Given** a running machine with drive 1 turning, **When** the user
    confirms an apply, **Then** the window shows "Waiting for the drive to
@@ -835,7 +835,7 @@ written change.
     an edit in Explorer's inspector, **Then** the file is saved, Casso handles
     the change exactly as it handles Explorer writing the same bytes through
     its own file commands, Casso's inspector on drive 1 shows the file the
-    drive holds afterward, and when Casso's reply is anything other than a
+    drive has afterward, and when Casso's reply is anything other than a
     reload, Explorer's inspector shows it.
 14. **Given** a sector whose data field spans the end of the track, **When**
     it is edited and applied, **Then** it is written whole and decodes to the
@@ -890,7 +890,7 @@ drive with its file, or the file Casso saved with the file as it was loaded.
 Each whole track, and each quarter track outside the standard layouts, gets a
 verdict, from identical to different, and every difference is listed, marked
 on the platter and the strip, shown byte by byte in the sectors, and reached
-with "Next difference". When both disks hold a volume the file map reads
+with "Next difference". When both disks have a volume the file map reads
 (DOS 3.3, ProDOS, Apple Pascal or CP/M), their files are compared too.
 
 **Why this priority**: It runs the analyzer on both disks and compares files
@@ -904,7 +904,7 @@ every verdict and listed difference against what was planted.
 **Acceptance Scenarios**:
 
 1. **Given** two copies of one image, **When** they are compared, **Then**
-   every track that holds a record shows "Identical", every quarter track with
+   every track that has a record shows "Identical", every quarter track with
    nothing recorded on either side shows "Nothing recorded", and the
    Differences tab shows "No differences".
 2. **Given** a DSK and a WOZ in the standard layout of one made-up disk,
@@ -916,7 +916,7 @@ every verdict and listed difference against what was planted.
    disks are compared, **Then** track 17 shows "Sectors differ" with one
    sector, the Sector data tab marks the byte on both sides, and "Next
    difference" goes to it.
-4. **Given** B whose track 3 starts 90° later and holds four more sync nibbles
+4. **Given** B whose track 3 starts 90° later and has four more sync nibbles
    before sector $0, **When** the disks are compared, **Then** track 3 shows
    "Same nibbles" with a rotation of 90° and the length difference in cells,
    and, with the comparison options at their defaults, only the longer sync
@@ -945,7 +945,7 @@ every verdict and listed difference against what was planted.
 12. **Given** two copies of a disk whose address prologue is D4 AA 96, with
     the window's decode settings matching it, **When** they are compared,
     **Then** B is analyzed with the same decode settings and every track that
-    holds a record shows "Identical".
+    has a record shows "Identical".
 13. **Given** A and B that differ only in the volume number of every address
     field, **When** they are compared, **Then** every formatted track shows
     "Same sector data" and the Differences tab lists the volume numbers;
@@ -961,7 +961,7 @@ every verdict and listed difference against what was planted.
 
 A preservationist with a disk whose data fields use their own nibble
 translate table, such as one that swaps D5 and 9B, sees a finding that the
-data fields hold nibbles outside the standard table, chooses "Solve table",
+data fields have nibbles outside the standard table, chooses "Solve table",
 and gets the swap under which the checksums pass. The user can also paste a
 whole table, read one from the disk's own boot code, choose another encoding
 for a range of tracks, and save the settings to use on other disks of the
@@ -990,7 +990,7 @@ finding, "Solve table", a pasted table and the decoded bytes.
    sector decodes and passes.
 4. **Given** a table with a repeated entry, **When** it is entered, **Then**
    the decode settings show the repeated entry and do not accept the table.
-5. **Given** a disk whose boot code holds its table, **When** the user reads
+5. **Given** a disk whose boot code has its table, **When** the user reads
    the table from its track, sector and offset, **Then** the decode settings
    use it and the sectors decode.
 6. **Given** decode settings saved from one disk, **When** they are loaded
@@ -1015,7 +1015,7 @@ start framing at any cell.
 finding over the nibbles the analyzer already frames, and protection
 identification reports its finding, so it is built before that story.
 
-**Independent Test**: Build a made-up bit track holding D5 and E7 nibbles with
+**Independent Test**: Build a made-up bit track with D5 and E7 nibbles with
 0, 1 or 2 extra zero cells, laid out as an E7 stream, and a track with the
 same nibbles and no extra zero cells, and check the lane, the scan and Find
 against the expected slipped nibbles.
@@ -1049,7 +1049,7 @@ uses, with its evidence, a confidence, and what a copy must keep for the disk
 to work. The boot loader is identified from its boot sector when its family is
 in the pattern table, and "Trace boot" finds the disk's own read routine when
 the loader is encrypted. The Image tab lists the findings that the image's
-format cannot hold.
+format has no room for.
 
 **Why this priority**: It ships in the later release. It gathers the evidence
 of every other analysis except weak bits, including the translate table and
@@ -1090,11 +1090,11 @@ was planted.
 
 ### User Story 14 - Find weak bits in a flux capture (Priority: P13)
 
-A preservationist opens an A2R capture, which holds several revolutions of
+A preservationist opens an A2R capture, which has several revolutions of
 each track, and sees each quarter track's revolutions, a stability lane giving
-how many revolutions hold the same value at each cell, and a finding for each
+how many revolutions have the same value at each cell, and a finding for each
 region where they differ: weak bits, which read differently every time, or
-unstable cells, which worn media also produce. A WOZ holds one revolution, so
+unstable cells, which worn media also produce. A WOZ has one revolution, so
 for a WOZ the inspector shows the cleaned flag and where the drive reads
 random bits.
 
@@ -1103,7 +1103,7 @@ A2R captures, the largest new piece of that release, so it is built last, and
 it adds the weak-bit entry to the Protection category (FR-132).
 
 **Independent Test**: Write made-up A2R 2 and A2R 3 captures of a known
-DOS 3.3 track with seeded jitter, one holding a region that each revolution
+DOS 3.3 track with seeded jitter, one with a region that each revolution
 fills with different random transitions, and check the findings, the stability
 lane and how the revolutions were split.
 
@@ -1132,7 +1132,7 @@ lane and how the revolutions were split.
    **Then** the flag is shown with its meaning.
 9. **Given** an A2R capture, **When** the Image tab is shown, **Then** it
    lists the capture's version, its INFO fields, its resolution, its META
-   entries, whether it holds an SLVD chunk, and its chunks.
+   entries, whether it has an SLVD chunk, and its chunks.
 10. **Given** an A2R capture with a truncated chunk, **When** it is opened,
     **Then** Findings lists the truncated chunk.
 
@@ -1142,7 +1142,7 @@ lane and how the revolutions were split.
 
 A preservationist opens a disk whose tracks use a documented format of their
 own, such as RW18, which Roland Gustafsson wrote for Brøderbund and which
-*Prince of Persia* uses: six sectors of 768 bytes on each track, holding 18
+*Prince of Persia* uses: six sectors of 768 bytes on each track, with 18
 pages of 256 bytes. In the first release those tracks show as nonstandard.
 With the RW18 decoder, the inspector recognizes them, decodes each track into
 its 18 pages with each sector's checksum checked, and shows the pages in the
@@ -1168,7 +1168,7 @@ written and planted.
    byte for byte.
 2. **Given** an RW18 sector with one data nibble changed to another valid
    nibble, **When** its track is analyzed, **Then** the sector is marked bad
-   and Findings lists the sector once with the three pages it holds.
+   and Findings lists the sector once with the three pages it has.
 3. **Given** an RW18 sector with one nibble outside the table, **When** its
    track is analyzed, **Then** the Sector data tab marks the bytes that nibble
    affects and Findings lists it once.
@@ -1176,7 +1176,7 @@ written and planted.
    is analyzed, **Then** Findings lists that address field once at its place
    and does not list its sector as missing.
 5. **Given** an RW18 track with one sector missing, **When** it is analyzed,
-   **Then** Findings lists the missing sector and the pages it holds, and the
+   **Then** Findings lists the missing sector and the pages it has, and the
    other five sectors still decode.
 6. **Given** an RW18 address field whose track number differs from the
    physical track, **When** it is analyzed, **Then** the sector still decodes
@@ -1196,7 +1196,7 @@ written and planted.
 ### User Story 16 - Compare two quarter tracks of one disk (Priority: P11)
 
 A preservationist looking at a WOZ with a record on track 6.5 needs to know
-whether the half track holds data of its own, or is a weaker, off-center read
+whether the half track has data of its own, or is a weaker, off-center read
 of track 6 or track 7 saved when the disk was imaged. The user compares 6.5
 with the quarter tracks beside it and sees, with the same verdicts, strips and
 differences as a comparison of two disks, how much of it matches each
@@ -1209,21 +1209,21 @@ comparison of User Story 10, and protection identification (User Story 13)
 reports what it finds on adjacent quarter tracks, so it is built before that
 story.
 
-**Independent Test**: Build made-up WOZ images with a half track holding a
-noisy copy of its neighbor, a half track holding sectors of its own, and one
+**Independent Test**: Build made-up WOZ images with a half track with a
+noisy copy of its neighbor, a half track with sectors of its own, and one
 run of data written across three adjacent quarter tracks, and check the
 verdicts, the match shares and the repeated runs against what was planted.
 
 **Acceptance Scenarios**:
 
-1. **Given** a made-up WOZ whose record at track 6.5 holds track 6's nibbles
+1. **Given** a made-up WOZ whose record at track 6.5 has track 6's nibbles
    with noise over a tenth of them, **When** the user compares 6.5 with its
    neighbors, **Then** the window shows the share of 6.5's nibbles that match
    track 6, marks the noisy stretches as different, and shows 6.5 as likely a
    read of track 6.
-2. **Given** a made-up WOZ whose record at track 6.5 holds sectors that
-   neither track 6 nor track 7 holds, **When** the user compares 6.5 with its
-   neighbors, **Then** the window shows 6.5 as holding data of its own and
+2. **Given** a made-up WOZ whose record at track 6.5 has sectors that
+   neither track 6 nor track 7 has, **When** the user compares 6.5 with its
+   neighbors, **Then** the window shows 6.5 as having data of its own and
    lists the sectors found only on 6.5.
 3. **Given** a made-up WOZ with one run of data written across tracks 5,
    5.25 and 5.5, **When** the user compares tracks 5 to 6, **Then** the
@@ -1314,7 +1314,7 @@ legend, and tilt the platter and back.
 - The drive the controller has not enabled: its platter does not turn,
   because only the enabled drive spins.
 - While GH #135 is open, both drives share one head position: the head marker
-  on the drive the controller has not enabled shows the position Casso holds
+  on the drive the controller has not enabled shows the position Casso has
   for that drive, and it jumps to the other drive's track when that drive is
   next enabled.
 - A track much longer or shorter than nominal: the platter maps the whole
@@ -1330,7 +1330,7 @@ legend, and tilt the platter and back.
   reach (past track 34.75 today, past track 39.5 once spec 041 moves the
   head's stop): shown, dimmed behind a line at the head's limit, and marked as
   beyond the head's reach.
-- A WOZ whose file holds no record for a whole track, where Casso keeps an
+- A WOZ whose file has no record for a whole track, where Casso keeps an
   empty track for the guest to format: the track shows "Nothing recorded",
   the Image tab lists no record for it, and the summary does not count it as
   a track with data. Once the guest writes there, the track shows what the
@@ -1345,7 +1345,7 @@ legend, and tilt the platter and back.
   stays writable (FR-053).
 - A WOZ whose TMAP or FLUX entry points at a track record with a bit or byte
   count above zero but a zero start block or a zero block count: the record
-  claims data the file may hold at a location it misstates, so its quarter
+  claims data the file may have at a location it misstates, so its quarter
   tracks show as damaged with the reason, the image is write-protected, and
   the Image tab shows the start block and the bit or byte count the record
   claims (FR-053). Nothing in the file is overwritten.
@@ -1366,7 +1366,7 @@ legend, and tilt the platter and back.
   blank disk.
 - In Explorer, an image that a running Casso also has mounted: the inspector
   shows the file as last saved; Casso's own inspector shows the disk as the
-  drive holds it.
+  drive has it.
 - In Explorer, a file deleted or renamed while its inspector is open: the
   window keeps the last analysis and shows a note that the file is no
   longer there.
@@ -1388,9 +1388,9 @@ legend, and tilt the platter and back.
 - A ProDOS or Apple Pascal volume whose header gives a size other than 280
   blocks, or a DOS 3.3 volume whose VTOC gives other than 35 tracks of 16
   sectors: the File map tab shows that a volume of that size is not mapped,
-  with the size. On a disk that holds a DOS 3.3 volume and a smaller Pascal
+  with the size. On a disk that has a DOS 3.3 volume and a smaller Pascal
   volume, the DOS 3.3 volume is still mapped.
-- A disk whose CP/M directory holds only free entries: it is mapped as an
+- A disk whose CP/M directory has only free entries: it is mapped as an
   empty CP/M volume only when no DOS 3.3, ProDOS or Apple Pascal volume is
   found. A disk filled with zeros is never taken for CP/M.
 - A CP/M boot disk's system entry in user area 31, which covers tracks 0 to 2:
@@ -1398,7 +1398,7 @@ legend, and tilt the platter and back.
   and produces no finding.
 - An Apple Pascal .BAD file: its blocks show as bad blocks the file system
   recorded, not as file data, and it produces no finding.
-- A disk that holds both a DOS 3.3 VTOC and a ProDOS volume directory: both
+- A disk that has both a DOS 3.3 VTOC and a ProDOS volume directory: both
   are mapped, with a choice between them in the File map tab.
 - A DOS 3.3 catalog entry that uses no sectors, as some assemblers write for
   decoration: it is listed with no sectors and produces no finding.
@@ -1413,14 +1413,14 @@ legend, and tilt the platter and back.
 - Checksum checks turned off in the decode settings: the map follows chains
   through sectors not checked, no file shows "Touches bad sectors" for them,
   and Findings gives one finding for the disk.
-- The guest writes to a track that holds pending edits: each pending edit on
+- The guest writes to a track that has pending edits: each pending edit on
   it follows its sector's field to the field's new place. One whose sector's
   bytes changed is marked out of date, and applying it needs the user's
   confirmation and writes only the bytes the user changed over the sector's
   new contents. One whose sector no longer decodes as editable is discarded,
   and the window shows that it was.
 - The guest writes its own copy of a sector over an applied edit, such as a
-  VTOC that DOS held in memory: the edit is lost, as on real hardware, the
+  VTOC that DOS had in memory: the edit is lost, as on real hardware, the
   Tracks tab shows the guest write, and "Undo applied edit" for that track
   becomes unavailable.
 - The user ejects or replaces the disk outside this window while edits are
@@ -1437,10 +1437,10 @@ legend, and tilt the platter and back.
   keeps the pending edits.
 - Casso saves an edit and finds at save time that the file changed outside
   Casso: the save goes to a preserved copy, as every Casso save does in that
-  case. The drive then holds the copy, the edit counts as applied to the copy,
+  case. The drive then has the copy, the edit counts as applied to the copy,
   the window shows the copy's file name, and the undo history continues
   against the copy.
-- Casso cannot save an applied edit, for example because the volume that holds
+- Casso cannot save an applied edit, for example because the volume that has
   the file is full, the file is locked, or a guest-written track cannot be
   saved in the image's format: every track record the apply changed is
   restored before the machine runs again, the edits stay pending, and the
@@ -1458,12 +1458,12 @@ legend, and tilt the platter and back.
 - An edit on a WOZ whose checksum does not match, or that has a damaged track
   record: in either host the image counts as write-protected (FR-102), only
   "Save edited copy..." is available, and before saving, the window shows that
-  the copy gets a new checksum and what it holds for each damaged record.
+  the copy gets a new checksum and what it has for each damaged record.
 - In Explorer, an edit applied to an image that a running Casso has in a
   drive, with or without guest writes not yet saved: the save is a change to
   the file made outside Casso, sent with the reload intent, and Casso handles
   it as it handles Explorer's other writes to a mounted image (FR-106).
-  Casso's inspector on that drive shows the file the drive holds afterward,
+  Casso's inspector on that drive shows the file the drive has afterward,
   and Explorer's inspector shows Casso's reply when it is anything other than
   a reload (FR-105).
 - A `disk` command or Explorer write to a WOZ in the standard layout, or in a
@@ -1568,7 +1568,7 @@ legend, and tilt the platter and back.
   MUST show what Casso's drive reads there, with flux decoded at the drive's
   own timing. A quarter track with no record MUST show as "Nothing recorded",
   and a damaged one as damaged with its reason (FR-053), never as a copy of a
-  neighbor. A quarter track for which the file holds no data MUST show as
+  neighbor. A quarter track for which the file has no data MUST show as
   "Nothing recorded" even where Casso keeps an empty track for the guest to
   format, and MUST NOT count as a track with data (FR-018). Once the guest
   writes such a track, its quarter tracks MUST show what the guest wrote,
@@ -1581,7 +1581,7 @@ legend, and tilt the platter and back.
   labels and byte sequences such as marks, which are hex throughout. "Go to"
   MUST accept each value in the base it is shown in, and gaps (FR-017) MUST
   be given in nibbles.
-- **FR-007**: The window MUST hold a toolbar with, in Casso, the drive
+- **FR-007**: The window MUST have a toolbar with, in Casso, the drive
   selector and the write-protect state, then the file name and the chips,
   "Structure" and "Timing", the timing range, in Casso "Follow head" and "Go
   to head", and "Go to", "Find", "Compare with...", "Export..." and "Decode
@@ -1601,9 +1601,9 @@ legend, and tilt the platter and back.
   pending changes, "Apply", "Discard", "Discard sector", "Save edited
   copy...", "Undo applied edit" and "Redo applied edit" (FR-097 to FR-107),
   "Copy sector" (FR-057) and, while comparing, "Use B's bytes" (FR-123). The
-  File map tab MUST hold "Show deleted files", the file filter, "Previous
+  File map tab MUST have "Show deleted files", the file filter, "Previous
   sector in file", "Next sector in file" and "Copy map" above the grid (FR-088
-  to FR-095). In the later release, the toolbar MUST also hold the verdict
+  to FR-095). In the later release, the toolbar MUST also have the verdict
   chip and "Trace boot" (FR-134, FR-135), the track header the revolution
   chooser (FR-137), the Nibbles tab the framing control (FR-128), the platter
   a "Revolutions" overlay (FR-138), the decode settings "Solve table", "Search
@@ -1636,14 +1636,14 @@ legend, and tilt the platter and back.
   after it.
 - **FR-011**: The analyzer MUST decode 16-sector fields: address prologue
   D5 AA 96, a 4-and-4 volume, track, sector and checksum, address epilogue
-  DE AA with or without EB, and a data field after prologue D5 AA AD holding
+  DE AA with or without EB, and a data field after prologue D5 AA AD with
   342 6-and-2 nibbles and a checksum nibble, decoded to 256 bytes, then data
   epilogue DE AA with or without EB.
 - **FR-012**: The analyzer MUST decode 13-sector fields: address prologue
   D5 AA B5, with the same 4-and-4 address field and DE AA epilogue as
-  16-sector fields, and a data field after prologue D5 AA AD holding 410
+  16-sector fields, and a data field after prologue D5 AA AD with 410
   5-and-3 nibbles and a checksum nibble, decoded to 256 bytes and
-  checksum-verified as 6-and-2 data is, then epilogue DE AA. A track holding
+  checksum-verified as 6-and-2 data is, then epilogue DE AA. A track with
   both kinds MUST have both decoded.
 - **FR-013**: A data field MUST pair with the address field before it only
   when its prologue starts within the data search window after that address
@@ -1693,7 +1693,7 @@ legend, and tilt the platter and back.
   checked (FR-020); bad sectors, each counted once whichever checksum failed;
   the numbers of nonstandard, unformatted, flux and damaged tracks; and the
   most common volume number. The format MUST be the first of these that
-  applies: "Nothing recorded" when no quarter track holds a record; "13 and 16
+  applies: "Nothing recorded" when no quarter track has a record; "13 and 16
   sector" when both kinds of standard sector occur anywhere on the disk; "16
   sector" or "13 sector" when only that kind occurs; "Nonstandard" when at
   least one track is nonstandard; "Unformatted" when at least one track is
@@ -1868,8 +1868,8 @@ legend, and tilt the platter and back.
   field, volume, address result, data result (good, bad, not checked or
   missing) and encoding (6-and-2 or 5-and-3), and on a 16-sector track also
   the DOS 3.3 logical sector and the ProDOS block, and which half of it, that
-  the physical sector holds under the standard skew, and, on a mapped CP/M
-  volume, the CP/M sector and allocation block the physical sector holds
+  the physical sector has under the standard skew, and, on a mapped CP/M
+  volume, the CP/M sector and allocation block the physical sector has
   (FR-085). Below the header it MUST show the 256 bytes as 16 rows of 16 with
   hex offsets and a text column (high bit masked, "." for anything not
   printable), with zero bytes dimmed.
@@ -1955,7 +1955,7 @@ legend, and tilt the platter and back.
   (N-0.25, N and N+0.25 on track N's record), the layout that also maps N+0.5
   to a neighboring whole track's record, the layout Casso writes for WOZ and
   builds for sector, NIB and NB2 images (N, N+0.25, N+0.5 and N+0.75 on track
-  N's record), and a track the guest formats where the file held no record
+  N's record), and a track the guest formats where the file had no record
   (FR-005). These MUST NOT produce a quarter-track finding, so a standard
   DOS 3.3 disk in any of these layouts produces no findings. Selecting a
   finding MUST go to it.
@@ -1968,26 +1968,26 @@ legend, and tilt the platter and back.
   synchronized, cleaned, creator, sides, boot sector format, optimal bit
   timing, compatible hardware, required RAM, largest track, flux block and
   largest flux track), every META entry in file order, the TMAP and FLUX maps
-  as the file holds them, each track record's location and length as the
+  as the file has them, each track record's location and length as the
   file's version stores them (for WOZ 2 and 2.1, start block, block count and
   bit or byte count; for WOZ 1, bytes used, bit count, splice point, splice
   nibble and splice bit count), records that no map refers to, the WRIT chunk
   when present, and the ID and size of any other chunk. It MUST list the track
-  records the file holds and, in Casso, the records the guest added since
+  records the file has and, in Casso, the records the guest added since
   (FR-071), never an empty track Casso keeps for the guest to format (FR-005).
   For a sector image it MUST show the sector order and a note that the tracks
   are built with volume 254.
 - **FR-051**: The inspector MUST check the image file for these problems and
   report each one in Findings and the Image tab: a checksum mismatch; an INFO
   largest track smaller than the largest track record; a bit or byte count
-  larger than its blocks hold; a META value outside the WOZ lists (language,
-  requires_ram, requires_machine); an image_date that is not RFC 3339;
-  duplicate or out-of-order chunks; data past the last chunk; a track record
-  that no map refers to; a TMAP or FLUX entry that points at a track record
-  whose fields are all zero (FR-053); and a NIB track with no sync.
+  larger than its blocks have room for; a META value outside the WOZ lists
+  (language, requires_ram, requires_machine); an image_date that is not RFC
+  3339; duplicate or out-of-order chunks; data past the last chunk; a track
+  record that no map refers to; a TMAP or FLUX entry that points at a track
+  record whose fields are all zero (FR-053); and a NIB track with no sync.
 - **FR-052**: Casso MUST keep, from each WOZ file it reads, every INFO field
   and META entry of the file's version, the TMAP and FLUX maps as the file
-  holds them, each track record's location and length fields, the records that
+  has them, each track record's location and length fields, the records that
   no map refers to, and which map (TMAP or FLUX) each quarter track came from,
   for the inspector to show.
 - **FR-053**: Damage MUST be shown per quarter track with its reason,
@@ -2000,13 +2000,13 @@ legend, and tilt the platter and back.
   (FR-051), without the word damaged. Casso MUST record as damage, with the
   reason, a track record that a map entry points at whose bit or byte count is
   above zero while its start block or its block count is zero, because the
-  file may hold that record's data at a location the record misstates; the
+  file may have that record's data at a location the record misstates; the
   image is then write-protected like any damaged image, and the Image tab MUST
   show the start block and the bit or byte count the record claims. A start
   block below 3, where the file's header lies, and a bit or byte count larger
-  than the record's blocks hold, on a bit record as on a flux record, MUST also
-  be recorded as damage. The inspector MUST show each damaged record's reason on
-  every quarter track that maps to it, not on one quarter track only.
+  than the record's blocks have room for, on a bit record as on a flux record,
+  MUST also be recorded as damage. The inspector MUST show each damaged record's
+  reason on every quarter track that maps to it, not on one quarter track only.
 - **FR-054**: A WOZ whose disk type is 3.5" MUST show the Image tab, and
   every other view MUST show a note that Casso does not analyze 3.5" disks.
   Casso mounts such a WOZ today and plays its tracks as 5.25" tracks, because
@@ -2049,7 +2049,7 @@ legend, and tilt the platter and back.
   from the index, one byte per nibble, with no timing bits; a random-bit
   region is written as the nibbles the analyzer framed there and listed after
   the export. (3) *Track bits*: the selected quarter track exactly as Casso
-  holds it, written as a WOZ 2.1 file holding only that quarter track, as a
+  has it, written as a WOZ 2.1 file with only that quarter track, as a
   bit track with its bit count or as a flux track with every recorded
   interval unchanged. Each export MUST be available from the toolbar and from
   the context menus of the Sector data, Nibbles and Tracks tabs, MUST default
@@ -2150,7 +2150,7 @@ legend, and tilt the platter and back.
   or at the last reload. A value Casso has changed since then, such as a track
   record's length after a guest write or the write-protect flag after a change
   from Casso, MUST be marked as changed and shown with its current value; a
-  track record the guest wrote where the file held none MUST be shown as added
+  track record the guest wrote where the file had none MUST be shown as added
   since the file was read; and the marks MUST refresh after a write, an
   applied edit, a save, a write-protect change and a reload. The checksum line
   MUST show "Checked when the file was read". After Casso saves the disk, the
@@ -2194,10 +2194,10 @@ legend, and tilt the platter and back.
 **Themes and state**
 
 - **FR-077**: Every color MUST come from the active theme, in every theme
-  either host offers. No theme holds colors for the inspector's kinds, map
+  either host offers. No theme has colors for the inspector's kinds, map
   roles, pending edits or differences today, so this spec adds inspector
   colors to each of Casso's three themes and to Explorer's Light and Dark
-  themes, and defines the colors used for a theme that holds none. In each
+  themes, and defines the colors used for a theme that has none. In each
   theme, all text other than unavailable controls MUST meet a 4.5:1 contrast
   ratio against its background, and every pair of Structure kind colors, and
   every pair of map role colors (FR-086), MUST differ by at least ΔE2000 10. A
@@ -2256,7 +2256,7 @@ legend, and tilt the platter and back.
   the File map tab. Volume track N MUST be read from quarter track N, which
   these systems read after stepping to a whole track. Each DOS 3.3 logical
   sector, each half of a ProDOS or Pascal block, and each CP/M sector MUST
-  come from the physical sector that holds it under the system's own skew,
+  come from the physical sector that contains it under the system's own skew,
   read from the first field in passing order with that physical sector number
   and a good or not-checked address field, and a quarter track N with no
   record makes every sector of track N missing. A repeated sector number on a
@@ -2268,11 +2268,11 @@ legend, and tilt the platter and back.
   files. Its size MUST be read from the header's block count, and a Pascal
   volume of other than 280 blocks MUST give the not-mapped state with that
   size (FR-094). Each half of Pascal block b MUST come from the physical
-  sector that holds that half of ProDOS block b. A CP/M volume MUST be looked
+  sector that contains that half of ProDOS block b. A CP/M volume MUST be looked
   for only when no DOS 3.3, ProDOS or Pascal volume is found. It MUST be found
   when the 64 directory entries in CP/M sectors $0 to $7 of track 3 include at
   least one valid entry in use and no invalid entry, or more than four valid
-  entries in use whatever the invalid ones. An entry is invalid when it holds
+  entries in use whatever the invalid ones. An entry is invalid when it has
   a user number above 31 other than $E5 (free), an extent number or record
   count CP/M 2.2 does not allow, a control character in its name, or a block
   number outside the volume other than on the system entry of user 31
@@ -2335,7 +2335,7 @@ legend, and tilt the platter and back.
   uses. Deleted files MUST NOT own sectors, so they never produce a
   cross-link, allocated-but-unowned or owned-but-free finding. They MUST be
   hidden until "Show deleted files" is turned on. On a CP/M volume, a deleted
-  file is a free entry ($E5) that still holds a printable name and block
+  file is a free entry ($E5) that still has a printable name and block
   numbers. Apple Pascal removes a file's entry when it deletes the file, so a
   Pascal volume lists no deleted files.
 - **FR-089**: A "File map" disk tab MUST show a grid with one row per track, 0
@@ -2350,17 +2350,17 @@ legend, and tilt the platter and back.
   file shows "Deleted" alone. A file touches bad sectors when it uses a sector
   that is bad or missing, including a sector on a damaged record; a sector
   that is not checked shows only through its result (FR-093). A cell's tooltip
-  MUST show the DOS 3.3 logical sector and the physical sector that holds it,
-  the ProDOS or Pascal block and the physical sectors that hold its two
+  MUST show the DOS 3.3 logical sector and the physical sector that contains it,
+  the ProDOS or Pascal block and the physical sectors that contain its two
   halves, or the CP/M sector, its allocation block and the physical sector
-  that holds it, its role and result, and each owner with the sector's place
+  that contains it, its role and result, and each owner with the sector's place
   in it (for example "HELLO, data sector 3 of 5").
 - **FR-090**: Selecting a file MUST mark its sectors in the grid, numbered in
   file order, and on the platter and the strip while the "Files" overlay is
   on, and MUST select its first sector. "Next sector in file" and "Previous
   sector in file" MUST step through its sectors in file order, across tracks.
-  Selecting a grid cell MUST select the physical sector that holds it, or for
-  a ProDOS or Pascal block the physical sector that holds its first half, in
+  Selecting a grid cell MUST select the physical sector that contains it, or for
+  a ProDOS or Pascal block the physical sector that contains its first half, in
   every view. For the selected sector, the Sector data header MUST show its
   role and owners and, for a file, its place in the file.
 - **FR-091**: The platter MUST have a "Files" overlay that draws each
@@ -2368,7 +2368,7 @@ legend, and tilt the platter and back.
   file's sectors.
 - **FR-092**: The map MUST NOT hang or fail as a whole on a damaged volume. It
   MUST stop following a chain at a loop, at a pointer outside the volume, or
-  once the chain is longer than the volume can hold, MUST keep what it read
+  once the chain is longer than the volume, MUST keep what it read
   before that point, and MUST still show the rest of the map. While following
   a chain, the map MUST read good and not-checked sectors and MUST stop at a
   bad or missing sector of the chain itself (a catalog or directory sector, a
@@ -2393,7 +2393,7 @@ legend, and tilt the platter and back.
   files, Pascal .BAD files and the CP/M system entry of user 31 MUST NOT
   produce a finding, so a standard DOS 3.3, ProDOS, Pascal or CP/M disk
   produces no file system findings.
-- **FR-094**: When the disk holds no DOS 3.3, ProDOS, Apple Pascal or CP/M
+- **FR-094**: When the disk has no DOS 3.3, ProDOS, Apple Pascal or CP/M
   volume of 35 tracks of 16 sectors (FR-084, FR-085), the File map tab MUST
   show why: no file system the map reads was found; the disk is a 13-sector
   disk, which is not mapped; or the volume has another size, which is not
@@ -2426,13 +2426,13 @@ legend, and tilt the platter and back.
   "Damaged track record", or in the later release "4-and-4 data" or "Custom
   track format", FR-144).
 - **FR-097**: "Edit sector" MUST make the Sector data tab's hex and text
-  columns editable, overwriting in place so a sector always holds 256 bytes.
+  columns editable, overwriting in place so a sector always has 256 bytes.
   Typing a hex digit MUST change the hex digit under the cursor; typing a
   character in the text column MUST change the byte under the cursor and keep
   the high bit that byte had. Pasting MUST accept hex text in the hex column
   and text in the text column, MUST overwrite from the start of the selection
   for as many bytes as were pasted, MUST stop at offset $FF, and MUST show how
-  many bytes did not fit. Changes MUST be held as pending edits, which change
+  many bytes did not fit. Changes MUST be pending edits, which change
   nothing until applied and can span several sectors and tracks. Changed bytes
   MUST be marked by color and symbol in the hex and text columns, each sector
   with pending edits MUST be marked in the sector row, the Tracks tab and the
@@ -2472,7 +2472,7 @@ legend, and tilt the platter and back.
   its new bytes with the expected checksum result, or any other field on those
   tracks does not decode as it did before, every change MUST be undone and the
   window MUST show the failure. An edit MUST be shown as applied only after
-  the file holds it (FR-104, FR-105), and the changed tracks MUST then be the
+  the file has it (FR-104, FR-105), and the changed tracks MUST then be the
   only ones analyzed again.
 - **FR-101**: "Save edited copy..." MUST write the disk as the window shows it
   now (in Casso, the drive's disk with its unsaved guest writes and applied
@@ -2482,14 +2482,14 @@ legend, and tilt the platter and back.
   tracks MUST be written as FR-104 gives, and the file MUST appear whole or
   not at all (FR-116). The Save dialog MUST NOT accept the disk's own file or
   a file mounted in either drive. For a damaged image, the window MUST show
-  before saving that the copy gets a new checksum and what it holds for each
+  before saving that the copy gets a new checksum and what it has for each
   damaged record. Afterward the pending edits MUST stay pending, and the disk
   in the drive and its file MUST be unchanged. "Save edited copy..." MUST be
   available whenever edits are pending.
 - **FR-102**: Editing in place MUST NOT be available on a write-protected
-  disk. In Casso that is while any cause in FR-065 holds, or after the user
+  disk. In Casso that is while any cause in FR-065 applies, or after the user
   chose to keep the disk in memory when Casso found its file changed outside
-  Casso, for as long as Casso holds its saves. In Explorer it is while the
+  Casso, for as long as Casso withholds its saves. In Explorer it is while the
   image's write-protect flag is set, the file is read-only, the user cannot
   write the file, or the image is damaged (a checksum mismatch or a damaged
   track record, FR-053). Pending edits and "Save edited copy..." MUST still be
@@ -2500,7 +2500,7 @@ legend, and tilt the platter and back.
   safe point: the drive is not writing, any guest write to the track has been
   completed, and the head is outside every data field the apply changes. While
   the drive is not turning (its spin-down after the motor turns off has
-  ended), every moment is a safe point. The machine MUST be held paused from
+  ended), every moment is a safe point. The machine MUST be paused from
   the moment the drive's disk changes until the apply is checked and saved, or
   rolled back (FR-100, FR-104), and MUST then run again if it was running.
   While the drive turns and the machine runs, a confirmed "Apply" MUST show
@@ -2514,7 +2514,7 @@ legend, and tilt the platter and back.
   write to a track the apply changes MUST end the wait, check the pending
   edits on that track again (FR-108) and show the confirmation again. Before
   the first apply on a disk, the window MUST show a note that DOS or ProDOS
-  may hold the sector in memory and write its own copy back over the edit.
+  may have the sector in memory and write its own copy back over the edit.
 - **FR-104**: In Casso, applying MUST save the disk to its file at once,
   through Casso's usual save and its checks and durably (FR-116), before the
   machine runs again, and MUST show the result: saved; saved to a preserved
@@ -2524,13 +2524,13 @@ legend, and tilt the platter and back.
   what it was before the apply, as undo does, before the machine runs again;
   the pending edits MUST stay pending; and the window MUST show "Not applied:
   the file could not be saved" with the reason, so the guest never reads an
-  edit the file does not hold. When the save goes to a preserved copy, the
-  drive holds the copy, the edit counts as applied to the copy, the window
+  edit the file does not have. When the save goes to a preserved copy, the
+  drive has the copy, the edit counts as applied to the copy, the window
   MUST show the copy's file name, and the undo history continues against the
-  copy. The save MUST also hold any guest writes not yet saved, as every Casso
-  save does. Each track MUST keep its kind when saved, a flux track as a flux
-  track and a bit track as a bit track, and a track with no edit and no guest
-  write MUST be saved as it was (spec 038). A WOZ 1 is saved as WOZ 2, as
+  copy. The save MUST also include any guest writes not yet saved, as every
+  Casso save does. Each track MUST keep its kind when saved, a flux track as a
+  flux track and a bit track as a bit track, and a track with no edit and no
+  guest write MUST be saved as it was (spec 038). A WOZ 1 is saved as WOZ 2, as
   Casso already does, and the window MUST show this before the first apply.
   This changes Casso's NIB and NB2 save: a track whose only change is an
   applied edit, an undo or a redo MUST be saved by writing the field's new
@@ -2548,7 +2548,7 @@ legend, and tilt the platter and back.
   mounted image (033's FR-024). When Casso's reply is anything other than a
   reload, such as a conflict, the window MUST show it, as 033's FR-024
   requires, so that both Casso's and Explorer's windows show which file the
-  drive holds. When the file has changed since the window read it, nothing
+  drive has. When the file has changed since the window read it, nothing
   MUST be saved, and the window MUST analyze the new file (FR-074) and keep or
   drop the pending edits as FR-108 gives. When the save fails, the file MUST
   be unchanged, the pending edits MUST stay pending, and the window MUST show
@@ -2559,7 +2559,7 @@ legend, and tilt the platter and back.
   (033's FR-024): as a change made outside Casso with the reload intent,
   through Casso's external-change handling, which spec 041 reworks. 040 MUST
   NOT add a rule of its own for it. Casso's inspector on that drive MUST show
-  the file the drive holds afterward, as it does after any reload or move to a
+  the file the drive has afterward, as it does after any reload or move to a
   preserved copy.
 - **FR-107**: "Undo applied edit" and "Redo applied edit" MUST undo and redo
   applied edits one apply at a time, restoring each changed track record
@@ -2572,20 +2572,20 @@ legend, and tilt the platter and back.
   has changed outside the window. "Redo applied edit" MUST be unavailable,
   with the reason shown, once the guest has written to a track record the undo
   restored, or in Explorer once the file has changed outside the window. Both
-  MUST be unavailable while any cause in FR-102 holds, with each cause shown.
+  MUST be unavailable while any cause in FR-102 applies, with each cause shown.
   A new apply MUST clear the redo history. The history MUST last until the
   disk is ejected, replaced or reloaded, a state restore changes it (FR-069),
   or the window closes.
 - **FR-108**: Pending edits MUST last while the window shows the disk.
   Switching drives, closing the window, quitting Casso or Explorer, a machine
   change that removes or replaces the disk, "Compare disk images" on an image
-  whose window holds pending edits (FR-117), and a change of decode settings
+  whose window has pending edits (FR-117), and a change of decode settings
   after which a sector with pending edits no longer decodes MUST need the
   user's confirmation, which shows that those pending edits will be discarded.
   A machine change that keeps the same disk in the drive MUST keep the pending
   edits. When the user ejects or replaces the disk outside this window, the
   pending edits MUST be discarded, and the window MUST show that they were.
-  When the guest writes to a track record that holds pending edits, when an
+  When the guest writes to a track record that has pending edits, when an
   undo or redo changes it, or when the disk is reloaded because its file
   changed (in Casso by Casso, in Explorer by the window, FR-074) or a state
   restore changes it (FR-069), each pending
@@ -2622,13 +2622,13 @@ legend, and tilt the platter and back.
   the time the cell at the same place took, so the track stays a flux track
   (spec 038), every stretch keeps its speed, the time of one turn is
   unchanged, and every flux transition outside the field is unchanged. A
-  cell's recorded time is its share of the interval that holds it: an interval
+  cell's recorded time is its share of the interval that has it: an interval
   the drive reads as n cells gives each of its cells the interval's time
   divided by n. The new field MUST place each of its transitions at the
   field's start plus the recorded times of the cells before it in the field,
   so the field's total time is unchanged. On NIB and NB2, the field MUST
   change in whole nibbles in place. On DSK, DO and PO, the writer MUST change
-  the 256 bytes of the logical sector the physical sector holds. On a quarter
+  the 256 bytes of the logical sector the physical sector has. On a quarter
   track mapped in both TMAP and FLUX, which Casso plays as flux (spec
   038's FR-002), only the flux record MUST change. A field that spans the end
   of the track MUST be changed whole. The writer MUST find the record of whole
@@ -2637,8 +2637,8 @@ legend, and tilt the platter and back.
   tracks read once. The `disk` command's and Explorer's sector, block and file
   reads MUST find whole track N through the map in the same way, so every byte
   a write changes comes from the record it writes.
-- **FR-112**: A 6-and-2 data field of 256 bytes always holds 342 nibbles and a
-  checksum nibble, a 5-and-3 field always holds 410 and a checksum nibble, and
+- **FR-112**: A 6-and-2 data field of 256 bytes always has 342 nibbles and a
+  checksum nibble, a 5-and-3 field always has 410 and a checksum nibble, and
   every valid nibble takes 8 cells, so a new field never differs in nibble
   count from the field it replaces and, with each nibble's extra zero cells
   kept, never differs in length in cells. The writer MUST NOT insert or remove
@@ -2661,7 +2661,7 @@ legend, and tilt the platter and back.
   N or of track N+1, MUST NOT stop a write. This accepts the standard WOZ
   layout, in which N-0.25, N and N+0.25 map to track N's record, images that
   also map N+0.5 to a neighboring whole track's record, and the layout Casso
-  writes. A WOZ with a quarter track mapped to any other record, which holds
+  writes. A WOZ with a quarter track mapped to any other record, which has
   data of its own between whole tracks, MUST stay protected as a whole: every
   write to it MUST fail, leave the file as it was, and give that quarter track
   and its record as the reason. The inspector's editor is not bound by this
@@ -2680,18 +2680,18 @@ legend, and tilt the platter and back.
   under FR-096's rules instead, so a damaged sector can be repaired.
 - **FR-116**: Every save of an image the shared sector writer changed, and
   every save of an applied, undone or redone edit, MUST be durable: once the
-  save is reported, the file holds the old contents or the new ones whole,
+  save is reported, the file has the old contents or the new ones whole,
   never a mix, a truncated file or zeros, and a save that fails at any step
   MUST leave the file as it was. A new file written by "Save edited copy..."
   MUST appear whole or not at all, and an existing file the user confirms
-  replacing MUST then hold its old contents or the new ones whole.
+  replacing MUST then have its old contents or the new ones whole.
 
 **Comparison**
 
 - **FR-117**: "Compare with..." MUST compare two disks, A and B. A is the
   window's disk unless the user chooses another, and each of A and B MUST be
   one of: an image file in any format FR-003 lists; in Casso, a drive's disk
-  as the drive holds it now, that disk as it was inserted or last reloaded
+  as the drive has it now, that disk as it was inserted or last reloaded
   ("As inserted"), and that disk's file as saved now ("Its file"); in
   Explorer, the window's image as it is now or as the window first read it
   ("As first opened"). In Casso the user can then compare the disk now with
@@ -2706,20 +2706,20 @@ legend, and tilt the platter and back.
   comparing them, with the image the user right-clicked as A. A comparison
   window counts as A's window (FR-073): when A already has a window, "Compare
   disk images" MUST switch that window to the comparison, after FR-108's
-  confirmation if it holds pending edits. An image may be B in any number of
+  confirmation if it has pending edits. An image may be B in any number of
   windows and is never edited as B. "Swap A and B" and "Stop comparing" MUST
   be available while comparing, and comparing MUST NOT change either disk.
 - **FR-118**: Comparison MUST compare what the drive reads on each disk. A
-  quarter track at which neither disk holds a record MUST show "Nothing
+  quarter track at which neither disk has a record MUST show "Nothing
   recorded", which counts as matching. Each whole track N MUST be compared
   once, A's record at N against B's. A quarter track N.25, N.5 or N.75 at
-  which each disk holds either nothing or the same record that disk holds at
+  which each disk has either nothing or the same record that disk has at
   whole track N or N+1, as the standard WOZ layout and the layout Casso builds
   for sector, NIB and NB2 images do (the layouts FR-048 exempts), MUST show
   "Standard layout", with each side's record in its tooltip, and MUST NOT be
   compared on its own. Every other quarter track MUST be compared with the
   other disk's record at the same quarter track. Each compared track MUST get
-  one verdict, the strongest that holds: "Identical", the same cells from the
+  one verdict, the strongest that applies: "Identical", the same cells from the
   same start, and on two flux tracks the same transitions within the timing
   tolerance (Assumptions); "Same cells", the same loop of cells, with a note
   giving the rotation in degrees, that the flux timing differs, or that only
@@ -2736,7 +2736,7 @@ legend, and tilt the platter and back.
   track compared with a flux track MUST get at most "Same cells". A track not
   compared MUST NOT be shown or counted as matching.
 - **FR-119**: To compare nibbles, B's track MUST be aligned to A's on the
-  first address field both hold, or, with none, on the rotation at which the
+  first address field both have, or, with none, on the rotation at which the
   most cells match, and the differences MUST then be found allowing for
   inserted and deleted nibbles, up to the alignment limit (Assumptions), so a
   sync run of another length marks only that run as different and not
@@ -2750,7 +2750,7 @@ legend, and tilt the platter and back.
   and each pair MUST show its DOS 3.3 logical sector and ProDOS block, and on
   a mapped CP/M volume its CP/M sector and allocation block. A difference in
   an address field's volume number MUST be listed as its own difference unless
-  "Ignore volume numbers" is on. When both disks hold a volume the map reads
+  "Ignore volume numbers" is on. When both disks have a volume the map reads
   (FR-083), the comparison MUST also pair files by path, in catalog order
   where paths repeat, and give each pair: same contents; contents differ, with
   the number of bytes that differ and the first offset that differs; type,
@@ -2763,7 +2763,7 @@ legend, and tilt the platter and back.
   records in extent order, 128 bytes each, with each hole read as a block of
   zero bytes; a difference in length MUST be reported as its own difference.
   The file comparison MUST compare A's volume shown in the File map tab
-  (FR-084) with B's volume of the same file system, and when B holds none, the
+  (FR-084) with B's volume of the same file system, and when B has none, the
   file comparison MUST show why it is not given, as for disks with different
   file systems. "Ignore dates" MUST leave ProDOS creation and modification
   dates and the Apple Pascal modification date out of the file comparison.
@@ -2869,9 +2869,9 @@ release (Delivery). The first release MUST NOT depend on them.
   offset the user gives, or by "Search for tables", which searches the
   decoded sectors of track 0 for runs of 64, or 32, distinct valid nibbles
   and lists each candidate with its location.
-- **FR-126**: Where data fields hold nibbles outside the active table,
+- **FR-126**: Where data fields have nibbles outside the active table,
   Findings MUST give each track with the values and their counts (for example
-  "Data fields on track 3 hold nibbles outside the 6-and-2 table: D5 ×812").
+  "Data fields on track 3 have nibbles outside the 6-and-2 table: D5 ×812").
   This finding for each track MUST replace FR-015's findings for each field
   for the same nibbles, so each is listed once. "Solve table" MUST find the
   swaps of the standard table under which the most data checksums pass, and
@@ -2920,7 +2920,7 @@ release (Delivery). The first release MUST NOT depend on them.
   every other format a custom track format decoder recognizes (FR-141), and
   18-sector layouts no decoder recognizes; 4-and-4 data; data on half or
   quarter tracks; the same data on adjacent quarter tracks (wide tracks),
-  found as FR-147 gives; tracks holding one repeated pattern and no fields
+  found as FR-147 gives; tracks with one repeated pattern and no fields
   (nibble-count and sync tracks); extra zero cells after field nibbles (timing
   bits); bit-slip streams (FR-129); custom translate tables (FR-126); track
   lengths far from nominal; sector 0 lined up across tracks, on a WOZ whose
@@ -2953,7 +2953,7 @@ release (Delivery). The first release MUST NOT depend on them.
   not standard; otherwise "Standard".
 - **FR-136**: The Image tab MUST show what the image's format keeps and
   loses: a DSK, DO or PO keeps only sector data; a NIB or NB2 loses timing
-  bits and weak bits; a WOZ bit track loses flux timing and holds weak bits
+  bits and weak bits; a WOZ bit track loses flux timing and has weak bits
   as zero cells; a WOZ flux track keeps one turn; an A2R keeps every
   revolution captured. It MUST list the Protection findings on this disk that
   a copy in each other format would lose.
@@ -2968,7 +2968,7 @@ release (Delivery). The first release MUST NOT depend on them.
   resolution. The views MUST show one revolution at a time, the first by
   default, with a choice of the others. The Image tab MUST list the capture's
   version, its INFO fields (drive type, write protected, synchronized and
-  hard-sector count), its resolution, its META entries, whether it holds an
+  hard-sector count), its resolution, its META entries, whether it has an
   SLVD chunk, and every chunk with its size, and Findings MUST report
   truncated chunks, unknown drive types and a hard-sector count other than
   zero. A2R captures MUST get no preview platter and MUST NOT be mounted in a
@@ -2976,7 +2976,7 @@ release (Delivery). The first release MUST NOT depend on them.
 - **FR-138**: For a quarter track with at least two overlapping revolutions,
   the inspector MUST align the revolutions and compare them cell by cell and
   by flux timing, and MUST show a stability lane on the strip giving how many
-  revolutions hold the same value at each cell, and a "Revolutions" platter
+  revolutions have the same value at each cell, and a "Revolutions" platter
   overlay marking where they differ. A quarter track with one revolution, or
   with revolutions that do not overlap, MUST show "Not compared", with the
   reason, and MUST NOT show as stable.
@@ -2986,14 +2986,14 @@ release (Delivery). The first release MUST NOT depend on them.
   compared, whether it lies in an address field, a data field or a gap, and
   its longest stretch with no flux transition. A region whose transitions fall
   off the cell grid (Assumptions) in every revolution MUST be reported as
-  "Weak bits", with a note that a copy holding one reading of these cells
+  "Weak bits", with a note that a copy with one reading of these cells
   fails a check that reads them more than once. Any other region MUST be
   reported as "Unstable cells", which worn media also produce, and MUST NOT be
   reported as protection.
 - **FR-140**: For a WOZ, the Image tab MUST show the INFO cleaned flag with
   its meaning (fake bits were removed and stored as zero cells), and the
   Protection category MUST show a note that weak bits can be found only by
-  comparing revolutions, which a WOZ does not hold.
+  comparing revolutions, which a WOZ does not have.
 - **FR-141**: The analyzer MUST decode documented custom track formats into
   sectors, each format with a decoder of its own, starting with RW18. A track
   on which a decoder finds at least one of its address fields with a good
@@ -3004,16 +3004,16 @@ release (Delivery). The first release MUST NOT depend on them.
   decoder MUST be on by default, and the user MUST be able to turn it off in
   the decode settings for the whole disk or a range of tracks (FR-019).
 - **FR-142**: The RW18 decoder MUST read an address field of D5 9D followed by
-  three nibbles holding the track, the sector ($0 to $5) and a check value,
+  three nibbles for the track, the sector ($0 to $5) and a check value,
   whose 6-bit values give zero when combined by exclusive OR, and then AA;
   and, within three nibbles after the address field, a data field of one ID
   nibble, 1,024 nibbles in 256 groups of four, a checksum nibble and D4. In
-  group i, the first nibble holds the top two bits of byte i of three pages
-  and the other three hold the low six bits of byte i of each page. The
+  group i, the first nibble has the top two bits of byte i of three pages
+  and the other three have the low six bits of byte i of each page. The
   checksum is the exclusive OR of the 1,024 6-bit values. The three address
   nibbles, the 1,024 data nibbles and the checksum nibble MUST be read through
   the standard 6-and-2 translate table; the marks and the ID nibble are not.
-  Sector s MUST hold pages s, s+6 and s+12, so a track holds 18 pages of 256
+  Sector s MUST have pages s, s+6 and s+12, so a track has 18 pages of 256
   bytes.
 - **FR-143**: On an RW18 track, the track header MUST show the format and the
   ID nibble found in its data fields, the sector row MUST show sectors $0 to
@@ -3023,9 +3023,9 @@ release (Delivery). The first release MUST NOT depend on them.
   MUST show "RW18" alone or with the standard kinds on the disk (for example
   "16 sector and RW18").
 - **FR-144**: Findings MUST list, on RW18 tracks: a sector whose checksum
-  fails, with the three pages it holds; a nibble outside the table, with the
+  fails, with the three pages it has; a nibble outside the table, with the
   bytes it affects, which the Sector data tab MUST also mark (byte i of one
-  page, or byte i of all three pages for the nibble that holds the top bits);
+  page, or byte i of all three pages for the nibble that has the top bits);
   an address field whose check value fails, as its own finding at its place,
   with its sector not reported again as missing; a missing or repeated sector;
   an address track number that differs from the physical track, as a finding
@@ -3037,7 +3037,7 @@ release (Delivery). The first release MUST NOT depend on them.
   that none was found (FR-094).
 - **FR-145**: "Compare with..." MUST also compare quarter tracks of the
   window's disk: any two of them, or one quarter track with the whole tracks
-  on each side of it and the quarter tracks between them that hold records of
+  on each side of it and the quarter tracks between them that have records of
   their own, or every quarter track in a range of tracks. Each pair MUST be
   compared by FR-118's verdicts and FR-119's alignment, with B's strip below
   A's and the differences in the Differences tab (FR-121). Quarter tracks that
@@ -3045,12 +3045,12 @@ release (Delivery). The first release MUST NOT depend on them.
   with each other. Comparing quarter tracks MUST NOT change the disk.
 - **FR-146**: For a quarter track compared with its neighbors, the window
   MUST give the share of its nibbles that match each neighbor once aligned,
-  the stretches where they differ, and the address fields each holds with
+  the stretches where they differ, and the address fields each has with
   their track numbers. A quarter track whose fields all give a neighbor's
   track number, and whose share of nibbles matching that neighbor reaches the
   limit set in planning (Assumptions), MUST be shown as "Likely a read of
-  track N", and one holding fields or runs of nibbles that neither neighbor
-  holds as "Data of its own", with the evidence for each.
+  track N", and one with fields or runs of nibbles that neither neighbor
+  has as "Data of its own", with the evidence for each.
 - **FR-147**: Over a range of quarter tracks, the comparison MUST list each
   run of data that repeats on adjacent quarter tracks with records of their
   own, with the quarter tracks it covers and its rotation on each, as
@@ -3064,7 +3064,7 @@ release (Delivery). The first release MUST NOT depend on them.
 - **Disk analysis**: all the results for one disk image: the summary, one
   quarter-track entry per quarter track, a track analysis per track record,
   the findings, and the image details. In Casso it is built from the disk as
-  the drive holds it; in Explorer, from the file as saved.
+  the drive has it; in Explorer, from the file as saved.
 - **Quarter-track entry**: a quarter track's content (nothing, bit track,
   flux track or damaged), the record it maps to, the map it came from and the
   quarter tracks that share it, its classification, counts, measurements,
@@ -3092,7 +3092,7 @@ release (Delivery). The first release MUST NOT depend on them.
   (FR-124). Standard by default.
 - **Image details**: the file's format, size, read-only attribute and
   checksum result, and for a WOZ its INFO fields, META entries, maps, the
-  track records the file holds and their damage. In Casso, the file as read
+  track records the file has and their damage. In Casso, the file as read
   at insert or at the last reload, with the values Casso has changed since
   and the track records the guest added.
 - **Head limit**: the last quarter track the head of Casso's emulated Disk II
@@ -3148,7 +3148,7 @@ release (Delivery). The first release MUST NOT depend on them.
   type, and for each quarter track its captures and revolutions, with how
   each revolution's start was found.
 - **Revolution comparison** (later release): for one quarter track, how many
-  revolutions hold the same value at each cell, and its weak and unstable
+  revolutions have the same value at each cell, and its weak and unstable
   regions.
 - **Track format decoder** (later release): one documented custom track
   format, how its address and data fields are recognized, how a field decodes
@@ -3156,7 +3156,7 @@ release (Delivery). The first release MUST NOT depend on them.
 - **Quarter-track comparison** (later release): two or more quarter tracks of
   one disk; for each pair its verdict, the share of nibbles that match and
   the stretches that differ; for a quarter track compared with its neighbors,
-  whether it is likely a read of one of them or holds data of its own; and
+  whether it is likely a read of one of them or has data of its own; and
   the runs of data that repeat across adjacent quarter tracks.
 
 ## Success Criteria *(mandatory)*
@@ -3223,7 +3223,7 @@ release (Delivery). The first release MUST NOT depend on them.
 - **SC-013**: A standard DOS 3.3 DSK, a NIB, a WOZ 2 in the standard layout, a
   WOZ that Casso made, and a WOZ that also maps N+0.5 to a neighboring whole
   track's record, each of the same made-up disk, open with no findings, and in
-  Casso, a WOZ whose file holds no record for a track still shows no findings
+  Casso, a WOZ whose file has no record for a track still shows no findings
   after the guest formats that track.
 - **SC-014**: For made-up DOS 3.3 and ProDOS images with known layouts (a file
   with three track/sector lists, a sparse random-access text file, a tree file
@@ -3257,7 +3257,7 @@ release (Delivery). The first release MUST NOT depend on them.
   flux track so are every transition outside them and the time of one turn;
   every other track record is unchanged; each track keeps its kind in the
   saved file; on DSK, DO and PO the checksum is always recomputed and the
-  saved file holds the new bytes; and undoing the edit restores the track
+  saved file has the new bytes; and undoing the edit restores the track
   record exactly and saves a file whose tracks are as they were before the
   edit. 13-sector edits also match test vectors worked out by hand from the
   5-and-3 description in Beneath Apple DOS, so the check does not rest on
@@ -3299,12 +3299,12 @@ release (Delivery). The first release MUST NOT depend on them.
   original stays byte-for-byte unchanged.
 - **SC-020**: In each of these cases, no guest write, applied edit or pending
   edit is lost without the window showing it, and whenever the window shows an
-  edit as applied, the file the drive holds contains it: a failed save; a save
+  edit as applied, the file the drive has contains it: a failed save; a save
   to a preserved copy; a guest write during the apply wait; a guest write to a
   track with pending edits; "Apply" while the guest writes the edited sector;
   redo after a guest write; and eject, quit and a machine change with pending
   edits. In a scenario test, an Explorer apply on an image a running Casso
-  holds, with and without unsaved guest writes, leaves Casso, its drive and
+  has, with and without unsaved guest writes, leaves Casso, its drive and
   its files in the same state as Explorer writing the same bytes to the file
   through its own file commands, and Explorer's inspector shows Casso's reply
   whenever it is anything other than a reload.
@@ -3354,8 +3354,8 @@ release (Delivery). The first release MUST NOT depend on them.
   100 ms throughout.
 - **SC-028** (later release): For a made-up disk with a standard 16-sector
   track 0 and RW18 tracks 1 to 34, written by an encoder written for the test
-  from the format's description and not from the decoder, with pages holding
-  every byte value from $00 to $FF, so the nibble that holds each group's top
+  from the format's description and not from the decoder, with pages with
+  every byte value from $00 to $FF, so the nibble that has each group's top
   bits takes every value, every page decodes to its source bytes. Each planted
   case (a bad data nibble, a nibble outside the table, a wrong ID nibble, a
   bad address check value, a track number that differs from the physical
@@ -3365,10 +3365,10 @@ release (Delivery). The first release MUST NOT depend on them.
   never in a merged test, *Prince of Persia*'s RW18 tracks decode with every
   checksum good.
 - **SC-029** (later release): For made-up WOZ images with a half track
-  holding its neighbor's nibbles with noise over a tenth of them, a half track
-  holding sectors of its own, and one run of data written across three
+  with its neighbor's nibbles with noise over a tenth of them, a half track
+  with sectors of its own, and one run of data written across three
   adjacent quarter tracks, the comparison shows the first as likely a read of
-  its neighbor, the second as holding data of its own, and lists the run once
+  its neighbor, the second as having data of its own, and lists the run once
   for each of the three quarter tracks with its rotation; a disk in a
   standard layout lists no run; and no disk changes.
 - **SC-030**: At the window's opening size, the platter covers at least a
@@ -3467,8 +3467,8 @@ release (Delivery). The first release MUST NOT depend on them.
   skew and allocation layout. CiderPress II (its code under Apache 2.0, its
   documentation under CC BY-SA 4.0) and cpmtools (GPL) are sources of ideas
   and facts only, and no code is copied from either.
-- Some disks hold a DOS 3.3 volume beside a Pascal volume smaller than the
-  disk, and 3.5" disks hold larger Pascal and CP/M volumes. The map reads the
+- Some disks have a DOS 3.3 volume beside a Pascal volume smaller than the
+  disk, and 3.5" disks have larger Pascal and CP/M volumes. The map reads the
   DOS 3.3 volume of such a disk and gives the Pascal volume the not-mapped
   state with its size, as it does for every volume of another size.
 - ProDOS subdirectories in the map, and their paths in the file comparison,
@@ -3494,7 +3494,7 @@ release (Delivery). The first release MUST NOT depend on them.
   require each quarter track to map to the record of the whole track it falls
   in, and the standard layout maps N+0.75 to track N+1's record. The error
   they print gives data at half or quarter tracks as the reason, although
-  those quarter tracks hold no data of their own. Casso's own `disk create`
+  those quarter tracks have no data of their own. Casso's own `disk create`
   maps N+0.75 to track N, so images Casso made can be written today. Today's
   sector reads and writes also take record N as track N instead of looking up
   whole track N in the map, so on an image whose records are not in track
@@ -3520,9 +3520,9 @@ release (Delivery). The first release MUST NOT depend on them.
   applied while it exists only in memory. This follows the rule from GH #115
   that a change that could not be made must never be shown as made.
 - In Casso an edit reaches the drive only at a safe point, with the machine
-  held paused until the edit is saved or rolled back (FR-103), so the guest
+  paused until the edit is saved or rolled back (FR-103), so the guest
   never reads a field while it changes and never reads an edit the file does
-  not hold. The guest's DOS can still hold an old copy of a sector, such as
+  not have. The guest's DOS can still have an old copy of a sector, such as
   the VTOC, and write it back; the window shows a warning (FR-103), and
   nothing in the inspector can prevent it.
 - Undo restores the stored track record, not a new encoding of the old
@@ -3536,11 +3536,11 @@ release (Delivery). The first release MUST NOT depend on them.
   matching of changed files to drives onto the emulation thread and orders a
   reload against a save of the guest's writes, keeping a preserved copy where
   they conflict. Any inconsistency in what Casso does with such a change, such
-  as which file the drive holds when the guest's writes were not yet saved,
+  as which file the drive has when the guest's writes were not yet saved,
   belongs to Casso's external-change handling, not to 040. Explorer's window
   makes no request of Casso before it saves, and shows Casso's reply when it
   is anything other than a reload (FR-105); Casso's own inspector shows which
-  file the drive holds afterward.
+  file the drive has afterward.
 - Casso keeps each drive's disk as inserted for "As inserted" comparisons.
   This costs at most the size of the largest image per drive, a few MB.
 - The flux timing tolerance for comparison starts at ±1% of a cell's time and
@@ -3550,9 +3550,9 @@ release (Delivery). The first release MUST NOT depend on them.
 - A write seam shows in a comparison as a sync run of another length, which
   "Ignore sync widths and counts" leaves out, so no separate option is given
   for it.
-- (Later release) The pattern table holds Casso's own patterns, written from
+- (Later release) The pattern table has Casso's own patterns, written from
   public documentation such as Beneath Apple DOS and Beneath Apple ProDOS and
-  from disks the owner holds, and copies no other tool's signature data.
+  from disks the owner has, and copies no other tool's signature data.
   Copying, cracking and patching disks stay out of scope.
 - (Later release) The bit-slip scan's minimum run is set in planning,
   starting at 6 nibbles, so that sync runs, which return to the normal
@@ -3591,7 +3591,7 @@ release (Delivery). The first release MUST NOT depend on them.
   set in planning, starting at 75%, and tuned against made-up tracks with
   noise. A read off the center of a track gives a weaker signal and more
   noise, so a high share with no fields of its own points to a read of the
-  neighbor, while fields or runs that neither neighbor holds point to data of
+  neighbor, while fields or runs that neither neighbor has point to data of
   its own.
 - Disk breakpoints belong to the 035 debugger spec. The field definitions and
   the matching of marks with ?? wildcards (FR-011, FR-012, FR-019), the
@@ -3600,7 +3600,7 @@ release (Delivery). The first release MUST NOT depend on them.
   merges first, and the other branch uses them. The decode settings a user
   enters in the inspector stay with the inspector window (FR-019) and are not
   offered to the debugger, so 035 gives its breakpoints marks of their own.
-  The Disk II controller holds one event listener today, which the Disk ][
+  The Disk II controller has one event listener today, which the Disk ][
   debug window uses, and neither spec takes it from that window.
 - 035 specifies disk breakpoints as its User Story 20, "Stop on a disk event"
   (FR-142 to FR-165, SC-037 to SC-044). Its FR-161 has the guest-write events
@@ -3677,7 +3677,7 @@ release (Delivery). The first release MUST NOT depend on them.
     details, by a posted request or as a snapshot published under a lock as
     035's debug views do, and makes every applied edit, undo and redo at a
     safe point. 041's `DriveStatus`, which the emulation thread publishes at
-    the end of each service pass and frame, holds each drive's mounted file,
+    the end of each service pass and frame, has each drive's mounted file,
     write-protect causes, motor state and head quarter track. The inspector
     takes its head state (FR-062), its write-protect causes (FR-065) and the
     write and visit counts (FR-068) from it, and 040 adds to it the angle, the

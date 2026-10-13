@@ -13,7 +13,7 @@
 //  TrackVerdict / DifferenceKind
 //
 //  What comparing a quarter track of A with B found (FR-118), the strongest
-//  that holds, and each kind of difference the Differences tab lists
+//  that applies, and each kind of difference the Differences tab lists
 //  (FR-119, FR-120).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,7 @@ enum class DifferenceKind
 //  comparison, never a verdict (FR-120). A track's comparison gives its
 //  verdict with the rotation and length change that qualify it; a
 //  difference gives its place on A and on B; a file pair gives the outcome
-//  of comparing two files of one path, with A's map cells that hold bytes
+//  of comparing two files of one path, with A's map cells that have bytes
 //  differing from B's.
 //
 ////////////////////////////////////////////////////////////////////////////////
