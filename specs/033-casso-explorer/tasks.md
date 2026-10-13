@@ -351,7 +351,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [x] T148 Show the pin icon on pinned folders in the navigation pane, per FR-055 (partial)
 - [x] T149 Match File Explorer's Content view type line and right column position, per FR-044 and SC-009 (partial)
 - [x] T150 Match File Explorer's wrap width for names without spaces in Medium icons, per SC-009 (partial)
-- [ ] T151 Record SC-018 and SC-019 in `validation.md`, per SC-018 and SC-019 (missing)
+- [x] T151 Record SC-018 and SC-019 in `validation.md`, per SC-018 and SC-019 (missing)
 - [x] T152 Give the drop-down and context menus File Explorer's acrylic backdrop (blurred, tinted desktop behind the card; the popup sized to the card with the system's own rounded corners and shadow), and any other surface where File Explorer uses acrylic, matched by capture in light and dark, per SC-009 (missing)
 
 ## Phase 12: Convergence
@@ -361,7 +361,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [x] T155 Let Casso's DisplayPage be hosted outside Casso: put SettingsDisplayCrtBridge's bindings (prefs, theme, panel state, emulator shell) behind what a host supplies, and add a Display page to Casso Explorer's options dialog that edits T154's settings and redraws the preview, per FR-069 and US9/AC2 (missing)
 - [x] T156 Add a monitor drop-down beside Theme on Casso Explorer's command bar listing Casso's monitor styles, as Casso's toolbar has one, switching the preview at once, per FR-068 and US9/AC1 (missing)
 - [x] T157 Add a color/monochrome switch to a double hi-res picture's preview, overriding the automatic choice while that picture is shown, per FR-072 and US9/AC4 (missing)
-- [ ] T158 Measure SC-020 (a picture in the preview and on Casso's screen, same monitor and effects, compared pixel for pixel at the same size) and SC-021 (redraw within a quarter second on a monitor switch; the choice survives a restart), and record both in validation.md, per SC-020 and SC-021 (missing)
+- [x] T158 Measure SC-020 (a picture in the preview and on Casso's screen, same monitor and effects, compared pixel for pixel at the same size) and SC-021 (redraw within a quarter second on a monitor switch; the choice survives a restart), and record both in validation.md, per SC-020 and SC-021 (missing)
 
 ## Phase 13: Convergence
 
