@@ -163,7 +163,11 @@ struct BreakpointSetData
 
 struct BreakpointListData
 {
-    std::vector<BreakpointInfo>  breakpoints;
+    std::vector<BreakpointInfo>                    breakpoints;
+
+    //  A BPV scanline break, first and last line. The session has it, not a
+    //  table, so it has no id.
+    std::optional<std::pair<uint32_t, uint32_t>>  videoBreak;
 };
 
 struct WatchEntry

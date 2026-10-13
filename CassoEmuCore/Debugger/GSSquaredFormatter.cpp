@@ -66,7 +66,7 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 
     if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, reply.command.find ('.') == std::string::npos, lines); }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly    (*v, lines); }
-    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); }
+    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); AppleWinFormatter::AppendVideoBreak (*v, lines); }
     else if (auto * v = std::get_if<SymbolData>         (&data)) { FormatSymbols        (*v, lines); }
     else if (auto * v = std::get_if<BreakpointSetData>  (&data)) { lines.push_back (std::format ("Breakpoint id={} set", v->breakpoint.id)); }
     else if (auto * v = std::get_if<WatchListData>      (&data); v != nullptr && v->kind == WatchListKind::Watch)

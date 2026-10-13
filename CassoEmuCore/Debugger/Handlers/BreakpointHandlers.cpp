@@ -67,7 +67,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
 //
 //  BreakpointHandlers::ListAll
 //
-//  Both tables, in id order.
+//  Both tables, in id order, and the BPV scanline break.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +85,8 @@ void BreakpointHandlers::ListAll (DebugSession & session, BreakpointListData & l
 
     std::sort (list.breakpoints.begin(), list.breakpoints.end(),
                [] (const BreakpointInfo & a, const BreakpointInfo & b) { return a.id < b.id; });
+
+    list.videoBreak = session.GetVideoBreak();
 }
 
 

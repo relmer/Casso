@@ -61,6 +61,30 @@ namespace DebuggerTests
 
 
 
+        //  A BPV scanline break has no id, so it is listed after the table's
+        //  entries, and alone when there are none.
+        TEST_METHOD (BPL_ListsTheVideoBreak)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetVideoBreak (0xA0, 0xA0);
+
+            lines = List (rig);
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (0));
+
+            rig.RunOk ("BP 300");
+            lines = List (rig);
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (1));
+
+            rig.session.ClearVideoBreak();
+            Assert::AreEqual ((size_t) 1, List (rig).size(), L"the line goes with the break");
+        }
+
+
         TEST_METHOD (BRK_Lengths_NmosTable)
         {
             // Stable undocumented opcodes take their table lengths, the

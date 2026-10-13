@@ -386,13 +386,33 @@ void AppleWinFormatter::FormatBreakpointSet (const BreakpointSetData & data, Lin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::AppendVideoBreak
+//
+//  The BPV scanline break, after the list, in every mode's list layout: it
+//  has no id, so no layout has a column for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::AppendVideoBreak (const BreakpointListData & data, std::vector<std::string> & lines)
+{
+    if (data.videoBreak.has_value())
+    {
+        lines.push_back (std::format ("Video break on scanlines ${:X}-${:X}, cleared when it fires.", data.videoBreak->first, data.videoBreak->second));
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::FormatBreakpointList
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleWinFormatter::FormatBreakpointList (const BreakpointListData & data, Lines & lines)
 {
-    if (data.breakpoints.empty())
+    if (data.breakpoints.empty() && !data.videoBreak.has_value())
     {
         lines.push_back ("No breakpoints.");
         return;
@@ -406,6 +426,8 @@ void AppleWinFormatter::FormatBreakpointList (const BreakpointListData & data, L
                                       DescribeBreakpoint (breakpoint),
                                       breakpoint.hits));
     }
+
+    AppendVideoBreak (data, lines);
 }
 
 

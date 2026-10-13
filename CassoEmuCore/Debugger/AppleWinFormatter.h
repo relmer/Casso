@@ -36,6 +36,9 @@ public:
     // A breakpoint's kind and place in words, as BPL lists it.
     static std::string  DescribeBreakpoint (const BreakpointInfo & breakpoint);
 
+    // The BPV scanline break's line under a breakpoint list, in every mode.
+    static void         AppendVideoBreak (const BreakpointListData & data, std::vector<std::string> & lines);
+
 private:
     using Lines = std::vector<std::string>;
 

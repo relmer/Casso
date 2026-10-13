@@ -162,7 +162,7 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
         else                   { FormatBytes  (*v, lines); }
     }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly (*v, lines); }
-    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, lines); }
+    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, lines); AppleWinFormatter::AppendVideoBreak (*v, lines); }
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack   (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data))
     {

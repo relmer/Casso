@@ -310,6 +310,9 @@ public:
     void   ClearVideoBreak       ();
     bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
 
+    //  The BPV range, first and last scanline, while one is set.
+    std::optional<std::pair<uint32_t, uint32_t>>  GetVideoBreak () const;
+
     // BPBEAM and FRAME: stop when the beam reaches a place in the frame,
     // given as the cycle within it, after passing it `passes - 1` times.
     // A break for one run goes at the run's stop, whatever stopped it.
