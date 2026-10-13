@@ -1,6 +1,6 @@
 # Implementation Plan: Debugger
 
-**Branch**: `035-debugger` | **Date**: 2026-09-13, revised 2026-09-18 and 2026-10-08 (disk breakpoints) | **Spec**: [spec.md](spec.md)
+**Branch**: `035-debugger` | **Date**: 2026-09-13, revised 2026-09-18, 2026-10-08 (disk breakpoints) and 2026-10-12 (automatic machine states) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `/specs/035-debugger/spec.md`
 
@@ -58,6 +58,17 @@ code over that record, so a live run, a replay and reverse continue match the
 same fields. The field definitions and `??` matcher, the per-drive head and the
 write hook are shared with 040 and built by whichever merges first. Scheduled
 with the owner.
+
+**2026-10-12: automatic machine states (User Story 25, R-047).** The
+`.cassostate` files built for T464 gain a save time and a screen thumbnail in
+a second version of their payload section, which files of the first version
+load without. A setting on the General page, on by default, saves one
+automatic state per machine kind at exit and on a machine switch and resumes
+it at startup and on switching back. A launch with command-line media starts
+cold, and its automatic state is replaced only after a prompt with the old
+state's time and thumbnail. States go to `%LOCALAPPDATA%\Casso\States\`, and
+every state is written as a whole new file that replaces the old one. Nothing
+runs on the per-instruction or per-cycle path.
 
 ## Technical Context
 
@@ -627,6 +638,77 @@ block diagram before the move starts.
   interface, moved as they are, with their order and locking. SC-052 is
   measured before and after (R-046's method).
 
+### Automatic machine states (User Story 25, FR-219 to FR-225)
+
+The decisions are in R-047; the format is in data-model.md and
+[contracts/machine-state-file.md](contracts/machine-state-file.md).
+
+- **Format**: the `SFIL` section goes to version 2, adding the save time (UTC
+  `FILETIME`) and a PNG thumbnail after the machine state; the file header's
+  version goes to 2 as well, so a build from before this change reports a
+  newer format instead of a damaged file. `Parse` reads version 1 with no
+  time and no thumbnail. The hash covers both, as it covers the rest.
+- **Thumbnail**: the published UI framebuffer (560 by 384, the picture on the
+  screen, monitor tint included), copied under its mutex, halved to 280 by 192 with
+  a box filter, and encoded with `PngCodec`. The filter moves from
+  `HistoryThumbnails::Shrink` into a shared image helper so the state file
+  and the history strip use one.
+- **Policy**: a pure class, `AutoStatePolicy`, computes from the setting, the
+  launch's command line, whether an automatic state exists and the user's
+  answer whether to resume, whether to save, and whether to prompt first;
+  it also returns the automatic state's path. Every rule in FR-220 to FR-223
+  is a test on it with no machine and no window.
+- **Paths**: `AssetBootstrap::GetStateDirectory` creates and returns
+  `%LOCALAPPDATA%\Casso\States\`. An automatic state is
+  `<machine>.autosave.cassostate` there. The Save state and Load state
+  dialogs set `FileDialogSpec::initialFolder` to it.
+- **Writing**: `SaveMachineState` and the automatic save both write through
+  `DiskImageStore::WriteFileAtomically`, which writes a temporary file and
+  renames it over the old one, so after a failure partway the previous
+  state is intact.
+- **Startup**: after `Initialize` has built and cold booted the machine and
+  mounted the media saved in the preferences, and before the CPU thread starts, the shell
+  posts the resume to the CPU thread's command queue, so the first frame is
+  the resumed machine. A launch with `--disk1`, `--disk2` or `--tape` posts
+  nothing and marks the session as command-line media for the exit prompt.
+  A failed resume posts a notice; the cold-booted machine stays.
+- **Machine switch**: `MachineManager::SwitchMachine` (CPU thread) saves the
+  outgoing machine's automatic state after the new configuration loads and
+  before reverse recording stops, so a switch that fails saves nothing, and
+  resumes the incoming machine's automatic state after it is built and power
+  cycled. A switch made by `LoadMachineState` saves the outgoing machine but
+  does not resume the incoming one, since the state being loaded replaces it.
+  For a command-line session's machine, the UI thread prompts before posting
+  the switch (`ShowMachinePicker`, `SettingsMachineCatalog`), and the answer
+  rides with the command.
+- **Exit**: `EmulatorShell` gains `OnClose`, which runs the prompt on the UI
+  thread while the message loop is live; closing the prompt without a choice
+  replaces nothing. File > Exit posts `WM_CLOSE` instead of destroying the
+  window, so every route goes through `OnClose`; the updater's restart posts
+  `WM_CLOSE` too. `OnDestroy` writes the automatic state right after the
+  CPU thread is stopped and joined, before teardown, so the machine is quiet
+  and the window exists. A failed write is logged and does not stop
+  the exit.
+- **Prompt**: a `DialogDefinition` with the thumbnail as its image and two
+  buttons, Replace and Don't replace. `DialogBodyContent` draws images into
+  a square today, so it gains an image placement at the picture's own aspect.
+- **Setting**: `GlobalUserPrefs::autoSaveMachineState`, true by default, under
+  the `autoSaveMachineState` key; the General page has a checkbox for it,
+  applied and saved at once like the page's other controls.
+- **Compatibility (FR-226, SC-059)**: from the release that first ships state
+  files, a part's `LoadState` reads every form a release wrote. Today
+  `MachineHost`, `DiskImage` and `Disk2NibbleEngine` accept only their newest
+  version (`version == kStateVersion`); each switches to a range check with a
+  branch per released version, as `SiriusJoyport` already does, filling a
+  field the older form lacked with its cold-boot value. `IMachineState.h`'s
+  rule changes from "may accept older versions" to "must accept every
+  released version". The release step saves one state per machine kind with
+  the release build into `UnitTest/Fixtures/States/<version>/`, and
+  `MachineStateCompatibilityTests` in ScenarioTests loads each fixture,
+  resumes it, and runs a second of emulated time. A version bump that breaks
+  an older fixture fails the suite. `MachineStateFile` distinguishes a newer
+  format, different ROM images and a damaged file in its error.
+
 ### Threading
 
 As before: batch is single-threaded; in the emulator the session lives on
@@ -719,7 +801,22 @@ landing as its own merge to the branch and gated by the full suite:
     SC-055; then the old windows removed.
 9i. **Logs brought in line (FR-198 amended)**: the video and sound logs and
     the trace buffer moved onto the event cache and replayer.
-10. **Release**: the README screenshot on the Mockingboard speech demo
+9j. **Automatic machine states (story 25, P2)**, scheduled by the owner ahead
+    of 9h: the state file's version 2 with the save time and thumbnail, and
+    the shared image filter; the state folder, the dialogs' default folder
+    and the atomic write; `AutoStatePolicy` and the preference with the
+    General page's checkbox; resume and save on a machine switch; resume at
+    startup; save and the prompt at exit, with File > Exit through
+    `WM_CLOSE` and the aspect-keeping dialog image; the compatibility rule in
+    `IMachineState.h`, range checks in the three exact-match loaders, and
+    `MachineStateCompatibilityTests` (fixtures saved by the release step,
+    item 10); SC-057 measured; then the
+    CHANGELOG line and a README section for both the commands and the
+    automatic states, drafted for the owner's approval after the owner's test
+    of the build.
+10. **Release**: record one machine state per machine kind with the release
+    build into `UnitTest/Fixtures/States/<version>/` (SC-059); the README
+    screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
     pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
 
@@ -799,6 +896,18 @@ landing as its own merge to the branch and gated by the full suite:
   they are, in the same order and under the same locks, and SC-052's A/B
   measurement decides; a regression is explained and fixed before the move
   merges.
+
+- **The automatic state replaces a file the user cannot see being written.**
+  A crash during the write would destroy the state the setting exists to
+  save, so every state is written whole to a temporary file and renamed over
+  the old one (FR-225); SC-058's cases include a write that fails partway.
+- **A resume restores disk contents from the state, not from the image file.**
+  A disk changed outside Casso since the last exit comes back as the state
+  had it, which is what loading a state does today and what the spec's edge
+  case requires; the risk is a user surprised that the file's newer contents
+  are not there.
+  The Load state and resume notices include the state file's path, so the source of the
+  disk is visible.
 
 ## Project Structure
 
@@ -1008,6 +1117,28 @@ diagnostics are declared in the
 debugger and implemented by each device, so a future machine's devices add
 providers without touching the window. Every new file is listed by hand in
 its `.vcxproj`.
+
+Added 2026-10-12 for User Story 25:
+
+```text
+CassoEmuCore/Shell/MachineStateFile.h/.cpp        # CHANGE: SFIL version 2 with save time and PNG thumbnail
+CassoEmuCore/Shell/AutoStatePolicy.h/.cpp         # NEW: when to resume, save and prompt; the automatic state's path
+CassoEmuCore/Shell/EmulatorShellState.cpp         # CHANGE: atomic write, default folder, automatic save and resume
+CassoEmuCore/Shell/MachineManager.cpp             # CHANGE: save the outgoing machine, resume the incoming one
+CassoEmuCore/Shell/Window/EmulatorWindow.cpp      # CHANGE: OnClose prompt, save in OnDestroy, startup resume
+CassoEmuCore/Shell/WindowCommandManager.cpp       # CHANGE: File > Exit posts WM_CLOSE
+CassoEmuCore/AssetBootstrap.h/.cpp                # CHANGE: GetStateDirectory
+CassoEmuCore/Config/GlobalUserPrefs.h/.cpp        # CHANGE: autoSaveMachineState
+CassoEmuCore/Ui/Settings/GeneralPage.h/.cpp       # CHANGE: the checkbox
+CassoEmuCore/Ui/Dialogs/DialogBodyContent.h/.cpp  # CHANGE: an image placement at the image's own aspect
+CassoEmuCore/Video/ImageShrink.h/.cpp             # NEW: the box filter, moved out of HistoryThumbnails
+UnitTest/EmuTests/MachineStateFileTests.cpp       # CHANGE: version 2 round trip, version 1 load, newer format fails
+UnitTest/EmuTests/AutoStatePolicyTests.cpp        # NEW: FR-220 to FR-223 rules
+CassoEmuCore/Core/IMachineState.h                 # CHANGE: every released version must load
+CassoEmuCore/Shell/MachineHost.cpp, Devices/Disk/DiskImage.cpp, Machines/Apple2/Common/Disk2NibbleEngine.cpp  # CHANGE: range checks, a branch per released version
+ScenarioTests/MachineStateCompatibilityTests.cpp  # NEW: each fixture loads, resumes and runs (SC-059)
+UnitTest/Fixtures/States/<version>/*.cassostate   # NEW: one state per machine kind per release
+```
 
 ## Complexity Tracking
 

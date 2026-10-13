@@ -145,6 +145,8 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What if the automatic state cannot be resumed? -> A: A notice with the reason appears, the machine starts cold, and the file is not modified; the next automatic save replaces it (FR-222).
 - Q: What does a launch with disks or a tape on the command line do? -> A: It starts cold with the command line's media, so the automatic state is not resumed. At exit the existing automatic state is replaced only if the user chooses to replace it, in a prompt with that state's date and time and a thumbnail of its screen. A command line with only a machine option resumes that machine (FR-223).
 - Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\States\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
+- Q: Does a newer Casso load a state an older one saved? -> A: Yes, from the first release that ships state files on, for the same machine kind and ROM images; a fixture test of saved states from each release guards it (FR-226, SC-059).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -1286,6 +1288,7 @@ run something, switch back to the //e: it is where it was left.
    loads it, **Then** it loads.
 
 ---
+
 ### Edge Cases
 
 - **An event older than history**: Scrolling a log back past the oldest
@@ -1548,6 +1551,7 @@ run something, switch back to the //e: it is where it was left.
   written, and the one saved before stays.
 - **Two copies of Casso running the same machine kind**: each saves at its own
   exit, and the last to exit replaces the other's automatic state.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2894,6 +2898,14 @@ run something, switch back to the //e: it is where it was left.
   automatic state MUST be replaced only by a complete new file, so after a
   save that fails partway the previous one is intact, and a failed save MUST
   NOT stop Casso from closing.
+- **FR-226**: A machine state file saved by any released version of Casso MUST
+  load in every later version, for the same machine kind and ROM images. A
+  part of the machine whose saved state changes MUST load each earlier
+  released form of it, with what the earlier form lacked set to its cold-boot
+  value. A state from a newer version of Casso, or saved
+  with different ROM images, MUST fail with a message that distinguishes the
+  two cases from each other and from a damaged file.
+
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
@@ -2984,6 +2996,7 @@ run something, switch back to the //e: it is where it was left.
 - **Machine state file** (amended 2026-10-12): in addition to the machine and
   its disks, the date and time it was saved and a thumbnail of the emulated
   screen at that moment.
+
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -3145,8 +3158,14 @@ run something, switch back to the //e: it is where it was left.
   with command-line media, a save at exit that fails partway) the previous
   automatic state is intact afterward unless the user chose to replace it.
 
+- **SC-059**: For every release of Casso that saves machine states, a state
+  that release saved for each machine kind is in the test suite, and every
+  later build loads each one and runs it for one second of emulated time
+  without error.
+
 **Out of scope for the automatic states**: a state picker or browser, more than
 one automatic state per machine kind, and states saved on a timer.
+
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
 files with seamless scroll-back (kept in User Story 21's debug projects),
@@ -3378,6 +3397,10 @@ debug channel.
   about exit; this extends it to the switch, which has the same effect.
 - **The thumbnail** is of the emulated screen alone, without the window's
   chrome or the desk scene, small enough to add little to the file.
+- **Compatibility starts at the first release with state files.** Forms of
+  the saved state written only by unreleased builds, among them `DiskImage`
+  versions 1 and 2 and `Disk2NibbleEngine` version 1, are not read by FR-226.
+
 ### References
 
 - GH #51 (debugger), GH #59 (merged into #51), GH #121 (whole-program

@@ -354,6 +354,33 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
    baseline's run-to-run noise (SC-052).
 3. Check `EmulatorShell.h` includes no debugger or input header, only forward
    declarations.
+## Story 25: automatic machine states
+
+1. With a clean `%LOCALAPPDATA%\Casso\States\`, start Casso: the General page
+   has "Automatically save the machine state at exit and resume at startup"
+   checked.
+2. Boot a //e from a disk, run a program to a recognizable screen, close
+   Casso. Look for `<machine>.autosave.cassostate` in the States folder. Start
+   Casso: the same screen, the program continuing, no dialog (SC-056).
+3. Switch to the //c, run something, switch back to the //e: it resumes where
+   it was; the //c has its own automatic state.
+4. Replace the //e's ROM file with a different one and start Casso: a notice
+   with the reason appears, the //e starts cold, and the automatic state
+   file's size and time match those before the start (FR-222).
+5. Start Casso with `--disk1` and a disk: it starts cold with that disk. Close
+   it: a prompt has the saved state's date, time and thumbnail. Choose Don't
+   replace, start Casso normally: the earlier state resumes. Repeat and choose
+   Replace: the command-line session's state resumes (FR-223).
+6. Start with `--machine` only: that machine's automatic state resumes.
+7. Clear the setting, close, start: no state written or resumed, and the
+   files are in the folder.
+8. File > Save state and Load state: both dialogs open in the States folder; a
+   state file saved before this change loads.
+9. Time startup with resume against a cold start, two 140 KB disks mounted:
+   no more than one second apart (SC-057).
+10. Run `MachineStateCompatibilityTests`: every fixture under
+    `UnitTest/Fixtures/States/` loads, resumes and runs a second (SC-059).
+
 ## Release
 
 1. Boot the Mockingboard speech demo, open the debugger with the Mockingboard

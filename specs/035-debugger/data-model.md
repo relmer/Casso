@@ -648,3 +648,28 @@ snapshot changed.
   UI thread); implemented by an adapter private to the shell's `.cpp`.
 - **ShellInput**: owns keyboard routing, caps lock, held host inputs, the
   game port mixer and the controller service, backend and thread.
+
+## Automatic machine states (User Story 25, FR-219 to FR-225)
+
+- **MachineStateContents** (amended): gains `savedAtUtc` (`FILETIME`, zero
+  for a version-1 state) and `thumbnailPng` (bytes, empty for a version-1
+  state). `Build` fills both; `Parse` fills them from version 2, and for
+  version 1 they are empty.
+- **MachineStateThumbnail**: 280 by 192 pixels, the published framebuffer
+  halved with a box filter, stored as PNG inside the `SFIL` payload.
+- **AutoStatePolicy**: pure. Inputs: the setting, whether the launch's command line
+  has a disk or a tape, whether the machine's automatic state
+  exists, and for a command-line session the user's prompt answer. Outputs:
+  resume at startup (yes or no), save at exit or switch (yes, no, or prompt
+  first), and `GetAutoStatePath (stateDirectory, machineName)`, which is
+  `<stateDirectory>\<machineName>.autosave.cassostate`.
+- **Session flags** (shell): `isCommandLineMediaSession`, set at startup when
+  `--disk1`, `--disk2` or `--tape` is given; the machine it applies to is the
+  one started with it, and it clears on a switch away once the user has
+  chosen in the prompt.
+- **GlobalUserPrefs::autoSaveMachineState**: bool, default true, JSON key
+  `autoSaveMachineState`.
+- **Exit prompt** (`DialogDefinition`): title, the machine's name, the old
+  state's local date and time (the file time for a version-1 state), the
+  thumbnail when present at its own aspect, and the buttons Replace and
+  Don't replace; the close box is Don't replace.

@@ -2400,3 +2400,89 @@ interface (equally light in the header; kept open for the owner's review of
 the block diagram, since the shell would then call `ShellDebugger` directly);
 moving only includes (measured 2026-10-10: forward declarations alone cut the
 tree's parsed header text by 6%, since the shell holds its parts by value).
+
+## R-047: Automatic machine states (User Story 25)
+
+**Decision**: version 2 of the state file's `SFIL` section adds the save time
+and a PNG thumbnail; an `AutoStatePolicy` class computes resume, save and
+prompt; the shell resumes through the CPU thread's command queue at startup,
+saves in `MachineManager::SwitchMachine` and in `OnDestroy`, and prompts in a
+new `OnClose`; states are written atomically to `%LOCALAPPDATA%\Casso\States\`.
+
+**Found in the code (2026-10-12)**:
+
+- `MachineStateFile` writes a 28-byte header (magic `CASSOSTA`, format
+  version 1, payload size, hash) and one `SFIL` section of version 1. `Parse`
+  fails on a newer header version, a section version above its maximum, and
+  any bytes after `SFIL`; the hash covers the whole payload. Every build
+  already released fails on a second section, with "damaged"; it fails on a
+  version 2 `SFIL` too, but with the header version raised its message is
+  "newer state format".
+- `SaveMachineState` writes with `std::ofstream` and truncation, so a failure
+  partway destroys the old file. `DiskImageStore::WriteFileAtomically` (a
+  temporary file renamed over the target) exists and is public.
+- The published UI framebuffer is 560 by 384 BGRA under
+  `ShellRenderer::GetFramebufferMutex`. `MachineFrameRenderer` can draw a
+  picture from a machine but switches video modes as it draws, so it is not
+  run on the live machine. `PngCodec` encodes RGBA through WIC;
+  `HistoryThumbnails::Shrink` is the only scaler.
+- `EmulatorShell` has no `OnClose`. File > Exit calls `DestroyWindow`
+  directly, bypassing `WM_CLOSE`; the updater's restart posts `WM_CLOSE`.
+  `OnDestroy` stops and joins the CPU thread first; `~EmulatorShell` flushes
+  disks with `FlushAllForShutdown`, which can open a dialog.
+- `MachineManager::SwitchMachine` runs on the CPU thread; the configuration
+  load is its last point of refusal, before reverse recording stops and the
+  disks flush. `LoadMachineState` calls it for a state from another machine.
+- `Initialize` cold boots the machine and mounts the command-line media or
+  the media saved in the preferences before `RunMessageLoop` starts the CPU thread; a command posted before
+  the start is queued and runs first.
+- `DialogDefinition` takes an image and custom buttons; `DialogBodyContent`
+  stretches the image into a square.
+
+**Rationale**: the thumbnail is the last picture on the screen, so it comes
+from the published framebuffer rather than a fresh render. With a version
+bump inside `SFIL` there is one section and one hash, and older files load
+with no migration. A pure policy class puts every rule of FR-220 to FR-223 under unit
+tests without a machine or a window. Saving in `OnDestroy` after the CPU
+thread is joined requires no cross-thread handoff, and the window exists for
+a notice if the write fails; saving at the point where the switch can no
+longer fail means a failed switch writes no new automatic state.
+Resuming through the command queue before the CPU thread starts means the
+first frame is already the resumed machine.
+
+**Alternatives considered**:
+
+- A separate thumbnail section: every released build reports it as damaged,
+  and `ReadPayload` would have to loop over sections; nothing gained over a
+  version bump.
+- A sidecar file for the thumbnail and time: two files to update in step and
+  to replace atomically together.
+- Rendering the thumbnail with `MachineFrameRenderer` on a scratch machine:
+  a second machine build at every save, and the picture is without the
+  monitor tint that was on the screen.
+- Saving at exit in `~EmulatorShell`: works, but after `OnDestroy` the window
+  is gone, so a failure there cannot be reported.
+- Prompting in `OnDestroy`: the window is already closing, and a modal
+  dialog during teardown is the hazard `FlushAllForShutdown` already has.
+- An automatic state per date: more than one per machine, which is out of the
+  spec's scope.
+
+### R-047 addendum: older states in newer versions (FR-226)
+
+**Found (2026-10-12)**: each part of the machine writes its own versioned
+section. `IMachineState.h` permits a loader to read older versions, but
+`MachineHost` (version 2), `DiskImage` (3) and `Disk2NibbleEngine` (2) fail
+unless the version is exactly their newest; `SiriusJoyport` (2) branches on
+the version it read. Those three have each raised their version on this
+branch, so with exact matching every such change ends every saved state, and
+with automatic states on by default, every user's session after the update.
+
+**Decision**: from the first release with state files, every loader reads
+every released form; a release saves fixture states per machine kind; a
+scenario test loads, resumes and runs each. Forms only unreleased builds
+wrote are not read.
+
+**Alternatives considered**: converting old states with a migration step
+(a second code path per version, tested no better than the branch in the
+loader); keeping exact matching and relying on FR-222's cold boot (correct
+but the user's session ends at each update that touches a part's state).
