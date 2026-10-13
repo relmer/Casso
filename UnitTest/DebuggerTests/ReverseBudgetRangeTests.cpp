@@ -31,6 +31,13 @@ public:
     }
 
 
+    TEST_METHOD (TheMaximumIsNoMoreThanFortyEightHoursOfABusyProgram)
+    {
+        Assert::AreEqual (7649, ReverseBudget::GetBudgetForHours (48.0), L"2880 minutes at 24.1 minutes per 64 MB, rounded up");
+        Assert::AreEqual (7649, ReverseBudget::GetRange (65536 * kMb).maxMb, L"64 GB available");
+    }
+
+
     TEST_METHOD (TheRangeIsNeverBelowOneMb)
     {
         Assert::AreEqual (1, ReverseBudget::GetRange (0).maxMb,       L"no memory reported");
@@ -73,5 +80,14 @@ public:
 
         Assert::AreEqual (std::wstring (L"Room for about 24 to 44 minutes of history; a busy program fills it sooner."),
                           ReverseBudget::GetEstimateText (64));
+    }
+
+
+    TEST_METHOD (TwoHoursOrMoreIsGivenInHours)
+    {
+        Assert::AreEqual (std::wstring (L"Room for about 113 minutes to 3 hours of history; a busy program fills it sooner."),
+                          ReverseBudget::GetEstimateText (300), L"113 and 205 minutes");
+        Assert::AreEqual (std::wstring (L"Room for about 48 to 87 hours of history; a busy program fills it sooner."),
+                          ReverseBudget::GetEstimateText (7649));
     }
 };

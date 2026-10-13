@@ -11,8 +11,8 @@
 //  ReverseOptions
 //
 //  Reverse execution's settings: whether history recording is on, and the
-//  memory budget for its snapshots. Snapshots are taken kDefaultIntervalFrames video
-//  frames apart.
+//  memory budget for its snapshots. Snapshots are taken
+//  kDefaultIntervalFrames video frames apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,10 +61,12 @@ struct ReverseBudgetRange
 class ReverseBudget
 {
 public:
-    static constexpr int  kTickCount = 10;
+    static constexpr int     kTickCount       = 10;
+    static constexpr double  kMaxHistoryHours = 48.0;
 
-    //  1 MB to the lower of 90% of availableBytes and availableBytes less
-    //  4 MB, never below 1 MB; a page is a tenth of the range, at least 1 MB.
+    //  1 MB to the lowest of 90% of availableBytes, availableBytes less 4 MB,
+    //  and the memory a busy program fills in kMaxHistoryHours, never below
+    //  1 MB; a page is a tenth of the range, at least 1 MB.
     static ReverseBudgetRange  GetRange (uint64_t availableBytes);
 
     //  Where a saved budget sits on the slider: at the maximum when above it.
@@ -78,6 +80,9 @@ public:
     static void          EstimateMinutes (int budgetMb, int intervalFrames, double & outLow, double & outHigh);
     static std::wstring  GetEstimateText (int budgetMb);
 
+    //  The budget a busy program fills in a number of hours.
+    static int  GetBudgetForHours (double hours);
+
 private:
     static constexpr uint64_t  kBytesPerMb       = 1024 * 1024;
     static constexpr uint64_t  kReserveMb        = 4;
@@ -89,4 +94,10 @@ private:
     static constexpr double  kBusyMinutesPer64Mb  = 24.1;
     static constexpr double  kQuietMinutesPer64Mb = 43.8;
     static constexpr double  kMeasuredBudgetMb    = 64.0;
+
+    //  Below two hours a time is given in minutes.
+    static constexpr double  kMinutesPerHour      = 60.0;
+    static constexpr double  kMinutesShownUnder   = 120.0;
+
+    static std::wstring  FormatDuration (double minutes, bool withUnit);
 };
