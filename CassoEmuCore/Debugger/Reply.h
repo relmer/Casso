@@ -96,6 +96,10 @@ struct MessageData
 struct RegistersData
 {
     Cpu6502Registers  registers = {};
+
+    //  One register to show, as WinDbg's `r a` asks for: A, X, Y, S, PC or P.
+    //  Empty for all of them.
+    std::string       only;
 };
 
 struct MemoryRow

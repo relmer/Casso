@@ -34,6 +34,7 @@ private:
     using Lines = std::vector<std::string>;
 
     static bool         TryFormatData       (const std::string & name, const ReplyData & data, Lines & lines);
+    static std::string  FormatRegister      (const Cpu6502Registers & registers, const std::string & name);
     static void         FormatBytes         (const MemoryData         & data, Lines & lines);
     static void         FormatUnits         (const MemoryData         & data, size_t unit, Lines & lines);
     static void         FormatString        (const MemoryData         & data, Lines & lines);

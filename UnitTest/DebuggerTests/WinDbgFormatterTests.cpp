@@ -74,6 +74,24 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("nv-bdizc"), WinDbgFormatter::FormatFlags (0x20));
         }
 
+        TEST_METHOD (Registers_ANamedOneAlone)
+        {
+            RegistersData  data;
+
+
+
+            data.registers = { 0x0300, 0x41, 0x00, 0x00, 0xF9, 0x81 };
+
+            data.only = "A";
+            Assert::AreEqual (std::string ("a=41"),    Render ("r", data)[0]);
+            data.only = "S";
+            Assert::AreEqual (std::string ("sp=f9"),   Render ("r", data)[0]);
+            data.only = "PC";
+            Assert::AreEqual (std::string ("pc=0300"), Render ("r", data)[0]);
+            data.only = "P";
+            Assert::AreEqual (std::string ("fl=81"),   Render ("r", data)[0]);
+        }
+
         TEST_METHOD (Db_SixteenBytesADashAndTheCharacters)
         {
             std::vector<Byte>          bytes = { 0xA9, 0x41, 0x8D, 0x00, 0x04, 0x60, 0x00, 0x00,

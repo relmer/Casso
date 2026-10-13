@@ -74,6 +74,35 @@ std::string WinDbgFormatter::FormatRegisters (const Cpu6502Registers & registers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgFormatter::FormatRegister
+//
+//  One register under WinDbg's name for it: `a=41`, `sp=f9`, `pc=0300`,
+//  `fl=30`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::FormatRegister (const Cpu6502Registers & registers, const std::string & name)
+{
+    std::string  line;
+
+
+
+    if      (name == "A")  { line = std::format ("a={:02x}",  registers.a);  }
+    else if (name == "X")  { line = std::format ("x={:02x}",  registers.x);  }
+    else if (name == "Y")  { line = std::format ("y={:02x}",  registers.y);  }
+    else if (name == "S")  { line = std::format ("sp={:02x}", registers.sp); }
+    else if (name == "PC") { line = std::format ("pc={:04x}", registers.pc); }
+    else if (name == "P")  { line = std::format ("fl={:02x}", registers.p);  }
+    else                   { line = FormatRegisters (registers); }
+
+    return line;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgFormatter::FormatFlags
 //
 //  N V - B D I Z C, lowercase where clear and uppercase where set, as WinDbg
@@ -123,7 +152,7 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
 
     if (auto * v = std::get_if<RegistersData> (&data))
     {
-        lines.push_back (FormatRegisters (v->registers));
+        lines.push_back (v->only.empty() ? FormatRegisters (v->registers) : FormatRegister (v->registers, v->only));
     }
     else if (auto * v = std::get_if<MemoryData> (&data))
     {

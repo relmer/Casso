@@ -22,7 +22,7 @@ bool RegisterHandlers::TryExecute (DebugSession & session, const DebugCommand & 
 
     switch (command.verb)
     {
-    case DebugVerb::ShowRegisters: ShowRegisters (target, reply);                 return true;
+    case DebugVerb::ShowRegisters: ShowRegisters (target, command.text, reply);   return true;
     case DebugVerb::SetRegister:   SetRegister   (target, command, reply);        return true;
     case DebugVerb::SetFlag:       ChangeFlag    (target, command, true,  reply); return true;
     case DebugVerb::ClearFlag:     ChangeFlag    (target, command, false, reply); return true;
@@ -73,9 +73,9 @@ StackData RegisterHandlers::MakeStackData (IDebugTarget & target)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterHandlers::ShowRegisters (IDebugTarget & target, Reply & reply)
+void RegisterHandlers::ShowRegisters (IDebugTarget & target, const std::string & only, Reply & reply)
 {
-    reply.data = RegistersData { target.GetRegisters() };
+    reply.data = RegistersData { target.GetRegisters(), only };
 }
 
 

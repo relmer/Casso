@@ -119,11 +119,22 @@ namespace DebuggerTests
             ParseFails ("ba w1",     ParseStatus::Invalid);
         }
 
-        //  WinDbg's ba size is decimal, so w10 covers ten bytes, not sixteen.
-        TEST_METHOD (AccessBreakpoints_SizeIsDecimal)
+        //  A hex length past the evaluator's signed range is too large, not
+        //  negative; a negated one is negative.
+        TEST_METHOD (Dumps_ALengthTooLargeOrNegative)
         {
-            Assert::AreEqual ((Word) 0x0409, ParseOk ("ba w10 400").command.a2);
-            Assert::AreEqual ((Word) 0x040F, ParseOk ("ba r16 400").command.a2);
+            Assert::AreEqual (std::string ("80000000 is too large."), ParseFails ("dw ffff l80000000", ParseStatus::Invalid).error);
+            Assert::AreEqual (std::string ("-1 is negative."),        ParseFails ("db 300 l -1",       ParseStatus::Invalid).error);
+        }
+
+        //  WinDbg's ba takes a size of 1, 2, 4 or 8 bytes and no other.
+        TEST_METHOD (AccessBreakpoints_SizeIsOneTwoFourOrEight)
+        {
+            Assert::AreEqual ((Word) 0x0401, ParseOk ("ba w2 400").command.a2);
+            Assert::AreEqual ((Word) 0x0407, ParseOk ("ba r8 400").command.a2);
+            ParseFails ("ba w3 400",  ParseStatus::Invalid);
+            ParseFails ("ba w10 400", ParseStatus::Invalid);
+            ParseFails ("ba r16 400", ParseStatus::Invalid);
         }
 
         //  A bare a is hex, as WinDbg reads it; @a is the register.
@@ -145,6 +156,28 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Evaluate expression: 11 = 000b"), reply.text[0]);
         }
 
+        //  An error that points at another command names it as this mode
+        //  types it.
+        TEST_METHOD (AnErrorNamesTheCommandInWinDbgWords)
+        {
+            ControllerRig  rig;
+            Reply          reply;
+
+
+
+            reply = rig.Run ("bc 9", CommandMode::WinDbg);
+            Assert::AreEqual (std::string ("There is no breakpoint #9. Use bl to list them."), reply.error.detail);
+        }
+
+        TEST_METHOD (Registers_OneAtATime)
+        {
+            WinDbgParseResult  result = ParseFails ("r a=1, x=2", ParseStatus::Invalid);
+
+
+
+            Assert::AreEqual (std::string ("r sets one register at a time: r a=1, then r x=2."), result.error);
+        }
+
         TEST_METHOD (ClearDisableEnable_TakeAnIdOrStar)
         {
             Assert::AreEqual ((int) DebugVerb::ClearBreakpoint,   (int) ParseOk ("bc *").command.verb);
@@ -164,10 +197,13 @@ namespace DebuggerTests
             ParseFails ("r q=1", ParseStatus::Invalid);
         }
 
-        TEST_METHOD (Registers_ANameAloneShowsThem)
+        TEST_METHOD (Registers_ANameAloneShowsThatOne)
         {
             Assert::AreEqual ((int) DebugVerb::ShowRegisters, (int) ParseOk ("r a").command.verb);
+            Assert::AreEqual (std::string ("A"),               ParseOk ("r a").command.text);
             Assert::AreEqual ((int) DebugVerb::ShowRegisters, (int) ParseOk ("r fl").command.verb);
+            Assert::AreEqual (std::string ("P"),               ParseOk ("r fl").command.text);
+            Assert::IsTrue   (ParseOk ("r").command.text.empty(), L"r alone shows every register");
             ParseFails ("r q", ParseStatus::Invalid);
         }
 
