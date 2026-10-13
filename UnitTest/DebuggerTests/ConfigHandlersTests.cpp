@@ -48,6 +48,21 @@ namespace DebuggerTests
         }
 
 
+        //  A session no CD has run in opens relative paths from the process's
+        //  directory, so PWD prints that one.
+        TEST_METHOD (PWD_BeforeAnyCdIsTheProcessDirectory)
+        {
+            Rig              rig;
+            std::error_code  code;
+
+
+
+            rig.session.SetCurrentDirectory (L"");
+
+            Assert::AreEqual (TextEncoding::WideToNarrow (std::filesystem::current_path (code).wstring()), rig.RunOk ("PWD").text.at (0));
+        }
+
+
 
 
         TEST_METHOD (CD_DotDot_LeavesANormalDirectory)

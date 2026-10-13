@@ -183,13 +183,22 @@ void ConfigHandlers::RunScriptLine (DebugSession & session, const std::string & 
 //
 //  ConfigHandlers::PrintDirectory
 //
+//  The directory a relative path is opened from: the one CD set or, with
+//  none, the process's, as DebugSession::ResolvePath takes it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 {
-    const std::wstring & directory = session.GetCurrentDirectory();
+    std::wstring     directory = session.GetCurrentDirectory();
+    std::error_code  code;
 
 
+
+    if (directory.empty())
+    {
+        directory = std::filesystem::current_path (code).wstring();
+    }
 
     reply.data = MessageData { { TextEncoding::WideToNarrow (directory) } };
 }
