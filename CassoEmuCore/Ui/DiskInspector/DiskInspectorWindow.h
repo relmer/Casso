@@ -68,7 +68,9 @@ enum class KeyTarget
 class DiskInspectorWindow : public DxuiWindow
 {
 public:
-    static constexpr int     kOpeningWidthDip  = 1200;
+    //  Wide enough for the track tabs and the disk tabs on one row, with
+    //  Differences among them while comparing.
+    static constexpr int     kOpeningWidthDip  = 1280;
     static constexpr int     kOpeningHeightDip = 800;
     static constexpr int     kMinWidthDip      = 960;
     static constexpr int     kMinHeightDip     = 720;
@@ -91,6 +93,8 @@ public:
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
+
+    DxuiMessageResult  OnSysCommand (UINT command) override;
 
 private:
     //  The toolbar's controls after the file name, in FR-007's order.

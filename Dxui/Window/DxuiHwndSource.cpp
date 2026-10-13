@@ -1106,6 +1106,69 @@ bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::RestoreInitialPlacement
+//
+//  The size the window was created at, at its anchor's DPI and fitted to the
+//  work area as at creation, positioned by the placement it was created
+//  with. A window with a Default placement is resized about its center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::RestoreInitialPlacement()
+{
+    HRESULT  hr         = S_OK;
+    HWND     anchorHwnd = (m_params.placementAnchorHwnd != nullptr) ? m_params.placementAnchorHwnd : m_params.ownerHwnd;
+    UINT     dpi        = 0;
+    SIZE     sizePx     = {};
+    RECT     workArea   = {};
+    RECT     windowPx   = {};
+    POINT    topLeft    = {};
+    POINT    placed     = {};
+    BOOL     isRead     = FALSE;
+    BOOL     isPlaced   = FALSE;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
+
+    dpi    = GetDpiForWindow (anchorHwnd != nullptr ? anchorHwnd : m_hwnd);
+    dpi    = (dpi != 0) ? dpi : s_kDefaultDpi;
+    sizePx = { MulDiv (m_params.initialSizeDip.cx, (int) dpi, (int) s_kDefaultDpi), MulDiv (m_params.initialSizeDip.cy, (int) dpi, (int) s_kDefaultDpi) };
+
+    if (m_params.fitToWorkArea && TryGetAnchorWorkArea (anchorHwnd != nullptr ? anchorHwnd : m_hwnd, workArea))
+    {
+        sizePx = FitSizeToWorkArea (sizePx, workArea);
+    }
+
+    isRead = GetWindowRect (m_hwnd, &windowPx);
+    CWRA (isRead);
+
+    topLeft = { (windowPx.left + windowPx.right - sizePx.cx) / 2, (windowPx.top + windowPx.bottom - sizePx.cy) / 2 };
+    if (TryGetPlacementForSize (sizePx, placed))
+    {
+        topLeft = placed;
+    }
+
+    if (IsZoomed (m_hwnd))
+    {
+        ShowWindow (m_hwnd, SW_RESTORE);
+    }
+
+    isPlaced = SetWindowPos (m_hwnd, nullptr, topLeft.x, topLeft.y, sizePx.cx, sizePx.cy, SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (isPlaced);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Destroy
 //
 //  Idempotent. Releases render resources first (they reference the
@@ -2717,7 +2780,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
                 if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
             }
 
-            isHandled = false;
+            // A command the client added to the system menu.
+            isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
+                        m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+            result    = 0;
             break;
 
         case WM_ENTERSIZEMOVE:

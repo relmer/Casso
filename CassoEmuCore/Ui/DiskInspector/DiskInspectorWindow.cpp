@@ -41,6 +41,10 @@
 
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
+
+//  A command added to the system menu: below SC_SIZE, low four bits clear.
+static constexpr UINT     s_kDefaultSizeCommand = 0x0010;
+
 static constexpr LPCWSTR  s_kpszHint        = L"Scroll to zoom, drag to pan, double-click to fit";
 static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to select, Shift+drag to pan, double-click for the whole track";
 static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
@@ -183,8 +187,10 @@ DiskInspectorWindow::~DiskInspectorWindow()
 
 HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDiskInspectorHost * host, bool activate)
 {
-    HRESULT                   hr     = S_OK;
+    HRESULT                   hr      = S_OK;
     DxuiWindow::CreateParams  params;
+    HMENU                     menu    = nullptr;
+    BOOL                      isAdded = FALSE;
 
 
 
@@ -218,6 +224,13 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
 
     hr = DxuiWindow::Create (params);
     CHR (hr);
+
+    //  "Default size" on the system menu, after a separator.
+    menu = GetSystemMenu (GetHwnd(), FALSE);
+    CWRA (menu);
+
+    isAdded = AppendMenuW (menu, MF_SEPARATOR, 0, nullptr) && AppendMenuW (menu, MF_STRING, s_kDefaultSizeCommand, L"Default size");
+    CWRA (isAdded);
 
     SetTheme (m_theme);
     m_tooltip.SetTheme (*m_theme);
@@ -464,6 +477,36 @@ void DiskInspectorWindow::OnCreate()
 
     m_diskTab = kTabTracks;
     ShowTrackTab (kTabSectorData);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OnSysCommand
+//
+//  On "Default size", the window is returned to the size it opens at,
+//  centered over the main window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DiskInspectorWindow::OnSysCommand (UINT command)
+{
+    HRESULT            hr     = S_OK;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
+
+    BAIL_OUT_IF (command != s_kDefaultSizeCommand || GetPopupHost() == nullptr, S_OK);
+
+    result = DxuiMessageResult::Handled;
+    hr     = GetPopupHost()->RestoreInitialPlacement();
+    CHR (hr);
+
+Error:
+    return result;
 }
 
 

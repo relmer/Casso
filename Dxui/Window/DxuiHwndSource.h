@@ -364,6 +364,10 @@ public:
     //  will not say where the anchor or its monitor is.
     bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
 
+    //  The window restored to the size and placement it was created with,
+    //  for a "Default size" command.
+    HRESULT  RestoreInitialPlacement();
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.

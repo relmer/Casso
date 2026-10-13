@@ -423,6 +423,15 @@ public:
     // placement has to wait for the OnSize that follows.
     virtual void  OnUserWindowStateCommand () {}
 
+    // WM_SYSCOMMAND for a command the client added to the system menu, with
+    // its low four bits cleared. The system's own commands, SC_SIZE and up,
+    // are passed to DefWindowProc instead.
+    virtual DxuiMessageResult  OnSysCommand     (UINT command)
+    {
+        UNREFERENCED_PARAMETER (command);
+        return DxuiMessageResult::NotHandled;
+    }
+
     virtual void  OnEnterSizeMove    () {}
     virtual void  OnExitSizeMove     () {}
 
