@@ -498,6 +498,47 @@ wchar_t FileMapText::GetRoleLetter (SectorRole role)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileMapText::GetRoleWord
+//
+//  A free sector has a dot rather than a word, since a word in every free
+//  cell would bury the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapText::GetRoleWord (MapFileSystem fileSystem, SectorRole role)
+{
+    bool          isDos = fileSystem == MapFileSystem::Dos33;
+    bool          isCpm = fileSystem == MapFileSystem::Cpm;
+    std::wstring  text  = std::wstring (1, GetRoleLetter (role));
+
+
+
+    switch (role)
+    {
+        case SectorRole::BootArea:            text = isDos ? L"DOS" : isCpm ? L"System" : L"Boot"; break;
+        case SectorRole::VtocOrKeyBlock:      text = isDos ? L"VTOC" : L"Key";                      break;
+        case SectorRole::CatalogOrDirectory:  text = isDos ? L"Catalog" : L"Dir";                   break;
+        case SectorRole::UnusedCatalogSector: text = L"Unused";                                     break;
+        case SectorRole::VolumeBitmap:        text = L"Bitmap";                                     break;
+        case SectorRole::Subdirectory:        text = L"Subdir";                                     break;
+        case SectorRole::IndexBlock:          text = isDos ? L"T/S list" : L"Index";                break;
+        case SectorRole::FileData:            text = L"Data";                                       break;
+        case SectorRole::BadBlocksFile:       text = L"Bad";                                        break;
+        case SectorRole::AllocatedUnowned:    text = L"Unowned";                                    break;
+        case SectorRole::OwnedMarkedFree:     text = L"Owned";                                      break;
+        case SectorRole::CrossLinked:         text = L"Cross";                                      break;
+        default:                                                                                    break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FileMapText::BuildSectorItems
 //
 ////////////////////////////////////////////////////////////////////////////////

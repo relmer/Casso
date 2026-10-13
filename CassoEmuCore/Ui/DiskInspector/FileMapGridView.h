@@ -14,7 +14,8 @@
 //
 //  The File map tab's grid (FR-089): a row per track, 0 to 34, and a cell
 //  per DOS 3.3 logical sector, ProDOS or Pascal block or CP/M sector, each
-//  in its role's color with the role's letter once it fits, and its result
+//  in its role's color with a word for the role, or its letter where the
+//  word does not fit, and its result
 //  marked apart from the color: a cross for bad, an outline for missing, a
 //  dot for not checked (FR-086). The selected file's sectors have their
 //  numbers in file order inside a marching marquee, every other sector is
@@ -64,8 +65,14 @@ private:
     bool      IsDimmed     (int cell) const;
     uint32_t  GetCellColor (int cell) const;
 
-    const FileMap *  m_map          = nullptr;
-    int              m_selectedCell = -1;
-    int              m_selectedFile = -1;
-    ChooseFn         m_choose;
+    void      MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx);
+
+    static constexpr size_t  kRoleCount = static_cast<size_t> (SectorRole::CrossLinked) + 1;
+
+    const FileMap                         * m_map          = nullptr;
+    int                                     m_selectedCell = -1;
+    int                                     m_selectedFile = -1;
+    ChooseFn                                m_choose;
+    std::array<std::wstring, kRoleCount>    m_roleLabels;
+    std::array<float, kRoleCount>           m_roleSizesPx  = {};
 };

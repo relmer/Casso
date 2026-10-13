@@ -14,10 +14,12 @@ static constexpr float     s_kHeaderDip     = 16.0f;
 static constexpr float     s_kAxisDip       = 16.0f;
 static constexpr float     s_kNoteDip       = 34.0f;
 //  Rows no shorter than a label's text, so every cell has room for its
-//  number or role letter.
+//  number or role label.
 static constexpr float     s_kMinRowDip     = InspectorView::kSmallDip;
 static constexpr float     s_kMaxRowDip     = 16.0f;
 static constexpr float     s_kLetterMinDip  = 12.0f;
+static constexpr float     s_kWordPadDip    = 2.0f;
+static constexpr float     s_kSmallerWordScale = 0.85f;
 static constexpr float     s_kOutlineDip    = 2.0f;
 static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
@@ -115,12 +117,60 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
+    MakeRoleLabels (text, g, textPx);
+
     for (cell = 0; cell < static_cast<int> (m_map->cells.size()); cell++)
     {
         PaintCell (painter, text, theme, g, cell, numbers[cell], isFile && numbers[cell] == 0);
     }
 
     PaintMarquee (painter, g, numbers);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::MakeRoleLabels
+//
+//  Each role's word where it fits a cell, in the small size or a step
+//  smaller, else its letter where that fits, else nothing; measured once a
+//  frame rather than once a cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx)
+{
+    std::wstring  word;
+    float         w        = 0;
+    float         h        = 0;
+    float         room     = g.cellW - m_scaler.ToPxf (s_kWordPadDip);
+    bool          isPlaced = false;
+
+
+
+    for (size_t role = 0; role < m_roleLabels.size(); role++)
+    {
+        word                = FileMapText::GetRoleWord (m_map->fileSystem, static_cast<SectorRole> (role));
+        m_roleLabels[role]  = (g.cellW >= m_scaler.ToPxf (s_kLetterMinDip)) ? std::wstring (1, FileMapText::GetRoleLetter (static_cast<SectorRole> (role))) : std::wstring();
+        m_roleSizesPx[role] = textPx;
+        isPlaced            = false;
+
+        for (float size : { textPx, textPx * s_kSmallerWordScale })
+        {
+            w = 0;
+            text.MeasureString (word.c_str(), size, DxuiTheme::kBodyFace, w, h);
+
+            if (!isPlaced && w <= room)
+            {
+                m_roleLabels[role]  = word;
+                m_roleSizesPx[role] = size;
+                isPlaced            = true;
+            }
+        }
+    }
 }
 
 
@@ -168,12 +218,14 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.FillCircle (x + w - 3.0f, y + 3.0f, 1.5f, ink);
     }
 
-    label = (number > 0) ? std::to_wstring (number) : (g.cellW >= m_scaler.ToPxf (s_kLetterMinDip) ? std::wstring (1, FileMapText::GetRoleLetter (at.role)) : L"");
+    label = (number > 0) ? std::to_wstring (number)
+          : (static_cast<size_t> (at.role) < m_roleLabels.size()) ? m_roleLabels[static_cast<size_t> (at.role)] : std::wstring();
 
     if (!label.empty() && at.result != SectorResult::Bad && g.rowH >= textPx)
     {
-        text.DrawString (label.c_str(), x, y, w, h, number > 0 ? theme.Foreground() : ink, textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                         number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
+        text.DrawString (label.c_str(), x, y, w, h, number > 0 ? theme.Foreground() : ink, number > 0 ? textPx : m_roleSizesPx[static_cast<size_t> (at.role)],
+                         number > 0 ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
     }
 
     //  While comparing, a cell of the selected file pair that differs (FR-120).

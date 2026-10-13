@@ -386,6 +386,17 @@ public:
 
 
 
+    TEST_METHOD (CellsUseEachFileSystemsWordForARole)
+    {
+        Assert::AreEqual (std::wstring (L"VTOC"),     FileMapText::GetRoleWord (MapFileSystem::Dos33,  SectorRole::VtocOrKeyBlock));
+        Assert::AreEqual (std::wstring (L"Key"),      FileMapText::GetRoleWord (MapFileSystem::ProDos, SectorRole::VtocOrKeyBlock));
+        Assert::AreEqual (std::wstring (L"T/S list"), FileMapText::GetRoleWord (MapFileSystem::Dos33,  SectorRole::IndexBlock));
+        Assert::AreEqual (std::wstring (L"System"),   FileMapText::GetRoleWord (MapFileSystem::Cpm,    SectorRole::BootArea));
+        Assert::AreEqual (std::wstring (L"."),        FileMapText::GetRoleWord (MapFileSystem::Dos33,  SectorRole::Free), L"a free sector has its dot");
+    }
+
+
+
     TEST_METHOD (NotMappedReasonsAreGiven)
     {
         FileMap  zero = MapOf (vector<Byte> (Images::kImageBytes, 0), false);

@@ -41,6 +41,9 @@ public:
     static std::wstring  FormatMap       (const FileMap & map);
     static wchar_t       GetRoleLetter   (SectorRole role);
 
+    //  A word or two for a sector's role, short enough for a File map cell.
+    static std::wstring  GetRoleWord     (MapFileSystem fileSystem, SectorRole role);
+
     //  The Sector data header's role and owners for a physical sector, and
     //  on a CP/M volume its CP/M sector and allocation block (FR-040, FR-090).
     static vector<HeaderItem>  BuildSectorItems (const FileMap & map, int track, int physical);
