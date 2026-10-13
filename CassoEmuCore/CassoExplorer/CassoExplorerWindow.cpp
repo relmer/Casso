@@ -2047,7 +2047,7 @@ void CassoExplorerWindow::FillPreview()
     m_previewList->UpdateAutoFitFromRows();
     m_previewList->SetTopRow (0);
 
-    m_textView->SetRows (BuildTextRows (preview, m_prefs.lineAddresses));
+    m_textView->SetRows (BuildTextRows (preview, m_prefs.lineAddresses, GetSourceColors (m_theme)));
 
     //  A new kind of preview brings its own toolbar, which changes the height
     //  left for the content.
@@ -3860,6 +3860,45 @@ bool CassoExplorerWindow::IsTextPreviewShowing() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetSourceColors
+//
+//  The background is dark when its luminance is under half. An address and
+//  bytes, a listing's columns, are drawn in the muted text color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SourceSyntax::Colors CassoExplorerWindow::GetSourceColors (const IDxuiTheme * theme)
+{
+    SourceSyntax::Colors  colors;
+    uint32_t              page   = (theme != nullptr) ? theme->ContentBackground() : 0u;
+    uint32_t              luma   = ((page >> 16) & 0xFF) * 299 + ((page >> 8) & 0xFF) * 587 + (page & 0xFF) * 114;
+    bool                  dark   = luma < s_kDarkLumaLimit;
+
+
+
+    if (theme == nullptr)
+    {
+        return colors;
+    }
+
+    colors.mnemonic  = dark ? 0xFF8CBCF0 : 0xFF0000FF;
+    colors.directive = dark ? 0xFFC586C0 : 0xFFAF00DB;
+    colors.symbol    = dark ? 0xFF4EC9B0 : 0xFF2B91AF;
+    colors.number    = dark ? 0xFFB5CEA8 : 0xFF098658;
+    colors.string    = dark ? 0xFFD69D85 : 0xFFA31515;
+    colors.comment   = dark ? 0xFF57A64A : 0xFF008000;
+    colors.address   = theme->ForegroundMuted();
+    colors.bytes     = theme->ForegroundMuted();
+
+    return colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::BuildTextRows
 //
 //  A listing that is not a valid program ends with a blank row and the
@@ -3867,7 +3906,7 @@ bool CassoExplorerWindow::IsTextPreviewShowing() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const PreviewContent & preview, bool lineAddresses)
+std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
     DxuiTextView::Row               warning;
@@ -3900,12 +3939,26 @@ std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const Preview
     else if (preview.source)
     {
         //  An assembler's source has its line numbers, right aligned in a
-        //  column of their own, as an editor's gutter has them.
-        size_t  digits = std::to_wstring ((std::max) (preview.lines.size(), (size_t) 1)).size();
+        //  column of their own, as an editor's gutter has them, and its syntax
+        //  colored by the grammar of the assembler it was written for, as the
+        //  debugger colors it.
+        size_t                     digits    = std::to_wstring ((std::max) (preview.lines.size(), (size_t) 1)).size();
+        SourceSyntax::Assembler    assembler = SourceSyntax::DetectAssembler (preview.lines);
+        SourceSyntax::Listing      listing   = SourceSyntax::DetectListing (preview.lines);
 
         for (size_t i = 0; i < preview.lines.size(); i++)
         {
-            rows.push_back (DxuiTextView::Row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } });
+            DxuiTextView::Row  row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } };
+
+            if (colors.mnemonic != 0)
+            {
+                for (const SourceSyntax::Run & run : SourceSyntax::GetLineRuns (preview.lines[i], assembler, listing))
+                {
+                    row.spans.push_back ({ 1, run.start, run.length, colors.Get (run.token) });
+                }
+            }
+
+            rows.push_back (std::move (row));
         }
     }
     else
@@ -4984,7 +5037,7 @@ void CassoExplorerWindow::Dispatch (int id)
 
         case CassoExplorerCommands::kLineAddresses:
             m_prefs.lineAddresses = !m_prefs.lineAddresses;
-            m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_prefs.lineAddresses));
+            m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_prefs.lineAddresses, GetSourceColors (m_theme)));
             Invalidate();
             break;
 

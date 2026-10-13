@@ -15,6 +15,7 @@
 #include "Seams/Win32ProcessLauncher.h"
 #include "CassoExplorer/CrtPictureRenderer.h"
 #include "Seams/Win32ContentDetails.h"
+#include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/ThemeLoader.h"
 #include "Config/CrtResolver.h"
 #include "Config/CrtPresets.h"
@@ -323,6 +324,17 @@ public:
     static bool                       IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
     static bool                       IsDraggedItem       (IDataObject * data, const std::wstring & target);
 
+    //  The text view's rows for a preview; an assembler's source with its line
+    //  numbers and, given colors, its syntax colored.
+    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
+
+    //  Visual Studio's code colors for the theme's background, dark or light,
+    //  as Casso's debugger colors its source.
+    static SourceSyntax::Colors            GetSourceColors (const IDxuiTheme * theme);
+
+    //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
+    static constexpr uint32_t              s_kDarkLumaLimit = 127500;
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;
@@ -555,7 +567,7 @@ private:
 
     //  The text view's rows for a preview: a BASIC line as its number and its
     //  statement, a detail as its label and value, anything else as one cell.
-    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses);
+
     static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program, bool integerBasic);
     void  OnSearchChanged  (const std::wstring & text);
     void  FindNext         (bool incremental = false);
