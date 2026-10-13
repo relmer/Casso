@@ -2464,6 +2464,20 @@ legend, and tilt the platter and back.
   the clipboard as tab-separated text, and "Copy map" MUST put the grid on
   the clipboard as text, one row per track with one letter per sector and a
   key to the letters.
+- **FR-157**: Ctrl and the mouse wheel over the File map grid MUST zoom the
+  grid, not the window, about the point under the pointer, from 1, where the
+  grid fits the tab's width, to 32 times. Past 1, the grid MUST fill its view
+  and pan in it by a drag, by the wheel down and up, and by Shift and the
+  wheel across, with the track numbers and column headers pinned at its left
+  and top edges, each centered on the part of its row or column in view. A
+  double-click MUST return the grid to 1, and a new disk MUST start it at 1.
+  As a cell grows, its sector's bytes MUST appear under its label, 16, 32 or
+  64 to a row, the count with the most room for a byte's hex in the cell's
+  width and height: as squares while they are too small for text, $00
+  clear, $80 and up solid and the rest faint; then as hex; then, with room for eight bits a
+  byte, as its bits under the hex. A block's two sectors MUST follow one
+  another, and a sector chosen elsewhere MUST be panned to the middle of a
+  zoomed grid.
 
 **Sector editing**
 
@@ -2907,7 +2921,8 @@ legend, and tilt the platter and back.
   to disk internals.
 - **FR-154**: The window MUST zoom from 50% to 300%, every size and font in
   it except the status band along its bottom multiplied by the zoom. Ctrl and
-  the mouse wheel, Ctrl with + or -, and the "-" and "+" buttons MUST step
+  the mouse wheel anywhere but over the File map grid (FR-157), Ctrl with +
+  or -, and the "-" and "+" buttons MUST step
   through 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250 and 300%, and
   Ctrl+0 MUST return to 100%. The status band MUST show the zoom as a
   percentage at its right end; clicking it MUST show a slider between the
