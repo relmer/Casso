@@ -124,6 +124,13 @@ public:
     static HostCharset       GetHostCharset (std::span<const Byte> sample);
     static bool              IsUtf8         (std::span<const Byte> sample);
 
+    //  Whether a file is an assembler's source by its extension, which
+    //  previews as text with its line numbers.
+    static bool              IsSourceName   (const std::wstring & name);
+
+    //  The largest host file that previews as text rather than in the hex view.
+    static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
+
 private:
     void  PreviewShellItem   (const CatalogRow & row);
     void  PreviewArchive     (const std::wstring & path);
@@ -388,6 +395,14 @@ private:
     bool     CanListImage   (const std::wstring & imagePath);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
+    void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
+    bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
+
+    static constexpr const wchar_t *  s_kpszSourceExtensions[] = { L".a65", L".asm", L".s", L".inc", L".a", L".src", L".mac", L".ca65" };
+    static constexpr unsigned         s_kDosCodePage           = 437;
+    static constexpr unsigned         s_kWindowsCodePage       = 1252;
+    static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
+    static constexpr size_t           s_kTabStop               = 8;
     void     PreviewEntry          (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
     void     PreviewSearchMatch    (const CatalogRow & row);
     void     SortRows();

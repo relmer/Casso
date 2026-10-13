@@ -1292,6 +1292,13 @@ void CassoExplorerBrowser::UpdatePreview()
             }
 
             m_preview.hostPath += m_rows[m_selectedRows[0]].name;
+
+            //  A source file, or text the hex view cannot draw, is read whole
+            //  as text when it is small and on this computer.
+            if (m_rows[m_selectedRows[0]].sizeBytes <= s_kTextPreviewMaxBytes && !PathResolver::IsNetworkPath (m_preview.hostPath))
+            {
+                ReadTextPreview (m_preview.hostPath, m_rows[m_selectedRows[0]].name);
+            }
         }
 
         return;
@@ -1471,9 +1478,9 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::GetArchivePreviewCells (co
 //  bytes, when it has no NUL and few other control codes besides tabs, line
 //  breaks, form feeds and DOS's end-of-file mark. Code page 437 has symbols
 //  for the rest, such as a pointer for 0x10, so a file with any is DOS text. Bytes
-//  above 0x7F are DOS text when most of them are DOS line-drawing
-//  characters, and Windows text otherwise. UTF-8 is not taken as text, since
-//  the view draws one character for each byte.
+//  above 0x7F that are well-formed UTF-8 are UTF-8 text; otherwise they are
+//  DOS text when most of them are DOS line-drawing characters, and Windows
+//  text when not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1519,7 +1526,7 @@ HostCharset CassoExplorerBrowser::GetHostCharset (std::span<const Byte> sample)
 
     if (high > 0 && IsUtf8 (sample))
     {
-        return HostCharset::None;
+        return HostCharset::Utf8;
     }
 
     return (controls > 0 || drawing * 2 >= high) ? HostCharset::Dos : HostCharset::Windows;
@@ -1570,6 +1577,132 @@ bool CassoExplorerBrowser::IsUtf8 (std::span<const Byte> sample)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ReadTextPreview
+//
+//  The host file read, for TryPreviewText. One that cannot be read stays the
+//  hex preview, which reports it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::ReadTextPreview (const std::wstring & path, const std::wstring & name)
+{
+    std::string  content;
+    HRESULT      hr      = m_fs.ReadAllText (path, content);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        TryPreviewText (name, std::span<const Byte> ((const Byte *) content.data(), content.size()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TryPreviewText
+//
+//  A file's bytes as lines of text: an assembler's source, in whatever
+//  character set it is, or any text in UTF-8. Anything else, binary above
+//  all, stays as it was. A UTF-8 byte order mark is dropped, and tabs are
+//  expanded to the next stop of eight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<const Byte> bytes)
+{
+    HostCharset   charset = GetHostCharset (bytes.subspan (0, (std::min) (bytes.size(), s_kTextSampleBytes)));
+    bool          source  = IsSourceName (name);
+    std::string   narrow ((const char *) bytes.data(), bytes.size());
+    std::wstring  text;
+    std::wstring  line;
+    bool          isText  = (source && charset != HostCharset::None) || charset == HostCharset::Utf8;
+
+
+
+    if (!isText)
+    {
+        return false;
+    }
+
+    text = (charset == HostCharset::Utf8) ? TextEncoding::Utf8ToWide (narrow)
+         : (charset == HostCharset::Dos)  ? TextEncoding::NarrowToWide (narrow, s_kDosCodePage)
+                                          : TextEncoding::NarrowToWide (narrow, s_kWindowsCodePage);
+
+    if (!text.empty() && text[0] == s_kByteOrderMark)
+    {
+        text.erase (0, 1);
+    }
+
+    m_preview.lines.clear();
+
+    for (size_t at = 0; at <= text.size(); at++)
+    {
+        wchar_t  ch = (at < text.size()) ? text[at] : L'\n';
+
+        if (ch == L'\r' || ch == L'\n')
+        {
+            m_preview.lines.push_back (std::move (line));
+            line.clear();
+            at += (ch == L'\r' && at + 1 < text.size() && text[at + 1] == L'\n') ? 1 : 0;
+        }
+        else if (ch == L'\t')
+        {
+            line.append (s_kTabStop - line.size() % s_kTabStop, L' ');
+        }
+        else
+        {
+            line.push_back (ch);
+        }
+    }
+
+    //  A last line break ends the last line rather than starting another.
+    if (m_preview.lines.size() > 1 && m_preview.lines.back().empty())
+    {
+        m_preview.lines.pop_back();
+    }
+
+    m_preview.kind   = PreviewContent::Kind::Text;
+    m_preview.source = source;
+    m_preview.bytes.clear();
+    m_preview.hostPath.clear();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsSourceName
+//
+//  An assembler's source by its extension, as as65, ca65 and Merlin write
+//  theirs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsSourceName (const std::wstring & name)
+{
+    size_t        dot       = name.rfind (L'.');
+    std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : name.substr (dot);
+
+
+
+    return std::any_of (std::begin (s_kpszSourceExtensions), std::end (s_kpszSourceExtensions),
+                        [&extension] (const wchar_t * known) { return _wcsicmp (known, extension.c_str()) == 0; });
 }
 
 
@@ -1743,7 +1876,9 @@ void CassoExplorerBrowser::PreviewShellItem (const CatalogRow & row)
 
     m_preview.kind        = PreviewContent::Kind::Hex;
     m_preview.hostCharset = GetHostCharset (std::span<const Byte> (m_preview.bytes.data(), (std::min) (m_preview.bytes.size(), s_kTextSampleBytes)));
-    m_preview.textFile    = m_preview.hostCharset != HostCharset::None;
+    m_preview.textFile    = m_preview.hostCharset != HostCharset::None && m_preview.hostCharset != HostCharset::Utf8;
+
+    TryPreviewText (row.name, m_preview.bytes);
 }
 
 

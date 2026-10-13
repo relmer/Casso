@@ -1422,8 +1422,8 @@ public:
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (utf8)    == HostCharset::None,    L"UTF-8 is not drawn a byte at a time");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (cutOff)  == HostCharset::None,    L"A sequence cut off at the end of the sample is UTF-8");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (utf8)    == HostCharset::Utf8,    L"Well-formed UTF-8 is UTF-8");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (cutOff)  == HostCharset::Utf8,    L"A sequence cut off at the end of the sample is UTF-8");
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
 
@@ -1437,6 +1437,34 @@ public:
         pointer[51] = 0x10;
         pointer[52] = 0x11;
         Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
+    }
+
+
+    //  An assembler's source previews as text with its line numbers, in
+    //  whatever character set it is; UTF-8 text of any kind previews as text,
+    //  which the hex view cannot draw; plain ASCII text stays in the hex view.
+    TEST_METHOD (SourceAndUtf8Files_PreviewAsText)
+    {
+        Host  host;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\demo.a65", "\xEF\xBB\xBF; caf\xC3\xA9\tx\r\n\tLDA #1\r\n"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.txt", "a \xE2\x80\x94 b\n"));
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"demo.a65") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text);
+        Assert::IsTrue (host.browser.GetPreview().source, L"with its line numbers");
+        Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"; caf\u00E9  x", L"        LDA #1" }),
+                        L"The mark dropped, the letters decoded and the tabs expanded");
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.txt") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text);
+        Assert::IsFalse (host.browser.GetPreview().source);
+        Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"a \u2014 b" }));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");
+        Assert::IsTrue (CassoExplorerBrowser::IsSourceName (L"STAGE2.S") && !CassoExplorerBrowser::IsSourceName (L"readme.txt"));
     }
 
 

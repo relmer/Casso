@@ -36,6 +36,7 @@ enum class HostCharset
     Ascii,      // printable ASCII, tabs and line breaks only
     Dos,        // DOS code page 437, with its line-drawing characters
     Windows,    // Windows code page 1252
+    Utf8,       // UTF-8, which a view of one character for each byte cannot draw
 };
 
 
@@ -93,6 +94,10 @@ struct PreviewContent
     //  Set for an Integer BASIC listing, whose lines are laid out differently
     //  from Applesoft's.
     bool                       integerBasic = false;
+
+    //  Set for a text preview of an assembler's source, drawn with its line
+    //  numbers.
+    bool                       source = false;
 
     //  A picture's mode, as chosen and as drawn, with its bytes in `bytes` and
     //  its load address in `origin`, so it can be drawn again for another

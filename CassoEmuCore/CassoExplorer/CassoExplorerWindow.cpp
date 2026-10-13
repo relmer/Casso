@@ -2086,7 +2086,9 @@ void CassoExplorerWindow::FillPreview()
 
     if (hex)
     {
-        m_hexView->SetShowValues (!(opened ? charset != HostCharset::None : preview.textFile));
+        //  UTF-8 too large to read as text opens on its bytes: the view draws
+        //  one character for each byte.
+        m_hexView->SetShowValues (!(opened ? charset != HostCharset::None && charset != HostCharset::Utf8 : preview.textFile));
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
@@ -3893,6 +3895,17 @@ std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const Preview
         for (const std::pair<std::wstring, std::wstring> & field : preview.details)
         {
             rows.push_back (DxuiTextView::Row { { field.first, field.second } });
+        }
+    }
+    else if (preview.source)
+    {
+        //  An assembler's source has its line numbers, right aligned in a
+        //  column of their own, as an editor's gutter has them.
+        size_t  digits = std::to_wstring ((std::max) (preview.lines.size(), (size_t) 1)).size();
+
+        for (size_t i = 0; i < preview.lines.size(); i++)
+        {
+            rows.push_back (DxuiTextView::Row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } });
         }
     }
     else
