@@ -459,6 +459,7 @@ void CassoExplorerWindow::OnCreate()
     SizeListIcons();
     m_listIcons.LoadInBackground (GetHwnd(), kIconsLoadedMessage);
     m_infoTips.Start (GetHwnd(), kInfoTipMessage);
+    m_contentDetails.Start (GetHwnd(), kContentDetailsMessage);
 
     ConfigureWidgets();
 }
@@ -1527,6 +1528,7 @@ void CassoExplorerWindow::FillList()
 
     //  A file's size or date may have changed with the listing.
     m_infoTips.Clear();
+    m_contentDetails.Clear();
 
     //  The rows' cells are built as the list first asks for each, so a folder
     //  of thousands shows as fast as one of ten.
@@ -1682,10 +1684,84 @@ const std::vector<DxuiListView::Cell> & CassoExplorerWindow::GetListRowCells (in
             cells[0].iconBroken         = !m_rowProblems[(size_t) row].empty();
         }
 
+        //  In Content view a host item has the lines the shell lists for its
+        //  kind, once read; until then, its date and size.
+        TryApplyContentDetails (row, cells[0]);
+
         m_rowBuilt[(size_t) row] = true;
     }
 
     return m_rowCells[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TryApplyContentDetails
+//
+//  A host item's Content lines from the shell, when read: true then. A
+//  search result has its folder and type, and a drive its type, as in
+//  File Explorer's Content view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryApplyContentDetails (int row, DxuiListView::Cell & name)
+{
+    const std::vector<CatalogRow> &  rows = m_browser.GetRows();
+    Win32ContentDetails::Slots       slots;
+    std::wstring                     path;
+    bool                             host = false;
+
+
+
+    if (m_listView != DxuiListView::View::Content || row < 0 || (size_t) row >= rows.size())
+    {
+        return false;
+    }
+
+    host = rows[(size_t) row].folderPath.empty() && !rows[(size_t) row].isDrive
+        && (m_rowLocation.kind == Location::Kind::HostFolder || !rows[(size_t) row].hostPath.empty());
+
+    if (!host || !m_browser.TryGetRowPath (row, path) || !m_contentDetails.TryGet (path, slots))
+    {
+        return false;
+    }
+
+    name.contentLeft   = { CassoExplorerBrowser::MakeContentLine (slots[0].label, slots[0].value) };
+    name.contentMiddle = { CassoExplorerBrowser::MakeContentLine (slots[1].label, slots[1].value),
+                           CassoExplorerBrowser::MakeContentLine (slots[2].label, slots[2].value) };
+    name.contentRight  = { CassoExplorerBrowser::MakeContentLine (slots[3].label, slots[3].value),
+                           CassoExplorerBrowser::MakeContentLine (slots[4].label, slots[4].value) };
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RefreshContentDetails
+//
+//  The built rows' Content lines again, now that more have been read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RefreshContentDetails()
+{
+    for (size_t at = 0; at < m_rowCells.size(); at++)
+    {
+        if (m_rowBuilt[at] && !m_rowCells[at].empty())
+        {
+            TryApplyContentDetails ((int) at, m_rowCells[at][0]);
+        }
+    }
+
+    Invalidate();
 }
 
 
@@ -8212,6 +8288,16 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     if (msg == kInfoTipMessage)
     {
         RefreshListTip();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kContentDetailsMessage)
+    {
+        if (m_contentDetails.TakeArrived())
+        {
+            RefreshContentDetails();
+        }
 
         return DxuiMessageResult::Handled;
     }

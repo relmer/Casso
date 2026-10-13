@@ -1250,6 +1250,50 @@ public:
     }
 
 
+    //  Until the shell's own lines arrive, a host file's Content row has its
+    //  date and size at the right, each with its name, and no type under its
+    //  name; a file in a disk image has its type there; a folder with no date
+    //  has a blank first line in the right column.
+    TEST_METHOD (ContentLines_DateAndSizeForAHostFileTypeForAnAppleFile)
+    {
+        CatalogRow                       file;
+        CatalogRow                       apple;
+        CatalogRow                       folder;
+        std::vector<DxuiListView::Cell>  hostCells;
+        std::vector<DxuiListView::Cell>  appleCells;
+        std::vector<DxuiListView::Cell>  folderCells;
+
+        file.name         = L"readme.txt";
+        file.typeText     = L"Text Document";
+        file.sizeBytes    = 302;
+        file.hasModified  = true;
+        file.modifiedUnix = 1700000000;
+
+        apple.name     = L"HELLO";
+        apple.typeText = L"Applesoft BASIC";
+
+        folder.name        = L"Games";
+        folder.isDirectory = true;
+
+        hostCells   = CassoExplorerBrowser::ToCells (file,   Location::MakeHostFolder (L"C:\\Disks"));
+        appleCells  = CassoExplorerBrowser::ToCells (apple,  Location::MakeDiskImage (L"C:\\Disks\\a.dsk"));
+        folderCells = CassoExplorerBrowser::ToCells (folder, Location::MakeHostFolder (L"C:\\Disks"));
+
+        Assert::IsTrue   (hostCells[0].contentLeft.empty(), L"No type under a host file's name");
+        Assert::AreEqual ((size_t) 2, hostCells[0].contentRight.size());
+        Assert::AreEqual (std::wstring (L"Date modified:"), hostCells[0].contentRight[0].label);
+        Assert::AreEqual (std::wstring (L"Size:"),          hostCells[0].contentRight[1].label);
+        Assert::AreEqual (std::wstring (L"302 bytes"),      hostCells[0].contentRight[1].text, L"The value apart from its name");
+
+        Assert::AreEqual ((size_t) 1, appleCells[0].contentLeft.size());
+        Assert::AreEqual (std::wstring (L"Type:"),           appleCells[0].contentLeft[0].label);
+        Assert::AreEqual (std::wstring (L"Applesoft BASIC"), appleCells[0].contentLeft[0].text);
+
+        Assert::AreEqual ((size_t) 1, folderCells[0].contentRight.size());
+        Assert::IsTrue   (folderCells[0].contentRight[0].text.empty(), L"The date's line is blank, not removed");
+    }
+
+
     TEST_METHOD (HostTextCharsets)
     {
         const Byte  ascii[]   = { 'R', 'E', 'A', 'D', '\r', '\n', '\t', 'x', 0x0C, 0x1A };

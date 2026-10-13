@@ -80,10 +80,17 @@ public:
         //  Content view still shows the other columns.
         bool          tileNameOnly = false;
 
-        //  The Content view's lines: under the name (the type), and in the
-        //  column to its right (the date and the size). Empty draws none.
+        //  The Content view's lines, as File Explorer lays them out: one under
+        //  the name, two in a middle column, and two in a column at the right,
+        //  each top to bottom. A line with no text is left blank, keeping the
+        //  lines below it in place.
         std::vector<Cell>  contentLeft;
+        std::vector<Cell>  contentMiddle;
         std::vector<Cell>  contentRight;
+
+        //  The Content view's name for the value in `text`, as "Size:", drawn
+        //  muted ahead of it.
+        std::wstring       label;
 
         //  A search result's folder, ahead of the first line under the name
         //  and cut short to leave that line room, as Explorer shows it.
@@ -668,6 +675,7 @@ private:
     static constexpr float  s_kContentRightNudgeDip  = 32.67f;
     static constexpr float  s_kContentRightRoomDip   = 303.33f;
     static constexpr float  s_kContentRightMaxDip    = 685.0f;
+    static constexpr float  s_kContentMiddleDip      = 298.67f;   // from the name's left to the middle column
     static constexpr float  s_kContentEdgeDip        = 9.33f;   // from the row's end to where those widths are measured
     static constexpr float  s_kContentRowDip         = 52.67f;
     static constexpr float  s_kContentRowLowDpiDip   = 48.0f;   // the row below 150%
@@ -864,6 +872,8 @@ private:
     RECT          GetItemLabelRectPx      (const RECT & cell) const;
     void          PaintItems              (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, float x, float y) const;
     void          PaintMeter              (IDxuiPainter & painter, float x, float y, float w, float lineH, float fraction) const;
+    static float  MeasureContentLine      (IDxuiTextRenderer & text, const Cell & line, float fontPx);
+    static void   PaintContentLine        (IDxuiTextRenderer & text, const Palette & pal, const Cell & line, float x, float y, float w, float lineH, float fontPx);
     POINT         GetItemScrollOffsetPx   () const;
 
     //  Grouped item views: each line a group's header or a row of its items,

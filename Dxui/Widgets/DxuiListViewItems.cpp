@@ -3351,26 +3351,43 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         label = GetItemLabelRectPx (cell);
 
-        //  Explorer's Content: the name over its type, and to the right the
-        //  date over the size.
+        //  Explorer's Content: the name with a line under it, then a middle
+        //  column and a right column of two lines each. A middle or right line
+        //  is drawn only where it fits, as Explorer drops one rather than cut
+        //  it short, and the middle column only where it starts short of the
+        //  right one.
         if (m_view == View::Content)
         {
-            float         left   = (float) (cell.left - GetItemsLeftPx());
-            float         edge   = (float) cell.right + m_scaler.ToPxf (s_kContentEdgeDip) - left;
-            float         rightX = left + std::round ((std::min) (m_scaler.ToPxf (s_kContentRightMaxDip),
-                                                                  (std::max) (edge * s_kContentRightShare + m_scaler.ToPxf (s_kContentRightNudgeDip),
-                                                                              edge - m_scaler.ToPxf (s_kContentRightRoomDip))));
-            float         top    = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) (2 * lineH)) * 0.5f;
-            std::wstring  name   = DxuiTextElide::ToWidth (text, cells[0].text, fontPx * s_kContentNameScale, DxuiTheme::kBodyFace,
-                                                           rightX - (float) label.left, DxuiElide::Tail, 0, true);
+            float         left    = (float) (cell.left - GetItemsLeftPx());
+            float         edge    = (float) cell.right + m_scaler.ToPxf (s_kContentEdgeDip) - left;
+            float         rightX  = left + std::round ((std::min) (m_scaler.ToPxf (s_kContentRightMaxDip),
+                                                                   (std::max) (edge * s_kContentRightShare + m_scaler.ToPxf (s_kContentRightNudgeDip),
+                                                                               edge - m_scaler.ToPxf (s_kContentRightRoomDip))));
+            float         midX    = (float) label.left + std::round (m_scaler.ToPxf (s_kContentMiddleDip));
+            float         top     = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) (2 * lineH)) * 0.5f;
+            bool          middle  = false;
+            float         leftEnd = 0.0f;
+            std::wstring  name;
+
+            for (const Cell & line : cells[0].contentMiddle)
+            {
+                middle = middle || (midX < rightX && !line.text.empty() && MeasureContentLine (text, line, fontPx) <= rightX - midX);
+            }
+
+            //  The name and the line under it end where the next column drawn
+            //  starts.
+            leftEnd = middle ? midX : rightX;
+            name    = DxuiTextElide::ToWidth (text, cells[0].text, fontPx * s_kContentNameScale, DxuiTheme::kBodyFace, leftEnd - (float) label.left,
+                                              DxuiElide::Tail, 0, true);
 
             //  The name in Explorer's larger face, 11 points to the body's 9,
             //  sitting on the same baseline as it would in the body face.
-            hr = text.DrawString (name.c_str(), (float) label.left, top - fontPx * (s_kContentNameScale - 1.0f), rightX - (float) label.left,
+            hr = text.DrawString (name.c_str(), (float) label.left, top - fontPx * (s_kContentNameScale - 1.0f), leftEnd - (float) label.left,
                                   (float) lineH * s_kContentNameScale,
                                   cells[0].dim ? pal.fgDim : (cells[0].argb != 0 ? cells[0].argb : pal.fg), fontPx * s_kContentNameScale, DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
+
 
             for (size_t at = 0; at < cells[0].contentLeft.size(); at++)
             {
@@ -3385,32 +3402,39 @@ void DxuiListView::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer & text,
                     float         pathW = 0.0f;
                     std::wstring  path;
 
-                    hr = text.MeasureString (cells[0].contentLeft[0].text.c_str(), fontPx, DxuiTheme::kBodyFace, restW, restH);
-                    IGNORE_RETURN_VALUE (hr, S_OK);
+                    restW = MeasureContentLine (text, cells[0].contentLeft[0], fontPx);
 
                     path = DxuiTextElide::ToWidth (text, cells[0].contentPath, fontPx, DxuiTheme::kBodyFace,
-                                                   (std::max) (0.0f, rightX - lineX - restW - 2.0f * m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
+                                                   (std::max) (0.0f, leftEnd - lineX - restW - 2.0f * m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
 
                     hr = text.MeasureString (path.c_str(), fontPx, DxuiTheme::kBodyFace, pathW, restH);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
-                    hr = text.DrawString (path.c_str(), lineX, top + (float) lineH, rightX - lineX, (float) lineH,
+                    hr = text.DrawString (path.c_str(), lineX, top + (float) lineH, leftEnd - lineX, (float) lineH,
                                           pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
                     lineX += pathW + m_scaler.ToPxf (s_kContentPathGapDip);
                 }
 
-                hr = text.DrawString (cells[0].contentLeft[at].text.c_str(), lineX, top + (float) ((at + 1) * lineH), rightX - lineX, (float) lineH,
-                                      pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
-                IGNORE_RETURN_VALUE (hr, S_OK);
+                PaintContentLine (text, pal, cells[0].contentLeft[at], lineX, top + (float) ((at + 1) * lineH), leftEnd - lineX, (float) lineH, fontPx);
             }
 
-            for (size_t at = 0; at < cells[0].contentRight.size(); at++)
+
+            for (size_t at = 0; middle && at < cells[0].contentMiddle.size() && at < 2; at++)
             {
-                hr = text.DrawString (cells[0].contentRight[at].text.c_str(), rightX, top + (float) (at * lineH), (float) cell.right - rightX, (float) lineH,
-                                      pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
-                IGNORE_RETURN_VALUE (hr, S_OK);
+                if (MeasureContentLine (text, cells[0].contentMiddle[at], fontPx) <= rightX - midX)
+                {
+                    PaintContentLine (text, pal, cells[0].contentMiddle[at], midX, top + (float) (at * lineH), rightX - midX, (float) lineH, fontPx);
+                }
+            }
+
+            for (size_t at = 0; at < cells[0].contentRight.size() && at < 2; at++)
+            {
+                if (MeasureContentLine (text, cells[0].contentRight[at], fontPx) <= (float) cell.right - rightX)
+                {
+                    PaintContentLine (text, pal, cells[0].contentRight[at], rightX, top + (float) (at * lineH), (float) cell.right - rightX, (float) lineH, fontPx);
+                }
             }
 
             continue;
@@ -3600,6 +3624,77 @@ void DxuiListView::PaintBrokenBadge (IDxuiTextRenderer & text, float iconX, floa
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.DrawLine (cx - arm, cy + arm, cx + arm, cy - arm, thick, 0xFFFFFFFF);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::MeasureContentLine
+//
+//  A Content line's width: its label and a space, then its text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiListView::MeasureContentLine (IDxuiTextRenderer & text, const Cell & line, float fontPx)
+{
+    std::wstring  whole  = line.label.empty() ? line.text : line.label + L" " + line.text;
+    float         width  = 0.0f;
+    float         height = 0.0f;
+    HRESULT       hr     = text.MeasureString (whole.c_str(), fontPx, DxuiTheme::kBodyFace, width, height);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::PaintContentLine
+//
+//  The label muted and the value after it in the text color, as Explorer
+//  draws "Size: 3 bytes"; a line with no label is muted throughout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::PaintContentLine (IDxuiTextRenderer & text, const Palette & pal, const Cell & line, float x, float y, float w, float lineH, float fontPx)
+{
+    std::wstring  prefix = line.label.empty() ? std::wstring() : line.label + L" ";
+    float         labelW = 0.0f;
+    float         probeW = 0.0f;
+    float         height = 0.0f;
+    HRESULT       hr     = S_OK;
+
+
+
+    //  The space's width counts: measured with a letter after it, then less
+    //  that letter, since a measure can omit trailing white space.
+    if (!prefix.empty())
+    {
+        hr = text.MeasureString ((prefix + L"x").c_str(), fontPx, DxuiTheme::kBodyFace, labelW, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.MeasureString (L"x", fontPx, DxuiTheme::kBodyFace, probeW, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        labelW -= probeW;
+
+        hr = text.DrawString (prefix.c_str(), x, y, w, lineH, pal.fgDim, fontPx, DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    hr = text.DrawString (line.text.c_str(), x + labelW, y, (std::max) (0.0f, w - labelW), lineH, prefix.empty() ? pal.fgDim : pal.fg, fontPx,
+                          DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

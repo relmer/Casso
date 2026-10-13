@@ -343,6 +343,9 @@ public:
     static std::wstring  RootOnSystemDrive (const std::wstring & text);
 
     static std::wstring  FormatSize      (uint64_t bytes);
+
+    //  A Content view line: the property's name, drawn muted, then its value.
+    static DxuiListView::Cell  MakeContentLine (const std::wstring & label, const std::wstring & value);
     static std::wstring  FormatSizeColumn (uint64_t bytes);
     static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
     static std::wstring  FormatSelection (size_t selected, size_t total);

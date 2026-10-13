@@ -193,6 +193,7 @@
     <ClCompile Include="Core\DramPowerOnPattern.cpp" />
     <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Core\ThreadName.cpp" />
+    <ClCompile Include="Seams\Win32ContentDetails.cpp" />
     <ClCompile Include="Seams\Win32InfoTips.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
@@ -592,6 +593,7 @@
     <ClInclude Include="Core\DramPowerOnPattern.h" />
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\ThreadName.h" />
+    <ClInclude Include="Seams\Win32ContentDetails.h" />
     <ClInclude Include="Seams\Win32InfoTips.h" />
     <ClInclude Include="Core\IInterruptController.h" />
     <ClInclude Include="Core\InterruptController.h" />

@@ -13,6 +13,7 @@
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32ProcessLauncher.h"
+#include "Seams/Win32ContentDetails.h"
 #include "Seams/Win32ShellIcons.h"
 #include "Seams/Win32InfoTips.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -253,6 +254,9 @@ private:
 
     //  Posted by a shell folder's reader when its listing is in.
     static constexpr UINT      kShellListedMessage   = WM_APP + 0x38;
+
+    //  Posted by the Content view's reader when items' details are in.
+    static constexpr UINT      kContentDetailsMessage = WM_APP + 0x39;
 
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
@@ -575,6 +579,8 @@ private:
     void  UpdateListTip       (const DxuiMouseEvent & ev, POINT point);
     void  RefreshListTip      ();
     void  ArmTick             ();
+    bool  TryApplyContentDetails (int row, DxuiListView::Cell & name);
+    void  RefreshContentDetails  ();
     void  RefreshListIcons    ();
     const std::vector<DxuiListView::Cell> &  GetListRowCells (int row);
     bool  IsTickWanted        () const;
@@ -746,6 +752,7 @@ private:
     Win32ShellIcons                              m_shellIcons;
     Win32ShellIcons                              m_listIcons;
     Win32InfoTips                                m_infoTips;
+    Win32ContentDetails                          m_contentDetails;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 

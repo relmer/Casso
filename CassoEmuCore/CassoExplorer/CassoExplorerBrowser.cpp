@@ -2081,6 +2081,7 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
 {
     std::vector<DxuiListView::Cell>  cells;
     DxuiListView::Cell               name;
+    bool                             hostItem = at.kind == Location::Kind::HostFolder || !row.hostPath.empty();
 
 
 
@@ -2114,12 +2115,13 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         }
     }
 
-    //  Explorer's Content row: a file's type under its name, and the date and
-    //  the size in the column beside them, each saying what it is. A folder
-    //  has its name alone.
-    if (!row.isDirectory || row.isDrive)
+    //  Explorer's Content row, until the shell's own lines for a host item
+    //  replace it: the date and the size in the right column, each with its
+    //  name. A file in a disk image, which has no shell properties, and a
+    //  drive have their type under their name.
+    if ((!row.isDirectory || row.isDrive) && (row.isDrive || !hostItem))
     {
-        cells[0].contentLeft = { DxuiListView::Cell { L"Type: " + row.typeText, false } };
+        cells[0].contentLeft = { MakeContentLine (L"Type:", row.typeText) };
     }
 
     //  A search result says where it is, ahead of its type; a folder, which
@@ -2131,14 +2133,12 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
         cells[0].contentLeft = { DxuiListView::Cell { std::wstring(), false } };
     }
 
-    if (row.hasModified)
-    {
-        cells[0].contentRight.push_back (DxuiListView::Cell { L"Date modified: " + FormatModified (row.modifiedUnix, row.modifiedIsWallClock), false });
-    }
+    cells[0].contentRight.push_back (row.hasModified ? MakeContentLine (L"Date modified:", FormatModified (row.modifiedUnix, row.modifiedIsWallClock))
+                                                     : DxuiListView::Cell());
 
     if (!row.isDirectory)
     {
-        cells[0].contentRight.push_back (DxuiListView::Cell { L"Size: " + FormatSize (row.sizeBytes), false });
+        cells[0].contentRight.push_back (MakeContentLine (L"Size:", FormatSize (row.sizeBytes)));
     }
 
     cells[0].tileNameOnly = row.isDirectory && !row.isDrive;
@@ -2161,6 +2161,28 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::ToCells (const CatalogRow 
     }
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::MakeContentLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell CassoExplorerBrowser::MakeContentLine (const std::wstring & label, const std::wstring & value)
+{
+    DxuiListView::Cell  line;
+
+
+
+    line.label = label;
+    line.text  = value;
+
+    return line;
 }
 
 
