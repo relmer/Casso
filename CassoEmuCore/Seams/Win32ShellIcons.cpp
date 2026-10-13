@@ -710,7 +710,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
     }
 
     //  Any other Apple file type's icon is Explorer's page with the type's
-    //  badge, the page drawn at the size it is shown at.
+    //  badge, the page drawn at the icon's own size.
     if (kind >= Kind::AppleText)
     {
         HICON  page = (m_sizePx > s_kLargeIconPx) ? LoadLargerByAttributes (false, m_sizePx) : LoadForKind (Kind::File, flag);
