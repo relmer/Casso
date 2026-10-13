@@ -34,6 +34,7 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void  SetMap         (const FileMap * map)    { m_map = map; }
     void  SetSelected    (int cell, int file)     { m_selectedCell = cell; m_selectedFile = file; }
@@ -57,6 +58,8 @@ private:
     void  PaintMap  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed);
     void  PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
+    bool      IsDimmed     (int cell) const;
+    uint32_t  GetCellColor (int cell) const;
 
     const FileMap *  m_map          = nullptr;
     int              m_selectedCell = -1;

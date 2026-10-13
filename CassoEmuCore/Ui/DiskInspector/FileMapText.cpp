@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -210,6 +211,39 @@ std::wstring FileMapText::FormatCell (const FileMap & map, int cell)
         default:
             text = std::format (L"Track {}, sector {}", track, InspectorFormat::FormatSector (column));
             break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapText::FormatColumnAxis
+//
+//  What the grid's columns number on each track (FR-089).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapText::FormatColumnAxis (const FileMap & map)
+{
+    std::wstring  text = L"Physical sector";
+
+
+
+    if (map.notMapped == NotMappedReason::None)
+    {
+        switch (map.fileSystem)
+        {
+            case MapFileSystem::Dos33:  text = L"DOS 3.3 sector";                                                       break;
+            case MapFileSystem::ProDos: text = std::wstring (L"Block within the track (block = track ") + s_kpszMultiplyX + L" 8 + column)"; break;
+            case MapFileSystem::Pascal: text = std::wstring (L"Block within the track (block = track ") + s_kpszMultiplyX + L" 8 + column)"; break;
+            case MapFileSystem::Cpm:    text = L"CP/M sector";                                                          break;
+            default:                                                                                                   break;
+        }
     }
 
     return text;

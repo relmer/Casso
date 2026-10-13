@@ -53,7 +53,7 @@ static constexpr int      s_kStripDip       = 64;
 static constexpr int      s_kHintRowDip     = 20;
 static constexpr int      s_kWholeTrackDip  = 104;
 static constexpr int      s_kReadoutDip     = 220;
-static constexpr int      s_kSectorRowDip   = 76;
+static constexpr int      s_kSectorRowDip   = 32;
 static constexpr int      s_kMarginDip      = 8;
 static constexpr int      s_kSplitterDip    = 6;
 static constexpr int      s_kButtonDip      = 32;
@@ -92,7 +92,7 @@ static constexpr LPCWSTR  s_kpszTabTips[] =
     L"What the image file itself contains",
     L"Everything that differs between disk A and disk B",
 };
-static constexpr double   s_kCharWidthDip   = 7.2;
+static constexpr double   s_kCharWidthDip   = 6.6;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
 static constexpr int      s_kExportButtonDip = 80;
@@ -202,6 +202,13 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
     params.createNoActivate         = !activate;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;
     params.fitToWorkArea            = true;
+
+    //  Presented without waiting for vblank: RenderFrame runs in the main
+    //  window's frame, on the thread that presents the vsynced main window, so
+    //  an interval of 1 adds a second vblank wait to every frame and halves
+    //  the frame rate of both windows. DWM composes at vsync, so 0 does not
+    //  tear.
+    params.presentSyncInterval      = 0;
 
     hr = DxuiWindow::Create (params);
     CHR (hr);
@@ -588,6 +595,11 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     LayoutFileMap (m_diskContentPx, scaler);
 
+    //  "Copy sector" at the end of the Sector data header's first line, with
+    //  room reserved for it there.
+    m_copySector->Layout       ({ right.right - scaler.ToPx (s_kCopySectorDip), y, right.right, y + scaler.ToPx (SectorByteView::kHeaderDip) }, scaler);
+    m_byteView->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip) + margin);
+
     //  The strip across the bottom, B's under it while comparing (FR-121).
     y = bandTop + margin;
     m_stripView->Layout ({ x, y, boundsDip.right - margin, y + strip }, scaler);
@@ -654,8 +666,7 @@ void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDp
 //
 //  The one tab strip: the track tabs, a gap, then the disk tabs, each as
 //  wide as its label; the disk tabs take a row of their own when the column
-//  is too narrow for both groups beside "Copy sector". Returns where the
-//  tabs' content starts.
+//  is too narrow for both groups. Returns where the tabs' content starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -668,7 +679,6 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
 
     int                        tabsH  = scaler.ToPx (s_kTabsDip);
     int                        margin = scaler.ToPx (s_kMarginDip);
-    int                        copyW  = scaler.ToPx (s_kCopySectorDip);
     int                        disks  = m_comparison.IsComparing() ? kDiskTabCount : kDiskTabCount - 1;
     int                        trackW = 0;
     int                        diskW  = 0;
@@ -689,7 +699,7 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
         diskW += GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
     }
 
-    isOne = trackW + 2 * margin + diskW <= area.right - area.left - copyW - margin;
+    isOne = trackW + 2 * margin + diskW <= area.right - area.left;
 
     for (LPCWSTR label : kpszTrackTabs)
     {
@@ -712,8 +722,7 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
 
     m_tabs->SetTabs     (std::move (tabs));
     m_tabs->SetSelected (m_isDiskGroup ? kTrackTabCount + m_diskTab : m_trackTab);
-    m_tabs->Layout      ({ area.left, area.top, area.right - copyW - margin, y + tabsH }, scaler);
-    m_copySector->Layout ({ area.right - copyW, area.top + margin / 4, area.right, area.top + tabsH - margin / 4 }, scaler);
+    m_tabs->Layout      ({ area.left, area.top, area.right, y + tabsH }, scaler);
 
     return y + tabsH + margin / 2;
 }
@@ -1450,18 +1459,20 @@ void DiskInspectorWindow::ShowTrackTab (int tab)
 //
 //  DiskInspectorWindow::UpdateTooltip
 //
-//  The first view with a tooltip for the point gives it; the file name gives
-//  its full text.
+//  The first view with a tooltip for the point supplies it; over the file
+//  name, the tip has the name in full. Over the platter, the strips and the
+//  File map grid, the tip appears at once and follows the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
 {
     std::wstring                          tip;
-    RECT                                  anchor = {};
-    int64_t                               now    = static_cast<int64_t> (GetTickCount64());
+    RECT                                  anchor    = {};
+    int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
-    const std::array<InspectorView *, 7>  views  = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid };
+    bool                                  isInstant = false;
+    const std::array<InspectorView *, 8>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid, m_headerView };
 
 
 
@@ -1470,6 +1481,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
         if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
         {
             view->GetTooltipSwatches (pointPx, swatches);
+            isInstant = view == m_platterView || view == m_stripView || view == m_stripB || view == m_mapGrid;
         }
     }
 
@@ -1491,7 +1503,15 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     else if (tip != m_tooltipText)
     {
         m_tooltip.SetSwatches (swatches);
-        m_tooltip.RequestShow (anchor, tip, now);
+
+        if (isInstant)
+        {
+            m_tooltip.RequestShowNow (anchor, tip, now);
+        }
+        else
+        {
+            m_tooltip.RequestShow (anchor, tip, now);
+        }
     }
 
     m_tooltipText = tip;

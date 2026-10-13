@@ -105,6 +105,7 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
     float               x      = static_cast<float> (m_boundsDip.left);
     float               w      = 0;
     float               h      = 0;
+    float               top    = y;
     std::wstring        line;
 
 
@@ -121,7 +122,7 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
         line = item.label + L": " + item.value;
         text.MeasureString (line.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
 
-        if (x + w > m_boundsDip.right && x > m_boundsDip.left)
+        if (x + w > m_boundsDip.right - ((y == top) ? m_headerReservePx : 0.0f) && x > m_boundsDip.left)
         {
             x  = static_cast<float> (m_boundsDip.left);
             y += rowH;

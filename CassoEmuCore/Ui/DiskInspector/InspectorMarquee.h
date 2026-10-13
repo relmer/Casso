@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 
 
@@ -28,7 +29,19 @@ public:
     //  own lines.
     static constexpr float  kThicknessPx = 1.0f;
 
+    //  A stretch of a track between two turns; `b` passes 1 when the
+    //  stretch crosses the index.
+    struct Span
+    {
+        double  a = 0;
+        double  b = 0;
+    };
+
     InspectorMarquee (const DiskInspectorPalette & palette, float dashPx, float thicknessPx, int64_t nowMs);
+
+    //  Segments wholly outside the rectangle are skipped; their length counts
+    //  toward the dash pattern all the same.
+    void   SetCullRect (const RECT & rectPx) { m_cull = rectPx; m_isCulled = true; }
 
     //  A dashed segment whose dashes start at whole multiples of the dash
     //  length along it, counted from `startPx`; returns the distance at its
@@ -38,10 +51,18 @@ public:
     //  A color dimmed by half toward the palette's background.
     static uint32_t  Dim (const DiskInspectorPalette & palette, uint32_t argb);
 
+    //  The stretches of a whole track that a file's sectors cover, as turns
+    //  of `nibbleTurns`: each sector from its address field to the end of its
+    //  data field, and a run of the file's sectors that follow one another
+    //  around the track as one stretch, `a` within the first turn.
+    static vector<Span>  GetFileSpans (const TrackAnalysis & track, const vector<double> & nibbleTurns, const FileMap & map, int wholeTrack, int file);
+
 private:
     float     m_dashPx      = 1.0f;
     float     m_thicknessPx = 1.0f;
     float     m_phasePx     = 0.0f;
     uint32_t  m_colorA      = 0;
     uint32_t  m_colorB      = 0;
+    RECT      m_cull        = {};
+    bool      m_isCulled    = false;
 };

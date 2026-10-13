@@ -32,6 +32,10 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
+    //  Pixels at the right of the header's first line reserved for the
+    //  window's "Copy sector" button.
+    void  SetHeaderReserve (int px) { m_headerReservePx = static_cast<float> (px); }
+
     //  The text column's character for a byte: high bit masked, "." for
     //  anything not printable.
     static wchar_t  GetTextChar (Byte value);
@@ -59,5 +63,6 @@ private:
     std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
 
     ByteGrid  m_grid;
-    bool      m_isDragging = false;
+    float     m_headerReservePx = 0.0f;
+    bool      m_isDragging      = false;
 };

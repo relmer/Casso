@@ -1125,8 +1125,8 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
 //
 //  TrackStripView::GetFileParts
 //
-//  Where the selected file's data fields lie across the bar, on a whole
-//  track, in order from left to right.
+//  Where the selected file's sectors lie across the bar, a run of them as
+//  one part, on a whole track, in order from left to right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1137,26 +1137,14 @@ void TrackStripView::GetFileParts (const TrackAnalysis & track, const StripGeome
     int                          file  = m_context.selectedFile;
     std::array<StripSegment, 2>  parts = {};
     int                          count = 0;
-    int                          cell  = -1;
-    int                          half  = 0;
     bool                         isOn  = map != nullptr && map->notMapped == NotMappedReason::None && qt % DiskImage::kQuarterTracksPerWholeTrack == 0 && file >= 0;
 
 
 
-    for (const AnalyzedSector & sector : isOn ? track.sectors : vector<AnalyzedSector>())
+    for (const InspectorMarquee::Span & span : isOn ? InspectorMarquee::GetFileSpans (track, m_turns, *map, qt / DiskImage::kQuarterTracksPerWholeTrack, file)
+                                                    : vector<InspectorMarquee::Span>())
     {
-        cell = (sector.dataField >= 0) ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector.sector, half) : -1;
-
-        if (cell < 0 || std::find (map->cells[cell].owners.begin(), map->cells[cell].owners.end(), file) == map->cells[cell].owners.end())
-        {
-            continue;
-        }
-
-        const LocatedField &  field = track.fields[sector.dataField];
-        double                a     = m_turns[field.firstNibble];
-        double                b     = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
-
-        count = g.GetSegments (a, b - a, parts);
+        count = g.GetSegments (span.a, span.b - span.a, parts);
         outParts.insert (outParts.end(), parts.begin(), parts.begin() + count);
     }
 

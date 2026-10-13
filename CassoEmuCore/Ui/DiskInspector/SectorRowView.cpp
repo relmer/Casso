@@ -25,7 +25,6 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     const TrackAnalysis *  track    = m_context.GetTrack();
     float                  x        = static_cast<float> (m_boundsDip.left);
     float                  y        = static_cast<float> (m_boundsDip.top);
-    float                  labelH   = m_scaler.ToPxf (static_cast<float> (kLabelDip));
     vector<int>            order;
     size_t                 i        = 0;
     RECT                   r        = {};
@@ -37,15 +36,12 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     if (m_context.hasDisk && m_context.analysis != nullptr)
     {
-        text.DrawString (s_kpszLabel, x, y, GetWidth(), labelH, theme.ForegroundMuted(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace,
-                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-
         order = (track != nullptr) ? GetPassingOrder (*track) : vector<int>();
 
         if (order.empty())
         {
             caption = InspectorText::FormatNoSectors (m_context.analysis->entries[m_context.model->GetQuarterTrack()]);
-            text.DrawString (caption.c_str(), x, y + labelH, GetWidth(), m_scaler.ToPxf (static_cast<float> (kRowDip)), theme.Foreground(),
+            text.DrawString (caption.c_str(), x, y, GetWidth(), m_scaler.ToPxf (static_cast<float> (kRowDip)), theme.Foreground(),
                              m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
@@ -119,13 +115,22 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
 
 
 
+    bool                   hasTip   = position >= 0 || (track != nullptr && PtInRect (&m_boundsDip, pointPx) != FALSE);
+
+
+
     if (position >= 0)
     {
         outText     = InspectorText::FormatSectorTooltip (track->sectors[GetPassingOrder (*track)[position]], *track);
         outAnchorPx = GetButtonRect (position);
     }
+    else if (hasTip)
+    {
+        outText     = s_kpszLabel;
+        outAnchorPx = m_boundsDip;
+    }
 
-    return position >= 0;
+    return hasTip;
 }
 
 
@@ -169,14 +174,16 @@ vector<int> SectorRowView::GetPassingOrder (const TrackAnalysis & track)
 
 RECT SectorRowView::GetButtonRect (int position) const
 {
-    int  w       = m_scaler.ToPx (kButtonDip);
-    int  h       = m_scaler.ToPx (kRowDip);
-    int  gap     = m_scaler.ToPx (kGapDip);
-    int  perRow  = std::max (1, static_cast<int> ((GetWidth() + gap) / (w + gap)));
-    int  col     = position % perRow;
-    int  row     = position / perRow;
-    int  left    = m_boundsDip.left + col * (w + gap);
-    int  top     = m_boundsDip.top + m_scaler.ToPx (kLabelDip) + row * (h + gap);
+    const TrackAnalysis *  track   = m_context.GetTrack();
+    int                    count   = (track != nullptr) ? std::max (static_cast<int> (track->sectors.size()), 1) : 1;
+    int                    h       = m_scaler.ToPx (kRowDip);
+    int                    gap     = m_scaler.ToPx (kGapDip);
+    int                    w       = std::clamp (static_cast<int> ((GetWidth() + gap) / count) - gap, m_scaler.ToPx (kMinButtonDip), m_scaler.ToPx (kButtonDip));
+    int                    perRow  = std::max (1, static_cast<int> ((GetWidth() + gap) / (w + gap)));
+    int                    col     = position % perRow;
+    int                    row     = position / perRow;
+    int                    left    = m_boundsDip.left + col * (w + gap);
+    int                    top     = m_boundsDip.top + row * (h + gap);
 
 
 

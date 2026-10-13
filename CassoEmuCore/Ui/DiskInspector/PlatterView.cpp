@@ -30,6 +30,8 @@ static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
 static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
 static constexpr float    s_kMarqueeStepDip = 8.0f;
+static constexpr float    s_kShadeStepDip   = 24.0f;
+static constexpr int      s_kMaxPieces      = 4096;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
 
@@ -576,20 +578,16 @@ void PlatterView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & theme, 
 //
 //  PlatterView::GetFileArcs
 //
-//  Each data field of the selected file's sectors, across its whole track's
-//  rings, as the Files overlay draws it.
+//  The stretches the selected file's sectors cover on each whole track's
+//  rings, a run of them as one stretch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::GetFileArcs (vector<FileArc> & outArcs) const
 {
-    const FileMap *  map   = m_context.fileMap;
-    int              file  = m_context.selectedFile;
-    int              cell  = -1;
-    int              half  = 0;
-    double           a     = 0;
-    double           b     = 0;
-    bool             isOn  = map != nullptr && map->notMapped == NotMappedReason::None && file >= 0 && file < static_cast<int> (map->files.size());
+    const FileMap *  map  = m_context.fileMap;
+    int              file = m_context.selectedFile;
+    bool             isOn = map != nullptr && map->notMapped == NotMappedReason::None && file >= 0 && file < static_cast<int> (map->files.size());
 
 
 
@@ -603,22 +601,9 @@ void PlatterView::GetFileArcs (vector<FileArc> & outArcs) const
             continue;
         }
 
-        const RingTurns &  turns = GetRingTurns (m_context.analysis->entries[qt].slot, *track);
-
-        for (const AnalyzedSector & sector : track->sectors)
+        for (const InspectorMarquee::Span & span : InspectorMarquee::GetFileSpans (*track, GetRingTurns (m_context.analysis->entries[qt].slot, *track).nibbles, *map, t, file))
         {
-            cell = (sector.dataField >= 0) ? map->GetCellOf (t, sector.sector, half) : -1;
-
-            if (cell < 0 || std::find (map->cells[cell].owners.begin(), map->cells[cell].owners.end(), file) == map->cells[cell].owners.end())
-            {
-                continue;
-            }
-
-            const LocatedField &  field = track->fields[sector.dataField];
-
-            a = turns.nibbles[field.firstNibble];
-            b = turns.nibbles[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), turns.nibbles.size() - 1)];
-            outArcs.push_back ({ t, a, (b < a) ? b + 1.0 : b });
+            outArcs.push_back ({ t, span.a, span.b });
         }
     }
 }
@@ -632,8 +617,8 @@ void PlatterView::GetFileArcs (vector<FileArc> & outArcs) const
 //  PlatterView::DimOutsideFile
 //
 //  Every whole track's rings shaded by half toward the background, except
-//  where the selected file's data fields lie, so they are the brightest
-//  part of the platter (FR-090).
+//  where the selected file's sectors lie, so they are the brightest part of
+//  the platter (FR-090).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -653,6 +638,11 @@ void PlatterView::DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement
         inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
         from  = 0;
         spans.clear();
+
+        if (!IsBandVisible (view, inner, outer))
+        {
+            continue;
+        }
 
         for (const FileArc & arc : arcs)
         {
@@ -694,52 +684,249 @@ void PlatterView::DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement
 //
 //  PlatterView::PaintMarquee
 //
-//  A marching marquee around each of the selected file's data fields: out
-//  along the outer edge, in at its end, back along the inner edge and out
-//  at its start, each edge in steps short enough to follow the curve.
+//  A marching marquee around the outside of the selected file's sectors:
+//  on each whole track, along its outer edge where the track outside it has
+//  none of the file's sectors, along its inner edge where the track inside
+//  has none, and across the track at each end of a stretch. A stretch that
+//  crosses the index is split there with no edge between the halves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const
 {
+    using Spans = vector<std::pair<double, double>>;
+
+    static constexpr double  kJoin = 1e-9;
+
+
+
     InspectorMarquee  marquee (m_context.palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx,
                                static_cast<int64_t> (GetTickCount64()));
+    int               tracks = PlatterRenderer::kRingCount / DiskImage::kQuarterTracksPerWholeTrack;
+    vector<Spans>     sets (static_cast<size_t> (tracks) + 2);
     double            outer  = 0;
     double            inner  = 0;
-    int               pieces = 0;
     float             s      = 0;
-    auto              getX = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
-    auto              getY = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+
+    auto  getX = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
+    auto  getY = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+
+    //  The parts of `of` outside every span of `minus`.
+    auto  subtract = [] (const Spans & of, const Spans & minus)
+    {
+        Spans  out;
 
 
 
+        for (const std::pair<double, double> & span : of)
+        {
+            double  from = span.first;
+
+            for (const std::pair<double, double> & cut : minus)
+            {
+                if (cut.second > from && cut.first < span.second)
+                {
+                    if (cut.first > from)
+                    {
+                        out.push_back ({ from, cut.first });
+                    }
+
+                    from = std::max (from, cut.second);
+                }
+            }
+
+            if (from < span.second)
+            {
+                out.push_back ({ from, span.second });
+            }
+        }
+
+        return out;
+    };
+
+
+
+    marquee.SetCullRect (m_boundsDip);
+
+    //  Each whole track's stretches within one turn, sorted and joined; the
+    //  sets are offset by one so the tracks beyond either end are empty.
     for (const FileArc & arc : arcs)
     {
-        outer  = PlatterGeometry::GetRingOuter (arc.wholeTrack * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        inner  = PlatterGeometry::GetRingOuter ((arc.wholeTrack + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        pieces = std::clamp (static_cast<int> (std::ceil ((arc.b - arc.a) * s_kTwoPi * outer / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, 4096);
+        Spans &  set = sets[static_cast<size_t> (arc.wholeTrack) + 1];
+
+        set.push_back ({ arc.a, std::min (arc.b, 1.0) });
+
+        if (arc.b > 1.0)
+        {
+            set.push_back ({ 0.0, arc.b - 1.0 });
+        }
+    }
+
+    for (Spans & set : sets)
+    {
+        Spans  joined;
+
+
+
+        std::sort (set.begin(), set.end());
+
+        for (const std::pair<double, double> & span : set)
+        {
+            if (!joined.empty() && span.first <= joined.back().second + kJoin)
+            {
+                joined.back().second = std::max (joined.back().second, span.second);
+            }
+            else
+            {
+                joined.push_back (span);
+            }
+        }
+
+        set = joined;
+    }
+
+    for (int t = 0; t < tracks; t++)
+    {
+        const Spans &  set = sets[static_cast<size_t> (t) + 1];
+
+        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+
+        if (set.empty() || !IsBandVisible (view, inner, outer))
+        {
+            continue;
+        }
+
+        for (const std::pair<double, double> & span : subtract (set, sets[static_cast<size_t> (t)]))
+        {
+            DrawMarqueeArc (marquee, painter, view, span.first, span.second, outer);
+        }
+
+        for (const std::pair<double, double> & span : subtract (set, sets[static_cast<size_t> (t) + 2]))
+        {
+            DrawMarqueeArc (marquee, painter, view, span.first, span.second, inner);
+        }
+
+        //  Across the track at each end, except at the index where a stretch
+        //  continues past it.
+        for (const std::pair<double, double> & span : set)
+        {
+            if (span.first > kJoin || set.back().second < 1.0 - kJoin)
+            {
+                s = marquee.DrawLine (painter, getX (span.first, inner), getY (span.first, inner), getX (span.first, outer), getY (span.first, outer), 0);
+            }
+
+            if (span.second < 1.0 - kJoin || set.front().first > kJoin)
+            {
+                s = marquee.DrawLine (painter, getX (span.second, outer), getY (span.second, outer), getX (span.second, inner), getY (span.second, inner), s);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::DrawMarqueeArc
+//
+//  The marquee along a ring's edge between two turns, in steps short enough
+//  to follow the curve, over only the parts in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const
+{
+    float  s      = 0;
+    int    pieces = 0;
+    auto   getX   = [&] (double turn) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
+    auto   getY   = [&] (double turn) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+
+
+
+    for (const std::pair<double, double> & part : GetVisibleParts (view, a, b))
+    {
+        pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, s_kMaxPieces);
         s      = 0;
 
         for (int k = 0; k < pieces; k++)
         {
-            double  t0 = arc.a + (arc.b - arc.a) * k / pieces;
-            double  t1 = arc.a + (arc.b - arc.a) * (k + 1) / pieces;
+            double  t0 = part.first + (part.second - part.first) * k / pieces;
+            double  t1 = part.first + (part.second - part.first) * (k + 1) / pieces;
 
-            s = marquee.DrawLine (painter, getX (t0, outer), getY (t0, outer), getX (t1, outer), getY (t1, outer), s);
+            s = marquee.DrawLine (painter, getX (t0), getY (t0), getX (t1), getY (t1), s);
         }
-
-        s = marquee.DrawLine (painter, getX (arc.b, outer), getY (arc.b, outer), getX (arc.b, inner), getY (arc.b, inner), s);
-
-        for (int k = pieces; k > 0; k--)
-        {
-            double  t0 = arc.a + (arc.b - arc.a) * k / pieces;
-            double  t1 = arc.a + (arc.b - arc.a) * (k - 1) / pieces;
-
-            s = marquee.DrawLine (painter, getX (t0, inner), getY (t0, inner), getX (t1, inner), getY (t1, inner), s);
-        }
-
-        marquee.DrawLine (painter, getX (arc.a, inner), getY (arc.a, inner), getX (arc.a, outer), getY (arc.a, outer), s);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetVisibleParts
+//
+//  The parts of the stretch from turn `a` to turn `b` inside the view: all
+//  of it when the platter's center is inside, otherwise its overlap with the
+//  turns between the view's corners, a turn either side included.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::pair<double, double>> PlatterView::GetVisibleParts (const PlatterPlacement & view, double a, double b) const
+{
+    vector<std::pair<double, double>>  parts;
+    double                             start = 0;
+    double                             end   = 1;
+    double                             low   = 0;
+    double                             high  = 0;
+
+
+
+    if (!PlatterGeometry::GetVisibleTurns (view, m_boundsDip, start, end))
+    {
+        parts.push_back ({ a, b });
+    }
+
+    for (int k = -2; parts.empty() && k <= 2; k++)
+    {
+        low  = std::max (a, start + k);
+        high = std::min (b, end + k);
+
+        if (high > low)
+        {
+            parts.push_back ({ low, high });
+        }
+    }
+
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsBandVisible
+//
+//  Whether any of the view lies between two radii of the platter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsBandVisible (const PlatterPlacement & view, double r0, double r1) const
+{
+    double  dx      = std::max ({ m_boundsDip.left - view.centerXPx, 0.0f, view.centerXPx - m_boundsDip.right });
+    double  dy      = std::max ({ m_boundsDip.top - view.centerYPx, 0.0f, view.centerYPx - m_boundsDip.bottom });
+    double  nearest = std::hypot (dx, dy);
+    double  farX    = std::max (std::abs (m_boundsDip.left - view.centerXPx), std::abs (m_boundsDip.right - view.centerXPx));
+    double  farY    = std::max (std::abs (m_boundsDip.top - view.centerYPx), std::abs (m_boundsDip.bottom - view.centerYPx));
+
+
+
+    return r1 >= nearest && r0 <= std::hypot (farX, farY);
 }
 
 
@@ -860,19 +1047,32 @@ void PlatterView::GetDiffTurns (const Difference & difference, const TrackAnalys
 //
 //  PlatterView::ShadeRingArc
 //
-//  An arc of a ring, in pieces short enough to follow the curve at fit.
+//  A stretch of a ring filled between two turns, over only the parts in
+//  view, in quadrilaterals short enough that each chord lies close to its
+//  arc.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::ShadeRingArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb)
+void PlatterView::ShadeRingArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const
 {
-    int  pieces = std::max (1, static_cast<int> (std::ceil ((b - a) * s_kPiecesPerTurn)));
+    int  pieces = 0;
 
 
 
-    for (int k = 0; k < pieces; k++)
+    if (!IsBandVisible (view, r0, r1))
     {
-        ShadeArc (painter, view, a + (b - a) * k / pieces, a + (b - a) * (k + 1) / pieces, r0, r1, argb);
+        return;
+    }
+
+    for (const std::pair<double, double> & part : GetVisibleParts (view, a, b))
+    {
+        pieces = std::clamp (std::max (static_cast<int> (std::ceil ((part.second - part.first) * s_kPiecesPerTurn)),
+                                       static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kShadeStepDip)))), 1, s_kMaxPieces);
+
+        for (int k = 0; k < pieces; k++)
+        {
+            ShadeArc (painter, view, part.first + (part.second - part.first) * k / pieces, part.first + (part.second - part.first) * (k + 1) / pieces, r0, r1, argb);
+        }
     }
 }
 

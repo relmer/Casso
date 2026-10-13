@@ -37,6 +37,7 @@ public:
     static std::wstring  FormatSize      (const FileMap & map, const MappedFile & file);
     static std::wstring  FormatNotMapped (const FileMap & map);
     static std::wstring  FormatVolume    (const FileMap & map);
+    static std::wstring  FormatColumnAxis (const FileMap & map);
     static std::wstring  FormatMap       (const FileMap & map);
     static wchar_t       GetRoleLetter   (SectorRole role);
 

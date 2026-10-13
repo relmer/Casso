@@ -729,7 +729,7 @@ void DiskImage::ClearDirty()
     m_dirty = false;
 
     // vector<bool> hands out a proxy, so a range-for element would have to be
-    // auto&& to write through it -- and a plain uto would silently clear a
+    // auto&& to write through it -- and a plain `auto` would silently clear a
     // copy. assign says the whole thing in one line and dodges that entirely.
     m_trackDirty.assign           (m_trackDirty.size(), false);
     m_trackChangedByWriter.assign (m_trackChangedByWriter.size(), false);

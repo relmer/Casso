@@ -9,8 +9,9 @@
 
 
 
-static constexpr float     s_kLabelDip      = 26.0f;
+static constexpr float     s_kLabelDip      = 34.0f;
 static constexpr float     s_kHeaderDip     = 16.0f;
+static constexpr float     s_kAxisDip       = 16.0f;
 static constexpr float     s_kNoteDip       = 34.0f;
 static constexpr float     s_kMinRowDip     = 9.0f;
 static constexpr float     s_kMaxRowDip     = 16.0f;
@@ -88,6 +89,12 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
         }
     }
 
+    text.DrawString (FileMapText::FormatColumnAxis (*m_map).c_str(), g.left + g.labelW, g.top - m_scaler.ToPxf (s_kHeaderDip + s_kAxisDip), GetWidth() - g.labelW,
+                     m_scaler.ToPxf (s_kAxisDip), theme.Foreground(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                     DxuiFontWeight::SemiBold, false);
+    text.DrawString (L"Track", g.left, g.top - m_scaler.ToPxf (s_kHeaderDip), g.labelW - m_scaler.ToPxf (4.0f), m_scaler.ToPxf (s_kHeaderDip), theme.Foreground(),
+                     textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
     for (int c = 0; c < m_map->cellsPerTrack; c++)
     {
         std::wstring  label = (m_map->cellsPerTrack == 8) ? std::to_wstring (c) : std::format (L"{:X}", c);
@@ -130,8 +137,7 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float            y      = g.top + m_map->GetTrack (cell) * g.rowH;
     float            w      = g.cellW - 1.0f;
     float            h      = g.rowH - 1.0f;
-    uint32_t         color  = (at.result == SectorResult::Missing) ? m_context.palette.colors.nothingRecorded
-                                                                    : m_context.palette.GetRoleColor (static_cast<MapRole> (at.role));
+    uint32_t         color  = GetCellColor (cell);
     uint32_t         ink    = (DiskInspectorPalette::GetTextColorOn (color) & 0x00FFFFFFu) | s_kMarkAlpha;
     float            textPx = m_scaler.ToPxf (kSmallDip);
     std::wstring     label;
@@ -299,10 +305,79 @@ bool FileMapGridView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & 
                                                                   : std::format (L"Track {}, physical sector {}\n{}", m_map->GetTrack (cell),
                                                                                  InspectorFormat::FormatSector (m_map->GetColumn (cell)),
                                                                                  FileMapText::FormatResult (m_map->cells[cell].result));
+        outText    += IsDimmed (cell) ? L"\nDimmed: not part of " + m_map->files[m_selectedFile].path : L"";
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
     return cell >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetTooltipSwatches
+//
+//  The cell's color beside the line with its role, or with its result when
+//  the disk is not mapped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    int  cell = HitTest (pointPx);
+
+
+
+    if (cell >= 0)
+    {
+        outSwatches = { { 1, IsDimmed (cell) ? InspectorMarquee::Dim (m_context.palette, GetCellColor (cell)) : GetCellColor (cell) } };
+    }
+
+    return cell >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::IsDimmed
+//
+//  A cell outside the selected file, while that file has sectors to mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::IsDimmed (int cell) const
+{
+    bool  isFile = m_map != nullptr && m_selectedFile >= 0 && m_selectedFile < static_cast<int> (m_map->files.size()) &&
+                   std::any_of (m_map->files[m_selectedFile].sectors.begin(), m_map->files[m_selectedFile].sectors.end(), [] (const FilePlace & p) { return p.cell >= 0; });
+
+
+
+    return isFile && std::find (m_map->cells[cell].owners.begin(), m_map->cells[cell].owners.end(), m_selectedFile) == m_map->cells[cell].owners.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetCellColor
+//
+//  A cell's role color, or for a missing sector the platter's color for an
+//  empty quarter track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FileMapGridView::GetCellColor (int cell) const
+{
+    return (m_map->cells[cell].result == SectorResult::Missing) ? m_context.palette.colors.nothingRecorded
+                                                                : m_context.palette.GetRoleColor (static_cast<MapRole> (m_map->cells[cell].role));
 }
 
 
@@ -319,7 +394,7 @@ bool FileMapGridView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & 
 
 int FileMapGridView::GetHeightFor (int widthPx) const
 {
-    float  header = m_scaler.ToPxf (s_kHeaderDip) + ((m_map != nullptr && m_map->notMapped != NotMappedReason::None) ? m_scaler.ToPxf (s_kNoteDip) : 0.0f);
+    float  header = m_scaler.ToPxf (s_kHeaderDip + s_kAxisDip) + ((m_map != nullptr && m_map->notMapped != NotMappedReason::None) ? m_scaler.ToPxf (s_kNoteDip) : 0.0f);
     float  rowH   = std::clamp (static_cast<float> (widthPx) / 40.0f, m_scaler.ToPxf (s_kMinRowDip), m_scaler.ToPxf (s_kMaxRowDip));
 
 
@@ -340,7 +415,7 @@ int FileMapGridView::GetHeightFor (int widthPx) const
 FileMapGridView::Grid FileMapGridView::MakeGrid() const
 {
     Grid   g;
-    float  header  = m_scaler.ToPxf (s_kHeaderDip);
+    float  header  = m_scaler.ToPxf (s_kHeaderDip + s_kAxisDip);
     float  note    = (m_map != nullptr && m_map->notMapped != NotMappedReason::None) ? m_scaler.ToPxf (s_kNoteDip) : 0.0f;
     int    columns = (m_map != nullptr) ? m_map->cellsPerTrack : 16;
     int    tracks  = (m_map != nullptr) ? m_map->tracks : 35;

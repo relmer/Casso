@@ -22,10 +22,10 @@
 class SectorRowView : public InspectorView
 {
 public:
-    static constexpr int  kLabelDip  = 18;
-    static constexpr int  kButtonDip = 40;
-    static constexpr int  kRowDip    = 26;
-    static constexpr int  kGapDip    = 4;
+    static constexpr int  kButtonDip    = 40;
+    static constexpr int  kMinButtonDip = 26;
+    static constexpr int  kRowDip       = 26;
+    static constexpr int  kGapDip       = 4;
 
     explicit SectorRowView (InspectorViewContext & context) : InspectorView (context) {}
 

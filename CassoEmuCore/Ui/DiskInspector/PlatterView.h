@@ -7,6 +7,7 @@
 #include "Ui/DiskInspector/PlatterRenderer.h"
 
 
+class InspectorMarquee;
 class InspectorTip;
 
 
@@ -56,7 +57,7 @@ private:
     };
 
     //  A data field of the selected file on a whole track's rings, between
-    //  two turns;  passes 1 when the field crosses the index.
+    //  two turns; `b` passes 1 when the field crosses the index.
     struct FileArc
     {
         int     wholeTrack = 0;
@@ -74,7 +75,10 @@ private:
     void           DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
     void           PaintMarquee   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
     static void    GetDiffTurns   (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB);
-    static void    ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
+    void           ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
+    vector<std::pair<double, double>>  GetVisibleParts (const PlatterPlacement & view, double a, double b) const;
+    bool           IsBandVisible  (const PlatterPlacement & view, double r0, double r1) const;
+    void           DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     bool           IsSelectedNibble (int quarterTrack, int nibble) const;
     static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
