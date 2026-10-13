@@ -27,7 +27,9 @@
 //  Positions count characters in a row's text with its cells joined by tabs, so
 //  a copy has a tab between cells and a line break between rows.
 //
-//  A row can have a warning, which draws a warning mark before its first cell.
+//  A row can have a warning, which draws a warning mark before its first cell,
+//  and spans, runs of a cell's characters drawn in colors of their own, as
+//  source code's syntax is colored.
 //
 //  The host sets the character cell size, or the view measures it from the
 //  theme's fixed-width face, so layout and selection can be tested without a
@@ -38,10 +40,20 @@
 class DxuiTextView : public IDxuiControl
 {
 public:
+    //  A run of a cell's characters drawn in a color of their own.
+    struct Span
+    {
+        int       cell   = 0;
+        int       start  = 0;
+        int       length = 0;
+        uint32_t  argb   = 0;
+    };
+
     struct Row
     {
         std::vector<std::wstring>  cells;
         bool                       warning = false;
+        std::vector<Span>          spans;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -145,7 +157,9 @@ private:
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
-                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo) const;
+                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
+                                     const std::vector<uint32_t> & colors) const;
+    std::vector<uint32_t>  GetRowColors (const Row & row) const;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

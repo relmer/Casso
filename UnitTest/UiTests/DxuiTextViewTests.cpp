@@ -1,4 +1,7 @@
 #include "Pch.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -66,6 +69,35 @@ public:
         //  number's column and gap, which is where the wrapped run begins.
         Assert::AreEqual (14, view.HitTest (POINT { 6 + 4 * 8, 6 + 16 + 4 }).offset,
             L"and the wrapped run starts with BBBB, under the P of PRINT");
+    }
+
+
+    //  A span draws its characters in its own color, and the rest of the cell
+    //  in the text color, each stretch of one color as one string.
+    TEST_METHOD (Span_DrawsItsCharactersInItsColor)
+    {
+        DxuiTextView           view;
+        DxuiTextView::Row      row     = MakeRow ({ L"10", L"LDA #1" });
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   colored = false;
+        bool                   plain   = false;
+
+        row.spans.push_back ({ 1, 0, 3, 0xFF112233 });
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            colored = colored || (call.text == L"LDA" && call.argb == 0xFF112233);
+            plain   = plain   || (call.text == L" #1" && call.argb != 0xFF112233);
+        }
+
+        Assert::IsTrue (colored, L"The span's characters are in its color");
+        Assert::IsTrue (plain,   L"and the rest of the cell in the text color");
     }
 
 

@@ -718,18 +718,19 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font)
 {
-    HRESULT       hr        = S_OK;
-    const Line &  line      = m_lines[(size_t) lineIndex];
-    const Row &   row       = m_rows[(size_t) line.row];
-    int           left      = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
-    int           y         = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
-    int           last      = (int) row.cells.size() - 1;
-    Position      from      = (std::min) (m_anchor, m_caret);
-    Position      to        = (std::max) (m_anchor, m_caret);
-    bool          selected  = HasSelection() && from.row <= line.row && line.row <= to.row;
-    int           selFrom   = (line.row == from.row) ? from.offset : 0;
-    int           selTo     = (line.row == to.row)   ? to.offset   : INT_MAX;
-    uint32_t      selArgb   = theme.SelectionBackground();
+    HRESULT                  hr       = S_OK;
+    const Line             & line     = m_lines[(size_t) lineIndex];
+    const Row              & row      = m_rows[(size_t) line.row];
+    int                      left     = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
+    int                      y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
+    int                      last     = (int) row.cells.size() - 1;
+    Position                 from     = (std::min) (m_anchor, m_caret);
+    Position                 to       = (std::max) (m_anchor, m_caret);
+    bool                     selected = HasSelection() && from.row <= line.row && line.row <= to.row;
+    int                      selFrom  = (line.row == from.row) ? from.offset : 0;
+    int                      selTo    = (line.row == to.row)   ? to.offset   : INT_MAX;
+    uint32_t                 selArgb  = theme.SelectionBackground();
+    std::vector<uint32_t>    colors   = GetRowColors (row);
 
 
 
@@ -758,7 +759,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                GetCellStart (row, c + 1) - column - (int) cell.size(), selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, c), cell, selected, selFrom, selTo, colors);
     }
 
     if (last >= 0)
@@ -772,7 +773,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
                                0, selFrom, selTo, selArgb);
         }
 
-        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo);
+        DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors);
     }
 }
 
@@ -785,22 +786,24 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 //  DxuiTextView::DrawRun
 //
 //  A run of characters at `column` on a line, whose first is at `flatStart`
-//  in the row's text. The selected part is drawn in the full foreground and
-//  the rest in the preview's text color; the face is fixed-width, so each
-//  part starts exactly where its first character's cell does.
+//  in the row's text. The selected part is drawn in the full foreground, the
+//  rest in its span's color or the preview's text color, each stretch of one
+//  color as one string; the face is fixed-width, so each stretch starts
+//  exactly where its first character's cell does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
-                            const IDxuiTheme     & theme,
-                            const DxuiFontHandle & font,
-                            int                    y,
-                            int                    column,
-                            int                    flatStart,
-                            const std::wstring   & chars,
-                            bool                   selected,
-                            int                    selFrom,
-                            int                    selTo) const
+void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
+                            const IDxuiTheme            & theme,
+                            const DxuiFontHandle        & font,
+                            int                           y,
+                            int                           column,
+                            int                           flatStart,
+                            const std::wstring          & chars,
+                            bool                          selected,
+                            int                           selFrom,
+                            int                           selTo,
+                            const std::vector<uint32_t> & colors) const
 {
     HRESULT   hr     = S_OK;
     int       left   = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
@@ -808,25 +811,75 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
     uint32_t  normal = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
-    int       from[] = { 0, first, end };
-    int       to[]   = { first, end, count };
+    int       start  = 0;
 
 
 
-    for (int part = 0; part < 3; part++)
+    auto  colorAt = [&] (int i)
     {
-        if (to[part] <= from[part])
+        size_t  flat = (size_t) (flatStart + i);
+
+        return (i >= first && i < end)                    ? theme.Foreground()
+             : (flat < colors.size() && colors[flat] != 0) ? colors[flat]
+                                                            : normal;
+    };
+
+    for (int i = 1; i <= count; i++)
+    {
+        if (i < count && colorAt (i) == colorAt (start))
         {
             continue;
         }
 
-        hr = text.DrawString (chars.substr ((size_t) from[part], (size_t) (to[part] - from[part])).c_str(),
-                              (float) (left + (column + from[part]) * m_cellAdvance), (float) y,
-                              (float) ((to[part] - from[part] + 1) * m_cellAdvance), (float) m_cellHeightPx,
-                              (part == 1) ? theme.Foreground() : normal, font.sizeDip, font.face,
+        hr = text.DrawString (chars.substr ((size_t) start, (size_t) (i - start)).c_str(),
+                              (float) (left + (column + start) * m_cellAdvance), (float) y,
+                              (float) ((i - start + 1) * m_cellAdvance), (float) m_cellHeightPx,
+                              colorAt (start), font.sizeDip, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        start = i;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetRowColors
+//
+//  The color of each character in the row's text, by its spans; zero, the
+//  preview's text color, where no span covers it. Empty for a row with none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
+{
+    std::vector<uint32_t>  colors;
+
+
+
+    if (row.spans.empty())
+    {
+        return colors;
+    }
+
+    colors.assign ((size_t) GetRowLength (row), 0u);
+
+    for (const Span & span : row.spans)
+    {
+        int  base   = GetCellBase (row, span.cell);
+        int  length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length; i++)
+        {
+            colors[(size_t) (base + i)] = span.argb;
+        }
+    }
+
+    return colors;
 }
 
 
