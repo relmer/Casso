@@ -1523,8 +1523,10 @@ Owner decisions 2026-10-13, second review of the Options sheet.
 - [X] T807 Factor DisassemblyCells (CassoEmuCore/Ui/Debugger/DisassemblyCells.h/.cpp) out of DebuggerWindow: the columns, source and code rows, and the branch arrow's geometry and paint, so the views and the preview share them, per FR-228
 - [X] T808 Add DisassemblyPreview (CassoEmuCore/Ui/Debugger/DisassemblyPreview.h/.cpp) under two columns of check boxes on the Disassembly page (DisassemblyOptionsPage.h/.cpp), following each check box; test in UnitTest/DebuggerTests/DebuggerOptionsSheetTests.cpp, per FR-228
 - [X] T809 Fit the Options sheet to its largest tab with FitToMaxSize (CassoEmuCore/Ui/Debugger/DebuggerOptionsSheet.cpp), and add the window frame to a fitted or maximum client size in Dxui/Window/DxuiWindow.cpp, forcing the frame calculation for a hidden window, per FR-227
-- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's 48-hour cap and hours, the preview and the sheet's size
+- [X] T811 Turn Pointers on by default in DisassemblyOptions (CassoEmuCore/Ui/Debugger/DisassemblyOptions.h), updating the option, viewing and sheet tests, per FR-228
+- [X] T812 Add DisassemblyOptions::Dim (Source lines, Disassembly lines, Neither; Disassembly lines by default; saved as dim=) with a radio group on the Disassembly page, and dim the chosen rows in the views and the preview through DisassemblyCells::IsDimmed and DimRow, never the PC's row and nothing without source rows; test in DisassemblyOptionsTests.cpp and DebuggerOptionsSheetTests.cpp, per FR-230
+- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's 48-hour cap and hours, the preview, the dim choice and the sheet's size
 
-**Dependencies**: T807 before T808; T805 to T809 before T810.
+**Dependencies**: T807 before T808; T808 before T812; T805 to T809, T811 and T812 before T810.
 
 **Parallel**: T805 and T806 touch separate files.

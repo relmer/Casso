@@ -152,11 +152,13 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are; the view's options are set by its check boxes and the Disassembly tab of Tools > Options (FR-200, FR-228).
 - Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
 - Q: What does the debugger's Tools > Options have? -> A: Tabs, as Casso's Settings sheet has: History, with recording on or off and the memory history may use as a slider from 1 MB to the lower of 90% of the memory available and the memory available less 4 MB, in 1 MB steps with about ten tick marks; and Disassembly (FR-227).
-- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values and Branch arrow, on by default, and Pointers and Address colon, off by default, since the view has never displayed the pointer or a colon. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
+- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values, Pointers and Branch arrow, on by default, and Address colon, off by default. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
 - Q: Where is the keyboard focus when the machine stops? -> A: In the console only if the console received the last input: a command typed there, or a click in it. A click or key anywhere else in the debugger, or another window taking the focus, means the stop moves the focus from the console to the disassembly view with the PC (FR-229).
 - Q: How large can the History slider go, and how is its estimate written? -> A: No larger than the memory a busy program fills in about 48 hours (7649 MB at the measured rate), besides the 90% and available-less-4-MB limits. The estimate is in minutes below two hours and in hours from two hours on, such as "95 minutes to 3 hours" (FR-227).
 - Q: How does the Disassembly tab show what its check boxes do? -> A: A live preview under them: a short sample program drawn as a disassembly view draws it, with source lines, symbols, an indirect load with its pointer and operand value, and the PC on a taken branch with its arrow, following every check box as set in the dialog (FR-228).
 - Q: What size does the Options dialog open at? -> A: Large enough for its largest tab, within the work area of the monitor it opens on, and placed with no part off that monitor or under the taskbar; a tab scrolls only when the monitor is too small for it (FR-227).
+- Q: Are hidden columns padded with spaces, and is source text reformatted? -> A: Neither. A hidden column is removed, as in Visual Studio, and a source line is shown as written in its file, with only tabs expanded to every eighth column (FR-228).
+- Q: Can the disassembly set source rows and instruction rows apart? -> A: Yes: an option dims Source lines, Disassembly lines, or Neither while the view has source rows, Disassembly lines by default. With no source rows nothing is dimmed, and the PC's row is never dimmed (FR-230).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2942,9 +2944,9 @@ run something, switch back to the //e: it is where it was left.
   Operand values, the address an operand touches and the value there, in the
   annotation; Pointers, the pointer an indirect mode reads, in the
   annotation; Branch arrow, the PC's branch arrow; and Address colon, a colon
-  after each address. Operand values and Branch arrow are on by default,
-  and Pointers and Address colon are off, matching the view before the
-  options existed (amended 2026-10-13). No option packs
+  after each address. Operand values, Pointers and Branch arrow are on by
+  default and Address colon is off (amended 2026-10-13). A hidden column is
+  removed from the view, not left as blank space, as in Visual Studio. No option packs
   opcode bytes together, as AppleWin's DISASM SPACES does: the bytes would
   misread as one little-endian number. Under the check boxes, a live preview
   draws a short sample program as a disassembly view draws it, with source
@@ -2957,6 +2959,11 @@ run something, switch back to the //e: it is where it was left.
   or key anywhere else in the debugger, or another window taking the focus,
   MUST make the stop move the focus from the console to the disassembly view
   with the PC.
+- **FR-230**: The Disassembly tab MUST offer a choice of the rows to dim
+  while a disassembly view has source rows: Source lines, Disassembly lines,
+  or Neither, Disassembly lines by default, saved with the other disassembly
+  options and followed by the preview. A view with no source rows MUST dim
+  nothing, and the PC's row MUST never be dimmed.
 
 ### Key Entities
 
