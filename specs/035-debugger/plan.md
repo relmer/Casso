@@ -545,6 +545,22 @@ plumbing).
   that computes the effect column, so a taken branch and a page crossing are
   in the count; other rows have no cycles (FR-201, FR-202, amended
   2026-10-13).
+- **Tools > Options (FR-227, FR-228)**: `ReverseOptionsDialog` becomes a
+  `DxuiPropertySheet` with two `DxuiPropertyPage`s, as `SettingsSheet` is
+  built. The History page has the record check box and a `DxuiSlider` for
+  the budget: 1 MB to the lower of 90% of `ullAvailPhys` and `ullAvailPhys`
+  less 4 MB (`GlobalMemoryStatusEx` as the sheet opens), never below 1 MB,
+  1 MB steps, a page of a tenth of the range, ten ticks; the minutes estimate
+  follows the slider. The range arithmetic is a pure function under unit
+  test. The Disassembly page has a check box per `DisassemblyOptions::Option`,
+  which gains `OperandValues`, `Pointers`, `BranchArrow` and
+  `AddressColon`. The toolbar and the page read and write the one
+  `GlobalUserPrefs::debugger.disassemblyOptions` text, so a change on either
+  appears on both. A saved text without the new keys takes their defaults
+  (on, on, on, off), so an option turned off is written to the text as well
+  as one turned on. In the code pane, Operand values and Pointers filter the
+  annotation's parts, Branch arrow gates `BranchArrow`, and Address colon
+  adds `:` to the address cell.
 - **Docking**: a title drag hands the dock site the whole group, whose
   floating window follows the pointer from the threshold on (the T279 drag);
   a press on any tab arms its drag; a torn-off group's float takes its
@@ -803,6 +819,10 @@ landing as its own merge to the branch and gated by the full suite:
     SC-055; then the old windows removed.
 9i. **Logs brought in line (FR-198 amended)**: the video and sound logs and
     the trace buffer moved onto the event cache and replayer.
+9k. **Debugger options (FR-227, FR-228)**, scheduled by the owner on
+    2026-10-13 ahead of 9h: the options and their saved text, the tabbed
+    sheet with the History slider, the Disassembly page, the code pane honoring
+    the four new options, and a build for the owner to test.
 9j. **Automatic machine states (story 25, P2)**, scheduled by the owner ahead
     of 9h: the state file's version 2 with the save time and thumbnail, and
     the shared image filter; the state folder, the dialogs' default folder
