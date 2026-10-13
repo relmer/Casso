@@ -147,6 +147,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\SavedState\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
 - Q: Does a newer Casso load a state an older one saved? -> A: Yes, from the first release that ships state files on, for the same machine kind and ROM images; a fixture test of saved states from each release guards it (FR-226, SC-059).
 
+### Session 2026-10-13 (owner review: DISASM, disassembly annotations)
+
+- Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are, and Tools > Options has no page for its settings (FR-200).
+- Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -2777,15 +2782,17 @@ run something, switch back to the //e: it is where it was left.
   buffer.
 - **FR-199**: Copy text from the emulator window MUST render inverse and
   flashing characters as the characters they show, not as other characters.
-- **FR-200**: The disassembly view MUST honor the DISASM settings OPCODE,
-  TARGET, POINTER and BRANCH, the command and the view's check boxes setting
-  the same options, and Tools > Options MUST offer them.
-- **FR-201**: Every branch row MUST show which way it branches (up or down), not
-  only the branch at PC.
-- **FR-202**: A row's result annotation MUST also give the cycles its
-  instruction takes, with a branch's taken and not-taken counts and a
-  page-crossing cycle where one can apply. The cycle count's "(+n)" in the
-  Registers pane is the cycles since the stop before.
+- **FR-200**: DISASM MUST be reported as not available, as other AppleWin
+  commands with no meaning in Casso are: the disassembly view's own check
+  boxes set its options, and Tools > Options has no page for DISASM's
+  settings. *(Amended 2026-10-13.)*
+- **FR-201**: The PC's row MUST have a glyph for the way its branch goes (up or
+  down). *(Amended 2026-10-13.)*
+- **FR-202**: The PC row's result annotation MUST also have the cycles its
+  instruction will take with the current registers: for a branch, taken or
+  not taken, and a page crossing where one applies. Other rows have no
+  cycles. The cycle count's "(+n)" in the Registers pane is the
+  cycles since the stop before. *(Amended 2026-10-13.)*
 - **FR-203**: Each key scheme MUST bind keys to open or focus each pane;
   the Visual Studio scheme MUST use Visual Studio's (Ctrl+Alt+D disassembly,
   Ctrl+Alt+B breakpoints, Ctrl+Alt+C call stack, Ctrl+Alt+W then 1-4 watch,
@@ -3192,7 +3199,7 @@ debug channel.
     - Breakpoints: `BRK`, `BRKOP`, `BRKINT`, `BP`, `BPA`, `BPR`, `BPX`, `BPIO`,
       `BPM`, `BPMR`, `BPMW`, `BPC`, `BPD`, `BPEDIT`, `BPE`, `BPL`, `BPSAVE`,
       `BPCHANGE`.
-    - Config: `BENCHMARK`, `DISASM`, `LOAD`, `SAVE`, `PWD`, `CD`.
+    - Config: `BENCHMARK`, `LOAD`, `SAVE`, `PWD`, `CD`.
     - Cycles: `CYCLES`, `RCC`.
     - Disassembler data: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`,
       `DW4`, `ASC`, `DF`, `DA`.
@@ -3232,7 +3239,9 @@ debug channel.
   - **Not available** (accepted, reported as not available, and tracked as
     follow-ups): `SHR` (needs a IIgs), `SYNC` (needs an assembler-listing
     link beyond what the source pane provides), `NTSC` (AppleWin's palette
-    file has no Casso equivalent). `BPV` and `VIDEOINFO` are phase 1, served
+    file has no Casso equivalent), `DISASM` (its settings set the layout of
+    AppleWin's text console; the disassembly view's check boxes set its
+    options, FR-200). `BPV` and `VIDEOINFO` are phase 1, served
     from the machine's video timing. `SOURCE` becomes the source documents.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.

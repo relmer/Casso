@@ -538,12 +538,13 @@ plumbing).
 
 ### Disassembly, docking and heat map (FR-200 to FR-209)
 
-- **DISASM** settings move from `ConfigHandlers` to the view options the
-  window and the snapshot share, so the command and the check boxes set one
-  value; Tools > Options shows them. Branch rows take a direction glyph in
-  the gutter. The result annotation appends the instruction's cycles from
-  the CPU's timing table, with a branch's taken and not-taken counts and the
-  page-crossing cycle where the mode allows one.
+- **DISASM** is reported as not available (FR-200, amended 2026-10-13), and
+  `ConfigHandlers`' stored DISASM settings are removed. The PC's branch row
+  takes a direction glyph in the gutter. The PC row's result annotation
+  appends the cycles its instruction will take, counted by the trial run
+  that computes the effect column, so a taken branch and a page crossing are
+  in the count; other rows have no cycles (FR-201, FR-202, amended
+  2026-10-13).
 - **Docking**: a title drag hands the dock site the whole group, whose
   floating window follows the pointer from the threshold on (the T279 drag);
   a press on any tab arms its drag; a torn-off group's float takes its
@@ -780,7 +781,8 @@ landing as its own merge to the branch and gated by the full suite:
     with the toolbar button; the pane keys and menu accelerators; the
     editable grid, then the range list and the Default set on it; the
     context menus, the new panes and the status-bar speed control; the
-    DISASM wiring, branch glyphs and cycle annotation; C coloring;
+    DISASM reported as not available, the PC row's branch glyph and cycle
+    count; C coloring;
     `BENCHMARK` removed.
 9e. **Debug projects (story 21, P1)**: names on breakpoints and `BPNAME`; the
     project model over the existing scripts; scope keys; the store with its

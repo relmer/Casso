@@ -184,7 +184,7 @@ Other files are named in full or relative to `Ui/Debugger/`.
 | `ChangeDirectory` | CD | console-only by nature | Same: GUI file pickers replace it |
 | `LoadConfig` | LOAD | MISSING (partial) | File > Load breakpoints... (MB:236, BreakpointImport.cpp) replays breakpoints only; LOAD also replays watches, zero-page pointers and bookmarks (ConfigHandlers.cpp:327-337) |
 | `SaveConfig` | SAVE | MISSING (partial) | File > Save breakpoints... (MB:237) saves breakpoints only; SAVE writes all four lists (ConfigHandlers.cpp:327-337) |
-| `ConfigureDisassembly` | DISASM | MISSING (partial) | Disassembly toolbar check boxes (MB:1033-1073) are a different option set (addresses, code bytes, source, symbols, line numbers) from DISASM's BRANCH, CLICK, COLON, FENCE, OPCODE, POINTER, SPACES, TARGET (ConfigHandlers.cpp) |
+| `ConfigureDisassembly` | DISASM | not available (FR-200, amended 2026-10-13) | Reported as not available: its settings set the layout of AppleWin's text console, and the disassembly toolbar check boxes (MB:1033-1073) set the view's options. FENCE was never an AppleWin setting. |
 | `RunStartup` | STARTUP | console-only by nature | Runs the startup script; scripting is a console idea |
 | `RunScript` | RUN | console-only by nature | Runs a script of console lines. (File > Load breakpoints is only the breakpoint subset.) |
 | `DiskCommand` | DISK | equivalent | Main window Disk menu: Insert, Eject, Write-protect per drive (EC:39-46); INFO and SLOT are queries (Disk II debug dialog, EC:61) |
@@ -339,7 +339,7 @@ Proposals follow Visual Studio's debugger where it has an equivalent; "no VS equ
 | Verb(s) | Proposal |
 |---|---|
 | `LoadConfig`, `SaveConfig` (LOAD, SAVE; partial) | File > Load debugger session... / Save debugger session... covering breakpoints, watches, zero-page pointers and bookmarks (the current Load/Save breakpoints entries, MB:236-237, keep their meaning). |
-| `ConfigureDisassembly` (DISASM; partial) | Tools > Options > Disassembly page for BRANCH, CLICK, COLON, FENCE, OPCODE, POINTER, SPACES, TARGET (the toolbar check boxes are a different set). |
+| `ConfigureDisassembly` (DISASM) | None: DISASM is reported as not available (FR-200, amended 2026-10-13), and Tools > Options has no Disassembly page. |
 
 **History, display and panels**
 
