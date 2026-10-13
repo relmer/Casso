@@ -33,7 +33,7 @@ namespace DebuggerTests
             "T-", "P-", "GU-", "G-", "LIVE",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
             "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
-            "BENCHMARK", "DISASM", "LOAD", "SAVE", "PWD", "CD",
+            "BENCHMARK", "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",
             "DISK",
@@ -65,7 +65,7 @@ namespace DebuggerTests
             "BW", "COLOR", "FONT", "HCOLOR", "MONO",
         };
 
-        static constexpr const char * kNotAvailableNames[] = { "SHR", "SOURCE", "SYNC", "NTSC" };
+        static constexpr const char * kNotAvailableNames[] = { "SHR", "SOURCE", "SYNC", "NTSC", "DISASM" };
 
         // Verbs no AppleWin name produces directly: Monitor-mode forms, and
         // operations reached through another command's arguments (R A=41,

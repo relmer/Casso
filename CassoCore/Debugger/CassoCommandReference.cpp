@@ -152,7 +152,6 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "DB4",         H::DisassemblyAndData, "DB4 [name [=]] [addr[,len|:last]]",              "Mark memory as bytes, 4 a line"                                                          },
     { "DB8",         H::DisassemblyAndData, "DB8 [name [=]] [addr[,len|:last]]",              "Mark memory as bytes, 8 a line"                                                          },
     { "DF",          H::DisassemblyAndData, "DF [name [=]] [addr[,len|:last]]",               "Mark memory as floating-point numbers"                                                   },
-    { "DISASM",      H::DisassemblyAndData, "DISASM [setting [0|1]]",                         "Show or change the disassembly settings"                                                 },
     { "DW",          H::DisassemblyAndData, "DW [name [=]] [addr[,len|:last]]",               "Mark memory as words, or list the data blocks"                                           },
     { "DW2",         H::DisassemblyAndData, "DW2 [name [=]] [addr[,len|:last]]",              "Mark memory as words, 2 a line"                                                          },
     { "DW4",         H::DisassemblyAndData, "DW4 [name [=]] [addr[,len|:last]]",              "Mark memory as words, 4 a line"                                                          },

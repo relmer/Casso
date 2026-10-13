@@ -129,7 +129,6 @@ AppleWin commands:
     DB4 [name [=]] [addr[,len|:last]]                    Mark memory as bytes, 4 a line
     DB8 [name [=]] [addr[,len|:last]]                    Mark memory as bytes, 8 a line
     DF [name [=]] [addr[,len|:last]]                     Mark memory as floating-point numbers
-    DISASM [setting [0|1]]                               Show or change the disassembly settings
     DW [name [=]] [addr[,len|:last]]                     Mark memory as words, or list the data blocks
     DW2 [name [=]] [addr[,len|:last]]                    Mark memory as words, 2 a line
     DW4 [name [=]] [addr[,len|:last]]                    Mark memory as words, 4 a line
@@ -379,7 +378,6 @@ Casso commands:
     /DB4 [name [=]] [addr[,len|:last]]                     Mark memory as bytes, 4 a line
     /DB8 [name [=]] [addr[,len|:last]]                     Mark memory as bytes, 8 a line
     /DF [name [=]] [addr[,len|:last]]                      Mark memory as floating-point numbers
-    /DISASM [setting [0|1]]                                Show or change the disassembly settings
     /DW [name [=]] [addr[,len|:last]]                      Mark memory as words, or list the data blocks
     /DW2 [name [=]] [addr[,len|:last]]                     Mark memory as words, 2 a line
     /DW4 [name [=]] [addr[,len|:last]]                     Mark memory as words, 4 a line
@@ -591,7 +589,6 @@ Casso commands:
     BMG #                                           Disassemble at a bookmark
     BML                                             List the bookmarks
     BMSAVE file                                     Save the bookmarks as a script
-    DISASM [setting [0|1]]                          Show or change the disassembly settings
     DW [name [=]] [addr[,len|:last]]                Mark memory as words, or list the data blocks
     DW2 [name [=]] [addr[,len|:last]]               Mark memory as words, 2 a line
     DW4 [name [=]] [addr[,len|:last]]               Mark memory as words, 4 a line
@@ -787,7 +784,6 @@ Casso commands:
     !DB4 [name [=]] [addr[,len|:last]]               Mark memory as bytes, 4 a line
     !DB8 [name [=]] [addr[,len|:last]]               Mark memory as bytes, 8 a line
     !DF [name [=]] [addr[,len|:last]]                Mark memory as floating-point numbers
-    !DISASM [setting [0|1]]                          Show or change the disassembly settings
     !DW [name [=]] [addr[,len|:last]]                Mark memory as words, or list the data blocks
     !DW2 [name [=]] [addr[,len|:last]]               Mark memory as words, 2 a line
     !DW4 [name [=]] [addr[,len|:last]]               Mark memory as words, 4 a line
@@ -966,7 +962,6 @@ Casso commands:
     DB4 [name [=]] [addr[,len|:last]]                    Mark memory as bytes, 4 a line
     DB8 [name [=]] [addr[,len|:last]]                    Mark memory as bytes, 8 a line
     DF [name [=]] [addr[,len|:last]]                     Mark memory as floating-point numbers
-    DISASM [setting [0|1]]                               Show or change the disassembly settings
     DW [name [=]] [addr[,len|:last]]                     Mark memory as words, or list the data blocks
     DW2 [name [=]] [addr[,len|:last]]                    Mark memory as words, 2 a line
     DW4 [name [=]] [addr[,len|:last]]                    Mark memory as words, 4 a line

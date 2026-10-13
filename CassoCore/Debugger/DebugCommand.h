@@ -192,7 +192,6 @@ enum class DebugVerb
     ChangeDirectory,
     LoadConfig,
     SaveConfig,
-    ConfigureDisassembly,
     RunStartup,
     RunScript,
     DiskCommand,

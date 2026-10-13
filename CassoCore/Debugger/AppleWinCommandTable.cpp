@@ -93,7 +93,6 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
 
     // Config
     { "BENCHMARK",   V::Benchmark,                F::Config,      A::Headless,     nullptr,     nullptr },
-    { "DISASM",      V::ConfigureDisassembly,     F::Config,      A::Headless,     nullptr,     nullptr },
     { "LOAD",        V::LoadConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "SAVE",        V::SaveConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "PWD",         V::PrintDirectory,           F::Config,      A::Headless,     nullptr,     nullptr },
@@ -347,6 +346,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "SOURCE",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SOURCE needs a link to an assembler listing." },
     { "SYNC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SYNC needs a link to an assembler listing." },
     { "NTSC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "NTSC reads an AppleWin palette file, which Casso does not use." },
+    { "DISASM",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "DISASM sets AppleWin's console layout; the disassembly view's check boxes set its options." },
 };
 
 

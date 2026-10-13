@@ -35,7 +35,6 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::LoadConfig:           RunFile         (session, command.text, CommandMode::AppleWin, reply); return true;
     case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, std::nullopt, reply);      return true;
     case DebugVerb::SaveConfig:           SaveAll         (session, command, reply); return true;
-    case DebugVerb::ConfigureDisassembly: Disassembly     (command, reply);          return true;
     case DebugVerb::DiskCommand:          Disk            (session, command, reply); return true;
     case DebugVerb::Log:                  Log             (session, command, reply); return true;
     case DebugVerb::Echo:                 Echo            (command, reply);          return true;
@@ -344,59 +343,6 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
     }
 
     reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetPathEcho (command.text, "to")) } };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ConfigHandlers::Disassembly
-//
-//  DISASM lists the settings, DISASM name shows one, DISASM name 0|1 sets
-//  it. The disassembly views read them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ConfigHandlers::Disassembly (const DebugCommand & command, Reply & reply)
-{
-    std::istringstream  stream (ToUpper (command.text));
-    std::string         name;
-    std::string         value;
-    MessageData         message;
-
-
-
-    stream >> name >> value;
-
-    if (!name.empty() && !m_disassembly.contains (name))
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "DISASM takes BRANCH, CLICK, COLON, FENCE, OPCODE, POINTER, SPACES or TARGET, then 0 or 1.");
-        return;
-    }
-
-    if (!value.empty() && value != "0" && value != "1")
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "A DISASM setting is 0 or 1.");
-        return;
-    }
-
-    if (!value.empty())
-    {
-        m_disassembly[name] = value == "1";
-    }
-
-    for (const auto & [setting, isOn] : m_disassembly)
-    {
-        if (name.empty() || setting == name)
-        {
-            message.lines.push_back (std::format ("{} = {}", setting, isOn ? 1 : 0));
-        }
-    }
-
-    reply.data = message;
 }
 
 

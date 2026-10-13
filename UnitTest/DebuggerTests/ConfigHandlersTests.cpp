@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ConfigHandlersTests
 //
-//  Directories, scripts, the DISASM and LOG settings, the output commands,
+//  Directories, scripts, the LOG setting, the output commands,
 //  help and the disk report.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -705,18 +705,17 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (DISASM_Settings)
+        //  DISASM's settings set AppleWin's console layout, which Casso's
+        //  disassembly view does not have; its check boxes set its options.
+        TEST_METHOD (DISASM_IsNotAvailable)
         {
-            Rig  rig;
+            Rig    rig;
+            Reply  reply = rig.Run ("DISASM TARGET 0");
 
 
 
-            Assert::AreEqual ((size_t) 8, rig.RunOk ("DISASM").text.size());
-            Assert::AreEqual (std::string ("BRANCH = 0"), rig.RunOk ("DISASM branch 0").text.at (0));
-            Assert::AreEqual (std::string ("BRANCH = 0"), rig.RunOk ("DISASM BRANCH").text.at (0), L"the setting sticks");
-            Assert::AreEqual (std::string ("BRANCH = 1"), rig.RunOk ("DISASM BRANCH 1").text.at (0));
-            rig.RunFails ("DISASM FOO",      "invalid arguments");
-            rig.RunFails ("DISASM BRANCH 2", "invalid arguments");
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status);
+            Assert::IsTrue   (reply.error.detail.find ("check boxes") != std::string::npos, Widen (reply.error.detail).c_str());
         }
 
 

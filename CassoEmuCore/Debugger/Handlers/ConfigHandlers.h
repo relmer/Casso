@@ -47,7 +47,6 @@ private:
     static void  RunFile         (DebugSession & session, const std::string & name, std::optional<CommandMode> mode, Reply & reply);
     static void  RunScriptLine   (DebugSession & session, const std::string & line, std::optional<CommandMode> mode, Reply & result);
     static void  SaveAll         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    void         Disassembly     (const DebugCommand & command, Reply & reply);
     static void  Disk            (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Log             (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Echo            (const DebugCommand & command, Reply & reply);
@@ -61,11 +60,4 @@ private:
     static bool  TryUnquote      (const std::string & item, std::string & text);
     static bool  TryEvaluate     (DebugSession & session, const std::string & text, Word & value, std::string & error);
     static std::string  ToUpper  (const std::string & text);
-
-    // DISASM settings, kept for the disassembly views that read them.
-    std::map<std::string, bool>  m_disassembly =
-    {
-        { "BRANCH", true }, { "CLICK", false }, { "COLON", true }, { "FENCE", true },
-        { "OPCODE", true }, { "POINTER", true }, { "SPACES", true }, { "TARGET", true },
-    };
 };
