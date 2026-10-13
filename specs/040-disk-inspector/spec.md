@@ -2352,14 +2352,21 @@ legend, and tilt the platter and back.
   to 34, and one cell per DOS 3.3 logical sector, $0 to $F, on a DOS 3.3
   volume, per ProDOS or Pascal block, eight per track, on a ProDOS or Pascal
   volume, or per CP/M sector, $0 to $F in CP/M's own order, on a CP/M volume,
-  each cell showing its role and result. The rows MUST be no shorter than a
+  each cell showing its role and result. A cell's role MUST appear as a word or
+  two, such as "VTOC", "Catalog", "T/S list" or "Data", in a step smaller
+  type where the word is too wide at the usual size, or as its letter where
+  the word does not fit; a free sector MUST have a dot. The rows MUST be no shorter than a
   cell's label, the row numbers MUST be titled "Track" and the columns titled
   with what they number, with a scrollbar at the right when the grid does
   not fit. A file picker above the grid MUST open, as a drop-down list does,
   to the file list with its filters in place of the grid, and close to the
-  chosen file's name with the grid in view; it MUST start open, and the row
+  chosen file's name with the grid in view, scrolled so the file's first
+  sector is centered vertically. The picker MUST be as wide as its
+  left-aligned label and chevron, and resized when the label changes. It MUST
+  start open, and the row
   with it MUST read "Previous/next sector in" before it, after the "<" and
-  ">" buttons that step through the file's sectors. The file list MUST show
+  ">" buttons that step through the file's sectors, which MUST be disabled
+  while the picker is open or no file is chosen. The file list MUST show
   each file's path, type, size, sectors used and state, sortable by each
   column and filterable to "Files touching bad sectors". The state MUST list
   every one that applies, in this order: "Chain broken", "Cross-linked",
