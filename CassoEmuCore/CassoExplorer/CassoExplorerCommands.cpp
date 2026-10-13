@@ -40,7 +40,8 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         //  with a dot, as Explorer marks it.
         command->radio       = (row.id >= kSortByColumn) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
-                            || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal);
+                            || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
+                            || (row.id >= kMonitorColor && row.id <= kMonitorWhite);
 
         command->dispatch = [this, id]()
         {

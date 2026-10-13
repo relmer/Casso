@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleLoResMode.h"
+#include "Video/MonochromeTint.h"
 
 
 
@@ -74,11 +75,13 @@ HRESULT PicturePreview::Render (
     MemoryBus              & bus,
     std::vector<uint32_t>  & outBgra,
     int                    & outWidth,
-    int                    & outHeight)
+    int                    & outHeight,
+    Monitor                  monitor)
 {
     HRESULT            hr     = S_OK;
     bool               fits   = (size_t) address + bytes.size() <= kAddressSpace;
     bool               known  = mode != Mode::None;
+    bool               mono   = monitor != Monitor::Color;
     std::vector<Byte>  main (kAddressSpace, 0);
     std::vector<Byte>  aux;
 
@@ -94,6 +97,7 @@ HRESULT PicturePreview::Render (
     if (mode == Mode::DoubleHiResMono)
     {
         RenderMonochrome (bytes, address, outBgra);
+        Tint (outBgra, monitor);
         return S_OK;
     }
 
@@ -117,7 +121,8 @@ HRESULT PicturePreview::Render (
         {
             AppleHiResMode  video (bus);
 
-            video.SetPage2 (address == kHiResPage2);
+            video.SetPage2      (address == kHiResPage2);
+            video.SetMonochrome (mono);
             video.Render (main.data(), outBgra.data(), kWidth, kHeight);
             break;
         }
@@ -128,6 +133,7 @@ HRESULT PicturePreview::Render (
 
             video.SetAuxMemory  (aux.data());
             video.SetMainMemory (main.data());
+            video.SetMonochrome (mono);
             video.Render (main.data(), outBgra.data(), kWidth, kHeight);
             break;
         }
@@ -145,8 +151,36 @@ HRESULT PicturePreview::Render (
             break;
     }
 
+    Tint (outBgra, monitor);
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::Tint
+//
+//  Casso's own tints, as its screen applies them after drawing a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PicturePreview::Tint (std::vector<uint32_t> & bgra, Monitor monitor)
+{
+    for (uint32_t & pixel : bgra)
+    {
+        switch (monitor)
+        {
+            case Monitor::Green:  pixel = Casso::Video::TintGreenMono (pixel); break;
+            case Monitor::Amber:  pixel = Casso::Video::TintAmberMono (pixel); break;
+            case Monitor::White:  pixel = Casso::Video::TintWhiteMono (pixel); break;
+            default:              break;
+        }
+    }
 }
 
 

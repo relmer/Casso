@@ -1576,6 +1576,85 @@ bool CassoExplorerBrowser::IsUtf8 (std::span<const Byte> sample)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::SetPreviewMonitor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetPreviewMonitor (PicturePreview::Monitor monitor)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (monitor == m_previewMonitor)
+    {
+        return;
+    }
+
+    m_previewMonitor = monitor;
+
+    if (m_preview.kind == PreviewContent::Kind::Picture && m_preview.pictureMode != PicturePreview::Mode::None)
+    {
+        hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
+                                     m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::CanTogglePictureColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::CanTogglePictureColor() const
+{
+    return m_preview.kind == PreviewContent::Kind::Picture
+        && (m_preview.pictureChosen == PicturePreview::Mode::DoubleHiRes || m_preview.pictureChosen == PicturePreview::Mode::DoubleHiResMono);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::TogglePictureColor
+//
+//  Lasts for this picture: the next picture's mode is chosen afresh.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TogglePictureColor()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!CanTogglePictureColor())
+    {
+        return false;
+    }
+
+    m_preview.pictureMode = (m_preview.pictureMode == PicturePreview::Mode::DoubleHiRes) ? PicturePreview::Mode::DoubleHiResMono
+                                                                                         : PicturePreview::Mode::DoubleHiRes;
+
+    hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
+                                 m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::PreviewShellItem
 //
 //  A file the shell lists shows its bytes: one on a disk from the file, as in
@@ -1658,7 +1737,7 @@ void CassoExplorerBrowser::PreviewEntry (const std::wstring & imagePath, const s
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview);
+    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview, m_previewMonitor);
 
     if (FAILED (hr) && m_preview.message.empty())
     {

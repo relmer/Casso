@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -92,6 +93,12 @@ struct PreviewContent
     //  Set for an Integer BASIC listing, whose lines are laid out differently
     //  from Applesoft's.
     bool                       integerBasic = false;
+
+    //  A picture's mode, as chosen and as drawn, with its bytes in `bytes` and
+    //  its load address in `origin`, so it can be drawn again for another
+    //  monitor, or a double hi-res picture the other way, without a read.
+    PicturePreview::Mode       pictureMode   = PicturePreview::Mode::None;
+    PicturePreview::Mode       pictureChosen = PicturePreview::Mode::None;
 };
 
 
@@ -127,7 +134,8 @@ public:
                             const FilePayload  & payload,
                             bool                 disassemble,
                             MemoryBus          & bus,
-                            PreviewContent     & outContent);
+                            PreviewContent     & outContent,
+                            PicturePreview::Monitor  monitor = PicturePreview::Monitor::Color);
 
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);

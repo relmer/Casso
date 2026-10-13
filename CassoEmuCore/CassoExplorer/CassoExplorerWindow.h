@@ -13,7 +13,11 @@
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32ProcessLauncher.h"
+#include "CassoExplorer/CrtPictureRenderer.h"
 #include "Seams/Win32ContentDetails.h"
+#include "Ui/ThemeLoader.h"
+#include "Config/CrtResolver.h"
+#include "Config/CrtPresets.h"
 #include "Seams/Win32ShellIcons.h"
 #include "Seams/Win32InfoTips.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -580,6 +584,15 @@ private:
     void  RefreshListTip      ();
     void  ArmTick             ();
     bool  TryApplyContentDetails (int row, DxuiListView::Cell & name);
+
+    //  A picture preview on its monitor, through Casso's CRT pass.
+    PicturePreview::Monitor   GetPreviewMonitor     () const;
+    const ThemeCrtDefaults *  GetPreviewCrtDefaults ();
+    void                      UpdateCrtPicture      (bool force);
+    void                      SelectMonitor         (PicturePreview::Monitor monitor);
+    void                      PreviewMonitor        (int index);
+
+    static constexpr const char *  s_kpszMonitorNames[] = { "color", "green", "amber", "white" };
     void  RefreshContentDetails  ();
     void  RefreshListIcons    ();
     const std::vector<DxuiListView::Cell> &  GetListRowCells (int row);
@@ -744,8 +757,8 @@ private:
     CassoExplorerActions                       & m_actions;
     CassoExplorerPrefs                         & m_prefs;
     FolderOptions                                m_explorerOptions;
-    bool                                         m_opened            = false;
-    bool                                         m_inSizeMove        = false;
+    bool                                         m_opened          = false;
+    bool                                         m_inSizeMove      = false;
     Context                                      m_context;
     Win32HostDialogs                             m_dialogs;
     Win32ProcessLauncher                         m_launcher;
@@ -753,6 +766,12 @@ private:
     Win32ShellIcons                              m_listIcons;
     Win32InfoTips                                m_infoTips;
     Win32ContentDetails                          m_contentDetails;
+    CrtPictureRenderer                           m_crtPicture;
+    int                                          m_crtWidth        = 0;
+    int                                          m_crtHeight       = 0;
+    std::string                                  m_crtThemeName;
+    LoadedTheme                                  m_crtTheme;
+    bool                                         m_crtThemeValid   = false;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 

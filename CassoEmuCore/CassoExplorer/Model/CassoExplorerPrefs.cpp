@@ -346,6 +346,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     }
 
     root.emplace_back ("previewZoom",    JsonValue ((double) previewZoom));
+    root.emplace_back ("previewMonitor", JsonValue (previewMonitor));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
@@ -475,6 +476,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasInt ("hexColumns", columns) && (columns == 0 || columns == 16 || IsKnownHexGrouping (columns)))
     {
         hexColumns = columns;
+    }
+
+    if (root.HasString ("previewMonitor", text) && (text.empty() || text == "color" || text == "green" || text == "amber" || text == "white"))
+    {
+        previewMonitor = text;
     }
 
     if (root.HasString ("hexFormat", text) && (text == kHexFormatHex || text == kHexFormatSigned || text == kHexFormatUnsigned))

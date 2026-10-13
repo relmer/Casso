@@ -52,6 +52,7 @@ static constexpr LPCWSTR s_kpszMdl2ThisPc    = L"\xE7F4";       // U+E7F4 Segoe 
 static constexpr LPCWSTR s_kpszMdl2Sort      = L"\xE8CB";       // U+E8CB Segoe MDL2 Sort (up and down arrows)
 static constexpr LPCWSTR s_kpszMdl2List      = L"\xE8FD";       // U+E8FD Segoe MDL2 BulletedList (Explorer's View)
 static constexpr LPCWSTR s_kpszMdl2Palette   = L"\xE790";       // U+E790 Segoe MDL2 Color (palette)
+static constexpr LPCWSTR s_kpszMdl2Monitor   = L"\xE7F4";       // U+E7F4 Segoe MDL2 TVMonitor (a monitor and its base)
 static constexpr LPCWSTR s_kpszMdl2Accept    = L"\xE73E";       // U+E73E Segoe MDL2 Accept (check mark)
 static constexpr LPCWSTR s_kpszMdl2Info      = L"\xE946";       // U+E946 Segoe MDL2 Info ("i" in a ring)
 static constexpr LPCWSTR s_kpszMdl2Warning   = L"\xE7BA";       // U+E7BA Segoe MDL2 Warning (outlined triangle)

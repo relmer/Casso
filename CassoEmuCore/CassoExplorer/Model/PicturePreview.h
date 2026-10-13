@@ -37,6 +37,12 @@ class PicturePreview
 public:
     enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, LoRes };
 
+    //  The monitor a picture is drawn for, in the order of Casso's own
+    //  monitor list. A monochrome one draws hi-res and double hi-res as
+    //  their bits, as Casso does, then tints the whole picture its color.
+    enum class Monitor { Color, Green, Amber, White };
+    static constexpr int  kMonitorCount = 4;
+
     static Mode  Choose (Word address, size_t length, std::string_view name = {}, std::span<const Byte> bytes = {});
 
     //  How strongly a double hi-res file's rows repeat every four dots, as a
@@ -53,7 +59,12 @@ public:
                             MemoryBus              & bus,
                             std::vector<uint32_t>  & outBgra,
                             int                    & outWidth,
-                            int                    & outHeight);
+                            int                    & outHeight,
+                            Monitor                  monitor = Monitor::Color);
+
+    //  Each pixel in the monochrome monitor's color by its brightness; the
+    //  color monitor makes no change.
+    static void  Tint (std::vector<uint32_t> & bgra, Monitor monitor);
 
     static constexpr int  kWidth  = 560;
     static constexpr int  kHeight = 384;

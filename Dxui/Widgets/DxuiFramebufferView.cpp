@@ -31,6 +31,31 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
     m_pixels.assign (bgra, bgra + count);
     m_width  = width;
     m_height = height;
+
+    m_display.clear();
+    m_displayW = 0;
+    m_displayH = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::SetDisplayImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::SetDisplayImage (std::vector<uint32_t> bgra, int width, int height)
+{
+    bool  whole = width > 0 && height > 0 && bgra.size() == (size_t) width * (size_t) height;
+
+
+
+    m_display  = whole ? std::move (bgra) : std::vector<uint32_t>();
+    m_displayW = whole ? width  : 0;
+    m_displayH = whole ? height : 0;
 }
 
 
@@ -46,8 +71,11 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
 void DxuiFramebufferView::Clear()
 {
     m_pixels.clear();
-    m_width  = 0;
-    m_height = 0;
+    m_display.clear();
+    m_width    = 0;
+    m_height   = 0;
+    m_displayW = 0;
+    m_displayH = 0;
 }
 
 
@@ -422,9 +450,19 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                             (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
-                               (float) dest.left, (float) dest.top,
-                               (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+    //  The host's drawing of the picture at this size, when it has one.
+    if (!m_display.empty() && m_displayW == dest.right - dest.left && m_displayH == dest.bottom - dest.top)
+    {
+        hr = text.DrawFramebuffer (m_display.data(), m_displayW, m_displayH,
+                                   (float) dest.left, (float) dest.top, (float) m_displayW, (float) m_displayH);
+    }
+    else
+    {
+        hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
+                                   (float) dest.left, (float) dest.top,
+                                   (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+    }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.PopClipRect();

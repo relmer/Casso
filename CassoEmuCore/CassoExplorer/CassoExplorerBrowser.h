@@ -198,6 +198,16 @@ public:
 
     const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }
     const PreviewContent &           GetPreview    () const { return m_preview;   }
+
+    //  The monitor a picture preview is drawn for; a change draws the current
+    //  picture again.
+    void                     SetPreviewMonitor (PicturePreview::Monitor monitor);
+    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
+
+    //  A double hi-res picture drawn in color or as its bits, whichever the
+    //  automatic choice was not; again to go back. False for any other preview.
+    bool  TogglePictureColor ();
+    bool  CanTogglePictureColor () const;
     const std::wstring &             GetListError  () const { return m_listError; }
     const Status &                   GetStatus     () const { return m_status;    }
     const std::vector<int> &         GetSelectedRows () const { return m_selectedRows; }
@@ -395,6 +405,7 @@ private:
     DiskOperations                      m_operations;
     TypedPathHistory                    m_typedPaths;
     MemoryBus                           m_bus;
+    PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped

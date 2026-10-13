@@ -168,6 +168,42 @@ public:
 
 
 
+    //  A monochrome monitor draws hi-res as its bits, then in its own color,
+    //  as Casso's screen does; the color monitor draws the colors.
+    TEST_METHOD (Picture_OnAMonochromeMonitor_IsItsBitsInThatColor)
+    {
+        std::vector<Byte>      bytes (8192, 0);
+        std::vector<uint32_t>  color;
+        std::vector<uint32_t>  green;
+        std::vector<uint32_t>  amber;
+        MemoryBus              bus;
+        int                    width  = 0;
+        int                    height = 0;
+        bool                   tinted = true;
+        bool                   lit    = false;
+
+        //  Alternate dots on the first row: violet on a color monitor.
+        bytes[0] = 0x55;
+        bytes[1] = 0x2A;
+
+        AssertSucceeded (PicturePreview::Render (Mode::HiRes, bytes, 0x2000, bus, color, width, height, PicturePreview::Monitor::Color));
+        AssertSucceeded (PicturePreview::Render (Mode::HiRes, bytes, 0x2000, bus, green, width, height, PicturePreview::Monitor::Green));
+        AssertSucceeded (PicturePreview::Render (Mode::HiRes, bytes, 0x2000, bus, amber, width, height, PicturePreview::Monitor::Amber));
+
+        for (uint32_t pixel : green)
+        {
+            tinted = tinted && ((pixel >> 16) & 0xFF) == 0 && (pixel & 0xFF) == 0;
+            lit    = lit || ((pixel >> 8) & 0xFF) != 0;
+        }
+
+        Assert::IsTrue  (tinted, L"Green has no red and no blue");
+        Assert::IsTrue  (lit,    L"and the bits are lit");
+        Assert::IsTrue  (((color[0] >> 16) & 0xFF) != 0 || (color[0] & 0xFF) != 0 || ((color[1] >> 16) & 0xFF) != 0, L"The color monitor has the violet");
+        Assert::AreEqual (0u, amber[0] & 0xFF, L"Amber has no blue");
+    }
+
+
+
     TEST_METHOD (DoubleHiRes_NamedA2fm_IsMonochrome)
     {
         std::vector<Byte>      bytes (16384, 0);

@@ -397,7 +397,8 @@ HRESULT PreviewDecoder::Render (
     const FilePayload  & payload,
     bool                 disassemble,
     MemoryBus          & bus,
-    PreviewContent     & outContent)
+    PreviewContent     & outContent,
+    PicturePreview::Monitor  monitor)
 {
     HRESULT                   hr      = S_OK;
     PreviewContent::Kind      decided = Decide (entry, kind, payload.bytes.size(),
@@ -485,8 +486,13 @@ HRESULT PreviewDecoder::Render (
         case PreviewContent::Kind::Picture:
             mode = PicturePreview::Choose (payload.loadAddress, payload.bytes.size(), entry.name, payload.bytes);
             hr   = PicturePreview::Render (mode, payload.bytes, payload.loadAddress, bus,
-                                           outContent.bgra, outContent.width, outContent.height);
+                                           outContent.bgra, outContent.width, outContent.height, monitor);
             CHR (hr);
+
+            outContent.bytes         = payload.bytes;
+            outContent.origin        = payload.loadAddress;
+            outContent.pictureMode   = mode;
+            outContent.pictureChosen = mode;
             break;
 
         case PreviewContent::Kind::Hex:

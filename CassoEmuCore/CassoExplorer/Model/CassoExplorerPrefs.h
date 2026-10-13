@@ -72,6 +72,11 @@ struct CassoExplorerPrefs
 
     //  The preview's text size, as a percentage of the theme's.
     int                    previewZoom     = kDefaultPreviewZoom;
+
+    //  The monitor pictures are previewed on: "color", "green", "amber" or
+    //  "white", as Casso writes them, or empty for the theme's default. Casso
+    //  Explorer's own, apart from Casso's.
+    std::string            previewMonitor;
     std::vector<Location>  tabs;
 
     //  The address bar's typed path history, newest first.

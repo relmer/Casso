@@ -453,6 +453,7 @@ void CassoExplorerWindow::OnCreate()
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
     m_browser.SetShellVerbs (&m_shellVerbs);
+    m_browser.SetPreviewMonitor (GetPreviewMonitor());
     m_explorerOptions = FolderOptions::ReadFromShell();
     m_browser.SetFolderOptions (m_explorerOptions);
     ApplyNavPaneOptions();
@@ -1178,6 +1179,7 @@ void CassoExplorerWindow::RecomputeLayout()
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (previewRect, m_scaler);
+    UpdateCrtPicture (false);
         m_previewMessage->Layout (GetMessageRect (previewRect), m_scaler);
     }
     else
@@ -1823,6 +1825,123 @@ DxuiHexView::TextEncoding CassoExplorerWindow::GetHexEncoding (bool hostFile, Ho
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetPreviewMonitor
+//
+//  The monitor chosen in Casso Explorer, or green, the phosphor of Casso's
+//  own monitors, when none has been.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PicturePreview::Monitor CassoExplorerWindow::GetPreviewMonitor() const
+{
+    for (int index = 0; index < PicturePreview::kMonitorCount; index++)
+    {
+        if (m_prefs.previewMonitor == s_kpszMonitorNames[index])
+        {
+            return (PicturePreview::Monitor) index;
+        }
+    }
+
+    return PicturePreview::Monitor::Green;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetPreviewCrtDefaults
+//
+//  The effects of the Casso theme Casso Explorer is in, as Casso extracts it
+//  to its own folder; the retro theme's under Light, Dark and Follow Windows.
+//  Null, the effects' own defaults, when Casso has not extracted its themes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ThemeCrtDefaults * CassoExplorerWindow::GetPreviewCrtDefaults()
+{
+    bool             casso = IsCassoThemeName (m_prefs.theme);
+    std::string      name  = casso ? m_prefs.theme : std::string (CassoExplorerPrefs::kThemeRetroTerminal);
+    Win32FileSystem  fs;
+    ThemeLoadError   error;
+    std::wstring     dir;
+    HRESULT          hr    = S_OK;
+
+
+
+    if (name != m_crtThemeName)
+    {
+        m_crtThemeName  = name;
+        m_crtTheme      = LoadedTheme();
+        dir             = (PathResolver::GetLocalAppDataDir (L"Casso") / L"Themes" / TextEncoding::Utf8ToWide (name)).wstring();
+        hr              = ThemeLoader::Load (fs, dir, m_crtTheme, error);
+        m_crtThemeValid = SUCCEEDED (hr);
+    }
+
+    return m_crtThemeValid ? &m_crtTheme.crtDefaults : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateCrtPicture
+//
+//  The picture preview drawn through Casso's CRT pass on the chosen monitor,
+//  at the view's drawn size, again only when that size changed
+//  unless `force`. A preview has a single frame, so persistence, which blends a
+//  frame into the next, is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateCrtPicture (bool force)
+{
+    const PreviewContent &   preview  = m_browser.GetPreview();
+    int                      width    = 0;
+    int                      height   = 0;
+    CrtResolved              resolved;
+    CrtParams                params;
+    std::vector<uint32_t>    drawn;
+    HRESULT                  hr       = S_OK;
+
+
+
+    if (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || GetPopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_picture->GetScaledSize (width, height);
+
+    if (width <= 0 || height <= 0 || (!force && width == m_crtWidth && height == m_crtHeight))
+    {
+        return;
+    }
+
+    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) GetPreviewMonitor()), GetPreviewCrtDefaults(), CrtOverrides());
+    params             = MakeCrtParams (resolved, (float) width, (float) height);
+    params.persistence = 0.0f;
+
+    hr = m_crtPicture.Render (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
+                              width, height, params, drawn);
+
+    if (SUCCEEDED (hr))
+    {
+        m_picture->SetDisplayImage (std::move (drawn), width, height);
+        m_crtWidth  = width;
+        m_crtHeight = height;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::FillPreview
 //
 //  The preview's kind picks the widget: a picture in the framebuffer view, a
@@ -1852,6 +1971,7 @@ void CassoExplorerWindow::FillPreview()
     if (picture)
     {
         m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height);
+        UpdateCrtPicture (true);
     }
     else
     {
@@ -3600,6 +3720,10 @@ bool CassoExplorerWindow::IsChecked (int id) const
         case CassoExplorerCommands::kThemeSkeuomorphic: return m_prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
         case CassoExplorerCommands::kThemeDarkModern:   return m_prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
         case CassoExplorerCommands::kThemeRetroTerminal: return m_prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
+        case CassoExplorerCommands::kMonitorColor:
+        case CassoExplorerCommands::kMonitorGreen:
+        case CassoExplorerCommands::kMonitorAmber:
+        case CassoExplorerCommands::kMonitorWhite:       return (int) GetPreviewMonitor() == id - CassoExplorerCommands::kMonitorColor;
         case CassoExplorerCommands::kNoData:            return !m_hexView->IsShowingValues();
         case CassoExplorerCommands::kGroup1:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 1;
         case CassoExplorerCommands::kGroup2:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 2;
@@ -4234,6 +4358,7 @@ void CassoExplorerWindow::SetPreviewZoom (int percent)
     m_textView->SetZoom ((float) clamped / 100.0f);
     m_hexView->SetZoom  ((float) clamped / 100.0f);
     m_picture->SetZoom  ((float) clamped / 100.0f);
+    UpdateCrtPicture (false);
 
     FillStatus();
     Invalidate();
@@ -4715,6 +4840,10 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kThemeSkeuomorphic:  SelectTheme (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
         case CassoExplorerCommands::kThemeDarkModern:    SelectTheme (CassoExplorerPrefs::kThemeDarkModern);    break;
         case CassoExplorerCommands::kThemeRetroTerminal: SelectTheme (CassoExplorerPrefs::kThemeRetroTerminal); break;
+        case CassoExplorerCommands::kMonitorColor:       SelectMonitor (PicturePreview::Monitor::Color);        break;
+        case CassoExplorerCommands::kMonitorGreen:       SelectMonitor (PicturePreview::Monitor::Green);        break;
+        case CassoExplorerCommands::kMonitorAmber:       SelectMonitor (PicturePreview::Monitor::Amber);        break;
+        case CassoExplorerCommands::kMonitorWhite:       SelectMonitor (PicturePreview::Monitor::White);        break;
 
         case CassoExplorerCommands::kGoToOffset:
             if (IsHexPreviewShowing())
@@ -7092,6 +7221,7 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     std::vector<DxuiPopupMenuItem>  viewItems;
     std::vector<DxuiPopupMenuItem>  themeItems;
     std::vector<DxuiPopupMenuItem>  groupItems;
+    std::vector<DxuiPopupMenuItem>  monitorItems;
     size_t                          column = 0;
 
 
@@ -7148,6 +7278,16 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kSort,  std::move (sortItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
+
+    for (int id = CassoExplorerCommands::kMonitorColor; id <= CassoExplorerCommands::kMonitorWhite; id++)
+    {
+        monitorItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
+    }
+
+    m_commandBar->SetDropDownItems (CassoExplorerCommands::kMonitor, std::move (monitorItems));
+
+    //  As in Casso, each monitor is applied as the pointer passes over its row.
+    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kMonitor, [this] (int index) { PreviewMonitor (index); }, nullptr);
 
     //  Each theme is shown as the pointer passes over its row; leaving the
     //  menu without a choice puts back the one it opened on.
@@ -11452,6 +11592,53 @@ void CassoExplorerWindow::SelectTheme (const char * name)
 {
     m_prefs.theme = name;
     ApplyTheme();
+
+    //  A Casso theme brings its own CRT effects to a picture preview.
+    UpdateCrtPicture (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SelectMonitor
+//
+//  The picture preview drawn again on the monitor, which is saved for the
+//  next start, apart from Casso's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SelectMonitor (PicturePreview::Monitor monitor)
+{
+    m_prefs.previewMonitor = s_kpszMonitorNames[(int) monitor];
+    m_browser.SetPreviewMonitor (monitor);
+    FillPreview();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PreviewMonitor
+//
+//  The monitor on a row of the Monitor menu, applied while the pointer is
+//  over it, as Casso's toolbar does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PreviewMonitor (int index)
+{
+    if (index < 0 || index >= PicturePreview::kMonitorCount || GetPreviewMonitor() == (PicturePreview::Monitor) index)
+    {
+        return;
+    }
+
+    SelectMonitor ((PicturePreview::Monitor) index);
 }
 
 
