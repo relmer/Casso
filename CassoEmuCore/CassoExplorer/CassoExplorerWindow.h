@@ -195,6 +195,10 @@ public:
     //  foreground, a gray like a terminal's text rather than full white.
     static constexpr float  kPreviewTextStrength = 0.8f;
 
+    //  Room around a picture in the preview for its glow, which spills past
+    //  the picture's edges.
+    static constexpr int    kPictureInsetDip     = 16;
+
     //  Each zoom step, in percent of the theme's text size.
     static constexpr int    kPreviewZoomStep     = 10;
 

@@ -719,6 +719,10 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_textView->SetZoom         ((float) m_prefs.previewZoom / 100.0f);
     m_picture->SetZoom          ((float) m_prefs.previewZoom / 100.0f);
 
+    //  A picture fills the pane at any size, as Explorer's preview does, not
+    //  only at whole multiples of its own.
+    m_picture->SetScaling (false, true);
+
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
 
@@ -1178,9 +1182,10 @@ void CassoExplorerWindow::RecomputeLayout()
         m_previewList->Layout    (previewRect, m_scaler);
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
-        m_picture->Layout        (previewRect, m_scaler);
-    UpdateCrtPicture (false);
+        m_picture->Layout        (RECT { previewRect.left  + m_scaler.ToPx (kPictureInsetDip), previewRect.top    + m_scaler.ToPx (kPictureInsetDip),
+                                         previewRect.right - m_scaler.ToPx (kPictureInsetDip), previewRect.bottom - m_scaler.ToPx (kPictureInsetDip) }, m_scaler);
         m_previewMessage->Layout (GetMessageRect (previewRect), m_scaler);
+        UpdateCrtPicture (false);
     }
     else
     {
