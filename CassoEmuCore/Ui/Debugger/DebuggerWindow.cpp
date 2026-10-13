@@ -5332,6 +5332,11 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 
 
 
+    if (!m_codeOptions.IsOn (DisassemblyOptions::Option::BranchArrow))
+    {
+        return false;
+    }
+
     if (view >= DebuggerViewState::kMaxCodeViews)
     {
         const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
@@ -6680,19 +6685,23 @@ void DebuggerWindow::RequestPaint()
 
 void DebuggerWindow::ApplyCodeView (int view)
 {
-    DxuiListView                                       * list       = m_codeLists[(size_t) view];
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines      = GetCodeLines (view);
+    DxuiListView                                       * list          = m_codeLists[(size_t) view];
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines         = GetCodeLines (view);
     std::vector<std::vector<DxuiListView::Cell>>         rows;
-    int                                                  current    = -1;
-    int                                                  selected   = -1;
+    int                                                  current       = -1;
+    int                                                  selected      = -1;
     std::optional<Word>                                  target;
-    DebuggerTextColors::Set                              textColors = GetTextColors();
-    SourceSyntax::Colors                                 syntax     = textColors.syntax;
-    bool                                                 symbols    = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
-    bool                                                 source   = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
-                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
-    bool                                                 numbers  = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
-                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    DebuggerTextColors::Set                              textColors    = GetTextColors();
+    SourceSyntax::Colors                                 syntax        = textColors.syntax;
+    bool                                                 symbols       = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
+    bool                                                 source        = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
+                                                                         IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
+    bool                                                 numbers       = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
+                                                                         IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    bool                                                 operandValues = m_codeOptions.IsOn (DisassemblyOptions::Option::OperandValues);
+    bool                                                 pointers      = m_codeOptions.IsOn (DisassemblyOptions::Option::Pointers);
+    bool                                                 colon         = m_codeOptions.IsOn (DisassemblyOptions::Option::AddressColon);
+    std::string                                          annotation;
     std::wstring                                         text;
 
 
@@ -6791,11 +6800,13 @@ void DebuggerWindow::ApplyCodeView (int view)
             rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
-        cells[kCodeAddressColumn].text     = std::format (L"{:04X}", line->address);
+        annotation = DebuggerViewState::ComposeAnnotation (line->annotationParts, operandValues, pointers);
+
+        cells[kCodeAddressColumn].text     = std::format (L"{:04X}{}", line->address, colon ? L":" : L"");
         cells[kCodeBytesColumn].text       = Widen (line->bytes);
         cells[kCodeLabelColumn].text       = Widen (line->label);
         cells[kCodeInstructionColumn].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
-        cells[kCodeOperandColumn]          = GetOperandAndResultCell (line->annotation, line->effect, GetResultArgb());
+        cells[kCodeOperandColumn]          = GetOperandAndResultCell (annotation, line->effect, GetResultArgb());
 
         cells[kCodeOperandColumn].argb     = GetAnnotationArgb();
         cells[kCodeLabelColumn].argb       = syntax.symbol;
@@ -6819,7 +6830,7 @@ void DebuggerWindow::ApplyCodeView (int view)
         cells[kCodeLabelColumn].tip       = rowTip;
         cells[kCodeInstructionColumn].tip = rowTip;
         cells[kCodeBytesColumn].tip       = ColorLegend::JoinLines ({ cells[kCodeBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
-        cells[kCodeOperandColumn].tip     = ColorLegend::JoinLines ({ line->annotation.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
+        cells[kCodeOperandColumn].tip     = ColorLegend::JoinLines ({ annotation.empty()       ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
                                                                       line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
                                                                       rowTip });
 

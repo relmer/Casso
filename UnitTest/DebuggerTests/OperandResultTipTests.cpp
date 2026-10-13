@@ -1335,20 +1335,20 @@ namespace OperandResultTipTests
                 longOperand += "A=00 X=01 ";
             }
 
-            lda.address       = 0x0300;
-            lda.bytes         = "A5 10";
-            lda.instruction   = "LDA $10";
-            lda.annotation    = longOperand;
-            lda.effect        = "A=41";
-            lda.isCurrent     = true;
-            rts.address       = 0x0302;
-            rts.bytes         = "60";
-            rts.instruction   = "RTS";
-            rts.annotation    = "S=FD";
-            sta.address       = 0x0303;
-            sta.bytes         = "85 11";
-            sta.instruction   = "STA $11";
-            sta.annotation    = longOperand;
+            lda.address                   = 0x0300;
+            lda.bytes                     = "A5 10";
+            lda.instruction               = "LDA $10";
+            lda.annotationParts.registers = longOperand;
+            lda.effect                    = "A=41";
+            lda.isCurrent                 = true;
+            rts.address                   = 0x0302;
+            rts.bytes                     = "60";
+            rts.instruction               = "RTS";
+            rts.annotationParts.registers = "S=FD";
+            sta.address                   = 0x0303;
+            sta.bytes                     = "85 11";
+            sta.instruction               = "STA $11";
+            sta.annotationParts.registers = longOperand;
 
             snapshot->pc           = 0x0300;
             snapshot->isPaused     = true;

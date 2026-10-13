@@ -23,9 +23,11 @@ struct DebuggerSettings
     // REVERSE EXECUTION'S HISTORY, read when the emulator starts. Recording
     // is on unless turned off here; the budget is the memory the keyframes
     // may hold, and the interval is how many video frames apart they are
-    // taken. A step back replays at most one interval.
-    static constexpr int  kMinReverseBudgetMb       = 4;
-    static constexpr int  kMaxReverseBudgetMb       = 4096;
+    // taken. A step back replays at most one interval. The budget's upper
+    // limit is the Options sheet's, from the memory available; a value above
+    // kMaxReverseBudgetMb is invalid on any machine.
+    static constexpr int  kMinReverseBudgetMb       = 1;
+    static constexpr int  kMaxReverseBudgetMb       = 1024 * 1024;
     static constexpr int  kMaxReverseIntervalFrames = 600;
 
     bool         reverseRecording         = true;

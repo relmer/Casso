@@ -148,15 +148,15 @@ namespace ColorLegendTests
 
 
 
-            lda.address       = 0x0300;
-            lda.bytes         = "A5 10";
-            lda.instruction   = "LDA $10";
-            lda.annotation    = "$0010=41";
-            lda.effect        = "A=41";
-            lda.isCurrent     = true;
-            rts.address       = 0x0302;
-            rts.bytes         = "60";
-            rts.instruction   = "RTS";
+            lda.address                      = 0x0300;
+            lda.bytes                        = "A5 10";
+            lda.instruction                  = "LDA $10";
+            lda.annotationParts.operandValue = "$0010=41";
+            lda.effect                       = "A=41";
+            lda.isCurrent                    = true;
+            rts.address                      = 0x0302;
+            rts.bytes                        = "60";
+            rts.instruction                  = "RTS";
             rts.hasBreakpoint = true;
             rts.isEnabled     = false;
 

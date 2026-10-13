@@ -4,8 +4,11 @@
 #include "Config/GlobalUserPrefs.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 #include "CppUnitTest.h"
 
@@ -109,6 +112,7 @@ namespace DisassemblyOptionsTests
         using DebuggerWindow::GetCodeOptions;
         using DebuggerWindow::GetCodeLineOfRow;
         using DebuggerWindow::HoverGutter;
+        using DebuggerWindow::GetBranchArrow;
     };
 
 
@@ -121,8 +125,9 @@ namespace DisassemblyOptionsTests
     //
     //  The disassembly views' viewing options, as Visual Studio's: address,
     //  code bytes, source, symbol names and line numbers, saved as a setting;
-    //  source rows above their code; and the gray breakpoint the gutter shows
-    //  under the pointer.
+    //  the Options sheet's operand values, pointers, branch arrow and address
+    //  colon; source rows above their code; and the gray breakpoint drawn in
+    //  the gutter under the pointer.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,7 +204,7 @@ namespace DisassemblyOptionsTests
 
             options.Toggle (Option::CodeBytes);
             options.Toggle (Option::LineNumbers);
-            Assert::AreEqual (std::string ("address source symbols"), options.ToText());
+            Assert::AreEqual (std::string ("address -bytes source symbols -lines values -pointers arrow -colon"), options.ToText());
             Assert::IsTrue   (DisassemblyOptions::FromText (options.ToText()) == options);
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
@@ -208,6 +213,31 @@ namespace DisassemblyOptionsTests
             }
 
             Assert::IsTrue (DisassemblyOptions::FromText (none.ToText()) == none, L"every option off survives the round trip");
+        }
+
+
+
+        //  A text saved before the last four options existed lists the options
+        //  turned on: one of the first five it does not list is off, and the
+        //  last four take their defaults.
+        TEST_METHOD (AnEarlierTextKeepsItsOptionsAndDefaultsTheNewOnes)
+        {
+            DisassemblyOptions  options = DisassemblyOptions::FromText ("address source symbols");
+
+
+
+            Assert::IsTrue  (options.IsOn  (Option::Addresses));
+            Assert::IsFalse (options.IsOn  (Option::CodeBytes),     L"not listed, so off");
+            Assert::IsFalse (options.IsOn  (Option::LineNumbers),   L"not listed, so off");
+            Assert::IsTrue  (options.IsOn  (Option::OperandValues), L"the default");
+            Assert::IsFalse (options.IsOn  (Option::Pointers),      L"the default");
+            Assert::IsTrue  (options.IsOn  (Option::BranchArrow),   L"the default");
+            Assert::IsFalse (options.IsOn  (Option::AddressColon),  L"the default");
+
+            options = DisassemblyOptions::FromText ("none");
+
+            Assert::IsFalse (options.IsOn  (Option::Addresses),     L"the earlier form's every-option-off text");
+            Assert::IsTrue  (options.IsOn  (Option::OperandValues), L"the default");
         }
 
 
@@ -276,7 +306,7 @@ namespace DisassemblyOptionsTests
             window.ToggleCodeOption (Option::Addresses);
 
             Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (1), L"no address column");
-            Assert::AreEqual (std::string ("bytes symbols"), host.options, L"the choice is saved");
+            Assert::AreEqual (std::string ("-address bytes -source symbols -lines values -pointers arrow -colon"), host.options, L"the choice is saved");
             Assert::IsNotNull (window.GetCodeBar (0), L"each view has its options bar");
         }
 
@@ -405,6 +435,135 @@ namespace DisassemblyOptionsTests
             Assert::IsTrue (SUCCEEDED (hr));
 
             Assert::AreEqual (std::string ("address source"), loaded.debugger.disassemblyOptions);
+        }
+
+
+
+        //  LDA ($3E),Y at $0300 with the PC on it, its annotation in parts: Y,
+        //  the pointer, and the operand's address and value.
+        static std::shared_ptr<const DebuggerViewSnapshot> MakeIndirectSnapshot()
+        {
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  lda;
+
+
+
+            lda.address                      = 0x0300;
+            lda.bytes                        = "B1 3E";
+            lda.instruction                  = "LDA ($3E),Y";
+            lda.isCurrent                    = true;
+            lda.annotationParts.registers    = "Y=05";
+            lda.annotationParts.pointer      = "($003E)=$1230";
+            lda.annotationParts.operandValue = "$1235=41";
+
+            snapshot->pc           = 0x0300;
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { lda };
+            snapshot->code         = snapshot->codeViews[0];
+            snapshot->codeOpen[0]  = true;
+
+            return snapshot;
+        }
+
+
+
+        TEST_METHOD (OperandValuesAndPointersChooseThePartsOfTheAnnotation)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            OptionsHost    host;
+            DxuiDpiScaler  scaler;
+            OptionsWindow  window (theme, host);
+
+
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeIndirectSnapshot(), 0);
+
+            Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text, L"the default: no pointer");
+
+            window.ToggleCodeOption (Option::Pointers);
+            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+
+            window.ToggleCodeOption (Option::OperandValues);
+            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+        }
+
+
+
+        TEST_METHOD (AddressColonFollowsEachAddress)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            OptionsHost    host;
+            DxuiDpiScaler  scaler;
+            OptionsWindow  window (theme, host);
+
+
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
+
+            Assert::AreEqual (std::wstring (L"0300"), window.GetCodeList (0)->GetCellsOfRow (0)[1].text, L"the default: no colon");
+
+            window.ToggleCodeOption (Option::AddressColon);
+            Assert::AreEqual (std::wstring (L"0300:"), window.GetCodeList (0)->GetCellsOfRow (0)[1].text);
+            Assert::AreEqual (std::wstring (L"0302:"), window.GetCodeList (0)->GetCellsOfRow (1)[1].text);
+        }
+
+
+
+        TEST_METHOD (BranchArrowOffDrawsNoArrow)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                     host;
+            DxuiDpiScaler                   scaler;
+            OptionsWindow                   window (theme, host);
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  bne;
+            DebuggerViewSnapshot::CodeLine  rts;
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            BranchArrow::Input              input;
+            Word                            goesTo   = 0;
+            bool                            isTaken  = false;
+
+
+
+            bne.address       = 0x0300;
+            bne.bytes         = "D0 01";
+            bne.instruction   = "BNE $0303";
+            bne.isCurrent     = true;
+            bne.target        = Word (0x0303);
+            bne.isTargetTaken = true;
+
+            rts.address       = 0x0303;
+            rts.bytes         = "60";
+            rts.instruction   = "RTS";
+
+            snapshot->pc           = 0x0300;
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { bne, rts };
+            snapshot->code         = snapshot->codeViews[0];
+            snapshot->codeOpen[0]  = true;
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue  (window.GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
+            Assert::AreEqual ((int) 0x0303, (int) goesTo);
+
+            window.ToggleCodeOption (Option::BranchArrow);
+            Assert::IsFalse (window.GetBranchArrow (0, input, goesTo, isTaken));
         }
     };
 }

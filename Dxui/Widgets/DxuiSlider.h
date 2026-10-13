@@ -63,6 +63,7 @@ public:
     //  step is deliberately coarse (e.g. a 0-200 step-10 brightness slider that
     //  should nudge by 10 on arrow keys but glide by 1 under the cursor).
     void   SetDragStep (float step) { m_dragStep = step; }
+    void   SetPageStep (float step) { m_pageStep = step; }
     void   SetValue   (float value);
     void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
     void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
@@ -133,6 +134,7 @@ private:
     float          m_max               = 1.0f;
     float          m_step              = 0.01f;
     float          m_dragStep          = 0.0f;   // 0 => drag snaps to m_step
+    float          m_pageStep          = 0.0f;   // 0 => ten of m_step
     float          m_value             = 0.0f;
     bool           m_enabled           = true;
     bool           m_focused           = false;

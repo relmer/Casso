@@ -402,7 +402,7 @@ void DebuggerWindow::SetWindowMenus()
 
     //  Tools: the settings that have no place in a menu of their own.
     tools.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenReverseOptions(); }));
+    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenOptions(); }));
 
     m_menuBarItems =
     {
@@ -426,15 +426,19 @@ void DebuggerWindow::SetWindowMenus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::OpenReverseOptions
+//  DebuggerWindow::OpenOptions
 //
-//  Tools > Options: reverse execution's settings, saved by the host.
+//  Tools > Options: reverse execution's settings and the disassembly views'
+//  options, both saved by the host. The views are redrawn with the options
+//  chosen, as a toolbar check box redraws them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::OpenReverseOptions()
+void DebuggerWindow::OpenOptions()
 {
-    std::optional<ReverseOptions>  chosen;
+    DebuggerOptions                 current;
+    std::optional<DebuggerOptions>  chosen;
+    int                             view    = 0;
 
 
 
@@ -443,12 +447,27 @@ void DebuggerWindow::OpenReverseOptions()
         return;
     }
 
-    chosen = ReverseOptionsDialog::Ask (GetHwnd(), m_theme, m_host->GetReverseOptions());
+    current.reverse     = m_host->GetReverseOptions();
+    current.disassembly = m_codeOptions;
 
-    if (chosen.has_value())
+    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current);
+
+    if (!chosen.has_value())
     {
-        m_host->SetReverseOptions (*chosen);
+        return;
     }
+
+    m_host->SetReverseOptions (chosen->reverse);
+
+    m_codeOptions = chosen->disassembly;
+    m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
+
+    for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
+    {
+        ApplyCodeView (view);
+    }
+
+    Invalidate();
 }
 
 

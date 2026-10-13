@@ -12,8 +12,10 @@
 //
 //  What a disassembly view shows, as Visual Studio's viewing options have it:
 //  addresses, code bytes, the source lines the code came from, symbol names
-//  and the source lines' numbers. One set holds for every view and is kept in
-//  a setting as text.
+//  and the source lines' numbers; and, from AppleWin's DISASM settings, the
+//  operand values and pointers in the annotation, the PC's branch arrow and a
+//  colon after each address. One set applies to every view and is saved in a
+//  setting as text.
 //
 //  SOURCE ROWS SIT ABOVE THEIR CODE. A view's rows are its instructions with,
 //  when source is shown, each source line the debug file maps to an
@@ -33,9 +35,16 @@ public:
         Source,
         Symbols,
         LineNumbers,
+        OperandValues,
+        Pointers,
+        BranchArrow,
+        AddressColon,
     };
 
-    static constexpr int  kOptionCount = 5;
+    static constexpr int  kOptionCount = 9;
+
+    //  The options a text saved before the last four existed can list.
+    static constexpr int  kFirstTextOptionCount = 5;
 
     //  One row of a view: an instruction, by its index in the view's lines,
     //  or a source line, with -1 for the instruction.
@@ -54,8 +63,11 @@ public:
 
     bool  operator== (const DisassemblyOptions & other) const = default;
 
-    //  The setting's text: the keys of the options turned on, separated by
-    //  spaces. Empty text gives the defaults; an unknown key is skipped.
+    //  The setting's text: each option's key, with a leading - when it is
+    //  off, separated by spaces. FromText returns the defaults for
+    //  empty text and skips an unknown key. A text with no - is the earlier form, which listed the
+    //  options turned on: an option it can list and does not is off, and the
+    //  later options take their defaults.
     std::string                 ToText   () const;
     static DisassemblyOptions   FromText (const std::string & text);
 
@@ -88,5 +100,5 @@ public:
     static bool  CanTakeBreakpoint (const DebuggerViewSnapshot::CodeLine & line);
 
 private:
-    std::array<bool, kOptionCount>  m_on = { true, true, true, true, true };
+    std::array<bool, kOptionCount>  m_on = { true, true, true, true, true, true, false, true, false };
 };

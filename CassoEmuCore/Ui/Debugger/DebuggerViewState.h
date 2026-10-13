@@ -43,6 +43,19 @@ class IDiagnosticsProvider;
 
 struct DebuggerViewSnapshot
 {
+    //  A code line's annotation in its parts; a view composes the parts its
+    //  disassembly options turn on: the registers the instruction reads, the
+    //  address it accesses and the byte there, the pointer an indirect mode
+    //  reads, the flags, and the description of a location with a symbol.
+    struct AnnotationParts
+    {
+        std::string  registers;
+        std::string  operandValue;
+        std::string  pointer;
+        std::string  flags;
+        std::string  about;
+    };
+
     struct CodeLine
     {
         Word         address       = 0;
@@ -58,6 +71,7 @@ struct DebuggerViewSnapshot
         //  the flag a branch tests (FR-078).
         std::optional<Word>  target;
         std::string          annotation;
+        AnnotationParts      annotationParts;
 
         //  False for a branch on the PC's line that the flags as they stand
         //  will not take; true wherever that is not known.
@@ -595,6 +609,10 @@ public:
                                                       const DebuggerViewSnapshot * snapshot,
                                                       int                          selectedRow);
 
+    //  A code line's annotation from its parts, with or without the operand's
+    //  value and the pointer an indirect mode reads.
+    static std::string  ComposeAnnotation (const DebuggerViewSnapshot::AnnotationParts & parts, bool withOperandValue, bool withPointer);
+
     //  A control's AppleWin line in the words of the mode the session is in,
     //  where the mode has them: GSSquared's `s`, `o`, `r`, `g`, `bp`, `nobp`
     //  and `addr:` deposit; WinDbg's `t`, `p`, `gu`, `g`, `bp`, `bc` and `eb`.
@@ -741,6 +759,8 @@ private:
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
     static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line,
                                                        const Cpu6502Registers & registers, const InstructionTouches::Result & touches);
+    static DebuggerViewSnapshot::AnnotationParts  GetAnnotationParts (DebugSession & session, const DisassemblyLine & line,
+                                                                     const Cpu6502Registers & registers, const InstructionTouches::Result & touches);
     static std::string          GetEffect              (DebugSession & session, const Cpu6502Registers & registers,
                                                        const InstructionTouches::Result & touches, Word next);
 

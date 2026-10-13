@@ -22,18 +22,12 @@ std::string DisassemblyOptions::ToText() const
 
     for (int i = 0; i < kOptionCount; i++)
     {
-        if (!m_on[(size_t) i])
-        {
-            continue;
-        }
-
         text += text.empty() ? "" : " ";
+        text += m_on[(size_t) i] ? "" : "-";
         text += GetKey ((Option) i);
     }
 
-    //  Every option off still differs from the defaults, which empty text
-    //  gives.
-    return text.empty() ? std::string ("none") : text;
+    return text;
 }
 
 
@@ -51,23 +45,30 @@ DisassemblyOptions DisassemblyOptions::FromText (const std::string & text)
     DisassemblyOptions  options;
     std::istringstream  words (text);
     std::string         word;
+    bool                isOn        = false;
+    bool                isFirstForm = text.find ('-') == std::string::npos;
+    int                 i           = 0;
 
 
 
-    if (text.empty())
+    if (isFirstForm)
     {
-        return options;
+        for (i = 0; i < kFirstTextOptionCount && !text.empty(); i++)
+        {
+            options.m_on[(size_t) i] = false;
+        }
     }
-
-    options.m_on.fill (false);
 
     while (words >> word)
     {
-        for (int i = 0; i < kOptionCount; i++)
+        isOn = !word.starts_with ('-');
+        word = isOn ? word : word.substr (1);
+
+        for (i = 0; i < kOptionCount; i++)
         {
             if (word == GetKey ((Option) i))
             {
-                options.m_on[(size_t) i] = true;
+                options.m_on[(size_t) i] = isOn;
             }
         }
     }
@@ -89,11 +90,15 @@ const wchar_t * DisassemblyOptions::GetLabel (Option option)
 {
     switch (option)
     {
-    case Option::Addresses:   return L"Show address";
-    case Option::CodeBytes:   return L"Show code bytes";
-    case Option::Source:      return L"Show source code";
-    case Option::Symbols:     return L"Show symbol names";
-    case Option::LineNumbers: return L"Show line numbers";
+    case Option::Addresses:     return L"Show address";
+    case Option::CodeBytes:     return L"Show code bytes";
+    case Option::Source:        return L"Show source code";
+    case Option::Symbols:       return L"Show symbol names";
+    case Option::LineNumbers:   return L"Show line numbers";
+    case Option::OperandValues: return L"Show operand values";
+    case Option::Pointers:      return L"Show pointers";
+    case Option::BranchArrow:   return L"Show branch arrow";
+    case Option::AddressColon:  return L"Show colon after address";
     }
 
     return L"";
@@ -113,11 +118,15 @@ const char * DisassemblyOptions::GetKey (Option option)
 {
     switch (option)
     {
-    case Option::Addresses:   return "address";
-    case Option::CodeBytes:   return "bytes";
-    case Option::Source:      return "source";
-    case Option::Symbols:     return "symbols";
-    case Option::LineNumbers: return "lines";
+    case Option::Addresses:     return "address";
+    case Option::CodeBytes:     return "bytes";
+    case Option::Source:        return "source";
+    case Option::Symbols:       return "symbols";
+    case Option::LineNumbers:   return "lines";
+    case Option::OperandValues: return "values";
+    case Option::Pointers:      return "pointers";
+    case Option::BranchArrow:   return "arrow";
+    case Option::AddressColon:  return "colon";
     }
 
     return "";

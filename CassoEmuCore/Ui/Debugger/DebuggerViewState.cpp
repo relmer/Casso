@@ -2945,7 +2945,9 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
                                                                             now, line.instruction.address,
                                                                             (Word) line.instruction.bytes.size());
 
-            row.annotation = GetAnnotation (session, line, now, touches);
+            row.annotationParts = GetAnnotationParts (session, line, now, touches);
+            row.annotation      = ComposeAnnotation (row.annotationParts, true, false);
+
             row.effect     = row.isCurrent ? GetEffect (session, now, touches,
                                                         (Word) (line.instruction.address + line.instruction.bytes.size()))
                                            : std::string();
@@ -3622,12 +3624,35 @@ std::optional<Word> DebuggerViewState::GetReturnAddress (DebugSession & session)
 std::string DebuggerViewState::GetAnnotation (DebugSession & session, const DisassemblyLine & line,
                                               const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
 {
-    std::string  registerText;
-    std::string  addressText;
-    std::string  flagText;
-    std::string  about;
-    bool         isIo  = false;
-    Byte         value = 0;
+    return ComposeAnnotation (GetAnnotationParts (session, line, registers, touches), true, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetAnnotationParts
+//
+//  The parts GetAnnotation joins. The pointer is an indirect mode's: the
+//  first address the instruction touches, and the address stored there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot::AnnotationParts DebuggerViewState::GetAnnotationParts (DebugSession & session, const DisassemblyLine & line,
+                                                                             const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
+{
+    static constexpr Word                  kZeroPageLast = 0x00FF;
+    DebuggerViewSnapshot::AnnotationParts  parts;
+    bool                                   isIo          = false;
+    bool                                   isIndirect    = line.instruction.operand.starts_with ('(');
+    bool                                   hasPointer    = false;
+    Byte                                   value         = 0;
+    Byte                                   low           = 0;
+    Byte                                   high          = 0;
+    Word                                   pointer       = 0;
+    Word                                   next          = 0;
 
 
 
@@ -3643,7 +3668,7 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             Byte  held = GetRegisterByte (item.name, registers);
 
 
-            registerText += std::format ("{}={:02X} ", item.name, held);
+            parts.registers += std::format ("{}{}={:02X}", parts.registers.empty() ? "" : " ", item.name, held);
         }
         else if (item.kind == InstructionTouches::Kind::Flag)
         {
@@ -3656,20 +3681,26 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             {
                 if (item.name[0] == letter)
                 {
-                    flagText += std::format ("{}={} ", letter, (registers.p & bit) ? 1 : 0);
+                    parts.flags += std::format ("{}{}={}", parts.flags.empty() ? "" : " ", letter, (registers.p & bit) ? 1 : 0);
                 }
             }
         }
     }
 
     //  The address the instruction works on is the last one it touched: an
-    //  indirect mode reads its pointer first, and the pointer is not what the
-    //  line is about.
+    //  indirect mode reads its pointer first, and the pointer is a part of
+    //  its own.
     for (const InstructionTouches::Item & item : touches.items)
     {
         if (item.kind != InstructionTouches::Kind::Address)
         {
             continue;
+        }
+
+        if (isIndirect && !hasPointer)
+        {
+            hasPointer = true;
+            pointer    = item.address;
         }
 
         isIo = session.GetTarget().GetRegion (item.address) == MemoryRegion::Io;
@@ -3678,38 +3709,73 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
         {
             std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
 
-            addressText = action.empty() ? std::format ("${:04X}", item.address) : action;
+            parts.operandValue = action.empty() ? std::format ("${:04X}", item.address) : action;
         }
         else if (session.TryPeek (item.address, value))
         {
-            addressText = std::format ("${:04X}={:02X}", item.address, value);
+            parts.operandValue = std::format ("${:04X}={:02X}", item.address, value);
         }
         else
         {
-            addressText = std::format ("${:04X}", item.address);
+            parts.operandValue = std::format ("${:04X}", item.address);
         }
     }
 
-    std::string  text = registerText + addressText + (addressText.empty() ? "" : " ") + flagText;
+    //  A zero-page pointer's high byte wraps within the zero page, as the
+    //  6502 reads it.
+    next = (pointer <= kZeroPageLast) ? (Word) ((pointer + 1) & kZeroPageLast) : (Word) (pointer + 1);
 
-    while (!text.empty() && text.back() == ' ')
+    if (hasPointer && session.TryPeek (pointer, low) && session.TryPeek (next, high))
     {
-        text.pop_back();
+        parts.pointer = std::format ("(${:04X})=${:04X}", pointer, (Word) (low | (high << 8)));
     }
 
     //  A named location in memory says what it is after its byte, so
     //  INC RNDL reads $004E=96; random seed, low byte .... An I/O
     //  address already said it in place of the byte.
-    about = isIo ? std::string() : SymbolDescriptions::GetAction (line.operandSymbol);
+    parts.about = isIo ? std::string() : SymbolDescriptions::GetAction (line.operandSymbol);
 
-    if (!about.empty())
+    if (parts.about.size() > 1 && isupper ((unsigned char) parts.about[0]) && islower ((unsigned char) parts.about[1]))
     {
-        if (about.size() > 1 && isupper ((unsigned char) about[0]) && islower ((unsigned char) about[1]))
-        {
-            about[0] = (char) tolower ((unsigned char) about[0]);
-        }
+        parts.about[0] = (char) tolower ((unsigned char) parts.about[0]);
+    }
 
-        text += (text.empty() ? "" : "; ") + about;
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ComposeAnnotation
+//
+//  The registers, the pointer, the operand's value and the flags, a space
+//  apart, then the description of a location with a symbol after a semicolon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::ComposeAnnotation (const DebuggerViewSnapshot::AnnotationParts & parts, bool withOperandValue, bool withPointer)
+{
+    std::string  text;
+
+
+
+    for (const std::string * part : { &parts.registers,
+                                      withPointer      ? &parts.pointer      : nullptr,
+                                      withOperandValue ? &parts.operandValue : nullptr,
+                                      &parts.flags })
+    {
+        if (part != nullptr && !part->empty())
+        {
+            text += (text.empty() ? "" : " ") + *part;
+        }
+    }
+
+    if (!parts.about.empty())
+    {
+        text += (text.empty() ? "" : "; ") + parts.about;
     }
 
     return text;

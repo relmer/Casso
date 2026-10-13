@@ -25,7 +25,7 @@
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
-#include "Ui/Debugger/ReverseOptionsDialog.h"
+#include "Ui/Debugger/DebuggerOptionsSheet.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -884,7 +884,7 @@ private:
     std::shared_ptr<DxuiCommand>  MakeEditMenuCommand  (DxuiStandardCommand command, const std::wstring & label, const std::wstring & accelerator);
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
-    void     OpenReverseOptions   ();
+    void     OpenOptions          ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
