@@ -153,6 +153,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
 - Q: What does the debugger's Tools > Options have? -> A: Tabs, as Casso's Settings sheet has: History, with recording on or off and the memory history may use as a slider from 1 MB to the lower of 90% of the memory available and the memory available less 4 MB, in 1 MB steps with about ten tick marks; and Disassembly (FR-227).
 - Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values and Branch arrow, on by default, and Pointers and Address colon, off by default, since the view has never displayed the pointer or a colon. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
+- Q: Where is the keyboard focus when the machine stops? -> A: In the console only if the console received the last input: a command typed there, or a click in it. A click or key anywhere else in the debugger, or another window taking the focus, means the stop moves the focus from the console to the disassembly view with the PC (FR-229).
+- Q: How large can the History slider go, and how is its estimate written? -> A: No larger than the memory a busy program fills in about 48 hours (7649 MB at the measured rate), besides the 90% and available-less-4-MB limits. The estimate is in minutes below two hours and in hours from two hours on, such as "95 minutes to 3 hours" (FR-227).
+- Q: How does the Disassembly tab show what its check boxes do? -> A: A live preview under them: a short sample program drawn as a disassembly view draws it, with source lines, symbols, an indirect load with its pointer and operand value, and the PC on a taken branch with its arrow, following every check box as set in the dialog (FR-228).
+- Q: What size does the Options dialog open at? -> A: Large enough for its largest tab, within the work area of the monitor it opens on, and placed with no part off that monitor or under the taskbar; a tab scrolls only when the monitor is too small for it (FR-227).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2920,13 +2924,18 @@ run something, switch back to the //e: it is where it was left.
 - **FR-227**: The debugger's Tools > Options MUST be a dialog with tabs, built
   as Casso's Settings sheet is, with a History tab and a Disassembly tab. The
   History tab has the setting that turns history recording on and off, and
-  the memory history may use with the estimate of the minutes of history it
-  has room for. The memory is a slider from 1 MB to the lower of 90% of the
-  memory available and the memory available less 4 MB, and never less than
-  1 MB, the memory available read as the dialog opens. It moves in 1 MB
-  steps, a tenth of its range for Page Up and Page Down, with about ten tick
-  marks. A saved value above the slider's maximum puts the slider at its
-  maximum, and the saved value changes only when the slider moves.
+  the memory history may use with the estimate of the history it has room
+  for, in minutes below two hours and in hours from two hours on. The memory
+  is a slider from 1 MB to the lowest of 90% of the memory available, the
+  memory available less 4 MB, and the memory a busy program fills in about
+  48 hours (7649 MB at the measured rate), and never less than 1 MB, the
+  memory available read as the dialog opens. It moves in 1 MB steps, a tenth
+  of its range for Page Up and Page Down, with about ten tick marks. A saved
+  value above the slider's maximum puts the slider at its maximum, and the
+  saved value changes only when the slider moves. The dialog opens large
+  enough for its largest tab, within the work area of the monitor it opens
+  on, placed with no part off that monitor or under the taskbar; a tab
+  scrolls only when the monitor is too small for it (amended 2026-10-13).
 - **FR-228**: The Disassembly tab MUST have a check box for each disassembly
   view option: the disassembly toolbar's Addresses, Code bytes, Source,
   Symbols and Line numbers, each the same setting as its toolbar check box;
@@ -2937,7 +2946,17 @@ run something, switch back to the //e: it is where it was left.
   and Pointers and Address colon are off, matching the view before the
   options existed (amended 2026-10-13). No option packs
   opcode bytes together, as AppleWin's DISASM SPACES does: the bytes would
-  misread as one little-endian number.
+  misread as one little-endian number. Under the check boxes, a live preview
+  draws a short sample program as a disassembly view draws it, with source
+  lines, symbols, an indirect load with its pointer and operand value, and
+  the PC on a taken branch with its arrow, following every check box as set
+  in the dialog (amended 2026-10-13).
+- **FR-229**: When the machine stops (a breakpoint, the end of a step, or
+  Pause), the keyboard focus MUST be in the console only if the console
+  received the last input: a command typed there, or a click in it. A click
+  or key anywhere else in the debugger, or another window taking the focus,
+  MUST make the stop move the focus from the console to the disassembly view
+  with the PC.
 
 ### Key Entities
 

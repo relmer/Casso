@@ -1513,3 +1513,18 @@ Owner decisions 2026-10-13, plan.md item 9k (scheduled ahead of 9h) and its desi
 **Dependencies**: T800 and T801 before T802; T801 before T803; T802 and T803 before T804.
 
 **Parallel**: T800 and T801 touch separate files.
+
+## Phase 34: The Options sheet's second review (FR-227, FR-228, FR-229)
+
+Owner decisions 2026-10-13, second review of the Options sheet.
+
+- [X] T805 [P] Add StopFocus (CassoEmuCore/Ui/Debugger/StopFocus.h/.cpp), fed by DebuggerWindow's mouse, key and window-focus input, and move the focus from the console to the PC's disassembly view at a stop unless the console received the last input; test in UnitTest/DebuggerTests/StopFocusTests.cpp, per FR-229
+- [X] T806 [P] Cap ReverseBudget's range at the memory a busy program fills in 48 hours and write the estimate in minutes below two hours and hours from two hours on (CassoEmuCore/Ui/Debugger/ReverseBudget.h/.cpp); test in UnitTest/DebuggerTests/ReverseBudgetRangeTests.cpp, per FR-227
+- [X] T807 Factor DisassemblyCells (CassoEmuCore/Ui/Debugger/DisassemblyCells.h/.cpp) out of DebuggerWindow: the columns, source and code rows, and the branch arrow's geometry and paint, so the views and the preview share them, per FR-228
+- [X] T808 Add DisassemblyPreview (CassoEmuCore/Ui/Debugger/DisassemblyPreview.h/.cpp) under two columns of check boxes on the Disassembly page (DisassemblyOptionsPage.h/.cpp), following each check box; test in UnitTest/DebuggerTests/DebuggerOptionsSheetTests.cpp, per FR-228
+- [X] T809 Fit the Options sheet to its largest tab with FitToMaxSize (CassoEmuCore/Ui/Debugger/DebuggerOptionsSheet.cpp), and add the window frame to a fitted or maximum client size in Dxui/Window/DxuiWindow.cpp, forcing the frame calculation for a hidden window, per FR-227
+- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's 48-hour cap and hours, the preview and the sheet's size
+
+**Dependencies**: T807 before T808; T805 to T809 before T810.
+
+**Parallel**: T805 and T806 touch separate files.
