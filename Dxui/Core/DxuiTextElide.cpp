@@ -90,8 +90,15 @@ std::wstring DxuiTextElide::ElideTail (IDxuiTextRenderer  & text,
         }
     }
 
+    //  The ellipsis follows the last word, not the space after it, as File
+    //  Explorer cuts a name: "spaces in…" rather than "spaces in …".
+    while (lo > 0 && iswspace (value[lo - 1]))
+    {
+        lo--;
+    }
+
     // Not even one character plus the ellipsis fits: the ellipsis alone still
-    // says "there is more here", where an empty box says the value is unset.
+    // indicates there is more here, where an empty box indicates no value.
     return (lo == 0) ? std::wstring (s_kEllipsis)
                      : value.substr (0, lo) + s_kEllipsis;
 }
