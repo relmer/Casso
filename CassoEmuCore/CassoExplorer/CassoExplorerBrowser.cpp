@@ -454,6 +454,7 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
         row.imageDirectory    = items[index].imageDirectory;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
         row.sourceIndex  = index;
+        row.shellOrder   = items[index].shellOrder;
 
         m_rows.push_back (std::move (row));
     }

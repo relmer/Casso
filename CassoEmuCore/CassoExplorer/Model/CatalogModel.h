@@ -61,6 +61,10 @@ struct CatalogRow
     //  A root's row: the folder or drive it opens, whose icon it shows.
     std::wstring  hostPath;
 
+    //  A shell folder's item: 1 and up, its place in the folder's own Name
+    //  order, which Explorer's Name column follows; 0 for any other row.
+    int  shellOrder = 0;
+
     //  A Recycle Bin row: the shell's id for the item, the folder it was
     //  deleted from, and when.
     std::wstring  recycledId;

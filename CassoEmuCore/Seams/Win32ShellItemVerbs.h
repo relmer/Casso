@@ -159,6 +159,7 @@ private:
     //  An item's id, name, path, type, size, date and what kind of folder it
     //  is, as a listing shows it.
     static HRESULT       DescribeShellItem (IShellItem * item, ShellFolderItem & outEntry);
+    static PITEMID_CHILD GetChildId (IShellItem * item);
 
     //  A shell item by the shell's name for it, the desktop namespace's own
     //  root included.

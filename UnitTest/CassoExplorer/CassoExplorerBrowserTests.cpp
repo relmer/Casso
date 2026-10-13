@@ -835,6 +835,36 @@ public:
 
 
 
+    //  A shell folder's rows sort by name in the folder's own order, as
+    //  Explorer's do, and other rows by name, numbers by their value.
+    TEST_METHOD (SortByName_UsesAShellFoldersOwnOrder)
+    {
+        std::vector<CatalogRow>  rows (3);
+
+        rows[0].name = L"Alpha";    rows[0].shellOrder = 3;
+        rows[1].name = L"Zulu";     rows[1].shellOrder = 1;
+        rows[2].name = L"Mike";     rows[2].shellOrder = 2;
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+        Assert::IsTrue (rows[0].name == L"Zulu" && rows[1].name == L"Mike" && rows[2].name == L"Alpha");
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, true);
+        Assert::IsTrue (rows[0].name == L"Alpha" && rows[2].name == L"Zulu", L"and descending reverses it");
+
+        for (CatalogRow & row : rows)
+        {
+            row.shellOrder = 0;
+        }
+
+        rows[0].name = L"f10";
+        rows[1].name = L"f2";
+        rows[2].name = L"e";
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+        Assert::IsTrue (rows[0].name == L"e" && rows[1].name == L"f2" && rows[2].name == L"f10");
+    }
+
+
+
     TEST_METHOD (MultipleSelection_PreviewsNothingAndCounts)
     {
         Host          host;

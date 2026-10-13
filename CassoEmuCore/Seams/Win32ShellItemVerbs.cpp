@@ -1275,9 +1275,13 @@ HRESULT Win32ShellItemVerbs::ListShellFolder (const std::wstring & id, std::vect
 
 HRESULT Win32ShellItemVerbs::ReadShellFolder (const std::wstring & id, std::vector<ShellFolderItem> & outItems)
 {
-    HRESULT                  hr = S_OK;
-    ComPtr<IShellItem>       folder;
-    ComPtr<IEnumShellItems>  items;
+    HRESULT                     hr = S_OK;
+    ComPtr<IShellItem>          folder;
+    ComPtr<IEnumShellItems>     items;
+    ComPtr<IShellFolder>        shellFolder;
+    std::vector<PITEMID_CHILD>  children;
+    std::vector<size_t>         order;
+    HRESULT                     hrSort = S_OK;
 
 
 
@@ -1312,11 +1316,69 @@ HRESULT Win32ShellItemVerbs::ReadShellFolder (const std::wstring & id, std::vect
         if (SUCCEEDED (hrItem))
         {
             outItems.push_back (std::move (entry));
+            children.push_back (GetChildId (item.Get()));
+        }
+    }
+
+    //  Explorer's Name column follows the folder's own order, the result of
+    //  its CompareIDs on the name column, and each item is given its place in
+    //  that order. When an item's id cannot be read, none is.
+    hrSort = folder->BindToHandler (nullptr, BHID_SFObject, IID_PPV_ARGS (&shellFolder));
+
+    if (SUCCEEDED (hrSort) && std::none_of (children.begin(), children.end(), [] (PITEMID_CHILD child) { return child == nullptr; }))
+    {
+        for (size_t index = 0; index < children.size(); index++)
+        {
+            order.push_back (index);
+        }
+
+        std::stable_sort (order.begin(), order.end(), [&shellFolder, &children] (size_t a, size_t b)
+        {
+            return (short) HRESULT_CODE (shellFolder->CompareIDs (0, children[a], children[b])) < 0;
+        });
+
+        for (size_t rank = 0; rank < order.size(); rank++)
+        {
+            outItems[order[rank]].shellOrder = (int) rank + 1;
         }
     }
 
 Error:
+    for (PITEMID_CHILD child : children)
+    {
+        CoTaskMemFree (child);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::GetChildId
+//
+//  The item's id relative to its parent, for its parent's CompareIDs; null
+//  when it cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PITEMID_CHILD Win32ShellItemVerbs::GetChildId (IShellItem * item)
+{
+    ComPtr<IParentAndItem>  parentAndItem;
+    PITEMID_CHILD           child = nullptr;
+    HRESULT                 hr    = item->QueryInterface (IID_PPV_ARGS (&parentAndItem));
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = parentAndItem->GetParentAndItem (nullptr, nullptr, &child);
+    }
+
+    return SUCCEEDED (hr) ? child : nullptr;
 }
 
 
