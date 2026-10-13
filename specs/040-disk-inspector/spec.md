@@ -1551,9 +1551,10 @@ legend, and tilt the platter and back.
   only as FR-096 to FR-116 allow.
 - **FR-003**: The inspector MUST open DSK, DO, PO, NIB, NB2, WOZ 1, WOZ 2 and
   WOZ 2.1 images, with bit tracks, flux tracks or both. For a sector image it
-  MUST show the tracks Casso's drive plays, with a note that they are built
-  from sector data and so hold no timing or copy protection. For NIB and NB2
-  it MUST show a note that the format stores no timing bits between nibbles.
+  MUST show the tracks Casso's drive plays, with a note naming the file's
+  format (.dsk, .do or .po) and that Casso builds the tracks from its sector
+  data, so they have no timing or copy protection. For NIB and NB2 it MUST
+  show a note that a nibble image has no timing bits between nibbles.
   The track lengths of sector, NIB and NB2 images come from the format, so
   those tracks get these notes and no track-length finding.
 - **FR-004**: The inspector MUST cover all 160 quarter tracks, 0 to 39.75, and

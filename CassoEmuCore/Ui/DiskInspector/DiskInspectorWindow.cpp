@@ -69,7 +69,8 @@ static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr double   s_kMapGridShare   = 0.62;
 static constexpr int      s_kMapCheckDip    = 190;
-static constexpr int      s_kMapButtonDip   = 170;
+static constexpr int      s_kMapButtonDip   = 30;
+static constexpr int      s_kMapStepLabelDip = 200;
 static constexpr int      s_kMapVolumeDip   = 150;
 static constexpr int      s_kFitDip         = 48;
 static constexpr int      s_kMinPlatterColumnDip = 420;
@@ -384,8 +385,9 @@ void DiskInspectorWindow::OnCreate()
     m_mapVolumes  = CreateChild<DxuiTabStrip>();
     m_mapDeleted  = CreateChild<DxuiCheckbox> (L"Show deleted files");
     m_mapBadOnly  = CreateChild<DxuiCheckbox> (L"Files touching bad sectors");
-    m_mapPrev     = CreateChild<DxuiButton> (L"Previous sector in file");
-    m_mapNext     = CreateChild<DxuiButton> (L"Next sector in file");
+    m_mapPrev     = CreateChild<DxuiButton> (L"<");
+    m_mapNext     = CreateChild<DxuiButton> (L">");
+    m_mapStepLabel = CreateChild<DxuiLabel> (L"Previous/next sector in file", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
 
@@ -2443,7 +2445,9 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_zoomIn,          L"Zoom the platter in (plus)",                                      nullptr },
         { m_fit,             L"Show the whole disk (0)",                                         L"The whole disk is already shown" },
         { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
-        { m_filesCheck,      L"Color each sector's data field by what the file map says it holds", nullptr },
+        { m_filesCheck,      L"Color each sector's data field by its role in the file map",     nullptr },
+        { m_mapPrev,         L"Select the previous sector in the selected file",                 nullptr },
+        { m_mapNext,         L"Select the next sector in the selected file",                     nullptr },
         { m_stripOut,        L"Zoom the strip out",                                              L"The strip already shows the whole track" },
         { m_stripIn,         L"Zoom the strip in",                                               nullptr },
         { m_stripWhole,      L"Show the whole track in the strip",                               L"The strip already shows the whole track" },
@@ -2696,6 +2700,7 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
     int                        check   = scaler.ToPx (s_kMapCheckDip);
     int                        button  = scaler.ToPx (s_kMapButtonDip);
     int                        volume  = scaler.ToPx (s_kMapVolumeDip);
+    int                        label   = scaler.ToPx (s_kMapStepLabelDip);
     int                        y       = area.top;
     int                        gridH   = 0;
     bool                       isList  = map != nullptr && map->notMapped == NotMappedReason::None;
@@ -2705,22 +2710,25 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
 
     m_mapDeleted->Layout ({ area.left,         y, area.left + check,     y + row }, scaler);
     m_mapBadOnly->Layout ({ area.left + check, y, area.left + 2 * check, y + row }, scaler);
-    m_mapCopy->Layout    ({ area.right - scaler.ToPx (s_kExportButtonDip), y, area.right, y + row }, scaler);
     y += row + margin / 2;
 
-    m_mapPrev->Layout ({ area.left,          y, area.left + button,     y + row }, scaler);
-    m_mapNext->Layout ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
+    //  The step buttons and their label, the volume tabs, and "Copy map" at
+    //  the right, on one row.
+    m_mapPrev->Layout      ({ area.left,          y, area.left + button,     y + row }, scaler);
+    m_mapNext->Layout      ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
+    m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
+    m_mapCopy->Layout      ({ area.right - scaler.ToPx (s_kExportButtonDip), y, area.right, y + row }, scaler);
 
     for (size_t v = 0; v < m_analysis.fileMaps.size() && m_analysis.fileMaps.size() > 1; v++)
     {
-        int  left = area.left + 2 * button + margin + static_cast<int> (v) * volume;
+        int  left = area.left + 2 * button + 2 * margin + label + static_cast<int> (v) * volume;
 
         tabs.push_back ({ { left, y, left + volume, y + row }, FileMapText::FormatVolume (m_analysis.fileMaps[v]) });
     }
 
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_mapIndex);
-    m_mapVolumes->Layout      ({ area.left + 2 * button + margin, y, area.right, y + row }, scaler);
+    m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label, y, area.right - scaler.ToPx (s_kExportButtonDip) - margin, y + row }, scaler);
     y += row + margin / 2;
 
     gridH = isList ? std::min (m_mapGrid->GetHeightFor (area.right - area.left), static_cast<int> ((area.bottom - y) * s_kMapGridShare)) : area.bottom - y;
@@ -2751,6 +2759,7 @@ void DiskInspectorWindow::ShowFileMap (bool isShown)
     m_mapBadOnly->SetVisible (isList);
     m_mapPrev->SetVisible    (isList);
     m_mapNext->SetVisible    (isList);
+    m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
     m_mapVolumes->SetVisible (isShown && m_analysis.fileMaps.size() > 1);
 }

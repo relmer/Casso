@@ -310,6 +310,7 @@ private:
     DxuiButton                            * m_mapPrev            = nullptr;
     DxuiButton                            * m_mapNext            = nullptr;
     DxuiButton                            * m_mapCopy            = nullptr;
+    DxuiLabel                             * m_mapStepLabel       = nullptr;
     int                                     m_mapIndex           = 0;
     int                                     m_mapFile            = -1;
     int                                     m_fileSortColumn     = -1;

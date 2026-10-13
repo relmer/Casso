@@ -158,7 +158,9 @@ float TrackHeaderView::PaintPill (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  TrackHeaderView::GetFormatNote
 //
-//  What a sector or nibble image cannot hold (FR-003).
+//  What a sector or nibble image has no room for, with the image's format
+//  (FR-003): a sector image has only the sectors' 256 bytes each, from which
+//  Casso builds every track.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,13 +173,19 @@ std::wstring TrackHeaderView::GetFormatNote (DiskFormat format)
     switch (format)
     {
         case DiskFormat::Dsk:
+            note = L"Built from the .dsk file's sectors: no timing or copy protection";
+            break;
+
         case DiskFormat::Do:
+            note = L"Built from the .do file's sectors: no timing or copy protection";
+            break;
+
         case DiskFormat::Po:
-            note = L"Built from sector data, so it holds no timing or copy protection";
+            note = L"Built from the .po file's sectors: no timing or copy protection";
             break;
 
         case DiskFormat::Nib:
-            note = L"A nibble image stores no timing bits between nibbles";
+            note = L"From a nibble image: no timing bits between nibbles";
             break;
 
         default:
