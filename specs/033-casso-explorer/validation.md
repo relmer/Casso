@@ -150,6 +150,7 @@ hi-res picture.
 | SC-021: redraw on a monitor switch | 36 to 41 ms from the command to the redrawn picture, over six switches through all four monitors; the picture is decoded again, drawn through the CRT pass and read back in that time |
 | SC-021: the choice after a restart | Amber chosen from the Monitor drop-down, and a brightness of 198% set on the Display page, were both in effect after Casso Explorer was closed and started again |
 | SC-021: Cancel | A brightness change on the Display page brightened the preview at once (mean level 68 to 146), and Cancel put it back to 68 |
+| FR-067: the custom monitor | Custom monochrome from the Display page drew the picture in the default light blue; the color picker opened from the swatch, a hue of 32 degrees redrew the preview in orange while the picker was open, and after OK and a restart the preview was orange and the prefs file had `custom` and `FFB866` |
 | SC-020 | Not run yet: the check compares the same picture on Casso's own screen, at the same size |
 
 ## 8. Headless tests

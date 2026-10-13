@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/CrtTypes.h"
+#include "Ui/Settings/ColorPickerOverlay.h"
 #include "Ui/ThemeLoader.h"
 
 
@@ -49,7 +51,8 @@ private:
 //
 //  CassoExplorer's settings: the form a copy out of an image takes on the
 //  host, Casso's file types, and, on Casso's own Display page, the monitor
-//  and effects picture previews are drawn with. A Display change is drawn in
+//  and effects picture previews are drawn with, and the custom monitor's
+//  color, picked with Casso's color picker. A Display change is drawn in
 //  the preview as it is made; OK saves every choice, and Cancel, Escape and
 //  the close box put them all back.
 //
@@ -66,9 +69,11 @@ public:
         //  Whether Casso is the program for its disk image types.
         bool  registered = false;
 
-        //  The preview's monitor, as an index in Casso's order, and the
-        //  effects changed on each monitor, by its name.
-        int                                  monitor = 1;
+        //  The preview's monitor, as a PicturePreview::Monitor, the custom
+        //  monitor's color, and the effects changed on each monitor, by its
+        //  name in CassoExplorerPrefs::kMonitorNames.
+        int                                  monitor    = 1;
+        uint32_t                             customArgb = PicturePreview::kDefaultCustomArgb;
         std::map<std::string, CrtOverrides>  crtOverrides;
     };
 
@@ -83,8 +88,6 @@ public:
     //  The host file name forms, in the order the setting stores them.
     static std::vector<std::wstring>  GetNamingLabels ();
 
-    //  Each monitor's name as Casso writes it, in Casso's order.
-    static constexpr const char *  kMonitorNames[] = { "color", "green", "amber", "white" };
 
     //  Runs the dialog modally over `owner`. False when it was canceled or
     //  could not open; `inOutChoices` changes only on OK.
@@ -95,11 +98,22 @@ protected:
     HRESULT  OnOk         () override;
     void     OnCancel     () override;
 
+    //  The color picker, modal over the sheet while it is open.
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    bool     HasModalOverlay   () const override;
+    void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnOverlayMouse    (const DxuiMouseEvent & ev) override;
+    bool     OnOverlayChar     (wchar_t ch) override;
+    bool     OnOverlayKey      (WPARAM vk) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
 private:
-    CrtOverrides &  GetOverrides   ();
-    void            SeedDisplay    ();
-    void            WireDisplay    ();
-    void            PreviewChoices ();
+    CrtOverrides &  GetOverrides    ();
+    void            SeedDisplay     ();
+    void            WireDisplay     ();
+    void            WireColorPicker ();
+    void            SetCustomColor  (uint32_t argb);
+    void            PreviewChoices  ();
 
     const IDxuiTheme          * m_theme       = nullptr;
     DisplayHost                 m_display;
@@ -109,6 +123,7 @@ private:
     DxuiLabel                   m_namingLabel;
     DxuiComboBox                m_naming;
     DxuiCheckbox                m_register;
+    ColorPickerOverlay          m_colorPicker;
     CassoExplorerGeneralPage  * m_general     = nullptr;
     DisplayPage               * m_displayPage = nullptr;
 };

@@ -453,7 +453,7 @@ void CassoExplorerWindow::OnCreate()
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
     m_browser.SetShellVerbs (&m_shellVerbs);
-    m_browser.SetPreviewMonitor (GetPreviewMonitor());
+    m_browser.SetPreviewMonitor (GetPreviewMonitor(), m_prefs.previewCustomArgb);
     m_explorerOptions = FolderOptions::ReadFromShell();
     m_browser.SetFolderOptions (m_explorerOptions);
     ApplyNavPaneOptions();
@@ -1836,7 +1836,7 @@ PicturePreview::Monitor CassoExplorerWindow::GetPreviewMonitor() const
 {
     for (int index = 0; index < PicturePreview::kMonitorCount; index++)
     {
-        if (m_prefs.previewMonitor == s_kpszMonitorNames[index])
+        if (m_prefs.previewMonitor == CassoExplorerPrefs::kMonitorNames[index])
         {
             return (PicturePreview::Monitor) index;
         }
@@ -1922,8 +1922,8 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
         return;
     }
 
-    found              = m_prefs.crtOverrides.find (s_kpszMonitorNames[(int) GetPreviewMonitor()]);
-    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) GetPreviewMonitor()), GetPreviewCrtDefaults(),
+    found              = m_prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) GetPreviewMonitor()]);
+    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (GetPreviewMonitor())), GetPreviewCrtDefaults(),
                                                (found != m_prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
@@ -3736,7 +3736,8 @@ bool CassoExplorerWindow::IsChecked (int id) const
         case CassoExplorerCommands::kMonitorColor:
         case CassoExplorerCommands::kMonitorGreen:
         case CassoExplorerCommands::kMonitorAmber:
-        case CassoExplorerCommands::kMonitorWhite:       return (int) GetPreviewMonitor() == id - CassoExplorerCommands::kMonitorColor;
+        case CassoExplorerCommands::kMonitorWhite:
+        case CassoExplorerCommands::kMonitorCustom:      return (int) GetPreviewMonitor() == id - CassoExplorerCommands::kMonitorColor;
         case CassoExplorerCommands::kNoData:            return !m_hexView->IsShowingValues();
         case CassoExplorerCommands::kGroup1:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 1;
         case CassoExplorerCommands::kGroup2:            return m_hexView->IsShowingValues() && m_prefs.hexGrouping == 2;
@@ -4897,6 +4898,7 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kMonitorGreen:       SelectMonitor (PicturePreview::Monitor::Green);        break;
         case CassoExplorerCommands::kMonitorAmber:       SelectMonitor (PicturePreview::Monitor::Amber);        break;
         case CassoExplorerCommands::kMonitorWhite:       SelectMonitor (PicturePreview::Monitor::White);        break;
+        case CassoExplorerCommands::kMonitorCustom:      SelectMonitor (PicturePreview::Monitor::Custom);       break;
 
         case CassoExplorerCommands::kGoToOffset:
             if (IsHexPreviewShowing())
@@ -7332,7 +7334,7 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
 
-    for (int id = CassoExplorerCommands::kMonitorColor; id <= CassoExplorerCommands::kMonitorWhite; id++)
+    for (int id = CassoExplorerCommands::kMonitorColor; id <= CassoExplorerCommands::kMonitorCustom; id++)
     {
         monitorItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
     }
@@ -7421,6 +7423,7 @@ void CassoExplorerWindow::ShowOptions()
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
     choices.monitor      = (int) GetPreviewMonitor();
+    choices.customArgb   = m_prefs.previewCustomArgb;
     choices.crtOverrides = m_prefs.crtOverrides;
 
     //  The Display page's changes are drawn in the preview as they are made,
@@ -7428,7 +7431,8 @@ void CassoExplorerWindow::ShowOptions()
     display.themeDefaults = GetPreviewCrtDefaults();
     display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
     {
-        m_prefs.crtOverrides = shown.crtOverrides;
+        m_prefs.crtOverrides      = shown.crtOverrides;
+        m_prefs.previewCustomArgb = shown.customArgb;
         std::erase_if (m_prefs.crtOverrides, [] (const auto & entry) { return entry.second.IsEmpty(); });
         SelectMonitor ((PicturePreview::Monitor) shown.monitor);
         UpdateCrtPicture (true);
@@ -11673,15 +11677,16 @@ void CassoExplorerWindow::SelectTheme (const char * name)
 //
 //  CassoExplorerWindow::SelectMonitor
 //
-//  The picture preview drawn again on the monitor, which is saved for the
-//  next start, apart from Casso's own.
+//  The picture preview drawn again on the monitor, in the custom monitor's
+//  saved color for that one, which is saved for the next start, apart from
+//  Casso's own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::SelectMonitor (PicturePreview::Monitor monitor)
 {
-    m_prefs.previewMonitor = s_kpszMonitorNames[(int) monitor];
-    m_browser.SetPreviewMonitor (monitor);
+    m_prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
+    m_browser.SetPreviewMonitor (monitor, m_prefs.previewCustomArgb);
     FillPreview();
     Invalidate();
 }

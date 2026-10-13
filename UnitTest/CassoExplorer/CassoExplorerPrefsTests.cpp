@@ -130,6 +130,30 @@ public:
 
 
 
+    //  The custom monitor, its color and its effects come back as saved.
+    TEST_METHOD (RoundTrip_CustomMonitorAndColor)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        CrtOverrides        custom;
+
+        custom.bloomEnabled = true;
+
+        saved.previewMonitor         = "custom";
+        saved.previewCustomArgb      = 0xFF123456;
+        saved.crtOverrides["custom"] = custom;
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::AreEqual (std::string ("custom"), loaded.previewMonitor);
+        Assert::AreEqual (0xFF123456u, loaded.previewCustomArgb);
+        Assert::IsTrue   (loaded.crtOverrides["custom"] == custom);
+    }
+
+
+
     //  A folder keeps its sort and grouping with its view; a folder never
     //  given one opens by name, up, ungrouped, in its type's view.
     TEST_METHOD (FolderViews_KeepSortAndGroupPerFolder)

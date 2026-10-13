@@ -398,7 +398,8 @@ HRESULT PreviewDecoder::Render (
     bool                 disassemble,
     MemoryBus          & bus,
     PreviewContent     & outContent,
-    PicturePreview::Monitor  monitor)
+    PicturePreview::Monitor  monitor,
+    uint32_t                 customArgb)
 {
     HRESULT                   hr      = S_OK;
     PreviewContent::Kind      decided = Decide (entry, kind, payload.bytes.size(),
@@ -486,7 +487,7 @@ HRESULT PreviewDecoder::Render (
         case PreviewContent::Kind::Picture:
             mode = PicturePreview::Choose (payload.loadAddress, payload.bytes.size(), entry.name, payload.bytes);
             hr   = PicturePreview::Render (mode, payload.bytes, payload.loadAddress, bus,
-                                           outContent.bgra, outContent.width, outContent.height, monitor);
+                                           outContent.bgra, outContent.width, outContent.height, monitor, customArgb);
             CHR (hr);
 
             outContent.bytes         = payload.bytes;

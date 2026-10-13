@@ -204,6 +204,42 @@ public:
 
 
 
+    //  The custom monitor draws the bits in the color picked for it, each
+    //  pixel scaled by its brightness, and its effects start from white's.
+    TEST_METHOD (Picture_OnTheCustomMonitor_IsItsBitsInItsColor)
+    {
+        std::vector<Byte>      bytes (8192, 0);
+        std::vector<uint32_t>  white;
+        std::vector<uint32_t>  custom;
+        MemoryBus              bus;
+        int                    width   = 0;
+        int                    height  = 0;
+        bool                   matched = true;
+        bool                   lit     = false;
+
+        bytes[0] = 0x55;
+        bytes[1] = 0x2A;
+
+        AssertSucceeded (PicturePreview::Render (Mode::HiRes, bytes, 0x2000, bus, white,  width, height, PicturePreview::Monitor::White));
+        AssertSucceeded (PicturePreview::Render (Mode::HiRes, bytes, 0x2000, bus, custom, width, height, PicturePreview::Monitor::Custom, 0xFF8040FF));
+
+        for (size_t i = 0; i < white.size(); i++)
+        {
+            uint32_t  level = (white[i] >> 8) & 0xFF;
+
+            matched = matched && ((custom[i] >> 16) & 0xFF) == level * 0x80 / 0xFF
+                              && ((custom[i] >>  8) & 0xFF) == level * 0x40 / 0xFF
+                              && ( custom[i]        & 0xFF) == level;
+            lit     = lit || level != 0;
+        }
+
+        Assert::IsTrue (lit,     L"The bits are lit");
+        Assert::IsTrue (matched, L"each in the picked color, by the white monitor's brightness");
+        Assert::AreEqual ((size_t) PicturePreview::Monitor::White, PicturePreview::GetPresetIndex (PicturePreview::Monitor::Custom));
+    }
+
+
+
     TEST_METHOD (DoubleHiRes_NamedA2fm_IsMonochrome)
     {
         std::vector<Byte>      bytes (16384, 0);

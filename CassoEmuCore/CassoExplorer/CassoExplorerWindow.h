@@ -593,7 +593,6 @@ private:
     void                      PreviewMonitor        (int index);
     void                      ShowPictureContextMenu (int x, int y);
 
-    static constexpr const char *  s_kpszMonitorNames[] = { "color", "green", "amber", "white" };
     void  RefreshContentDetails  ();
     void  RefreshListIcons    ();
     const std::vector<DxuiListView::Cell> &  GetListRowCells (int row);

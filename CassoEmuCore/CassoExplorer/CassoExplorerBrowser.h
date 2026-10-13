@@ -199,9 +199,9 @@ public:
     const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }
     const PreviewContent &           GetPreview    () const { return m_preview;   }
 
-    //  The monitor a picture preview is drawn for; a change draws the current
-    //  picture again.
-    void                     SetPreviewMonitor (PicturePreview::Monitor monitor);
+    //  The monitor a picture preview is drawn for, with the custom monitor's
+    //  color; a change draws the current picture again.
+    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
     PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
 
     //  A double hi-res picture drawn in color or as its bits, whichever the
@@ -406,6 +406,7 @@ private:
     TypedPathHistory                    m_typedPaths;
     MemoryBus                           m_bus;
     PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
+    uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
     std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped

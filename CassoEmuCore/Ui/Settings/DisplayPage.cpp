@@ -267,7 +267,8 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_monitorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_monitorLabel.SetText (L"Picture:");
     m_monitor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_monitor.SetItems ({ L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
+    m_monitor.SetItems (m_customMonitor ? std::vector<std::wstring> { L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome", L"Custom monochrome" }
+                                        : std::vector<std::wstring> { L"Color", L"Green monochrome", L"Amber monochrome", L"White monochrome" });
     m_monitorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
 
     {
@@ -282,16 +283,18 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     // Text color (Color monitor only): a dropdown plus a swatch showing
     // the resolved color. Disabled for the monochrome monitors, whose
-    // text color is fixed by the phosphor.
+    // text color is fixed by the phosphor. With a custom monitor, the row
+    // is the custom monitor's color: its swatch alone, where the dropdown
+    // would start.
     m_textColorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_textColorLabel.SetText (L"Text color:");
-    m_textColor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_textColorLabel.SetText (m_customMonitor ? L"Custom color:" : L"Text color:");
+    m_textColor.SetRect  (m_customMonitor ? RECT {} : MakeRect (controlsX, y, dropWidth, rowHeight));
     m_textColor.SetItems ({ L"White", L"Green", L"Amber", L"Custom" });
     m_textColorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
 
     {
         int  swatchSize = rowHeight - scaler.ToPx (8);
-        int  swatchX    = controlsX + dropWidth + scaler.ToPx (12);
+        int  swatchX    = m_customMonitor ? controlsX : controlsX + dropWidth + scaler.ToPx (12);
         int  swatchY    = y + (rowHeight - swatchSize) / 2;
 
         m_textColorSwatchRect = MakeRect (swatchX, swatchY, swatchSize, swatchSize);
@@ -499,19 +502,30 @@ void DisplayPage::Rebuild()
     m_monitor.SetSelected ((state != nullptr) ? (int) state->GetPrefs().colorMode : m_monitorIndex);
     m_monitor.SetSelect ([this, state] (int idx)
     {
+        //  A host may rebuild the page from its handler, which replaces this
+        //  closure while it runs, so nothing captured is read after that.
+        DisplayPage *  page = this;
+
+
+
         if (state != nullptr)
         {
             state->SetColorMode ((SettingsColorMode) idx);
         }
 
-        m_monitorIndex = idx;
+        page->m_monitorIndex = idx;
 
-        if (m_onMonitor)
+        if (page->m_onMonitor)
         {
-            m_onMonitor (idx);
+            page->m_onMonitor (idx);
         }
 
-        RefreshTextColorEnabled();
+        if (page->m_customMonitor && idx == kCustomMonitorIndex && page->m_onCustomColor)
+        {
+            page->m_onCustomColor();
+        }
+
+        page->RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
     // the same live channel so the user sees the color treatment as
@@ -746,7 +760,7 @@ bool DisplayPage::IsTextColorActive() const
 
 void DisplayPage::RefreshTextColorEnabled()
 {
-    m_textColor.SetEnabled (IsTextColorActive());
+    m_textColor.SetEnabled (!m_customMonitor && IsTextColorActive());
 }
 
 
@@ -759,23 +773,36 @@ void DisplayPage::RefreshTextColorEnabled()
 //
 //  Adds a swatch hit-test on top of the panel's child fan-out: clicking
 //  the Text-color swatch while Custom is active re-opens the picker via
-//  the commit callback.
+//  the commit callback. With a custom monitor, a click on its swatch while
+//  it is chosen calls the custom color handler.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = false;
-    int   x       = ev.positionDip.x;
-    int   y       = ev.positionDip.y;
+    bool  handled  = false;
+    int   x        = ev.positionDip.x;
+    int   y        = ev.positionDip.y;
+    bool  onSwatch = x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
+                     y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom;
 
 
+
+    if (ev.kind == DxuiMouseEventKind::Down && onSwatch && m_customMonitor && m_monitorIndex == kCustomMonitorIndex)
+    {
+        if (m_onCustomColor)
+        {
+            m_onCustomColor();
+        }
+
+        handled = true;
+    }
 
     if (ev.kind == DxuiMouseEventKind::Down &&
+        !m_customMonitor &&
         IsTextColorActive() &&
         m_textColorMode == ColorMonitorTextMode::Custom &&
-        x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
-        y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom)
+        onSwatch)
     {
         if (m_onTextColorCommit)
         {
@@ -924,9 +951,17 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     SetAlphaForRow (-1, m_textColorRowRect);
     m_textColorLabel.Paint  (painter, text, theme);
     m_textColor.SetTheme    (&theme);
-    m_textColor.PaintBase   (painter, text);
+
+    if (!m_customMonitor)
     {
-        uint32_t  swatchArgb = ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb);
+        m_textColor.PaintBase (painter, text);
+    }
+
+    {
+        // A custom monitor's swatch is faint while another monitor is chosen.
+        uint32_t  swatchArgb = !m_customMonitor                         ? ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb)
+                             : (m_monitorIndex == kCustomMonitorIndex)  ? m_customArgb
+                                                                        : (m_customArgb & 0x00FFFFFFu) | 0x50000000u;
         float     sl         = (float) m_textColorSwatchRect.left;
         float     st         = (float) m_textColorSwatchRect.top;
         float     sw         = (float) (m_textColorSwatchRect.right  - m_textColorSwatchRect.left);

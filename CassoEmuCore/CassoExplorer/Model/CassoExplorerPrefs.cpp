@@ -98,6 +98,21 @@ bool CassoExplorerPrefs::IsKnownHexGrouping (int grouping)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerPrefs::IsMonitorName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerPrefs::IsMonitorName (const std::string & name)
+{
+    return std::ranges::find (kMonitorNames, name) != std::end (kMonitorNames);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerPrefs::MapCassoTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -348,6 +363,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("previewZoom",    JsonValue ((double) previewZoom));
     root.emplace_back ("previewMonitor", JsonValue (previewMonitor));
+    root.emplace_back ("previewCustomColor", JsonValue ((double) (previewCustomArgb & 0x00FFFFFFu)));
 
     for (const auto & [monitor, overrides] : crtOverrides)
     {
@@ -457,6 +473,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     int                columns      = 0;
     int                zoom         = kDefaultPreviewZoom;
     int                view         = 0;
+    int                color        = 0;
 
 
 
@@ -490,9 +507,14 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         hexColumns = columns;
     }
 
-    if (root.HasString ("previewMonitor", text) && (text.empty() || text == "color" || text == "green" || text == "amber" || text == "white"))
+    if (root.HasString ("previewMonitor", text) && (text.empty() || IsMonitorName (text)))
     {
         previewMonitor = text;
+    }
+
+    if (root.HasInt ("previewCustomColor", color))
+    {
+        previewCustomArgb = 0xFF000000u | ((uint32_t) color & 0x00FFFFFFu);
     }
 
     if (root.HasObject ("crtOverrides", overridesObj))
@@ -501,7 +523,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         {
             CrtOverrides  parsed;
 
-            if (value.GetType() == JsonType::Object && (monitor == "color" || monitor == "green" || monitor == "amber" || monitor == "white"))
+            if (value.GetType() == JsonType::Object && IsMonitorName (monitor))
             {
                 GlobalUserPrefs::CrtOverridesFromJson (value, parsed);
             }

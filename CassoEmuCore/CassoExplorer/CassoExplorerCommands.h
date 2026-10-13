@@ -111,12 +111,13 @@ public:
         kShareItems,
 
         //  The command bar's monitor for picture previews, beside Theme, and
-        //  its four monitors in Casso's order.
+        //  its monitors: Casso's, in Casso's order, then the custom one.
         kMonitor,
         kMonitorColor,
         kMonitorGreen,
         kMonitorAmber,
         kMonitorWhite,
+        kMonitorCustom,
 
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
@@ -290,6 +291,7 @@ private:
         { kMonitorGreen,      Menu::Count, L"Green",               nullptr,     true  },
         { kMonitorAmber,      Menu::Count, L"Amber",               nullptr,     true  },
         { kMonitorWhite,      Menu::Count, L"White",               nullptr,     true  },
+        { kMonitorCustom,     Menu::Count, L"Custom",              nullptr,     true  },
         { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
         { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
         { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },

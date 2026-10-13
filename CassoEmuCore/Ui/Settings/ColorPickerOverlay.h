@@ -33,6 +33,9 @@ public:
     void      SetOnChange (ChangeFn fn)     { m_onChange = std::move (fn); }
     void      SetOnClose  (CloseFn fn)      { m_onClose  = std::move (fn); }
 
+    // The dialog's heading, Casso's text color's unless a host sets another.
+    void      SetTitle    (std::wstring title) { m_titleText = std::move (title); }
+
     void      Open        (uint32_t initialArgb);
     void      Close()                 { m_open = false; }
     bool      IsOpen() const          { return m_open; }
@@ -96,4 +99,5 @@ private:
     bool                 m_open             = false;
     bool                 m_syncing          = false;
     bool                 m_hexReplaceOnChar = false;
+    std::wstring         m_titleText        = L"Custom text color";
 };

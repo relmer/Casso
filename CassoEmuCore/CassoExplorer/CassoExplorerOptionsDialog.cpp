@@ -123,11 +123,13 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_general->Init (m_namingLabel, m_naming, m_register);
 
     m_displayPage = CreatePage<DisplayPage> (L"Display");
-    m_displayPage->SetPopupHost (GetPopupHost());
+    m_displayPage->SetPopupHost     (GetPopupHost());
+    m_displayPage->SetCustomMonitor (m_choices.customArgb);
 
     //  Seeded once the pages are laid out: the page sets its lists and its
     //  sliders' ranges as it lays itself out.
     WireDisplay();
+    WireColorPicker();
 }
 
 
@@ -144,7 +146,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
 CrtOverrides & CassoExplorerOptionsDialog::GetOverrides()
 {
-    return m_choices.crtOverrides[kMonitorNames[m_choices.monitor]];
+    return m_choices.crtOverrides[CassoExplorerPrefs::kMonitorNames[m_choices.monitor]];
 }
 
 
@@ -162,8 +164,8 @@ CrtOverrides & CassoExplorerOptionsDialog::GetOverrides()
 
 void CassoExplorerOptionsDialog::SeedDisplay()
 {
-    auto                        found    = m_choices.crtOverrides.find (kMonitorNames[m_choices.monitor]);
-    CrtResolved                 resolved = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) m_choices.monitor), m_display.themeDefaults,
+    auto                        found    = m_choices.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[m_choices.monitor]);
+    CrtResolved                 resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex ((PicturePreview::Monitor) m_choices.monitor)), m_display.themeDefaults,
                                                                  (found != m_choices.crtOverrides.end()) ? found->second : CrtOverrides());
     GlobalUserPrefsCrtSnapshot  snap;
     DisplayDefaultsHint         hint;
@@ -208,7 +210,7 @@ void CassoExplorerOptionsDialog::WireDisplay()
 {
     m_displayPage->SetOnMonitorChange ([this] (int index)
     {
-        if (index >= 0 && index < (int) std::size (kMonitorNames) && index != m_choices.monitor)
+        if (index >= 0 && index < (int) std::size (CassoExplorerPrefs::kMonitorNames) && index != m_choices.monitor)
         {
             m_choices.monitor = index;
             SeedDisplay();
@@ -230,10 +232,58 @@ void CassoExplorerOptionsDialog::WireDisplay()
 
     m_displayPage->SetOnRestoreDefaults ([this]()
     {
-        m_choices.crtOverrides.erase (kMonitorNames[m_choices.monitor]);
+        m_choices.crtOverrides.erase (CassoExplorerPrefs::kMonitorNames[m_choices.monitor]);
         SeedDisplay();
         PreviewChoices();
     });
+
+    m_displayPage->SetOnCustomColor ([this]()
+    {
+        m_colorPicker.SetHwnd (GetHwnd());
+        m_colorPicker.Open    (m_choices.customArgb);
+        Invalidate();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::WireColorPicker
+//
+//  Each color is drawn in the preview as it is picked, as Casso draws its
+//  text color; the picker's Cancel returns the color it opened with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::WireColorPicker()
+{
+    m_colorPicker.SetTitle    (L"Custom monitor color");
+    m_colorPicker.SetOnChange ([this] (uint32_t argb) { SetCustomColor (argb); });
+    m_colorPicker.SetOnClose  ([this] (bool, uint32_t argb)
+    {
+        SetCustomColor (argb);
+        Invalidate();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::SetCustomColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::SetCustomColor (uint32_t argb)
+{
+    m_choices.customArgb = argb;
+    m_displayPage->SetCustomMonitor (argb);
+    PreviewChoices();
 }
 
 
@@ -293,6 +343,157 @@ void CassoExplorerOptionsDialog::OnCancel()
     }
 
     DxuiPropertySheet::OnCancel();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
+{
+    DxuiPropertySheet::Layout (boundsPx, scaler);
+    m_colorPicker.Layout (boundsPx, scaler);
+
+    //  The hex field places a clicked caret, and extends a drag, through it.
+    m_colorPicker.SetTextRenderer (GetTextRenderer());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::HasModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerOptionsDialog::HasModalOverlay() const
+{
+    return m_colorPicker.IsOpen();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::PaintModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.Paint (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::OnOverlayMouse
+//
+//  Every mouse event goes to an open picker, the kinds the picker does not
+//  handle included, and none goes to the page behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerOptionsDialog::OnOverlayMouse (const DxuiMouseEvent & ev)
+{
+    bool  isOpen = m_colorPicker.IsOpen();
+
+
+
+    if (isOpen)
+    {
+        switch (ev.kind)
+        {
+            case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+            case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+            case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
+                                            m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+            default:                        break;
+        }
+
+        Invalidate();
+    }
+
+    return isOpen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::OnOverlayChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerOptionsDialog::OnOverlayChar (wchar_t ch)
+{
+    bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnChar (ch);
+
+
+
+    if (handled)
+    {
+        Invalidate();
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::OnOverlayKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerOptionsDialog::OnOverlayKey (WPARAM vk)
+{
+    bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
+
+
+
+    if (handled)
+    {
+        Invalidate();
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR CassoExplorerOptionsDialog::GetCursorForPoint (POINT clientPx) const
+{
+    return m_colorPicker.IsOpen() ? m_colorPicker.GetCursorForPoint (clientPx) : DxuiPropertySheet::GetCursorForPoint (clientPx);
 }
 
 

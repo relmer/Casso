@@ -38,10 +38,18 @@ public:
     enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, LoRes };
 
     //  The monitor a picture is drawn for, in the order of Casso's own
-    //  monitor list. A monochrome one draws hi-res and double hi-res as
-    //  their bits, as Casso does, then tints the whole picture its color.
-    enum class Monitor { Color, Green, Amber, White };
-    static constexpr int  kMonitorCount = 4;
+    //  monitor list, then a custom one in a color the user picks. A
+    //  monochrome one draws hi-res and double hi-res as their bits, as Casso
+    //  does, then tints the whole picture its color.
+    enum class Monitor { Color, Green, Amber, White, Custom };
+    static constexpr int  kMonitorCount = 5;
+
+    //  The custom monitor's color until the user picks one.
+    static constexpr uint32_t  kDefaultCustomArgb = 0xFF66CCFF;
+
+    //  The Casso monitor whose effects a monitor starts from: the custom one
+    //  starts from white's, the neutral phosphor.
+    static constexpr size_t  GetPresetIndex (Monitor monitor) { return (size_t) ((monitor == Monitor::Custom) ? Monitor::White : monitor); }
 
     static Mode  Choose (Word address, size_t length, std::string_view name = {}, std::span<const Byte> bytes = {});
 
@@ -60,11 +68,12 @@ public:
                             std::vector<uint32_t>  & outBgra,
                             int                    & outWidth,
                             int                    & outHeight,
-                            Monitor                  monitor = Monitor::Color);
+                            Monitor                  monitor    = Monitor::Color,
+                            uint32_t                 customArgb = kDefaultCustomArgb);
 
     //  Each pixel in the monochrome monitor's color by its brightness; the
-    //  color monitor makes no change.
-    static void  Tint (std::vector<uint32_t> & bgra, Monitor monitor);
+    //  color monitor makes no change. `customArgb` is the custom monitor's.
+    static void  Tint (std::vector<uint32_t> & bgra, Monitor monitor, uint32_t customArgb = kDefaultCustomArgb);
 
     static constexpr int  kWidth  = 560;
     static constexpr int  kHeight = 384;

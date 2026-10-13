@@ -1580,23 +1580,24 @@ bool CassoExplorerBrowser::IsUtf8 (std::span<const Byte> sample)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerBrowser::SetPreviewMonitor (PicturePreview::Monitor monitor)
+void CassoExplorerBrowser::SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb)
 {
     HRESULT  hr = S_OK;
 
 
 
-    if (monitor == m_previewMonitor)
+    if (monitor == m_previewMonitor && customArgb == m_customArgb)
     {
         return;
     }
 
     m_previewMonitor = monitor;
+    m_customArgb     = customArgb;
 
     if (m_preview.kind == PreviewContent::Kind::Picture && m_preview.pictureMode != PicturePreview::Mode::None)
     {
         hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                     m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor);
+                                     m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor, m_customArgb);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -1644,7 +1645,7 @@ bool CassoExplorerBrowser::TogglePictureColor()
                                                                                          : PicturePreview::Mode::DoubleHiRes;
 
     hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                 m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor);
+                                 m_preview.bgra, m_preview.width, m_preview.height, m_previewMonitor, m_customArgb);
 
     return SUCCEEDED (hr);
 }
@@ -1737,7 +1738,7 @@ void CassoExplorerBrowser::PreviewEntry (const std::wstring & imagePath, const s
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview, m_previewMonitor);
+    hr = PreviewDecoder::Render (entry, kind, payload, disassemble, m_bus, m_preview, m_previewMonitor, m_customArgb);
 
     if (FAILED (hr) && m_preview.message.empty())
     {

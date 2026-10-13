@@ -41,7 +41,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         command->radio       = (row.id >= kSortByColumn) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
-                            || (row.id >= kMonitorColor && row.id <= kMonitorWhite);
+                            || (row.id >= kMonitorColor && row.id <= kMonitorCustom);
 
         command->dispatch = [this, id]()
         {

@@ -76,7 +76,8 @@ HRESULT PicturePreview::Render (
     std::vector<uint32_t>  & outBgra,
     int                    & outWidth,
     int                    & outHeight,
-    Monitor                  monitor)
+    Monitor                  monitor,
+    uint32_t                 customArgb)
 {
     HRESULT            hr     = S_OK;
     bool               fits   = (size_t) address + bytes.size() <= kAddressSpace;
@@ -97,7 +98,7 @@ HRESULT PicturePreview::Render (
     if (mode == Mode::DoubleHiResMono)
     {
         RenderMonochrome (bytes, address, outBgra);
-        Tint (outBgra, monitor);
+        Tint (outBgra, monitor, customArgb);
         return S_OK;
     }
 
@@ -151,7 +152,7 @@ HRESULT PicturePreview::Render (
             break;
     }
 
-    Tint (outBgra, monitor);
+    Tint (outBgra, monitor, customArgb);
 
 Error:
     return hr;
@@ -165,12 +166,20 @@ Error:
 //
 //  PicturePreview::Tint
 //
-//  Casso's own tints, as its screen applies them after drawing a frame.
+//  Casso's own tints, as its screen applies them after drawing a frame. The
+//  custom monitor scales its color by each pixel's brightness, as amber's
+//  tint scales its phosphor's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PicturePreview::Tint (std::vector<uint32_t> & bgra, Monitor monitor)
+void PicturePreview::Tint (std::vector<uint32_t> & bgra, Monitor monitor, uint32_t customArgb)
 {
+    float  red   = (float) ((customArgb >> 16) & 0xFF) / 255.0f;
+    float  green = (float) ((customArgb >>  8) & 0xFF) / 255.0f;
+    float  blue  = (float) ( customArgb        & 0xFF) / 255.0f;
+
+
+
     for (uint32_t & pixel : bgra)
     {
         switch (monitor)
@@ -178,6 +187,15 @@ void PicturePreview::Tint (std::vector<uint32_t> & bgra, Monitor monitor)
             case Monitor::Green:  pixel = Casso::Video::TintGreenMono (pixel); break;
             case Monitor::Amber:  pixel = Casso::Video::TintAmberMono (pixel); break;
             case Monitor::White:  pixel = Casso::Video::TintWhiteMono (pixel); break;
+
+            case Monitor::Custom:
+            {
+                uint8_t  level = Casso::Video::ComputeLuminance (pixel);
+
+                pixel = Casso::Video::MakePixel ((uint8_t) (level * red), (uint8_t) (level * green), (uint8_t) (level * blue));
+                break;
+            }
+
             default:              break;
         }
     }

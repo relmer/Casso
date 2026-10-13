@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 #include "Config/CrtTypes.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
@@ -75,13 +76,17 @@ struct CassoExplorerPrefs
     int                    previewZoom     = kDefaultPreviewZoom;
 
     //  The monitor pictures are previewed on: "color", "green", "amber" or
-    //  "white", as Casso writes them, or empty for the theme's default. Casso
-    //  Explorer's own, apart from Casso's.
+    //  "white", as Casso writes them, "custom", or empty for the theme's
+    //  default. Casso Explorer's own, apart from Casso's.
     std::string            previewMonitor;
 
+    //  The custom monitor's phosphor color, as 0xAARRGGBB with the alpha
+    //  opaque; saved as its RGB, as Casso saves its custom text color.
+    uint32_t               previewCustomArgb = PicturePreview::kDefaultCustomArgb;
+
     //  The picture preview's CRT effects the user has changed, by monitor
-    //  ("color", "green", "amber", "white"), each change on top of the
-    //  monitor's own values and the theme's. Casso Explorer's own, apart
+    //  ("color", "green", "amber", "white", "custom"), each change on top of
+    //  the monitor's own values and the theme's. Casso Explorer's own, apart
     //  from Casso's.
     std::map<std::string, CrtOverrides>  crtOverrides;
 
@@ -129,6 +134,12 @@ struct CassoExplorerPrefs
     //  1, 2, 4 and 8 are the groupings a hex view offers; anything else in
     //  the file is a hand edit and falls back to the default.
     static bool  IsKnownHexGrouping (int grouping);
+
+    //  Each monitor's name as it is saved, in PicturePreview::Monitor's order:
+    //  Casso's own, then the custom monitor's.
+    static constexpr const char *  kMonitorNames[] = { "color", "green", "amber", "white", "custom" };
+
+    static bool  IsMonitorName (const std::string & name);
 
     static constexpr const char *  kHexFormatHex       = "Hexadecimal";
     static constexpr const char *  kHexFormatSigned    = "Signed";

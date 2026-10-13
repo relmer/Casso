@@ -135,7 +135,8 @@ public:
                             bool                 disassemble,
                             MemoryBus          & bus,
                             PreviewContent     & outContent,
-                            PicturePreview::Monitor  monitor = PicturePreview::Monitor::Color);
+                            PicturePreview::Monitor  monitor    = PicturePreview::Monitor::Color,
+                            uint32_t                 customArgb = PicturePreview::kDefaultCustomArgb);
 
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);
