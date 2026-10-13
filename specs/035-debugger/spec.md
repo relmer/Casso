@@ -157,8 +157,9 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How large can the History slider go, and how is its estimate written? -> A: No larger than the memory a busy program fills in about 48 hours (7649 MB at the measured rate), besides the 90% and available-less-4-MB limits. The estimate is in minutes below two hours and in hours from two hours on, such as "95 minutes to 3 hours" (FR-227).
 - Q: How does the Disassembly tab show what its check boxes do? -> A: A live preview under them: a short sample program drawn as a disassembly view draws it, with source lines, symbols, an indirect load with its pointer and operand value, and the PC on a taken branch with its arrow, following every check box as set in the dialog (FR-228).
 - Q: What size does the Options dialog open at? -> A: Large enough for its largest tab, within the work area of the monitor it opens on, and placed with no part off that monitor or under the taskbar; a tab scrolls only when the monitor is too small for it (FR-227).
-- Q: Are hidden columns padded with spaces, and is source text reformatted? -> A: Neither. A hidden column is removed, as in Visual Studio, and a source line is shown as written in its file, with only tabs expanded to every eighth column (FR-228).
+- Q: Are hidden columns padded with spaces, and is source text reformatted? -> A: Neither. A hidden column is removed, as in Visual Studio, and a source line is shown as written in its file, with only tabs expanded to every fourth column (FR-228).
 - Q: Can the disassembly set source rows and instruction rows apart? -> A: Yes: an option dims Source lines, Disassembly lines, or Neither while the view has source rows, Disassembly lines by default. With no source rows nothing is dimmed, and the PC's row is never dimmed (FR-230).
+- Q: How is the History estimate worked out, now that history grows at very different rates? -> A: From the recording's own rate once it covers 30 emulated seconds; before that, as a range from the busiest measured program (a loop redrawing the whole hi-res screen, 69,540 bytes a second) to the idlest (the DOS prompt, 694). The 48-hour cap uses the busiest rate. Tabs in source lines expand to every fourth column (FR-227, FR-228).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2927,10 +2928,13 @@ run something, switch back to the //e: it is where it was left.
   as Casso's Settings sheet is, with a History tab and a Disassembly tab. The
   History tab has the setting that turns history recording on and off, and
   the memory history may use with the estimate of the history it has room
-  for, in minutes below two hours and in hours from two hours on. The memory
+  for, in minutes below two hours and in hours from two hours on. Once the
+  recording covers 30 emulated seconds the estimate uses its own rate;
+  before that it runs from the busiest measured program, one that redraws
+  the whole hi-res screen, to the idlest, one waiting for a key. The memory
   is a slider from 1 MB to the lowest of 90% of the memory available, the
-  memory available less 4 MB, and the memory a busy program fills in about
-  48 hours (7649 MB at the measured rate), and never less than 1 MB, the
+  memory available less 4 MB, and the memory the busiest measured program
+  fills in about 48 hours (11,460 MB), and never less than 1 MB, the
   memory available read as the dialog opens. It moves in 1 MB steps, a tenth
   of its range for Page Up and Page Down, with about ten tick marks. A saved
   value above the slider's maximum puts the slider at its maximum, and the

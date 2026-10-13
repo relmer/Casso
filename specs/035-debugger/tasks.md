@@ -1525,7 +1525,9 @@ Owner decisions 2026-10-13, second review of the Options sheet.
 - [X] T809 Fit the Options sheet to its largest tab with FitToMaxSize (CassoEmuCore/Ui/Debugger/DebuggerOptionsSheet.cpp), and add the window frame to a fitted or maximum client size in Dxui/Window/DxuiWindow.cpp, forcing the frame calculation for a hidden window, per FR-227
 - [X] T811 Turn Pointers on by default in DisassemblyOptions (CassoEmuCore/Ui/Debugger/DisassemblyOptions.h), updating the option, viewing and sheet tests, per FR-228
 - [X] T812 Add DisassemblyOptions::Dim (Source lines, Disassembly lines, Neither; Disassembly lines by default; saved as dim=) with a radio group on the Disassembly page, and dim the chosen rows in the views and the preview through DisassemblyCells::IsDimmed and DimRow, never the PC's row and nothing without source rows; test in DisassemblyOptionsTests.cpp and DebuggerOptionsSheetTests.cpp, per FR-230
-- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's 48-hour cap and hours, the preview, the dim choice and the sheet's size
+- [X] T813 [P] Measure history's growth for the DOS prompt, an Applesoft hi-res plot and a loop rewriting the hi-res page in ScenarioTests/HistoryRateTests.cpp; estimate from the recording's own rate once it covers 30 seconds (HistoryStatus storedBytes and arenaBytes, ReverseBudget::TryGetMeasuredRate) and from the busiest to the idlest measured rate before that; base the 48-hour cap on the busiest; test in ReverseBudgetRangeTests.cpp, per FR-227
+- [X] T814 [P] Expand source tabs to every fourth column (SourcePane::kTabWidth), per FR-228
+- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's cap, the estimate, the preview, the dim choice and the sheet's size
 
 **Dependencies**: T807 before T808; T808 before T812; T805 to T809, T811 and T812 before T810.
 

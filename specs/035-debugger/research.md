@@ -1750,6 +1750,16 @@ Reverse commands after recording 60 seconds (3,600 frames, about 19 million inst
 
 A step forward inside a stretch replays one instruction and took under a microsecond.
 
+**Measured again 2026-10-13.** The rates above predate the later work that shares unchanged disk tracks and lets a group run past wholeEvery while its differences stay small, so a quiet machine now records far less. `HistoryRateTests` (ScenarioTests) measures three programs on a //e booted from the DOS 3.3 master, over 120 emulated seconds after a 10-second warm-up, Release x64:
+
+| Workload | History per emulated second | Minutes 64 MB holds |
+|---|---|---|
+| DOS prompt waiting for a key | 694 bytes | 1,612 (27 hours) |
+| Applesoft plotting random hi-res points | 16,822 bytes | 66 |
+| Machine-language loop rewriting the whole hi-res page | 69,540 bytes | 16 |
+
+The History tab's estimate uses the recording's own rate once it covers 30 emulated seconds, and the first and last rows as its range before that.
+
 ## Floating bus sources
 
 Checked 2026-10-04 against the documents themselves, not against other emulators.
