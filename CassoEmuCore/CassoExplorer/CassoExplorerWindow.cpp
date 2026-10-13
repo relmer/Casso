@@ -3179,9 +3179,10 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    //  An archive's files copy as files do, for the shell to extract on paste,
-    //  and Ctrl+A selects them all, as in the file list.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'C' || ev.vk == 'A')
+    //  An archive's files copy and cut as files do, for the shell to extract
+    //  on paste, Ctrl+A selects them all, and Delete deletes them for good,
+    //  as in the file list.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'C' || ev.vk == 'X' || ev.vk == 'A')
         && m_focus == Pane::Preview && m_previewArchive)
     {
         if (ev.vk == 'A')
@@ -3191,9 +3192,16 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         }
         else
         {
-            CopyArchiveSelection();
+            CopyArchiveSelection (ev.vk == 'X');
         }
 
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_DELETE && !ev.ctrl && !ev.alt
+        && m_focus == Pane::Preview && m_previewArchive)
+    {
+        DeleteArchiveSelection();
         return true;
     }
 
@@ -3879,7 +3887,7 @@ bool CassoExplorerWindow::RouteArchiveMouse (const DxuiMouseEvent & ev, POINT po
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::CopyArchiveSelection()
+void CassoExplorerWindow::CopyArchiveSelection (bool cut)
 {
     std::vector<std::wstring>  ids = GetSelectedArchiveIds();
     HRESULT                    hr  = S_OK;
@@ -3891,8 +3899,40 @@ void CassoExplorerWindow::CopyArchiveSelection()
         return;
     }
 
-    hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), ids, false);
+    hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), ids, cut);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::DeleteArchiveSelection
+//
+//  An archive has no Recycle Bin, so its files are deleted for good, after
+//  Windows asks to confirm, as File Explorer deletes them. The archive is
+//  then read again for the preview.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::DeleteArchiveSelection()
+{
+    std::vector<std::wstring>  ids = GetSelectedArchiveIds();
+    HRESULT                    hr  = S_OK;
+
+
+
+    if (ids.empty())
+    {
+        return;
+    }
+
+    hr = m_shellVerbs.DeletePermanently (GetHwnd(), ids);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    RefreshAfterHostChange();
 }
 
 
@@ -3903,8 +3943,9 @@ void CassoExplorerWindow::CopyArchiveSelection()
 //
 //  CassoExplorerWindow::ShowArchiveContextMenu
 //
-//  The file list's menu for an archive's files: the clipboard row, Open,
-//  and the shell's full menu under Show more options, Extract All among it.
+//  The file list's menu for an archive's files: the row of Cut, Copy and
+//  Delete, Open, and the shell's full menu under Show more options, Extract
+//  All among it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3912,21 +3953,41 @@ void CassoExplorerWindow::ShowArchiveContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>                   items;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
-    std::shared_ptr<DxuiCommand>                     copy   = std::make_shared<DxuiCommand>();
     POINT                                            screen = { x, y };
+    const CassoExplorerActions::Verb                 iconVerbs[] =
+    {
+        CassoExplorerActions::Verb::Cut,
+        CassoExplorerActions::Verb::Copy,
+        CassoExplorerActions::Verb::Delete,
+    };
 
 
 
     m_menuCommands.clear();
     ClientToScreen (GetHwnd(), &screen);
 
-    copy->id       = (int) CassoExplorerActions::Verb::Copy;
-    copy->label    = GetVerbLabel (CassoExplorerActions::Verb::Copy);
-    copy->glyph    = GetVerbGlyph (CassoExplorerActions::Verb::Copy);
-    copy->menuSvg  = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::Copy));
-    copy->dispatch = [this]() { CopyArchiveSelection(); };
-    iconCommands.push_back (copy);
-    m_menuCommands.push_back (std::move (copy));
+    for (CassoExplorerActions::Verb verb : iconVerbs)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->id       = (int) verb;
+        command->label    = GetVerbLabel (verb);
+        command->glyph    = GetVerbGlyph (verb);
+        command->menuSvg  = GetMenuSvg (GetVerbMenuSvgName (verb));
+        command->dispatch = [this, verb]()
+        {
+            if (verb == CassoExplorerActions::Verb::Delete)
+            {
+                DeleteArchiveSelection();
+            }
+            else
+            {
+                CopyArchiveSelection (verb == CassoExplorerActions::Verb::Cut);
+            }
+        };
+        iconCommands.push_back (command);
+        m_menuCommands.push_back (std::move (command));
+    }
 
     items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
     items.push_back (DxuiPopupMenuItem::ForSeparator());

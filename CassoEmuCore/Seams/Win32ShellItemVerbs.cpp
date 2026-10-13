@@ -2802,51 +2802,45 @@ Error:
 //
 //  Win32ShellItemVerbs::PlaceOnClipboard
 //
-//  The shell's own data object for the items, marked as a cut or a copy the
-//  way Explorer marks it, so a paste in Explorer or here moves or copies.
+//  The shell's own Cut or Copy verb on the items' menu, as File Explorer runs
+//  it, so the shell marks the cut its own way and a paste in Explorer or
+//  here moves or copies, from inside an archive too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ShellItemVerbs::PlaceOnClipboard (HWND owner, const std::vector<std::wstring> & paths, bool cut)
 {
-    HRESULT                  hr     = S_OK;
-    ComPtr<IShellItemArray>  items;
-    ComPtr<IDataObject>      data;
-    FORMATETC                format = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM                medium = { TYMED_HGLOBAL };
-    DWORD                  * effect = nullptr;
+    HRESULT                 hr     = S_OK;
+    ComPtr<IContextMenu>    menu;
+    HMENU                   popup  = nullptr;
+    CMINVOKECOMMANDINFOEX   invoke = { sizeof (invoke) };
 
 
 
-    (void) owner;
-
-    hr = GetItemArray (paths, &items);
+    hr = GetItemsMenu (owner, paths, &menu);
     CHR (hr);
 
-    hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
+    popup = CreatePopupMenu();
+    CWR (popup != nullptr);
+
+    hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, CMF_NORMAL);
     CHR (hr);
 
-    medium.hGlobal = GlobalAlloc (GMEM_MOVEABLE, sizeof (DWORD));
-    CPR (medium.hGlobal);
+    invoke.fMask   = CMIC_MASK_UNICODE;
+    invoke.hwnd    = owner;
+    invoke.lpVerb  = cut ? "cut" : "copy";
+    invoke.lpVerbW = cut ? L"cut" : L"copy";
+    invoke.nShow   = SW_SHOWNORMAL;
 
-    effect  = (DWORD *) GlobalLock (medium.hGlobal);
-    CPRAF (effect, GlobalFree (medium.hGlobal));
-
-    *effect = cut ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
-    GlobalUnlock (medium.hGlobal);
-
-    //  The data object takes the memory.
-    hr = data->SetData (&format, &medium, TRUE);
-    CHRAF (hr, ReleaseStgMedium (&medium));
-
-    hr = OleSetClipboard (data.Get());
-    CHR (hr);
-
-    //  The data stays on the clipboard after this window closes.
-    hr = OleFlushClipboard();
+    hr = menu->InvokeCommand ((LPCMINVOKECOMMANDINFO) &invoke);
     CHR (hr);
 
 Error:
+    if (popup != nullptr)
+    {
+        DestroyMenu (popup);
+    }
+
     return hr;
 }
 

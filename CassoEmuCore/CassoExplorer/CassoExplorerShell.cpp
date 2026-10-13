@@ -32,16 +32,24 @@ CassoExplorerShell::CassoExplorerShell()
 //  CassoExplorerShell::~CassoExplorerShell
 //
 //  The window goes before COM, since its drop registration and popups are
-//  released with it.
+//  released with it. Files this process put on the clipboard are flushed
+//  first, so they paste after it exits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerShell::~CassoExplorerShell()
 {
+    HRESULT  hr = S_OK;
+
+
+
     m_window.reset();
 
     if (m_oleInitialized)
     {
+        hr = OleFlushClipboard();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
         OleUninitialize();
         m_oleInitialized = false;
     }

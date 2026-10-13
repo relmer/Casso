@@ -651,7 +651,8 @@ private:
     std::vector<std::wstring>  GetSelectedArchiveIds () const;
     bool                       RouteArchiveMouse     (const DxuiMouseEvent & ev, POINT point);
     void                       OpenArchiveRow        (int row);
-    void                       CopyArchiveSelection  ();
+    void                       CopyArchiveSelection  (bool cut);
+    void                       DeleteArchiveSelection ();
     void                       ShowArchiveContextMenu (int x, int y);
 
     //  Explorer's folder options read again; true when one changed.
