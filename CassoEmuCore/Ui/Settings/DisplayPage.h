@@ -104,6 +104,10 @@ public:
     static const wchar_t *  LabelForSource (CrtSource source);
 
     void  SetState              (SettingsPanelState * state);
+
+    //  The selected monitor, for a host with no panel state; Rebuild then wires
+    //  the page with the host's callbacks alone.
+    void  SetMonitorIndex       (int index) { m_monitorIndex = index; }
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
 
@@ -194,6 +198,7 @@ private:
     bool  IsTextColorActive () const;
 
     SettingsPanelState   * m_state             = nullptr;
+    int                    m_monitorIndex      = 0;
     DisplayDefaultsHint    m_hint              = {};
     DxuiDpiScaler          m_scaler;
     BrightnessFn           m_onBrightness;

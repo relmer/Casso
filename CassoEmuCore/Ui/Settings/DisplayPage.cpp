@@ -494,15 +494,18 @@ void DisplayPage::Rebuild()
 
 
 
-    if (state == nullptr)
-    {
-        return;
-    }
-
-    m_monitor.SetSelected ((int) state->GetPrefs().colorMode);
+    //  Without Casso's panel state, as in Casso Explorer, the page stores the
+    //  monitor itself and reports each change to its host.
+    m_monitor.SetSelected ((state != nullptr) ? (int) state->GetPrefs().colorMode : m_monitorIndex);
     m_monitor.SetSelect ([this, state] (int idx)
     {
-        state->SetColorMode ((SettingsColorMode) idx);
+        if (state != nullptr)
+        {
+            state->SetColorMode ((SettingsColorMode) idx);
+        }
+
+        m_monitorIndex = idx;
+
         if (m_onMonitor)
         {
             m_onMonitor (idx);
@@ -727,7 +730,8 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 
 bool DisplayPage::IsTextColorActive() const
 {
-    return m_state != nullptr && m_state->GetPrefs().colorMode == SettingsColorMode::Color;
+    return (m_state != nullptr) ? m_state->GetPrefs().colorMode == SettingsColorMode::Color
+                                : m_monitorIndex == (int) SettingsColorMode::Color;
 }
 
 

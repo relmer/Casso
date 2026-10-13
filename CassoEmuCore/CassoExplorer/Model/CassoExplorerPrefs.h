@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
+#include "Config/CrtTypes.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
 
@@ -77,6 +78,13 @@ struct CassoExplorerPrefs
     //  "white", as Casso writes them, or empty for the theme's default. Casso
     //  Explorer's own, apart from Casso's.
     std::string            previewMonitor;
+
+    //  The picture preview's CRT effects the user has changed, by monitor
+    //  ("color", "green", "amber", "white"), each change on top of the
+    //  monitor's own values and the theme's. Casso Explorer's own, apart
+    //  from Casso's.
+    std::map<std::string, CrtOverrides>  crtOverrides;
+
     std::vector<Location>  tabs;
 
     //  The address bar's typed path history, newest first.

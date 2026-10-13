@@ -103,6 +103,33 @@ public:
 
 
 
+    //  The picture preview's monitor and its changed effects come back as
+    //  saved; a monitor with nothing changed stores nothing, and an unknown
+    //  monitor's name is not read.
+    TEST_METHOD (RoundTrip_PreviewMonitorAndEffects)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        CrtOverrides        amber;
+
+        amber.brightness       = 1.5f;
+        amber.scanlinesEnabled = false;
+
+        saved.previewMonitor        = "amber";
+        saved.crtOverrides["amber"] = amber;
+        saved.crtOverrides["green"] = CrtOverrides();
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::AreEqual (std::string ("amber"), loaded.previewMonitor);
+        Assert::AreEqual ((size_t) 1, loaded.crtOverrides.size(), L"An empty set of changes is not saved");
+        Assert::IsTrue   (loaded.crtOverrides["amber"] == amber);
+    }
+
+
+
     //  A folder keeps its sort and grouping with its view; a folder never
     //  given one opens by name, up, ungrouped, in its type's view.
     TEST_METHOD (FolderViews_KeepSortAndGroupPerFolder)

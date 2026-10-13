@@ -256,6 +256,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<JsonValue>                          widthValues;
     std::vector<JsonValue>                          orderValues;
     std::vector<JsonValue>                          viewValues;
+    std::vector<std::pair<std::string, JsonValue>>  crtFields;
 
 
 
@@ -347,6 +348,16 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("previewZoom",    JsonValue ((double) previewZoom));
     root.emplace_back ("previewMonitor", JsonValue (previewMonitor));
+
+    for (const auto & [monitor, overrides] : crtOverrides)
+    {
+        if (!overrides.IsEmpty())
+        {
+            crtFields.emplace_back (monitor, GlobalUserPrefs::CrtOverridesToJson (overrides));
+        }
+    }
+
+    root.emplace_back ("crtOverrides",   JsonValue (std::move (crtFields)));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
@@ -430,21 +441,22 @@ std::vector<int> CassoExplorerPrefs::ReadIntArray (const JsonValue & object, con
 
 HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 {
-    HRESULT            hr         = S_OK;
-    bool               isObject   = root.GetType() == JsonType::Object;
-    const JsonValue  * placed     = nullptr;
-    const JsonValue  * splitters  = nullptr;
-    const JsonValue  * tabArray   = nullptr;
-    const JsonValue  * typedArray = nullptr;
-    const JsonValue  * widthArray = nullptr;
-    const JsonValue  * orderArray = nullptr;
-    const JsonValue  * viewArray  = nullptr;
+    HRESULT            hr           = S_OK;
+    bool               isObject     = root.GetType() == JsonType::Object;
+    const JsonValue  * placed       = nullptr;
+    const JsonValue  * splitters    = nullptr;
+    const JsonValue  * tabArray     = nullptr;
+    const JsonValue  * typedArray   = nullptr;
+    const JsonValue  * widthArray   = nullptr;
+    const JsonValue  * orderArray   = nullptr;
+    const JsonValue  * viewArray    = nullptr;
+    const JsonValue  * overridesObj = nullptr;
     std::string        text;
-    size_t             i          = 0;
-    int                grouping   = kDefaultHexGrouping;
-    int                columns    = 0;
-    int                zoom       = kDefaultPreviewZoom;
-    int                view       = 0;
+    size_t             i            = 0;
+    int                grouping     = kDefaultHexGrouping;
+    int                columns      = 0;
+    int                zoom         = kDefaultPreviewZoom;
+    int                view         = 0;
 
 
 
@@ -481,6 +493,24 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasString ("previewMonitor", text) && (text.empty() || text == "color" || text == "green" || text == "amber" || text == "white"))
     {
         previewMonitor = text;
+    }
+
+    if (root.HasObject ("crtOverrides", overridesObj))
+    {
+        for (const auto & [monitor, value] : overridesObj->GetObjectEntries())
+        {
+            CrtOverrides  parsed;
+
+            if (value.GetType() == JsonType::Object && (monitor == "color" || monitor == "green" || monitor == "amber" || monitor == "white"))
+            {
+                GlobalUserPrefs::CrtOverridesFromJson (value, parsed);
+            }
+
+            if (!parsed.IsEmpty())
+            {
+                crtOverrides[monitor] = parsed;
+            }
+        }
     }
 
     if (root.HasString ("hexFormat", text) && (text == kHexFormatHex || text == kHexFormatSigned || text == kHexFormatUnsigned))

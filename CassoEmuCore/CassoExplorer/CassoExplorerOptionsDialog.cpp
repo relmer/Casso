@@ -1,6 +1,16 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
+#include "Config/CrtPresets.h"
+#include "Config/CrtResolver.h"
+#include "Ui/Settings/DisplayPage.h"
+
+
+
+
+static constexpr int  s_kSheetWidthDip  = 720;   // Casso's own Settings sheet's width, which the Display page is laid out for
+static constexpr int  s_kSheetHeightDip = 640;
+static constexpr int  s_kSheetMinHeight = 320;
 
 
 
@@ -8,11 +18,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerOptionsPanel::Init
+//  CassoExplorerGeneralPage::Init
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerOptionsPanel::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiCheckbox & registration)
 {
     m_namingLabel = &namingLabel;
     m_naming      = &naming;
@@ -29,16 +39,17 @@ void CassoExplorerOptionsPanel::Init (DxuiLabel & namingLabel, DxuiComboBox & na
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerOptionsPanel::Layout
+//  CassoExplorerGeneralPage::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerOptionsPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int  labelBottom = boundsDip.top + scaler.ToPx (kLabelHeightDip);
     int  fieldTop    = labelBottom + scaler.ToPx (kGapDip);
     int  fieldBottom = fieldTop + scaler.ToPx (kFieldHeightDip);
     int  checkTop    = fieldBottom + scaler.ToPx (kGapDip * 3);
+    int  checkBottom = checkTop + scaler.ToPx (kFieldHeightDip);
 
 
 
@@ -46,7 +57,9 @@ void CassoExplorerOptionsPanel::Layout (const RECT & boundsDip, const DxuiDpiSca
 
     m_namingLabel->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
     m_naming->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldBottom }, scaler);
-    m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkTop + scaler.ToPx (kFieldHeightDip) }, scaler);
+    m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkBottom }, scaler);
+
+    SetContentHeightPx (checkBottom - boundsDip.top);
 }
 
 
@@ -55,11 +68,11 @@ void CassoExplorerOptionsPanel::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerOptionsPanel::OnMouse
+//  CassoExplorerGeneralPage::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerOptionsPanel::OnMouse (const DxuiMouseEvent & ev)
+bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
     return m_naming->OnMouse (ev) || m_register->OnMouse (ev);
 }
@@ -85,18 +98,15 @@ std::vector<std::wstring> CassoExplorerOptionsDialog::GetNamingLabels()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerOptionsDialog::OnCreate
+//  CassoExplorerOptionsDialog::OnBuildPages
 //
-//  OK keeps its own click so the choices are read before the dialog ends.
+//  The General page, then Casso's own Display page, which the dialog wires
+//  to its own copy of the choices rather than to Casso's settings.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerOptionsDialog::OnCreate()
+void CassoExplorerOptionsDialog::OnBuildPages()
 {
-    DxuiButton *  ok = nullptr;
-
-
-
     m_namingLabel.SetText      (L"Host file names");
     m_namingLabel.SetTextRole  (DxuiTextRole::Body);
     m_namingLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -109,21 +119,180 @@ void CassoExplorerOptionsDialog::OnCreate()
     m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
 
-    m_body = CreateDialogContent<CassoExplorerOptionsPanel>();
-    m_body->Init (m_namingLabel, m_naming, m_register);
+    m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
+    m_general->Init (m_namingLabel, m_naming, m_register);
 
-    ok = AddDialogButton (L"OK", IDOK);
-    AddDialogButton (L"Cancel", IDCANCEL);
+    m_displayPage = CreatePage<DisplayPage> (L"Display");
+    m_displayPage->SetPopupHost (GetPopupHost());
 
-    ok->SetOnClick ([this]()
+    //  Seeded once the pages are laid out: the page sets its lists and its
+    //  sliders' ranges as it lays itself out.
+    WireDisplay();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::GetOverrides
+//
+//  The changed effects of the selected monitor, made when first changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CrtOverrides & CassoExplorerOptionsDialog::GetOverrides()
+{
+    return m_choices.crtOverrides[kMonitorNames[m_choices.monitor]];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::SeedDisplay
+//
+//  The page's values for the selected monitor, each from the monitor, the
+//  theme or the user, and labeled with where it came from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::SeedDisplay()
+{
+    auto                        found    = m_choices.crtOverrides.find (kMonitorNames[m_choices.monitor]);
+    CrtResolved                 resolved = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) m_choices.monitor), m_display.themeDefaults,
+                                                                 (found != m_choices.crtOverrides.end()) ? found->second : CrtOverrides());
+    GlobalUserPrefsCrtSnapshot  snap;
+    DisplayDefaultsHint         hint;
+
+
+
+    snap.brightness         = resolved.values.brightness;
+    snap.contrast           = resolved.values.contrast;
+    snap.gamma              = resolved.values.gamma;
+    snap.persistence        = resolved.values.persistence;
+    snap.scanlinesEnabled   = resolved.values.scanlinesEnabled;
+    snap.scanlinesIntensity = resolved.values.scanlinesIntensity;
+    snap.bloomEnabled       = resolved.values.bloomEnabled;
+    snap.bloomRadius        = resolved.values.bloomRadius;
+    snap.bloomStrength      = resolved.values.bloomStrength;
+    snap.colorBleedEnabled  = resolved.values.colorBleedEnabled;
+    snap.colorBleedWidth    = resolved.values.colorBleedWidth;
+
+    std::copy (std::begin (resolved.source), std::end (resolved.source), std::begin (hint.source));
+
+    m_displayPage->SetMonitorIndex (m_choices.monitor);
+    m_displayPage->SetInitialCrt   (snap);
+    m_displayPage->SetDefaultsHint (hint);
+    m_displayPage->Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::WireDisplay
+//
+//  Each control changes the selected monitor, or one of its effects, and the
+//  preview is drawn again with it. Text color is Casso's color monitor's
+//  setting for text, which a picture never uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::WireDisplay()
+{
+    m_displayPage->SetOnMonitorChange ([this] (int index)
     {
-        m_choices.registered = m_register.IsChecked();
-        m_choices.hostNaming = m_naming.GetSelectedIndex();
-        m_confirmed          = true;
-        EndDialog (IDOK);
+        if (index >= 0 && index < (int) std::size (kMonitorNames) && index != m_choices.monitor)
+        {
+            m_choices.monitor = index;
+            SeedDisplay();
+            PreviewChoices();
+        }
     });
 
-    SetInitialFocus (&m_naming);
+    m_displayPage->SetOnBrightnessChange    ([this] (float value) { GetOverrides().brightness         = value / 100.0f; PreviewChoices(); });
+    m_displayPage->SetOnContrastChange      ([this] (float value) { GetOverrides().contrast           = value / 100.0f; PreviewChoices(); });
+    m_displayPage->SetOnGammaChange         ([this] (float value) { GetOverrides().gamma              = value; PreviewChoices(); });
+    m_displayPage->SetOnPersistenceChange   ([this] (float value) { GetOverrides().persistence        = value / 100.0f; PreviewChoices(); });
+    m_displayPage->SetOnScanlinesEnChange   ([this] (bool  value) { GetOverrides().scanlinesEnabled   = value; PreviewChoices(); });
+    m_displayPage->SetOnScanlinesIntChange  ([this] (float value) { GetOverrides().scanlinesIntensity = value / 100.0f; PreviewChoices(); });
+    m_displayPage->SetOnBloomEnChange       ([this] (bool  value) { GetOverrides().bloomEnabled       = value; PreviewChoices(); });
+    m_displayPage->SetOnBloomRadiusChange   ([this] (float value) { GetOverrides().bloomRadius        = value; PreviewChoices(); });
+    m_displayPage->SetOnBloomStrengthChange ([this] (float value) { GetOverrides().bloomStrength      = value / 100.0f; PreviewChoices(); });
+    m_displayPage->SetOnColorBleedEnChange  ([this] (bool  value) { GetOverrides().colorBleedEnabled  = value; PreviewChoices(); });
+    m_displayPage->SetOnColorBleedWChange   ([this] (float value) { GetOverrides().colorBleedWidth    = value; PreviewChoices(); });
+
+    m_displayPage->SetOnRestoreDefaults ([this]()
+    {
+        m_choices.crtOverrides.erase (kMonitorNames[m_choices.monitor]);
+        SeedDisplay();
+        PreviewChoices();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::PreviewChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::PreviewChoices()
+{
+    if (m_display.preview)
+    {
+        m_display.preview (m_choices);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::OnOk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerOptionsDialog::OnOk()
+{
+    m_choices.registered = m_register.IsChecked();
+    m_choices.hostNaming = m_naming.GetSelectedIndex();
+    m_confirmed          = true;
+
+    return DxuiPropertySheet::OnOk();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::OnCancel
+//
+//  The preview drawn as it was before the dialog opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::OnCancel()
+{
+    if (m_display.preview)
+    {
+        m_display.preview (m_original);
+    }
+
+    DxuiPropertySheet::OnCancel();
 }
 
 
@@ -136,7 +305,7 @@ void CassoExplorerOptionsDialog::OnCreate()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerOptionsDialog::Ask (HWND owner, const IDxuiTheme * theme, Choices & inOutChoices)
+bool CassoExplorerOptionsDialog::Ask (HWND owner, const IDxuiTheme * theme, const DisplayHost & display, Choices & inOutChoices)
 {
     HRESULT                     hr     = S_OK;
     CassoExplorerOptionsDialog  dialog;
@@ -144,15 +313,22 @@ bool CassoExplorerOptionsDialog::Ask (HWND owner, const IDxuiTheme * theme, Choi
 
 
 
-    dialog.m_theme   = theme;
-    dialog.m_choices = inOutChoices;
+    dialog.m_theme    = theme;
+    dialog.m_display  = display;
+    dialog.m_original = inOutChoices;
+    dialog.m_choices  = inOutChoices;
+
+    //  OK and Cancel alone: every page commits on OK.
+    dialog.SetApplyVisible   (false);
+    dialog.SetDesignWidthDip (s_kSheetWidthDip);
 
     params.title                    = L"Options";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 460, 230 };
-    params.minSizeDip               = { 360, 230 };
-    params.resizable                = false;
+    params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
+    params.minSizeDip               = { s_kSheetWidthDip, s_kSheetMinHeight };
+    params.fitToWorkArea            = true;
+    params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;
@@ -165,6 +341,7 @@ bool CassoExplorerOptionsDialog::Ask (HWND owner, const IDxuiTheme * theme, Choi
     }
 
     dialog.SetTheme (theme);
+    dialog.SeedDisplay();
     dialog.ShowModalDialog (IDOK);
 
     if (dialog.m_confirmed)

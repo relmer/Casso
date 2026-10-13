@@ -1906,6 +1906,7 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
     CrtParams                params;
     std::vector<uint32_t>    drawn;
     HRESULT                  hr       = S_OK;
+    auto                     found    = m_prefs.crtOverrides.end();
 
 
 
@@ -1921,7 +1922,9 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
         return;
     }
 
-    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) GetPreviewMonitor()), GetPreviewCrtDefaults(), CrtOverrides());
+    found              = m_prefs.crtOverrides.find (s_kpszMonitorNames[(int) GetPreviewMonitor()]);
+    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset ((size_t) GetPreviewMonitor()), GetPreviewCrtDefaults(),
+                                               (found != m_prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
 
@@ -7400,8 +7403,9 @@ void CassoExplorerWindow::SizeListIcons()
 
 void CassoExplorerWindow::ShowOptions()
 {
-    static constexpr const char          * kNamings[] = { CassoExplorerPrefs::kNamingDescriptive, CassoExplorerPrefs::kNamingCiderPress, CassoExplorerPrefs::kNamingAppleSingle };
-    CassoExplorerOptionsDialog::Choices    choices;
+    static constexpr const char              * kNamings[] = { CassoExplorerPrefs::kNamingDescriptive, CassoExplorerPrefs::kNamingCiderPress, CassoExplorerPrefs::kNamingAppleSingle };
+    CassoExplorerOptionsDialog::Choices        choices;
+    CassoExplorerOptionsDialog::DisplayHost    display;
 
 
 
@@ -7413,10 +7417,23 @@ void CassoExplorerWindow::ShowOptions()
 
 
 
-    choices.hostNaming = (int) GetNamingStyle();
-    choices.registered = wasRegistered;
+    choices.hostNaming   = (int) GetNamingStyle();
+    choices.registered   = wasRegistered;
+    choices.monitor      = (int) GetPreviewMonitor();
+    choices.crtOverrides = m_prefs.crtOverrides;
 
-    if (!CassoExplorerOptionsDialog::Ask (GetHwnd(), m_theme, choices))
+    //  The Display page's changes are drawn in the preview as they are made,
+    //  and Cancel draws the preview as it was.
+    display.themeDefaults = GetPreviewCrtDefaults();
+    display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
+    {
+        m_prefs.crtOverrides = shown.crtOverrides;
+        std::erase_if (m_prefs.crtOverrides, [] (const auto & entry) { return entry.second.IsEmpty(); });
+        SelectMonitor ((PicturePreview::Monitor) shown.monitor);
+        UpdateCrtPicture (true);
+    };
+
+    if (!CassoExplorerOptionsDialog::Ask (GetHwnd(), m_theme, display, choices))
     {
         return;
     }
