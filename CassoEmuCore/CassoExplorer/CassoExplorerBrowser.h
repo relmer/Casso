@@ -113,9 +113,16 @@ public:
     static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
     std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
 
-    //  Whether a file's first bytes are plain text, and how many are looked at.
+    //  Which character set a file's first bytes are text in, if any, and how
+    //  many are looked at.
     static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
-    static bool              LooksLikePlainText (std::span<const Byte> sample);
+    static constexpr Byte    s_kFormFeed             = 0x0C;
+    static constexpr Byte    s_kDosEndOfFile         = 0x1A;
+    static constexpr Byte    s_kDosDrawingFirst      = 0xB0;    // code page 437's shades and box drawing
+    static constexpr Byte    s_kDosDrawingLast       = 0xDF;
+    static constexpr size_t  s_kTextControlRatio     = 100;     // at most one byte in this many a DOS symbol
+    static HostCharset       GetHostCharset (std::span<const Byte> sample);
+    static bool              IsUtf8         (std::span<const Byte> sample);
 
 private:
     void  PreviewShellItem   (const CatalogRow & row);

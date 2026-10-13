@@ -1437,24 +1437,111 @@ std::vector<DxuiListView::Cell> CassoExplorerBrowser::GetArchivePreviewCells (co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::LooksLikePlainText
+//  CassoExplorerBrowser::GetHostCharset
 //
-//  Printable ASCII, tabs and line endings only: a host file that opens
-//  showing its characters rather than its bytes.
+//  A host file is text, and opens showing its characters rather than its
+//  bytes, when it has no NUL and few other control codes besides tabs, line
+//  breaks, form feeds and DOS's end-of-file mark. Code page 437 has symbols
+//  for the rest, such as a pointer for 0x10, so a file with any is DOS text. Bytes
+//  above 0x7F are DOS text when most of them are DOS line-drawing
+//  characters, and Windows text otherwise. UTF-8 is not taken as text, since
+//  the view draws one character for each byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerBrowser::LooksLikePlainText (std::span<const Byte> sample)
+HostCharset CassoExplorerBrowser::GetHostCharset (std::span<const Byte> sample)
 {
+    size_t  high     = 0;
+    size_t  drawing  = 0;
+    size_t  controls = 0;
+
+
+
     if (sample.empty())
     {
-        return false;
+        return HostCharset::None;
     }
 
-    return std::all_of (sample.begin(), sample.end(), [] (Byte value)
+    for (Byte value : sample)
     {
-        return (value >= 0x20 && value <= 0x7E) || value == '\t' || value == '\r' || value == '\n';
-    });
+        if (value == 0)
+        {
+            return HostCharset::None;
+        }
+
+        controls += ((value < 0x20 && value != '\t' && value != '\r' && value != '\n'
+                      && value != s_kFormFeed && value != s_kDosEndOfFile) || value == 0x7F) ? 1 : 0;
+
+        if (value >= 0x80)
+        {
+            high++;
+            drawing += (value >= s_kDosDrawingFirst && value <= s_kDosDrawingLast) ? 1 : 0;
+        }
+    }
+
+    if (controls * s_kTextControlRatio > sample.size())
+    {
+        return HostCharset::None;
+    }
+
+    if (high == 0 && controls == 0)
+    {
+        return HostCharset::Ascii;
+    }
+
+    if (high > 0 && IsUtf8 (sample))
+    {
+        return HostCharset::None;
+    }
+
+    return (controls > 0 || drawing * 2 >= high) ? HostCharset::Dos : HostCharset::Windows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsUtf8
+//
+//  Whether every byte above 0x7F is part of a well-formed UTF-8 sequence. A
+//  sequence cut off by the end of the sample counts as well formed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsUtf8 (std::span<const Byte> sample)
+{
+    size_t  at = 0;
+
+
+
+    while (at < sample.size())
+    {
+        Byte    lead  = sample[at];
+        size_t  extra = (lead < 0x80)                  ? 0
+                      : (lead >= 0xC2 && lead <= 0xDF) ? 1
+                      : (lead >= 0xE0 && lead <= 0xEF) ? 2
+                      : (lead >= 0xF0 && lead <= 0xF4) ? 3
+                      :                                  SIZE_MAX;
+
+        if (extra == SIZE_MAX)
+        {
+            return false;
+        }
+
+        for (size_t next = 1; next <= extra && at + next < sample.size(); next++)
+        {
+            if ((sample[at + next] & 0xC0) != 0x80)
+            {
+                return false;
+            }
+        }
+
+        at += extra + 1;
+    }
+
+    return true;
 }
 
 
@@ -1503,8 +1590,9 @@ void CassoExplorerBrowser::PreviewShellItem (const CatalogRow & row)
         return;
     }
 
-    m_preview.kind     = PreviewContent::Kind::Hex;
-    m_preview.textFile = LooksLikePlainText (std::span<const Byte> (m_preview.bytes.data(), (std::min) (m_preview.bytes.size(), s_kTextSampleBytes)));
+    m_preview.kind        = PreviewContent::Kind::Hex;
+    m_preview.hostCharset = GetHostCharset (std::span<const Byte> (m_preview.bytes.data(), (std::min) (m_preview.bytes.size(), s_kTextSampleBytes)));
+    m_preview.textFile    = m_preview.hostCharset != HostCharset::None;
 }
 
 

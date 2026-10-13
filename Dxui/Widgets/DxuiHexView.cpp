@@ -2920,7 +2920,44 @@ wchar_t DxuiHexView::GetCharFor (uint8_t byte) const
 
 
 
+    //  Control codes decode to code page 437's symbols, all but the line breaks and
+    //  tabs that lay the text out.
+    if (m_encoding == TextEncoding::Dos
+        && (value >= 0x7F || (value < 0x20 && value != '\t' && value != '\r' && value != '\n')))
+    {
+        return GetCodePageChar (s_kDosCodePage, MB_USEGLYPHCHARS, value);
+    }
+
+    if (value >= 0x80 && m_encoding == TextEncoding::Windows)
+    {
+        return GetCodePageChar (s_kWindowsCodePage, MB_ERR_INVALID_CHARS, value);
+    }
+
     return ((value >= 0x20) && (value < 0x7F)) ? (wchar_t) value : L'.';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetCodePageChar
+//
+//  A byte in the code page, or a period for one that is undefined there
+//  or maps to a control code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wchar_t DxuiHexView::GetCodePageChar (UINT codePage, DWORD flags, uint8_t byte)
+{
+    char     narrow = (char) byte;
+    wchar_t  wide   = 0;
+    int      count  = MultiByteToWideChar (codePage, flags, &narrow, 1, &wide, 1);
+
+
+
+    return (count == 1 && wide >= 0xA0) ? wide : L'.';
 }
 
 

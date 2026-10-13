@@ -1716,6 +1716,29 @@ void CassoExplorerWindow::RefreshListIcons()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetHexEncoding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHexView::TextEncoding CassoExplorerWindow::GetHexEncoding (bool hostFile, HostCharset charset)
+{
+    switch (charset)
+    {
+        case HostCharset::Dos:      return DxuiHexView::TextEncoding::Dos;
+        case HostCharset::Windows:  return DxuiHexView::TextEncoding::Windows;
+        case HostCharset::Ascii:    return DxuiHexView::TextEncoding::Ascii;
+        default:                    break;
+    }
+
+    return hostFile ? DxuiHexView::TextEncoding::Ascii : DxuiHexView::TextEncoding::AppleHighBit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::FillPreview
 //
 //  The preview's kind picks the widget: a picture in the framebuffer view, a
@@ -1731,6 +1754,7 @@ void CassoExplorerWindow::FillPreview()
     bool                                            picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                                            hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
     bool                                            opened   = hostFile && (m_fileBytes.GetPath() == preview.hostPath || m_fileBytes.Open (preview.hostPath));
+    HostCharset                                     charset  = opened ? m_fileBytes.GetCharset() : preview.hostCharset;
     bool                                            error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
     bool                                            catalog  = preview.kind == PreviewContent::Kind::Catalog;
     bool                                            hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
@@ -1813,11 +1837,11 @@ void CassoExplorerWindow::FillPreview()
     m_previewBytes.SetBytes ((hex && !opened) ? &preview.bytes : nullptr);
     m_hexView->SetSource (!hex ? nullptr : opened ? (const IDxuiHexSource *) &m_fileBytes : (const IDxuiHexSource *) &m_previewBytes);
     m_hexView->SetOriginAddress (preview.origin);
-    m_hexView->SetTextEncoding (opened ? DxuiHexView::TextEncoding::Ascii : DxuiHexView::TextEncoding::AppleHighBit);
+    m_hexView->SetTextEncoding (GetHexEncoding (opened, charset));
 
     if (hex)
     {
-        m_hexView->SetShowValues (!(opened ? m_fileBytes.LooksLikeText() : preview.textFile));
+        m_hexView->SetShowValues (!(opened ? charset != HostCharset::None : preview.textFile));
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
@@ -1909,11 +1933,11 @@ void CassoExplorerWindow::FileBytes::Close()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::FileBytes::LooksLikeText
+//  CassoExplorerWindow::FileBytes::GetCharset
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerWindow::FileBytes::LooksLikeText() const
+HostCharset CassoExplorerWindow::FileBytes::GetCharset() const
 {
     std::vector<uint8_t>  sample ((size_t) (std::min) ((uint64_t) kTextSampleBytes, m_size));
 
@@ -1921,12 +1945,12 @@ bool CassoExplorerWindow::FileBytes::LooksLikeText() const
 
     if (sample.empty())
     {
-        return false;
+        return HostCharset::None;
     }
 
     ReadAt (0, sample);
 
-    return CassoExplorerBrowser::LooksLikePlainText (sample);
+    return CassoExplorerBrowser::GetHostCharset (sample);
 }
 
 
@@ -6255,23 +6279,21 @@ bool CassoExplorerWindow::IsProgramPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::IsDraggedFromFolder
+//  CassoExplorerWindow::GetDraggedPaths
 //
-//  Whether every file the drag holds lies directly in the folder, so that a
-//  drop there would move each onto itself.
+//  The paths in a drag's file list; empty when the drag has no file list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerWindow::IsDraggedFromFolder (IDataObject * data, const std::wstring & folder)
+std::vector<std::wstring> CassoExplorerWindow::GetDraggedPaths (IDataObject * data)
 {
-    FORMATETC  format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM  medium         = {};
-    HDROP      drop           = nullptr;
-    UINT       count          = 0;
-    UINT       index          = 0;
-    bool       all            = false;
-    HRESULT    hr             = E_FAIL;
-    wchar_t    path[MAX_PATH] = {};
+    FORMATETC                  format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                  medium         = {};
+    HDROP                      drop           = nullptr;
+    UINT                       count          = 0;
+    HRESULT                    hr             = E_FAIL;
+    wchar_t                    path[MAX_PATH] = {};
+    std::vector<std::wstring>  paths;
 
 
 
@@ -6282,17 +6304,18 @@ bool CassoExplorerWindow::IsDraggedFromFolder (IDataObject * data, const std::ws
 
     if (FAILED (hr))
     {
-        return false;
+        return paths;
     }
 
     drop  = (HDROP) GlobalLock (medium.hGlobal);
     count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
-    all   = count > 0;
 
-    for (index = 0; all && index < count; index++)
+    for (UINT index = 0; index < count; index++)
     {
-        all = DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0
-              && IsSameFolder (CassoExplorerBrowser::GetParentFolder (path), folder);
+        if (DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0)
+        {
+            paths.push_back (path);
+        }
     }
 
     if (drop != nullptr)
@@ -6302,7 +6325,58 @@ bool CassoExplorerWindow::IsDraggedFromFolder (IDataObject * data, const std::ws
 
     ReleaseStgMedium (&medium);
 
-    return all;
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsDraggedFromFolder
+//
+//  Whether every file in the drag lies directly in the folder, so that a
+//  drop there would move each onto itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsDraggedFromFolder (IDataObject * data, const std::wstring & folder)
+{
+    std::vector<std::wstring>  paths = GetDraggedPaths (data);
+
+
+
+    return !paths.empty() && std::all_of (paths.begin(), paths.end(), [&folder] (const std::wstring & path)
+    {
+        return IsSameFolder (CassoExplorerBrowser::GetParentFolder (path), folder);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsDraggedItem
+//
+//  Whether the target is one of the files or folders in the drag, a drop
+//  File Explorer does not allow: a folder into itself, or a disk image, archive
+//  or program onto itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsDraggedItem (IDataObject * data, const std::wstring & target)
+{
+    std::vector<std::wstring>  paths = GetDraggedPaths (data);
+
+
+
+    return !target.empty() && std::any_of (paths.begin(), paths.end(), [&target] (const std::wstring & path)
+    {
+        return IsSameFolder (path, target);
+    });
 }
 
 
@@ -6412,7 +6486,8 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
         return DROPEFFECT_NONE;
     }
 
-    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsDraggedFromFolder (data, hostFolder))
+    if (data != nullptr && TryGetHostDropFolder (tag, screen, hostFolder)
+        && (IsDraggedFromFolder (data, hostFolder) || IsDraggedItem (data, hostFolder)))
     {
         LeaveHostDrop();
         ShowDropTarget (tag, screen, false);
@@ -6440,7 +6515,7 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
-        effect = readOnly ? DROPEFFECT_NONE : ChooseDropEffect (source, location);
+        effect = (readOnly || IsDraggedItem (data, location.path)) ? DROPEFFECT_NONE : ChooseDropEffect (source, location);
     }
 
     DescribeDrop   (data, effect, location);
@@ -6752,8 +6827,10 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
 
 
 
-    //  Back onto the folder the files came from: nothing to do.
-    if (TryGetHostDropFolder (tag, screen, hostFolder) && IsDraggedFromFolder (data, hostFolder))
+    //  Back onto the folder the files came from, or onto one of them: nothing
+    //  to do.
+    if (TryGetHostDropFolder (tag, screen, hostFolder)
+        && (IsDraggedFromFolder (data, hostFolder) || IsDraggedItem (data, hostFolder)))
     {
         m_dropTarget.SetDropResult (DROPEFFECT_NONE);
         return;
@@ -6780,7 +6857,7 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         return;
     }
 
-    effect = ChooseDropEffect (source, location);
+    effect = IsDraggedItem (data, location.path) ? DROPEFFECT_NONE : ChooseDropEffect (source, location);
 
     if (effect == DROPEFFECT_NONE)
     {

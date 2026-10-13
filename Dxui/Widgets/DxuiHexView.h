@@ -94,8 +94,10 @@ public:
 
     //  How the text column decodes a byte. Apple II text has the high bit set
     //  for ordinary characters and clear for inverse and flashing ones, so
-    //  both values decode to the same character.
-    enum class TextEncoding { Ascii, AppleHighBit };
+    //  both values decode to the same character. DOS and Windows text decode
+    //  bytes above 0x7F through code pages 437 and 1252, and DOS text decodes
+    //  its control codes to code page 437's symbols for them.
+    enum class TextEncoding { Ascii, AppleHighBit, Dos, Windows };
 
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
@@ -347,8 +349,12 @@ private:
     void  ScrollToBarPos ();
     static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
 
-    static wchar_t  GetHexDigit (int value);
-    wchar_t         GetCharFor  (uint8_t byte) const;
+    static wchar_t  GetHexDigit      (int value);
+    wchar_t         GetCharFor       (uint8_t byte) const;
+    static wchar_t  GetCodePageChar  (UINT codePage, DWORD flags, uint8_t byte);
+
+    static constexpr UINT  s_kDosCodePage     = 437;
+    static constexpr UINT  s_kWindowsCodePage = 1252;
 
     //  The rows' height, less the horizontal scrollbar when it shows; the
     //  full width a row needs; and the width left for rows beside the

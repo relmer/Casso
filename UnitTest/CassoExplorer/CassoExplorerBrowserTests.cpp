@@ -1250,6 +1250,36 @@ public:
     }
 
 
+    TEST_METHOD (HostTextCharsets)
+    {
+        const Byte  ascii[]   = { 'R', 'E', 'A', 'D', '\r', '\n', '\t', 'x', 0x0C, 0x1A };
+        const Byte  dos[]     = { ' ', 0xC4, 0xC4, 0xCD, 0xB3, 'Z', 0x82, '\r', '\n' };
+        const Byte  windows[] = { 'c', 'a', 'f', 0xE9, ' ', 0xFC, 'r' };
+        const Byte  utf8[]    = { 'c', 'a', 'f', 0xC3, 0xA9 };
+        const Byte  cutOff[]  = { 'a', 0xE2, 0x80 };
+        const Byte  binary[]  = { 'M', 'Z', 0x90, 0x00, 0x03 };
+
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (utf8)    == HostCharset::None,    L"UTF-8 is not drawn a byte at a time");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (cutOff)  == HostCharset::None,    L"A sequence cut off at the end of the sample is UTF-8");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
+
+        //  DOS text draws a control code now and then as a symbol, such as a
+        //  menu's pointer; more than one byte in a hundred is no text.
+        std::vector<Byte>  pointer (200, 'a');
+
+        pointer[50] = 0x10;
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (pointer) == HostCharset::Dos,     L"A DOS symbol among text is DOS text");
+
+        pointer[51] = 0x10;
+        pointer[52] = 0x11;
+        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
+    }
+
+
     TEST_METHOD (LocationLabels)
     {
         Assert::AreEqual (std::wstring (L"C:\\"),    CassoExplorerBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));

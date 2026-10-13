@@ -309,6 +309,12 @@ public:
 
     static DxuiToolbar &  GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
 
+    //  The files in a drag, and whether a drop on a folder or item would
+    //  put them back where they are or onto themselves.
+    static std::vector<std::wstring>  GetDraggedPaths     (IDataObject * data);
+    static bool                       IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
+    static bool                       IsDraggedItem       (IDataObject * data, const std::wstring & target);
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;
@@ -383,9 +389,8 @@ private:
         bool  Open  (const std::wstring & path);
         void  Close ();
 
-        //  Whether the start of the file is printable ASCII, tabs and line
-        //  breaks, and nothing else.
-        bool  LooksLikeText () const;
+        //  Which character set the start of the file is text in, if any.
+        HostCharset  GetCharset () const;
 
         const std::wstring &  GetPath () const { return m_path; }
 
@@ -501,6 +506,10 @@ private:
     void  ShowHistoryMenu (bool forward, const RECT & anchor);
 
     static std::wstring  EscapeMnemonics (const std::wstring & text);
+
+    //  The hex view's character column for a preview's bytes: the host
+    //  file's own character set, or Apple text for a file from an image.
+    static DxuiHexView::TextEncoding  GetHexEncoding (bool hostFile, HostCharset charset);
     static BrowserModel::AddressRoot  GetProfileRoot();
     void  SwitchToTab (size_t index);
     void  FillPreview();
@@ -680,7 +689,6 @@ private:
     bool  IsArchiveLocation          () const;
 
     static bool  IsProgramPath (const std::wstring & path);
-    static bool  IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
 
     //  Files the shell runs, with what is dropped on them as arguments.
     static constexpr const wchar_t *  kProgramExtensions[] = { L".exe", L".com", L".bat", L".cmd" };

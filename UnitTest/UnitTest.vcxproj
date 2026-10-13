@@ -335,6 +335,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerMetricsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerDropTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerToolbarRoutingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />

@@ -23,6 +23,26 @@ struct AppleSingleFile;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostCharset
+//
+//  The character set a file from the host is text in, if any.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class HostCharset
+{
+    None,       // not text
+    Ascii,      // printable ASCII, tabs and line breaks only
+    Dos,        // DOS code page 437, with its line-drawing characters
+    Windows,    // Windows code page 1252
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewContent
 //
 //  What the preview pane shows for one entry, by kind. Text-shaped kinds
@@ -61,6 +81,9 @@ struct PreviewContent
 
     //  A hex preview of text, which opens showing only its characters.
     bool                       textFile = false;
+
+    //  The character set of a file the shell lists, such as one inside a zip.
+    HostCharset                hostCharset = HostCharset::None;
 
     //  A hex preview of a file on the host, which the window reads from the
     //  file as it draws rather than from `bytes`.

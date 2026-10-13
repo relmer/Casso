@@ -834,6 +834,31 @@ public:
     }
 
 
+    TEST_METHOD (Text_DosAndWindowsDecodeTheUpperHalfThroughTheirCodePages)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::Dos);
+        Assert::AreEqual (std::wstring (L"\x2500\x253C"), view.GetTextFor (0xC4, 2),
+            L"DOS text draws its box characters");
+        Assert::AreEqual (std::wstring (L"AB"), view.GetTextFor (0x41, 2),
+            L"and ASCII as itself");
+        Assert::AreEqual (std::wstring (L"\x25BA"), view.GetTextFor (0x10, 1),
+            L"and a control code as the symbol DOS draws for it");
+
+        view.SetTextEncoding (DxuiHexView::TextEncoding::Windows);
+        Assert::AreEqual (std::wstring (L"\x00E9\x00EA"), view.GetTextFor (0xE9, 2),
+            L"Windows text draws its accented letters");
+        Assert::AreEqual (std::wstring (L"."), view.GetTextFor (0x81, 1),
+            L"and a byte the code page leaves undefined as a period");
+    }
+
+
     TEST_METHOD (Hex_CopiesTheDigitsWithoutTheSpacingBetweenBytes)
     {
         CountingHexSource  source (256);
