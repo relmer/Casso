@@ -247,7 +247,6 @@
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerProperties.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerRawDialog.cpp" />
-    <ClCompile Include="CassoExplorer\CassoExplorerShellListings.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />

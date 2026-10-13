@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/TreeModel.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
@@ -1010,7 +1011,7 @@ bool TreeModel::HasTreeChildren (const std::wstring & path)
 {
     HRESULT                       hr      = S_OK;
     std::vector<FileSystemEntry>  entries;
-    bool                          found   = path.starts_with (L"\\\\");
+    bool                          found   = PathResolver::IsNetworkPath (path);
 
 
 
@@ -1043,17 +1044,30 @@ Error:
 
 HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes)
 {
-    HRESULT                       hr = S_OK;
+    HRESULT                       hr      = S_OK;
     std::vector<FileSystemEntry>  entries;
     std::vector<TreeNode>         folders;
     std::vector<TreeNode>         archives;
     std::vector<TreeNode>         images;
+    bool                          network = PathResolver::IsNetworkPath (path);
+    bool                          fetched = false;
 
 
 
     outNodes.clear();
 
-    hr = m_fs.EnumerateAllEntries (path, entries);
+    //  Being read: no nodes yet, and none cached, so the next call takes the
+    //  listing.
+    if (network && m_hostFetch)
+    {
+        fetched = m_hostFetch (path, entries, hr);
+        CBREx (fetched, S_FALSE);   // EHM-ALLOW-SFALSE: still being read; GetChildren keeps nothing for it
+    }
+    else
+    {
+        hr = m_fs.EnumerateAllEntries (path, entries);
+    }
+
     CHR (hr);
 
     for (const FileSystemEntry & entry : entries)
@@ -1076,8 +1090,9 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.canExpand = HasTreeChildren (JoinPath (path, entry.name));
 
             //  Only a read-only or system folder's desktop.ini is honored, so
-            //  no other folder costs a read.
-            if ((entry.isReadOnly || entry.isSystem) && m_localizedName)
+            //  no other folder costs a read, and none on the network, which
+            //  could wait on a share that has stopped answering.
+            if ((entry.isReadOnly || entry.isSystem) && !network && m_localizedName)
             {
                 std::wstring  localized = m_localizedName (JoinPath (path, entry.name));
 

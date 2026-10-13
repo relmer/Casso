@@ -262,9 +262,17 @@ public:
     static constexpr const wchar_t *  s_kListKey = L"list:";
     static constexpr const wchar_t *  s_kTreeKey = L"tree:";
 
-    //  Shell folders read on threads of their own; the window says where to
-    //  tell it when one arrives.
+    //  Shell folders read on threads of their own; the window sets where the
+    //  message goes when one arrives.
     CassoExplorerShellListings &  GetShellListings () { return m_shellListings; }
+
+    //  Host folders on a network path, read on threads of their own the same
+    //  way, so an unreachable share never stops the window. Without a lister
+    //  set, every host folder is read through the file system at once.
+    static constexpr const wchar_t *  s_kHostListKey = L"hostlist:";
+    static constexpr const wchar_t *  s_kHostTreeKey = L"hosttree:";
+    CassoExplorerHostListings &  GetHostListings  () { return m_hostListings; }
+
 
     //  Quick access as the shell keeps it, read again after a pin changes.
     bool  IsPinnedToQuickAccess (const std::wstring & folder) const { return m_tree.IsPinnedFolder (folder); }
@@ -351,6 +359,7 @@ private:
     Location  m_shellParent;
 
     CassoExplorerShellListings  m_shellListings;
+    CassoExplorerHostListings   m_hostListings;
     HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
     bool     CanListImage   (const std::wstring & imagePath);
 

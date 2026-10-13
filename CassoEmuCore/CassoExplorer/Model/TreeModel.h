@@ -91,6 +91,12 @@ public:
     //  thread of its own, when the node shows nothing yet and asks again.
     using ShellFetch = std::function<bool (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)>;
     void  SetShellFetch      (ShellFetch fetch)        { m_shellFetch = std::move (fetch); }
+
+    //  How the tree reads a host folder on a network path, the same way:
+    //  false while it is being read, so an unreachable share never stops the
+    //  window. Without one, every host folder is read at once.
+    using HostFetch = std::function<bool (const std::wstring & path, std::vector<FileSystemEntry> & outEntries, HRESULT & outResult)>;
+    void  SetHostFetch       (HostFetch fetch)         { m_hostFetch = std::move (fetch); }
     void  RefreshShellRoots  ();
     bool  IsPinnedFolder     (const std::wstring & path) const;
 
@@ -191,6 +197,7 @@ private:
     int                                              m_fetchCount = 0;
     IShellItemVerbs                                * m_shellVerbs = nullptr;
     ShellFetch                                       m_shellFetch;
+    HostFetch                                        m_hostFetch;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;

@@ -345,7 +345,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [x] T142 Make each of the navigation pane's five options follow File Explorer's own setting until it is set in Casso Explorer, then keep Casso Explorer's value for that option alone, never writing File Explorer's settings, per FR-064 and US8/AC4 (missing)
 - [x] T143 Draw a sample set of Apple file-type icons (text, Applesoft, Integer BASIC, binary, system, directory, relocatable, generic) and show them for entries inside images in every view, per FR-065, US8/AC5 and SC-019 (missing)
 - [x] T144 Test registration against a scratch registry root, or remove everything the test wrote and compare associations before and after, per FR-066 (missing)
-- [ ] T145 Read disk folders on a network path off the UI thread so that an unreachable share never hangs the window, per FR-056 and Edge Cases (partial)
+- [x] T145 Read disk folders on a network path off the UI thread so that an unreachable share never hangs the window, per FR-056 and Edge Cases (partial)
 - [ ] T146 Complete Show all folders: show the Desktop root holding the pane's other roots, and Control Panel, as File Explorer does, per FR-057 (partial)
 - [ ] T147 Show the OneDrive root with the shell's cloud icon, per FR-053 (partial)
 - [x] T148 Show the pin icon on pinned folders in the navigation pane, per FR-055 (partial)

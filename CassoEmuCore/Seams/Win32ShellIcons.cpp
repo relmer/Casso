@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/PathResolver.h"
 #include "Core/ThreadName.h"
 
 #include "Seams/Win32ShellIcons.h"
@@ -348,7 +349,42 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wst
         return Queue (key, path, isDirectory);
     }
 
+    //  With no loader, a network item's own icon would be read on this thread
+    //  from a share that may not answer; it takes its kind's icon instead.
+    if (GetCacheKey (path, isDirectory).starts_with (L"*path:") && PathResolver::IsNetworkPath (path))
+    {
+        key = GetSizedKey (isDirectory ? std::wstring (L"*network:<folder>") : L"*network:" + GetCacheKey (path, false));
+        found = m_cache.find (key);
+
+        return (found != m_cache.end()) ? found->second : Remember (key, LoadByAttributes (path, isDirectory, m_sizePx));
+    }
+
     return Remember (key, LoadSized (path, isDirectory, m_sizePx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadByAttributes
+//
+//  The icon of every folder, or of every file of the path's extension, from
+//  the attributes alone, so the path is never accessed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON Win32ShellIcons::LoadByAttributes (const std::wstring & path, bool isDirectory, int sizePx)
+{
+    SHFILEINFOW  info   = {};
+    UINT         flags  = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | ((sizePx <= 16) ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+    DWORD_PTR    result = SHGetFileInfoW (path.c_str(), isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+                                          &info, sizeof (info), flags);
+
+
+
+    return (result != 0) ? info.hIcon : nullptr;
 }
 
 
@@ -373,7 +409,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
     //  draws its icon from the item itself. So does one inside a zip, whose
     //  path the file system does not know.
     if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0
-        || (path.size() > 2 && path[1] == L':' && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
+        || (path.size() > 2 && path[1] == L':' && !PathResolver::IsNetworkPath (path) && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
     {
         return LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
     }

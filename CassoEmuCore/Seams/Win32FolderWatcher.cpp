@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/PathResolver.h"
 #include "Core/ThreadName.h"
 
 #include "Seams/Win32FolderWatcher.h"
@@ -39,19 +40,62 @@ Win32FolderWatcher::~Win32FolderWatcher()
 
 bool Win32FolderWatcher::Watch (const std::wstring & directory, Callback callback)
 {
-    std::lock_guard<std::mutex>  held (m_lock);
-    HANDLE                       notification = INVALID_HANDLE_VALUE;
+    HANDLE                         notification = INVALID_HANDLE_VALUE;
+    std::shared_ptr<NetworkOpens>  network      = m_network;
 
 
 
-    if (m_folders.find (directory) != m_folders.end())
     {
-        return true;
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        if (m_folders.find (directory) != m_folders.end())
+        {
+            return true;
+        }
+
+        if (m_folders.size() >= kMaxFolders)
+        {
+            return false;
+        }
     }
 
-    if (m_folders.size() >= kMaxFolders)
+    if (PathResolver::IsNetworkPath (directory))
     {
-        return false;
+        {
+            std::lock_guard<std::mutex>  held (network->lock);
+
+            if (!network->pending.insert (directory).second)
+            {
+                return true;
+            }
+        }
+
+        std::thread ([this, network, directory, callback]()
+        {
+            HRESULT                       hrName = ThreadName::SetForCurrentThread (L"Casso Explorer network folder watch");
+            HANDLE                        opened = FindFirstChangeNotificationW (directory.c_str(), FALSE, s_kFilter);
+            bool                          valid  = opened != INVALID_HANDLE_VALUE && opened != nullptr;
+            std::unique_lock<std::mutex>  held   (network->lock);
+            bool                          wanted = network->alive && network->pending.erase (directory) > 0;
+
+
+
+            IGNORE_RETURN_VALUE (hrName, S_OK);
+
+            //  Under the shared lock the watcher cannot be stopping, so it
+            //  takes the handle; otherwise, or if the folder was unwatched
+            //  meanwhile, the handle is closed here.
+            if (valid && wanted)
+            {
+                AddFolder (directory, opened, callback);
+            }
+            else if (valid)
+            {
+                FindCloseChangeNotification (opened);
+            }
+        }).detach();
+
+        return true;
     }
 
     notification = FindFirstChangeNotificationW (directory.c_str(), FALSE, s_kFilter);
@@ -59,6 +103,31 @@ bool Win32FolderWatcher::Watch (const std::wstring & directory, Callback callbac
     if (notification == INVALID_HANDLE_VALUE || notification == nullptr)
     {
         return false;
+    }
+
+    return AddFolder (directory, notification, std::move (callback));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32FolderWatcher::AddFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32FolderWatcher::AddFolder (const std::wstring & directory, HANDLE notification, Callback callback)
+{
+    std::lock_guard<std::mutex>  held (m_lock);
+
+
+
+    if (m_folders.find (directory) != m_folders.end() || m_folders.size() >= kMaxFolders)
+    {
+        FindCloseChangeNotification (notification);
+        return m_folders.find (directory) != m_folders.end();
     }
 
     m_folders[directory] = FolderEntry { notification, std::move (callback) };
@@ -87,10 +156,18 @@ bool Win32FolderWatcher::Watch (const std::wstring & directory, Callback callbac
 
 void Win32FolderWatcher::Unwatch (const std::wstring & directory)
 {
-    std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
-    auto                         found = m_folders.find (directory);
+    std::unique_lock<std::mutex>  pending (m_network->lock);
+    std::unique_lock<std::mutex>  held    (m_lock, std::defer_lock);
+    auto                          found   = m_folders.end();
 
 
+
+    //  A network folder being opened is dropped when its handle arrives.
+    m_network->pending.erase (directory);
+    pending.unlock();
+
+    held.lock();
+    found = m_folders.find (directory);
 
     if (found == m_folders.end())
     {
@@ -292,6 +369,14 @@ void Win32FolderWatcher::DropUnusable (const std::vector<std::wstring> & directo
 
 void Win32FolderWatcher::Stop()
 {
+    //  A network folder being opened has its handle closed by its own thread.
+    {
+        std::lock_guard<std::mutex>  held (m_network->lock);
+
+        m_network->alive = false;
+        m_network->pending.clear();
+    }
+
     if (m_stop != nullptr)
     {
         SetEvent (m_stop);

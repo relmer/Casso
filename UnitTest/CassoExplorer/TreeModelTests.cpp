@@ -167,6 +167,44 @@ public:
 
 
 
+    TEST_METHOD (NetworkFolder_IsReadThroughTheFetchAndNothingIsKeptWhilePending)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+        bool                   arrived = false;
+        int                    fetches = 0;
+        const wchar_t        * share   = L"\\\\server\\share";
+        std::wstring           id      = TreeModel::MakeFolderId (false, share);
+
+        model.SetHostFetch ([&] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries, HRESULT & outResult)
+        {
+            FileSystemEntry  folder;
+
+            fetches++;
+            Assert::AreEqual (std::wstring (share), path);
+
+            folder.name     = L"Games";
+            folder.isFolder = true;
+            outEntries      = { folder };
+            outResult       = S_OK;
+
+            return arrived;
+        });
+
+        Assert::AreEqual (S_FALSE, model.GetChildren (id, nodes), L"Being read: nothing yet");
+        Assert::IsTrue   (nodes.empty());
+
+        arrived = true;
+        AssertSucceeded  (model.GetChildren (id, nodes));
+        Assert::AreEqual ((size_t) 1, nodes.size(), L"The pending read was not cached, so the arrival is taken");
+        Assert::AreEqual (std::wstring (L"Games"), nodes[0].label);
+        Assert::IsTrue   (nodes[0].canExpand, L"A network folder has an expander without being looked into");
+        Assert::AreEqual (2, fetches, L"and only the fetch is called for it, never the local file system");
+    }
+
+
+
     TEST_METHOD (ProDosImage_ChildrenAreItsDirectories_Dos33HasNone)
     {
         InMemoryFileSystem     fs;

@@ -3,6 +3,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/SearchQuery.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 
 #pragma comment(lib, "shlwapi.lib")
@@ -22,6 +23,18 @@ CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & file
       m_tree       (fs),
       m_operations (fileIo)
 {
+    //  The tree reads network folders through the same readers as the list,
+    //  under a key of its own.
+    m_tree.SetHostFetch ([this] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries, HRESULT & outResult)
+    {
+        if (!m_hostListings.HasLister())
+        {
+            outResult = m_fs.EnumerateAllEntries (path, outEntries);
+            return true;
+        }
+
+        return m_hostListings.TryTake (s_kHostTreeKey + path, path, outEntries, outResult);
+    });
 }
 
 
@@ -318,7 +331,20 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
 
 
 
-    hr = m_fs.EnumerateAllEntries (path, m_hostEntries);
+    //  A network folder is read on a thread of its own; meanwhile the list has
+    //  a working message, as for a shell folder, and fills when it arrives.
+    if (PathResolver::IsNetworkPath (path) && m_hostListings.HasLister())
+    {
+        if (!m_hostListings.TryTake (s_kHostListKey + path, path, m_hostEntries, hr))
+        {
+            m_listError = L"Working on it...";
+            return S_OK;
+        }
+    }
+    else
+    {
+        hr = m_fs.EnumerateAllEntries (path, m_hostEntries);
+    }
 
     if (FAILED (hr))
     {

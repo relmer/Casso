@@ -867,8 +867,16 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  Deletions made anywhere reach the bin, so its list follows them.
     m_shellVerbs.WatchRecycleBin (GetHwnd(), kRecycleBinMessage);
 
-    //  Slow shell folders read on threads of their own and say when done.
+    //  Slow shell folders, and host folders on the network, read on threads
+    //  of their own and post a message when done.
     m_browser.GetShellListings().SetTarget (GetHwnd(), kShellListedMessage);
+    m_browser.GetHostListings().SetTarget (GetHwnd(), kShellListedMessage);
+    m_browser.GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
+    {
+        Win32FileSystem  fs;
+
+        return fs.EnumerateAllEntries (path, outEntries);
+    });
 
     m_browser.RestoreTabs (m_prefs.tabs);
     m_browser.LeaveMissingLocation();
@@ -7287,9 +7295,11 @@ std::wstring CassoExplorerWindow::GetFolderViewKey (FolderViews::FolderType * ou
             return location.path;
 
         case Location::Kind::HostFolder:
+            //  A network folder's desktop.ini is not read, so an unreachable
+            //  share never stops the window; it takes the generic view.
             if (outType != nullptr)
             {
-                *outType = FolderViews::ReadFolderType (location.path);
+                *outType = PathResolver::IsNetworkPath (location.path) ? type : FolderViews::ReadFolderType (location.path);
             }
 
             return location.path;
@@ -8050,7 +8060,13 @@ void CassoExplorerWindow::OpenPathInNewTab (const std::wstring & path)
     }
 
     full.resize (length);
-    attributes = GetFileAttributesW (full.c_str());
+
+    //  A network path is not looked at, since an unreachable share would stop
+    //  the window until the network times out: one that is not a disk image
+    //  opens as a folder, and its list reports whatever its read finds.
+    attributes = !PathResolver::IsNetworkPath (full) ? GetFileAttributesW (full.c_str())
+               : TreeModel::IsSupportedImage (full)  ? FILE_ATTRIBUTE_NORMAL
+               :                                       FILE_ATTRIBUTE_DIRECTORY;
 
     if (attributes == INVALID_FILE_ATTRIBUTES)
     {
@@ -8174,6 +8190,11 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     if (msg == kShellListedMessage)
     {
         for (const std::wstring & key : m_browser.GetShellListings().TakeArrivedKeys())
+        {
+            OnShellListed (key);
+        }
+
+        for (const std::wstring & key : m_browser.GetHostListings().TakeArrivedKeys())
         {
             OnShellListed (key);
         }
@@ -8504,14 +8525,38 @@ void CassoExplorerWindow::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & it
 
 void CassoExplorerWindow::OnShellListed (const std::wstring & key)
 {
-    std::wstring  listKey = CassoExplorerBrowser::s_kListKey;
-    std::wstring  treeKey = CassoExplorerBrowser::s_kTreeKey;
+    std::wstring  listKey  = CassoExplorerBrowser::s_kListKey;
+    std::wstring  treeKey  = CassoExplorerBrowser::s_kTreeKey;
+    std::wstring  hostKey  = CassoExplorerBrowser::s_kHostListKey;
+    std::wstring  hostTree = CassoExplorerBrowser::s_kHostTreeKey;
     std::wstring  nodeId;
-    HRESULT       hr      = S_OK;
+    HRESULT       hr       = S_OK;
 
 
 
-    if (key.starts_with (listKey))
+    if (key.starts_with (hostTree))
+    {
+        for (bool underCasso : { true, false })
+        {
+            nodeId = TreeModel::MakeFolderId (underCasso, key.substr (hostTree.size()));
+
+            if (m_tree->FindRowById (nodeId) >= 0)
+            {
+                m_browser.GetTreeModel().Invalidate (nodeId);
+                m_tree->ReplaceChildren (nodeId, m_browser.GetTreeChildren (nodeId));
+            }
+        }
+    }
+    else if (key.starts_with (hostKey))
+    {
+        if (m_browser.GetLocation().kind == Location::Kind::HostFolder && m_browser.GetLocation().path == key.substr (hostKey.size()))
+        {
+            hr = m_browser.Refresh();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            FillList();
+        }
+    }
+    else if (key.starts_with (listKey))
     {
         if (m_browser.GetLocation().kind == Location::Kind::ShellFolder && m_browser.GetLocation().path == key.substr (listKey.size()))
         {

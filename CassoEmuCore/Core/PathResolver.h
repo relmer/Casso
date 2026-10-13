@@ -73,4 +73,9 @@ public:
     // Inverse of MakeExeRelativePath: relative entries are joined
     // with the exe directory; absolute entries pass through.
     static std::wstring ResolveExeRelativePath (const std::wstring & storedPath);
+
+    // A UNC path, or one on a drive letter mapped to a network share. A
+    // drive letter's kind is known locally, so the query never waits on the
+    // network.
+    static bool IsNetworkPath (const std::wstring & path);
 };
