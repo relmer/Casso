@@ -148,4 +148,31 @@ public:
         Assert::AreEqual (0u,          image.bgraPremul[2]);
         Assert::AreEqual (0xFF0000FFu, image.bgraPremul[3]);
     }
+
+
+
+    //  Halving an image averages each pixel's four, premultiplied as they are,
+    //  so a transparent pixel only dims the alpha and the color together.
+    TEST_METHOD (Resample_HalvingAveragesEachFour)
+    {
+        DxuiIconImage  source;
+        DxuiIconImage  half;
+
+        source.width      = 4;
+        source.height     = 4;
+        source.bgraPremul = { 0xFFFF0000u, 0xFFFF0000u, 0u,          0u,
+                              0xFFFF0000u, 0xFFFF0000u, 0u,          0u,
+                              0xFF00FF00u, 0xFF00FF00u, 0xFFFFFFFFu, 0u,
+                              0xFF00FF00u, 0xFF00FF00u, 0u,          0xFFFFFFFFu };
+
+        half = DxuiIconImage::Resample (source, 2);
+
+        Assert::AreEqual (2, half.width);
+        Assert::AreEqual (2, half.height);
+        Assert::AreEqual (0xFFFF0000u, half.bgraPremul[0], L"Opaque red stays opaque red");
+        Assert::AreEqual (0u,          half.bgraPremul[1], L"and transparent stays transparent");
+        Assert::AreEqual (0xFF00FF00u, half.bgraPremul[2]);
+        Assert::AreEqual (0x80808080u, half.bgraPremul[3], L"Two white and two clear make half of each");
+        Assert::IsTrue   (DxuiIconImage::Resample (source, 0).bgraPremul.empty(), L"No size, no image");
+    }
 };

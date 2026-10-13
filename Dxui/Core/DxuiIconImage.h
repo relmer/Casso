@@ -29,6 +29,11 @@ struct DxuiIconImage
     //  Rasterizes an icon at sizePx square. The handle stays the caller's.
     static HRESULT  FromHicon (HICON icon, int sizePx, DxuiIconImage & outImage);
 
+    //  `source` scaled to sizePx square with a bilinear filter, each pixel
+    //  from the four nearest to its center, as Explorer scales a larger
+    //  icon's art down to a row's size.
+    static DxuiIconImage  Resample (const DxuiIconImage & source, int sizePx);
+
 private:
     static HRESULT  ApplyMask (HDC dc, HICON icon, int sizePx, uint32_t * bits, DxuiIconImage & image);
 };

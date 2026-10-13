@@ -3751,11 +3751,12 @@ IShellIcons::Kind CassoExplorerBrowser::GetAppleTypeIconKind (const std::wstring
 
 std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const TreeNode & node, IShellIcons & icons)
 {
-    //  A root the desktop holds as an entry of its own, as OneDrive, has that
-    //  entry's icon, its cloud, rather than its folder's.
+    //  A root that is an entry of the desktop's own, as OneDrive, has that
+    //  entry's icon, its cloud, rather than its folder's. A tree icon has no
+    //  overlays, as in Explorer's navigation pane.
     if (!node.iconId.empty())
     {
-        return icons.GetForPath (node.iconId, true);
+        return icons.GetForTreePath (node.iconId, true);
     }
 
     //  An archive has its file's icon, a zip's zipper, not a folder's.
@@ -3773,7 +3774,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
         //  Every remaining node is a drive or a host folder; a disk image node
         //  has Casso's floppy.
         case TreeNode::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
-        default:                            return icons.GetForPath (node.location.path, true);
+        default:                            return icons.GetForTreePath (node.location.path, true);
     }
 }
 

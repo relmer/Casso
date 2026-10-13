@@ -52,8 +52,9 @@ public:
     //  there were any.
     bool  TakeLoaded();
 
-    std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) override;
-    std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) override;
+    std::shared_ptr<const DxuiIconImage>  GetForPath     (const std::wstring & path, bool isDirectory) override;
+    std::shared_ptr<const DxuiIconImage>  GetForTreePath (const std::wstring & path, bool isDirectory) override;
+    std::shared_ptr<const DxuiIconImage>  GetForKind     (Kind kind) override;
     std::wstring                          GetTypeName (const std::wstring & path, bool isDirectory) override;
     bool                                  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override;
 
@@ -69,6 +70,7 @@ private:
         std::wstring  path;
         bool          isDirectory = false;
         int           sizePx      = kDefaultSizePx;
+        bool          overlays    = true;
     };
 
     struct Loaded
@@ -79,16 +81,17 @@ private:
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
-    std::shared_ptr<const DxuiIconImage>  Queue (const std::wstring & key, const std::wstring & path, bool isDirectory);
+    std::shared_ptr<const DxuiIconImage>  Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
+    std::shared_ptr<const DxuiIconImage>  GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays);
     void                                  RunLoader();
 
     static constexpr int  s_kLargeIconPx      = 32;
     static constexpr int  s_kExtraLargeIconPx = 48;
 
     static std::wstring                    GetCacheKey       (const std::wstring & path, bool isDirectory);
-    static HICON                           LoadForPath       (const std::wstring & path, UINT sizeFlag);
+    static HICON                           LoadForPath       (const std::wstring & path, UINT sizeFlag, bool overlays = true);
     static HICON                           LoadLargerForPath (const std::wstring & path, bool isDirectory, int sizePx);
-    static HICON                           LoadSized         (const std::wstring & path, bool isDirectory, int sizePx);
+    static HICON                           LoadSized         (const std::wstring & path, bool isDirectory, int sizePx, bool overlays = true);
     static HICON                           LoadByAttributes  (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon (const std::wstring & path, int sizePx, SIIGBF flags);

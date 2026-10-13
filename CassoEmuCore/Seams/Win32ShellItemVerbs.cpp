@@ -2302,12 +2302,29 @@ HRESULT Win32ShellItemVerbs::ListDesktopNamespace (std::vector<ShellFolderItem> 
     {
         ComPtr<IShellItem>  shellItem;
         ShellFolderItem     entry;
+        STRRET              strret = {};
+        PWSTR               name   = nullptr;
         HRESULT             hrItem = SHCreateItemWithParent (nullptr, desktop.Get(), item, IID_PPV_ARGS (&shellItem));
+        HRESULT             hrName = desktop->GetDisplayNameOf (item, SHGDN_INFOLDER | SHGDN_FORPARSING, &strret);
 
         if (SUCCEEDED (hrItem))
         {
             hrItem = DescribeShellItem (shellItem.Get(), entry);
         }
+
+        //  A junction such as OneDrive has the desktop entry's icon, its
+        //  cloud, rather than its folder's, as in ListNavigationRoots.
+        if (SUCCEEDED (hrName))
+        {
+            hrName = StrRetToStrW (&strret, item, &name);
+        }
+
+        if (SUCCEEDED (hrName) && name != nullptr && wcsncmp (name, L"::", 2) == 0)
+        {
+            entry.iconId = name;
+        }
+
+        CoTaskMemFree (name);
 
         if (SUCCEEDED (hrItem) && entry.isFolder && !entry.isFile)
         {

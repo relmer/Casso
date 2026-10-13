@@ -123,7 +123,7 @@ bool Win32ShellIcons::TakeLoaded()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory)
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays)
 {
     bool  added = false;
 
@@ -136,7 +136,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
 
         if (added)
         {
-            m_requests.push_back (Request { key, path, isDirectory, m_sizePx });
+            m_requests.push_back (Request { key, path, isDirectory, m_sizePx, overlays });
         }
     }
 
@@ -187,7 +187,7 @@ void Win32ShellIcons::RunLoader()
             m_requests.pop_back();
         }
 
-        image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx), request.sizePx, m_dpi);
+        image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays), request.sizePx, m_dpi);
 
         if (image != nullptr && !request.isDirectory && RunsElevated (request.path))
         {
@@ -332,8 +332,42 @@ void Win32ShellIcons::AddShield (DxuiIconImage & image)
 
 std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wstring & path, bool isDirectory)
 {
-    std::wstring  key   = GetSizedKey (GetCacheKey (path, isDirectory));
-    auto          found = m_cache.find (key);
+    return GetIconForPath (path, isDirectory, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetForTreePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForTreePath (const std::wstring & path, bool isDirectory)
+{
+    return GetIconForPath (path, isDirectory, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetIconForPath
+//
+//  A per-path icon without overlays is cached apart from the one with them;
+//  an icon by extension has none either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays)
+{
+    std::wstring  cacheKey = GetCacheKey (path, isDirectory);
+    std::wstring  key      = GetSizedKey ((overlays || !cacheKey.starts_with (L"*path:")) ? cacheKey : L"*tree" + cacheKey);
+    auto          found    = m_cache.find (key);
 
 
 
@@ -346,7 +380,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wst
     //  same for every file of its type.
     if (m_loader.joinable() && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
     {
-        return Queue (key, path, isDirectory);
+        return Queue (key, path, isDirectory, overlays);
     }
 
     //  With no loader, a network item's own icon would be read on this thread
@@ -359,7 +393,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wst
         return (found != m_cache.end()) ? found->second : Remember (key, LoadByAttributes (path, isDirectory, m_sizePx));
     }
 
-    return Remember (key, LoadSized (path, isDirectory, m_sizePx));
+    return Remember (key, LoadSized (path, isDirectory, m_sizePx, overlays));
 }
 
 
@@ -371,14 +405,15 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForPath (const std::wst
 //  Win32ShellIcons::LoadByAttributes
 //
 //  The icon of every folder, or of every file of the path's extension, from
-//  the attributes alone, so the path is never accessed.
+//  the attributes alone, so the path is never accessed. The large icon at
+//  every size it serves, scaled down as it is rasterized, as Explorer's own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HICON Win32ShellIcons::LoadByAttributes (const std::wstring & path, bool isDirectory, int sizePx)
 {
     SHFILEINFOW  info   = {};
-    UINT         flags  = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | ((sizePx <= 16) ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+    UINT         flags  = SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_LARGEICON;
     DWORD_PTR    result = SHGetFileInfoW (path.c_str(), isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
                                           &info, sizeof (info), flags);
 
@@ -395,11 +430,14 @@ HICON Win32ShellIcons::LoadByAttributes (const std::wstring & path, bool isDirec
 //
 //  Win32ShellIcons::LoadSized
 //
-//  Past the large icon, the shell's bigger image lists have the art.
+//  Past the large icon, the shell's bigger image lists have the art. Up to
+//  it, the large icon at the system's size, which Rasterize scales down, as
+//  Explorer draws its rows: an icon's smallest art can differ from its
+//  larger art, as OneDrive's has a cloud alone where the rest have a folder.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, int sizePx)
+HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, int sizePx, bool overlays)
 {
     HICON  preview = nullptr;
 
@@ -411,7 +449,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
     if (path.starts_with (L"::") || _wcsnicmp (path.c_str(), L"shell:", 6) == 0
         || (path.size() > 2 && path[1] == L':' && !PathResolver::IsNetworkPath (path) && GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES))
     {
-        return LoadShellItemIcon (path, sizePx, SIIGBF_ICONONLY);
+        return LoadShellItemIcon (path, (std::max) (sizePx, GetSystemMetrics (SM_CXICON)), SIIGBF_ICONONLY);
     }
 
     //  A folder at a large size shows what is in it, as Explorer's does.
@@ -430,7 +468,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
         return LoadLargerForPath (path, isDirectory, sizePx);
     }
 
-    return LoadForPath (path, (sizePx <= 16) ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+    return LoadForPath (path, SHGFI_LARGEICON, overlays);
 }
 
 
@@ -687,7 +725,7 @@ Error:
 std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
 {
     std::wstring  key   = GetSizedKey (L"*kind:" + std::to_wstring ((int) kind));
-    UINT          flag  = (m_sizePx <= 16) ? SHGFI_SMALLICON : SHGFI_LARGEICON;
+    UINT          flag  = SHGFI_LARGEICON;
     auto          found = m_cache.find (key);
 
 
@@ -1001,6 +1039,10 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstri
 //  Takes ownership of the handle and destroys it. No icon, or one that fails
 //  to rasterize, is null.
 //
+//  A larger icon for a size up to the large icon's is drawn at its own size
+//  and scaled down with a bilinear filter, which matches Explorer's rows
+//  where GDI's stretch does not.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<DxuiIconImage> Win32ShellIcons::Rasterize (HICON icon, int sizePx, UINT dpi)
@@ -1009,27 +1051,40 @@ std::shared_ptr<DxuiIconImage> Win32ShellIcons::Rasterize (HICON icon, int sizeP
     HRESULT                         hr    = S_OK;
     ICONINFO                        info  = {};
     BITMAP                          art   = {};
+    int                             artPx = 0;
 
 
 
-    //  An icon smaller than the size asked for keeps its own pixel size, as
-    //  Explorer draws a type with no art at the list's size, unscaled.
-    if (icon != nullptr && dpi != 0 && GetIconInfo (icon, &info))
+    if (icon != nullptr && GetIconInfo (icon, &info))
     {
         if (info.hbmColor != nullptr && GetObjectW (info.hbmColor, sizeof (art), &art) != 0)
         {
-            sizePx = (std::min) (sizePx, (int) art.bmWidth);
+            artPx = (int) art.bmWidth;
         }
 
         DeleteObject (info.hbmColor);
         DeleteObject (info.hbmMask);
     }
 
+    //  An icon smaller than the requested size is drawn at its own pixel
+    //  size, as Explorer draws a type with no art at the list's size, unscaled.
+    if (dpi != 0 && artPx > 0)
+    {
+        sizePx = (std::min) (sizePx, artPx);
+    }
+
     if (icon != nullptr)
     {
+        bool  scaled = artPx > sizePx && sizePx <= s_kLargeIconPx;
+
         image = std::make_shared<DxuiIconImage>();
-        hr    = DxuiIconImage::FromHicon (icon, sizePx, *image);
+        hr    = DxuiIconImage::FromHicon (icon, scaled ? artPx : sizePx, *image);
         DestroyIcon (icon);
+
+        if (SUCCEEDED (hr) && scaled)
+        {
+            *image = DxuiIconImage::Resample (*image, sizePx);
+        }
 
         if (FAILED (hr))
         {
@@ -1094,7 +1149,7 @@ std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path, bool isDir
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag)
+HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag, bool overlays)
 {
     SHFILEINFOW  info       = {};
     DWORD        attributes = GetFileAttributesW (path.c_str());
@@ -1112,7 +1167,7 @@ HICON Win32ShellIcons::LoadForPath (const std::wstring & path, UINT sizeFlag)
                     : (path.rfind (L'.') == std::wstring::npos) ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
         flags      |= SHGFI_USEFILEATTRIBUTES;
     }
-    else
+    else if (overlays)
     {
         //  A file asked about by its own path has its overlays, as the shield
         //  on a program that runs elevated.

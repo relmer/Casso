@@ -44,6 +44,11 @@ public:
     virtual std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) = 0;
 
+    //  The icon as Explorer's navigation pane draws it: without the overlays
+    //  its file list draws, such as a cloud folder's sync state. The path's
+    //  own icon, the default, for an implementation with no overlays.
+    virtual std::shared_ptr<const DxuiIconImage>  GetForTreePath (const std::wstring & path, bool isDirectory) { return GetForPath (path, isDirectory); }
+
     //  The type Explorer's Type column shows for a real file or folder, such
     //  as "Text Document" or "File folder". Empty, the default, when the
     //  implementation has no type name for it, and the caller keeps its own.
