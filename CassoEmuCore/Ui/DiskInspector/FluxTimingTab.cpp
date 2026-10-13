@@ -664,7 +664,7 @@ RECT FluxTimingTab::GetPlotRect() const
 
 
 
-    plot.left   += m_scaler.ToPx (s_kAxisDip);
+    plot.left   += m_scaler.ToPx (static_cast<int> (s_kAxisDip));
     plot.bottom  = plot.top + static_cast<LONG> ((m_boundsDip.bottom - m_boundsDip.top - m_scaler.ToPxf (s_kScopeRowDip)) * s_kPlotShare);
 
     return plot;
@@ -686,8 +686,8 @@ RECT FluxTimingTab::GetScopeRect() const
 
 
 
-    row.top    = row.bottom + m_scaler.ToPx (s_kGapDip);
-    row.bottom = row.top + m_scaler.ToPx (s_kScopeRowDip);
+    row.top    = row.bottom + m_scaler.ToPx (static_cast<int> (s_kGapDip));
+    row.bottom = row.top + m_scaler.ToPx (static_cast<int> (s_kScopeRowDip));
 
     return row;
 }
@@ -708,8 +708,8 @@ RECT FluxTimingTab::GetBarsRect() const
 
 
 
-    bars.top    = bars.bottom + m_scaler.ToPx (s_kGapDip);
-    bars.bottom = std::max (bars.top + 1, static_cast<LONG> (m_boundsDip.bottom - m_scaler.ToPx (s_kLabelRowDip)));
+    bars.top    = bars.bottom + m_scaler.ToPx (static_cast<int> (s_kGapDip));
+    bars.bottom = std::max (bars.top + 1, static_cast<LONG> (m_boundsDip.bottom - m_scaler.ToPx (static_cast<int> (s_kLabelRowDip))));
 
     return bars;
 }
@@ -727,7 +727,7 @@ RECT FluxTimingTab::GetBarsRect() const
 RECT FluxTimingTab::GetScopeOption (HistogramScope scope) const
 {
     RECT  option = GetScopeRect();
-    int   width  = m_scaler.ToPx (s_kScopeOptionDip);
+    int   width  = m_scaler.ToPx (static_cast<int> (s_kScopeOptionDip));
 
 
 
