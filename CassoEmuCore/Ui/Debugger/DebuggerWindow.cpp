@@ -1141,6 +1141,11 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
     list->SetRefitOnSetRows          (true);
     list->SetHorizontalScrollEnabled (true);
     list->SetPaneTextInset           (true);
+
+    //  The arrows, the page keys, Home and End move the selection, and Ctrl+C
+    //  copies it, so F9, run to cursor and the edit keys can act on a row
+    //  chosen without the mouse.
+    list->SetKeyboardColumnNav       (true);
 }
 
 

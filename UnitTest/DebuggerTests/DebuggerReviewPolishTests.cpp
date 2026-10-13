@@ -525,4 +525,57 @@ namespace DebuggerReviewPolishTests
             Assert::IsTrue (outlined, L"the box's edge is drawn");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PaneListKeyTests
+    //
+    //  The panes' lists take the arrow keys, so a row is chosen without the
+    //  mouse.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (PaneListKeyTests)
+    {
+    public:
+
+        TEST_METHOD (DownMovesTheSelectionInAFocusedList)
+        {
+            CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
+            PolishHost                                host;
+            PolishWindow                              window   (theme, host);
+            auto                                      snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::AutoWatchLine       a;
+            DebuggerViewSnapshot::AutoWatchLine       x;
+            int                                       before   = 0;
+
+
+
+            a.label = "A";
+            a.value = "00";
+            a.key   = "A";
+            x.label = "X";
+            x.value = "01";
+            x.key   = "X";
+            snapshot->autoWatches = { a, x };
+
+            window.Build();
+            window.TakeSnapshot (snapshot);
+            window.FocusControl (window.GetWatchList());
+            window.GetWatchList()->SetSelectedRow (1);
+
+            before = window.GetWatchList()->GetSelectedRow();
+            window.Chord (VK_DOWN, false, false);
+
+            Assert::AreEqual (before + 1, window.GetWatchList()->GetSelectedRow(), L"Down selects the next row");
+
+            window.Chord (VK_UP, false, false);
+
+            Assert::AreEqual (before, window.GetWatchList()->GetSelectedRow(), L"Up selects the row above");
+        }
+    };
 }
