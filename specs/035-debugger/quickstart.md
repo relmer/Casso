@@ -356,7 +356,7 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
    declarations.
 ## Story 25: automatic machine states
 
-1. With a clean `%LOCALAPPDATA%\Casso\States\`, start Casso: the General page
+1. With a clean `%LOCALAPPDATA%\Casso\SavedState\`, start Casso: the General page
    has "Automatically save the machine state at exit and resume at startup"
    checked.
 2. Boot a //e from a disk, run a program to a recognizable screen, close

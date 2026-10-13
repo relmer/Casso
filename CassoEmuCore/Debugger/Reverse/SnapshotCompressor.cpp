@@ -10,6 +10,21 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SnapshotCompressor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SnapshotCompressor::SnapshotCompressor (DWORD algorithm)
+    : m_algorithm (algorithm)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ~SnapshotCompressor
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,13 +64,13 @@ HRESULT SnapshotCompressor::CreateHandles()
 
     if (m_compressor == nullptr)
     {
-        created = CreateCompressor (COMPRESS_ALGORITHM_XPRESS | COMPRESS_RAW, nullptr, &m_compressor);
+        created = CreateCompressor (m_algorithm, nullptr, &m_compressor);
         CWRA (created);
     }
 
     if (m_decompressor == nullptr)
     {
-        created = CreateDecompressor (COMPRESS_ALGORITHM_XPRESS | COMPRESS_RAW, nullptr, &m_decompressor);
+        created = CreateDecompressor (m_algorithm, nullptr, &m_decompressor);
         CWRA (created);
     }
 

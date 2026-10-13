@@ -96,6 +96,7 @@ public:
     static fs::path GetAssetBaseDirectory();
 
     static fs::path GetDiskDirectory();
+    static fs::path GetStateDirectory();
 
     // Append disk images bundled in an Apple2/Demos directory to
     // `mountable`, sorted and de-duplicated against existing entries. A repo

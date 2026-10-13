@@ -157,6 +157,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
     <ClCompile Include="UiTests\StoragePageTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
@@ -934,6 +935,9 @@
     <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
     <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
+    <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />
+    <ClCompile Include="EmuTests\AutoStatePolicyTests.cpp" />
+    <ClCompile Include="EmuTests\StateThumbnailTests.cpp" />
     <ClCompile Include="EmuTests\HistoryTimelineTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailCostTests.cpp" />
     <ClCompile Include="EmuTests\HistorySeekCostTests.cpp" />

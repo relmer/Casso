@@ -2,6 +2,7 @@
 #include "Shell/Components/ShellInput.h"
 
 #include "Shell/Components/ShellRenderer.h"
+#include "Shell/StateThumbnail.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/MachineBuilder.h"
@@ -1148,6 +1149,45 @@ ScreenshotFacts ShellRenderer::BuildScreenshotFacts (ScreenshotMode mode, const 
     facts.crt.persistence       = crt.persistence;
 
     return facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellRenderer::CaptureStateThumbnail
+//
+//  The published frame is copied under its lock and encoded outside it, so
+//  the encode never delays a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellRenderer::CaptureStateThumbnail (std::vector<Byte> & outPng)
+{
+    HRESULT                hr       = S_OK;
+    std::vector<uint32_t>  frame;
+    bool                   hasFrame = false;
+
+
+
+    outPng.clear();
+
+    {
+        lock_guard<mutex>  lock (m_framebufferMutex);
+
+        frame = m_uiFramebuffer;
+    }
+
+    hasFrame = frame.size() == (size_t) kFramebufferWidth * (size_t) kFramebufferHeight;
+    BAIL_OUT_IF (!hasFrame, S_OK);
+
+    hr = StateThumbnail::Encode (frame, kFramebufferWidth, kFramebufferHeight, outPng);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

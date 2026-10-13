@@ -54,24 +54,30 @@ public:
     }
 
 
-    TEST_METHOD (Layout_ContentEndsAtTheFolderLinkInsideThePad)
+    TEST_METHOD (Layout_MachineStateAndFolderComeFirstAndContentEndsInsideThePad)
     {
         constexpr int  kPadDip = 16;
 
         GeneralPage    page;
         DxuiDpiScaler  scaler;
         RECT           rect   = { 10, 20, 730, 520 };
-        RECT           row    = {};
+        RECT           state  = {};
         RECT           folder = {};
+        RECT           update = {};
+        RECT           last   = {};
 
         scaler.SetDpi (96);
         page.Layout   (rect, scaler);
-        row    = page.GetAutoUpdateCheckbox().GetBounds();
+        state  = page.GetAutoStateCheckbox().GetBounds();
         folder = page.GetFolderLink().GetBounds();
+        update = page.GetAutoUpdateCheckbox().GetBounds();
+        last   = page.GetRomOfferCheckbox().GetBounds();
 
-        Assert::AreEqual ((LONG) (rect.left + kPadDip), row.left);
-        Assert::IsTrue   (row.top > rect.top + kPadDip, L"the Updates heading sits above the checkbox");
-        Assert::AreEqual ((int) (folder.bottom + kPadDip - rect.top), page.GetContentHeightPx());
+        Assert::AreEqual ((LONG) (rect.left + kPadDip), state.left);
+        Assert::IsTrue   (state.top > rect.top + kPadDip, L"the Machine state heading is above the checkbox");
+        Assert::IsTrue   (folder.top > state.bottom,      L"the folder link is below the machine state checkbox");
+        Assert::IsTrue   (update.top > folder.bottom,     L"the Updates group is below the folder link");
+        Assert::AreEqual ((int) (last.bottom + kPadDip - rect.top), page.GetContentHeightPx());
     }
 
 

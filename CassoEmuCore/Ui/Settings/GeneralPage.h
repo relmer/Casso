@@ -19,6 +19,8 @@
 //      Downloads
 //        * Disk drive sounds                 (DxuiCheckbox)
 //        * Updated ROMs                      (DxuiCheckbox)
+//      Machine state
+//        * Automatic save and resume         (DxuiCheckbox)
 //      Settings folder
 //        * The folder's path, as a link      (DxuiButton, Link variant)
 //          sized to its measured text and elided in the middle when it
@@ -40,6 +42,7 @@ public:
     void  SetOnAutoUpdateToggled (ToggleFn fn) { m_onAutoUpdateToggled = std::move (fn); }
     void  SetOnAudioOfferToggled (ToggleFn fn) { m_onAudioOfferToggled = std::move (fn); }
     void  SetOnRomOfferToggled   (ToggleFn fn) { m_onRomOfferToggled   = std::move (fn); }
+    void  SetOnAutoStateToggled  (ToggleFn fn) { m_onAutoStateToggled  = std::move (fn); }
     void  SetOnCheckNow          (ActionFn fn) { m_onCheckNow          = std::move (fn); }
     void  SetOnStopSkipping      (ActionFn fn) { m_onStopSkipping      = std::move (fn); }
     void  SetOnOpenFolder        (ActionFn fn) { m_onOpenFolder        = std::move (fn); }
@@ -47,6 +50,7 @@ public:
     void  SetAutoUpdateChecked   (bool checked) { m_autoUpdateCheckbox.SetChecked (checked); }
     void  SetAudioOfferChecked   (bool checked) { m_audioOfferCheckbox.SetChecked (checked); }
     void  SetRomOfferChecked     (bool checked) { m_romOfferCheckbox.SetChecked   (checked); }
+    void  SetAutoStateChecked    (bool checked) { m_autoStateCheckbox.SetChecked  (checked); }
 
     // The update status lines. An empty skipped text hides that row.
     void  SetLastCheckedText     (const std::wstring & text);
@@ -63,6 +67,7 @@ public:
     const DxuiCheckbox & GetAutoUpdateCheckbox () const { return m_autoUpdateCheckbox; }
     DxuiCheckbox       & GetAudioOfferCheckbox ()       { return m_audioOfferCheckbox; }
     DxuiCheckbox       & GetRomOfferCheckbox   ()       { return m_romOfferCheckbox;   }
+    DxuiCheckbox       & GetAutoStateCheckbox  ()       { return m_autoStateCheckbox;  }
     DxuiLabel          & GetLastCheckedLabel   ()       { return m_lastCheckedLabel;   }
     DxuiLabel          & GetSkippedLabel       ()       { return m_skippedLabel;       }
     DxuiButton         & GetCheckNowButton     ()       { return m_checkNowButton;     }
@@ -88,6 +93,7 @@ private:
     ToggleFn      m_onAutoUpdateToggled;
     ToggleFn      m_onAudioOfferToggled;
     ToggleFn      m_onRomOfferToggled;
+    ToggleFn      m_onAutoStateToggled;
     ActionFn      m_onCheckNow;
     ActionFn      m_onStopSkipping;
     ActionFn      m_onOpenFolder;
@@ -102,6 +108,9 @@ private:
     DxuiLabel     m_downloadsHeading;
     DxuiCheckbox  m_audioOfferCheckbox;
     DxuiCheckbox  m_romOfferCheckbox;
+
+    DxuiLabel     m_stateHeading;
+    DxuiCheckbox  m_autoStateCheckbox;
 
     DxuiLabel     m_folderHeading;
     DxuiButton    m_folderLink;

@@ -375,8 +375,9 @@ public:
     uint64_t  GetRomIdentity          () const;
     uint64_t  GetRomIdentityHashCount () const noexcept { return m_romIdentityHashes; }
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'A', 'C', 'H');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
 
     //  Stops the recorder at the current cycle; the tape stays inserted. Reset,
     //  power cycle and a machine switch all do this.

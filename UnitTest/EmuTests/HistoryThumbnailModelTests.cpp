@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Video/ImageShrink.h"
 #include "HResultAssert.h"
 #include "InlineWorkQueue.h"
 #include "Debugger/Reverse/HistoryImageCache.h"
@@ -727,7 +728,7 @@ public:
         source.height     = 1;
         source.bgraPremul = { 0xFF000000u, 0xFF0000FEu };
 
-        HistoryThumbnails::Shrink (source, 1, 1, shrunk);
+        ImageShrink::Shrink (source, 1, 1, shrunk);
 
         Assert::AreEqual (1, shrunk.width,  L"width");
         Assert::AreEqual (1, shrunk.height, L"height");

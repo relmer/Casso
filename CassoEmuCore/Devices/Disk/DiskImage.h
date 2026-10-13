@@ -267,9 +267,10 @@ public:
     HRESULT          SaveState           (StateWriter & writer) const override;
     HRESULT          LoadState           (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('D', 'I', 'S', 'K');
-    static constexpr uint16_t  kStateVersion      = 3;
-    static constexpr uint32_t  kMaxStateTrackSize = 0x100000;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('D', 'I', 'S', 'K');
+    static constexpr uint16_t  kStateVersion       = 3;
+    static constexpr uint16_t  kOldestStateVersion = 3;   // versions 1 and 2 were never released
+    static constexpr uint32_t  kMaxStateTrackSize  = 0x100000;
 
 private:
     friend class DiskTrackSnapshot;

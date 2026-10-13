@@ -388,6 +388,7 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         // teardown/recreate happens between CPU frames with no UI/CPU
         // race. Caller is expected to hide the panel before any subsequent
         // re-open.
+        m_emuShell->PromptToReplaceAutoState();
         m_emuShell->PostCommand (IDM_FILE_OPEN, std::string (machineName));
     }
 }

@@ -323,6 +323,23 @@ ProDOS Users Disk, downloaded from the Asimov archive when picked, so a fresh
 `Machines/` and `Devices/` are fully runtime-managed — delete either and the
 next launch rebuilds it.
 
+### Machine states
+
+**File → Save state** writes the whole machine to a `.cassostate` file: memory,
+the CPU, every device, and the disks in its drives, including writes not yet
+saved to their image files. **File → Load state** returns the machine to that
+moment, in the same session or a later one. The disks come from the state file
+itself, so one file is a complete session you can send to someone else. A state
+loads on the same kind of machine with the same ROM images.
+
+Casso also saves each machine's state when you exit or switch to another
+machine, and resumes it the next time you start that machine, so you pick up
+where you left off. A launch with disks or a tape on the command line starts
+fresh instead, and at exit Casso prompts before replacing the saved state,
+with its date, time and screen. Turn this off with **Automatically save
+the machine state at exit and resume at startup** on **Settings → General**.
+States are saved in `%LOCALAPPDATA%\Casso\SavedState\`.
+
 ### CPU
 
 All 56 standard 6502 mnemonics plus the 65C02 set, and the stable undocumented

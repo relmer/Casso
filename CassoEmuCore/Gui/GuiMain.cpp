@@ -13,6 +13,7 @@
 #include "Core/JsonWriter.h"
 #include "Core/PathResolver.h"
 #include "Config/DiskSettings.h"
+#include "Shell/AutoStatePolicy.h"
 #include "Shell/EmulatorShell.h"
 #include "Ui/DriveWidgetState.h"
 #include "Shell/Components/ShellUpdater.h"
@@ -166,6 +167,35 @@ static void ShowCommandLineDialog (const CommandLineOptions::EmulatorOptions & p
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsResumingAutoState
+//
+//  Whether the shell resumes the machine's automatic state at startup, by the
+//  rule EmulatorShell::ResumeAutoState applies. That machine starts with the
+//  disks in its state, so it skips the boot-disk picker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsResumingAutoState (const wstring & machineName, bool hasCommandLineMedia)
+{
+    GlobalUserPrefs  prefs;
+    Win32FileSystem  fsIo;
+    std::error_code  ec;
+    HRESULT          hr       = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fsIo);
+    bool             hasState = fs::exists (AutoStatePolicy::GetAutoStatePath (AssetBootstrap::GetStateDirectory(), machineName), ec);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return AutoStatePolicy::ShouldResumeAtStartup (prefs.autoSaveMachineState, hasCommandLineMedia, hasState);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadMachineConfig
 //
 //  Everything that has to happen before a machine can be built: find its
@@ -206,6 +236,7 @@ static HRESULT LoadMachineConfig (
     HINSTANCE           hInstance,
     const wstring     & machineName,
     wstring           & inoutDisk1Path,
+    bool                isResumingAutoState,
     HWND                hwndParent,
     bool              & outUserExited,
     MachineConfig     & outConfig)
@@ -305,8 +336,9 @@ static HRESULT LoadMachineConfig (
     // remembered path no longer points at a real file), and the
     // machine has a Disk ][ controller, offer to download a stock
     // Apple system master disk. Without this the user just stares at
-    // a spinning drive forever after first launch.
-    if (inoutDisk1Path.empty())
+    // a spinning drive forever after first launch. A machine resuming its
+    // automatic state starts with the disks in the state instead.
+    if (inoutDisk1Path.empty() && !isResumingAutoState)
     {
         Win32FileSystem  fs_io;
         UserConfigStore  store (AssetBootstrap::GetAssetBaseDirectory().wstring());
@@ -642,20 +674,21 @@ extern "C" int WINAPI wCassoMain (
 
 
 
-    HRESULT                              hr            = S_OK;
+    HRESULT                              hr                  = S_OK;
     wstring                              machineName;
     wstring                              disk1Path;
     wstring                              disk2Path;
     wstring                              tapePath;
     wstring                              titlePrefix;
-    size_t                               traceCapacity = 0;
-    bool                                 noImageWatch  = false;
-    int                                  exitCode      = 0;
-    bool                                 userExited    = false;
-    bool                                 answered      = false;
+    size_t                               traceCapacity       = 0;
+    bool                                 noImageWatch        = false;
+    int                                  exitCode            = 0;
+    bool                                 userExited          = false;
+    bool                                 answered            = false;
+    bool                                 isResumingAutoState = false;
     CommandLineOptions::EmulatorOptions  parsed;
     MachineConfig                        config;
-    std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
+    std::unique_ptr<EmulatorShell>       shell               = std::make_unique<EmulatorShell>();
 
 
 
@@ -820,7 +853,9 @@ extern "C" int WINAPI wCassoMain (
     // Load machine configuration. A user who dismissed one of the
     // startup dialogs wants out, so exit cleanly without a follow-up
     // error MessageBox.
-    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
+    isResumingAutoState = IsResumingAutoState (machineName, !disk1Path.empty() || !disk2Path.empty() || !tapePath.empty());
+
+    hr = LoadMachineConfig (hInstance, machineName, disk1Path, isResumingAutoState, nullptr, userExited, config);
     CHR (hr);
     BAIL_OUT_IF (userExited, S_OK);
 

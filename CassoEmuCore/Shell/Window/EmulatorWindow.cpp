@@ -1139,6 +1139,28 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnClose
+//
+//  Every way out of Casso comes through here: the close box, Alt+F4, File >
+//  Exit and the updater's restart. For a command-line launch's machine, a
+//  prompt runs before the automatic state it did not resume is replaced; the
+//  window closes whatever the choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnClose()
+{
+    PromptToReplaceAutoState();
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnDestroy
 //
 //  Shutdown, in the one order that works. Each step here is placed against a
@@ -1181,6 +1203,10 @@ void EmulatorShell::OnDestroy()
     m_printer->StopAndSavePendingStrip();
 
     m_cpuManager.Stop();
+
+    // The machine is quiet once the CPU thread has stopped, and the window is
+    // up for a notice if the write fails.
+    SaveAutoState();
 
     // IDxuiHostClient::OnDestroy is notification-only — the host
     // does NOT call PostQuitMessage. EmulatorShell is the

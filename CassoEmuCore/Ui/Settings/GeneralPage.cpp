@@ -62,6 +62,10 @@ void GeneralPage::WireToggle (DxuiCheckbox & checkbox, const ToggleFn & fn)
 GeneralPage::GeneralPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
+    Adopt (m_stateHeading);
+    Adopt (m_autoStateCheckbox);
+    Adopt (m_folderHeading);
+    Adopt (m_folderLink);
     Adopt (m_updatesHeading);
     Adopt (m_autoUpdateCheckbox);
     Adopt (m_lastCheckedLabel);
@@ -71,11 +75,9 @@ GeneralPage::GeneralPage (std::wstring title)
     Adopt (m_downloadsHeading);
     Adopt (m_audioOfferCheckbox);
     Adopt (m_romOfferCheckbox);
-    Adopt (m_folderHeading);
-    Adopt (m_folderLink);
 
     // Each group gets a heading of its own over its rows, as on the Storage page.
-    for (DxuiLabel * heading : { &m_updatesHeading, &m_downloadsHeading, &m_folderHeading })
+    for (DxuiLabel * heading : { &m_updatesHeading, &m_downloadsHeading, &m_stateHeading, &m_folderHeading })
     {
         heading->SetTextRole   (DxuiTextRole::Heading);
         heading->SetFontWeight (DxuiFontWeight::SemiBold);
@@ -83,15 +85,18 @@ GeneralPage::GeneralPage (std::wstring title)
 
     m_updatesHeading.SetText   (L"Updates");
     m_downloadsHeading.SetText (L"Offer downloads at startup");
+    m_stateHeading.SetText     (L"Machine state");
     m_folderHeading.SetText    (L"Settings folder");
 
     m_autoUpdateCheckbox.SetLabel (L"Check for updates automatically");
     m_audioOfferCheckbox.SetLabel (L"Disk drive sounds");
     m_romOfferCheckbox.SetLabel   (L"Updated ROMs");
+    m_autoStateCheckbox.SetLabel  (L"Automatically save the machine state at exit and resume at startup");
 
     WireToggle (m_autoUpdateCheckbox, m_onAutoUpdateToggled);
     WireToggle (m_audioOfferCheckbox, m_onAudioOfferToggled);
     WireToggle (m_romOfferCheckbox,   m_onRomOfferToggled);
+    WireToggle (m_autoStateCheckbox,  m_onAutoStateToggled);
 
     m_lastCheckedLabel.SetTextRole (DxuiTextRole::Muted);
     m_skippedLabel.SetTextRole     (DxuiTextRole::Muted);
@@ -179,7 +184,7 @@ void GeneralPage::SetSkippedText (const std::wstring & text)
 //
 //  GeneralPage::Layout
 //
-//  Three headed groups down the left, inside the page pad. The status lines
+//  Headed groups down the left, inside the page pad. The status lines
 //  indent under the update checkbox's label with their buttons in one column
 //  beside them; the skipped row takes space only while it is shown. Rows are
 //  clamped to the page's inner width so a narrow window cannot push them
@@ -204,6 +209,26 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   buttonX    = x + indent + statusW;
 
 
+
+    // The label is longer than the other checkboxes', so it takes the page's
+    // width.
+    m_stateHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
+    y += rowStep;
+
+    m_autoStateCheckbox.Layout (MakeRect (x, y, innerW, rowHeight), scaler);
+    y += rowStep + sectionGap;
+
+    // The link is text alone, with no checkbox to fill the space under the
+    // heading, so it is placed a row gap closer to the heading than a
+    // checkbox is.
+    m_folderHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
+    y += rowHeight;
+
+    // Paint narrows the link to the path's measured width; until then it may
+    // take the page's inner width.
+    m_folderMaxWidthPx = innerW;
+    m_folderLink.Layout (MakeRect (x, y, innerW, rowHeight));
+    y += rowStep + sectionGap;
 
     m_updatesHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
     y += rowStep;
@@ -232,15 +257,6 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     y += rowStep;
 
     m_romOfferCheckbox.Layout (MakeRect (x, y, checkW, rowHeight), scaler);
-    y += rowStep + sectionGap;
-
-    m_folderHeading.SetRect (MakeRect (x, y, innerW, rowHeight));
-    y += rowStep;
-
-    // Paint narrows the link to the path's measured width; until then it may
-    // take the page's inner width.
-    m_folderMaxWidthPx = innerW;
-    m_folderLink.Layout (MakeRect (x, y, innerW, rowHeight));
 
     m_updatesHeading.SetDpi     (dpi);
     m_autoUpdateCheckbox.SetDpi (dpi);
@@ -251,6 +267,8 @@ void GeneralPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_downloadsHeading.SetDpi   (dpi);
     m_audioOfferCheckbox.SetDpi (dpi);
     m_romOfferCheckbox.SetDpi   (dpi);
+    m_stateHeading.SetDpi       (dpi);
+    m_autoStateCheckbox.SetDpi  (dpi);
     m_folderHeading.SetDpi      (dpi);
     m_folderLink.SetDpi         (dpi);
 

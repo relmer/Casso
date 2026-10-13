@@ -130,8 +130,9 @@ public:
     HRESULT    SaveState (StateWriter & writer) const override;
     HRESULT    LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('D', '2', 'E', 'N');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('D', '2', 'E', 'N');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
     // Puts any write the drive is in the middle of on a flux track into the
     // track now. A write to a flux track is held until it ends -- write mode
     // off, a step, motor off, a disk change -- and a flush has to end it

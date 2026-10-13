@@ -270,6 +270,10 @@ struct GlobalUserPrefs
     std::string   latestKnownVersion;
     std::string   skippedVersion;
 
+    // Whether each machine's state is saved at exit and on a switch away
+    // from it, and resumed at startup and on a switch to it.
+    bool          autoSaveMachineState     = true;
+
     // AN UPDATE APPLIED WHEN CASSO CLOSES. The version it installs and how
     // ("zip" or "msix"), empty when none is waiting, and the failure of a zip
     // swap at exit as an UpdateFailure value (0 == none), for the next launch

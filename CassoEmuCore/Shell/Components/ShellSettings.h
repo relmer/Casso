@@ -103,6 +103,7 @@ public:
     // like the other live toggles in Settings, and the settings folder.
     void  SetAudioDownloadConsent (const std::string & consent);
     void  SetRomRefreshConsent    (const std::string & consent);
+    void  SetAutoSaveMachineState (bool isEnabled);
     void  OpenSettingsFolder      ();
 
     // %LOCALAPPDATA%\Casso, where the preferences files live.

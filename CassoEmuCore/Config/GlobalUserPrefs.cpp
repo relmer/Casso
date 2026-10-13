@@ -88,6 +88,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "reverseBudgetMb",
     "reverseIntervalFrames",
     "autoUpdateCheck",
+    "autoSaveMachineState",
     "lastUpdateCheckUtc",
     "latestKnownVersion",
     "skippedVersion",
@@ -1317,6 +1318,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("latestKnownVersion", JsonValue (latestKnownVersion));
     root.emplace_back ("skippedVersion",     JsonValue (skippedVersion));
     root.emplace_back ("pendingUpdateVersion", JsonValue (pendingUpdateVersion));
+
+    // The machine states saved at exit and resumed at startup.
+    root.emplace_back ("autoSaveMachineState", JsonValue (autoSaveMachineState));
     root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
     root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
@@ -1588,6 +1592,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     lastUpdateCheckUtc = (std::int64_t) GetNumberOpt (v, "lastUpdateCheckUtc", (double) lastUpdateCheckUtc);
     latestKnownVersion = GetStringOpt  (v, "latestKnownVersion", latestKnownVersion);
     skippedVersion     = GetStringOpt  (v, "skippedVersion",     skippedVersion);
+
+    autoSaveMachineState = TryGetBoolOpt (v, "autoSaveMachineState", autoSaveMachineState);
 
     pendingUpdateVersion = GetStringOpt (v, "pendingUpdateVersion", pendingUpdateVersion);
     pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);

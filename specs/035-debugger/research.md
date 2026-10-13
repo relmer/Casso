@@ -2407,7 +2407,7 @@ tree's parsed header text by 6%, since the shell holds its parts by value).
 and a PNG thumbnail; an `AutoStatePolicy` class computes resume, save and
 prompt; the shell resumes through the CPU thread's command queue at startup,
 saves in `MachineManager::SwitchMachine` and in `OnDestroy`, and prompts in a
-new `OnClose`; states are written atomically to `%LOCALAPPDATA%\Casso\States\`.
+new `OnClose`; states are written atomically to `%LOCALAPPDATA%\Casso\SavedState\`.
 
 **Found in the code (2026-10-12)**:
 
@@ -2486,3 +2486,19 @@ wrote are not read.
 (a second code path per version, tested no better than the branch in the
 loader); keeping exact matching and relying on FR-222's cold boot (correct
 but the user's session ends at each update that touches a part's state).
+
+**Measured (2026-10-12, SC-057)**: resuming an Apple //e state of 933,526 bytes
+with two 140 KB disks in its drives (parse and apply, Release build, nine runs
+on fresh machines) takes a median of 4.6 ms, from 4.5 to 4.7 ms; reading the
+file adds about a millisecond. Startup with a resume is therefore well inside
+SC-057's one second of a cold start. The CPU thread already initializes COM
+(multithreaded) in `CpuManager`'s thread procedure, so no COM change was made
+for the thumbnail's PNG encode.
+
+**Compression (2026-10-12)**: format version 3 stores the payload compressed
+with the Windows Compression API's MSZIP algorithm. Measured on the owner's
+automatic states: an Apple //e state with two WOZ disks goes from 1,353,932 to
+542,774 bytes, saving in 107 ms and unpacking in 4 ms. XPRESS Huffman was
+10% larger at 5 ms; LZMS was 1% smaller at 229 ms. Each disk remains twice in
+the file, as its image and as the drive's tracks, so a state file is complete
+without any other file.

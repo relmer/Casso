@@ -180,6 +180,40 @@ public:
     }
 
 
+    TEST_METHOD (AutoSaveMachineState_DefaultsOnAndRoundTrips)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     defaults;
+        GlobalUserPrefs     orig;
+        GlobalUserPrefs     loaded;
+        GlobalUserPrefs     fromOlderFile;
+        HRESULT             hr       = S_OK;
+
+
+
+        Assert::IsTrue (defaults.autoSaveMachineState, L"on by default");
+
+        orig.autoSaveMachineState = false;
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse (loaded.autoSaveMachineState, L"turned off and saved, it loads off");
+        Assert::IsTrue  (loaded.unknownPassthrough.empty(), L"the key is a known key");
+
+        hr = fs.WriteAllText (L"C:\\Casso\\UserPrefs.json", "{ \"autoUpdateCheck\": true }");
+        AssertSucceeded (hr);
+
+        hr = fromOlderFile.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (fromOlderFile.autoSaveMachineState, L"a prefs file from before the setting reads on");
+    }
+
+
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked

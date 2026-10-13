@@ -144,7 +144,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Can a machine continue across a restart of Casso? -> A: Yes, with a setting on the General page, "Automatically save the machine state at exit and resume at startup", on by default. Each machine kind has its own automatic state, saved at exit and on switching away from that machine, and resumed at startup or on switching to it (FR-219 to FR-221).
 - Q: What if the automatic state cannot be resumed? -> A: A notice with the reason appears, the machine starts cold, and the file is not modified; the next automatic save replaces it (FR-222).
 - Q: What does a launch with disks or a tape on the command line do? -> A: It starts cold with the command line's media, so the automatic state is not resumed. At exit the existing automatic state is replaced only if the user chooses to replace it, in a prompt with that state's date and time and a thumbnail of its screen. A command line with only a machine option resumes that machine (FR-223).
-- Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\States\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
+- Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\SavedState\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
 - Q: Does a newer Casso load a state an older one saved? -> A: Yes, from the first release that ships state files on, for the same machine kind and ROM images; a fixture test of saved states from each release guards it (FR-226, SC-059).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -2892,7 +2892,7 @@ run something, switch back to the //e: it is where it was left.
   saved and a thumbnail of the emulated screen at that moment. A file saved
   before this change MUST load; a prompt about such a file has its file time
   and no thumbnail.
-- **FR-225**: Machine state files MUST default to %LOCALAPPDATA%\Casso\States\.
+- **FR-225**: Machine state files MUST default to %LOCALAPPDATA%\Casso\SavedState\.
   The automatic states MUST be saved there, one per machine kind, and the Save
   state and Load state dialogs MUST open in that folder by default. An
   automatic state MUST be replaced only by a complete new file, so after a

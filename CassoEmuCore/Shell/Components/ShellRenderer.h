@@ -93,6 +93,10 @@ public:
     // Bound to the toolbar camera, Edit > Copy screenshot, and Ctrl+Alt+C.
     void TakeScreenshot();
 
+    // A machine state's thumbnail, from the last published frame. Empty when
+    // no frame has been published.
+    HRESULT CaptureStateThumbnail (std::vector<Byte> & outPng);
+
     // Presentation pacing + render-skip gate (rationale in the .cpp).
     // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
     // speed; the Compute* signatures feed the dirty-tracked render gate that

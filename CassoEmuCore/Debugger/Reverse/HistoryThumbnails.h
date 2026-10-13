@@ -195,10 +195,6 @@ public:
     static float       GetPlayheadOffset (const std::vector<HistoryThumbnailCell> & cells, uint64_t cycle, uint64_t endCycle);
     static uint64_t    GetCycleAtOffset  (const std::vector<HistoryThumbnailCell> & cells, float offset, uint64_t endCycle);
 
-    //  A picture shrunk to `width` by `height`, each pixel the average of
-    //  the ones it covers.
-    static void        Shrink        (const DxuiIconImage & source, int width, int height, DxuiIconImage & outImage);
-
     //  The fixed-size copy every cell size is scaled from: the picture itself
     //  when it is no wider than kBaseMaxWidth, else shrunk by a whole factor
     //  to fit.

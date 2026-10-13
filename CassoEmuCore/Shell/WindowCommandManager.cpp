@@ -650,9 +650,11 @@ void WindowCommandManager::OnFileCommand (int id)
             break;
         }
 
+        // Through WM_CLOSE like every other way out, so the automatic state's
+        // prompt runs for this one too.
         case IDM_FILE_EXIT:
         {
-            DestroyWindow (m_shell.m_hwnd);
+            PostMessageW (m_shell.m_hwnd, WM_CLOSE, 0, 0);
             break;
         }
     }

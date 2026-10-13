@@ -5,6 +5,7 @@
 #include "Core/StateHash.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/SnapshotCompressor.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
@@ -27,10 +28,7 @@ static constexpr Byte  s_kMagic[] =
 //
 //  MachineStateFile::Build
 //
-//  The machine as a file's bytes. Run on the thread that owns the machine.
-//  Each mounted disk is written whole from memory, so writes the guest made
-//  that are not yet saved to the image file are in the state, and no image
-//  file is read or written.
+//  A state with no thumbnail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +36,41 @@ HRESULT MachineStateFile::Build (
     MachineHost        & machine,
     std::vector<Byte>  & outBytes,
     MachineStateError  & outError)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  noThumbnail;
+
+
+
+    hr = Build (machine, noThumbnail, outBytes, outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::Build
+//
+//  The machine as a file's bytes. Run on the thread that owns the machine.
+//  Each mounted disk is written whole from memory, so writes the guest made
+//  that are not yet saved to the image file are in the state, and no image
+//  file is read or written. The current time and thumbnailPng, which may be
+//  empty, are written after the machine's state, and the payload is stored
+//  compressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::Build (
+    MachineHost              & machine,
+    const std::vector<Byte>  & thumbnailPng,
+    std::vector<Byte>        & outBytes,
+    MachineStateError        & outError)
 {
     HRESULT                   hr          = S_OK;
     DiskImageStore          & store       = machine.GetDiskStore();
@@ -49,10 +82,17 @@ HRESULT MachineStateFile::Build (
     DiskImage               * image       = nullptr;
     int                       slot        = 0;
     int                       drive       = 0;
+    FILETIME                  now         = {};
+    ULARGE_INTEGER            savedAt     = {};
+    std::vector<Byte>         packed;
 
 
 
     outBytes.clear();
+
+    GetSystemTimeAsFileTime (&now);
+    savedAt.LowPart  = now.dwLowDateTime;
+    savedAt.HighPart = now.dwHighDateTime;
 
     hr = machine.SaveState (state);
     CHRF (hr, outError = MakeError ("state not saved", "The machine's state could not be read."));
@@ -75,7 +115,7 @@ HRESULT MachineStateFile::Build (
             disk.path   = store.GetSourcePath (slot, drive);
 
             hr = image->Serialize (disk.image);
-            CHRF (hr, outError = MakeError ("disk not saved", "A mounted disk holds data its image format cannot store, so the state was not saved."));
+            CHRF (hr, outError = MakeError ("disk not saved", "A mounted disk has data its image format cannot store, so the state was not saved."));
 
             disks.push_back (std::move (disk));
         }
@@ -105,11 +145,17 @@ HRESULT MachineStateFile::Build (
 
     payload.WriteUInt32 (static_cast<uint32_t> (state.GetBytes().size()));
     payload.WriteBytes  (state.GetBytes().data(), state.GetBytes().size());
+    payload.WriteUInt64 (savedAt.QuadPart);
+    payload.WriteUInt32 (static_cast<uint32_t> (thumbnailPng.size()));
+    payload.WriteBytes  (thumbnailPng.data(), thumbnailPng.size());
 
     hr = payload.EndSection();
     CHRA (hr);
 
-    WriteHeader (payload.GetBytes(), outBytes);
+    hr = PackPayload (payload.GetBytes(), packed);
+    CHRF (hr, outError = MakeError ("state not saved", "The machine's state could not be compressed."));
+
+    WriteHeader (packed, outBytes);
 
 Error:
     return hr;
@@ -126,7 +172,8 @@ Error:
 //  Reads a file's bytes without touching any machine. The header and the
 //  payload hash are checked first, so a damaged or cut-short file fails here
 //  with ERROR_INVALID_DATA, and a file a newer Casso wrote with
-//  ERROR_REVISION_MISMATCH.
+//  ERROR_REVISION_MISMATCH, whether the header or the payload section has
+//  the newer version. A compressed payload is unpacked after those checks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,17 +182,36 @@ HRESULT MachineStateFile::Parse (
     MachineStateContents     & outContents,
     MachineStateError        & outError)
 {
-    HRESULT  hr = S_OK;
+    HRESULT             hr       = S_OK;
+    bool                isNewer  = false;
+    uint16_t            version  = 0;
+    const Byte        * data     = nullptr;
+    size_t              size     = 0;
+    std::vector<Byte>   section;
 
 
 
     outContents = MachineStateContents();
 
-    hr = CheckHeader (bytes, outError);
+    hr = CheckHeader (bytes, version, outError);
     CHR (hr);
 
-    hr = ReadPayload (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize, outContents);
-    CHRF (hr, outError = MakeError ("damaged state file", "The file is not a complete Casso machine state."));
+    data = bytes.data() + kHeaderSize;
+    size = bytes.size() - kHeaderSize;
+
+    if (version >= kFirstCompressedVersion)
+    {
+        hr = UnpackPayload (data, size, section);
+        CHRF (hr, outError = MakeError ("damaged state file", "The state file is incomplete or was modified."));
+
+        data = section.data();
+        size = section.size();
+    }
+
+    hr      = ReadPayload (data, size, outContents);
+    isNewer = hr == HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH);
+    CBRFEx (!isNewer, hr, outError = MakeError ("newer state format", "The file was saved by a newer version of Casso."));
+    CHRF   (hr,       outError = MakeError ("damaged state file", "The file is not a complete Casso machine state."));
 
 Error:
     if (FAILED (hr))
@@ -185,7 +251,7 @@ HRESULT MachineStateFile::Check (
             outError = MakeError ("different machine", "The state was saved by another kind of machine. Open that machine before loading it."));
 
     CBRFEx (isSameRoms, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
-            outError = MakeError ("different ROM images", "The state was saved by a machine with different ROM images. A state loads only on a machine with the ROM images it was saved with."));
+            outError = MakeError ("different ROM images", "The state was saved with different ROM images than this machine has."));
 
     hr = CheckDisks (contents, outError);
     CHR (hr);
@@ -247,7 +313,7 @@ HRESULT MachineStateFile::Apply (
     isStaged = true;
 
     hr = RestoreDisks (machine, contents);
-    CHRF (hr, outError = MakeError ("disk not restored", "A disk the state holds could not be put back in its drive."));
+    CHRF (hr, outError = MakeError ("disk not restored", "A disk in the state file could not be mounted."));
 
     hr = machine.LoadStateOverMountedMedia (reader);
     CHRF (hr, outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
@@ -361,6 +427,7 @@ void MachineStateFile::WriteHeader (
 
 HRESULT MachineStateFile::CheckHeader (
     const std::vector<Byte>  & bytes,
+    uint16_t                 & outVersion,
     MachineStateError        & outError)
 {
     constexpr size_t  kVersionOffset = kMagicSize;
@@ -387,14 +454,95 @@ HRESULT MachineStateFile::CheckHeader (
     isKnownVersion = version != 0 && version <= kFormatVersion;
     CBRFEx (isKnownVersion, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH), outError = MakeError ("newer state format", "The file was saved by a newer version of Casso."));
 
+    outVersion = static_cast<uint16_t> (version);
+
     payloadSize = ReadLittleEndian (bytes.data() + kSizeOffset, sizeof (uint64_t));
     hash        = ReadLittleEndian (bytes.data() + kHashOffset, sizeof (uint64_t));
 
     isWholeFile = payloadSize == bytes.size() - kHeaderSize;
-    CBRFEx (isWholeFile, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The file is shorter or longer than the state it holds, so it was cut short or changed."));
+    CBRFEx (isWholeFile, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file is incomplete or was modified."));
 
     isIntact = hash == StateHash::Hash (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize);
-    CBRFEx (isIntact, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The file's contents changed after it was saved."));
+    CBRFEx (isIntact, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file was modified after it was saved."));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::PackPayload
+//
+//  The stored payload for format version 3: the section's size, then the
+//  section compressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::PackPayload (
+    const std::vector<Byte>  & section,
+    std::vector<Byte>        & outPayload)
+{
+    HRESULT             hr         = S_OK;
+    SnapshotCompressor  compressor (kCompressionAlgorithm);
+    std::vector<Byte>   packed;
+
+
+
+    outPayload.clear();
+
+    hr = compressor.Compress (section.data(), section.size(), packed);
+    CHR (hr);
+
+    outPayload.reserve (sizeof (uint64_t) + packed.size());
+    AppendLittleEndian (section.size(), sizeof (uint64_t), outPayload);
+    outPayload.insert  (outPayload.end(), packed.begin(), packed.end());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::UnpackPayload
+//
+//  The section from a version 3 payload. A size past
+//  kMaxUnpackedPayloadBytes fails before anything is allocated, so a damaged
+//  size field cannot request gigabytes; a stream that does not unpack to
+//  exactly that size fails with ERROR_INVALID_DATA.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::UnpackPayload (
+    const Byte         * data,
+    size_t               size,
+    std::vector<Byte>  & outSection)
+{
+    HRESULT             hr         = S_OK;
+    SnapshotCompressor  compressor (kCompressionAlgorithm);
+    bool                hasSize    = size >= sizeof (uint64_t);
+    uint64_t            unpacked   = 0;
+    bool                fits       = false;
+
+
+
+    outSection.clear();
+
+    CBREx (hasSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    unpacked = ReadLittleEndian (data, sizeof (uint64_t));
+    fits     = unpacked <= kMaxUnpackedPayloadBytes;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = compressor.Decompress (data + sizeof (uint64_t), size - sizeof (uint64_t), static_cast<size_t> (unpacked), outSection);
+    CHR (hr);
 
 Error:
     return hr;
@@ -489,6 +637,19 @@ HRESULT MachineStateFile::ReadPayload (
     outContents.machineState.resize (length);
     reader.ReadBytes (outContents.machineState.data(), length);
 
+    // Version 2 adds the time the state was saved and its thumbnail.
+    if (version >= kFirstVersionWithThumbnail)
+    {
+        reader.ReadUInt64 (outContents.savedAtUtc);
+        reader.ReadUInt32 (length);
+
+        fits = length <= size;
+        CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outContents.thumbnailPng.resize (length);
+        reader.ReadBytes (outContents.thumbnailPng.data(), length);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
@@ -529,11 +690,11 @@ HRESULT MachineStateFile::CheckDisks (
     for (const SavedDisk & disk : contents.disks)
     {
         isValid = disk.slot >= 0 && disk.slot < DiskImageStore::kSlotCount && disk.drive >= 0 && disk.drive < DiskImageStore::kDriveCount;
-        CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state holds a disk for a drive Casso does not have."));
+        CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file has a disk for a drive Casso does not have."));
 
         bay = static_cast<size_t> (disk.slot * DiskImageStore::kDriveCount + disk.drive);
         wasTaken = isTaken[bay];
-        CBRFEx (!wasTaken, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state holds two disks for one drive."));
+        CBRFEx (!wasTaken, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file has two disks for one drive."));
 
         isTaken[bay] = true;
 
@@ -541,7 +702,7 @@ HRESULT MachineStateFile::CheckDisks (
         scratch->LoadFromBytes (disk.format, disk.image, disk.path);
 
         isValid = scratch->IsLoaded();
-        CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged disk in state", "A disk the state holds is not a readable disk image."));
+        CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged disk in state", "A disk in the state file is not a readable disk image."));
     }
 
 Error:

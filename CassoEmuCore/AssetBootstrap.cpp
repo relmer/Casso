@@ -1175,6 +1175,31 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetStateDirectory
+//
+//  Returns <localAppData>\Casso\SavedState\ -- the default folder for machine
+//  state files, and the folder of the automatic states. Created on demand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path AssetBootstrap::GetStateDirectory()
+{
+    fs::path     base   = GetAssetBaseDirectory();
+    error_code   ec;
+    fs::path     states = base / L"SavedState";
+
+
+
+    fs::create_directories (states, ec);
+    return states;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsForeignCheckoutDisk
 //
 ////////////////////////////////////////////////////////////////////////////////

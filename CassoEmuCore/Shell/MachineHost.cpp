@@ -1153,7 +1153,7 @@ HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     hr = CheckStateHeader (reader, isOverMounted, savedParts);
     CHR (hr);
@@ -1207,7 +1207,7 @@ HRESULT MachineHost::LoadStateForPicture (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     hr = ReadPictureHeader (reader, savedParts);
     CHR (hr);
@@ -1281,7 +1281,7 @@ HRESULT MachineHost::ReadSavedMedia (
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadUInt32 (nameLength);
     CBREx (nameLength <= kLongestName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));

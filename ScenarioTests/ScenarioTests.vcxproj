@@ -163,6 +163,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="AutoStateSafetyTests.cpp" />
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
@@ -174,6 +175,7 @@
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />
+    <ClCompile Include="MachineStateCompatibilityTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />

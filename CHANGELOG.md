@@ -10,6 +10,8 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- Machine states: File > Save state and Load state, and an automatic save at
+  exit that resumes at the next start, on by default (Settings > General).
 - An info icon after a mounted WOZ image's name when the models or the minimum
   RAM the image declares do not match the running machine. Hovering it lists
   what the image declares and marks whether the running machine meets each

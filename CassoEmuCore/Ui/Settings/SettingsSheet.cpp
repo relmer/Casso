@@ -333,6 +333,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
     m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
     m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
+    m_generalPage->SetAutoStateChecked  (prefs.autoSaveMachineState);
     RefreshUpdateStatus();
 
     m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
@@ -346,6 +347,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_generalPage->SetOnRomOfferToggled ([this] (bool checked)
     {
         m_emuShell->GetSettings().SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnAutoStateToggled ([this] (bool enabled)
+    {
+        m_emuShell->GetSettings().SetAutoSaveMachineState (enabled);
     });
     m_generalPage->SetOnCheckNow ([this] ()
     {

@@ -5,6 +5,9 @@
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Shell/MachineStateFile.h"
+#include "Core/StateHash.h"
+#include "Core/StateWriter.h"
+#include "Debugger/Reverse/SnapshotCompressor.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -402,6 +405,235 @@ public:
     }
 
 
+    //  A state has the time it was saved and the thumbnail it was given, and
+    //  loads with both.
+    TEST_METHOD (AStateHasItsSaveTimeAndThumbnail)
+    {
+        constexpr uint64_t     kTicksPerSecond = 10000000;
+        constexpr uint64_t     kSlackSeconds   = 60;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      thumbnail       = { 0x89, 'P', 'N', 'G', 1, 2, 3 };
+        std::vector<Byte>      bytes;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        FILETIME               now             = {};
+        ULARGE_INTEGER         nowTicks        = {};
+        HRESULT                hr              = S_OK;
+
+
+
+        Prepare (machine, log, true);
+        machine.RunCycles (s_kStateWarmupCycles);
+
+        hr = MachineStateFile::Build (machine, thumbnail, bytes, error);
+        AssertSucceeded (hr, L"Build");
+
+        GetSystemTimeAsFileTime (&now);
+        nowTicks.LowPart  = now.dwLowDateTime;
+        nowTicks.HighPart = now.dwHighDateTime;
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        Assert::IsTrue (contents.thumbnailPng == thumbnail, L"the thumbnail is the one saved");
+        Assert::IsTrue (contents.savedAtUtc <= nowTicks.QuadPart && contents.savedAtUtc + kSlackSeconds * kTicksPerSecond >= nowTicks.QuadPart,
+                        L"the save time is the time of the save");
+
+        Load (machine, bytes);
+    }
+
+
+    //  A file as Casso wrote it before states had a time and a thumbnail:
+    //  format version 1, section version 1, nothing after the machine state.
+    TEST_METHOD (AVersionOneStateLoadsWithNoTimeOrThumbnail)
+    {
+        constexpr uint16_t     kVersionOne = 1;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      versionOne;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        Snapshot               expected;
+        Snapshot               actual;
+        HRESULT                hr          = S_OK;
+
+
+
+        Prepare (machine, log, true);
+        machine.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (machine);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        versionOne = Assemble (kVersionOne, kVersionOne, contents);
+
+        machine.RunCycles (s_kStateRunCycles);
+        expected = Take (machine);
+
+        hr = MachineStateFile::Parse (versionOne, contents, error);
+        AssertSucceeded (hr, L"a version 1 file parses");
+        Assert::AreEqual<uint64_t> (0, contents.savedAtUtc, L"with no save time");
+        Assert::IsTrue (contents.thumbnailPng.empty(), L"and no thumbnail");
+
+        Load (machine, versionOne);
+        machine.RunCycles (s_kStateRunCycles);
+        actual = Take (machine);
+
+        AssertSame (expected, actual);
+    }
+
+
+    //  A payload section newer than this build reads is a newer format, not a
+    //  damaged file.
+    TEST_METHOD (ANewerPayloadSectionIsANewerFormat)
+    {
+        constexpr uint16_t     kNewer   = MachineStateFile::kPayloadVersion + 1;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      newer;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr       = S_OK;
+
+
+
+        Prepare (machine, log, true);
+        machine.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (machine);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        newer = Assemble (MachineStateFile::kFormatVersion, kNewer, contents);
+
+        hr = MachineStateFile::Parse (newer, contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH), hr, L"a newer section must not load");
+        Assert::AreEqual (std::string ("newer state format"), error.label);
+    }
+
+
+    //  A file as Casso wrote it before states were compressed: format
+    //  version 2, section version 2, the payload stored as is.
+    TEST_METHOD (AVersionTwoStateLoadsWithItsTimeAndThumbnail)
+    {
+        constexpr uint16_t     kVersionTwo = 2;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      thumbnail   = { 0x89, 'P', 'N', 'G', 4, 5, 6 };
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      versionTwo;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        uint64_t               savedAt     = 0;
+        Snapshot               expected;
+        Snapshot               actual;
+        HRESULT                hr          = S_OK;
+
+
+
+        Prepare (machine, log, true);
+        machine.RunCycles (s_kStateWarmupCycles);
+
+        hr = MachineStateFile::Build (machine, thumbnail, bytes, error);
+        AssertSucceeded (hr, L"Build");
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        savedAt    = contents.savedAtUtc;
+        versionTwo = Assemble (kVersionTwo, kVersionTwo, contents);
+
+        machine.RunCycles (s_kStateRunCycles);
+        expected = Take (machine);
+
+        hr = MachineStateFile::Parse (versionTwo, contents, error);
+        AssertSucceeded (hr, L"format version 2 parses");
+        Assert::AreEqual<uint64_t> (savedAt, contents.savedAtUtc, L"with its save time");
+        Assert::IsTrue (contents.thumbnailPng == thumbnail, L"and its thumbnail");
+
+        Load (machine, versionTwo);
+        machine.RunCycles (s_kStateRunCycles);
+        actual = Take (machine);
+
+        AssertSame (expected, actual);
+    }
+
+
+    TEST_METHOD (AStateFileIsStoredCompressed)
+    {
+        constexpr uint16_t     kVersionTwo = 2;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      bytes;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr          = S_OK;
+
+
+
+        Prepare (machine, log, true);
+        machine.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (machine);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        Assert::IsTrue (bytes.size() < Assemble (kVersionTwo, kVersionTwo, contents).size(),
+                        L"the file is smaller than the same state stored uncompressed");
+    }
+
+
+    //  The size and hash match, so the header checks pass, but the stored
+    //  bytes are not a compressed stream.
+    TEST_METHOD (ACompressedPayloadThatDoesNotUnpackIsDamaged)
+    {
+        constexpr uint64_t     kClaimedSize = 4096;
+        constexpr size_t       kJunkBytes   = 64;
+        constexpr Byte         kJunk        = 0xA5;
+        std::vector<Byte>      stored;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr           = S_OK;
+
+
+
+        AppendLittleEndian (kClaimedSize, sizeof (uint64_t), stored);
+        stored.insert (stored.end(), kJunkBytes, kJunk);
+
+        hr = MachineStateFile::Parse (WrapInHeader (MachineStateFile::kFormatVersion, stored), contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a stream that does not unpack must not load");
+        Assert::AreEqual (std::string ("damaged state file"), error.label);
+    }
+
+
+    //  A size field past the limit fails before anything is allocated for it.
+    TEST_METHOD (AnUnpackedSizePastTheLimitIsDamaged)
+    {
+        constexpr uint64_t     kClaimedSize = 1ull << 40;
+        constexpr size_t       kJunkBytes   = 64;
+        std::vector<Byte>      stored;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr           = S_OK;
+
+
+
+        AppendLittleEndian (kClaimedSize, sizeof (uint64_t), stored);
+        stored.insert (stored.end(), kJunkBytes, Byte (0));
+
+        hr = MachineStateFile::Parse (WrapInHeader (MachineStateFile::kFormatVersion, stored), contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a terabyte payload must not load");
+        Assert::AreEqual (std::string ("damaged state file"), error.label);
+    }
+
+
 private:
 
     //  The rig's //e and loop, with a nibble image read from s_kImagePath in
@@ -527,6 +759,104 @@ private:
         memcpy (state.data() + kSizeOffset, &size, sizeof (size));
 
         state.resize (state.size() - kCut);
+    }
+
+
+    //  A state file built field by field from contents, at the given format
+    //  and section versions: from section version 2 on, with the save time
+    //  and thumbnail, and from format version 3 on, compressed, as
+    //  contracts/machine-state-file.md lays them out.
+    static std::vector<Byte> Assemble (uint16_t formatVersion, uint16_t payloadVersion, const MachineStateContents & contents)
+    {
+        constexpr uint16_t  kFirstWithThumbnail = 2;
+        constexpr uint16_t  kFirstCompressed    = 3;
+        StateWriter         payload;
+        SnapshotCompressor  compressor (COMPRESS_ALGORITHM_MSZIP);
+        std::vector<Byte>   packed;
+        std::vector<Byte>   stored;
+        HRESULT             hr                  = S_OK;
+
+
+
+        payload.BeginSection (MachineStateFile::kPayloadTag, payloadVersion);
+        payload.WriteUInt32 (static_cast<uint32_t> (contents.machineName.size()));
+
+        for (wchar_t ch : contents.machineName)
+        {
+            payload.WriteWord (static_cast<Word> (ch));
+        }
+
+        payload.WriteUInt64 (contents.romIdentity);
+        payload.WriteUInt32 (static_cast<uint32_t> (contents.disks.size()));
+
+        for (const SavedDisk & disk : contents.disks)
+        {
+            payload.WriteByte   (static_cast<Byte> (disk.slot));
+            payload.WriteByte   (static_cast<Byte> (disk.drive));
+            payload.WriteByte   (static_cast<Byte> (disk.format));
+            payload.WriteUInt32 (static_cast<uint32_t> (disk.path.size()));
+            payload.WriteBytes  (reinterpret_cast<const Byte *> (disk.path.data()), disk.path.size());
+            payload.WriteUInt32 (static_cast<uint32_t> (disk.image.size()));
+            payload.WriteBytes  (disk.image.data(), disk.image.size());
+        }
+
+        payload.WriteUInt32 (static_cast<uint32_t> (contents.machineState.size()));
+        payload.WriteBytes  (contents.machineState.data(), contents.machineState.size());
+
+        if (payloadVersion >= kFirstWithThumbnail)
+        {
+            payload.WriteUInt64 (contents.savedAtUtc);
+            payload.WriteUInt32 (static_cast<uint32_t> (contents.thumbnailPng.size()));
+            payload.WriteBytes  (contents.thumbnailPng.data(), contents.thumbnailPng.size());
+        }
+
+        hr = payload.EndSection();
+        AssertSucceeded (hr, L"EndSection");
+
+        if (formatVersion < kFirstCompressed)
+        {
+            return WrapInHeader (formatVersion, payload.GetBytes());
+        }
+
+        hr = compressor.Compress (payload.GetBytes().data(), payload.GetBytes().size(), packed);
+        AssertSucceeded (hr, L"Compress");
+
+        AppendLittleEndian (payload.GetBytes().size(), sizeof (uint64_t), stored);
+        stored.insert (stored.end(), packed.begin(), packed.end());
+
+        return WrapInHeader (formatVersion, stored);
+    }
+
+
+    //  The header around a payload exactly as given, with its size and hash.
+    static std::vector<Byte> WrapInHeader (uint16_t formatVersion, const std::vector<Byte> & payload)
+    {
+        constexpr Byte      kMagic[] = { 'C', 'A', 'S', 'S', 'O', 'S', 'T', 'A' };
+        std::vector<Byte>   file;
+
+
+
+        file.insert (file.end(), std::begin (kMagic), std::end (kMagic));
+        AppendLittleEndian (formatVersion,                                    sizeof (uint16_t), file);
+        AppendLittleEndian (0,                                                sizeof (uint16_t), file);
+        AppendLittleEndian (payload.size(),                                   sizeof (uint64_t), file);
+        AppendLittleEndian (StateHash::Hash (payload.data(), payload.size()), sizeof (uint64_t), file);
+        file.insert (file.end(), payload.begin(), payload.end());
+
+        return file;
+    }
+
+
+    static void AppendLittleEndian (uint64_t value, size_t byteCount, std::vector<Byte> & outBytes)
+    {
+        size_t  i = 0;
+
+
+
+        for (i = 0; i < byteCount; i++)
+        {
+            outBytes.push_back (static_cast<Byte> (value >> (i * CHAR_BIT)));
+        }
     }
 
 

@@ -728,6 +728,12 @@ HRESULT EmulatorShell::Initialize (
 
     ApplyPersistedMachinePrefs();
 
+    // A launch whose command line mounts media starts cold with them; any
+    // other resumes the machine's automatic state, before the CPU thread
+    // starts, so the first frame is the resumed machine.
+    m_isCommandLineMediaSession = !disk1Path.empty() || !disk2Path.empty() || !tapePath.empty();
+    ResumeAutoState (true);
+
 Error:
     return hr;
 }

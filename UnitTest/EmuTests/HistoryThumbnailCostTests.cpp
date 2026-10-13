@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Video/ImageShrink.h"
 #include "TestMachine.h"
 #include "HResultAssert.h"
 #include "EmuTests/ReverseSessionRig.h"
@@ -159,7 +160,7 @@ public:
         log += std::format ("  base copy: 560x384 to 186x128                      {:8.3f} ms\n",
                             TimeMs ([&] { base = HistoryThumbnails::MakeBase (full); }));
         log += std::format ("  thumbnail: base to {}x{}                            {:8.3f} ms\n", s_kCostCell.cx, s_kCostCell.cy,
-                            TimeMs ([&] { HistoryThumbnails::Shrink (*base, s_kCostCell.cx, s_kCostCell.cy, thumb); }));
+                            TimeMs ([&] { ImageShrink::Shrink (*base, s_kCostCell.cx, s_kCostCell.cy, thumb); }));
         log += std::format ("  paint: hash one thumbnail's pixels (per cell/paint){:8.4f} ms\n",
                             TimeMs ([&] { thumb.bgraPremul[0]++; s_sink += Fnv (thumb.bgraPremul); }));
 

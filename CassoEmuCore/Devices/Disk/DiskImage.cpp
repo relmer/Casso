@@ -1334,8 +1334,9 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    // Version 1 carried the dirty flags; version 2 had no flux tracks.
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    // Version 1 had the dirty flags and version 2 had no flux tracks; neither
+    // was released, so neither loads.
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadBool   (loaded);
     reader.ReadUInt32 (trackCount);

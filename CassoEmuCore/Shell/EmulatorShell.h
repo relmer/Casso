@@ -262,6 +262,7 @@ private:
 
     // A writing tool stating what its change to a mounted image meant.
     DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
+    DxuiMessageResult  OnClose         () override;
     void               OnDestroy       () override;
     void               OnDpiChanged    (UINT newDpi) override;
 
@@ -299,6 +300,19 @@ private:
 
     static HRESULT       ReadStateFile    (const std::filesystem::path & path, std::vector<Byte> & outBytes);
     static std::wstring  FormatStateError (const wchar_t * verb, const struct MachineStateError & error);
+
+    // Automatic machine states: the machine's own state file in the state
+    // folder, written at exit and on a switch away from the machine, and
+    // resumed at startup and on a switch to it. SaveAutoState and
+    // ResumeAutoState run on the thread that owns the machine;
+    // PromptToReplaceAutoState runs on the UI thread before an exit or a
+    // switch away from a machine a command-line launch started.
+    std::filesystem::path  GetAutoStatePath         () const;
+    void                   SaveAutoState            ();
+    void                   ResumeAutoState          (bool isStartup);
+    void                   PromptToReplaceAutoState ();
+
+    static std::wstring  FormatAutoStateTime (uint64_t savedAtUtc, const std::filesystem::path & path);
 
 
     // Engages or releases the fast-load override from the tape governor.
@@ -707,6 +721,14 @@ private:
     std::unique_ptr<ShellInput>     m_input;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
+
+    // Automatic machine states: whether this launch's command line mounted a
+    // disk or a tape (true until the user switches away from its machine), the
+    // user's choice in the prompt that protects the earlier automatic state,
+    // and whether the switch in progress is loading a state file.
+    bool                m_isCommandLineMediaSession = false;
+    std::atomic<bool>   m_isAutoStateReplaceApproved { false };
+    bool                m_isLoadingStateSwitch      = false;
 
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left

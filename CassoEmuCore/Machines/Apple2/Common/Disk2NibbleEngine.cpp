@@ -947,8 +947,9 @@ HRESULT Disk2NibbleEngine::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    // Version 1 had no flux timeline.
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    // Version 1 had no flux timeline and was never released, so it does not
+    // load.
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadByte   (currentTrack);
     reader.ReadBool   (motorOn);

@@ -66,7 +66,7 @@ load without. A setting on the General page, on by default, saves one
 automatic state per machine kind at exit and on a machine switch and resumes
 it at startup and on switching back. A launch with command-line media starts
 cold, and its automatic state is replaced only after a prompt with the old
-state's time and thumbnail. States go to `%LOCALAPPDATA%\Casso\States\`, and
+state's time and thumbnail. States go to `%LOCALAPPDATA%\Casso\SavedState\`, and
 every state is written as a whole new file that replaces the old one. Nothing
 runs on the per-instruction or per-cycle path.
 
@@ -659,7 +659,7 @@ The decisions are in R-047; the format is in data-model.md and
   it also returns the automatic state's path. Every rule in FR-220 to FR-223
   is a test on it with no machine and no window.
 - **Paths**: `AssetBootstrap::GetStateDirectory` creates and returns
-  `%LOCALAPPDATA%\Casso\States\`. An automatic state is
+  `%LOCALAPPDATA%\Casso\SavedState\`. An automatic state is
   `<machine>.autosave.cassostate` there. The Save state and Load state
   dialogs set `FileDialogSpec::initialFolder` to it.
 - **Writing**: `SaveMachineState` and the automatic save both write through
