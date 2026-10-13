@@ -32,8 +32,10 @@ public:
     CrtPictureRenderer (const CrtPictureRenderer &)             = delete;
     CrtPictureRenderer & operator= (const CrtPictureRenderer &) = delete;
 
-    //  `source` is `sourceW` by `sourceH` BGRA; the result is `width` by
-    //  `height`, the picture filling it.
+    //  `source` is `sourceW` by `sourceH` BGRA, drawn `width` by `height`.
+    //  The result is larger by `outMargin` on every side: black, as Casso's
+    //  bars around its picture are, with the picture's glow spilling into it,
+    //  so the picture's own edges glow as they do on Casso's screen.
     HRESULT  Render (ID3D11Device                * device,
                      ID3D11DeviceContext         * context,
                      const std::vector<uint32_t> & source,
@@ -42,9 +44,20 @@ public:
                      int                           width,
                      int                           height,
                      const CrtParams             & params,
-                     std::vector<uint32_t>       & outBgra);
+                     std::vector<uint32_t>       & outBgra,
+                     int                         & outMargin);
+
+    //  How far past a picture, in drawn pixels, the bloom and the color bleed
+    //  sample, for a picture `scaleX` and `scaleY` drawn pixels to an
+    //  emulated one, with one more for the filtering of each sample.
+    static int  GetGlowMargin (const CrtParams & params, float scaleX, float scaleY);
 
 private:
+    //  The bloom blurs' steps each way, and the color bleed's most emulated
+    //  pixels, as the CRT shaders take them.
+    static constexpr float  s_kBloomTaps = 4.0f;
+    static constexpr float  s_kBleedTaps = 8.0f;
+
     HRESULT  Bind         (ID3D11Device * device, ID3D11DeviceContext * context);
     HRESULT  EnsureSource (int width, int height);
     HRESULT  EnsureTarget (int width, int height);

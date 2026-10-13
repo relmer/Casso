@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
+#include "CassoExplorer/CrtPictureRenderer.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Core/MemoryBus.h"
@@ -236,6 +237,29 @@ public:
         Assert::IsTrue (lit,     L"The bits are lit");
         Assert::IsTrue (matched, L"each in the picked color, by the white monitor's brightness");
         Assert::AreEqual ((size_t) PicturePreview::Monitor::White, PicturePreview::GetPresetIndex (PicturePreview::Monitor::Custom));
+    }
+
+
+
+    //  A picture drawn through the CRT pass is given a black margin as wide
+    //  as its bloom and color bleed sample past it, in drawn pixels, and none
+    //  with both off.
+    TEST_METHOD (CrtPicture_MarginCoversTheGlow)
+    {
+        CrtParams  params;
+
+        Assert::AreEqual (0, CrtPictureRenderer::GetGlowMargin (params, 1.0f, 1.0f), L"No glow, no margin");
+
+        params.bloomStrength = 0.5f;
+        params.bloomRadius   = 2.0f;
+        Assert::AreEqual (9, CrtPictureRenderer::GetGlowMargin (params, 1.0f, 1.0f), L"Four steps of two pixels, and one");
+
+        params.colorBleedWidth = 1.5f;
+        Assert::AreEqual (11, CrtPictureRenderer::GetGlowMargin (params, 1.0f, 1.0f), L"and the bleed's two pixels across");
+        Assert::AreEqual (21, CrtPictureRenderer::GetGlowMargin (params, 2.0f, 2.0f), L"twice as wide at twice the size");
+
+        params.bloomStrength = 0.0f;
+        Assert::AreEqual (3, CrtPictureRenderer::GetGlowMargin (params, 1.0f, 1.0f), L"The bleed alone, with the bloom off");
     }
 
 

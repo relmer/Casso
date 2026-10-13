@@ -1893,7 +1893,8 @@ const ThemeCrtDefaults * CassoExplorerWindow::GetPreviewCrtDefaults()
 //  The picture preview drawn through Casso's CRT pass on the chosen monitor,
 //  at the view's drawn size, again only when that size changed
 //  unless `force`. A preview has a single frame, so persistence, which blends a
-//  frame into the next, is left out.
+//  frame into the next, is left out. The picture's glow spills past its
+//  edges, into a black margin drawn around it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1902,6 +1903,7 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
     const PreviewContent &   preview  = m_browser.GetPreview();
     int                      width    = 0;
     int                      height   = 0;
+    int                      margin   = 0;
     CrtResolved              resolved;
     CrtParams                params;
     std::vector<uint32_t>    drawn;
@@ -1929,11 +1931,11 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
     params.persistence = 0.0f;
 
     hr = m_crtPicture.Render (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
-                              width, height, params, drawn);
+                              width, height, params, drawn, margin);
 
     if (SUCCEEDED (hr))
     {
-        m_picture->SetDisplayImage (std::move (drawn), width, height);
+        m_picture->SetDisplayImage (std::move (drawn), width + 2 * margin, height + 2 * margin, margin);
         m_crtWidth  = width;
         m_crtHeight = height;
     }

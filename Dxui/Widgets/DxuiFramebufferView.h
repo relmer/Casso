@@ -54,8 +54,10 @@ public:
 
     //  The picture as drawn at its scaled size by the host, as through a CRT
     //  pass, drawn one to one in place of the framebuffer while its size is
-    //  the scaled size. A new framebuffer clears it.
-    void  SetDisplayImage (std::vector<uint32_t> bgra, int width, int height);
+    //  the scaled size. `margin` is how far the image extends past the
+    //  picture on every side, as a glow spills past a screen's picture. A new
+    //  framebuffer clears it.
+    void  SetDisplayImage (std::vector<uint32_t> bgra, int width, int height, int margin = 0);
 
     //  The picture's drawn size: the fitted size, times the zoom.
     void  GetScaledSize  (int & outWidth, int & outHeight) const;
@@ -90,6 +92,7 @@ private:
     std::vector<uint32_t>  m_display;
     int                    m_displayW   = 0;
     int                    m_displayH   = 0;
+    int                    m_displayPad = 0;
     int                    m_width      = 0;
     int                    m_height     = 0;
     bool                   m_integer    = true;

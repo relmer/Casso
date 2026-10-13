@@ -25,6 +25,9 @@ CrtPictureRenderer::~CrtPictureRenderer()
 //
 //  CrtPictureRenderer::Render
 //
+//  The picture is placed in a larger target, as Casso letterboxes its own, so
+//  the blurs read black past its edges rather than its edge pixels again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CrtPictureRenderer::Render (
@@ -36,18 +39,24 @@ HRESULT CrtPictureRenderer::Render (
     int                           width,
     int                           height,
     const CrtParams             & params,
-    std::vector<uint32_t>       & outBgra)
+    std::vector<uint32_t>       & outBgra,
+    int                         & outMargin)
 {
     HRESULT                     hr         = S_OK;
-    RECT                        whole      = { 0, 0, width, height };
     D3D11_MAPPED_SUBRESOURCE    mapped     = {};
     bool                        isMapped   = false;
     ID3D11RenderTargetView    * noTarget   = nullptr;
     ID3D11ShaderResourceView  * noViews[2] = {};
     bool                        sized      = width > 0 && height > 0 && sourceW > 0 && sourceH > 0
                                              && source.size() >= (size_t) sourceW * (size_t) sourceH;
+    int                         margin     = sized ? GetGlowMargin (params, (float) width / (float) sourceW, (float) height / (float) sourceH) : 0;
+    int                         targetW    = width  + 2 * margin;
+    int                         targetH    = height + 2 * margin;
+    RECT                        picture    = { margin, margin, margin + width, margin + height };
 
 
+
+    outMargin = 0;
 
     CBREx (device != nullptr && context != nullptr, E_INVALIDARG);
     CBREx (sized, E_INVALIDARG);
@@ -58,12 +67,12 @@ HRESULT CrtPictureRenderer::Render (
     hr = EnsureSource (sourceW, sourceH);
     CHR (hr);
 
-    hr = EnsureTarget (width, height);
+    hr = EnsureTarget (targetW, targetH);
     CHR (hr);
 
     m_context->UpdateSubresource (m_source.Get(), 0, nullptr, source.data(), (UINT) sourceW * sizeof (uint32_t), 0);
 
-    hr = m_crt.Process (m_sourceView.Get(), m_targetView.Get(), params, whole, width, height, sourceW, sourceH);
+    hr = m_crt.Process (m_sourceView.Get(), m_targetView.Get(), params, picture, targetW, targetH, sourceW, sourceH);
     CHR (hr);
 
     m_context->CopyResource (m_staging.Get(), m_target.Get());
@@ -72,17 +81,19 @@ HRESULT CrtPictureRenderer::Render (
     CHR (hr);
 
     isMapped = true;
-    outBgra.resize ((size_t) width * (size_t) height);
+    outBgra.resize ((size_t) targetW * (size_t) targetH);
 
-    for (int row = 0; row < height; row++)
+    for (int row = 0; row < targetH; row++)
     {
         const uint32_t * line = (const uint32_t *) ((const BYTE *) mapped.pData + (size_t) row * mapped.RowPitch);
 
-        for (int column = 0; column < width; column++)
+        for (int column = 0; column < targetW; column++)
         {
-            outBgra[(size_t) row * (size_t) width + (size_t) column] = line[column] | 0xFF000000u;
+            outBgra[(size_t) row * (size_t) targetW + (size_t) column] = line[column] | 0xFF000000u;
         }
     }
+
+    outMargin = margin;
 
 Error:
     if (isMapped)
@@ -97,6 +108,34 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrtPictureRenderer::GetGlowMargin
+//
+//  Each bloom blur samples four of its steps each way, a step being the
+//  radius in emulated pixels; the color bleed then samples up to eight more
+//  emulated pixels across. An effect that is off adds nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CrtPictureRenderer::GetGlowMargin (const CrtParams & params, float scaleX, float scaleY)
+{
+    bool   bloom   = params.bloomStrength > 0.0f && params.bloomRadius > 0.0f;
+    float  bloomPx = bloom ? s_kBloomTaps * params.bloomRadius : 0.0f;
+    float  bleedPx = (params.colorBleedWidth > 0.0f) ? (std::min) (std::ceil (params.colorBleedWidth), s_kBleedTaps) : 0.0f;
+    float  reachX  = (bloomPx + bleedPx) * scaleX;
+    float  reachY  = bloomPx * scaleY;
+    float  reach   = (std::max) (reachX, reachY);
+
+
+
+    return (reach > 0.0f) ? (int) std::ceil (reach) + 1 : 0;
 }
 
 

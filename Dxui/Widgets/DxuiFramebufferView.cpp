@@ -33,8 +33,9 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
     m_height = height;
 
     m_display.clear();
-    m_displayW = 0;
-    m_displayH = 0;
+    m_displayW   = 0;
+    m_displayH   = 0;
+    m_displayPad = 0;
 }
 
 
@@ -47,15 +48,16 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFramebufferView::SetDisplayImage (std::vector<uint32_t> bgra, int width, int height)
+void DxuiFramebufferView::SetDisplayImage (std::vector<uint32_t> bgra, int width, int height, int margin)
 {
-    bool  whole = width > 0 && height > 0 && bgra.size() == (size_t) width * (size_t) height;
+    bool  whole = width > 0 && height > 0 && margin >= 0 && bgra.size() == (size_t) width * (size_t) height;
 
 
 
-    m_display  = whole ? std::move (bgra) : std::vector<uint32_t>();
-    m_displayW = whole ? width  : 0;
-    m_displayH = whole ? height : 0;
+    m_display    = whole ? std::move (bgra) : std::vector<uint32_t>();
+    m_displayW   = whole ? width  : 0;
+    m_displayH   = whole ? height : 0;
+    m_displayPad = whole ? margin : 0;
 }
 
 
@@ -72,10 +74,11 @@ void DxuiFramebufferView::Clear()
 {
     m_pixels.clear();
     m_display.clear();
-    m_width    = 0;
-    m_height   = 0;
-    m_displayW = 0;
-    m_displayH = 0;
+    m_width      = 0;
+    m_height     = 0;
+    m_displayW   = 0;
+    m_displayH   = 0;
+    m_displayPad = 0;
 }
 
 
@@ -450,11 +453,12 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                             (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  The host's drawing of the picture at this size, when it has one.
-    if (!m_display.empty() && m_displayW == dest.right - dest.left && m_displayH == dest.bottom - dest.top)
+    //  The host's drawing of the picture at this size, when it has one, with
+    //  its margin around the picture.
+    if (!m_display.empty() && m_displayW == dest.right - dest.left + 2 * m_displayPad && m_displayH == dest.bottom - dest.top + 2 * m_displayPad)
     {
         hr = text.DrawFramebuffer (m_display.data(), m_displayW, m_displayH,
-                                   (float) dest.left, (float) dest.top, (float) m_displayW, (float) m_displayH);
+                                   (float) (dest.left - m_displayPad), (float) (dest.top - m_displayPad), (float) m_displayW, (float) m_displayH);
     }
     else
     {
