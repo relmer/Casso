@@ -232,7 +232,7 @@ const std::string & ArtifactSink::GetDiagnostics() const
 //  file sit beside the object they describe.
 //
 //  Only a trailing extension on the last path component is replaced. A name
-//  with a dot in a directory above it -- `..uild\prog` -- keeps the dot and
+//  with a dot in a directory above it -- `..\build\prog` -- keeps the dot and
 //  gains the extension, which a search for the last dot alone would get wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////

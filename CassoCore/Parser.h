@@ -80,6 +80,11 @@ struct ParsedLine
     int                                  labelColumn     = 0;
     int                                  mnemonicColumn  = 0;
     int                                  operandColumn   = 0;
+
+    // Where the comment began, 1-based, or 0 for none or for a dialect that
+    // records none. A field-based dialect needs no introducer for a comment
+    // after the operand, so its start is known only to the dialect.
+    int                                  commentColumn   = 0;
 };
 
 

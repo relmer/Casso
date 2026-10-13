@@ -200,6 +200,7 @@
     <ClCompile Include="JumpOptimizationTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="DialectReportingTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceSyntaxDefaultAssemblerTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
     <ClCompile Include="MerlinDirectiveTests.cpp" />
     <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />

@@ -54,7 +54,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_DISK_OPEN_CASSO_EXPLORER, MainMenuId::Disk,    L"Browse disks in Casso &Explorer...", nullptr },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
-    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"Ctrl+D"      },
+    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"F8"          },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
     { IDM_VIEW_SCENE_VIEW,          MainMenuId::View,    L"Scene &pose",            nullptr,          true   },
