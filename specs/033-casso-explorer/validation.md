@@ -151,7 +151,9 @@ hi-res picture.
 | SC-021: the choice after a restart | Amber chosen from the Monitor drop-down, and a brightness of 198% set on the Display page, were both in effect after Casso Explorer was closed and started again |
 | SC-021: Cancel | A brightness change on the Display page brightened the preview at once (mean level 68 to 146), and Cancel put it back to 68 |
 | FR-067: the custom monitor | Custom monochrome from the Display page drew the picture in the default light blue; the color picker opened from the swatch, a hue of 32 degrees redrew the preview in orange while the picker was open, and after OK and a restart the preview was orange and the prefs file had `custom` and `FFB866` |
-| SC-020 | Not run yet: the check compares the same picture on Casso's own screen, at the same size |
+| SC-020: setup | The Casso Rocks color hi-res cassowary, booted straight to hi-res page 1 in Casso and stored as a binary at $2000 for Casso Explorer; both on the color monitor in Dark Modern with no effect changed; Casso's client 1120 wide and Casso Explorer's preview pane widened so both drew it at 1120 by 768 |
+| SC-020: interior | Not pixel for pixel: 38% of pixels identical and every pixel within 2 codes per channel, mean 1.4 over the three channels. The difference is the final pass's dither, which is keyed on the pixel's place in the render target: Casso draws the picture lower in its back buffer than Casso Explorer does in its own, so the same grain lands on different pixels |
+| SC-020: top and bottom rows | Up to 25 apart in the first and last few rows, where Casso's bloom spills past the picture into its letterbox and Casso Explorer's target ends at the picture's edge |
 
 ## 8. Headless tests
 
