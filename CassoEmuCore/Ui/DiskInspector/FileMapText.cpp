@@ -199,7 +199,7 @@ std::wstring FileMapText::FormatCell (const FileMap & map, int cell)
 
         case MapFileSystem::ProDos:
         case MapFileSystem::Pascal:
-            text = std::format (L"Block {} (track {}, physical {} and {})", cell, track, InspectorFormat::FormatSector (map.GetPhysical (cell, 0)),
+            text = std::format (L"Block {}: track {}, physical sectors {} and {}", cell, track, InspectorFormat::FormatSector (map.GetPhysical (cell, 0)),
                                 InspectorFormat::FormatSector (map.GetPhysical (cell, 1)));
             break;
 

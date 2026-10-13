@@ -1029,14 +1029,15 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 //
 //  TrackStripView::PaintShimmer
 //
-//  While a new selection flashes, its light over the selection in slices a
-//  few pixels wide, each as bright as the shimmer is at its place (FR-090).
+//  The selection lit by the window's shimmer in slices two pixels wide
+//  (FR-038), and the nibble under the pointer lit faintly and outlined, so
+//  the tooltip's subject is plain (FR-148).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry & g) const
 {
-    static constexpr float  kSliceDip = 4.0f;
+    static constexpr float  kSlicePx = 2.0f;
 
 
 
@@ -1045,35 +1046,39 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
     std::array<StripSegment, 2>  parts  = {};
     double                       end    = 0;
     double                       start  = m_context.model->GetSelectionTurn (end);
-    float                        slice  = m_scaler.ToPxf (kSliceDip);
-    float                        total  = 0;
-    float                        done   = 0;
+    float                        middle = (bar.top + bar.bottom) / 2.0f;
+    float                        height = static_cast<float> (bar.bottom - bar.top);
     int                          count  = 0;
+    int                          nibble = -1;
 
 
 
-    if (start < 0 || !InspectorMarquee::IsFlashing (m_context.flashStartMs, now))
+    if (start >= 0)
     {
-        return;
-    }
-
-    end   = (end <= start) ? end + 1.0 : end;
-    count = g.GetSegments (start, end - start, parts);
-
-    for (int k = 0; k < count; k++)
-    {
-        total += parts[k].x1 - parts[k].x0;
+        end   = (end <= start) ? end + 1.0 : end;
+        count = g.GetSegments (start, end - start, parts);
     }
 
     for (int k = 0; k < count; k++)
     {
-        for (float x = parts[k].x0; x < parts[k].x1; x += slice)
+        for (float x = parts[k].x0; x < parts[k].x1; x += kSlicePx)
         {
-            painter.FillRect (x, static_cast<float> (bar.top), std::min (slice, parts[k].x1 - x), static_cast<float> (bar.bottom - bar.top),
-                              InspectorMarquee::GetShimmer (m_context.flashStartMs, now, (done + x - parts[k].x0) / std::max (total, 1.0f)));
+            painter.FillRect (x, static_cast<float> (bar.top), std::min (kSlicePx, parts[k].x1 - x), height,
+                              InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, middle, m_context.scenePx));
         }
+    }
 
-        done += parts[k].x1 - parts[k].x0;
+    if (PtInRect (&bar, m_context.hoverPx) && !m_isPanning && m_context.GetTrack() != nullptr)
+    {
+        nibble = GetNibbleAtX (*m_context.GetTrack(), static_cast<float> (m_context.hoverPx.x));
+    }
+
+    count = (nibble >= 0 && nibble + 1 < static_cast<int> (m_turns.size())) ? g.GetSegments (m_turns[nibble], m_turns[nibble + 1] - m_turns[nibble], parts) : 0;
+
+    for (int k = 0; k < count; k++)
+    {
+        painter.FillRect    (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 2.0f), height, InspectorMarquee::GetHoverFill());
+        painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), std::max (parts[k].x1 - parts[k].x0, 2.0f), height, 1.0f, InspectorMarquee::GetHoverLine());
     }
 }
 

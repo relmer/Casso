@@ -1551,10 +1551,12 @@ legend, and tilt the platter and back.
   only as FR-096 to FR-116 allow.
 - **FR-003**: The inspector MUST open DSK, DO, PO, NIB, NB2, WOZ 1, WOZ 2 and
   WOZ 2.1 images, with bit tracks, flux tracks or both. For a sector image it
-  MUST show the tracks Casso's drive plays, with a note naming the file's
-  format (.dsk, .do or .po) and that Casso builds the tracks from its sector
-  data, so they have no timing or copy protection. For NIB and NB2 it MUST
-  show a note that a nibble image has no timing bits between nibbles.
+  MUST show the tracks Casso's drive plays, and the Flux timing tab MUST
+  explain, naming the file's format (.dsk, .do or .po), that Casso builds the
+  tracks from its sector data, so they have no timing or copy protection. For
+  NIB and NB2 the tab MUST explain that a nibble image has no timing between
+  bits, and for a WOZ track imaged as bits, that only flux tracks have
+  timing.
   The track lengths of sector, NIB and NB2 images come from the format, so
   those tracks get these notes and no track-length finding.
 - **FR-004**: The inspector MUST cover all 160 quarter tracks, 0 to 39.75, and
@@ -1804,9 +1806,10 @@ legend, and tilt the platter and back.
 **Track header and strip**
 
 - **FR-032**: The track header MUST show "Track 17", "Track 17.25", "Track
-  17.5" or "Track 17.75", the track's classification, and a line such as
-  "51,007 cells · 6,352 nibbles · 16 sectors, 16 good · flux" ("no standard
-  sectors" when there are none), or "Nothing recorded on this quarter track".
+  17.5" or "Track 17.75", the track's classification in a pill, and on the
+  same line counts such as "51,007 cells · 6,352 nibbles · 16 sectors, 2 bad
+  · flux" (", N bad" left out when no sector is bad, "no standard sectors"
+  when there are none), or "Nothing recorded on this quarter track".
   A second line MUST show measurements such as "Turn 199.6 ms (300.6 RPM) ·
   mean cell 3.93µs (+0.5%) · longest sync 40 nibbles at cell 12,400", with
   the turn and cell items on flux tracks only.
@@ -1846,9 +1849,10 @@ legend, and tilt the platter and back.
   or nibble is in view, the platter centering it when it fits in view; the
   File map grid MUST scroll to the selected sector's cell. The platter MUST
   outline the selected sector or nibbles in the selection color on a
-  contrasting edge, at least 8 DIP across at any zoom, and a selection made
-  by hand MUST shimmer, a band of light sweeping across it, in the platter,
-  the strip and the File map grid for about 1.5 seconds. On a new track, the
+  contrasting edge, at least 8 DIP across at any zoom, and the selection MUST
+  shimmer continuously in the platter, the strip and the File map grid, lit
+  by a band of light at 45 degrees that sweeps across the whole window from
+  its top left to its bottom right. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
   selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
@@ -2822,7 +2826,11 @@ legend, and tilt the platter and back.
   first. Where one pixel covers many cells, as at fit, it MUST list every kind
   those cells contain. Over random bits it MUST read "Random bits" with that
   color's swatch, and a nibble's own cells (its eight bits and any extra zero
-  cells) MUST be listed apart from random-bit cells that follow it.
+  cells) MUST be listed apart from random-bit cells that follow it. The
+  platter, the strip and the File map grid MUST light faintly and outline the
+  sector, nibble or cell under the pointer, and their tooltips MUST appear at
+  once and follow the pointer as it moves. A tooltip with swatches MUST NOT
+  wrap, so each swatch stays beside its line.
 - **FR-149**: The platter MUST be drawn with texture in its own colors: a
   thin dark seam between adjacent rings, each ring's cells visible as fine
   grain at every zoom, a deep rim around the disk and a lit hub ring around

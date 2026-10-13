@@ -33,7 +33,8 @@ struct InspectorViewContext
     int                         selectedFile      = -1;
     bool                        isFilesOverlay    = false;
     bool                        isFileHighlighted = false;
-    int64_t                     flashStartMs      = 0;
+    POINT                       hoverPx           = { SHRT_MIN, SHRT_MIN };
+    RECT                        scenePx           = {};
     bool                        isDiffsOverlay    = false;
     const DiskComparison      * comparison        = nullptr;
     const DiskAnalysis        * analysisB         = nullptr;

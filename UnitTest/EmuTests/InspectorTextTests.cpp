@@ -132,7 +132,7 @@ public:
 
         Assert::AreEqual (std::wstring (L"Track 17.25"), InspectorText::FormatTrackTitle (69));
         Assert::IsTrue   (line.find (L" cells \x00B7 ") != std::wstring::npos);
-        Assert::IsTrue   (line.ends_with (L"16 sectors, 16 good"), line.c_str());
+        Assert::IsTrue   (line.ends_with (L"16 sectors"), line.c_str());
         Assert::AreEqual (std::wstring (L"Nothing recorded on this quarter track"), InspectorText::FormatTrackLine (nullptr));
         Assert::IsTrue   (InspectorText::FormatMeasureLine (*track).starts_with (L"Longest sync "), L"no turn or cell items on a bit track");
     }

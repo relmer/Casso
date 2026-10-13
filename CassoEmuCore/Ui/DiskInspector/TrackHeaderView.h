@@ -14,10 +14,8 @@
 //
 //  The selected track in two lines (FR-032): its title, its class in a pill
 //  like the disk's format chip and a second pill for a track past the last
-//  one the head can be stepped to, then its counts; then its measurements
-//  and the note for a track built from sector data or read from a nibble
-//  image (FR-003). Text that does not fit is cut from the lines, and the
-//  tooltip has all of it.
+//  one the head can be stepped to, then its counts; then its measurements. Text
+//  that does not fit is cut from the lines, and the tooltip has all of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +30,6 @@ public:
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
-    static std::wstring  GetFormatNote (DiskFormat format);
 
 private:
     std::wstring  SplitToFit (IDxuiTextRenderer & text, std::wstring & inOutLine, float widthPx) const;

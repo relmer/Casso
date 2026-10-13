@@ -313,6 +313,7 @@ private:
     DxuiLabel                             * m_mapStepLabel       = nullptr;
     DxuiScrollPanel                       * m_mapScroll          = nullptr;
     int                                     m_revealedCell       = -1;
+    RECT                                    m_tabGapPx           = {};
     int                                     m_mapIndex           = 0;
     int                                     m_mapFile            = -1;
     int                                     m_fileSortColumn     = -1;

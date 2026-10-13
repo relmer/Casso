@@ -34,6 +34,10 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 static constexpr float     s_kSwatchEm        = 0.85f;
 static constexpr float     s_kSwatchGapDip    = 6.0f;
 
+//  A tip with swatches is not wrapped: each swatch sits beside one line, so
+//  a line must stay one line.
+static constexpr float     s_kMaxSwatchTextWidthDip = 2000.0f;
+
 
 
 
@@ -339,7 +343,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
 void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    bool  isSame = m_visible && !m_fadingOut && !m_isSwatchChanged && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isSame = IsShown() && !m_fadingOut && !m_isSwatchChanged && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
 
 
 
@@ -683,7 +687,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     HWND     owner    = m_popupHost->GetHwnd();
     UINT     dpi      = m_scaler.GetDpi();
     float    fontPx   = m_scaler.ToPxf (m_fontDip);
-    float    maxWPx   = m_scaler.ToPxf (s_kMaxTextWidthDip);
+    float    maxWPx   = m_scaler.ToPxf (m_swatches.empty() ? s_kMaxTextWidthDip : s_kMaxSwatchTextWidthDip);
     float    padXPx   = m_scaler.ToPxf (s_kPadXDip);
     float    padYPx   = m_scaler.ToPxf (s_kPadYDip);
     float    textWPx  = 0.0f;

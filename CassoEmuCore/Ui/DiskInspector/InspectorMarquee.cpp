@@ -83,26 +83,26 @@ uint32_t InspectorMarquee::Dim (const DiskInspectorPalette & palette, uint32_t a
 //
 //  InspectorMarquee::GetShimmer
 //
-//  A soft band of light on a faint glow: the band's center sweeps from just
-//  before the start to just past the end, so the band moves fully onto the
-//  selection and fully off it.
+//  A soft band of light on a faint glow. A point's place along the window's
+//  diagonal is (x + y) over (width + height); the band's center sweeps from
+//  just before 0 to just past 1, so the band moves fully across the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t InspectorMarquee::GetShimmer (int64_t startMs, int64_t nowMs, double position)
+uint32_t InspectorMarquee::GetShimmer (int64_t nowMs, float xPx, float yPx, const RECT & scenePx)
 {
-    static constexpr double  kPeakAlpha = 200.0;
-    static constexpr double  kGlowShare = 0.3;
-    static constexpr double  kBandWidth = 0.18;
-    static constexpr double  kOverrun   = 0.3;
+    static constexpr double  kPeakAlpha = 150.0;
+    static constexpr double  kGlowShare = 0.2;
+    static constexpr double  kBandWidth = 0.07;
+    static constexpr double  kOverrun   = 0.15;
 
 
 
-    double  elapsed  = static_cast<double> (nowMs - startMs);
-    double  envelope = 1.0 - elapsed / kFlashMs;
-    double  center   = std::fmod (elapsed / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
-    double  band     = std::exp (-std::pow ((position - center) / kBandWidth, 2.0));
-    double  alpha    = IsFlashing (startMs, nowMs) ? kPeakAlpha * envelope * (kGlowShare + (1.0 - kGlowShare) * band) : 0.0;
+    double  span   = std::max (1.0, static_cast<double> ((scenePx.right - scenePx.left) + (scenePx.bottom - scenePx.top)));
+    double  place  = ((xPx - scenePx.left) + (yPx - scenePx.top)) / span;
+    double  center = std::fmod (static_cast<double> (nowMs) / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
+    double  band   = std::exp (-std::pow ((place - center) / kBandWidth, 2.0));
+    double  alpha  = kPeakAlpha * (kGlowShare + (1.0 - kGlowShare) * band);
 
 
 

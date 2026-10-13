@@ -56,10 +56,56 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     }
     else if (track != nullptr && track->framed.cellCount > 0)
     {
-        text.DrawString (L"This track is stored as bit cells of one length, so it records no timing.", static_cast<float> (m_boundsDip.left),
-                         static_cast<float> (m_boundsDip.top), GetWidth(), m_scaler.ToPxf (s_kScopeRowDip), theme.ForegroundMuted(),
-                         m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (FormatNoTiming ((m_context.analysis->copy != nullptr) ? m_context.analysis->copy->format : DiskFormat::Woz).c_str(),
+                         static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(), m_scaler.ToPxf (s_kScopeRowDip) * 4,
+                         theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal,
+                         true);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxTimingTab::FormatNoTiming
+//
+//  A sector image has only each sector's 256 bytes, from which Casso builds
+//  every track; a nibble image has each track's nibbles; a WOZ track imaged
+//  as bits has bits of one length. None of them has the time each bit took.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format)
+{
+    std::wstring  text;
+
+
+
+    switch (format)
+    {
+        case DiskFormat::Dsk:
+        case DiskFormat::Do:
+        case DiskFormat::Po:
+            text = std::format (L"This track has no timing. The disk came from a {} file, which has only the bytes of each sector, "
+                                L"so Casso built every track from those bytes. Copy protection, and anything else outside the sectors' bytes, "
+                                L"can't survive in a file like this.",
+                                format == DiskFormat::Dsk ? L".dsk" : format == DiskFormat::Do ? L".do" : L".po");
+            break;
+
+        case DiskFormat::Nib:
+            text = L"This track has no timing. The disk came from a nibble image, which has each track's nibbles but not "
+                   L"how long each bit took to pass the head.";
+            break;
+
+        default:
+            text = L"This track has no timing. It was imaged as bits all the same length, so how long each bit took "
+                   L"to pass the head wasn't recorded. Only tracks imaged as flux, in a WOZ 2.1 file, have timing.";
+            break;
+    }
+
+    return text;
 }
 
 

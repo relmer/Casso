@@ -32,8 +32,9 @@ public:
     static constexpr double  kDefaultStripSpan = 0.125;
 
     //  The disk's edge sits this far inside the view, so the view's bounds
-    //  never clip it flat at the top, bottom and sides.
-    static constexpr double  kRimInsetPx       = 2.0;
+    //  clip neither the disk nor the marks drawn across its outermost ring:
+    //  the selected sector's outline and the selected file's marquee.
+    static constexpr double  kRimInsetPx       = 10.0;
 
     struct Point
     {

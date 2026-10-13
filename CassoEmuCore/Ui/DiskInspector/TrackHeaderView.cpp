@@ -39,7 +39,6 @@ void TrackHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     std::wstring           counts;
     std::wstring           second;
     std::wstring           rest;
-    std::wstring           note;
 
 
 
@@ -51,11 +50,7 @@ void TrackHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         trackClass = m_context.analysis->entries[qt].trackClass;
 
         counts = InspectorText::FormatTrackLine (track);
-        note   = (m_context.analysis->copy != nullptr) ? GetFormatNote (m_context.analysis->copy->format) : std::wstring();
-
-        //  The second line: the measurements, then the note.
         second = (track != nullptr) ? InspectorText::FormatMeasureLine (*track) : std::wstring();
-        second = (note.empty() || second.empty()) ? second + note : second + separator + note;
 
         m_fullText = title + separator + InspectorText::FormatTrackClass (trackClass) +
                      (m_context.analysis->entries[qt].isBeyondHeadReach ? separator + s_kpszBeyondReach : L"") +
@@ -148,51 +143,6 @@ float TrackHeaderView::PaintPill (IDxuiPainter & painter, IDxuiTextRenderer & te
                      DxuiFontWeight::Normal, false);
 
     return w + 2 * pad;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackHeaderView::GetFormatNote
-//
-//  What a sector or nibble image has no room for, with the image's format
-//  (FR-003): a sector image has only the sectors' 256 bytes each, from which
-//  Casso builds every track.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring TrackHeaderView::GetFormatNote (DiskFormat format)
-{
-    std::wstring  note;
-
-
-
-    switch (format)
-    {
-        case DiskFormat::Dsk:
-            note = L"Built from the .dsk file's sectors: no timing or copy protection";
-            break;
-
-        case DiskFormat::Do:
-            note = L"Built from the .do file's sectors: no timing or copy protection";
-            break;
-
-        case DiskFormat::Po:
-            note = L"Built from the .po file's sectors: no timing or copy protection";
-            break;
-
-        case DiskFormat::Nib:
-            note = L"From a nibble image: no timing bits between nibbles";
-            break;
-
-        default:
-            break;
-    }
-
-    return note;
 }
 
 

@@ -529,6 +529,7 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_toolSig = GetToolSig();
     m_tooltip.SetDpi (scaler.GetDpi());
     m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
+    m_context.scenePx = boundsDip;
 
     m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar };
     m_barPx      = { boundsDip.left, top - bar, boundsDip.right, top };
@@ -711,6 +712,10 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
         x += w;
     }
 
+    //  A divider between the track tabs and the disk tabs when they share a
+    //  row.
+    m_tabGapPx = isOne ? RECT { x + margin, y + tabsH / 4, x + margin + scaler.ToPx (1), y + tabsH * 3 / 4 } : RECT {};
+
     x  = isOne ? x + 2 * margin : area.left;
     y += isOne ? 0 : tabsH;
 
@@ -779,6 +784,9 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     DxuiWindow::Paint (painter, text, theme);
+
+    painter.FillRect (static_cast<float> (m_tabGapPx.left), static_cast<float> (m_tabGapPx.top), static_cast<float> (m_tabGapPx.right - m_tabGapPx.left),
+                      static_cast<float> (m_tabGapPx.bottom - m_tabGapPx.top), theme.Divider());
 
     if (m_is35)
     {
@@ -951,6 +959,9 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         TrackLegendHover (p);
     }
+
+    //  The views draw their hover from where the pointer is (FR-148).
+    m_context.hoverPx = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { SHRT_MIN, SHRT_MIN } : (ev.kind == DxuiMouseEventKind::Move ? p : m_context.hoverPx);
 
     if (ev.kind == DxuiMouseEventKind::Move)
     {
@@ -1428,9 +1439,6 @@ void DiskInspectorWindow::OnSelection()
     m_nibblesTab->ScrollTo (nibble);
     SyncTables();
 
-    //  The selected sector shimmers in every map (FR-090).
-    m_context.flashStartMs = m_isHeadSelecting ? m_context.flashStartMs : static_cast<int64_t> (GetTickCount64());
-
     //  A selection made by hand ends Follow head (FR-067).
     if (!m_isHeadSelecting && m_followHead.IsOn())
     {
@@ -1508,7 +1516,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     {
         m_tooltip.RequestHide (now);
     }
-    else if (tip != m_tooltipText || (!m_tooltip.IsVisible() && !m_tooltip.IsPending()))
+    else if (isInstant || tip != m_tooltipText || (!m_tooltip.IsShown() && !m_tooltip.IsPending()))
     {
         m_tooltip.SetSwatches (swatches);
 

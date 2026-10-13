@@ -237,7 +237,8 @@ std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
         text = InspectorFormat::FormatCount (track->framed.cellCount) + L" cells" + s_kSeparator
              + InspectorFormat::FormatCount (track->framed.nibbles.size()) + L" nibbles" + s_kSeparator
              + (track->sectorsFound > 0
-                ? std::format (L"{}, {} good", FormatCount (track->sectorsFound, L"sector", L"sectors"), track->sectorsGood)
+                ? FormatCount (track->sectorsFound, L"sector", L"sectors") +
+                  (track->sectorsFound > track->sectorsGood ? std::format (L", {} bad", track->sectorsFound - track->sectorsGood) : std::wstring())
                 : std::wstring (L"no standard sectors"));
 
         if (track->framed.isFlux)

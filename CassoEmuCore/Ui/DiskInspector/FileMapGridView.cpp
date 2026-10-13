@@ -21,7 +21,7 @@ static constexpr float     s_kLetterMinDip  = 12.0f;
 static constexpr float     s_kOutlineDip    = 2.0f;
 static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
-static constexpr int       s_kShimmerSlices = 8;
+static constexpr float     s_kShimmerSlicePx = 2.0f;
 
 
 
@@ -183,11 +183,20 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
     }
 
-    //  A new selection shimmers, its light sweeping across the cell (FR-090).
-    for (int k = 0; cell == m_selectedCell && k < s_kShimmerSlices && InspectorMarquee::IsFlashing (m_context.flashStartMs, static_cast<int64_t> (GetTickCount64())); k++)
+    //  The selected cell lit by the window's shimmer, in slices two pixels
+    //  wide (FR-038).
+    for (float sx = x; cell == m_selectedCell && sx < x + w; sx += s_kShimmerSlicePx)
     {
-        painter.FillRect (x + w * k / s_kShimmerSlices, y, w / s_kShimmerSlices, h,
-                          InspectorMarquee::GetShimmer (m_context.flashStartMs, static_cast<int64_t> (GetTickCount64()), (k + 0.5) / s_kShimmerSlices));
+        painter.FillRect (sx, y, std::min (s_kShimmerSlicePx, x + w - sx), h,
+                          InspectorMarquee::GetShimmer (static_cast<int64_t> (GetTickCount64()), sx + s_kShimmerSlicePx / 2, y + h / 2, m_context.scenePx));
+    }
+
+    //  The cell under the pointer lit faintly and outlined, so the tooltip's
+    //  subject is plain (FR-148).
+    if (cell == HitTest (m_context.hoverPx))
+    {
+        painter.FillRect    (x, y, w, h, InspectorMarquee::GetHoverFill());
+        painter.OutlineRect (x, y, w, h, 1.0f, InspectorMarquee::GetHoverLine());
     }
 
     if (cell == m_selectedCell)

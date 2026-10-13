@@ -73,6 +73,7 @@ private:
     void           PaintDiffs     (IDxuiPainter & painter, const PlatterPlacement & view);
     void           GetFileArcs    (vector<FileArc> & outArcs) const;
     void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    void           PaintArcMark     (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;
     void           DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
     void           PaintMarquee   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
     static void    GetDiffTurns   (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB);

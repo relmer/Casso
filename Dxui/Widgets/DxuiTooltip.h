@@ -146,6 +146,10 @@ public:
     bool                 IsVisible () const { return m_visible; }
     bool                 IsPending () const { return m_pending; }
 
+    //  Whether the tip is up: visible, and with a popup host, its balloon
+    //  open.
+    bool                 IsShown   () const { return m_visible && (m_popupHost == nullptr || m_activePopup != nullptr); }
+
     // True while a dwell timer (deferred open or timed close) is still
     // pending, so a host that idle-blocks knows to keep calling Tick on a
     // timeout rather than sleeping until the next input/frame.
