@@ -207,6 +207,7 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
         result.isKnown = true;
         result.after   = cpu.GetRegisters();
         result.writes  = cpu.GetWrites();
+        result.cycles  = cycles;
     }
 
     UNREFERENCED_PARAMETER (length);

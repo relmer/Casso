@@ -530,9 +530,56 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("$004E=96; random seed, low byte (counts while waiting for a key)"),
                               lineAt (snapshot, 0x0306).annotation, L"a named location in memory says what it is after its byte");
 
-            //  And the result of running it is the action, not a store.
-            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
+            //  And the result of running it is the action, not a store, then
+            //  the cycles STA absolute takes.
+            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click); 4 cycles"),
                               lineAt (snapshot, 0x0303).effect, L"the PC's line: a write to a switch stores nothing");
+        }
+
+
+        //  The PC's line ends with the cycles its instruction will take with
+        //  the registers as they are: a branch's count is for the way it goes.
+        TEST_METHOD (ThePcLineEndsWithItsCycles)
+        {
+            constexpr Byte        kZero  = 0x02;
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            std::string           effect;
+            auto                  pcLine = [] (const DebuggerViewSnapshot & shot) -> std::string
+            {
+                for (const DebuggerViewSnapshot::CodeLine & line : shot.code)
+                {
+                    if (line.address == shot.pc)
+                    {
+                        return line.effect;
+                    }
+                }
+
+                return {};
+            };
+
+
+
+            //  BEQ  at , a branch within the page.
+            (void) target.TryPoke (0x0300, 0xF0);
+            (void) target.TryPoke (0x0301, 0x0E);
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p | kZero);
+            target.SetRegisters (r);
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            effect   = pcLine (snapshot);
+            Assert::IsTrue (effect.ends_with ("3 cycles"), TextEncoding::NarrowToWide (effect).c_str());
+
+            r.p = (Byte) (r.p & ~kZero);
+            target.SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            effect   = pcLine (snapshot);
+            Assert::IsTrue (effect.ends_with ("2 cycles"), TextEncoding::NarrowToWide (effect).c_str());
         }
 
 

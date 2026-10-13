@@ -3724,7 +3724,8 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 //  DebuggerViewState::GetEffect
 //
 //  What running the PC's instruction would leave behind (FR-107), written
-//  from the run InstructionTouches already made (FR-111).
+//  from the run InstructionTouches already made (FR-111), and the cycles
+//  that run took (FR-202).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3746,6 +3747,7 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
         return SymbolDescriptions::GetAction (SymbolDescriptions::ChooseByDirection (names, true));
     };
+    std::string  effect;
 
 
 
@@ -3754,7 +3756,12 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
         return {};
     }
 
-    return InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite);
+    //  The cycles end the line. The trial run counted them with the registers
+    //  as they are, so a branch's count is for the way it goes.
+    effect  = InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite);
+    effect += std::format ("{}{} cycles", effect.empty() ? "" : "; ", touches.cycles);
+
+    return effect;
 }
 
 

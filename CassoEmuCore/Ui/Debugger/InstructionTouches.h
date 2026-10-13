@@ -71,6 +71,10 @@ public:
         //  so the pane runs the instruction ONCE for both columns.
         Cpu6502Registers               after   = {};
         std::vector<ShadowCpu::Write>  writes;
+
+        //  The cycles the instruction took on the core: a taken branch
+        //  and a page crossing are in the count.
+        uint32_t                       cycles  = 0;
     };
 
     //  Everything the instruction at `pc` touches, with the registers as they
