@@ -24,6 +24,15 @@ static constexpr float     s_kOutlineDip    = 2.0f;
 static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
 static constexpr float     s_kShimmerSlicePx = 2.0f;
+static constexpr float     s_kWheelStepDip  = 48.0f;
+static constexpr float     s_kLineEm        = 1.4f;
+static constexpr Byte      s_kHighBit       = 0x80;
+static constexpr int       s_kBytesPerRow   = 16;
+static constexpr float     s_kMinSquareDip  = 2.0f;
+static constexpr float     s_kMinBitDip     = 3.0f;
+static constexpr float     s_kBytePadDip    = 2.0f;
+static constexpr uint32_t  s_kLowByteAlpha  = 0x60000000u;
+static constexpr uint32_t  s_kZeroBitAlpha  = 0x30000000u;
 
 
 
@@ -61,13 +70,20 @@ void FileMapGridView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
 void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    Grid          g      = MakeGrid();
-    float         textPx = m_scaler.ToPxf (kSmallDip);
-    int           cell   = 0;
-    int           number = 0;
-    bool          isFile = false;
-    float         labelH = textPx * 1.4f;
-    vector<int>   numbers;
+    HRESULT                      hr        = S_OK;
+    Grid                         g         = MakeGrid();
+    float                        textPx    = m_scaler.ToPxf (kSmallDip);
+    int                          cell      = 0;
+    int                          number    = 0;
+    bool                         isFile    = false;
+    RECT                         prior     = {};
+    RECT                         area      = {};
+    RECT                         clip      = {};
+    RECT                         cellPx    = {};
+    bool                         hasPrior  = false;
+    bool                         isClipped = false;
+    vector<int>                  numbers;
+    std::optional<SectorSource>  source;
 
 
 
@@ -94,37 +110,216 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
         }
     }
 
-    text.DrawString (FileMapText::FormatColumnAxis (*m_map).c_str(), g.left + g.labelW, g.top - m_scaler.ToPxf (s_kHeaderDip + s_kAxisDip), GetWidth() - g.labelW,
+    MakeRoleLabels (text, g, textPx);
+
+    //  Zoomed, the cells read their bytes from the analysis as it is now.
+    if (IsZoomed() && m_context.analysis != nullptr)
+    {
+        source.emplace (*m_context.analysis);
+    }
+
+    //  The cells clipped to their area, so a zoomed grid pans under the
+    //  pinned labels; cells wholly outside it are skipped.
+    hasPrior  = painter.GetClipRect (prior);
+    area      = { static_cast<LONG> (g.cellsLeft), static_cast<LONG> (g.cellsTop), m_boundsDip.right, m_boundsDip.bottom };
+    clip      = area;
+    isClipped = !hasPrior || IntersectRect (&clip, &area, &prior) != FALSE;
+
+    painter.SetClipRect (&clip);
+    hr = text.PushClipRect (static_cast<float> (clip.left), static_cast<float> (clip.top), static_cast<float> (clip.right - clip.left), static_cast<float> (clip.bottom - clip.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (cell = 0; isClipped && cell < static_cast<int> (m_map->cells.size()); cell++)
+    {
+        if (GetCellRect (cell, cellPx) && cellPx.right > clip.left && cellPx.left < clip.right && cellPx.bottom > clip.top && cellPx.top < clip.bottom)
+        {
+            PaintCell (painter, text, theme, g, cell, numbers[cell], isFile && numbers[cell] == 0, source ? &*source : nullptr);
+        }
+    }
+
+    PaintMarquee (painter, g, numbers);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    painter.SetClipRect (hasPrior ? &prior : nullptr);
+
+    PaintLabels (text, theme, g, textPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::PaintLabels
+//
+//  The axis title, "Track", the column headers along the top and the track
+//  numbers down the left, pinned there while a zoomed grid pans: the
+//  headers follow the columns across and the numbers follow the rows down,
+//  each centered on the part of its column or row in view.
+//  Rows too thin for every number are labeled every few tracks, each label a
+//  line of text tall, centered on its row, so a row thinner than the text
+//  does not clip it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::PaintLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, float textPx) const
+{
+    HRESULT  hr      = S_OK;
+    float    header  = m_scaler.ToPxf (s_kHeaderDip);
+    float    left    = static_cast<float> (m_boundsDip.left);
+    float    labelH  = textPx * 1.4f;
+    float    right   = static_cast<float> (m_boundsDip.right);
+    float    bottom  = static_cast<float> (m_boundsDip.bottom);
+
+
+
+    text.DrawString (FileMapText::FormatColumnAxis (*m_map).c_str(), g.cellsLeft, g.cellsTop - m_scaler.ToPxf (s_kHeaderDip + s_kAxisDip), right - g.cellsLeft,
                      m_scaler.ToPxf (s_kAxisDip), theme.Foreground(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
                      DxuiFontWeight::SemiBold, false);
-    text.DrawString (L"Track", g.left, g.top - m_scaler.ToPxf (s_kHeaderDip), g.labelW - m_scaler.ToPxf (4.0f), m_scaler.ToPxf (s_kHeaderDip), theme.Foreground(),
+    text.DrawString (L"Track", left, g.cellsTop - header, g.labelW - m_scaler.ToPxf (4.0f), header, theme.Foreground(),
                      textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
+    hr = text.PushClipRect (g.cellsLeft, g.cellsTop - header, right - g.cellsLeft, header);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (int c = 0; c < m_map->cellsPerTrack; c++)
     {
         std::wstring  label = (m_map->cellsPerTrack == 8) ? std::to_wstring (c) : std::format (L"{:X}", c);
+        float         x0    = std::max (g.left + g.labelW + c * g.cellW, g.cellsLeft);
+        float         x1    = std::min (g.left + g.labelW + (c + 1) * g.cellW, right);
 
-        text.DrawString (label.c_str(), g.left + g.labelW + c * g.cellW, g.top - m_scaler.ToPxf (s_kHeaderDip), g.cellW, m_scaler.ToPxf (s_kHeaderDip),
-                         theme.ForegroundMuted(), textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        if (x1 > x0)
+        {
+            text.DrawString (label.c_str(), x0, g.cellsTop - header, x1 - x0, header,
+                             theme.ForegroundMuted(), textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
     }
 
-    //  Rows too thin for every number are labeled every few tracks, each
-    //  label a line of text tall, centered on its row, so a row thinner
-    //  than the text does not clip it.
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PushClipRect (left, g.cellsTop, g.labelW, bottom - g.cellsTop);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     for (int t = 0; t < m_map->tracks; t += std::max (1, static_cast<int> (std::ceil (textPx / g.rowH))))
     {
-        text.DrawString (std::to_wstring (t).c_str(), g.left, g.top + (t + 0.5f) * g.rowH - labelH / 2, g.labelW - m_scaler.ToPxf (4.0f), labelH, theme.ForegroundMuted(), textPx,
-                         DxuiTheme::kMonoFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        float  y0 = std::max (g.top + t * g.rowH, g.cellsTop);
+        float  y1 = std::min (g.top + (t + 1) * g.rowH, bottom);
+
+        if (y1 > y0)
+        {
+            text.DrawString (std::to_wstring (t).c_str(), left, (y0 + y1) / 2 - labelH / 2, g.labelW - m_scaler.ToPxf (4.0f), labelH, theme.ForegroundMuted(), textPx,
+                             DxuiTheme::kMonoFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
     }
 
-    MakeRoleLabels (text, g, textPx);
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
 
-    for (cell = 0; cell < static_cast<int> (m_map->cells.size()); cell++)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::PaintBytes
+//
+//  A cell's bytes under its label's band, 16, 32 or 64 to a row, the count
+//  with the most room for a byte's hex in the cell's width and height, in
+//  its ink: squares
+//  where a byte is too small for text, $00 left clear, a byte of $80 or
+//  more solid and the rest faint; the bytes in hex once they fit; and with
+//  room for eight bits a byte, its bits, a 1 solid and a 0 faint, under the
+//  hex when that fits too. A block's two halves follow one another. Returns
+//  whether the cell had room for the bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const
+{
+    RECT      cellPx  = {};
+    int       halves  = (m_map->cellsPerTrack == SectorSource::kBlocksPerTrack) ? 2 : 1;
+    int       bytes   = halves * SectorSource::kBytes;
+    int       perRow  = s_kBytesPerRow;
+    float     areaW   = 0;
+    float     areaH   = 0;
+    float     best    = 0;
+    float     fit     = 0;
+    float     monoPx  = m_scaler.ToPxf (kSmallDip);
+    float     pad     = m_scaler.ToPxf (s_kBytePadDip);
+    float     x0      = 0;
+    float     y0      = 0;
+    float     slotW   = 0;
+    float     slotH   = 0;
+    float     hexW    = 0;
+    float     hexH    = 0;
+    float     bitsTop = 0;
+    bool      isHex   = false;
+    bool      isBits  = false;
+    bool      isRoom  = GetCellRect (cell, cellPx);
+    uint32_t  faint   = (ink & 0x00FFFFFFu) | s_kLowByteAlpha;
+    uint32_t  zeroBit = (ink & 0x00FFFFFFu) | s_kZeroBitAlpha;
+
+
+
+    text.MeasureString (L"FF", monoPx, DxuiTheme::kMonoFace, hexW, hexH);
+
+    x0    = cellPx.left + pad;
+    y0    = cellPx.top + monoPx * s_kLineEm;
+    areaW = cellPx.right - cellPx.left - 2 * pad;
+    areaH = cellPx.bottom - y0 - pad;
+
+    for (int candidate = s_kBytesPerRow; candidate <= 4 * s_kBytesPerRow; candidate *= 2)
     {
-        PaintCell (painter, text, theme, g, cell, numbers[cell], isFile && numbers[cell] == 0);
+        fit = std::min ((areaW / candidate) / (hexW + pad), (areaH / (bytes / candidate)) / hexH);
+
+        if (fit > best)
+        {
+            best   = fit;
+            perRow = candidate;
+        }
     }
 
-    PaintMarquee (painter, g, numbers);
+    slotW  = areaW / perRow;
+    slotH  = areaH / (bytes / perRow);
+    isRoom = isRoom && slotW >= m_scaler.ToPxf (s_kMinSquareDip) && slotH >= m_scaler.ToPxf (s_kMinSquareDip);
+    isHex  = isRoom && slotW >= hexW + pad && slotH >= hexH;
+    isBits = isRoom && slotW >= 8 * m_scaler.ToPxf (s_kMinBitDip) && slotH >= m_scaler.ToPxf (s_kMinBitDip) + (isHex ? hexH : 0.0f);
+
+    for (int half = 0; isRoom && half < halves; half++)
+    {
+        const SectorSource::Sector &  sector = source.GetPhysical (m_map->GetTrack (cell), m_map->GetPhysical (cell, half));
+
+        for (int i = 0; sector.bytes != nullptr && i < SectorSource::kBytes; i++)
+        {
+            Byte   b  = sector.bytes[i];
+            int    at = half * SectorSource::kBytes + i;
+            float  x  = x0 + (at % perRow) * slotW;
+            float  y  = y0 + (at / perRow) * slotH;
+
+            if (isHex)
+            {
+                text.DrawString (std::format (L"{:02X}", b).c_str(), x, y, slotW, isBits ? hexH : slotH, (b == 0) ? faint : ink, monoPx, DxuiTheme::kMonoFace,
+                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            }
+            else if (!isBits && b != 0)
+            {
+                painter.FillRect (x, y, slotW - 1.0f, slotH - 1.0f, (b >= s_kHighBit) ? ink : faint);
+            }
+
+            bitsTop = isHex ? y + hexH : y;
+
+            for (int k = 0; isBits && k < 8; k++)
+            {
+                painter.FillRect (x + k * slotW / 8, bitsTop, slotW / 8 - 1.0f, y + slotH - bitsTop - 1.0f, ((b >> (7 - k)) & 1) ? ink : zeroBit);
+            }
+        }
+    }
+
+    return isRoom;
 }
 
 
@@ -183,7 +378,8 @@ void FileMapGridView::MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed)
+void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed,
+                                 const SectorSource * source)
 {
     const MapCell &  at     = m_map->cells[cell];
     float            x      = g.left + g.labelW + m_map->GetColumn (cell) * g.cellW;
@@ -193,6 +389,7 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     uint32_t         color  = GetCellColor (cell);
     uint32_t         ink    = (DiskInspectorPalette::GetTextColorOn (color) & 0x00FFFFFFu) | s_kMarkAlpha;
     float            textPx = m_scaler.ToPxf (kSmallDip);
+    float            labelH = h;
     std::wstring     label;
 
 
@@ -218,12 +415,18 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.FillCircle (x + w - 3.0f, y + 3.0f, 1.5f, ink);
     }
 
+    //  Bytes under a band at the top for the label, when the cell has room.
+    if (source != nullptr && PaintBytes (painter, text, *source, cell, ink))
+    {
+        labelH = textPx * s_kLineEm;
+    }
+
     label = (number > 0) ? std::to_wstring (number)
           : (static_cast<size_t> (at.role) < m_roleLabels.size()) ? m_roleLabels[static_cast<size_t> (at.role)] : std::wstring();
 
     if (!label.empty() && at.result != SectorResult::Bad && g.rowH >= textPx)
     {
-        text.DrawString (label.c_str(), x, y, w, h, number > 0 ? theme.Foreground() : ink, number > 0 ? textPx : m_roleSizesPx[static_cast<size_t> (at.role)],
+        text.DrawString (label.c_str(), x, y, w, labelH, number > 0 ? theme.Foreground() : ink, number > 0 ? textPx : m_roleSizesPx[static_cast<size_t> (at.role)],
                          number > 0 ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace,
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
     }
@@ -337,22 +540,205 @@ void FileMapGridView::PaintMarquee (IDxuiPainter & painter, const Grid & g, cons
 
 bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
 {
-    int   cell      = HitTest (ev.positionDip);
-    bool  isHandled = false;
+    POINT    p         = ev.positionDip;
+    int      cell      = HitTest (p);
+    bool     isInside  = PtInRect (&m_boundsDip, p) != FALSE;
+    bool     isHandled = false;
+    int64_t  now       = static_cast<int64_t> (GetTickCount64());
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && cell >= 0)
+    switch (ev.kind)
     {
-        isHandled = true;
+        //  Zoomed, the wheel pans the grid down and up, or with Shift
+        //  across.
+        case DxuiMouseEventKind::Wheel:
+            if (IsZoomed() && isInside && !ev.ctrl)
+            {
+                ShiftPan (ev.shift ? static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)) : 0,
+                          ev.shift ? 0 : static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)));
+                isHandled = true;
+            }
 
-        if (m_choose && m_map != nullptr && m_map->notMapped == NotMappedReason::None)
-        {
-            m_choose (cell);
-        }
+            break;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left && cell >= 0)
+            {
+                m_isPressed = true;
+                m_isDragged = false;
+                m_pressAt   = p;
+                m_lastAt    = p;
+                isHandled   = true;
+            }
+
+            break;
+
+        //  Zoomed, a drag pans the grid.
+        case DxuiMouseEventKind::Move:
+            if (m_isPressed && !m_isDragged && IsZoomed() &&
+                (std::abs (p.x - m_pressAt.x) > GetSystemMetrics (SM_CXDRAG) / 2 || std::abs (p.y - m_pressAt.y) > GetSystemMetrics (SM_CYDRAG) / 2))
+            {
+                m_isDragged = true;
+            }
+
+            if (m_isDragged)
+            {
+                ShiftPan (m_lastAt.x - p.x, m_lastAt.y - p.y);
+                m_lastAt = p;
+            }
+
+            isHandled = m_isPressed;
+            break;
+
+        //  A click chooses a cell; a second click soon after it returns a
+        //  zoomed grid to a zoom of 1.
+        case DxuiMouseEventKind::Up:
+            isHandled = m_isPressed;
+
+            if (m_isPressed && !m_isDragged && IsZoomed() && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
+            {
+                ResetZoom();
+                m_lastClickMs = 0;
+
+                if (m_onZoom)
+                {
+                    m_onZoom();
+                }
+            }
+            else if (m_isPressed && !m_isDragged && cell >= 0)
+            {
+                m_lastClickMs = now;
+
+                if (m_choose && m_map != nullptr && m_map->notMapped == NotMappedReason::None)
+                {
+                    m_choose (cell);
+                }
+            }
+
+            m_isPressed = false;
+            m_isDragged = false;
+            break;
+
+        default:
+            break;
     }
 
     return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::ZoomAbout
+//
+//  The point of the grid under the anchor stays under it. A cell's size at
+//  a zoom of 1, as the zoom first moves past 1, is the base for every other
+//  zoom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::ZoomAbout (double factor, POINT anchorPx)
+{
+    Grid    g        = MakeGrid();
+    double  next     = std::clamp (m_zoom * factor, 1.0, kMaxZoom);
+    float   u        = 0;
+    float   v        = 0;
+    bool    isZoomed = false;
+
+
+
+    if (!IsZoomed())
+    {
+        m_baseCellW = g.cellW;
+        m_baseRowH  = g.rowH;
+    }
+
+    u         = (anchorPx.x - (g.left + g.labelW)) / g.cellW;
+    v         = (anchorPx.y - g.top) / g.rowH;
+    isZoomed  = IsZoomed();
+    m_zoom    = next;
+
+    if (IsZoomed())
+    {
+        m_panX = 0;
+        m_panY = 0;
+        g      = MakeGrid();
+        m_panX = g.cellsLeft + u * g.cellW - anchorPx.x;
+        m_panY = g.cellsTop  + v * g.rowH  - anchorPx.y;
+    }
+
+    //  Entering the zoom, the grid's bounds are about to change, and
+    //  ShiftPan clamps the pan once they have.
+    if (isZoomed || !IsZoomed())
+    {
+        ClampPan();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::ResetZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::ResetZoom()
+{
+    m_zoom = 1.0;
+    m_panX = 0;
+    m_panY = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::ShiftPan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::ShiftPan (int dxPx, int dyPx)
+{
+    m_panX += static_cast<float> (dxPx);
+    m_panY += static_cast<float> (dyPx);
+
+    ClampPan();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::ClampPan
+//
+//  The cells' edges no farther in than their area's, so the grid never pans
+//  past its last row or column; at a zoom of 1 there is no pan.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::ClampPan()
+{
+    Grid   g       = MakeGrid();
+    int    columns = (m_map != nullptr) ? m_map->cellsPerTrack : 16;
+    int    tracks  = (m_map != nullptr) ? m_map->tracks : 35;
+    float  maxX    = std::max (0.0f, columns * g.cellW - (m_boundsDip.right  - g.cellsLeft));
+    float  maxY    = std::max (0.0f, tracks  * g.rowH  - (m_boundsDip.bottom - g.cellsTop));
+
+
+
+    m_panX = IsZoomed() ? std::clamp (m_panX, 0.0f, maxX) : 0.0f;
+    m_panY = IsZoomed() ? std::clamp (m_panY, 0.0f, maxY) : 0.0f;
 }
 
 
@@ -520,11 +906,13 @@ FileMapGridView::Grid FileMapGridView::MakeGrid() const
 
 
 
-    g.labelW = m_scaler.ToPxf (s_kLabelDip);
-    g.left   = static_cast<float> (m_boundsDip.left);
-    g.top    = static_cast<float> (m_boundsDip.top) + note + header;
-    g.rowH   = std::max (1.0f, (GetHeight() - note - header) / tracks);
-    g.cellW  = std::max (1.0f, (GetWidth() - g.labelW) / columns);
+    g.labelW    = m_scaler.ToPxf (s_kLabelDip);
+    g.cellsLeft = static_cast<float> (m_boundsDip.left) + g.labelW;
+    g.cellsTop  = static_cast<float> (m_boundsDip.top) + note + header;
+    g.rowH      = IsZoomed() ? static_cast<float> (m_baseRowH * m_zoom)  : std::max (1.0f, (GetHeight() - note - header) / tracks);
+    g.cellW     = IsZoomed() ? static_cast<float> (m_baseCellW * m_zoom) : std::max (1.0f, (GetWidth() - g.labelW) / columns);
+    g.left      = static_cast<float> (m_boundsDip.left) - m_panX;
+    g.top       = g.cellsTop - m_panY;
 
     return g;
 }
@@ -553,7 +941,8 @@ int FileMapGridView::HitTest (POINT pointPx) const
         column = static_cast<int> ((pointPx.x - g.left - g.labelW) / g.cellW);
         row    = static_cast<int> ((pointPx.y - g.top) / g.rowH);
 
-        if (pointPx.x >= g.left + g.labelW && pointPx.y >= g.top && column < m_map->cellsPerTrack && row < m_map->tracks)
+        if (pointPx.x >= g.cellsLeft && pointPx.y >= g.cellsTop && pointPx.x >= g.left + g.labelW && pointPx.y >= g.top &&
+            column < m_map->cellsPerTrack && row < m_map->tracks)
         {
             cell = row * m_map->cellsPerTrack + column;
         }

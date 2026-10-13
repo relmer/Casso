@@ -434,6 +434,7 @@ void DiskInspectorWindow::OnCreate()
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
     m_mapGrid->SetOnChoose   ([this] (int cell) { SelectMapCell (cell); });
+    m_mapGrid->SetOnZoom     ([this] () { Layout (m_boundsDip, m_hostScaler); });
     m_fileList->SetOnSelect  ([this] (const TableRow & row) { ChooseFile (row.finding); });
     m_fileList->SetOnSort    ([this] (int column) { m_fileSortDescending = (column == m_fileSortColumn) && !m_fileSortDescending; m_fileSortColumn = column; RefreshFileList(); });
     m_mapVolumes->SetOnChange ([this] (int index) { m_mapIndex = index; m_mapFile = -1; RefreshFileList(); });
@@ -1063,9 +1064,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    //  Ctrl and the wheel zoom the whole window (FR-154); no view in it takes
-    //  Ctrl and the wheel for itself.
-    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal)
+    //  Ctrl and the wheel zoom the File map grid over it (FR-157), and the
+    //  whole window everywhere else (FR-154).
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && IsOverMapGrid (p))
+    {
+        ZoomMapGrid (ev.wheelDelta, p);
+        isHandled = true;
+    }
+    else if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal)
     {
         SetZoom (DxuiZoomControl::StepZoom (m_zoom, (ev.wheelDelta > 0) ? 1 : -1));
         isHandled = true;
@@ -1358,6 +1364,7 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
     if (m_context.hasDisk)
     {
         m_model.SetDisk (copy->mediaId);
+        m_mapGrid->ResetZoom();
 
         m_analysis           = DiskAnalysis();
         m_analysis.mediaId   = copy->mediaId;
@@ -2938,6 +2945,12 @@ void DiskInspectorWindow::LayoutFileMap (const RECT & area, const DxuiDpiScaler 
         m_mapScroll->PlaceChild (*m_fileList, { area.left, y, area.right, area.bottom });
         m_mapScroll->PlaceChild (*m_mapGrid,  { area.left, y, area.right, y });
     }
+    else if (m_mapGrid->IsZoomed())
+    {
+        //  Zoomed, the grid fills the view and pans in it.
+        m_mapScroll->PlaceChild (*m_mapGrid,  { area.left, y, area.right, area.bottom });
+        m_mapScroll->PlaceChild (*m_fileList, { area.left, area.bottom, area.right, area.bottom });
+    }
     else
     {
         gridH = isList ? m_mapGrid->GetHeightFor (width) : area.bottom - y;
@@ -3296,8 +3309,14 @@ void DiskInspectorWindow::SyncFileMapSelection()
     m_mapGrid->SetSelected (cell, m_mapFile);
 
     //  A sector selected anywhere is scrolled to the middle of the grid's
-    //  view, once.
-    if (cell >= 0 && cell != m_revealedCell && m_mapGrid->GetCellRect (cell, target))
+    //  view, once, or panned there in a zoomed grid.
+    if (cell >= 0 && cell != m_revealedCell && m_mapGrid->GetCellRect (cell, target) && m_mapGrid->IsZoomed())
+    {
+        RECT  view = m_mapGrid->GetBounds();
+
+        m_mapGrid->ShiftPan ((target.left + target.right) / 2 - (view.left + view.right) / 2, (target.top + target.bottom) / 2 - (view.top + view.bottom) / 2);
+    }
+    else if (cell >= 0 && cell != m_revealedCell && m_mapGrid->GetCellRect (cell, target))
     {
         RECT  view = m_mapScroll->GetViewportPx();
 
@@ -3305,6 +3324,63 @@ void DiskInspectorWindow::SyncFileMapSelection()
     }
 
     m_revealedCell = cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsOverMapGrid
+//
+//  Whether the point is on the File map grid in view: the File map tab
+//  chosen, the picker closed, and the point in the grid's viewport.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsOverMapGrid (POINT pointPx) const
+{
+    RECT  grid = m_mapGrid->GetBounds();
+
+
+
+    return m_mapGrid->IsVisible() && !m_isPickerOpen && IsInside (m_mapScroll->GetViewportPx(), pointPx) && PtInRect (&grid, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ZoomMapGrid
+//
+//  The grid zoomed about the point by the wheel's notches. Entering or
+//  leaving the zoom changes the grid's bounds, from its whole height in the
+//  scrolling view to the view itself, so the pan shifts by as much as the
+//  bounds moved and the point stays under the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ZoomMapGrid (float notches, POINT pointPx)
+{
+    RECT  before   = m_mapGrid->GetBounds();
+    RECT  after    = {};
+    bool  isZoomed = m_mapGrid->IsZoomed();
+
+
+
+    m_mapGrid->ZoomAbout (std::pow (kZoomStep, notches), pointPx);
+
+    if (m_mapGrid->IsZoomed() != isZoomed)
+    {
+        m_mapScroll->SetScrollPosPx (0);
+        Layout (m_boundsDip, m_hostScaler);
+
+        after = m_mapGrid->GetBounds();
+        m_mapGrid->ShiftPan (after.left - before.left, after.top - before.top);
+    }
 }
 
 

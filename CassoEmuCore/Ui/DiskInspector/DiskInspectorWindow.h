@@ -182,6 +182,8 @@ private:
     void  StepFileSector       (int step);
     int   GetSelectedMapCell   () const;
     void  SyncFileMapSelection ();
+    bool  IsOverMapGrid        (POINT pointPx) const;
+    void  ZoomMapGrid          (float notches, POINT pointPx);
     void  CopyFileMap          ();
     void  ShowContextMenu (POINT pointPx);
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;

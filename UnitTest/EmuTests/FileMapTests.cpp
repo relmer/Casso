@@ -3,6 +3,7 @@
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
+#include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "FileMapTestImages.h"
 
@@ -382,6 +383,50 @@ public:
         Assert::IsTrue   (copy.starts_with (L" 0  BBBBBBBBBBBBBBBB\r\n"), L"a row per track");
         Assert::IsTrue   (copy.find (L"V  VTOC\r\n") != std::wstring::npos, L"and the key to the letters");
         Assert::IsTrue   (copy.find (L"17  VCCCCCCCCCCCCCCC") != std::wstring::npos);
+    }
+
+
+
+    //  The point under the pointer stays there as the grid zooms; the pan
+    //  stops with the last column and row at the view's edges; and back at a
+    //  zoom of 1 the grid is where it started.
+    TEST_METHOD (TheGridZoomsAboutThePointerAndPansWithinItsView)
+    {
+        FileMap               map    = MapOf (Images::MakeDos33(), false);
+        InspectorViewContext  context;
+        FileMapGridView       grid (context);
+        DxuiDpiScaler         scaler;
+        RECT                  before = {};
+        RECT                  after  = {};
+        RECT                  last   = {};
+        POINT                 p      = {};
+        constexpr int         kCell  = 17 * 16 + 1;
+
+
+
+        grid.SetMap (&map);
+        grid.Layout ({ 0, 0, 640, 600 }, scaler);
+        Assert::IsTrue (grid.GetCellRect (kCell, before));
+
+        p = { (before.left + before.right) / 2, (before.top + before.bottom) / 2 };
+        grid.ZoomAbout (4.0, p);
+        Assert::IsTrue   (grid.IsZoomed());
+        Assert::AreEqual (4.0, grid.GetZoom());
+
+        Assert::IsTrue (grid.GetCellRect (kCell, after));
+        Assert::IsTrue (p.x >= after.left && p.x < after.right && p.y >= after.top && p.y < after.bottom, L"the same cell under the pointer");
+        Assert::IsTrue (std::abs (4 * (before.right - before.left) - (after.right - after.left)) <= 4, L"four times as wide");
+
+        grid.ShiftPan (100000, 100000);
+        Assert::IsTrue   (grid.GetCellRect (static_cast<int> (map.cells.size()) - 1, last));
+        Assert::IsTrue   (std::abs (600 - last.bottom) <= 1, L"the last row at the bottom edge");
+        Assert::IsTrue   (std::abs (640 - last.right)  <= 1, L"the last column at the right edge");
+
+        grid.ZoomAbout (0.01, p);
+        Assert::IsFalse (grid.IsZoomed());
+        Assert::IsTrue  (grid.GetCellRect (kCell, after));
+        Assert::AreEqual (before.left, after.left);
+        Assert::AreEqual (before.top,  after.top);
     }
 
 
