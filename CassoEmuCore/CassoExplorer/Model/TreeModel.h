@@ -151,6 +151,10 @@ public:
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
     static constexpr const wchar_t *  kShellRootTag = L"nav:";
 
+    //  File Explorer's one root with the all-folders option on, the desktop's
+    //  namespace, with Home, This PC and the rest under it.
+    static constexpr const wchar_t *  kDesktopRootId = L"desktop:";
+
     //  A root's label in the tree, the tab and the address bar, or empty for
     //  an id that is no root.
     static std::wstring  GetRootLabel (const std::wstring & id);
@@ -164,6 +168,8 @@ private:
 
     HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
+    HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
+    TreeNode  MakeRootNode    (const std::wstring & id) const;
 
     //  The node for an item of the shell's: a folder on a disk is a host
     //  folder, with all a host folder's children; anything else opens through

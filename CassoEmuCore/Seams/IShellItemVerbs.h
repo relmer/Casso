@@ -147,6 +147,15 @@ public:
     //  desktop's own roots, then the folders on the user's desktop by name.
     virtual HRESULT  ListDesktopFolders  (std::vector<ShellFolderItem> & outFolders)                   { (void) outFolders; return E_NOTIMPL; }
 
+    //  Every folder in the desktop's namespace, in the desktop folder's own
+    //  order, as File Explorer's tree has them under Desktop with the all-folders
+    //  option on.
+    virtual HRESULT  ListDesktopNamespace (std::vector<ShellFolderItem> & outFolders)                  { (void) outFolders; return E_NOTIMPL; }
+
+    //  The desktop namespace's own root, which has no parsing name; the shell
+    //  shell desktop's class id is used as its id.
+    static constexpr const wchar_t *  kDesktopNamespaceId = L"::{00021400-0000-0000-C000-000000000046}";
+
     //  Pins a folder to Quick access, or unpins it, through the shell's own
     //  verbs, so File Explorer's list changes with it.
     virtual HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned)    { (void) owner; (void) folder; (void) pinned; return E_NOTIMPL; }

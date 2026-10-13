@@ -50,6 +50,7 @@ public:
     HRESULT  ListNavigationRoots (std::vector<ShellFolderItem> & outRoots) override;
     HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override;
     HRESULT  ListDesktopFolders  (std::vector<ShellFolderItem> & outFolders) override;
+    HRESULT  ListDesktopNamespace (std::vector<ShellFolderItem> & outFolders) override;
     HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned) override;
     bool     IsArchive (const std::wstring & path) override;
     HRESULT  DeletePermanently (HWND owner, const std::vector<std::wstring> & ids) override;
@@ -158,6 +159,10 @@ private:
     //  An item's id, name, path, type, size, date and what kind of folder it
     //  is, as a listing shows it.
     static HRESULT       DescribeShellItem (IShellItem * item, ShellFolderItem & outEntry);
+
+    //  A shell item by the shell's name for it, the desktop namespace's own
+    //  root included.
+    static HRESULT       CreateItem        (const std::wstring & id, IShellItem ** outItem);
 
     //  The shell's class ids for the roots Explorer treats apart.
     static constexpr const wchar_t *  s_kHomeId       = L"::{F874310E-B6B7-47DC-BC84-B9E6B38F5903}";

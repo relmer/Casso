@@ -31,6 +31,7 @@ public:
 
     std::vector<ShellFolderItem>  navRoots;
     std::vector<ShellFolderItem>  pinned;
+    std::vector<ShellFolderItem>  desktopItems;
 
     //  The extension the shell opens as a folder, and the bytes any item reads.
     std::wstring                  archiveExtension;
@@ -39,6 +40,7 @@ public:
     HRESULT  ListShellFolder (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
     HRESULT  ListNavigationRoots (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
     HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
+    HRESULT  ListDesktopNamespace (std::vector<ShellFolderItem> & outFolders) override                { outFolders = desktopItems; return S_OK; }
 
     bool     IsArchive (const std::wstring & path) override
     {
@@ -419,7 +421,6 @@ public:
         options.showThisPc     = false;
         options.showNetwork    = false;
         options.showLibraries  = true;
-        options.showAllFolders = true;
         host.browser.GetTreeModel().SetNavPaneOptions (options);
         host.browser.GetTreeRoots (roots);
         labels.clear();
@@ -429,8 +430,58 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"Libraries", L"Recycle Bin" }));
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"Libraries" }));
         Assert::IsTrue (roots[4].dividerAbove, L"The line moves to the first root left");
+    }
+
+
+
+    //  With the all-folders option on, the pane has Casso's root and the desktop, as File
+    //  Explorer's has the desktop alone: everything else is under it, in the
+    //  desktop's order, with Casso's own This PC and Recycle Bin in theirs and
+    //  the roots the pane's options hide hidden there too.
+    TEST_METHOD (NavigationPane_AllFoldersHasTheDesktopRoot)
+    {
+        Host                        host;
+        FakeRecycleBin              shell;
+        std::vector<DxuiTreeNode>   roots;
+        std::vector<DxuiTreeNode>   children;
+        std::vector<std::wstring>   labels;
+
+        IShellItemVerbs::ShellFolderItem  home     { L"::{HOME}", L"Home" };
+        IShellItemVerbs::ShellFolderItem  docs     { L"C:\\Docs", L"Documents", L"C:\\Docs" };
+        IShellItemVerbs::ShellFolderItem  pc       { L"::{PC}", L"This PC" };
+        IShellItemVerbs::ShellFolderItem  network  { L"::{NET}", L"Network" };
+        IShellItemVerbs::ShellFolderItem  bin      { L"::{BIN}", L"Recycle Bin" };
+        TreeModel::NavPaneOptions         options;
+
+        pc.isThisPc       = true;
+        bin.isRecycleBin  = true;
+        network.isNetwork = true;
+
+        shell.navRoots     = { home, pc, network, bin };
+        shell.desktopItems = { home, docs, pc, network, bin };
+        host.browser.SetShellVerbs (&shell);
+
+        options.showAllFolders = true;
+        options.showNetwork    = false;
+        host.browser.GetTreeModel().SetNavPaneOptions (options);
+        host.browser.GetTreeRoots (roots);
+
+        Assert::AreEqual ((size_t) 2, roots.size());
+        Assert::AreEqual (std::wstring (TreeModel::kDesktopRootId), roots[1].id);
+        Assert::AreEqual (std::wstring (L"Desktop"), roots[1].label);
+
+        children = host.browser.GetTreeChildren (TreeModel::kDesktopRootId);
+
+        for (const DxuiTreeNode & child : children)
+        {
+            labels.push_back (child.label);
+        }
+
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Home", L"Documents", L"This PC", L"Recycle Bin" }));
+        Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), children[2].id, L"Casso's own This PC, with its drives");
+        Assert::AreEqual (std::wstring (Location::kRecycleBinId), children[3].id);
     }
 
 

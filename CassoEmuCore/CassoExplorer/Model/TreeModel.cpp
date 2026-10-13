@@ -384,34 +384,23 @@ bool TreeModel::IsNavRootShown (NavRoot root) const
 
 void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 {
-    TreeNode  casso;
-    TreeNode  pc;
-    TreeNode  bin;
-    size_t    rest = 0;
+    TreeNode  casso = MakeRootNode (kCassoRootId);
+    TreeNode  pc    = MakeRootNode (kThisPcRootId);
+    TreeNode  bin   = MakeRootNode (Location::kRecycleBinId);
+    size_t    rest  = 0;
 
 
-
-    casso.id        = kCassoRootId;
-    casso.kind      = TreeNode::Kind::CassoRoot;
-    casso.label     = GetRootLabel (kCassoRootId);
-    casso.location  = Location::MakeRoot (kCassoRootId);
-    casso.canExpand = true;
-
-    pc.id        = kThisPcRootId;
-    pc.kind      = TreeNode::Kind::ThisPcRoot;
-    pc.label     = GetRootLabel (kThisPcRootId);
-    pc.location  = Location::MakeRoot (kThisPcRootId);
-    pc.canExpand = true;
-
-    //  Explorer's navigation pane shows the Recycle Bin beside This PC once
-    //  it shows all folders; it holds no folders to expand.
-    bin.id       = Location::kRecycleBinId;
-    bin.kind     = TreeNode::Kind::RecycleBinRoot;
-    bin.label    = GetRootLabel (Location::kRecycleBinId);
-    bin.location = Location::MakeRecycleBin();
 
     outNodes.clear();
     outNodes.push_back (casso);
+
+    //  With the all-folders option on, Explorer's pane has the desktop alone, with
+    //  everything else under it.
+    if (m_navOptions.showAllFolders && m_shellVerbs != nullptr)
+    {
+        outNodes.push_back (MakeRootNode (kDesktopRootId));
+        return;
+    }
 
     //  Without the shell's roots: This PC under its line, then the bin.
     if (m_navRoots.empty())
@@ -471,15 +460,106 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
         outNodes.push_back (root.isThisPc ? pc : MakeShellNode (root));
     }
 
-    if (m_navOptions.showAllFolders)
-    {
-        outNodes.push_back (bin);
-    }
-
     if (rest < outNodes.size())
     {
         outNodes[rest].dividerAbove = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakeRootNode
+//
+//  Casso's root, This PC, the Recycle Bin, or the desktop's namespace. The
+//  Recycle Bin has no folders to expand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TreeNode TreeModel::MakeRootNode (const std::wstring & id) const
+{
+    TreeNode  node;
+
+
+
+    node.id        = id;
+    node.label     = GetRootLabel (id);
+    node.canExpand = id != Location::kRecycleBinId;
+
+    if (id == kCassoRootId)
+    {
+        node.kind     = TreeNode::Kind::CassoRoot;
+        node.location = Location::MakeRoot (kCassoRootId);
+    }
+    else if (id == kThisPcRootId)
+    {
+        node.kind     = TreeNode::Kind::ThisPcRoot;
+        node.location = Location::MakeRoot (kThisPcRootId);
+    }
+    else if (id == Location::kRecycleBinId)
+    {
+        node.kind     = TreeNode::Kind::RecycleBinRoot;
+        node.location = Location::MakeRecycleBin();
+    }
+    else
+    {
+        node.kind     = TreeNode::Kind::ShellRoot;
+        node.label    = L"Desktop";
+        node.iconId   = L"shell:Desktop";
+        node.location = Location::MakeShellFolder (IShellItemVerbs::kDesktopNamespaceId, node.label);
+    }
+
+    return node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListDesktopRoot
+//
+//  The desktop's folders in the shell's order, with Casso's own This PC and
+//  Recycle Bin in theirs, and the roots the pane's options hide left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListDesktopRoot (std::vector<TreeNode> & outNodes)
+{
+    HRESULT                                        hr = S_OK;
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+
+
+
+    outNodes.clear();
+
+    CBREx (m_shellVerbs != nullptr, E_NOTIMPL);
+
+    hr = m_shellVerbs->ListDesktopNamespace (items);
+    CHR (hr);
+
+    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    {
+        bool  hidden = (item.isThisPc    && !IsNavRootShown (NavRoot::ThisPc))
+                    || (item.isNetwork   && !IsNavRootShown (NavRoot::Network))
+                    || (item.isLibraries && !IsNavRootShown (NavRoot::Libraries));
+
+        if (hidden)
+        {
+            continue;
+        }
+
+        outNodes.push_back (item.isThisPc     ? MakeRootNode (kThisPcRootId)
+                          : item.isRecycleBin ? MakeRootNode (Location::kRecycleBinId)
+                          :                     MakeShellNode (item));
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1216,6 +1296,10 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     if (id == Location::kRecycleBinId)
     {
         //  Nothing under it in the tree: its items show in the list.
+    }
+    else if (id == kDesktopRootId)
+    {
+        hr = ListDesktopRoot (outNodes);
     }
     else if (id.rfind (kShellRootTag, 0) == 0)
     {

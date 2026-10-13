@@ -1289,7 +1289,7 @@ HRESULT Win32ShellItemVerbs::ReadShellFolder (const std::wstring & id, std::vect
         return RunSearch (id, outItems);
     }
 
-    hr = SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (&folder));
+    hr = CreateItem (id, &folder);
     CHR (hr);
 
     hr = folder->BindToHandler (nullptr, BHID_EnumItems, IID_PPV_ARGS (&items));
@@ -2261,6 +2261,105 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::ListDesktopNamespace
+//
+//  Sorted by the desktop folder's own comparison, which puts Home and
+//  Gallery first, then the folders the user's files live in, then This PC
+//  and the other shell roots, as File Explorer's tree lists them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::ListDesktopNamespace (std::vector<ShellFolderItem> & outFolders)
+{
+    HRESULT                        hr      = S_OK;
+    ComPtr<IShellFolder>           desktop;
+    ComPtr<IEnumIDList>            items;
+    std::vector<PITEMID_CHILD>     children;
+    PITEMID_CHILD                  child   = nullptr;
+
+
+
+    outFolders.clear();
+
+    hr = SHGetDesktopFolder (&desktop);
+    CHR (hr);
+
+    hr = desktop->EnumObjects (nullptr, SHCONTF_FOLDERS, &items);
+    CHR (hr);
+    CBREx (hr == S_OK && items != nullptr, S_OK);
+
+    while (items->Next (1, &child, nullptr) == S_OK)
+    {
+        children.push_back (child);
+    }
+
+    std::stable_sort (children.begin(), children.end(), [&desktop] (PITEMID_CHILD a, PITEMID_CHILD b)
+    {
+        return (short) HRESULT_CODE (desktop->CompareIDs (0, a, b)) < 0;
+    });
+
+    for (PITEMID_CHILD item : children)
+    {
+        ComPtr<IShellItem>  shellItem;
+        ShellFolderItem     entry;
+        HRESULT             hrItem = SHCreateItemWithParent (nullptr, desktop.Get(), item, IID_PPV_ARGS (&shellItem));
+
+        if (SUCCEEDED (hrItem))
+        {
+            hrItem = DescribeShellItem (shellItem.Get(), entry);
+        }
+
+        if (SUCCEEDED (hrItem) && entry.isFolder && !entry.isFile)
+        {
+            entry.isThisPc     = _wcsicmp (entry.id.c_str(), s_kThisPcId) == 0;
+            entry.isRecycleBin = _wcsicmp (entry.id.c_str(), s_kRecycleBinId) == 0;
+            entry.isNetwork    = _wcsicmp (entry.id.c_str(), s_kNetworkId) == 0;
+            entry.isLibraries  = _wcsicmp (entry.id.c_str(), s_kLibrariesId) == 0;
+            outFolders.push_back (std::move (entry));
+        }
+    }
+
+Error:
+    for (PITEMID_CHILD item : children)
+    {
+        CoTaskMemFree (item);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::CreateItem
+//
+//  The desktop namespace's root is the empty item list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::CreateItem (const std::wstring & id, IShellItem ** outItem)
+{
+    static const SHITEMID  s_kEmpty = {};
+
+
+
+    if (_wcsicmp (id.c_str(), kDesktopNamespaceId) == 0)
+    {
+        return SHCreateItemFromIDList ((PCIDLIST_ABSOLUTE) &s_kEmpty, IID_PPV_ARGS (outItem));
+    }
+
+    return SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (outItem));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::IsDesktopRoot
 //
 //  The desktop's own items: the shell's folders with no path, and the
@@ -2550,7 +2649,7 @@ HRESULT Win32ShellItemVerbs::ReadItemBytes (const std::wstring & id, size_t maxB
 
     outBytes.clear();
 
-    hr = SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (&item));
+    hr = CreateItem (id, &item);
     CHR (hr);
 
     hr = item->BindToHandler (nullptr, BHID_Stream, IID_PPV_ARGS (&stream));
@@ -2595,7 +2694,7 @@ HRESULT Win32ShellItemVerbs::GetShellItemName (const std::wstring & id, std::wst
 
 
 
-    hr = SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (&item));
+    hr = CreateItem (id, &item);
     CHR (hr);
 
     hr = item->GetDisplayName (SIGDN_NORMALDISPLAY, &text);
@@ -2629,7 +2728,7 @@ HRESULT Win32ShellItemVerbs::GetShellParent (const std::wstring & id, ShellFolde
 
     outParent = ShellFolderItem();
 
-    hr = SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (&item));
+    hr = CreateItem (id, &item);
     CHR (hr);
 
     hr = item->GetParent (&parent);
