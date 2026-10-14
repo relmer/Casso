@@ -22,6 +22,7 @@
 #include "Seams/Win32ShellIcons.h"
 #include "Seams/Win32InfoTips.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/Win32PackagedCommands.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
@@ -545,6 +546,10 @@ private:
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  UpdateCommandBar();
+    void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
+    void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+    void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     void  UpdateShellPreview      (const PreviewContent & preview);
     void  OnShellPreviewResult    ();
     void  ShowShellPreviewBytes   ();
@@ -795,6 +800,7 @@ private:
     Win32InfoTips                                m_infoTips;
     Win32ContentDetails                          m_contentDetails;
     Win32ShellPreview                            m_shellPreview;
+    Win32PackagedCommands                        m_packagedCommands;
     std::wstring                                 m_shellPreviewPath;
     bool                                         m_shellPicture    = false;
     RECT                                         m_previewContent  = {};

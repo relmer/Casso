@@ -466,6 +466,51 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForTreePath (const std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::GetForIconResource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForIconResource (const std::wstring & resource)
+{
+    std::wstring  key            = GetSizedKey (L"*resource:" + resource);
+    auto          found          = m_cache.find (key);
+    wchar_t       path[MAX_PATH] = {};
+    int           index          = 0;
+    HICON         bigIcon        = nullptr;
+    HICON         rowIcon        = nullptr;
+    HRESULT       hr             = S_OK;
+
+
+
+    if (found != m_cache.end())
+    {
+        return found->second;
+    }
+
+    if (resource.empty() || resource.size() >= std::size (path))
+    {
+        return nullptr;
+    }
+
+    wcscpy_s (path, resource.c_str());
+    index = PathParseIconLocationW (path);
+
+    hr = SHDefExtractIconW (path, index, 0, &bigIcon, &rowIcon, MAKELONG (m_sizePx, m_sizePx));
+
+    if (rowIcon != nullptr)
+    {
+        DestroyIcon (rowIcon);
+    }
+
+    return (hr == S_OK && bigIcon != nullptr) ? Remember (key, bigIcon) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::GetIconForPath
 //
 //  A per-path icon without overlays is cached apart from the one with them;

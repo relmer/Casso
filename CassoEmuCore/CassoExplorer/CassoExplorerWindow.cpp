@@ -729,6 +729,9 @@ void CassoExplorerWindow::ConfigureWidgets()
     hr = m_shellPreview.Start (GetHwnd(), kShellPreviewMessage);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    //  The commands installed apps add to Explorer's menus, read once.
+    m_packagedCommands.Start();
+
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
 
@@ -6286,6 +6289,13 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
         items.insert (items.begin(), DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
     }
 
+    //  The commands installed apps add for these items, as Explorer lists
+    //  them, above the shell's own menu.
+    if (moreOptions && m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        AddPackagedCommands (items);
+    }
+
     //  Last, as Explorer has it: everything else Windows and other programs
     //  offer for these items, in the shell's own menu.
     if (moreOptions)
@@ -8936,6 +8946,27 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         hasLocation = false;
     }
 
+    //  A folder on the disk has Explorer's row of Cut, Copy and Delete.
+    if (hasLocation && location.kind == Location::Kind::HostFolder && location.path.size() > 3)
+    {
+        AddTreeIconRow (items, location.path);
+    }
+
+    //  Explorer's first command expands or collapses the node.
+    if (node != nullptr && (!node->childrenLoaded || !node->children.empty()))
+    {
+        AddMenuCommand (items, node->expanded ? L"&Collapse" : L"&Expand", [this, id, expand = !node->expanded]()
+        {
+            int   row     = m_tree->FindRowById (id);
+            bool  changed = (row >= 0) && m_tree->SetRowExpanded (row, expand);
+
+            if (changed)
+            {
+                Invalidate();
+            }
+        });
+    }
+
     if (hasLocation)
     {
         AddMenuCommand (items, L"Open in new &tab", [this, location]()
@@ -8984,10 +9015,88 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
     }
 
+    //  A folder on the disk has the commands installed apps add, then the
+    //  shell's own menu, as in Explorer's.
+    if (hasLocation && location.kind == Location::Kind::HostFolder)
+    {
+        POINT  screen = { x, y };
+
+        ClientToScreen (GetHwnd(), &screen);
+
+        AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
+        {
+            HRESULT  hr = m_shellVerbs.ShowShellMenu (GetHwnd(), { location.path }, screen);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    }
+
     if (!items.empty())
     {
         DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddTreeIconRow
+//
+//  Add a folder's Cut, Copy and Delete as buttons atop the menu, as File
+//  Explorer does for a node. Cut and Copy place the folder on the clipboard
+//  as a file, and Delete moves it to the Recycle Bin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder)
+{
+    static constexpr CassoExplorerActions::Verb  kIconVerbs[] =
+    {
+        CassoExplorerActions::Verb::Cut,
+        CassoExplorerActions::Verb::Copy,
+        CassoExplorerActions::Verb::Delete,
+    };
+    std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
+
+
+
+    for (CassoExplorerActions::Verb verb : kIconVerbs)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->id       = (int) verb;
+        command->label    = GetVerbLabel (verb);
+        command->glyph    = GetVerbGlyph (verb);
+        command->menuSvg  = GetMenuSvg (GetVerbMenuSvgName (verb));
+        command->dispatch = [this, verb, folder]()
+        {
+            HRESULT  hr = S_OK;
+
+            if (verb == CassoExplorerActions::Verb::Delete)
+            {
+                hr = m_shellVerbs.Recycle (GetHwnd(), { folder });
+                RefreshAfterHostChange();
+            }
+            else
+            {
+                hr = m_shellVerbs.PlaceOnClipboard (GetHwnd(), { folder }, verb == CassoExplorerActions::Verb::Cut);
+            }
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        };
+        iconCommands.push_back (command);
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
 
@@ -9305,6 +9414,117 @@ void CassoExplorerWindow::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items
     command->accelerator = accelerator;
     command->menuGlyph   = menuGlyph;
     command->dispatch    = std::move (dispatch);
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddPackagedCommands
+//
+//  After a separator, each command an installed app adds for the selected
+//  files or folders, with the app's own title and icon. A selection of files
+//  and folders together has none, as no registration covers both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
+{
+    std::vector<std::wstring>  paths;
+    size_t                     folders = 0;
+
+
+
+    for (int row : m_browser.GetSelectedRows())
+    {
+        folders += m_browser.GetRows()[(size_t) row].isDirectory ? 1 : 0;
+    }
+
+    m_browser.GetSelectedHostPaths (paths);
+
+    if (paths.empty() || (folders != 0 && folders != paths.size()))
+    {
+        return;
+    }
+
+    AddPackagedCommandsFor (items, paths, (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddPackagedCommandsFor
+//
+////////////////////////////////////////////////////////////////////////////////
+void CassoExplorerWindow::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+{
+    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
+
+
+
+    if (entries.empty())
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (const Win32PackagedCommands::Entry & entry : entries)
+    {
+        AddPackagedEntry (items, entry, paths);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddPackagedEntry
+//
+//  An app's title marks its mnemonic with an ampersand, as Explorer reads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths)
+{
+    std::shared_ptr<DxuiCommand>     command  = std::make_shared<DxuiCommand>();
+    std::vector<DxuiPopupMenuItem>   children;
+    bool                             enabled  = entry.enabled;
+
+
+
+    command->label     = entry.title;
+    command->menuImage = m_shellIcons.GetForIconResource (entry.icon);
+    command->isEnabled = [enabled]() { return enabled; };
+
+    if (!entry.children.empty())
+    {
+        for (const Win32PackagedCommands::Entry & child : entry.children)
+        {
+            AddPackagedEntry (children, child, paths);
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForSubmenu (command, std::move (children)));
+        m_menuCommands.push_back (std::move (command));
+        return;
+    }
+
+    command->dispatch = [this, entry, paths]()
+    {
+        HRESULT  hr = m_packagedCommands.Invoke (GetHwnd(), entry, paths);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    };
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_menuCommands.push_back (std::move (command));

@@ -54,6 +54,10 @@ public:
 
     std::shared_ptr<const DxuiIconImage>  GetForPath     (const std::wstring & path, bool isDirectory) override;
     std::shared_ptr<const DxuiIconImage>  GetForTreePath (const std::wstring & path, bool isDirectory) override;
+
+    //  An icon by its "path,index" resource, as IExplorerCommand::GetIcon
+    //  returns it, at the row's size; null when it cannot be read.
+    std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource);
     std::shared_ptr<const DxuiIconImage>  GetForKind     (Kind kind) override;
     std::wstring                          GetTypeName (const std::wstring & path, bool isDirectory) override;
     bool                                  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override;
