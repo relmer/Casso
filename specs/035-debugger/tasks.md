@@ -1559,3 +1559,22 @@ Owner decisions 2026-10-14, review of the Disk II and input log panes.
 **Dependencies**: T821 before T822; T824 before T825, T826 and T827; T827 before T828; T821 to T829 before T830 and T831.
 
 **Parallel**: T823 touches only the track filter and the log's bar, apart from T821 and T822's files.
+
+## Phase 36: The event log review, third round (FR-111, FR-213, FR-215, FR-234 to FR-237)
+
+Owner decisions 2026-10-14, third review of the event log panes and tooltips.
+
+- [X] T832 Peek every address in $C000-$CFFF for the byte its read returns, without doing what the read does (MemoryDevice::TryPeekIo in CassoEmuCore/Core/MemoryDevice.h, MemoryBus::TryPeekIo, each I/O and slot device), so "?" is written only for a Disk II latch while the drive writes; test every address on four machines in UnitTest/EmuTests/IoPeekTests.cpp, per FR-111 **Done 2026-10-14** (be59dd65f)
+- [X] T833 [P] Write head positions in the Disk II log as tracks, 17.25 for a quarter track (DiskImage::FormatQuarterTrack in CassoEmuCore/Devices/Disk/DiskImage.h/.cpp, CassoEmuCore/Ui/Debugger/Panes/DiskLogPane.cpp); test in UnitTest/DebuggerTests/EventLogPaneTests.cpp, per FR-213 **Done 2026-10-14** (514e391e6)
+- [X] T834 Put Time first in both logs, in the locale's time format with milliseconds, and Cycle second, hidden by default; save the columns under the options key columnLayout (EventLogText::FormatTime, FormatClockTime, AddMilliseconds and GetTimeFitTexts in CassoEmuCore/Ui/Debugger/Panes/EventLogText.h/.cpp, EventLogPane::kTimeColumn and kCycleColumn, DiskLogPane and InputLogPane column specs); test en-US and de-DE in UnitTest/DebuggerTests/EventLogPaneTests.cpp, per FR-215 **Done 2026-10-14** (e99fdaef5)
+- [X] T835 Match a log's selection, anchor and keyboard row to the rows they were on through each refresh, change no selection on a right-click on a selected row, and select no row on a release with no press (DxuiListView::RestoreSelectedRows and m_rowPressed in Dxui/Widgets/DxuiListView.h/.cpp, EventLogPane::TakeSelection, DebuggerWindow's row menu); test in UnitTest/DebuggerTests/EventLogPaneTests.cpp and UnitTest/Dxui/DxuiListViewFocusClickTests.cpp, per FR-234 **Done 2026-10-14** (b1dd261d7)
+- [X] T836 Place a dwelled tip clear of the pointer where it stopped, not against the item under it, with the color tip under an operand tip stacked under it (DxuiTooltip::RequestShowAtPointer in Dxui/Widgets/DxuiTooltip.h/.cpp, DebuggerWindow::UpdateTip); test in UnitTest/Dxui/DxuiTooltipTests.cpp, per FR-235 **Done 2026-10-14** (6e5f151e9)
+- [X] T837 Draw the arrow of a branch, jump or call a step just took to where the PC landed, beside the PC's own (DebuggerViewState::UpdateLastStop, CodeLine::isSteppedFrom, DisassemblyCells::TryGetBranchArrow, DebuggerWindow::PaintBranchArrow); test in UnitTest/DebuggerTests/DisassemblyArrowTests.cpp, per FR-237 **Done 2026-10-14** (9785dc091)
+- [X] T838 Use the proportional face for the text panes (DebuggerWindow::GetTextLists: Breakpoints, Watches, Call stack, Heat map ranges, both logs, the diagnostics panes) and the tips of text, and line up a tip's tab-separated columns in either face (DxuiTooltip::LayOutTable and DrawTable, FlagsDialog::Describe); test in UnitTest/Dxui/DxuiTooltipTests.cpp, per FR-236 **Done 2026-10-14** (a12cb2faf)
+- [X] T839 Check Karateka's Disk II errors against its image (Apple2/Demos/Karateka.woz): track 0 has one D5 AA B5 and one D5 AA 96 address field, both with stored checksums that do not match, and track 1 has no standard fields, so the events come from the disk; no code change **Done 2026-10-14**
+- [ ] T840 Confirm on screen that the sector hex dump tip in the Disk II log has its drop shadow (DxuiTooltip::ShowPopup, Dxui/Window/DxuiPopupHost.cpp PaintShadowAndCard); this session could not read the screen back to capture it
+- [ ] T841 Launch a build for the owner on the portrait monitor to retest the Time column, the selection, the tip placement, the faces, the stepped branch arrow and the hex dump tip's shadow
+
+**Dependencies**: T832 to T839 before T841; T840 with T841.
+
+**Parallel**: T833 touches only the Disk II log's text and DiskImage, apart from the other tasks' files.

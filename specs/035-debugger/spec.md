@@ -171,6 +171,14 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Which errors and warnings does the Disk II log list, and how are they set apart? -> A: Address field checksum mismatch and data field checksum mismatch (errors); a data field cut off before its epilogue, a data field with no address field before it, a write to a write-protected disk, and a read stall (warnings). A Severity column (Info, Warning, Error), warning rows on a yellowish background and error rows on a reddish one, both from the theme, and a Severity filter on the log's bar (FR-232).
 - Q: Can the emulated head rest on a quarter track? -> A: Yes. The stepper is modeled by magnet pull: the head moves to the position the energized phases pull it to: two adjacent phases put it on the quarter track between them, and a set with no net pull (none, or two opposite phases) does not move it. A head step event is reported for each quarter-track move (FR-233).
 - Q: Where are a list's columns chosen? -> A: From the column headings' context menu, a check for each column, in the Breakpoints pane and both event logs; the drop-down that listed the columns is removed. The logs' Copy is on their rows' context menu only, and the Disk II log's Event column fits the widest label drawn in it (FR-118, FR-234).
+- Q: Which I/O reads does the PC line's result peek, and where is "?" written? -> A: Every address in `$C000-$CFFF` is read through its device's side-effect-free peek, which returns the byte the read would return. "?" is written only where no peek exists: a Disk II latch while the drive writes (FR-111).
+- Q: Which columns come first in the event logs, and how is the time written? -> A: Time first, the host clock in the user's locale time format with the milliseconds after the seconds; Cycle second, hidden by default. No column is called "Wall time" (FR-215).
+- Q: What does a log's selection do while rows arrive, and on a right-click? -> A: Its anchor and keyboard row are the same rows through each refresh, so Shift+arrow and a drag extend the range they began; a right-click on a selected row does not change the selection; a mouse release with no press in the list selects nothing (FR-234).
+- Q: How is a head position written in the Disk II log? -> A: As a track with its quarter-track fraction, 17.25, never in quarter-track units (FR-213).
+- Q: Where is a hover tip placed? -> A: Clear of the pointer where it came to rest, as the system's tips are, not against the item under it; a move within the same item does not move it. The color tip under an operand tip stacks under it (FR-235).
+- Q: Which panes and tips use the proportional face? -> A: The panes of text rather than code (Breakpoints, Watches, Call stack, Heat map ranges, both event logs, the diagnostics panes) and the tips of text. Disassembly, source, trace, memory, registers, stack and console, and the tips of code or bytes (a memory address, a symbol, a sector's hex dump), are monospace. A tip with columns separated by tabs lines them up in either face, as the P register's flag table does (FR-236).
+- Q: After a step that took a branch, is its arrow drawn? -> A: Yes: the arrow of the branch, jump or call a step just ran is drawn to where the PC landed, beside the PC's own arrow (FR-237).
+- Q: Do the address checksum, cut-off data and read stall events while Karateka boots come from the disk or from the emulator? -> A: From the disk image: its track 0 has one D5 AA B5 and one D5 AA 96 address field, both with stored checksums that do not match their fields, and its track 1 has no standard fields. The Disk II boot ROM does not check an address field's checksum, so the disk boots.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1316,6 +1324,10 @@ run something, switch back to the //e: it is where it was left.
 
 ### Edge Cases
 
+- **A copy-protected disk's fields**: A disk whose address fields have
+  checksums that do not match, data fields cut short or tracks with no
+  standard fields (Karateka) yields error and warning events in the Disk II
+  log; the fault is in the disk image, not the emulator.
 - **An event older than history**: Scrolling a log back past the oldest
   history kept ends the log there, with a row saying history begins at that
   point; nothing older is shown.
@@ -2116,12 +2128,12 @@ run something, switch back to the //e: it is where it was left.
   without touching the machine and its writes captured rather than performed.
   A SECOND DESCRIPTION OF WHAT AN INSTRUCTION DOES MUST NOT EXIST: a table
   written beside the CPU can disagree with it, and a prediction that disagrees
-  with the machine is worse than none. A read in `$C000-$C0FF` MUST be
-  served by the device's side-effect-free peek where the device has one
-  (paddle timers, buttons, keyboard data, status reads). Where a read has a
-  side effect, whatever its value feeds MUST be written as `?`, and the rest
-  of the result, the cycles and the PC among it, MUST be written in full. I/O
-  in the memory panes MUST be unreadable (amended 2026-10-14).
+  with the machine is worse than none. A read anywhere in `$C000-$CFFF` MUST
+  be served by its device's side-effect-free peek, the byte the read would
+  return without what the read does. Only where no peek exists (a Disk II
+  latch while the drive writes) MUST whatever the value feeds be written as
+  `?`, with the rest of the result, the cycles and the PC among it, written
+  in full. I/O in the memory panes MUST be unreadable (amended 2026-10-14).
 - **FR-112**: An operand in `$C000-$C0FF` MUST be shown as the soft switch the
   instruction operates -- the switch at the address it touches after indexing,
   not the one at its symbol (amended 2026-10-14) -- with its title and
@@ -2877,16 +2889,19 @@ run something, switch back to the //e: it is where it was left.
   the track and sector filter among them, and its columns; live while the
   machine runs and rebuilt from history per FR-210 to FR-212. A quarter-track
   in the track filter MUST be typed as a decimal track (17.25) and read as
-  text, never as floating point; there is no Quarter-tracks option (amended
-  2026-10-14).
+  text, never as floating point; there is no Quarter-tracks option. A head
+  position MUST be written as a track with its quarter-track fraction
+  (17.25), never in quarter-track units (amended 2026-10-14).
 - **FR-214**: The debugger MUST have an input log pane showing the host's
   input (keys, mouse, game controllers, paddles and joysticks, with the
   per-pair paddle or joystick view) from the input journal, and the guest's
   reads of the keyboard and game port, a read shown only when its value
   differs from the previous read of the same source; live and rebuilt per
   FR-210 to FR-212.
-- **FR-215**: Event logs MUST stamp events with the machine's cycle count,
-  with wall time available as an optional column.
+- **FR-215**: Event logs MUST stamp each event with the host clock and the
+  machine's cycle count. The first column MUST be Time, in the user's locale
+  time format with the milliseconds after the seconds; the second MUST be
+  Cycle, hidden by default (amended 2026-10-14).
 - **FR-216**: The Disk II diagnostics pane MUST show the last address field
   read (volume, track, sector) and whether the drive is reading or writing.
 - **FR-217**: Before FR-213 and FR-214 are built, every feature of the
@@ -3012,7 +3027,24 @@ run something, switch back to the //e: it is where it was left.
 - **FR-234**: In both event logs the columns MUST be chosen from the column
   headings' context menu, a check for each column, and Copy MUST be on the
   rows' context menu only. The Disk II log's Event column MUST fit the widest
-  label drawn in it.
+  label drawn in it. A log's selection, its anchor and its keyboard row MUST
+  be the same rows through each refresh, so Shift+arrow and a drag extend the
+  range they began; a right-click on a selected row MUST NOT change the
+  selection, and a mouse release with no press in the list MUST select
+  nothing.
+- **FR-235**: A hover tip MUST be placed clear of the pointer where it came to
+  rest, as the system's tips are, not against the item under it, and a move
+  within the same item MUST NOT move it. A color tip under an operand tip
+  MUST stack under it.
+- **FR-236**: The panes of text rather than code (Breakpoints, Watches, Call
+  stack, Heat map ranges, both event logs, the diagnostics panes) and the
+  tips of text MUST use the proportional face; disassembly, source, trace,
+  memory, registers, stack and console, and the tips of code or bytes, MUST
+  be monospace. A tip with columns separated by tabs MUST line them up in
+  either face.
+- **FR-237**: After a step that took a branch, jump or call, that
+  instruction's arrow MUST be drawn to where the PC landed, beside the PC's
+  own arrow.
 
 ### Key Entities
 
