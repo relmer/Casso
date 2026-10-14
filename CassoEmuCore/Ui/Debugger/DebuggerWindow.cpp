@@ -6045,7 +6045,10 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
         row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
 
-        if (row >= 0)
+        //  As in Explorer: a right-click on a selected row does not change
+        //  the selection, so Copy copies every selected row; on any other
+        //  row it selects that row alone.
+        if (row >= 0 && !list->IsRowSelected (row))
         {
             list->SetSelectedRow (row);
         }

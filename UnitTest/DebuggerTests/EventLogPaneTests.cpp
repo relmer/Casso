@@ -333,6 +333,55 @@ namespace EventLogPaneTests
         }
 
 
+        //  A Shift+click range, with rows arriving at both ends, has the same
+        //  anchor and keyboard row, so the next Shift+click extends the same
+        //  range; filtering the rows twice in a row reads the selection
+        //  through the view it was made in.
+        TEST_METHOD (ARangeExtendsFromTheSameAnchorAsRowsArrive)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogDelta   delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset  = true;
+            delta.heldFrom = 100;
+            delta.newer    = { MakeDiskRow (100, Disk2EventType::DriveSelect), MakeDiskRow (110, Disk2EventType::MotorCommandOn),
+                               MakeDiskRow (120, Disk2EventType::MotorEngaged), MakeDiskRow (130, Disk2EventType::HeadBump) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            list.ClickRow (1, false, false);
+            list.ClickRow (3, false, true);
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = 10;
+            delta.older    = { MakeDiskRow (10, Disk2EventType::DriveSelect) };
+            delta.newer    = { MakeDiskRow (140, Disk2EventType::MotorCommandOff) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (2, list.GetAnchorRow(),   L"the first row clicked, one lower");
+            Assert::AreEqual (4, list.GetSelectedRow(), L"the Shift+click's row, one lower");
+
+            list.ClickRow (5, false, true);
+            Assert::IsTrue (list.GetSelectedRows() == std::vector<int> { 2, 3, 4, 5 }, L"the same range, one row longer");
+
+            pane.SetKindShown (DiskLogPane::kHeadStep, false);
+            pane.MarkDirty();
+            pane.Refresh();
+            pane.MarkDirty();
+            pane.Refresh();
+
+            Assert::IsTrue (list.GetSelectedRows() == std::vector<int> { 2, 3, 4, 5 });
+            Assert::AreEqual (2, list.GetAnchorRow());
+            Assert::AreEqual (5, list.GetSelectedRow());
+        }
+
+
         TEST_METHOD (ACutDropsTheRowsFromItsPosition)
         {
             DxuiListView   list;

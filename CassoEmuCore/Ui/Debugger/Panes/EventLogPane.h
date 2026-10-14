@@ -19,8 +19,9 @@
 //  begins, or a note that older rows are being rebuilt, or that scrolling
 //  up rebuilds them; when that row comes into view the pane requests the
 //  rows before its oldest. While the machine is behind live the rows from
-//  its position on are hidden. The selection, and the row at the top when
-//  older rows go in front, stay the same through each change.
+//  its position on are hidden. The selection, its anchor and the keyboard's
+//  row, and the row at the top when older rows go in front, stay the same
+//  through each change.
 //
 //  A pane for one kind of event defines its columns, its filter and its
 //  event cells, and may look over every row before the filter runs. Its
@@ -123,30 +124,40 @@ public:
 
     void  Apply (const DebugLogDelta<T> & delta)
     {
-        std::vector<size_t>    selected  = GetSelectedIndices();
         std::optional<size_t>  top       = GetTopIndex();
         size_t                 prepended = 0;
+        size_t                 count     = 0;
+        auto                   moveOn    = [&] (std::optional<size_t> & index)
+        {
+            index = (index.has_value() && *index + prepended < count) ? std::optional<size_t> (*index + prepended) : std::nullopt;
+        };
 
 
+
+        TakeSelection();
 
         prepended = m_rows.Apply (delta);
+        count     = m_rows.GetRows().size();
 
         if (delta.isReset)
         {
-            selected.clear();
+            m_selected.clear();
+            m_anchor.reset();
+            m_keyboardRow.reset();
             top.reset();
         }
 
-        for (size_t & index : selected)
+        for (size_t & index : m_selected)
         {
             index += prepended;
         }
 
-        std::erase_if (selected, [this] (size_t index) { return index >= m_rows.GetRows().size(); });
+        std::erase_if (m_selected, [count] (size_t index) { return index >= count; });
+        moveOn (m_anchor);
+        moveOn (m_keyboardRow);
 
-        m_selected = std::move (selected);
-        m_keepTop  = (prepended > 0 && top.has_value()) ? std::optional<size_t> (*top + prepended) : std::nullopt;
-        m_isDirty  = true;
+        m_keepTop = (prepended > 0 && top.has_value()) ? std::optional<size_t> (*top + prepended) : std::nullopt;
+        m_isDirty = true;
     }
 
     //  The machine's position while it is behind live, or UINT64_MAX.
@@ -162,11 +173,14 @@ public:
     //  A filter or the sort changed.
     void  MarkDirty () { m_isDirty = true; }
 
-    //  The list's rows again, when anything changed since the last call.
+    //  The list's rows again, when anything changed since the last call,
+    //  with the selection on the same rows.
     void  Refresh()
     {
         std::vector<int>  rows;
-        size_t            i    = 0;
+        int               anchor      = -1;
+        int               keyboardRow = -1;
+        size_t            i           = 0;
 
 
 
@@ -177,18 +191,28 @@ public:
 
         m_isDirty = false;
 
+        TakeSelection();
         BuildView();
         m_list->SetVirtualRowCount ((int) m_view.size());
 
         for (i = 0; i < m_view.size(); i++)
         {
-            if (m_view[i] != kTopRow && std::ranges::find (m_selected, (size_t) m_view[i]) != m_selected.end())
+            if (m_view[i] == kTopRow)
+            {
+                continue;
+            }
+
+            if (std::ranges::binary_search (m_selected, (size_t) m_view[i]))
             {
                 rows.push_back ((int) i);
             }
+
+            anchor      = (m_anchor      == (size_t) m_view[i]) ? (int) i : anchor;
+            keyboardRow = (m_keyboardRow == (size_t) m_view[i]) ? (int) i : keyboardRow;
         }
 
-        m_list->SetSelectedRows (std::move (rows), -1);
+        m_list->RestoreSelectedRows (std::move (rows), anchor, keyboardRow);
+        m_isSelectionTaken = false;
 
         if (m_keepTop.has_value())
         {
@@ -543,21 +567,42 @@ private:
         m_view = std::move (sorted);
     }
 
-    std::vector<size_t>  GetSelectedIndices() const
+    //  The rows behind the list's selection, its anchor and its keyboard
+    //  row, read through the view they were made in, once between two
+    //  refreshes: a delta applied after the first changes the rows the view
+    //  indexes.
+    void  TakeSelection()
     {
-        std::vector<size_t>  indices;
+        if (m_isSelectionTaken)
+        {
+            return;
+        }
 
-
+        m_selected.clear();
 
         for (int row : m_list->GetSelectedRows())
         {
-            if (row >= 0 && (size_t) row < m_view.size() && m_view[(size_t) row] != kTopRow)
+            if (std::optional<size_t> index = GetIndexOf (row); index.has_value())
             {
-                indices.push_back ((size_t) m_view[(size_t) row]);
+                m_selected.push_back (*index);
             }
         }
 
-        return indices;
+        std::ranges::sort (m_selected);
+
+        m_anchor           = GetIndexOf (m_list->GetAnchorRow());
+        m_keyboardRow      = GetIndexOf (m_list->GetSelectedRow());
+        m_isSelectionTaken = true;
+    }
+
+    std::optional<size_t>  GetIndexOf (int viewRow) const
+    {
+        if (viewRow < 0 || (size_t) viewRow >= m_view.size() || m_view[(size_t) viewRow] == kTopRow)
+        {
+            return std::nullopt;
+        }
+
+        return (size_t) m_view[(size_t) viewRow];
     }
 
     std::optional<size_t>  GetTopIndex() const
@@ -583,6 +628,8 @@ private:
     std::vector<int>         m_view;
     mutable ColumnSpecs      m_specs;
     std::vector<size_t>      m_selected;
+    std::optional<size_t>    m_anchor;
+    std::optional<size_t>    m_keyboardRow;
     std::optional<size_t>    m_keepTop;
     uint64_t                 m_shownBefore      = UINT64_MAX;
     uint64_t                 m_requestedAt      = UINT64_MAX;
@@ -590,4 +637,5 @@ private:
     bool                     m_isSortDescending = false;
     bool                     m_isShown          = false;
     bool                     m_isDirty          = true;
+    bool                     m_isSelectionTaken = false;
 };

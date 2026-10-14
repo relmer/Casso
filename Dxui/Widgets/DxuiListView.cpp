@@ -1036,6 +1036,45 @@ void DxuiListView::SetSelectedRows (std::vector<int> rows, int anchor)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RestoreSelectedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::RestoreSelectedRows (std::vector<int> rows, int anchor, int keyboardRow)
+{
+    int   count     = GetRowCount();
+    auto  isInList  = [count] (int r) { return r >= 0 && r < count; };
+
+
+
+    std::erase_if (rows, [&isInList] (int r) { return !isInList (r); });
+    std::sort (rows.begin(), rows.end());
+    rows.erase (std::unique (rows.begin(), rows.end()), rows.end());
+
+    if (!m_multiSelect && rows.size() > 1)
+    {
+        rows.assign (1, std::ranges::binary_search (rows, keyboardRow) ? keyboardRow : rows.back());
+    }
+
+    m_selectedRows = std::move (rows);
+
+    if (m_selectedRows.empty())
+    {
+        m_selectedRow = -1;
+        m_anchorRow   = -1;
+        return;
+    }
+
+    m_anchorRow   = isInList (anchor)      ? anchor      : m_selectedRows.back();
+    m_selectedRow = isInList (keyboardRow) ? keyboardRow : m_selectedRows.back();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsRowSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4004,6 +4043,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     {
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
+        m_rowPressed    = true;
 
         //  A press on text starts a selection there. Nothing is selected
         //  until the pointer moves, so a plain click only picks its row and
@@ -4208,10 +4248,8 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     bool  handled = true;
     int   row     = inside ? HitTestRow (lx, ly) : -1;
     bool  ranged  = m_dragSelecting && m_selectedRows.size() > 1;
-
-
-
     bool  dragged = m_textPressed && m_hasTextSel;
+    bool  pressed = m_rowPressed;
 
 
 
@@ -4219,6 +4257,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     //  them; only a plain click collapses the selection to its row.
     m_dragSelecting = false;
     m_textPressed   = false;
+    m_rowPressed    = false;
 
     //  A drag that selected text is finished; it is not also a click.
     if (dragged)
@@ -4260,7 +4299,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     {
         EndHorzThumbDrag();
     }
-    else if (row >= 0)
+    else if (row >= 0 && pressed)
     {
         bool  activate = true;
 

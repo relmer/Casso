@@ -248,6 +248,12 @@ public:
     const std::vector<int> &  GetSelectedRows () const   { return m_selectedRows; }
     void                      SetSelectedRows (std::vector<int> rows, int anchor);
     bool                      IsRowSelected   (int row) const;
+
+    // The set, its anchor and the keyboard's row set again after the rows
+    // under them moved, with no scrolling, so a Shift+arrow or a drag in
+    // progress extends from where it began. An anchor or keyboard row
+    // outside the list becomes the last row in the set.
+    void                      RestoreSelectedRows (std::vector<int> rows, int anchor, int keyboardRow);
     int                       GetAnchorRow    () const   { return m_anchorRow; }
 
     // A click that selects, as the mouse delivers it: the modifiers decide
@@ -876,6 +882,11 @@ private:
     //  character under it: only a renderer can measure where one ends.
     mutable IDxuiTextRenderer  * m_measureText   = nullptr;
     bool                         m_dragSelecting = false;
+
+    //  A left press landed on a row, so the release that ends it is a
+    //  click; a release with no press here, as when a menu over the list
+    //  closes on its press, selects nothing.
+    bool                         m_rowPressed    = false;
 
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the
