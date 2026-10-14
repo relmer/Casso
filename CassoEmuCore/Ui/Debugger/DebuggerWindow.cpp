@@ -5322,8 +5322,9 @@ bool DebuggerWindow::HasTopLayer() const
     {
         for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
         {
-            //  The PC's branch, or the one a step just took to the PC.
-            if (m_codeOpen[(size_t) view] && (line.isCurrent || line.isSteppedFrom) && line.target.has_value())
+            //  The PC's branch, or the one a step just took to the PC, which
+            //  can be out of the lines built for the view.
+            if (m_codeOpen[(size_t) view] && line.isCurrent && (line.target.has_value() || m_snapshot->steppedFrom.has_value()))
             {
                 return true;
             }
@@ -5424,7 +5425,13 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
         return false;
     }
 
-    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken, isSteppedFrom);
+    if (isSteppedFrom && (m_snapshot == nullptr || !m_snapshot->steppedFrom.has_value()))
+    {
+        return false;
+    }
+
+    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken,
+                                                isSteppedFrom ? m_snapshot->steppedFrom : std::nullopt);
 }
 
 

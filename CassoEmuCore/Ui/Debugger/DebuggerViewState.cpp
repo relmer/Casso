@@ -767,7 +767,9 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 //  A new stop. The instruction that just ran is known only when this stop
 //  is exactly where the last one's instruction would have put the machine,
 //  which is what a step looks like; after a free run it is not known, and
-//  nothing is marked rather than the wrong instruction.
+//  nothing is marked rather than the wrong instruction. The snapshot has its
+//  address when it was a branch, jump or call that went to its target, so
+//  the window draws its arrow whether or not its line is in a view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -777,6 +779,7 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     Word                          length  = GetInstructionLength (session, now.pc);
     InstructionTouches::Result    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
     bool                          isStep  = false;
+    DisassemblyData               ran;
 
 
 
@@ -784,8 +787,14 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     {
         isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
 
+        if (isStep)
+        {
+            (void) DataDirectiveHandlers::Disassemble (session, m_lastStop.at.pc, std::nullopt, 1, ran);
+        }
+
         m_lastStop.previous   = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
-        m_lastStop.previousPc = isStep ? std::optional<Word> (m_lastStop.at.pc) : std::nullopt;
+        m_lastStop.previousPc = (isStep && !ran.lines.empty() && ran.lines.front().instruction.hasTarget && ran.lines.front().instruction.target == now.pc)
+                                    ? std::optional<Word> (m_lastStop.at.pc) : std::nullopt;
         m_lastStop.at         = now;
         m_lastStop.isValid    = true;
     }

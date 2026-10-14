@@ -69,12 +69,12 @@ public:
 
     //  The PC's branch arrow over a list laid out and painted with these
     //  rows; false when the PC's line has no target or the list has no room.
-    //  With isSteppedFrom, the arrow of the branch, jump or call a step just
-    //  ran instead, to the PC it took the machine to; false where the step
-    //  went on to the next instruction.
+    //  With steppedFrom, the arrow of the branch, jump or call there that a
+    //  step just took to the PC instead; a source out of the lines built for
+    //  the view enters from the edge it lies beyond.
     static bool  TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
                                     const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
-                                    bool isSteppedFrom = false);
+                                    std::optional<Word> steppedFrom = std::nullopt);
 
     //  The arrow in takenArgb, or in notTakenArgb for a branch that the
     //  current flags do not take.

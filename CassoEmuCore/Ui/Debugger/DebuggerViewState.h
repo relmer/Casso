@@ -222,8 +222,9 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
-    //  Where the instruction a step just ran is, when the machine stopped
-    //  after one instruction; none after a free run or while running.
+    //  Where the branch, jump or call a step just took to the PC is, when the
+    //  machine stopped after it; none after any other step, a free run, or
+    //  while running.
     std::optional<Word>          steppedFrom;
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
