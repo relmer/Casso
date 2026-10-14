@@ -1992,34 +1992,6 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineHost::ResetInputReadEdges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::ResetInputReadEdges()
-{
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->ResetReadEdges();
-    }
-
-    if (m_refs.iieSoftSwitches != nullptr)
-    {
-        m_refs.iieSoftSwitches->ResetReadEdges();
-    }
-
-    if (m_refs.gamePort != nullptr)
-    {
-        m_refs.gamePort->ResetReadEdges();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MachineHost::GetDiagnosticsProviders
 //
 ////////////////////////////////////////////////////////////////////////////////

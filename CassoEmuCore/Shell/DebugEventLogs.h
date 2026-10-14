@@ -28,12 +28,10 @@ class ReverseController;
 //
 //  The caches take events only while the machine is live and recording, so
 //  nothing the machine does replaying its own history, or in a gap, goes in.
-//  At each keyframe taken live the input read edges are reset, as a rebuild
-//  resets them at the keyframe it starts from, and a keyframe after a gap
-//  marks the gap in both caches. Each time the machine becomes live both
-//  caches are cut back to its position, which drops the future a change
-//  made in the past discarded; when keyframes go with it, the rebuilt
-//  stretches after the cut go too.
+//  A keyframe after a gap marks the gap in both caches. Each time the
+//  machine becomes live both caches are cut back to its position, which
+//  drops the future a change made in the past discarded; when keyframes go
+//  with it, the rebuilt stretches after the cut go too.
 //
 //  A pane open on a log is sent deltas: everything in the cache when it
 //  opens, then each event as it is cached, and older rows rebuilt from

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
@@ -471,16 +472,21 @@ void AppleKeyboard::EndKeyRepeat()
 //  CPU thread. Coalesced emit for a guest read of $C000-$C00F: fires only
 //  when the latched-key byte (data bits + strobe) changed since the last
 //  emit, collapsing a million-poll wait loop into one event per latch
-//  transition. Bit 7 carries the strobe state.
+//  transition. Bit 7 is the strobe. The edge moves whether or not anything
+//  listens, since it is part of the saved state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleKeyboard::EmitKbdDataRead (Word address, Byte value)
 {
-    if (m_inputSinks.IsAny() && m_lastEmittedKbdData != value)
+    if (m_lastEmittedKbdData != value)
     {
         m_lastEmittedKbdData = value;
-        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdDataRead (address, value, (value & 0x80) != 0); });
+
+        if (m_inputSinks.IsAny())
+        {
+            m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdDataRead (address, value, (value & 0x80) != 0); });
+        }
     }
 }
 
@@ -503,27 +509,15 @@ void AppleKeyboard::EmitKbdStrobe (Word address, Byte value, bool clearedStrobe)
 {
     // A real strobe-clearing edge always reports; anything else is subject
     // to the same last-value coalescing as EmitKbdDataRead.
-    if (m_inputSinks.IsAny() && (clearedStrobe || m_lastEmittedStrobe != value))
+    if (clearedStrobe || m_lastEmittedStrobe != value)
     {
         m_lastEmittedStrobe = value;
-        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdStrobe (address, value, clearedStrobe); });
+
+        if (m_inputSinks.IsAny())
+        {
+            m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdStrobe (address, value, clearedStrobe); });
+        }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResetReadEdges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void AppleKeyboard::ResetReadEdges() noexcept
-{
-    m_lastEmittedKbdData = -1;
-    m_lastEmittedStrobe  = -1;
 }
 
 
@@ -797,6 +791,8 @@ HRESULT AppleKeyboard::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_repeatStarted);
     writer.WriteByte   (m_lastRepeatKey);
 
+    ReadEdges::Save (writer, std::array<int, 2> { m_lastEmittedKbdData, m_lastEmittedStrobe });
+
     return writer.EndSection();
 }
 
@@ -812,11 +808,13 @@ HRESULT AppleKeyboard::SaveState (StateWriter & writer) const
 
 HRESULT AppleKeyboard::LoadState (StateReader & reader)
 {
-    HRESULT   hr         = S_OK;
-    uint16_t  version    = 0;
-    Byte      latchedKey = 0;
-    bool      anyKeyDown = false;
-    Byte      repeatKey  = 0;
+    HRESULT             hr         = S_OK;
+    uint16_t            version    = 0;
+    Byte                latchedKey = 0;
+    bool                anyKeyDown = false;
+    Byte                repeatKey  = 0;
+    bool                isEdgesOk  = true;
+    std::array<int, 2>  edges      = { -1, -1 };
 
 
 
@@ -830,15 +828,22 @@ HRESULT AppleKeyboard::LoadState (StateReader & reader)
     reader.ReadBool   (m_repeatStarted);
     reader.ReadByte   (m_lastRepeatKey);
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, edges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
+
+    CBREx (isEdgesOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_latchedKey.store (latchedKey, memory_order_release);
     m_anyKeyDown.store (anyKeyDown, memory_order_release);
     m_repeatKey.store  (repeatKey,  memory_order_release);
 
-    m_lastEmittedKbdData = -1;
-    m_lastEmittedStrobe  = -1;
+    m_lastEmittedKbdData = edges[0];
+    m_lastEmittedStrobe  = edges[1];
     m_observedLatch      = latchedKey;
     m_observedKeyDown    = anyKeyDown;
 

@@ -101,9 +101,6 @@ public:
     void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
     void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
 
-    // Clears the last values reported for the paddles, so the next read of
-    // each is reported whatever its value.
-    void ResetReadEdges () noexcept { std::ranges::fill (m_lastEmittedPaddle, -1); }
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
@@ -137,8 +134,10 @@ public:
     uint64_t GetPaddleTriggerCycle () const          { return m_paddleTriggerCycle; }
     Byte     GetPaddle             (int axis) const;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'W', 'E');
-    static constexpr uint16_t  kStateVersion = 1;
+    //  Version 2 adds the paddles' read edges (ReadEdges).
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('S', 'S', 'W', 'E');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     std::string  GetModeName () const override;

@@ -635,7 +635,6 @@ HRESULT InputEventProbe::Attach (
     MachineHost                               & machine,
     std::vector<DebugEventEntry<InputEvent>>  & entries)
 {
-    machine.ResetInputReadEdges();
     m_feed.AttachToEntries (machine, nullptr, &entries);
 
     return S_OK;

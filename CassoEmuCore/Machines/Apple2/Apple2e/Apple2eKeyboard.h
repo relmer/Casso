@@ -50,8 +50,6 @@ public:
     void Reset   () override;
     void SoftReset () override;
 
-    void ResetReadEdges () noexcept override;
-
     // Modifier-key state (set from UI thread via HostShell key events).
     // Open Apple <-> left Alt, Closed Apple <-> right Alt, Shift <-> Shift
     // (Phase 6 / T063 / FR-013).
@@ -169,8 +167,10 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', 'E');
-    static constexpr uint16_t  kStateVersion = 1;
+    //  Version 2 adds the buttons' read edges (ReadEdges).
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('K', 'B', 'D', 'E');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     Byte TranslateTypedChar (Byte ch) const override;

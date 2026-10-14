@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
@@ -346,32 +347,18 @@ void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 
 
 
-    // No sink, or the same byte we last reported: either way there is no
-    // edge to announce, which is what keeps a tight poll loop from flooding.
-    if (GetInputSinks().IsAny() && m_lastEmittedButton[idx] != value)
+    // The same byte as last reported is no edge, so a tight poll loop is one
+    // report. The edge moves whether or not anything listens, since it is
+    // part of the saved state.
+    if (m_lastEmittedButton[idx] != value)
     {
         m_lastEmittedButton[idx] = value;
-        GetInputSinks().ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
+
+        if (GetInputSinks().IsAny())
+        {
+            GetInputSinks().ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
+        }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResetReadEdges
-//
-//  The base's sources, and the three buttons.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Apple2eKeyboard::ResetReadEdges() noexcept
-{
-    AppleKeyboard::ResetReadEdges();
-
-    std::ranges::fill (m_lastEmittedButton, -1);
 }
 
 
@@ -800,6 +787,10 @@ void Apple2eKeyboard::SoftReset()
     // dispatch to Apple2eKeyboard::Reset and clobber the modifiers we
     // need to preserve. Just clear the latched-character byte directly.
     AppleKeyboard::Reset();
+
+    // The first read of each button after a reset is reported, as the
+    // keyboard's are.
+    std::ranges::fill (m_lastEmittedButton, -1);
 }
 
 
@@ -849,6 +840,8 @@ HRESULT Apple2eKeyboard::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_eightyColSwitchIn.load    (memory_order_acquire));
     writer.WriteBool   (m_keyboardSwitchDvorak.load (memory_order_acquire));
 
+    ReadEdges::Save (writer, m_lastEmittedButton);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -878,6 +871,8 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
     bool      shift                = false;
     bool      eightyColSwitchIn    = false;
     bool      keyboardSwitchDvorak = false;
+    bool      isEdgesOk            = true;
+    int       edges[kButtonCount]  = { -1, -1, -1 };
     size_t    i                    = 0;
 
 
@@ -897,10 +892,16 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
     reader.ReadBool   (eightyColSwitchIn);
     reader.ReadBool   (keyboardSwitchDvorak);
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, edges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
     CBREx (resetHoldCycles <= kResetHoldCycles, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (isEdgesOk,                           HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_openApple.store            (openApple,            memory_order_release);
     m_closedApple.store          (closedApple,          memory_order_release);
@@ -913,7 +914,7 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
 
     for (i = 0; i < kButtonCount; i++)
     {
-        m_lastEmittedButton[i] = -1;
+        m_lastEmittedButton[i] = edges[i];
     }
 
     for (i = 0; i < kHostButtonCount; i++)

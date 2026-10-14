@@ -264,16 +264,13 @@ void DebugEventLogs::SetWorkQueue (IWorkQueue * queue)
 //
 //  OnKeyframe
 //
-//  A keyframe taken live: the caches end there, and the read edges reset,
-//  as a rebuild from it resets them.
+//  A keyframe taken live: the caches end there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugEventLogs::OnKeyframe (uint64_t position)
 {
     EndAt (position);
-
-    m_machine.ResetInputReadEdges();
 }
 
 

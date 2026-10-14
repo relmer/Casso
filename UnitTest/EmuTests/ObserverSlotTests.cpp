@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/StateReader.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "EmuTests/ThreadAllocationCounter.h"
 #include "Devices/IInputEventSink.h"
@@ -68,9 +69,9 @@ namespace ObserverSlotTests
     //  ObserverSlotTests
     //
     //  The Disk II and input event feeds' two listeners: both receive what the
-    //  machine does, host input goes to the Panel alone, a reset of the read
-    //  edges reports the next read again, and a polling loop costs one call
-    //  per change and no allocation.
+    //  machine does, host input goes to the Panel alone, the read edges are
+    //  saved with the machine's state, and a polling loop costs one call per
+    //  change and no allocation.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,12 +145,19 @@ namespace ObserverSlotTests
         }
 
 
-        TEST_METHOD (AResetOfTheReadEdgesReportsTheNextReadAgain)
+        //  A state saved after a read loads with that read's value as the
+        //  last reported, so the same value read again is not reported; one
+        //  saved before any read loads with none reported.
+        TEST_METHOD (TheReadEdgesAreSavedWithTheState)
         {
-            TestMachine   machine { "Apple2e" };
-            CountingSink  history;
+            TestMachine        machine { "Apple2e" };
+            CountingSink       history;
+            std::vector<Byte>  unread;
+            std::vector<Byte>  read;
 
 
+
+            unread = ReverseSessionRig::Save (machine);
 
             machine.AttachObservers ({ nullptr, &history }, ObserverSlot::History);
 
@@ -157,10 +165,27 @@ namespace ObserverSlotTests
             (void) machine.GetMemoryBus().ReadByte (0xC000);
             Assert::AreEqual (1, history.keyReads, L"a second read of the same value is not reported");
 
-            machine.ResetInputReadEdges();
+            read = ReverseSessionRig::Save (machine);
+            Load (machine, read);
 
             (void) machine.GetMemoryBus().ReadByte (0xC000);
-            Assert::AreEqual (2, history.keyReads, L"the first read after a reset is");
+            Assert::AreEqual (1, history.keyReads, L"nor is it after a load of the state saved after the read");
+
+            Load (machine, unread);
+
+            (void) machine.GetMemoryBus().ReadByte (0xC000);
+            Assert::AreEqual (2, history.keyReads, L"the first read after a load of one saved before any read is");
+        }
+
+
+        static void  Load (TestMachine & machine, const std::vector<Byte> & state)
+        {
+            StateReader  reader (state);
+            HRESULT      hr     = machine.LoadState (reader);
+
+
+
+            Assert::AreEqual (S_OK, hr, L"LoadState");
         }
 
 

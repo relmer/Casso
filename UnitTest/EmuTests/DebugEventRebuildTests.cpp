@@ -128,8 +128,7 @@ namespace DebugEventRebuildTests
     //
     //  The Disk II and input feeds' events as one record, and a probe on the
     //  History slot that appends them with the machine's position and cycle,
-    //  on the running machine or on one replaying history. Attaching resets
-    //  the input read edges, as each keyframe does on the running machine.
+    //  on the running machine or on one replaying history.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +152,6 @@ namespace DebugEventRebuildTests
             m_machine = &machine;
             m_entries = &entries;
 
-            machine.ResetInputReadEdges();
             machine.AttachObservers ({ this, this }, ObserverSlot::History);
 
             return S_OK;
@@ -369,8 +367,9 @@ namespace DebugEventRebuildTests
 
 
         //  The Disk II and input feeds rebuilt from history equal what the
-        //  running machine reported on its History slot, when the input read
-        //  edges reset at every keyframe as the probe resets them in replay.
+        //  running machine reported on its History slot: the input read edges
+        //  are in each keyframe, so a replay starts with the running
+        //  machine's.
         TEST_METHOD (TheDiskAndInputFeedsRebuildAsSeenLive)
         {
             TestMachine                                      machine    { "Apple2e" };
@@ -399,7 +398,6 @@ namespace DebugEventRebuildTests
             hr = live.Attach (machine, seen);
             AssertSucceeded (hr, L"Attach");
 
-            controller.SetKeyframeListener (this, [&machine] (uint64_t) { machine.ResetInputReadEdges(); });
 
             for (slice = 0; slice < kSlices; slice++)
             {
@@ -411,7 +409,7 @@ namespace DebugEventRebuildTests
                 }
             }
 
-            controller.SetKeyframeListener (this, nullptr);
+
             live.Detach (machine);
 
             hr = controller.GetKeyframes().WaitForPending();

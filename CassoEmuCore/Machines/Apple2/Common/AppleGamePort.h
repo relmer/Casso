@@ -57,9 +57,6 @@ public:
     void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
     void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
 
-    // Clears the last values reported for the buttons and paddles, so the
-    // next read of each is reported whatever its value.
-    void ResetReadEdges () noexcept;
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
@@ -97,13 +94,15 @@ public:
 
     static constexpr Byte s_knPaddleCenter = 127;
 
-    // IMachineState: the paddle trigger cycle and the staged buttons and
-    // paddle positions.
+    // IMachineState: the paddle trigger cycle, the staged buttons and paddle
+    // positions, and the read edges (ReadEdges), from version 2; an older
+    // state loads with none reported.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('G', 'P', 'R', 'T');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('G', 'P', 'R', 'T');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     static constexpr Word     s_kwCassetteInputAddress  = 0xC060;

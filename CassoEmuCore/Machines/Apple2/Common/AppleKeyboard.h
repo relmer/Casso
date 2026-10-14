@@ -176,10 +176,6 @@ public:
     void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
     void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
 
-    // Clears the last values reported for each guest-read source, so the
-    // next read of each is reported whatever its value. Called at each
-    // keyframe, so a replay starting there reports the same reads.
-    virtual void ResetReadEdges () noexcept;
 
     // Advance the auto-repeat timer by the real time that has passed since
     // the previous call (CPU thread). Re-arms the $C000 strobe with the
@@ -196,14 +192,15 @@ public:
     std::string  GetDiagnosticsTitle () const override { return "Keyboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
-    // IMachineState: the latch and strobe, the key held down, and the
-    // auto-repeat timer. The input panel's coalescing values are not saved;
-    // a load clears them so the panel hears the next read.
+    // IMachineState: the latch and strobe, the key down, the auto-repeat
+    // timer, and the read edges (ReadEdges), from version 2; an older state
+    // loads with none reported.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', ' ');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('K', 'B', 'D', ' ');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     // Fold one TYPED character to the case this keyboard can send. Never

@@ -327,11 +327,6 @@ public:
     //  History slot (ObserverSlot).
     void  AttachObservers (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
 
-    //  Clears the last value reported for each guest-read source, so the next
-    //  read of each source is reported. Called at every keyframe taken, so a
-    //  replay that starts at a keyframe reports the reads the running
-    //  machine reported.
-    void  ResetInputReadEdges();
 
     //  Ctrl+Reset. User RAM survives; every device takes its reset line.
     void  SoftReset();

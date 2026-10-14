@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
@@ -469,7 +470,9 @@ Error:
 //
 //  CPU thread. Coalesced emit for a guest read of $C061-$C063: fires only
 //  when that button's returned byte (bit 7 = pressed) changed since the
-//  last emit, so a tight button-poll loop yields one event per edge.
+//  last emit, so a tight button-poll loop yields one event per edge. The
+//  edge moves whether or not anything listens, since it is part of the
+//  saved state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -481,10 +484,12 @@ void AppleGamePort::EmitButtonRead (Word address, Byte value)
 
 
 
-    BAIL_OUT_IF (!isWatched,                        S_OK);
     BAIL_OUT_IF (m_lastEmittedButton[idx] == value, S_OK);
 
     m_lastEmittedButton[idx] = value;
+
+    BAIL_OUT_IF (!isWatched, S_OK);
+
     m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
 
 Error:
@@ -530,7 +535,8 @@ Error:
 //  CPU thread. Coalesced emit for a guest read of $C064-$C067: fires only
 //  when that axis's returned byte (bit 7 = timer still counting) changed
 //  since the last emit, so PREAD's tight poll loop yields one event per
-//  timer transition rather than one per read.
+//  timer transition rather than one per read. The edge moves whether or not
+//  anything listens, as a button's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -542,30 +548,16 @@ void AppleGamePort::EmitPaddleRead (Word address, Byte value)
 
 
 
-    BAIL_OUT_IF (!isWatched,                        S_OK);
     BAIL_OUT_IF (m_lastEmittedPaddle[idx] == value, S_OK);
 
     m_lastEmittedPaddle[idx] = value;
+
+    BAIL_OUT_IF (!isWatched, S_OK);
+
     m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
 
 Error:
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResetReadEdges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void AppleGamePort::ResetReadEdges() noexcept
-{
-    std::ranges::fill (m_lastEmittedButton, -1);
-    std::ranges::fill (m_lastEmittedPaddle, -1);
 }
 
 
@@ -634,6 +626,10 @@ void AppleGamePort::Reset()
 void AppleGamePort::SoftReset()
 {
     m_paddleTriggerCycle = 0;
+
+    // The first read of each button and paddle after a reset is reported.
+    std::ranges::fill (m_lastEmittedButton, -1);
+    std::ranges::fill (m_lastEmittedPaddle, -1);
 }
 
 
@@ -691,6 +687,9 @@ HRESULT AppleGamePort::SaveState (StateWriter & writer) const
         writer.WriteByte (m_paddlePosition[i].load (memory_order_acquire));
     }
 
+    ReadEdges::Save (writer, m_lastEmittedButton);
+    ReadEdges::Save (writer, m_lastEmittedPaddle);
+
     return writer.EndSection();
 }
 
@@ -710,6 +709,9 @@ HRESULT AppleGamePort::LoadState (StateReader & reader)
     uint16_t  version                           = 0;
     bool      buttons[s_knButtonCount]          = {};
     Byte      paddles[s_knPaddleAxisCount]      = {};
+    int       buttonEdges[s_knButtonCount]      = { -1, -1, -1 };
+    int       paddleEdges[s_knPaddleAxisCount]  = { -1, -1, -1, -1 };
+    bool      isEdgesOk                         = true;
     int       i                                 = 0;
 
 
@@ -729,19 +731,26 @@ HRESULT AppleGamePort::LoadState (StateReader & reader)
         reader.ReadByte (paddles[i]);
     }
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, buttonEdges) && ReadEdges::Load (reader, paddleEdges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
+
+    CBREx (isEdgesOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     for (i = 0; i < s_knButtonCount; i++)
     {
         m_buttonState[i].store (buttons[i], memory_order_release);
-        m_lastEmittedButton[i] = -1;
+        m_lastEmittedButton[i] = buttonEdges[i];
     }
 
     for (i = 0; i < s_knPaddleAxisCount; i++)
     {
         m_paddlePosition[i].store (paddles[i], memory_order_release);
-        m_lastEmittedPaddle[i] = -1;
+        m_lastEmittedPaddle[i] = paddleEdges[i];
     }
 
     SyncObservedInputs();

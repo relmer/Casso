@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -473,11 +474,17 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 
 
-    // Same coalescing rule as EmitHostPaddle, on the guest-read side.
-    if (m_inputSinks.IsAny() && m_lastEmittedPaddle[idx] != value)
+    // Same coalescing rule as EmitHostPaddle, on the guest-read side; the
+    // edge moves whether or not anything listens, since it is part of the
+    // saved state.
+    if (m_lastEmittedPaddle[idx] != value)
     {
         m_lastEmittedPaddle[idx] = value;
-        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
+
+        if (m_inputSinks.IsAny())
+        {
+            m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
+        }
     }
 }
 
@@ -928,6 +935,8 @@ HRESULT Apple2eSoftSwitchBank::SaveState (StateWriter & writer) const
         writer.WriteByte (axis.load (memory_order_acquire));
     }
 
+    ReadEdges::Save (writer, m_lastEmittedPaddle);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -951,9 +960,11 @@ Error:
 
 HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
 {
-    HRESULT   hr       = S_OK;
-    uint16_t  version  = 0;
-    Byte      position = 0;
+    HRESULT   hr                              = S_OK;
+    uint16_t  version                         = 0;
+    Byte      position                        = 0;
+    bool      isEdgesOk                       = true;
+    int       edges[s_knPaddleAxisCount]      = { -1, -1, -1, -1 };
 
 
 
@@ -974,8 +985,17 @@ HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
         axis.store (position, memory_order_release);
     }
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, edges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
+
+    CBREx (isEdgesOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    std::ranges::copy (edges, m_lastEmittedPaddle);
 
     SyncObservedInputs();
 

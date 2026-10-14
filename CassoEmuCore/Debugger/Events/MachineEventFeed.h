@@ -95,10 +95,9 @@ private:
 //
 //  DiskEventProbe, InputEventProbe
 //
-//  The feed as a rebuild's probe, for one kind of event each. The input
-//  probe resets the read edges at attach, as the running machine resets
-//  them at each keyframe, so a replay from a keyframe reports the reads the
-//  running machine reported after it.
+//  The feed as a rebuild's probe, for one kind of event each. The read
+//  edges are part of the keyframe a replay loads, so a replay reports the
+//  reads the running machine reported after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
