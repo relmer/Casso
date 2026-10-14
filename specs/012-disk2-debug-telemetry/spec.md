@@ -2,8 +2,32 @@
 
 **Feature Branch**: `012-disk2-debug-telemetry`
 **Created**: 2026-05-30
-**Status**: Draft (deferred; do not implement until coordinated with spec 011)
+**Status**: Superseded by 035 and 040 (never implemented; see "Superseded by" below)
 **Input**: User description: "What data should we have added to the Disk II debug window to have caught the half-track truncation bug earlier? Capture four enhancements: (1) flag commanded-vs-resolved head-position discrepancies as errors with a new severity column, (2) surface the TMAP/resolved-track lookup and actively diagnose dropped half-track data rather than leaving it to the user, (3) a read-stall event when the loader spins with no address mark, (4) a raw nibble peek under the head, and defer them to a spec to avoid colliding with the other CLI instance currently editing the debug dialog."
+
+## Superseded by the debugger and the disk inspector
+
+This spec was never implemented. Its target, the Disk II debug window, was
+removed on 2026-10-10 (`c35609ac3`) in favor of the 035 debugger's Disk II
+event log, and the bug class behind it ended with 1.4.1288's quarter-track
+read pipeline. Closed 2026-10-13:
+
+- **Resolved-track telemetry (US1)**: the 035 Disk II panel has the live
+  quarter track and phases (035 US9), and the 040 Tracks table has the TMAP
+  entry of every quarter track, shared entries included, with a live head
+  marker (040 US2, US6).
+- **Severity column (US2)** and **mount-time half-track diagnostic (US3)**:
+  obsolete. With quarter-track reads the commanded and resolved positions
+  differ only by the TMAP mapping, and FR-007 drops the diagnostic to Info once
+  that pipeline exists. 040's Findings list shared track data and nonstandard
+  tracks.
+- **Nibble peek (US5)**: 040's head marker sits over the head's quarter track
+  and angle, and hover and click act on the bits under it (040 FR-064).
+- **Read-stall event (US4)** and the **silent ratchet marker (FR-013)**: not
+  covered elsewhere; passed to the 035 debugger for its FR-217 inventory of the
+  old window's features.
+
+Nothing below should be implemented as written.
 
 ## Background & Motivation *(non-normative)*
 
