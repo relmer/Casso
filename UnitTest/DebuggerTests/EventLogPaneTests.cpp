@@ -130,6 +130,23 @@ namespace EventLogPaneTests
         }
 
 
+        //  The Event column fits its widest label, as "Motor command off",
+        //  rather than having a set width; Detail takes the room left.
+        TEST_METHOD (TheEventColumnFitsItsTextAndDetailStretches)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+
+
+
+            pane.Configure();
+
+            Assert::AreEqual (0,     list.GetColumnAt (DiskLogPane::kEvent).widthDip);
+            Assert::IsFalse  (list.GetColumnAt (DiskLogPane::kEvent).stretch);
+            Assert::IsTrue   (list.GetColumnAt (DiskLogPane::kDetail).stretch);
+            Assert::AreEqual (110,   list.GetColumnAt (DiskLogPane::kCycle).widthDip);
+        }
+
         //  With the row above the oldest in view, the pane requests the rows
         //  before it once, and again only after older rows came in.
         TEST_METHOD (TheStartRowRequestsEarlierRowsOncePerOldestRow)

@@ -39,6 +39,10 @@ public:
         bool            stretch  = false;   // when true, column absorbs any remaining width after fixed/auto
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
+
+        //  Tip text for the heading, put up by the host. The list never
+        //  draws it.
+        std::wstring    tip;
     };
 
     struct Cell

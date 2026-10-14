@@ -537,6 +537,41 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  LDA PADDL0,X with X=1 reads paddle 1, so the annotation is paddle
+        //  1's description, not the description of the switch at the symbol.
+        TEST_METHOD (AnIndexedSoftSwitchIsDescribedByTheSwitchItReaches)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            DebuggerViewSnapshot  snapshot;
+            Cpu6502Registers      r      = target.GetRegisters();
+            std::string           annotation;
+
+
+
+            (void) target.TryPoke (0x0300, 0xBD);
+            (void) target.TryPoke (0x0301, 0x64);
+            (void) target.TryPoke (0x0302, 0xC0);
+
+            r.pc = 0x0300;
+            r.x  = 0x01;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+            {
+                if (line.address == 0x0300)
+                {
+                    annotation = line.annotation;
+                }
+            }
+
+            Assert::AreEqual (std::string ("X=01 paddle 1 timer in bit 7"), annotation);
+        }
+
         //  The PC's line ends with the cycles its instruction will take with
         //  the registers as they are: a branch's count is for the way it goes.
         TEST_METHOD (ThePcLineEndsWithItsCycles)
@@ -1246,6 +1281,27 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string(), changes.GetDelta ("R:A"), L"a key never shown");
         }
 
+
+        //  P's flags are colored one by one, so a step that sets Z marks Z
+        //  alone.
+        TEST_METHOD (TheChangedBitsOfAHexValueAreThoseThatDiffer)
+        {
+            StopChanges  changes;
+
+
+
+            changes.Update (true, { { "R:P", "24" } });
+            Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"the first stop has nothing to compare with");
+
+            changes.Update (true, { { "R:P", "26" } });
+            Assert::AreEqual (0x02u, changes.GetChangedBits ("R:P"), L"DEX to zero sets Z alone");
+
+            changes.Update (true, { { "R:P", "A5" } });
+            Assert::AreEqual (0x83u, changes.GetChangedBits ("R:P"), L"N and C set, Z clear");
+
+            changes.Update (false, { { "R:P", "00" } });
+            Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"nothing while running");
+        }
 
         TEST_METHOD (AScrolledFollowingViewFollowsAgainOnceThePcMoves)
         {

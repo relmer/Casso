@@ -92,3 +92,35 @@ std::string StopChanges::GetDelta (const std::string & key) const
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopChanges::GetChangedBits
+//
+//  Both stops' values read as hexadecimal; a value that does not read as
+//  hexadecimal has no changed bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t StopChanges::GetChangedBits (const std::string & key) const
+{
+    auto      now      = m_stop.find (key);
+    auto      was      = m_previous.find (key);
+    uint32_t  nowValue = 0;
+    uint32_t  wasValue = 0;
+
+
+
+    if (!m_isPaused || now == m_stop.end() || was == m_previous.end())
+    {
+        return 0;
+    }
+
+    if (std::from_chars (now->second.data(), now->second.data() + now->second.size(), nowValue, 16).ec != std::errc() ||
+        std::from_chars (was->second.data(), was->second.data() + was->second.size(), wasValue, 16).ec != std::errc())
+    {
+        return 0;
+    }
+
+    return nowValue ^ wasValue;
+}

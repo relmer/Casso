@@ -471,11 +471,11 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event)
 
 DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
 {
-    return { { L"Cycle",     DxuiTextHAlign::Right, 110, true  },
-             { L"Drive",     DxuiTextHAlign::Right,  48, true  },
-             { L"Event",     DxuiTextHAlign::Left,  130, true  },
-             { L"Detail",    DxuiTextHAlign::Left,    0, true  },
-             { L"Wall time", DxuiTextHAlign::Left,  100, false } };
+    return { { L"Cycle",     DxuiTextHAlign::Right,  110, true  },
+             { L"Drive",     DxuiTextHAlign::Right,   48, true  },
+             { L"Event",     DxuiTextHAlign::Left,  kFit, true  },
+             { L"Detail",    DxuiTextHAlign::Left,     0, true  },
+             { L"Wall time", DxuiTextHAlign::Left,   100, false } };
 }
 
 

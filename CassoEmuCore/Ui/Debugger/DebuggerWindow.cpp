@@ -507,6 +507,13 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
+    //  The event logs' rows come from a provider, which the precise fit never
+    //  measures, so their columns fit the rows drawn, as the trace's do.
+    for (DxuiListView * log : { m_diskLog.list, m_inputLog.list })
+    {
+        log->SetPreciseAutoFit (false);
+    }
+
     //  A disassembly opens with its glyph margin for the breakpoints and the
     //  PC's arrow, as Visual Studio's does, so its columns start at the list's
     //  left rather than at the pane's text inset.
@@ -6030,6 +6037,11 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
             continue;
         }
 
+        if (ShowColumnMenu (list, clientPx))
+        {
+            return true;
+        }
+
         row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
 
         if (row >= 0)
@@ -6096,6 +6108,60 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     {
         m_menuCommands.push_back (MakeMenuCommand (label, false, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowColumnMenu
+//
+//  On the headings of a list whose columns can be chosen, a check for each
+//  column. False when the point is not on the headings or the list has no
+//  such menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
+{
+    std::vector<std::shared_ptr<DxuiCommand>>  commands;
+    std::vector<DxuiPopupMenuItem>             menu;
+    RECT                                       bounds   = list->GetBounds();
+
+
+
+    if (!list->IsHeaderShown() || clientPx.y - bounds.top >= list->GetHeaderHeightPx())
+    {
+        return false;
+    }
+
+    if (list != m_breakpointList && list != m_diskLog.list && list != m_inputLog.list)
+    {
+        return false;
+    }
+
+    m_menuCommands.clear();
+    SetWindowMenus();
+
+    if (list == m_breakpointList)
+    {
+        AddBreakpointColumnItems (commands);
+    }
+    else
+    {
+        AddEventLogColumnItems (list, commands);
+    }
+
+    for (const std::shared_ptr<DxuiCommand> & command : commands)
+    {
+        m_menuCommands.push_back (command);
+        menu.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
@@ -6663,7 +6729,6 @@ void DebuggerWindow::ApplyCodeView (int view)
     bool                                                 numbers       = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
     bool                                                 hasSourceRows = false;
-    std::string                                          annotation;
     std::wstring                                         text;
 
 
@@ -6748,7 +6813,7 @@ void DebuggerWindow::ApplyCodeView (int view)
             rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
-        annotation = DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
+        (void) DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
 
         if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, false, line->isCurrent))
         {
@@ -6763,15 +6828,14 @@ void DebuggerWindow::ApplyCodeView (int view)
         }
 
         //  What each color on the row means, for the tip over its cell: the
-        //  row's fill on every cell, then a changed byte's color and the
-        //  operand's and result's colors where they show.
+        //  row's fill on every cell, then a changed byte's color. The
+        //  operand's and result's colors are the same on every row, so the
+        //  column's heading has them.
         cells[kCodeAddressColumn].tip     = rowTip;
         cells[kCodeLabelColumn].tip       = rowTip;
         cells[kCodeInstructionColumn].tip = rowTip;
+        cells[kCodeOperandColumn].tip     = rowTip;
         cells[kCodeBytesColumn].tip       = ColorLegend::JoinLines ({ cells[kCodeBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
-        cells[kCodeOperandColumn].tip     = ColorLegend::JoinLines ({ annotation.empty()       ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
-                                                                      line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
-                                                                      rowTip });
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -7302,12 +7366,17 @@ void DebuggerWindow::ApplySnapshot()
             value.spansRow  = true;
         }
 
+        //  On P's row only the flags that changed are in the changed color.
         if (!isCycles && m_stopChanges.IsChanged ("R:" + reg.name))
         {
             value.argb = GetChangedArgb();
-            flags.argb = GetChangedArgb();
             value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
             flags.tip  = value.tip;
+        }
+
+        if (reg.name == "P")
+        {
+            AddChangedFlagRanges (m_stopChanges.GetChangedBits ("R:P"), flags);
         }
 
         rows.push_back ({ { Widen (reg.name) }, value, flags });
@@ -7456,6 +7525,43 @@ void DebuggerWindow::ApplySnapshot()
         if (m_snapshot->showPane == DebuggerLayout::kConsole && IsRoutable (m_commandBox))
         {
             SetFocusedControl (m_commandBox);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddChangedFlagRanges
+//
+//  The flags are the last eight letters of the cell, N first, so bit 7 is
+//  the first of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const
+{
+    static constexpr int  kFlagCount = 8;
+    int                   start      = (int) flags.text.size() - kFlagCount;
+    int                   at         = 0;
+
+
+
+    if (start < 0)
+    {
+        return;
+    }
+
+    for (int bit = kFlagCount - 1; bit >= 0; bit--)
+    {
+        at = start + (kFlagCount - 1 - bit);
+
+        if (((changedBits >> bit) & 1u) != 0)
+        {
+            flags.colorRanges.push_back ({ at, at + 1, GetChangedArgb() });
         }
     }
 }
@@ -9945,8 +10051,9 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 //
 //  DebuggerWindow::TryGetCellTip
 //
-//  The tip a list's rows gave the cell under the point, which says what its
-//  color means.
+//  The tip of the cell under the point, which indicates what its color
+//  means, or the tip of the heading under it. Past the last column there is
+//  none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9957,6 +10064,7 @@ bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring 
     RECT                                     bounds = {};
     int                                      row    = -1;
     int                                      column = -1;
+    int                                      right  = 0;
 
 
 
@@ -9976,8 +10084,27 @@ bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
     column = GetColumnAt (list, clientPx.x - bounds.left);
+    right  = list->GetPaneLeadPx() - list->GetLeftPx();
 
-    if (row < 0 || row >= list->GetRowCount() || column < 0)
+    for (size_t c = 0; c < list->GetColumnCount(); c++)
+    {
+        right += list->GetColumnEffectiveWidthPx (c);
+    }
+
+    if (column < 0 || clientPx.x - bounds.left >= right)
+    {
+        return false;
+    }
+
+    if (clientPx.y - bounds.top < list->GetHeaderHeightPx())
+    {
+        text   = list->GetColumnAt ((size_t) column).tip;
+        anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+
+        return !text.empty();
+    }
+
+    if (row < 0 || row >= list->GetRowCount())
     {
         return false;
     }

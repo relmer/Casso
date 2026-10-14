@@ -34,7 +34,7 @@ int ToolbarBoxEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDx
     (void) labeled;
     (void) text;
 
-    return scaler.ToPx (m_labelWidthDip + m_boxWidthDip);
+    return scaler.ToPx (kGapDip + m_labelWidthDip + m_boxWidthDip);
 }
 
 
@@ -49,6 +49,7 @@ int ToolbarBoxEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDx
 
 void ToolbarBoxEntry::Layout (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler)
 {
+    int  gap   = scaler.ToPx (kGapDip);
     int  label = scaler.ToPx (m_labelWidthDip);
 
 
@@ -57,7 +58,7 @@ void ToolbarBoxEntry::Layout (const RECT & rc, bool labeled, const DxuiDpiScaler
 
     m_scaler  = scaler;
     m_rc      = rc;
-    m_labelRc = RECT { rc.left, rc.top, (std::min) (rc.right, rc.left + label), rc.bottom };
+    m_labelRc = RECT { (std::min) (rc.right, rc.left + gap), rc.top, (std::min) (rc.right, rc.left + gap + label), rc.bottom };
 
     if (m_box != nullptr)
     {

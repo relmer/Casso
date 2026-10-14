@@ -3705,10 +3705,17 @@ DebuggerViewSnapshot::AnnotationParts DebuggerViewState::GetAnnotationParts (Deb
 
         isIo = session.GetTarget().GetRegion (item.address) == MemoryRegion::Io;
 
+        //  An indexed operand can address a switch other than the one at its
+        //  symbol, so the description is the touched address's, for the
+        //  direction of the access.
         if (isIo)
         {
-            std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
+            std::vector<std::string>  names;
+            std::string               action;
 
+            session.GetSymbols().FindNames (item.address, names);
+
+            action             = SymbolDescriptions::GetAction (SymbolDescriptions::ChooseByDirection (names, item.isWrite));
             parts.operandValue = action.empty() ? std::format ("${:04X}", item.address) : action;
         }
         else if (session.TryPeek (item.address, value))

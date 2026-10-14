@@ -22,13 +22,18 @@
 
 void DisassemblyCells::Configure (DxuiListView & list)
 {
-    list.SetColumns ({ { L"",                   kGutterColumnDip, false, DxuiTextHAlign::Left },
-                       { L"Address",            0,                false, DxuiTextHAlign::Left },
-                       { L"Bytes",              0,                false, DxuiTextHAlign::Left },
-                       { L"Label",              0,                false, DxuiTextHAlign::Left },
-                       { L"Instruction",        0,                false, DxuiTextHAlign::Left },
-                       { L"Operand and result", 0,                false, DxuiTextHAlign::Left } });
+    std::vector<DxuiListView::Column>  columns = { { L"",                   kGutterColumnDip, false, DxuiTextHAlign::Left },
+                                                   { L"Address",            0,                false, DxuiTextHAlign::Left },
+                                                   { L"Bytes",              0,                false, DxuiTextHAlign::Left },
+                                                   { L"Label",              0,                false, DxuiTextHAlign::Left },
+                                                   { L"Instruction",        0,                false, DxuiTextHAlign::Left },
+                                                   { L"Operand and result", 0,                false, DxuiTextHAlign::Left } };
 
+
+
+    columns.back().tip = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
+
+    list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);
     list.SetTextViewSurface (true);
 }

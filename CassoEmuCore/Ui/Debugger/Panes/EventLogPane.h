@@ -40,7 +40,8 @@ public:
     using RequestFn = std::function<void (const std::string & request)>;
 
     //  A column's heading, alignment, starting width (0 to take the room
-    //  left) and whether it is visible by default.
+    //  left, kFit to fit the widest text drawn in it) and whether it is
+    //  visible by default.
     struct ColumnSpec
     {
         const wchar_t   * title    = L"";
@@ -50,6 +51,7 @@ public:
     };
 
     static constexpr int  kTopRow = -1;
+    static constexpr int  kFit    = -1;
 
     EventLogPane (DxuiListView * list, RequestFn request) :
         m_list    (list),
@@ -74,7 +76,7 @@ public:
 
         for (const ColumnSpec & spec : GetColumnSpecs())
         {
-            columns.push_back ({ spec.title, spec.widthDip, spec.widthDip == 0, spec.align, spec.isShown });
+            columns.push_back ({ spec.title, (std::max) (spec.widthDip, 0), spec.widthDip == 0, spec.align, spec.isShown });
         }
 
         m_list->SetColumns           (std::move (columns));

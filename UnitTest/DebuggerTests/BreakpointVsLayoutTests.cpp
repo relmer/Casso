@@ -150,8 +150,8 @@ namespace BreakpointVsLayoutTests
             {
                 BreakpointBarCommands::kNew,        BreakpointBarCommands::kDelete,     BreakpointBarCommands::kDeleteAll,
                 BreakpointBarCommands::kDisableAll, BreakpointBarCommands::kUndo,       BreakpointBarCommands::kRedo,
-                BreakpointBarCommands::kGoToSource, BreakpointBarCommands::kGoToCode,   BreakpointBarCommands::kColumns,
-                BreakpointBarCommands::kExport,     BreakpointBarCommands::kImport,
+                BreakpointBarCommands::kGoToSource, BreakpointBarCommands::kGoToCode,   BreakpointBarCommands::kExport,
+                BreakpointBarCommands::kImport,
             };
 
 
@@ -160,7 +160,7 @@ namespace BreakpointVsLayoutTests
         }
 
 
-        TEST_METHOD (NewAndShowColumnsAreWordsAndTheRestAreIcons)
+        TEST_METHOD (NewIsAWordAndTheRestAreIcons)
         {
             BreakpointBarCommands            commands ({});
             std::vector<DxuiToolbar::Entry>  entries = commands.BuildEntries();
@@ -169,7 +169,7 @@ namespace BreakpointVsLayoutTests
 
             for (const DxuiToolbar::Entry & entry : entries)
             {
-                bool  isMenu  = entry.command->id == BreakpointBarCommands::kNew || entry.command->id == BreakpointBarCommands::kColumns;
+                bool  isMenu  = entry.command->id == BreakpointBarCommands::kNew;
                 bool  hasIcon = static_cast<bool> (entry.icon) || entry.command->glyph != nullptr;
 
                 Assert::AreEqual (isMenu,  entry.kind == DxuiToolbar::Kind::DropDown, entry.command->label.c_str());

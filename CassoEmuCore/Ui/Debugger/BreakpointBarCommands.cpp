@@ -22,7 +22,8 @@ static constexpr const wchar_t *  s_kGlyphRedo       = s_kpszMdl2Redo;     // ar
 //  BreakpointBarCommands::GetRows
 //
 //  Visual Studio's order: adding and removing, then turning off, then undo,
-//  then where a breakpoint is, then the pane's columns, then the file.
+//  then where a breakpoint is, then the file. The columns are chosen from the
+//  heading's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +39,6 @@ const std::vector<BreakpointBarCommands::Row> & BreakpointBarCommands::GetRows()
         { kRedo,       L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                       DxuiToolbar::Kind::Command,  2 },
         { kGoToSource, L"Go to source code", nullptr,            L"Go to the selected breakpoint's source line",                       DxuiToolbar::Kind::Command,  3 },
         { kGoToCode,   L"Go to disassembly", nullptr,            L"Go to the selected breakpoint in the disassembly",                  DxuiToolbar::Kind::Command,  3 },
-        { kColumns,    L"Show columns",      nullptr,            L"Choose the columns this pane shows",                                DxuiToolbar::Kind::DropDown, 4 },
         { kExport,     L"Export",            nullptr,            L"Save the breakpoints to a file",                                    DxuiToolbar::Kind::Command,  5 },
         { kImport,     L"Import",            nullptr,            L"Add the breakpoints saved in a file",                               DxuiToolbar::Kind::Command,  5 },
     };

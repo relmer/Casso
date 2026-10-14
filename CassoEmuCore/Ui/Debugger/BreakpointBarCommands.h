@@ -12,12 +12,12 @@
 //
 //  The breakpoints pane's toolbar, as Visual Studio's Breakpoints window has
 //  it (FR-119): New, Delete, Delete all, Disable all, Undo, Redo, Go to source
-//  code, Go to disassembly, Show columns, Export and Import. New and Show
-//  columns are words with a drop-down arrow; the rest are icons with a tip,
-//  drawn after Visual Studio's where no icon-font glyph matches. Disable all
-//  enables them all again when every one is already disabled, as Visual
-//  Studio's button does. The bar is a DxuiToolbar, so what does not fit goes
-//  into its "..." menu as on every other strip.
+//  code, Go to disassembly, Export and Import. New is a word with a drop-down
+//  arrow; the rest are icons with a tip, drawn after Visual Studio's where no
+//  icon-font glyph matches. Disable all enables them all again when every one
+//  is already disabled, as Visual Studio's button does. The bar is a
+//  DxuiToolbar, so what does not fit goes into its "..." menu as on every
+//  other strip.
 //
 //  The window owns the behavior: it hands over one dispatch and one enabled
 //  test, each taking an id.
@@ -35,7 +35,6 @@ public:
     static constexpr int  kRedo           = 7;
     static constexpr int  kGoToSource     = 8;
     static constexpr int  kGoToCode       = 9;
-    static constexpr int  kColumns        = 10;
     static constexpr int  kExport         = 11;
     static constexpr int  kImport         = 12;
 

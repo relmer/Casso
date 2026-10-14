@@ -158,7 +158,7 @@ namespace DebuggerBreakpointBarTests
                 }
             }
 
-            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Disable all, Undo, Redo, the two Go to, Show columns, Export, Import");
+            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Disable all, Undo, Redo, the two Go to, Export, Import");
 
             for (int id : ids)
             {
@@ -169,7 +169,7 @@ namespace DebuggerBreakpointBarTests
         }
 
 
-        TEST_METHOD (WithNothingSetOnlyNewShowColumnsAndImportCanAct)
+        TEST_METHOD (WithNothingSetOnlyNewAndImportCanAct)
         {
             CassoTheme  theme  = CassoTheme::MakeSkeuomorphic();
             BarHost     host;
@@ -182,7 +182,7 @@ namespace DebuggerBreakpointBarTests
 
             for (int id : BreakpointBarCommands::GetIds())
             {
-                bool  expected = id == BreakpointBarCommands::kNew || id == BreakpointBarCommands::kColumns || id == BreakpointBarCommands::kImport;
+                bool  expected = id == BreakpointBarCommands::kNew || id == BreakpointBarCommands::kImport;
 
                 Assert::AreEqual (expected, window.IsBreakpointBarEnabled (id), std::format (L"entry {}", id).c_str());
             }

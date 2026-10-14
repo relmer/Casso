@@ -410,9 +410,54 @@ namespace ColorLegendTests
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, 1));
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcMarker)),           GetTipOverCell (window, *list, 0, 0), L"the arrow is in the glyph margin");
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::BreakpointDisabled)), GetTipOverCell (window, *list, 1, 0));
-            Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Annotation)) != std::wstring::npos, operand.c_str());
-            Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Result))     != std::wstring::npos, operand.c_str());
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              operand, L"the operand's colors are on its heading, not its cells");
             Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has no tip");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 5).empty(), L"nor has its operand");
+        }
+
+
+        //  The operand column's colors mean the same on every row, so its
+        //  heading has the tip; past the last column there is none.
+        TEST_METHOD (TheOperandHeadingHasTheTipAndNothingPastTheLastColumnHasOne)
+        {
+            CassoTheme              theme = CassoTheme::MakeSkeuomorphic();
+            LegendHost              host;
+            LegendWindow            window (theme, host);
+            DxuiDpiScaler           scaler;
+            DxuiListView          * list    = nullptr;
+            MockDxuiPainter         painter;
+            MockDxuiTextRenderer    text;
+            RECT                    cell    = {};
+            RECT                    bounds  = {};
+            RECT                    anchor  = {};
+            std::wstring            tip;
+            int                     right   = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            list = window.GetCodeList (0);
+            list->Paint (painter, text, theme);
+
+            bounds = list->GetBounds();
+
+            Assert::IsTrue (list->GetCellTextRectPx (0, 5, cell));
+            Assert::IsTrue (window.TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
+            Assert::AreEqual (list->GetColumnAt (5).tip, tip, L"the operand's heading");
+
+            right = list->GetPaneLeadPx() - list->GetLeftPx();
+
+            for (size_t c = 0; c < list->GetColumnCount(); c++)
+            {
+                right += list->GetColumnEffectiveWidthPx (c);
+            }
+
+            Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
+            Assert::IsFalse (window.TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, anchor, tip), L"past the PC's row's last column");
         }
     };
 }

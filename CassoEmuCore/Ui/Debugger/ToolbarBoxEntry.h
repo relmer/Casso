@@ -15,8 +15,8 @@
 //  bar's Address box does.
 //
 //  THE TOOLBAR PLACES IT; THE WINDOW PAINTS AND ROUTES THE BOX. Layout puts
-//  the box in the entry's rect less the label, which Paint draws. The box
-//  takes its own presses through the window; the entry takes none.
+//  the box in the entry's rect less a gap and the label, which Paint draws.
+//  The box takes its own presses through the window; the entry takes none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,9 +44,13 @@ public:
                                     bool                labeled) override;
     const wchar_t *  GetTooltipAt  (int x, int y, RECT & anchor) const override;
     bool             OnClick       (int x, int y) override;
-    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (m_labelWidthDip + m_boxWidthDip); }
+    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (kGapDip + m_labelWidthDip + m_boxWidthDip); }
 
     static constexpr float  kLabelFontDip = 12.0f;
+
+    //  The space ahead of the label, so a label is clear of the entry before
+    //  it.
+    static constexpr int    kGapDip       = 12;
 
 private:
     static bool  IsInside (const RECT & rc, int x, int y);

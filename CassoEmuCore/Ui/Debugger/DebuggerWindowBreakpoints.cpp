@@ -55,11 +55,8 @@ void DebuggerWindow::ConfigureBreakpointBar()
 //
 //  DebuggerWindow::SetBreakpointBarMenus
 //
-//  New's kinds, each opening the breakpoint dialog set to that kind, and the
-//  columns, each checked while it shows (FR-118). Name always shows, so it
-//  is listed checked and disabled, as Visual Studio lists it. Rebuilt before
-//  each drop-down opens, since the rows carry the checks they were built
-//  with.
+//  New's kinds, each opening the breakpoint dialog set to that kind. Rebuilt
+//  before each drop-down opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,8 +79,6 @@ void DebuggerWindow::SetBreakpointBarMenus()
         { L"I/O range...",             BreakpointKind::Io,       WatchAccess::ReadWrite },
     };
     std::vector<DxuiPopupMenuItem>  kinds;
-    std::vector<DxuiPopupMenuItem>  columns;
-    std::shared_ptr<DxuiCommand>    name = MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {});
 
 
 
@@ -95,17 +90,33 @@ void DebuggerWindow::SetBreakpointBarMenus()
         kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access] { NewBreakpoint (kind, access); })));
     }
 
-    name->isEnabled = [] { return false; };
-    columns.push_back (DxuiPopupMenuItem::ForCommand (name));
+    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew, std::move (kinds));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddBreakpointColumnItems
+//
+//  The breakpoints pane's menu on its headings: the columns, each checked
+//  while visible (FR-118). Name is always visible, so it is listed checked
+//  and disabled, as in Visual Studio.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands)
+{
+    commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {}));
+    commands.back()->isEnabled = [] { return false; };
 
     for (size_t i = 1; i < BreakpointColumns::kCount; i++)
     {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
-                                                                           [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); })));
+        commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
+                                             [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); }));
     }
-
-    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew,     std::move (kinds));
-    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kColumns, std::move (columns));
 }
 
 
@@ -303,7 +314,7 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
         break;
 
     default:
-        //  New and Show columns are drop-downs; their rows act.
+        //  New is a drop-down; its rows act.
         break;
     }
 }

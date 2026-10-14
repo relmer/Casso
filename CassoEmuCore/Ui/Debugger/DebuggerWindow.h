@@ -1083,6 +1083,10 @@ private:
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
 
+    //  The changed color on each flag letter at the end of P's flags whose
+    //  bit is set in changedBits.
+    void      AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
+
     //  The disassembly views' bytes, for the changed color in their bytes
     //  column.
     void      UpdateCodeChanges    ();
@@ -1418,6 +1422,10 @@ private:
     EventLogWidgets        * GetEventLogOf            (const std::wstring & pane);
     const EventLogWidgets  * GetEventLogOf            (const std::wstring & pane) const;
     void                     AddEventLogMenuItems     (DxuiListView * list, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void                     AddEventLogColumnItems   (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands);
+    void                     AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands);
+    bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);
+
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>           m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryBars;

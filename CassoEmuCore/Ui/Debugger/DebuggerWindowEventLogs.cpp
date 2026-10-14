@@ -11,14 +11,10 @@
 static constexpr int  s_kDiskEvents        = 1;
 static constexpr int  s_kDiskDrive         = 2;
 static constexpr int  s_kDiskQuarterTracks = 3;
-static constexpr int  s_kDiskColumns       = 4;
-static constexpr int  s_kDiskCopy          = 5;
 static constexpr int  s_kInputGuest        = 6;
 static constexpr int  s_kInputHost         = 7;
 static constexpr int  s_kInputPair0        = 8;
 static constexpr int  s_kInputPair1        = 9;
-static constexpr int  s_kInputColumns      = 10;
-static constexpr int  s_kInputCopy         = 11;
 
 
 
@@ -115,9 +111,9 @@ void DebuggerWindow::ConfigureEventLogs()
 //
 //  DebuggerWindow::SetEventLogBarEntries
 //
-//  The Disk II log's bar: its kinds, its drive, its track and sector boxes,
-//  quarter-tracks, its columns and Copy. The input log's: the guest's and the
-//  host's input, each pair's view, its columns and Copy.
+//  The Disk II log's bar: its kinds, its drive, its track and sector boxes
+//  and quarter-tracks. The input log's: the guest's and the host's input and
+//  each pair's view. The columns are chosen from the heading's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,15 +167,11 @@ void DebuggerWindow::SetEventLogBarEntries()
         SaveEventLogOptions (DebugLogKind::Disk);
     })->isChecked = [this] { return m_diskLogPane->IsQuarterTracks(); };
 
-    add (m_diskLog, disk, s_kDiskColumns, L"Show columns", L"Choose the columns in this log", DxuiToolbar::Kind::DropDown, 3, [] {});
-    add (m_diskLog, disk, s_kDiskCopy,    L"Copy",         L"Copy every row in the list",             DxuiToolbar::Kind::Command,  3, [this] { CopyEventLog (m_diskLog.list, true); });
 
     add (m_inputLog, input, s_kInputGuest,   L"Emulator input",      L"Choose the guest's reads in this log",            DxuiToolbar::Kind::DropDown, 0, [] {});
     add (m_inputLog, input, s_kInputHost,    L"Host input",          L"Choose the host's input in this log",             DxuiToolbar::Kind::DropDown, 0, [] {});
     add (m_inputLog, input, s_kInputPair0,   L"PADDL0-PADDL1 as",    L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1, [] {});
     add (m_inputLog, input, s_kInputPair1,   L"PADDL2-PADDL3 as",    L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1, [] {});
-    add (m_inputLog, input, s_kInputColumns, L"Show columns",        L"Choose the columns in this log",                  DxuiToolbar::Kind::DropDown, 2, [] {});
-    add (m_inputLog, input, s_kInputCopy,    L"Copy",                L"Copy every row in the list",                               DxuiToolbar::Kind::Command,  2, [this] { CopyEventLog (m_inputLog.list, true); });
 
     m_diskLog.bar->SetEntries  (std::move (disk));
     m_inputLog.bar->SetEntries (std::move (input));
@@ -194,7 +186,7 @@ void DebuggerWindow::SetEventLogBarEntries()
 //  DebuggerWindow::SetEventLogMenus
 //
 //  Built again before each drop-down opens, since the rows have the checks
-//  they were built with. The text column of each log is always in it.
+//  they were built with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,12 +194,10 @@ void DebuggerWindow::SetEventLogMenus()
 {
     std::vector<DxuiPopupMenuItem>  kinds;
     std::vector<DxuiPopupMenuItem>  drives;
-    std::vector<DxuiPopupMenuItem>  diskColumns;
     std::vector<DxuiPopupMenuItem>  guest;
     std::vector<DxuiPopupMenuItem>  host;
     std::vector<DxuiPopupMenuItem>  pair0;
     std::vector<DxuiPopupMenuItem>  pair1;
-    std::vector<DxuiPopupMenuItem>  inputColumns;
     size_t                          i     = 0;
     bool                            isAll = true;
     std::shared_ptr<DxuiCommand>    item;
@@ -252,24 +242,6 @@ void DebuggerWindow::SetEventLogMenus()
         })));
     }
 
-    for (i = 0; i < DiskLogPane::kColumnCount; i++)
-    {
-        size_t  column = i;
-
-        item = MakeMenuCommand (m_diskLog.list->GetColumnAt (column).title, m_diskLogPane->IsColumnShown (column), [this, column]
-        {
-            m_diskLogPane->SetColumnShown (column, !m_diskLogPane->IsColumnShown (column));
-            SaveEventLogOptions (DebugLogKind::Disk);
-        });
-
-        if (column == DiskLogPane::kDetail)
-        {
-            item->isEnabled = [] { return false; };
-        }
-
-        diskColumns.push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
-
     for (InputLogPane::Lane lane : { InputLogPane::kGuestKeyboard, InputLogPane::kJoystick, InputLogPane::kPaddle, InputLogPane::kHostKeyboard, InputLogPane::kHostMouse })
     {
         bool  isGuest = lane == InputLogPane::kGuestKeyboard || lane == InputLogPane::kJoystick || lane == InputLogPane::kPaddle;
@@ -311,32 +283,12 @@ void DebuggerWindow::SetEventLogMenus()
         }
     }
 
-    for (i = 0; i < InputLogPane::kColumnCount; i++)
-    {
-        size_t  column = i;
-
-        item = MakeMenuCommand (m_inputLog.list->GetColumnAt (column).title, m_inputLogPane->IsColumnShown (column), [this, column]
-        {
-            m_inputLogPane->SetColumnShown (column, !m_inputLogPane->IsColumnShown (column));
-            SaveEventLogOptions (DebugLogKind::Input);
-        });
-
-        if (column == InputLogPane::kMeaning)
-        {
-            item->isEnabled = [] { return false; };
-        }
-
-        inputColumns.push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
-
-    m_diskLog.bar->SetDropDownItems  (s_kDiskEvents,   std::move (kinds));
-    m_diskLog.bar->SetDropDownItems  (s_kDiskDrive,    std::move (drives));
-    m_diskLog.bar->SetDropDownItems  (s_kDiskColumns,  std::move (diskColumns));
-    m_inputLog.bar->SetDropDownItems (s_kInputGuest,   std::move (guest));
-    m_inputLog.bar->SetDropDownItems (s_kInputHost,    std::move (host));
-    m_inputLog.bar->SetDropDownItems (s_kInputPair0,   std::move (pair0));
-    m_inputLog.bar->SetDropDownItems (s_kInputPair1,   std::move (pair1));
-    m_inputLog.bar->SetDropDownItems (s_kInputColumns, std::move (inputColumns));
+    m_diskLog.bar->SetDropDownItems  (s_kDiskEvents,  std::move (kinds));
+    m_diskLog.bar->SetDropDownItems  (s_kDiskDrive,   std::move (drives));
+    m_inputLog.bar->SetDropDownItems (s_kInputGuest,  std::move (guest));
+    m_inputLog.bar->SetDropDownItems (s_kInputHost,   std::move (host));
+    m_inputLog.bar->SetDropDownItems (s_kInputPair0,  std::move (pair0));
+    m_inputLog.bar->SetDropDownItems (s_kInputPair1,  std::move (pair1));
 }
 
 
@@ -744,15 +696,35 @@ const DebuggerWindow::EventLogWidgets * DebuggerWindow::GetEventLogOf (const std
 //
 //  DebuggerWindow::AddEventLogMenuItems
 //
-//  An event log's menu, on its rows or its headings: Copy for the selected
-//  rows, Copy all rows, and an item that adds or removes each column but
-//  its text.
+//  An event log's menu on its rows: Copy for the selected rows, and Copy all
+//  rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddEventLogMenuItems (
     DxuiListView                                                   * list,
     std::vector<std::pair<std::wstring, std::function<void()>>>    & items)
+{
+    items.push_back ({ L"Copy",          [this, list] { CopyEventLog (list, false); } });
+    items.push_back ({ L"Copy all rows", [this, list] { CopyEventLog (list, true);  } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddEventLogColumnItems
+//
+//  An event log's menu on its headings: a check for each column. The text
+//  column is always in the list, so its check is dimmed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddEventLogColumnItems (
+    DxuiListView                                * list,
+    std::vector<std::shared_ptr<DxuiCommand>>   & commands)
 {
     bool          isDisk = list == m_diskLog.list;
     DebugLogKind  kind   = isDisk ? DebugLogKind::Disk : DebugLogKind::Input;
@@ -761,22 +733,19 @@ void DebuggerWindow::AddEventLogMenuItems (
 
 
 
-    items.push_back ({ L"Copy",          [this, list] { CopyEventLog (list, false); } });
-    items.push_back ({ L"Copy all rows", [this, list] { CopyEventLog (list, true);  } });
-
     for (column = 0; column < list->GetColumnCount(); column++)
     {
-        bool  isShown = list->IsColumnVisible (column);
+        size_t  each = column;
+
+        commands.push_back (MakeMenuCommand (list->GetColumnAt (column).title, list->IsColumnVisible (column), [this, list, each, kind]
+        {
+            list->SetColumnVisible (each, !list->IsColumnVisible (each));
+            SaveEventLogOptions (kind);
+        }));
 
         if (column == text)
         {
-            continue;
+            commands.back()->isEnabled = [] { return false; };
         }
-
-        items.push_back ({ std::format (L"{} {}", isShown ? L"Hide" : L"Show", list->GetColumnAt (column).title), [this, list, column, isShown, kind]
-        {
-            list->SetColumnVisible (column, !isShown);
-            SaveEventLogOptions (kind);
-        } });
     }
 }
