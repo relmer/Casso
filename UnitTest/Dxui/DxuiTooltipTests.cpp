@@ -180,9 +180,13 @@ public:
     //  A pointer twenty pixels tall below its hot spot, and two above it.
     static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
 
-    //  An instant tip follows the pointer, so it is placed clear of the
-    //  pointer's whole image plus a gap, below it, or above it where below
-    //  would run off the work area. A dwelled tip keeps its control's anchor.
+    //  No pointer to be found, and a pointer resting at (150, 400).
+    static bool  FindNoPointer      (HWND, POINT &)       { return false; }
+    static bool  FindRestingPointer (HWND, POINT & out)  { out = { 150, 400 }; return true; }
+
+    //  A tip is placed clear of the pointer's whole image plus a gap, below
+    //  it, or above it where below would run off the work area. With no
+    //  pointer to be found it is placed against its anchor.
     TEST_METHOD (RequestShowNow_PlacesTheTipClearOfThePointer)
     {
         constexpr int  kGapPx   = 4;
@@ -196,6 +200,7 @@ public:
 
 
         t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
         t.RequestShowNow (cell, L"$0400", 0);
 
         anchor = t.GetPlacementAnchor();
@@ -217,7 +222,7 @@ public:
         t.Tick (0);
         anchor = t.GetPlacementAnchor();
 
-        Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
+        Assert::AreEqual (cell.bottom + 20 + kGapPx, anchor.bottom, L"a dwelled tip clears the pointer too");
     }
 
     //  A tip that follows the pointer keeps the one balloon it raised and
@@ -235,6 +240,7 @@ public:
 
         t.SetPopupHost       (&host);
         t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
 
         t.RequestShowNow (MakeRect (100, 200, 101, 201), L"$0400", 0);
 
@@ -286,42 +292,44 @@ public:
         Assert::IsFalse  (DxuiTooltip::IsTable (L"no tabs here"));
     }
 
-    //  A tip requested at the pointer comes up clear of the pointer where it
-    //  stopped, not against the row; it stays put while the pointer moves
-    //  within the row, and a different row puts it at the pointer again.
-    TEST_METHOD (RequestShowAtPointer_PlacesTheTipWhereThePointerStopped)
+    //  A hover tip sits by the pointer, wherever on its control the pointer
+    //  rests, as the system's own tips do; a request again for the same tip
+    //  while it is up does not raise it again. A tip stacked under another
+    //  and a timed notice are placed against their anchor.
+    TEST_METHOD (AHoverTipSitsByThePointer)
     {
-        constexpr int  kGapPx = 4;
-        DxuiTooltip    t;
-        RECT           row    = MakeRect (0, 200, 600, 216);
-        RECT           next   = MakeRect (0, 216, 600, 232);
-        RECT           anchor = {};
+        constexpr int   kGapPx  = 4;
+        DxuiHwndSource  host;
+        DxuiTooltip     t;
+        RECT            control = MakeRect (100, 200, 300, 260);
+        RECT            anchor  = {};
+        int             raised  = 0;
 
 
 
+        t.SetPopupHost       (&host);
         t.SetPointerMeasurer (GetTallPointer);
-        t.RequestShowAtPointer (row, POINT { 100, 205 }, L"a row's tip", 0);
-        t.RequestShowAtPointer (row, POINT { 300, 208 }, L"a row's tip", 400);
-
-        t.Tick (899);
-        Assert::IsFalse (t.IsVisible(), L"the move restarted the dwell");
-
-        t.Tick (900);
-        Assert::IsTrue (t.IsVisible());
+        t.SetPointerLocator  (FindRestingPointer);
+        t.SetDwellOpenMs (0);
+        t.RequestShow (control, L"a control's tip", 0);
+        t.Tick (0);
 
         anchor = t.GetPlacementAnchor();
-        Assert::AreEqual (300L,               anchor.left,   L"where the pointer stopped, not the row's left");
-        Assert::AreEqual (209L + 20 + kGapPx, anchor.bottom, L"below the pointer's image and a gap, not the row's bottom");
-        Assert::IsTrue   (EqualRect (&row, &t.GetAnchor()) != FALSE, L"the tip is the row's");
+        Assert::AreEqual (150L,               anchor.left,   L"at the pointer, not the control's edge");
+        Assert::AreEqual (401L + 20 + kGapPx, anchor.bottom, L"below the pointer's image");
 
-        t.RequestShowAtPointer (row, POINT { 400, 210 }, L"a row's tip", 1000);
-        Assert::AreEqual (300L, t.GetPlacementAnchor().left, L"a move within the row does not move it");
+        raised = t.GetShowCount();
+        t.RequestShow (control, L"a control's tip", 10);
+        Assert::AreEqual (raised, t.GetShowCount(), L"a move within the control does not raise it again");
 
-        t.RequestShowAtPointer (next, POINT { 420, 220 }, L"the next row's tip", 1100);
-        Assert::AreEqual (420L, t.GetPlacementAnchor().left, L"the next row's tip at the pointer");
-
-        t.RequestShow (row, L"a control's tip", 1200);
+        t.RequestShow (control, L"stacked", 20, false);
         anchor = t.GetPlacementAnchor();
-        Assert::IsTrue (EqualRect (&anchor, &row) != FALSE, L"a control's tip against the control again");
+        Assert::IsTrue (EqualRect (&anchor, &control) != FALSE, L"a stacked tip is placed against its anchor");
+
+        t.ShowTimed (control, L"a notice", 30, 1000);
+        anchor = t.GetPlacementAnchor();
+        Assert::IsTrue (EqualRect (&anchor, &control) != FALSE, L"a timed notice is placed against its anchor");
+
+        t.HideImmediate();
     }
 };

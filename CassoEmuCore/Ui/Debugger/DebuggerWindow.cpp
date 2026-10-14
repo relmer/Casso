@@ -8958,7 +8958,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (barTip != nullptr && *barTip != L'\0')
     {
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, barTip, now);
+        tip.RequestShow  (cell, barTip, now);
         return;
     }
 
@@ -8966,7 +8966,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() && m_heatMapView->TryGetZoomTipAt (clientPx, cell, text))
     {
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, text, now);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
@@ -9020,14 +9020,14 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         OffsetRect (&cell, bounds.left, bounds.top);
         (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
+        tip.RequestShow  (cell, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
         return;
     }
 
     if (TryGetBranchTip (clientPx, cell, text))
     {
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, text, now);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
@@ -9035,7 +9035,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     {
         (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
-        tip.RequestShowAtPointer (cell, clientPx, ColorLegend::JoinLines ({ text, colorTip }), now);
+        tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
         return;
     }
 
@@ -9060,11 +9060,11 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         //  Under the operand tip when there is one, so the two stack.
         if (m_hasOperandTip)
         {
-            tip.RequestShow (GetColorTipAnchor (cell), text, now);
+            tip.RequestShow (GetColorTipAnchor (cell), text, now, false);
         }
         else
         {
-            tip.RequestShowAtPointer (cell, clientPx, text, now);
+            tip.RequestShow  (cell, text, now);
         }
 
         return;
@@ -9074,7 +9074,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
     {
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, text, now);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 
@@ -9084,7 +9084,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (!text.empty())
     {
         tip.SetMonospace (false);
-        tip.RequestShowAtPointer (cell, clientPx, text, now);
+        tip.RequestShow  (cell, text, now);
         return;
     }
 

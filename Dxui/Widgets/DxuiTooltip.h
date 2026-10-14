@@ -55,6 +55,12 @@ public:
 
     using PointerMeasurer = PointerExtent (*) ();
 
+    //  Where the pointer is, in the owner's client pixels; false when it
+    //  cannot be found.
+    using PointerLocator  = bool (*) (HWND owner, POINT & outClientPx);
+
+    static bool  LocatePointer (HWND owner, POINT & outClientPx);
+
     //  The current pointer's extent, read from its image, or the system's
     //  cursor height below the hot spot where the image cannot be read.
     static PointerExtent  MeasurePointerExtent ();
@@ -65,6 +71,9 @@ public:
 
     //  Replaces MeasurePointerExtent, so a test can supply a pointer.
     void  SetPointerMeasurer (PointerMeasurer measurer) { m_pfnMeasurePointer = measurer; }
+
+    //  Replaces LocatePointer, so a test can put the pointer anywhere.
+    void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
     //  The rect the tip is placed against: the anchor, or for a tip that
     //  follows the pointer, the anchor grown to clear the pointer's image.
@@ -136,14 +145,13 @@ public:
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
-    void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
+    // A hover tip for `anchor`, raised after the open dwell. It is placed by
+    // the pointer where the pointer came to rest, as the system's tips are,
+    // or with isAtPointer false against the anchor, as a tip stacked under
+    // another is. A move within the anchor with the same text does not move
+    // it.
+    void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs, bool isAtPointer = true);
     void  RequestHide     (int64_t nowMs);
-
-    // A tip for `item` that, once the open dwell ends, is placed clear of the
-    // pointer where it came to rest, as the system's tips are, rather than
-    // against the item. A move within the item with the same text does not
-    // move the tip; a different item or text puts it at the pointer again.
-    void  RequestShowAtPointer (const RECT & item, POINT pointer, const std::wstring & text, int64_t nowMs);
 
     // Shows at once, with no open dwell and no fade, for a tip that follows
     // the pointer from cell to cell, such as a hex view's address under the
@@ -252,10 +260,8 @@ private:
     std::wstring       m_text;
     std::wstring       m_pendingText;
     RECT               m_pendingAnchor     = {};
-    RECT               m_pointerRect       = {};
-    RECT               m_pendingPointer    = {};
-    bool               m_isAtPointer       = false;
-    bool               m_isNextAtPointer   = false;
+    bool               m_isPointerTip      = true;
+    bool               m_isNextPointerTip  = true;
     int64_t            m_showAtMs          = 0;
     int64_t            m_hideAtMs          = 0;
     int                m_dwellOpenMs       = 500;
@@ -278,6 +284,7 @@ private:
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator     m_pfnLocatePointer  = LocatePointer;
     PointerExtent      m_pointerExtent     = {};
     bool               m_hasPointerExtent  = false;
     int                m_showCount         = 0;

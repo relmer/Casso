@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "ControllerRig.h"
 #include "Config/GlobalUserPrefs.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -584,6 +585,103 @@ namespace DisassemblyOptionsTests
 
             window.ToggleCodeOption (Option::BranchArrow);
             Assert::IsFalse (window.GetBranchArrow (0, input, goesTo, isTaken));
+        }
+
+
+        //  After a step that took a branch, the branch's arrow runs from its
+        //  line to the PC's.
+        TEST_METHOD (AStepThroughATakenBranchDrawsItsArrowToThePc)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                     host;
+            DxuiDpiScaler                   scaler;
+            OptionsWindow                   window (theme, host);
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  bne;
+            DebuggerViewSnapshot::CodeLine  rts;
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            BranchArrow::Input              input;
+            Word                            goesTo   = 0;
+            bool                            isTaken  = false;
+
+
+
+            bne.address       = 0x0300;
+            bne.bytes         = "D0 01";
+            bne.instruction   = "BNE $0303";
+            bne.isSteppedFrom = true;
+            bne.target        = Word (0x0303);
+
+            rts.address       = 0x0303;
+            rts.bytes         = "60";
+            rts.instruction   = "RTS";
+            rts.isCurrent     = true;
+
+            snapshot->pc           = 0x0303;
+            snapshot->steppedFrom  = Word (0x0300);
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { bne, rts };
+            snapshot->code         = snapshot->codeViews[0];
+            snapshot->codeOpen[0]  = true;
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
+            Assert::AreEqual ((int) 0x0303, (int) goesTo);
+            Assert::IsTrue   (input.sourceY.has_value() && input.targetY.has_value() && *input.sourceY < *input.targetY);
+            Assert::IsFalse  (window.GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
+        }
+
+
+        //  The same through a real step: with the snapshot the view state
+        //  builds after a taken BPL applied, the window draws the BPL's arrow.
+        TEST_METHOD (ARealStepThroughABranchDrawsItsArrowInTheWindow)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                     host;
+            DxuiDpiScaler                   scaler;
+            OptionsWindow                   window (theme, host);
+            ControllerRig                          rig;
+            Cpu6502Registers                       r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            MockDxuiPainter                        painter;
+            MockDxuiTextRenderer                   text;
+            BranchArrow::Input                     input;
+            Word                                   goesTo   = 0;
+            bool                                   isTaken  = false;
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xEA);    // NOP
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x10);    // BPL $0300
+            rig.machine.GetMemoryBus().WriteByte (0x0302, 0xFD);
+
+            r.pc = 0x0301;
+            r.p  = 0x26;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+
+            (void) rig.view.Build (rig.controller.GetSession());
+            rig.machine.StepOne();
+            snapshot = std::make_shared<DebuggerViewSnapshot> (rig.view.Build (rig.controller.GetSession()));
+
+            Assert::AreEqual ((int) 0x0300, (int) snapshot->pc);
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
+            Assert::AreEqual ((int) 0x0300, (int) goesTo);
         }
     };
 }

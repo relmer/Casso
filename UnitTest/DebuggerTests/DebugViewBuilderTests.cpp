@@ -118,6 +118,54 @@ namespace DebugViewBuilderTests
                 AssertSamePanes (*live, builder->Build (*viewHeld, input));
             }
         }
+
+        //  A step through a taken branch, built from captures as the window
+        //  builds it, marks the branch's line.
+        TEST_METHOD (AStepBuiltFromCapturesMarksTheBranchItRan)
+        {
+            auto                     rigHeld  = std::make_unique<ControllerRig>();
+            ControllerRig          & rig      = *rigHeld;
+            DebugSession           & session  = rig.controller.GetSession();
+            auto                     viewHeld = std::make_unique<DebuggerViewState>();
+            auto                     builder  = std::make_unique<DebugViewBuilder>();
+            Cpu6502Registers         r        = session.GetTarget().GetRegisters();
+            DebuggerViewSnapshot     built;
+            auto                     build    = [&]
+            {
+                auto            capture = std::make_shared<DebugViewCapture>();
+                DebugViewInput  input;
+                uint64_t        first   = DebuggerViewState::GetTraceWindowFirst (session.GetTarget().GetTraceSize(), std::nullopt, DebuggerViewState::kTraceRows);
+
+
+
+                DebugViewCapture::Take (session.GetTarget(), CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+                session.TakeView (input.session);
+
+                input.capture  = capture;
+                input.isPaused = true;
+
+                return builder->Build (*viewHeld, input);
+            };
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+
+            r.pc = 0x0300;
+            r.p  = 0x26;    // as the machine has it at a stop: Z set, B clear
+            session.GetTarget().SetRegisters (r);
+
+            built = build();
+            Assert::IsFalse (built.steppedFrom.has_value());
+
+            rig.machine.StepOne();
+            built = build();
+
+            Assert::AreEqual ((int) 0x0310, (int) built.pc);
+            Assert::IsTrue   (built.steppedFrom == std::optional<Word> (0x0300), L"the branch was the step");
+        }
+
     private:
 
         static void AssertSamePanes (const DebuggerViewSnapshot & live, const DebuggerViewSnapshot & built)
