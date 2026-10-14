@@ -79,8 +79,27 @@ public:
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
 
-    //  A fixed-width face, for a tip whose lines are columns.
+    //  A fixed-width face, for a tip of code or bytes. A tip whose columns
+    //  are separated by tabs lines them up in either face (TableLayout).
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  A tip with a tab in its text is a table: the tab-separated parts of
+    //  each line start at the same columns, one em apart at the widest, so
+    //  they line up in a proportional face as they would in a fixed one. A
+    //  line with no tab spans the table and adds to no column.
+    struct TableLayout
+    {
+        std::vector<std::vector<std::wstring>>  lines;
+        std::vector<float>                      columnX;
+        std::vector<float>                      columnW;
+        float                                   width      = 0.0f;
+        float                                   lineHeight = 0.0f;
+    };
+
+    using MeasureFn = std::function<HRESULT (const std::wstring & part, float & widthPx, float & heightPx)>;
+
+    static bool     IsTable     (const std::wstring & text) { return text.find (L'\t') != std::wstring::npos; }
+    static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -221,6 +240,12 @@ private:
     //  host's opaque background clear.
     //
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+
+    //  The table's parts drawn from its top-left, in pixels.
+    void  DrawTable          (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
+
+    //  The table laid out with `text` measuring the parts at the tip's font.
+    HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
 
     DxuiDpiScaler      m_scaler;
     RECT               m_anchor            = {};

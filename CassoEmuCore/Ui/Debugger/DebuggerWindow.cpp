@@ -507,12 +507,14 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
-    //  The event logs are text, not code, so they are in the proportional
-    //  face; their fitted columns are measured from the labels the panes
+    //  The panes of text rather than code are in the proportional face, as
+    //  Visual Studio's Breakpoints, Watch and Call Stack windows are. Each
+    //  column is aligned on its own, so a column lines up in either face.
+    //  The event logs' fitted columns are measured from the labels the panes
     //  note (EventLogPane::NoteFitTexts).
-    for (DxuiListView * log : { m_diskLog.list, m_inputLog.list })
+    for (DxuiListView * list : GetTextLists())
     {
-        log->SetMonospace (false);
+        list->SetMonospace (false);
     }
 
     //  A disassembly opens with its glyph margin for the breakpoints and the
@@ -577,7 +579,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
     m_tooltip.SetTheme            (*m_theme);
-    m_tooltip.SetMonospace        (true);
+    m_tooltip.SetMonospace        (false);
     m_tooltip.ApplyVisualStudioLook();
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
@@ -1064,6 +1066,33 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
                                            m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list };
+
+
+
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        lists.push_back (pane->GetList());
+    }
+
+    return lists;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextLists
+//
+//  The lists of text rather than code: every pane but the disassemblies,
+//  the registers, the stack and the trace.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
+{
+    std::vector<DxuiListView *>  lists = { m_breakpointList, m_watchList, m_callStackList, m_heatRangeList, m_diskLog.list, m_inputLog.list };
 
 
 
@@ -8968,7 +8997,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
             return;
         }
 
-        tip.SetMonospace   (true);
+        tip.SetMonospace   (false);
         tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
@@ -8990,7 +9019,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     {
         OffsetRect (&cell, bounds.left, bounds.top);
         (void) TryGetCellTip (clientPx, spot, colorTip);
-        tip.SetMonospace (true);
+        tip.SetMonospace (false);
         tip.RequestShowAtPointer (cell, clientPx, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
         return;
     }
@@ -11140,7 +11169,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
         tip->SetPopupHost (window.GetPopupHost());
         tip->SetTheme     (*m_theme);
         tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
-        tip->SetMonospace (true);
+        tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();
         m_floatTips[kBarFloatKey] = std::move (tip);
     });

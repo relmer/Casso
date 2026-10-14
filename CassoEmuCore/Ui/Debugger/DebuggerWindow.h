@@ -1096,6 +1096,7 @@ private:
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
+    std::vector<DxuiListView *>  GetTextLists      () const;
     std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
     MemoryPane *                 GetActiveMemoryPane () const;
     MemoryPane *                 GetFocusedMemoryPane () const;

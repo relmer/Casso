@@ -257,6 +257,35 @@ public:
         t.HideImmediate();
     }
 
+    //  A tip's tab-separated parts start at the same columns on every line,
+    //  each column as wide as its widest part and a gap after it; a line with
+    //  no tab spans the columns and widens only the whole table.
+    TEST_METHOD (LayOutTable_LinesUpTheColumnsOfEveryLine)
+    {
+        DxuiTooltip::TableLayout  table;
+        HRESULT                   hr      = S_OK;
+        auto                      measure = [] (const std::wstring & part, float & w, float & h)
+        {
+            w = 10.0f * (float) part.size();
+            h = 16.0f;
+            return S_OK;
+        };
+
+
+
+        hr = DxuiTooltip::LayOutTable (L"N\tNegative\t1\nZ\tZero\t0\nA line that spans the two columns", 12.0f, measure, table);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::AreEqual ((size_t) 3, table.lines.size());
+        Assert::AreEqual ((size_t) 3, table.columnX.size());
+        Assert::AreEqual (0.0f,                 table.columnX[0]);
+        Assert::AreEqual (10.0f + 12.0f,        table.columnX[1], L"after the widest letter and the gap");
+        Assert::AreEqual (22.0f + 80.0f + 12.0f, table.columnX[2], L"after Negative, the wider name");
+        Assert::AreEqual (330.0f,               table.width,      L"the spanning line is the widest");
+        Assert::AreEqual (16.0f,                table.lineHeight);
+        Assert::IsFalse  (DxuiTooltip::IsTable (L"no tabs here"));
+    }
+
     //  A tip requested at the pointer comes up clear of the pointer where it
     //  stopped, not against the row; it stays put while the pointer moves
     //  within the row, and a different row puts it at the pointer again.

@@ -28,6 +28,12 @@ static constexpr float     s_kMaxTextWidthDip = 340.0f;
 static constexpr float     s_kMaxMonoWidthDip = 720.0f;
 
 //
+//  A table's parts are measured on one line each: a column is as wide as
+//  its widest part, never wrapped.
+//
+static constexpr float     s_kNoWrapPx        = 100000.0f;
+
+//
 //  Fallback glyph metrics used to size the balloon when precise text
 //  measurement is unavailable (e.g. test mode, where the popup has no
 //  DWrite factory). Deliberately a little generous so text never clips.
@@ -898,9 +904,24 @@ void DxuiTooltip::MeasureBoxPx (
 
 
 
-    hr = (m_activePopup != nullptr)
-             ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
-             : E_FAIL;
+    if (IsTable (m_text) && m_activePopup != nullptr)
+    {
+        TableLayout  table;
+
+        hr = LayOutTable (m_text, fontPx, [this, fontPx] (const std::wstring & part, float & w, float & h)
+        {
+            return m_activePopup->MeasureTextWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
+        }, table);
+
+        textWPx = table.width;
+        textHPx = table.lineHeight * (float) table.lines.size();
+    }
+    else
+    {
+        hr = (m_activePopup != nullptr)
+                 ? m_activePopup->MeasureTextWrapped (m_text.c_str(), fontPx, GetFace(), maxWPx, textWPx, textHPx)
+                 : E_FAIL;
+    }
 
     if (FAILED (hr) || textWPx <= 0.0f)
     {
@@ -1089,19 +1110,21 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
 
 
-    HRESULT  hr        = S_OK;
-    float    fontPx    = m_scaler.ToPxf (m_fontDip);
-    float    padX      = GetPadXPx();
-    float    padY      = GetPadYPx();
-    float    borderPx  = GetBorderPx();
-    float    anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
-    float    textW     = 0.0f;
-    float    textH     = 0.0f;
-    float    width     = 0.0f;
-    float    height    = 0.0f;
-    float    boxLeft   = 0.0f;
-    float    boxTop    = 0.0f;
-    RECT     anchor    = {};
+    HRESULT      hr        = S_OK;
+    float        fontPx    = m_scaler.ToPxf (m_fontDip);
+    float        padX      = GetPadXPx();
+    float        padY      = GetPadYPx();
+    float        borderPx  = GetBorderPx();
+    float        anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
+    float        textW     = 0.0f;
+    float        textH     = 0.0f;
+    float        width     = 0.0f;
+    float        height    = 0.0f;
+    float        boxLeft   = 0.0f;
+    float        boxTop    = 0.0f;
+    RECT         anchor    = {};
+    bool         isTable   = IsTable (m_text);
+    TableLayout  table;
 
 
 
@@ -1110,10 +1133,21 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         return;
     }
 
-    hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
-             m_text.c_str(), fontPx, GetFace(),
-             m_scaler.ToPxf (GetMaxTextWidthDip()), textW, textH);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (isTable)
+    {
+        hr = LayOutTableWith (const_cast<IDxuiTextRenderer &> (text), table);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        textW = table.width;
+        textH = table.lineHeight * (float) table.lines.size();
+    }
+    else
+    {
+        hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
+                 m_text.c_str(), fontPx, GetFace(),
+                 m_scaler.ToPxf (GetMaxTextWidthDip()), textW, textH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     anchor  = GetPlacementAnchor();
     width   = std::ceil (textW)  + padX * 2.0f;
@@ -1148,6 +1182,12 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     painter.FillRect    (boxLeft, boxTop, width, height, m_bgArgb);
     painter.OutlineRect (boxLeft, boxTop, width, height, borderPx, m_borderArgb);
+
+    if (isTable)
+    {
+        DrawTable (text, table, boxLeft + padX, boxTop + padY);
+        return;
+    }
 
     hr = text.DrawString (m_text.c_str(),
                           boxLeft + padX,
@@ -1235,6 +1275,20 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
 
+    if (IsTable (m_text))
+    {
+        TableLayout  table;
+
+        hr = LayOutTableWith (text, table);
+
+        if (SUCCEEDED (hr))
+        {
+            DrawTable (text, table, padX, padY);
+        }
+
+        return;
+    }
+
     hr = text.DrawString (m_text.c_str(),
                           padX,
                           padY,
@@ -1244,4 +1298,155 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           fontPx,
                           GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutTable
+//
+//  Each column is as wide as its widest part; a column starts one gap
+//  after the one before it ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTooltip::LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table)
+{
+    HRESULT  hr    = S_OK;
+    float    spanW = 0.0f;
+    float    partW = 0.0f;
+    float    partH = 0.0f;
+    size_t   start = 0;
+    size_t   end   = 0;
+    size_t   from  = 0;
+    size_t   tab   = 0;
+    size_t   c     = 0;
+
+
+
+    table = TableLayout();
+
+    while (start <= text.size())
+    {
+        std::vector<std::wstring>  parts;
+        std::wstring               line;
+
+
+
+        end  = text.find (L'\n', start);
+        line = text.substr (start, (end == std::wstring::npos) ? std::wstring::npos : end - start);
+        from = 0;
+
+        while ((tab = line.find (L'\t', from)) != std::wstring::npos)
+        {
+            parts.push_back (line.substr (from, tab - from));
+            from = tab + 1;
+        }
+
+        parts.push_back (line.substr (from));
+        table.lines.push_back (std::move (parts));
+
+        start = (end == std::wstring::npos) ? text.size() + 1 : end + 1;
+    }
+
+    for (const std::vector<std::wstring> & parts : table.lines)
+    {
+        for (c = 0; c < parts.size(); c++)
+        {
+            partW = 0.0f;
+            partH = 0.0f;
+
+            if (!parts[c].empty())
+            {
+                hr = measure (parts[c], partW, partH);
+                CHR (hr);
+            }
+
+            table.lineHeight = (std::max) (table.lineHeight, std::ceil (partH));
+
+            if (parts.size() == 1)
+            {
+                spanW = (std::max) (spanW, std::ceil (partW));
+                continue;
+            }
+
+            if (table.columnW.size() <= c)
+            {
+                table.columnW.resize (c + 1, 0.0f);
+            }
+
+            table.columnW[c] = (std::max) (table.columnW[c], std::ceil (partW));
+        }
+    }
+
+    for (c = 0; c < table.columnW.size(); c++)
+    {
+        table.columnX.push_back ((c == 0) ? 0.0f : table.columnX[c - 1] + table.columnW[c - 1] + std::ceil (gapPx));
+    }
+
+    table.width = table.columnX.empty() ? spanW : (std::max) (spanW, table.columnX.back() + table.columnW.back());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayOutTableWith
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTooltip::LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const
+{
+    float  fontPx = m_scaler.ToPxf (m_fontDip);
+
+
+
+    return LayOutTable (m_text, fontPx, [this, &text, fontPx] (const std::wstring & part, float & w, float & h)
+    {
+        return text.MeasureStringWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
+    }, table);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const
+{
+    HRESULT  hr     = S_OK;
+    float    fontPx = m_scaler.ToPxf (m_fontDip);
+    float    y      = top;
+    float    x      = 0.0f;
+    float    w      = 0.0f;
+
+
+
+    for (const std::vector<std::wstring> & parts : table.lines)
+    {
+        for (size_t c = 0; c < parts.size(); c++)
+        {
+            bool  isSpan = parts.size() == 1;
+
+            x  = isSpan ? 0.0f        : table.columnX[c];
+            w  = isSpan ? table.width : table.width - table.columnX[c];
+            hr = text.DrawString (parts[c].c_str(), left + x, y, w, table.lineHeight, m_textArgb, fontPx, GetFace());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        y += table.lineHeight;
+    }
 }

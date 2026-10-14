@@ -56,6 +56,7 @@ void DebuggerWindow::ConfigureHeatRanges()
     m_heatRangeBar->SetVisible       (false);
 
     MakeDense (m_heatRangeList);
+    m_heatRangeList->SetMonospace             (false);
     m_heatRangeList->SetColumns               (std::move (columns));
     m_heatRangeList->SetActivateOnDoubleClick (true);
     m_heatRangeList->SetAlwaysShowSelection   (true);
