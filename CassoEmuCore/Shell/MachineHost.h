@@ -8,6 +8,7 @@
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/ObserverSlots.h"
 #include "Core/StateWriter.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Reverse/InputJournal.h"
@@ -321,7 +322,16 @@ public:
     //
     //  A machine switch rebuilds every device, so this has to run again
     //  afterwards or an open panel goes quiet against the new machine.
-    void  AttachObservers (const MachineObservers & observers);
+    //  The emulator's panels take the Panel slot; the debugger's event
+    //  cache, or a rebuild's probe on a machine replaying history, the
+    //  History slot (ObserverSlot).
+    void  AttachObservers (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
+
+    //  Clears the last value reported for each guest-read source, so the next
+    //  read of each source is reported. Called at every keyframe taken, so a
+    //  replay that starts at a keyframe reports the reads the running
+    //  machine reported.
+    void  ResetInputReadEdges();
 
     //  Ctrl+Reset. User RAM survives; every device takes its reset line.
     void  SoftReset();

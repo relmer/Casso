@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Core/ObserverSlots.h"
 
 class HeldInputWatch;
 class IInputEventSink;
@@ -53,7 +54,12 @@ public:
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
     // Attach the input-debug notification sink.
-    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+    void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
+    void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
+
+    // Clears the last values reported for the buttons and paddles, so the
+    // next read of each is reported whatever its value.
+    void ResetReadEdges () noexcept;
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
@@ -129,19 +135,19 @@ protected:
     // with no potentiometer connected reads forever.
     static constexpr Byte     s_knPaddleTiming = 0x80;
 
-    IInputEventSink      * m_inputSink                                  = nullptr;
-    const SiriusJoyport  * m_joyport                                    = nullptr;
-    CassettePort         * m_cassettePort                               = nullptr;
-    const uint64_t       * m_cpuCycleSource                             = nullptr;
-    InputJournal         * m_inputJournal                               = nullptr;
-    HeldInputWatch       * m_heldInputWatch                             = nullptr;
-    bool                   m_observedButton[s_knButtonCount]            = {};
-    Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
-    uint64_t               m_paddleTriggerCycle                         = 0;
-    atomic<bool>           m_buttonState[s_knButtonCount]               = {};
-    atomic<Byte>           m_paddlePosition[s_knPaddleAxisCount];
-    int                    m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
-    int                    m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
-    int                    m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
-    int                    m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    ObserverSlots<IInputEventSink>    m_inputSinks;
+    const SiriusJoyport             * m_joyport                                    = nullptr;
+    CassettePort                    * m_cassettePort                               = nullptr;
+    const uint64_t                  * m_cpuCycleSource                             = nullptr;
+    InputJournal                    * m_inputJournal                               = nullptr;
+    HeldInputWatch                  * m_heldInputWatch                             = nullptr;
+    bool                              m_observedButton[s_knButtonCount]            = {};
+    Byte                              m_observedPaddle[s_knPaddleAxisCount]        = {};
+    uint64_t                          m_paddleTriggerCycle                         = 0;
+    atomic<bool>                      m_buttonState[s_knButtonCount]               = {};
+    atomic<Byte>                      m_paddlePosition[s_knPaddleAxisCount];
+    int                               m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
+    int                               m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                               m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
+    int                               m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

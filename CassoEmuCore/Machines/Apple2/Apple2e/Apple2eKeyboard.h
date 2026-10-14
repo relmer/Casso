@@ -50,6 +50,8 @@ public:
     void Reset   () override;
     void SoftReset () override;
 
+    void ResetReadEdges () noexcept override;
+
     // Modifier-key state (set from UI thread via HostShell key events).
     // Open Apple <-> left Alt, Closed Apple <-> right Alt, Shift <-> Shift
     // (Phase 6 / T063 / FR-013).

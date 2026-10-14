@@ -154,9 +154,9 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
                 m_cachedTrack  = (int) trk;
                 m_cachedVolume = (int) vol;
 
-                if (m_eventSink != nullptr)
+                if (m_eventSinks.IsAny())
                 {
-                    m_eventSink->OnAddressMark ((int) trk, (int) sec, (int) vol);
+                    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnAddressMark ((int) trk, (int) sec, (int) vol); });
                 }
             }
 
@@ -254,9 +254,9 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
                 m_peek1 == kSectorEpilogue1 &&
                 m_peek0 == kSectorEpilogue2)
             {
-                if (m_eventSink != nullptr)
+                if (m_eventSinks.IsAny())
                 {
-                    m_eventSink->OnDataMarkRead (m_cachedTrack, m_cachedSector, m_cachedVolume, 256);
+                    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDataMarkRead (m_cachedTrack, m_cachedSector, m_cachedVolume, 256); });
                 }
 
                 m_dataState = DataState::Idle;

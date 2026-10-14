@@ -1961,28 +1961,56 @@ void MachineHost::ApplyPowerOnOverrides()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::AttachObservers (const MachineObservers & observers)
+void MachineHost::AttachObservers (const MachineObservers & observers, ObserverSlot slot)
 {
     if (m_refs.diskController != nullptr)
     {
-        m_refs.diskController->SetEventSink (observers.disk);
+        m_refs.diskController->SetEventSink (slot, observers.disk);
     }
 
     if (m_refs.keyboard != nullptr)
     {
-        m_refs.keyboard->SetInputEventSink (observers.input);
+        m_refs.keyboard->SetInputEventSink (slot, observers.input);
     }
 
     // The //e soft-switch bank reports the switches the keyboard does not
     // own (80COL, 80STORE, ALTCHARSET); null on a ][ or ][+.
     if (m_refs.iieSoftSwitches != nullptr)
     {
-        m_refs.iieSoftSwitches->SetInputEventSink (observers.input);
+        m_refs.iieSoftSwitches->SetInputEventSink (slot, observers.input);
     }
 
     if (m_refs.gamePort != nullptr)
     {
-        m_refs.gamePort->SetInputEventSink (observers.input);
+        m_refs.gamePort->SetInputEventSink (slot, observers.input);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ResetInputReadEdges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ResetInputReadEdges()
+{
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->ResetReadEdges();
+    }
+
+    if (m_refs.iieSoftSwitches != nullptr)
+    {
+        m_refs.iieSoftSwitches->ResetReadEdges();
+    }
+
+    if (m_refs.gamePort != nullptr)
+    {
+        m_refs.gamePort->ResetReadEdges();
     }
 }
 

@@ -767,6 +767,7 @@
     <ClInclude Include="Ui\Debugger\ByteChanges.h" />
     <ClInclude Include="Ui\Debugger\OpeningFocusDeferral.h" />
     <ClInclude Include="Ui\Debugger\StopFocus.h" />
+    <ClInclude Include="Core\ObserverSlots.h" />
     <ClInclude Include="Debugger\Events\DebugEventCache.h" />
     <ClInclude Include="Debugger\Events\DebugEventJob.h" />
     <ClInclude Include="Debugger\Events\DebugEventHistory.h" />

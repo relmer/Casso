@@ -342,18 +342,36 @@ bool Apple2eKeyboard::ApplyInput (const InputRecord & record)
 
 void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 {
-    IInputEventSink * sink = GetInputSink();
-    int               idx  = static_cast<int> (address - kFirstButtonAddress);
+    int  idx = static_cast<int> (address - kFirstButtonAddress);
 
 
 
     // No sink, or the same byte we last reported: either way there is no
     // edge to announce, which is what keeps a tight poll loop from flooding.
-    if (sink != nullptr && m_lastEmittedButton[idx] != value)
+    if (GetInputSinks().IsAny() && m_lastEmittedButton[idx] != value)
     {
         m_lastEmittedButton[idx] = value;
-        sink->OnButtonRead (address, value);
+        GetInputSinks().ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetReadEdges
+//
+//  The base's sources, and the three buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::ResetReadEdges() noexcept
+{
+    AppleKeyboard::ResetReadEdges();
+
+    std::ranges::fill (m_lastEmittedButton, -1);
 }
 
 

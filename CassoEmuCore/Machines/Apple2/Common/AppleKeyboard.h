@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Core/ObserverSlots.h"
 #include "Debugger/IDiagnosticsProvider.h"
 
 class HeldInputWatch;
@@ -169,8 +170,16 @@ public:
 
     // Attach (or detach with nullptr) the input event sink. Set from
     // the UI thread; read from the CPU thread on the device's null
-    // fast-path, matching the Disk2 event-sink convention.
-    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+    // fast-path, matching the Disk2 event-sink convention. The
+    // one-argument form sets the Panel slot; the History slot receives
+    // guest reads only.
+    void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
+    void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
+
+    // Clears the last values reported for each guest-read source, so the
+    // next read of each is reported whatever its value. Called at each
+    // keyframe, so a replay starting there reports the same reads.
+    virtual void ResetReadEdges () noexcept;
 
     // Advance the auto-repeat timer by the real time that has passed since
     // the previous call (CPU thread). Re-arms the $C000 strobe with the
@@ -246,10 +255,11 @@ protected:
     // Input event sink (null when nothing is observing). Plain pointer
     // per the Disk2 event-sink convention; written on the UI thread,
     // read on the CPU thread.
-    IInputEventSink * GetInputSink () const noexcept { return m_inputSink; }
+    IInputEventSink                         * GetInputSink  () const noexcept { return m_inputSinks.Get (ObserverSlot::Panel); }
+    const ObserverSlots<IInputEventSink>    & GetInputSinks () const noexcept { return m_inputSinks; }
 
 protected:
-    IInputEventSink * m_inputSink = nullptr;
+    ObserverSlots<IInputEventSink>  m_inputSinks;
 
     // Last-emitted values for guest-read coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.

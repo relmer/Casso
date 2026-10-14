@@ -413,15 +413,16 @@ void AppleGamePort::SyncObservedInputs()
 
 void AppleGamePort::EmitHostPaddle (int axis, Byte value)
 {
-    HRESULT  hr = S_OK;
+    HRESULT            hr    = S_OK;
+    IInputEventSink  * panel = m_inputSinks.Get (ObserverSlot::Panel);
 
 
 
-    BAIL_OUT_IF (m_inputSink == nullptr,                    S_OK);
+    BAIL_OUT_IF (panel == nullptr,                          S_OK);
     BAIL_OUT_IF (m_lastEmittedHostPaddle[axis] == value,    S_OK);
 
     m_lastEmittedHostPaddle[axis] = value;
-    m_inputSink->OnHostPaddle (axis, value);
+    panel->OnHostPaddle (axis, value);
 
 Error:
     return;
@@ -442,16 +443,17 @@ Error:
 
 void AppleGamePort::EmitHostButton (int index, bool pressed)
 {
-    HRESULT  hr    = S_OK;
-    int      value = pressed ? 1 : 0;
+    HRESULT            hr    = S_OK;
+    int                value = pressed ? 1 : 0;
+    IInputEventSink  * panel = m_inputSinks.Get (ObserverSlot::Panel);
 
 
 
-    BAIL_OUT_IF (m_inputSink == nullptr,                      S_OK);
+    BAIL_OUT_IF (panel == nullptr,                            S_OK);
     BAIL_OUT_IF (m_lastEmittedHostButton[index] == value,     S_OK);
 
     m_lastEmittedHostButton[index] = value;
-    m_inputSink->OnHostButton (index, pressed);
+    panel->OnHostButton (index, pressed);
 
 Error:
     return;
@@ -473,16 +475,17 @@ Error:
 
 void AppleGamePort::EmitButtonRead (Word address, Byte value)
 {
-    HRESULT  hr  = S_OK;
-    int      idx = static_cast<int> (address - s_kwFirstButtonAddress);
+    HRESULT  hr        = S_OK;
+    int      idx       = static_cast<int> (address - s_kwFirstButtonAddress);
+    bool     isWatched = m_inputSinks.IsAny();
 
 
 
-    BAIL_OUT_IF (m_inputSink == nullptr,            S_OK);
+    BAIL_OUT_IF (!isWatched,                        S_OK);
     BAIL_OUT_IF (m_lastEmittedButton[idx] == value, S_OK);
 
     m_lastEmittedButton[idx] = value;
-    m_inputSink->OnButtonRead (address, value);
+    m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
 
 Error:
     return;
@@ -503,13 +506,14 @@ Error:
 
 void AppleGamePort::EmitPaddleTrigger()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr        = S_OK;
+    bool     isWatched = m_inputSinks.IsAny();
 
 
 
-    BAIL_OUT_IF (m_inputSink == nullptr, S_OK);
+    BAIL_OUT_IF (!isWatched, S_OK);
 
-    m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
+    m_inputSinks.ForEach ([] (IInputEventSink & sink) { sink.OnPaddleTrigger (s_kwPaddleTimerStrobe); });
 
 Error:
     return;
@@ -532,19 +536,36 @@ Error:
 
 void AppleGamePort::EmitPaddleRead (Word address, Byte value)
 {
-    HRESULT  hr  = S_OK;
-    int      idx = static_cast<int> (address - s_kwPaddle0Address);
+    HRESULT  hr        = S_OK;
+    int      idx       = static_cast<int> (address - s_kwPaddle0Address);
+    bool     isWatched = m_inputSinks.IsAny();
 
 
 
-    BAIL_OUT_IF (m_inputSink == nullptr,            S_OK);
+    BAIL_OUT_IF (!isWatched,                        S_OK);
     BAIL_OUT_IF (m_lastEmittedPaddle[idx] == value, S_OK);
 
     m_lastEmittedPaddle[idx] = value;
-    m_inputSink->OnPaddleRead (address, value);
+    m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetReadEdges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleGamePort::ResetReadEdges() noexcept
+{
+    std::ranges::fill (m_lastEmittedButton, -1);
+    std::ranges::fill (m_lastEmittedPaddle, -1);
 }
 
 

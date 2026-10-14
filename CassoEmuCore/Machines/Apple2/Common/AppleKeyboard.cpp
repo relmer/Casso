@@ -425,10 +425,10 @@ void AppleKeyboard::BeginKeyRepeat (Byte asciiChar)
 
     // Coalesce a host OS repeat that slipped through: the same key arriving
     // twice is still one key-down.
-    if (m_inputSink != nullptr && armed != m_lastHostKeyDownAscii)
+    if (GetInputSink() != nullptr && armed != m_lastHostKeyDownAscii)
     {
         m_lastHostKeyDownAscii = armed;
-        m_inputSink->OnHostKeyDown (asciiChar);
+        GetInputSink()->OnHostKeyDown (asciiChar);
     }
 }
 
@@ -453,10 +453,10 @@ void AppleKeyboard::EndKeyRepeat()
 
     m_repeatKey.store (0, memory_order_release);
 
-    if (m_inputSink != nullptr && m_lastHostKeyDownAscii != 0)
+    if (GetInputSink() != nullptr && m_lastHostKeyDownAscii != 0)
     {
         m_lastHostKeyDownAscii = 0;
-        m_inputSink->OnHostKeyUp (released);
+        GetInputSink()->OnHostKeyUp (released);
     }
 }
 
@@ -477,10 +477,10 @@ void AppleKeyboard::EndKeyRepeat()
 
 void AppleKeyboard::EmitKbdDataRead (Word address, Byte value)
 {
-    if (m_inputSink != nullptr && m_lastEmittedKbdData != value)
+    if (m_inputSinks.IsAny() && m_lastEmittedKbdData != value)
     {
         m_lastEmittedKbdData = value;
-        m_inputSink->OnKbdDataRead (address, value, (value & 0x80) != 0);
+        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdDataRead (address, value, (value & 0x80) != 0); });
     }
 }
 
@@ -503,11 +503,27 @@ void AppleKeyboard::EmitKbdStrobe (Word address, Byte value, bool clearedStrobe)
 {
     // A real strobe-clearing edge always reports; anything else is subject
     // to the same last-value coalescing as EmitKbdDataRead.
-    if (m_inputSink != nullptr && (clearedStrobe || m_lastEmittedStrobe != value))
+    if (m_inputSinks.IsAny() && (clearedStrobe || m_lastEmittedStrobe != value))
     {
         m_lastEmittedStrobe = value;
-        m_inputSink->OnKbdStrobe (address, value, clearedStrobe);
+        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnKbdStrobe (address, value, clearedStrobe); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetReadEdges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleKeyboard::ResetReadEdges() noexcept
+{
+    m_lastEmittedKbdData = -1;
+    m_lastEmittedStrobe  = -1;
 }
 
 
@@ -595,9 +611,11 @@ Byte AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
                 m_observedLatch = static_cast<Byte> (TranslateTypedChar (fired) | 0x80);
             }
 
-            if (m_inputSink != nullptr)
+            //  Host input: the repeat follows the host's clock, which a
+            //  replay does not have, so it goes to the Panel slot alone.
+            if (GetInputSink() != nullptr)
             {
-                m_inputSink->OnHostAutoRepeat ((Byte) (key & kKeyCodeMask));
+                GetInputSink()->OnHostAutoRepeat ((Byte) (key & kKeyCodeMask));
             }
         }
     }

@@ -178,9 +178,9 @@ void Disk2Controller::HandleSwitch (int offset)
             // (when the motor is already off or already spinning
             // down). OnMotorDisengaged fires later from Tick() when
             // the spindown timer actually expires.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnMotorCommandOff();
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorCommandOff(); });
             }
 
             break;
@@ -225,13 +225,13 @@ void Disk2Controller::HandleSwitch (int offset)
                 // already-engaged motor); OnMotorEngaged fires only
                 // on the off->on edge, co-located with the audio
                 // edge detector above.
-                if (m_eventSink != nullptr)
+                if (m_eventSinks.IsAny())
                 {
-                    m_eventSink->OnMotorCommandOn();
+                    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorCommandOn(); });
 
                     if (edge)
                     {
-                        m_eventSink->OnMotorEngaged();
+                        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorEngaged(); });
                     }
                 }
             }
@@ -243,9 +243,9 @@ void Disk2Controller::HandleSwitch (int offset)
 
             // Spec-006 FR-006: drive-select event fires after the
             // engine selection has been propagated.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnDriveSelect (m_activeDrive);
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
             }
 
             break;
@@ -253,9 +253,9 @@ void Disk2Controller::HandleSwitch (int offset)
             m_activeDrive = 1;
             UpdateEngineSelection();
 
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnDriveSelect (m_activeDrive);
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
             }
 
             break;
@@ -465,17 +465,17 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     // for any single HandlePhase invocation. Reuses the same bumped
     // discriminator the audio sink uses above so the two sinks stay
     // semantically aligned (a real bump is a bump for both).
-    if (qtDelta != 0 && m_eventSink != nullptr)
+    if (qtDelta != 0 && m_eventSinks.IsAny())
     {
         bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
 
         if (bumped)
         {
-            m_eventSink->OnHeadBump (m_quarterTrack);
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadBump (m_quarterTrack); });
         }
         else
         {
-            m_eventSink->OnHeadStep (prevQt, m_quarterTrack);
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, m_quarterTrack); });
         }
     }
 }
@@ -586,9 +586,9 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
             // Spec-006 FR-006: OnMotorDisengaged fires on the
             // true->false motor transition, which happens only here
             // when the spindown counter actually expires.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnMotorDisengaged();
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorDisengaged(); });
             }
 
             // Motor-idle auto-flush: the operation is complete and this is
@@ -763,9 +763,9 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
     // Spec-006 FR-006: disk-insert event fires after the mount
     // succeeds. Place before the Error label so we don't fire on a
     // failed mount.
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskInserted (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskInserted (drive); });
     }
 
 Error:
@@ -795,9 +795,9 @@ void Disk2Controller::EjectDisk (int drive)
 
     // Spec-006 FR-006: disk-eject event fires after the slot has
     // been physically detached and the engine repointed.
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskEjected (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskEjected (drive); });
     }
 }
 
@@ -884,9 +884,9 @@ void Disk2Controller::NotifyDiskInserted (int drive)
         return;
     }
 
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskInserted (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskInserted (drive); });
     }
 }
 
@@ -907,9 +907,9 @@ void Disk2Controller::NotifyDiskEjected (int drive)
         return;
     }
 
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskEjected (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskEjected (drive); });
     }
 }
 
@@ -1035,14 +1035,15 @@ unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, M
 //  interleaved on the dialog's ring.
 //
 //  Safe to call from the UI thread between CPU slices (mirrors the
-//  spec-005 audio-sink attach pattern). Pass nullptr to detach.
+//  spec-005 audio-sink attach pattern). Pass nullptr to detach. The
+//  one-argument form sets the Panel slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::SetEventSink (IDisk2EventSink * sink) noexcept
+void Disk2Controller::SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept
 {
-    m_eventSink = sink;
-    m_addrMarkWatcher.SetEventSink (sink);
+    m_eventSinks.Set (slot, sink);
+    m_addrMarkWatcher.SetEventSink (slot, sink);
 }
 
 

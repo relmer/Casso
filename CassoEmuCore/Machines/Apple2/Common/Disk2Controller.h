@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Core/ObserverSlots.h"
 #include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
@@ -102,7 +103,8 @@ public:
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
     // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDisk2EventSink * sink) noexcept;
+    void          SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
+    void          SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
 
     // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
     // Machine, not a Disk II card, so it adds a write-only MODE register and a
@@ -249,8 +251,8 @@ protected:
 
     IDriveAudioSink *    m_audioSink   = nullptr;
 
-    IDisk2EventSink *         m_eventSink       = nullptr;
-    Disk2AddressMarkWatcher   m_addrMarkWatcher;
+    ObserverSlots<IDisk2EventSink>  m_eventSinks;
+    Disk2AddressMarkWatcher         m_addrMarkWatcher;
 
     // Fired on the CPU thread when the motor finishes spinning down; the
     // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).

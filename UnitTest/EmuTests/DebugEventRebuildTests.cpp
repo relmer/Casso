@@ -3,6 +3,8 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Events/DebugEventCache.h"
 #include "Debugger/Events/DebugEventHistory.h"
+#include "Devices/IInputEventSink.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Shell/ScratchEventReplayer.h"
 #include "HResultAssert.h"
 
@@ -98,10 +100,10 @@ namespace DebugEventRebuildTests
             m_entries = nullptr;
         }
 
-        IReverseStopTest  * GetStopTest      () override                   { return this; }
+        IReverseStopTest  * GetStopTest() override                   { return this; }
         bool                ShouldStopBefore (MachineHost &, Word) override { return false; }
-        bool                TakePendingStop  () override                   { return false; }
-        IWatchSink        * GetWatchSink     () override                   { return this; }
+        bool                TakePendingStop() override                   { return false; }
+        IWatchSink        * GetWatchSink() override                   { return this; }
 
         void  OnWatchedAccess (Word address, Byte value, BusAccess access, std::optional<Byte>) override
         {
@@ -114,6 +116,92 @@ namespace DebugEventRebuildTests
     private:
         MachineHost         * m_machine = nullptr;
         std::vector<Entry>  * m_entries = nullptr;
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  FeedEvent and FeedProbe
+    //
+    //  The Disk II and input feeds' events as one record, and a probe on the
+    //  History slot that appends them with the machine's position and cycle,
+    //  on the running machine or on one replaying history. Attaching resets
+    //  the input read edges, as each keyframe does on the running machine.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct FeedEvent
+    {
+        int  kind = 0;
+        int  a    = 0;
+        int  b    = 0;
+        int  c    = 0;
+
+        bool  operator== (const FeedEvent & other) const = default;
+    };
+
+    using FeedEntry = DebugEventEntry<FeedEvent>;
+
+    class FeedProbe : public IDebugEventProbe<FeedEvent>, public IDisk2EventSink, public IInputEventSink
+    {
+    public:
+        HRESULT  Attach (MachineHost & machine, std::vector<FeedEntry> & entries) override
+        {
+            m_machine = &machine;
+            m_entries = &entries;
+
+            machine.ResetInputReadEdges();
+            machine.AttachObservers ({ this, this }, ObserverSlot::History);
+
+            return S_OK;
+        }
+
+        void  Detach (MachineHost & machine) override
+        {
+            machine.AttachObservers ({}, ObserverSlot::History);
+
+            m_machine = nullptr;
+            m_entries = nullptr;
+        }
+
+        // IDisk2EventSink
+        void OnMotorCommandOn() override                                   { Add (1); }
+        void OnMotorEngaged() override                                   { Add (2); }
+        void OnMotorCommandOff() override                                   { Add (3); }
+        void OnMotorDisengaged() override                                   { Add (4); }
+        void OnHeadStep        (int from, int to) override                   { Add (5, from, to); }
+        void OnHeadBump        (int at) override                             { Add (6, at); }
+        void OnAddressMark     (int track, int sector, int volume) override  { Add (7, track, sector, volume); }
+        void OnDataMarkRead    (int track, int sector, int, int) override    { Add (8, track, sector); }
+        void OnDataMarkWrite   (int track, int sector, int, int) override    { Add (9, track, sector); }
+        void OnDriveSelect     (int drive) override                          { Add (10, drive); }
+        void OnDiskInserted    (int drive) override                          { Add (11, drive); }
+        void OnDiskEjected     (int drive) override                          { Add (12, drive); }
+
+        // IInputEventSink: the History slot receives guest reads only.
+        void OnKbdDataRead    (Word address, Byte value, bool) override  { Add (20, address, value); }
+        void OnKbdStrobe      (Word address, Byte value, bool) override  { Add (21, address, value); }
+        void OnButtonRead     (Word address, Byte value) override        { Add (22, address, value); }
+        void OnPaddleTrigger  (Word address) override                    { Add (23, address); }
+        void OnPaddleRead     (Word address, Byte value) override        { Add (24, address, value); }
+        void OnHostAutoRepeat (Byte) override                            { Add (99); }
+        void OnHostKeyDown    (Byte) override                            { Add (99); }
+        void OnHostKeyUp      (Byte) override                            { Add (99); }
+
+    private:
+        void  Add (int kind, int a = 0, int b = 0, int c = 0)
+        {
+            if (m_entries != nullptr)
+            {
+                m_entries->push_back (FeedEntry { DebugEventEntryKind::Event, m_machine->GetPosition(), m_machine->GetCpu()->GetTotalCycles(), FeedEvent { kind, a, b, c } });
+            }
+        }
+
+        MachineHost             * m_machine = nullptr;
+        std::vector<FeedEntry>  * m_entries = nullptr;
     };
 
 
@@ -277,6 +365,94 @@ namespace DebugEventRebuildTests
             }
 
             Assert::AreEqual (second.stretches.size(), taken);
+        }
+
+
+        //  The Disk II and input feeds rebuilt from history equal what the
+        //  running machine reported on its History slot, when the input read
+        //  edges reset at every keyframe as the probe resets them in replay.
+        TEST_METHOD (TheDiskAndInputFeedsRebuildAsSeenLive)
+        {
+            TestMachine                                      machine    { "Apple2e" };
+            ReverseController                                controller { machine };
+            FeedProbe                                        live;
+            std::vector<FeedEntry>                           seen;
+            DebugEventHistory                                history    (machine);
+            std::vector<DebugEventBounds>                    stretches;
+            DebugEventJob                                    job;
+            ScratchEventReplayer<FeedEvent>                  replayer   (std::make_unique<FeedProbe>());
+            std::vector<DebugEventStretchResult<FeedEvent>>  results;
+            std::vector<FeedEntry>                           expected;
+            size_t                                           disk       = 0;
+            size_t                                           input      = 0;
+            size_t                                           slice      = 0;
+            size_t                                           spent      = 0;
+            HRESULT                                          hr         = S_OK;
+
+
+
+            ReverseSessionRig::Prepare (machine);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            hr = live.Attach (machine, seen);
+            AssertSucceeded (hr, L"Attach");
+
+            controller.SetKeyframeListener (this, [&machine] (uint64_t) { machine.ResetInputReadEdges(); });
+
+            for (slice = 0; slice < kSlices; slice++)
+            {
+                ReverseSessionRig::Feed (machine, slice);
+
+                for (spent = 0; spent < kSliceCycles; )
+                {
+                    spent += machine.StepOne();
+                }
+            }
+
+            controller.SetKeyframeListener (this, nullptr);
+            live.Detach (machine);
+
+            hr = controller.GetKeyframes().WaitForPending();
+            AssertSucceeded (hr, L"WaitForPending");
+
+            history.Attach (&controller.GetKeyframes());
+            history.GetStretches (stretches);
+            std::ranges::reverse (stretches);
+
+            hr = history.BuildJob (stretches, job);
+            AssertSucceeded (hr, L"BuildJob");
+
+            replayer.SetMachine (machine.GetConfig(), machine.GetCurrentMachineName());
+
+            hr = replayer.Rebuild (job, results);
+            AssertSucceeded (hr, L"Rebuild");
+
+            for (const DebugEventStretchResult<FeedEvent> & result : results)
+            {
+                expected.clear();
+                std::ranges::copy_if (seen, std::back_inserter (expected), [&result] (const FeedEntry & entry)
+                {
+                    return entry.position >= result.startPosition && entry.position < result.endPosition;
+                });
+
+                Assert::AreEqual (expected.size(), result.entries.size(), std::format (L"the stretch from {}", result.startPosition).c_str());
+
+                for (size_t i = 0; i < expected.size(); i++)
+                {
+                    Assert::IsTrue (expected[i].position == result.entries[i].position && expected[i].cycle == result.entries[i].cycle &&
+                                    expected[i].event == result.entries[i].event,
+                                    std::format (L"event {} of the stretch from {}: kind {}", i, result.startPosition, expected[i].event.kind).c_str());
+                }
+
+                disk  += std::ranges::count_if (expected, [] (const FeedEntry & entry) { return entry.event.kind < 20; });
+                input += std::ranges::count_if (expected, [] (const FeedEntry & entry) { return entry.event.kind >= 20; });
+            }
+
+            Assert::IsTrue (disk > 0,  L"the loop ran the disk");
+            Assert::IsTrue (input > 0, L"and polled the keyboard and paddle");
+            Assert::IsFalse (std::ranges::any_of (seen, [] (const FeedEntry & entry) { return entry.event.kind == 99; }), L"no host input on the History slot");
         }
 
 

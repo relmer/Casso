@@ -419,12 +419,16 @@ void Apple2eSoftSwitchBank::SyncObservedInputs()
 
 void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
 {
+    IInputEventSink  * panel = m_inputSinks.Get (ObserverSlot::Panel);
+
+
+
     // No sink, or the same value we last reported: either way there is no
     // change to announce.
-    if (m_inputSink != nullptr && m_lastEmittedHostPaddle[axis] != value)
+    if (panel != nullptr && m_lastEmittedHostPaddle[axis] != value)
     {
         m_lastEmittedHostPaddle[axis] = value;
-        m_inputSink->OnHostPaddle (axis, value);
+        panel->OnHostPaddle (axis, value);
     }
 }
 
@@ -445,10 +449,7 @@ void Apple2eSoftSwitchBank::EmitPaddleTrigger()
 {
     // Not coalesced, unlike the read emitters: every strobe is a distinct
     // arming event the panel wants to show.
-    if (m_inputSink != nullptr)
-    {
-        m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
-    }
+    m_inputSinks.ForEach ([] (IInputEventSink & sink) { sink.OnPaddleTrigger (s_kwPaddleTimerStrobe); });
 }
 
 
@@ -473,10 +474,10 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 
     // Same coalescing rule as EmitHostPaddle, on the guest-read side.
-    if (m_inputSink != nullptr && m_lastEmittedPaddle[idx] != value)
+    if (m_inputSinks.IsAny() && m_lastEmittedPaddle[idx] != value)
     {
         m_lastEmittedPaddle[idx] = value;
-        m_inputSink->OnPaddleRead (address, value);
+        m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
     }
 }
 
