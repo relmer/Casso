@@ -4169,7 +4169,10 @@ void DebuggerWindow::OnWindowClose()
 
     m_barHost.Hide();
     m_timelineHost.Hide();
-    m_timelineStrip.HidePreview();
+
+    //  OnMouseLeave clears the hover with the preview; with the hover set,
+    //  the next frame's Sync opens the preview again for that cell.
+    m_timelineStrip.OnMouseLeave();
 
     if (m_host != nullptr && m_host->GetHistoryThumbnails() != nullptr)
     {
@@ -12167,6 +12170,11 @@ void DebuggerWindow::OnWindowFocusChanged (bool focused)
     if (!focused)
     {
         m_stopFocus.OnInput (false);
+
+        //  The pointer can move off the timeline while another window is
+        //  active, and the strip then gets no OnMouseLeave, so it is called
+        //  here.
+        m_timelineStrip.OnMouseLeave();
     }
 
     m_accentOwner.OnMainFocusChanged (focused);

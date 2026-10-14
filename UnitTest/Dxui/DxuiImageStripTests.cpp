@@ -1364,6 +1364,40 @@ public:
     }
 
 
+    //  OnMouseLeave clears the hover as well as the preview, so the preview
+    //  stays closed after the next Sync, which reopens it for a hovered cell.
+    //  The debugger window calls it when it closes or another window takes
+    //  the focus, since the pointer can move off the strip with no
+    //  OnMouseLeave delivered.
+    TEST_METHOD (OnMouseLeaveClosesThePreviewThroughTheNextSync)
+    {
+        DxuiHwndSource      host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+        DxuiImageStrip      strip;
+        PictureStripSource  source;
+        DxuiDpiScaler       scaler;
+
+
+
+        strip.SetSource    (&source);
+        strip.SetAspect    (s_kStripAspect);
+        strip.SetPopupHost (&host);
+        strip.Layout       (RECT { 0, 0, 479, 32 }, false, scaler);
+
+        source.thumbs[0]   = PictureStripSource::MakePicture (47, 32);
+        source.previews[0] = PictureStripSource::MakePicture (280, 192);
+
+        strip.OnMouseMove (5, 5);
+        Assert::IsTrue (strip.IsPreviewShown(), L"the preview is up");
+
+        strip.HidePreview();
+        strip.Sync();
+        Assert::IsTrue (strip.IsPreviewShown(), L"hidden alone, it reopens for the hovered cell");
+
+        strip.OnMouseLeave();
+        strip.Sync();
+        Assert::IsFalse (strip.IsPreviewShown(), L"after OnMouseLeave it stays closed");
+    }
+
     //  The preview always shows the snapshot the hovered cell shows, whichever
     //  way the pointer came. Moving to a cell whose full-size picture is not
     //  drawn yet shows its own thumbnail scaled up, never the sharp picture
