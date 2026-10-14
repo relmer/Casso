@@ -195,6 +195,12 @@ public:
     // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
 
+    // Text a fitted column must have room for, for a list whose rows come
+    // from a provider and are never measured: each string not noted before
+    // is measured at the next paint, in the list's face, and its column is
+    // at least that wide from then on. A column whose text comes from a
+    // fixed set notes the whole set once.
+    void  NoteFitText               (size_t idx, const std::wstring & text);
     // Opt-in re-fit for a list whose rows change on every refresh (a
     // debugger pane): SetRows asks the next paint to re-measure, and precise
     // widths only grow. Off by default, because a large list pays for a
@@ -641,6 +647,7 @@ private:
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
     void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
+    void         RequeueFitTexts     ();
     // The cell vector for row `r`: the provider scratch in virtual mode
     // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
     const std::vector<Cell> & GetRowCells (int r) const;
@@ -882,6 +889,11 @@ private:
     int               m_lastDividerCol = -1;
     int64_t           m_lastDividerMs  = 0;
     int               m_pendingFitCol  = -1;
+
+    // NoteFitText's strings: those noted for each column, and those not yet
+    // measured.
+    std::vector<std::unordered_set<std::wstring>>         m_notedFitTexts;
+    mutable std::vector<std::pair<size_t, std::wstring>>  m_pendingFitTexts;
 
     //  Characters typed toward a row, and when the last one arrived.
     std::wstring  m_typeAhead;

@@ -559,6 +559,37 @@ DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NoteFitTexts
+//
+//  Every severity and every event label, so the two columns have their
+//  width before the first row arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskLogPane::NoteFitTexts()
+{
+    constexpr int  kLastType = static_cast<int> (Disk2EventType::WriteProtected);
+    size_t         i         = 0;
+
+
+
+    for (i = 0; i < kSeverityCount; i++)
+    {
+        GetList()->NoteFitText (kSeverity, GetSeverityLabel ((Severity) i));
+    }
+
+    for (int type = 0; type <= kLastType; type++)
+    {
+        GetList()->NoteFitText (kEvent, GetEventLabel ((Disk2EventType) type));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Matches
 //
 ////////////////////////////////////////////////////////////////////////////////

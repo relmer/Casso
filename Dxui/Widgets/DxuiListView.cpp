@@ -84,6 +84,8 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
     m_measuredWPx.clear();
     m_overrideWPx.assign (m_columns.size(), -1);
 
+    RequeueFitTexts();
+
     // NOTE: deliberately does NOT ResetAutoFit. Consumers re-issue
     // SetColumns on width / visibility changes (and per mouse-move
     // during a column-resize drag); resetting here would collapse the
@@ -610,6 +612,48 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         m_measuredWPx[c] = std::max (m_measuredWPx[c], wpx + padPx);
     }
+
+    for (const auto & [c, noted] : m_pendingFitTexts)
+    {
+        if (c < m_columns.size())
+        {
+            hr = text.MeasureString (noted.c_str(), fontDip, GetBodyFace(), w, h);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            m_measuredWPx[c] = std::max (m_measuredWPx[c], (int) std::ceil (w) + padPx);
+        }
+    }
+
+    m_pendingFitTexts.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteFitText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::NoteFitText (size_t idx, const std::wstring & text)
+{
+    if (idx >= m_columns.size() || text.empty())
+    {
+        return;
+    }
+
+    if (m_notedFitTexts.size() != m_columns.size())
+    {
+        m_notedFitTexts.assign (m_columns.size(), {});
+    }
+
+    if (m_notedFitTexts[idx].insert (text).second)
+    {
+        m_pendingFitTexts.push_back ({ idx, text });
+        m_measureDirty = true;
+    }
 }
 
 
@@ -698,6 +742,41 @@ void DxuiListView::ResetAutoFit()
     m_autoMaxChars.clear();
     m_measuredWPx.clear();
     m_measureDirty = true;
+
+    RequeueFitTexts();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequeueFitTexts
+//
+//  The measured widths were dropped, so every noted text is measured again
+//  at the next paint; with a different count of columns the noted text no
+//  longer applies and is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::RequeueFitTexts()
+{
+    m_pendingFitTexts.clear();
+
+    if (m_notedFitTexts.size() != m_columns.size())
+    {
+        m_notedFitTexts.clear();
+        return;
+    }
+
+    for (size_t c = 0; c < m_notedFitTexts.size(); c++)
+    {
+        for (const std::wstring & noted : m_notedFitTexts[c])
+        {
+            m_pendingFitTexts.push_back ({ c, noted });
+        }
+    }
 }
 
 
@@ -2879,7 +2958,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     pal = MakePalette();
 
-    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty))
+    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty) || !m_pendingFitTexts.empty())
     {
         MeasureColumnsPx (text);
         m_measureDirty = false;

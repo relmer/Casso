@@ -507,11 +507,12 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
-    //  The event logs' rows come from a provider, which the precise fit never
-    //  measures, so their columns fit the rows drawn, as the trace's do.
+    //  The event logs are text, not code, so they are in the proportional
+    //  face; their fitted columns are measured from the labels the panes
+    //  note (EventLogPane::NoteFitTexts).
     for (DxuiListView * log : { m_diskLog.list, m_inputLog.list })
     {
-        log->SetPreciseAutoFit (false);
+        log->SetMonospace (false);
     }
 
     //  A disassembly opens with its glyph margin for the breakpoints and the

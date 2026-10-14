@@ -106,6 +106,7 @@ public:
 
 protected:
     ColumnSpecs  GetColumnSpecs () const override;
+    void         NoteFitTexts   () override;
     bool         Matches        (const Row & row, size_t index) const override;
     void         MakeCells      (const Row & row, Cells & out) const override;
     size_t       GetLabelColumn () const override { return kEvent; }

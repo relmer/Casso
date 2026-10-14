@@ -40,8 +40,8 @@ public:
     using RequestFn = std::function<void (const std::string & request)>;
 
     //  A column's heading, alignment, starting width (0 to take the room
-    //  left, kFit to fit the widest text drawn in it) and whether it is
-    //  visible by default.
+    //  left, kFit to fit the text NoteFitTexts notes for it) and whether it
+    //  is visible by default.
     struct ColumnSpec
     {
         const wchar_t   * title    = L"";
@@ -66,8 +66,9 @@ public:
 
     DxuiListView *  GetList () const { return m_list; }
 
-    //  The list's columns, its rows from this pane, and a header press that
-    //  sorts.
+    //  The list's columns, its rows from this pane, a header press that
+    //  sorts, and the text the fitted columns must have room for: the rows
+    //  come from a provider, so the list never measures them.
     void  Configure()
     {
         std::vector<DxuiListView::Column>  columns;
@@ -82,10 +83,18 @@ public:
         m_list->SetColumns           (std::move (columns));
         m_list->SetRowProvider       (0, [this] (int row, Cells & out) { ProvideRow (row, out); });
         m_list->EnableStickyTail     (true);
-        m_list->SetPreciseAutoFit    (false);
+        m_list->SetPreciseAutoFit    (true);
         m_list->SetMultiSelect       (true);
         m_list->SetKeyboardColumnNav (true);
         m_list->SetOnSortColumn      ([this] (int column) { SortBy (column); });
+
+        for (const wchar_t * label : { EventLogText::GetGapLabel(), EventLogText::GetUnavailableLabel(),
+                                       EventLogText::GetResetLabel(), EventLogText::GetPowerCycleLabel() })
+        {
+            m_list->NoteFitText (GetLabelColumn(), label);
+        }
+
+        NoteFitTexts();
     }
 
     //  The pane made visible or hidden: the machine's thread sends its deltas
@@ -404,6 +413,10 @@ protected:
     using ColumnSpecs = std::vector<ColumnSpec>;
 
     virtual ColumnSpecs  GetColumnSpecs () const = 0;
+
+    //  Notes every text a fitted column can have, when that is a fixed set,
+    //  with the list's NoteFitText.
+    virtual void         NoteFitTexts   () {}
     virtual void         PrepareView    (const std::vector<Row> & rows) { (void) rows; }
     virtual bool         Matches        (const Row & row, size_t index) const = 0;
     virtual void         MakeCells      (const Row & row, Cells & out) const = 0;
