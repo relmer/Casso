@@ -44,6 +44,14 @@ public:
     static constexpr int    kPhaseCount      = 4;
     static constexpr int    kMaxQuarterTrack = 139;
 
+    // A phase's magnets are a half track (two quarter tracks) from the next
+    // phase's.
+    static constexpr int    kQuarterTracksPerHalfTrack = 2;
+
+    // How far, in quarter tracks, the energized phases move a head at
+    // quarterTrack (HandlePhase).
+    static int  GetPull (uint8_t phases, int quarterTrack);
+
     // Real Disk II: writing $C0E8 (motor off) starts a ~1-second
     // spindown so DOS RWTS can toggle the motor off between
     // commands without losing rotational sync. UTAIIe ch. 9 /

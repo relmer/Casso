@@ -316,6 +316,87 @@ namespace Disk2ControllerEventTests
         }
 
 
+        //  A DOS seek turns the next phase on before it turns the last one
+        //  off: the first pulls the head to the quarter track between, and
+        //  the second finishes the half-track step. Each quarter-track move
+        //  is a step event.
+        TEST_METHOD (ADosSeekPassesTheQuarterTrackBetween)
+        {
+            RecordingEventSink   sink;
+            Disk2Controller      ctrl (6);
+            std::vector<int>     positions;
+
+
+
+            ctrl.SetEventSink (&sink);
+
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on: the head is there
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on
+            ctrl.Write (0xC0E0, 0x00);      // phase 0 off
+            ctrl.Write (0xC0E5, 0x00);      // phase 2 on
+            ctrl.Write (0xC0E2, 0x00);      // phase 1 off
+
+            for (const auto & logEntry : sink.log)
+            {
+                if (logEntry.event == RecordingEventSink::Event::HeadStep)
+                {
+                    positions.push_back (logEntry.arg);
+                }
+            }
+
+            Assert::IsTrue   ((positions == std::vector<int> { 1, 2, 3, 4 }), L"quarter tracks 1, 2, 3 and 4");
+            Assert::AreEqual (4, ctrl.GetQuarterTrack());
+        }
+
+
+        //  With two adjacent phases on, the head rests on the quarter track
+        //  between them, and a phase turned on again does not move it.
+        TEST_METHOD (TwoAdjacentPhasesHoldTheQuarterTrackBetween)
+        {
+            Disk2Controller  ctrl (6);
+
+
+
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on
+            Assert::AreEqual (1, ctrl.GetQuarterTrack());
+
+            ctrl.Write (0xC0E3, 0x00);
+            ctrl.Write (0xC0E1, 0x00);
+            Assert::AreEqual (1, ctrl.GetQuarterTrack(), L"the same phases hold it there");
+        }
+
+
+        //  A phase directly opposite the head pulls neither way, so with
+        //  opposite phases on, or the opposite phase alone, the head does not
+        //  move.
+        TEST_METHOD (OppositePhasesDoNotMoveTheHead)
+        {
+            Disk2Controller  ctrl (6);
+
+
+
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on
+            ctrl.Write (0xC0E5, 0x00);      // phase 2 on, opposite
+            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+
+            ctrl.Write (0xC0E0, 0x00);      // phase 0 off: phase 2 alone, opposite
+            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+        }
+
+
+        TEST_METHOD (ThePullIsTheAverageOfTheEnergizedPhases)
+        {
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0000, 5),  L"no phase on");
+            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 0),  L"phase 1 from track 0");
+            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0011, 0),  L"phases 0 and 1: the quarter track between");
+            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0010, 1),  L"phase 1 from the quarter track before it");
+            Assert::AreEqual (-2, Disk2Controller::GetPull (0b1000, 0),  L"phase 3 pulls back from track 0");
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0100, 0),  L"phase 2 is opposite track 0");
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b1011, 0),  L"phases 3, 0 and 1 balance");
+            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 64), L"the cycle repeats every eight quarter tracks");
+        }
+
         TEST_METHOD (DriveSelect_firesOnceWithNewDriveIndex)
         {
             RecordingEventSink   sink;

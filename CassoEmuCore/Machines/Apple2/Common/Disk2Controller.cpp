@@ -381,108 +381,83 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 //  HandlePhase
 //
-//  Update the phase mask, walk the head toward the newly-energized phase,
-//  clamp to legal range, then push the resulting quarter-track index into
-//  the active drive's engine.
+//  Update the phase mask, move the head to where the energized phases pull
+//  it, clamp to the legal range, then push the resulting quarter-track index
+//  into the active drive's engine.
+//
+//  THE HEAD FOLLOWS THE MAGNETS THAT ARE ON. Phase p's magnets sit at the
+//  quarter tracks where qt mod 8 is 2p, so each energized phase pulls the
+//  head toward its nearest magnet, up to three quarter tracks either way,
+//  and the head comes to rest at the average of the pulls (GetPull). With
+//  one phase on, the head rests on that phase's track; with two adjacent
+//  phases on, it rests on the quarter track between them, the only way to a
+//  quarter track. A phase directly opposite the head pulls neither way, and
+//  with none on, or with two opposite ones, the head does not move. A phase
+//  turned off can move the head as well as one turned on: a DOS seek turns
+//  the next phase on before it turns the last one off, so the head stops on
+//  the quarter track between, and the last one going off finishes the
+//  half-track step.
+//
+//  The step sound fires on a move that ends on a half-track position, so a
+//  DOS seek's two moves sound as the one step they make (UTAIIe ch. 9,
+//  Sather p. 9-12).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::HandlePhase (int phase, bool on)
 {
-    // Stepper model ported clean-room from apple2js (MIT), disk2.ts
-    // setPhase + PHASE_DELTA. UTAIIe ch. 9 / Sather p. 9-12.
-    //
-    // The cog tracks the last-energized phase magnet (m_phase), NOT a
-    // position-derived magnet index. On each phase-ON event the head
-    // moves PHASE_DELTA[m_phase][phase] half-tracks (= *2 quarter-tracks)
-    // toward the newly-energized magnet, then remembers the new phase.
-    // Phase-OFF events do not move the head -- the cog holds its detent.
-    //
-    // Because every delta is an even number of quarter-tracks, a normal
-    // two-phase DOS step lands the head on a whole- or half-track detent
-    // (quarter-track index even); it can never get marooned on an odd
-    // quarter-track between detents. The previous position-derived model
-    // (`(m_quarterTrack / 2) & 3`) could not distinguish qt N from qt N+1
-    // and would leave the head stuck one quarter-track off a real track,
-    // serving unformatted noise on narrow-band protected disks.
-    static constexpr int  kPhaseDelta[kPhaseCount][kPhaseCount] =
-    {
-        {  0,  1,  2, -1 },
-        { -1,  0,  1,  2 },
-        { -2, -1,  0,  1 },
-        {  1, -2, -1,  0 },
-    };
+    int   prevQt  = m_quarterTrack;
+    int   target  = prevQt;
+    bool  bumped  = false;
 
 
-
-    int  prevQt  = m_quarterTrack;
-    int  qtDelta = 0;
-    int  postRaw = prevQt;
 
     if (on)
     {
         m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
+        m_phase  = phase;
     }
     else
     {
         m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    if (on)
-    {
-        qtDelta = kPhaseDelta[m_phase][phase] * 2;
-        m_phase = phase;
-    }
-
-    postRaw         = prevQt + qtDelta;
-    m_quarterTrack += qtDelta;
-
-    if (m_quarterTrack < 0)
-    {
-        m_quarterTrack = 0;
-    }
-
-    if (m_quarterTrack > kMaxQuarterTrack)
-    {
-        m_quarterTrack = kMaxQuarterTrack;
-    }
+    target          = prevQt + GetPull (m_phases, prevQt);
+    bumped          = target < 0 || target > kMaxQuarterTrack;
+    m_quarterTrack  = std::clamp (target, 0, kMaxQuarterTrack);
 
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
 
-    if (qtDelta != 0)
+    if (target == prevQt)
     {
-        m_addrMarkWatcher.NoteHeadMoved (m_quarterTrack);
+        return;
     }
 
-    // Audio sink (FR-003 / FR-004). Fire only when the head actually
-    // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
-    // max-track bump by checking the *unclamped* target position
-    // against the legal range -- if the raw move would have walked
-    // past a travel stop, the stepper is energized but the head can't
-    // move, producing the audible "thunk." Mutually exclusive: a
-    // single phase event produces either a step or a bump, never both.
-    if (qtDelta != 0 && m_audioSink != nullptr)
-    {
-        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
+    m_addrMarkWatcher.NoteHeadMoved (m_quarterTrack);
 
+    // Audio sink (FR-003 / FR-004). Distinguish a normal step from a
+    // track-0 / max-track bump by checking the *unclamped* target
+    // position against the legal range -- if the move would have walked
+    // past a travel stop, the stepper is energized but the head can't
+    // move, producing the audible "thunk." Mutually exclusive: a single
+    // phase event produces either a step or a bump, never both.
+    if (m_audioSink != nullptr)
+    {
         if (bumped)
         {
             m_audioSink->OnHeadBump();
         }
-        else
+        else if (m_quarterTrack % kQuarterTracksPerHalfTrack == 0)
         {
             m_audioSink->OnHeadStep (m_quarterTrack);
         }
     }
 
-    // Spec-006 FR-006: head-step / head-bump are mutually exclusive
-    // for any single HandlePhase invocation. Reuses the same bumped
-    // discriminator the audio sink uses above so the two sinks stay
-    // semantically aligned (a real bump is a bump for both).
-    if (qtDelta != 0 && m_eventSinks.IsAny())
+    // Spec-006 FR-006: head-step / head-bump are mutually exclusive for
+    // any single HandlePhase invocation; every quarter-track move is a
+    // step.
+    if (m_eventSinks.IsAny())
     {
-        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
-
         if (bumped)
         {
             m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadBump (m_quarterTrack); });
@@ -492,6 +467,57 @@ void Disk2Controller::HandlePhase (int phase, bool on)
             m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, m_quarterTrack); });
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPull
+//
+//  How far, in quarter tracks, the energized phases move a head at
+//  quarterTrack: the average of each phase's distance to its nearest
+//  magnet, rounded to the nearest quarter track. A phase four quarter tracks
+//  away, directly opposite, is left out, since it pulls neither way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Disk2Controller::GetPull (uint8_t phases, int quarterTrack)
+{
+    constexpr int  kMagnetCycle = kPhaseCount * kQuarterTracksPerHalfTrack;
+    constexpr int  kOpposite    = kMagnetCycle / 2;
+    int            sum          = 0;
+    int            count        = 0;
+    int            distance     = 0;
+
+
+
+    for (int phase = 0; phase < kPhaseCount; phase++)
+    {
+        if ((phases & (1 << phase)) == 0)
+        {
+            continue;
+        }
+
+        distance = ((phase * kQuarterTracksPerHalfTrack - quarterTrack) % kMagnetCycle + kMagnetCycle) % kMagnetCycle;
+
+        if (distance == kOpposite)
+        {
+            continue;
+        }
+
+        sum += (distance > kOpposite) ? distance - kMagnetCycle : distance;
+        count++;
+    }
+
+    if (count == 0)
+    {
+        return 0;
+    }
+
+    return (2 * sum + ((sum >= 0) ? count : -count)) / (2 * count);
 }
 
 
