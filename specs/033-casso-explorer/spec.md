@@ -173,6 +173,21 @@ the browser layout needs and the browser itself.
   shown with GS/OS lowercase flags where present, and written in uppercase
   with those flags keeping the typed case.
 
+### Session 2026-10-13
+
+- Q: Which text previews are drawn in the Apple II character set on the
+  monitor? → A: BASIC listings and text files inside disk images, and host
+  files Casso Explorer exported, each with a file name ending in
+  `.Applesoft BASIC.txt`, `.Integer BASIC.txt` or `.Text.txt`; every other
+  host text file is drawn in the theme's font.
+- Q: How is the Apple text laid out? → A: To fit the Preview pane, wrapping
+  at its width and scrolling when longer than the pane; the goal is the character set and
+  the display effects, not the Apple II screen's 40 or 80 columns.
+- Q: Which machine's character ROM supplies the glyphs? → A: The enhanced
+  //e video ROM; when it is missing, another installed machine's video ROM,
+  with lowercase drawn as uppercase where that ROM has none; when none is
+  installed, the built-in character table.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -503,7 +518,8 @@ and text files shows four different icons in every view.
 A user previewing a picture inside a disk image sees it as Casso would show
 it: on a color, green, amber, white or custom monitor, with the same
 display effects Casso offers, switched from a drop-down beside Theme and
-tuned on a Display page in Casso Explorer's options.
+tuned on a Display page in Casso Explorer's options. A BASIC listing or an
+Apple text file is drawn the same way, in the Apple II character set.
 
 **Why this priority**: An Apple II picture was made to be seen on a
 monitor, and a green or amber screen changes how it reads; a user who has
@@ -535,6 +551,11 @@ picture between color and monochrome and see it redrawn each way.
 5. **Given** a monitor is chosen in Casso Explorer, **When** Casso's own
    display settings change, **Then** Casso Explorer's are unchanged, and
    the other way around.
+6. **Given** an Applesoft listing, an Integer BASIC listing or a text file
+   inside a disk image, or a copy Casso Explorer exported to the host,
+   **When** it is previewed, **Then** its text is drawn in the Apple II
+   character set on the chosen monitor with the same effects, wrapped to
+   the pane's width and scrolled when longer than the pane.
 ### User Story 10 - Previews of everything File Explorer previews (Priority: P3)
 
 A user selecting a Word document, a PDF, a picture or any other file
@@ -664,8 +685,15 @@ words at each, and drop on each.
   color picture as Casso's monochrome monitor shows it, in shades of the
   one color, and a monochrome double hi-res picture in the one color on
   black.
-- **Listings, text and hex**: these previews are not pictures and keep
-  their look whatever monitor is chosen.- **Registration is never silent**: installing, starting or updating Casso
+- **Hex, catalogs and host text**: a hex view, a catalog and a host text
+  file that is not an exported Apple file are drawn in the theme's font
+  whatever monitor is chosen.
+- **No character ROM installed**: Apple text is drawn from the built-in
+  character table, so the preview never fails because no ROM is installed.
+- **A ROM without lowercase**: when only a ][ or ][+ video ROM is
+  installed, lowercase letters are drawn as uppercase, as those machines
+  draw them.
+- **Registration is never silent**: installing, starting or updating Casso
   writes no association; only the user's own choice in Casso does.
 - **A format another program already owns**: registering takes it for
   Casso and remembers the program it had, so unregistering gives it back.
@@ -1149,8 +1177,8 @@ words at each, and drop on each.
   wrote, leaving the user's associations as they found them.
 - **FR-067**: A picture preview MUST be drawn on the chosen monitor --
   color, green, amber, white or custom -- with Casso's display effects,
-  drawn as Casso draws them; listing, text, hex and catalog previews MUST
-  be unaffected.
+  drawn as Casso draws them; hex and catalog previews, and host text files
+  other than those FR-082 covers, MUST be unaffected.
 - **FR-068**: The command bar MUST carry a monitor drop-down beside Theme,
   as Casso's toolbar carries one, listing the same styles.
 - **FR-069**: The options dialog MUST have a Display page holding Casso's
@@ -1194,6 +1222,16 @@ words at each, and drop on each.
   no-drop pointer.
 - **FR-081**: A press on empty space in every view, Details included, MUST
   start a selection rectangle that selects every item it touches.
+- **FR-082**: An Applesoft or Integer BASIC listing or a text file inside a
+  disk image, and a host file Casso Explorer exported from one, whose file
+  name ends in `.Applesoft BASIC.txt`, `.Integer BASIC.txt` or `.Text.txt`,
+  MUST be previewed in the Apple II character set on the chosen monitor
+  with Casso's display effects, wrapped to the Preview pane's width and
+  scrolled when longer than the pane, not laid out as the Apple II's 40 or 80 column screen.
+- **FR-083**: Apple text MUST take its glyphs from the enhanced //e video
+  ROM Casso installs; when that is missing, from another installed
+  machine's video ROM, with lowercase drawn as uppercase where that ROM has
+  none; and when none is installed, from the built-in character table.
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -1301,6 +1339,9 @@ words at each, and drop on each.
   without leaving Casso Explorer, in under a minute.
 - **SC-025**: Over a folder, a drive, a disk image, an archive and a program, the highlight and the
   words under the pointer match File Explorer's for the same drag.
+- **SC-026**: In an Applesoft listing previewed on the green monitor, each
+  character is the enhanced //e ROM's glyph, with the same effects as a
+  picture, and the text reflows without clipping as the pane is resized.
 ## Assumptions
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and
