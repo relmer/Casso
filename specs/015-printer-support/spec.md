@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-07
 
-**Status**: Draft
+**Status**: Shipped in 1.14.0 (2026-07-26)
 
 **Input**: User description: "Emulated printer support for the Apple //e emulator, with The Print Shop (and New Print Shop color printing) as the flagship scenario. Emulate an Apple ImageWriter II printer (C. Itoh 8510 command set with Apple extensions), including color ribbon support (ESC K color selection: black, yellow, red, blue, orange, green, purple), bit-image graphics (ESC G et al.), pitch-based horizontal densities (72-160 dpi), and 72/144 dpi vertical via half-line feeds. The printer interpreter is a pure byte-stream-in, page-raster-out component (unit-testable with synthetic byte streams, no hardware or system dependencies). The guest sends bytes via an emulated slot interface card: start with a generic parallel interface card (data latch + status register in the slot I/O window, plus a minimal custom slot firmware ROM we assemble with the in-repo assembler); emulate a Super Serial Card (6551 ACIA) only if Print Shop refuses to drive an ImageWriter II through a parallel card. Rasterized output goes to a user-selectable destination configured in settings: (1) clipboard as bitmap, (2) PNG file, (3) Windows printer via the standard Windows print dialog initially (a custom dxui print dialog is a later follow-on, out of scope). PDF output is achieved via the Windows \"Microsoft Print to PDF\" printer rather than a dedicated PDF writer. For clipboard/PNG destinations, emulate continuous fanfold paper so multi-page Print Shop banners render as one continuous image; pagination applies only to the Windows printer destination."
 

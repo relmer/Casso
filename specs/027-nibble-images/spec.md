@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-29
 
-**Status**: Draft
+**Status**: Shipped in 1.22.0 (2026-08-31)
 
 **Input**: User description: "Mount and write back `.nib` nibble disk images, split out of spec 022's User Story 2."
 

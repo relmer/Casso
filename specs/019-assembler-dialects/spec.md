@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-15
 
-**Status**: Draft
+**Status**: Shipped in 1.18.0 (2026-08-21)
 
 **Input**: User description: "Broaden Casso's assembler beyond its single AS65-flavored dialect to also accept Merlin source, what the classic Apple II world writes in, so developers can bring existing source instead of porting it." (Seeded by GitHub issue #92.)
 
