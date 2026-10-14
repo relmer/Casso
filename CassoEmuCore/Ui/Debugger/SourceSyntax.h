@@ -73,6 +73,10 @@ public:
     //  A disassembled instruction: its mnemonic, then its operand.
     static std::vector<Run>  GetInstructionRuns (const std::wstring & instruction);
 
+    //  An operand alone, such as a watch's "RNDL $004E": its symbols,
+    //  numbers and strings.
+    static std::vector<Run>  GetOperandRuns     (const std::wstring & operand);
+
     static bool  IsMnemonic (const std::wstring & word);
 
     //  A line of a file, a listing or not: a listing row's address and bytes,

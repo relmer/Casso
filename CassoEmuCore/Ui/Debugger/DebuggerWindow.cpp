@@ -7473,6 +7473,13 @@ void DebuggerWindow::ApplySnapshot()
             value.weight = name.weight;
             name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
 
+            //  A memory watch's symbol and address in the colors the code
+            //  pane draws them in.
+            if (line.key.starts_with ("M:"))
+            {
+                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+            }
+
             if (m_stopChanges.IsChanged ("A:" + line.key))
             {
                 value.argb = GetChangedArgb();
@@ -7492,10 +7499,19 @@ void DebuggerWindow::ApplySnapshot()
         DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
         DxuiListView::Cell  value = { Widen (watch.value) };
 
-        //  A disabled watch is dimmed, as a disabled breakpoint is.
+        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
+        //  one's address is in the color the code pane draws addresses in.
         name.dim  = !watch.enabled;
         value.dim = !watch.enabled;
         name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
+
+        if (watch.enabled)
+        {
+            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+
+            //  The #n before it is the watch's number, not an immediate.
+            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
+        }
 
         if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
         {

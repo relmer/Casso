@@ -374,4 +374,20 @@ public:
         Assert::IsTrue (DxuiColor::ComputeContrastRatio (fixedColor, 0xFFFFFFFF) >= DebuggerTextColors::s_kMinTextContrast);
         Assert::IsTrue (DxuiColor::ComputeRelativeLuminance (fixedColor) < DxuiColor::ComputeRelativeLuminance (0xFF2B91AF));
     }
+
+
+
+    //  A watch's "RNDL $004E": the symbol in the symbol color and the
+    //  address in the operand color, as an instruction's operand has them.
+    TEST_METHOD (AnOperandsSymbolAndAddressTakeTheirColors)
+    {
+        DebuggerTextColors::Set     set    = DebuggerTextColors::MakeFor (CassoTheme::MakeSkeuomorphic());
+        DebuggerTextColors::Ranges  ranges = DebuggerTextColors::GetOperandRanges (L"RNDL $004E", set);
+
+
+
+        Assert::AreEqual ((size_t) 2, ranges.size());
+        Assert::IsTrue   (ranges[0] == std::make_tuple (0, 4,  set.syntax.Get (SourceSyntax::Token::Symbol)), L"RNDL");
+        Assert::IsTrue   (ranges[1] == std::make_tuple (5, 10, set.operandAddress), L"$004E");
+    }
 };

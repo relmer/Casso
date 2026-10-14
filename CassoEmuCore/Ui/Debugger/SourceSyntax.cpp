@@ -265,6 +265,27 @@ std::vector<SourceSyntax::Run> SourceSyntax::GetInstructionRuns (const std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceSyntax::GetOperandRuns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SourceSyntax::Run> SourceSyntax::GetOperandRuns (const std::wstring & operand)
+{
+    std::vector<Run>  runs;
+
+
+
+    AddOperandRuns (operand, 0, operand.size(), Assembler::Any, runs);
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceSyntax::AddOperandRuns
 //
 //  From `from` to a comment or `to`: strings, numbers and symbols. A quote
