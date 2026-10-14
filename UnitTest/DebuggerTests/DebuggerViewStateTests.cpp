@@ -6,6 +6,8 @@
 #include "Debugger/MonitorParser.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "EmuTests/TestMachine.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "FakeDiagnosticsProvider.h"
 #include "ControllerRig.h"
 #include "HandlerTestRig.h"
@@ -571,6 +573,88 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual (std::string ("X=01 paddle 1 timer in bit 7"), annotation);
         }
+
+
+        //  A switch whose read operates nothing is peeked for the PC line's
+        //  result, and the peek changes nothing about the switch: the paddle
+        //  timer of an axis at 0 has run out, and a key's strobe stays set.
+        TEST_METHOD (APeekableSwitchReadHasItsValueInTheResult)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            std::string           effect;
+
+
+
+            Assert::IsNotNull (rig.machine.GetRefs().iieSoftSwitches);
+            Assert::IsNotNull (rig.machine.GetRefs().iieKeyboard);
+
+            rig.machine.GetRefs().iieSoftSwitches->SetPaddle (1, 0);
+            rig.machine.GetRefs().iieKeyboard->PressKey ('A');
+
+            //  LDA PADDL0,X with X=1, then LDA KBD.
+            (void) target.TryPoke (0x0300, 0xBD);
+            (void) target.TryPoke (0x0301, 0x64);
+            (void) target.TryPoke (0x0302, 0xC0);
+            (void) target.TryPoke (0x0303, 0xAD);
+            (void) target.TryPoke (0x0304, 0x00);
+            (void) target.TryPoke (0x0305, 0xC0);
+
+            r.pc = 0x0300;
+            r.x  = 0x01;
+            r.a  = 0x41;
+            r.p  = 0x20;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
+
+            Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect, L"paddle 1's timer has run out");
+
+            r.pc = 0x0303;
+            target.SetRegisters (r);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0303).effect;
+
+            Assert::AreEqual (std::string ("A=C1 N=1; 4 cycles"), effect, L"the key with its strobe");
+            Assert::IsFalse  (rig.machine.GetRefs().iieKeyboard->IsStrobeClear(), L"the peek leaves the strobe set");
+        }
+
+
+        //  PTRIG arms the paddle timers when read, so it is not peeked: what
+        //  its byte feeds is written as "?", and the cycles are in the result.
+        TEST_METHOD (AnUnpeekableSwitchReadFeedsUnknownsAndArmsNothing)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target  = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r       = target.GetRegisters();
+            uint64_t              trigger = 0;
+            std::string           effect;
+
+
+
+            Assert::IsNotNull (rig.machine.GetRefs().iieSoftSwitches);
+
+            trigger = rig.machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle();
+
+            //  LDA PTRIG.
+            (void) target.TryPoke (0x0300, 0xAD);
+            (void) target.TryPoke (0x0301, 0x70);
+            (void) target.TryPoke (0x0302, 0xC0);
+
+            r.pc = 0x0300;
+            r.p  = 0x20;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
+
+            Assert::AreEqual (std::string ("A=? Z=? N=?; 4 cycles"), effect);
+            Assert::AreEqual (trigger, rig.machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle(), L"the trial run arms no timer");
+        }
+
 
         //  The PC's line ends with the cycles its instruction will take with
         //  the registers as they are: a branch's count is for the way it goes.

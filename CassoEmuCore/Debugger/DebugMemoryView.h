@@ -25,6 +25,7 @@ public:
     explicit DebugMemoryView (MachineHost & host);
 
     bool          TryPeek   (Word address, Byte & value) const;
+    bool          TryPeekIo (Word address, Byte & value) const;
     bool          TryPoke   (Word address, Byte value);
     bool          TryPatch  (Word address, Byte value);
     MemoryRegion  GetRegion (Word address) const;

@@ -347,6 +347,7 @@ public:
     // IDebugExpressionContext
     bool   TryGetRegister        (const std::string & name, Word & value) const override;
     bool   TryPeek               (Word address, Byte & value) const override;
+    bool   TryPeekIo             (Word address, Byte & value) const override;
     bool   TryResolveSymbol      (const std::string & name, Word & address) const override;
 
 private:

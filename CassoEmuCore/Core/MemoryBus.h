@@ -86,6 +86,10 @@ public:
     Byte ReadByte     (Word address);
     void WriteByte    (Word address, Byte value);
 
+    // A side-effect-free read of $C000-$C0FF for the debugger: false where
+    // reading is itself the operation (MemoryDevice::TryPeek).
+    bool TryPeekIo    (Word address, Byte & value) const;
+
     void AddDevice    (MemoryDevice * device);
     void RemoveDevice (MemoryDevice * device);
 
@@ -227,6 +231,8 @@ private:
     // "first match wins" overlap contract exactly; nullptr means unmapped
     // (floating bus). RAM ($0000-$BFFF) is never in the map -- the page table
     // serves it, and the rare null-low-page case keeps a linear-scan fallback.
+    static constexpr Word   kIoFirst   = 0xC000;
+    static constexpr Word   kIoLast    = 0xC0FF;
     static constexpr int    kIoMapBase = 0xC000;
     static constexpr int    kIoMapSize = 0x10000 - kIoMapBase;  // $4000 = 16 KiB entries
     vector<MemoryDevice *>  m_ioDeviceMap;

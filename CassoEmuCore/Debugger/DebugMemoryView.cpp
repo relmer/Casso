@@ -136,6 +136,21 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugMemoryView::TryPeekIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPeekIo (Word address, Byte & value) const
+{
+    return m_host.GetMemoryBus().TryPeekIo (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugMemoryView::TryPoke
 //
 //  Below $C000 a poke lands where a CPU write would. In $D000-$FFFF it lands

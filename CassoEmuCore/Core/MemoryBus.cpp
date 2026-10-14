@@ -189,6 +189,38 @@ Byte MemoryBus::ReadFromDevice (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  The device at a $C000-$C0FF address works out the byte without operating
+//  anything; an address no device decodes, whose byte is the floating bus,
+//  has no peek.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryBus::TryPeekIo (Word address, Byte & value) const
+{
+    MemoryDevice *  device = nullptr;
+
+
+
+    value = 0;
+
+    if (address < kIoFirst || address > kIoLast)
+    {
+        return false;
+    }
+
+    device = FindDevice (address);
+
+    return device != nullptr && device->TryPeek (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadWatchedPage
 //
 //  A read of a watched page: served from the shadow page when the MMU mapped

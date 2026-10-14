@@ -131,6 +131,91 @@ Byte Apple2eKeyboard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeek
+//
+//  What Read returns where reading operates nothing: the status reads the
+//  soft-switch bank owns, the buttons, the //c 80/40 switch and the
+//  keyboard data. The cassette output, the speaker, the video switches,
+//  ROMBANK, RSTXY and the strobe clear operate the machine when read, so
+//  they have no peek.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eKeyboard::TryPeek (Word address, Byte & value)
+{
+    value = 0;
+
+    if (address >= 0xC011 && address <= 0xC01F)
+    {
+        return m_softSwitchSibling != nullptr && m_softSwitchSibling->TryPeek (address, value);
+    }
+
+    if (address >= kFirstButtonAddress && address < kFirstButtonAddress + kButtonCount)
+    {
+        value = PeekButton (address);
+        return true;
+    }
+
+    if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
+    {
+        value = m_eightyColSwitchIn.load (memory_order_acquire) ? kEightyColSwitchIn : kEightyColSwitchOut;
+        return true;
+    }
+
+    return AppleKeyboard::TryPeek (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekButton
+//
+//  ReadButton's byte, with nothing journaled or watched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::PeekButton (Word address) const
+{
+    int   index    = static_cast<int> (address - kFirstButtonAddress);
+    bool  isDown   = false;
+    Byte  joyValue = 0;
+
+
+
+    if (m_joyport != nullptr && m_joyport->TryPeekButton (index, joyValue))
+    {
+        return joyValue;
+    }
+
+    if (address == 0xC061)
+    {
+        isDown = m_openApple.load (memory_order_acquire) || m_holdOpenApple.load (memory_order_acquire);
+    }
+    else if (address == 0xC062)
+    {
+        isDown = m_closedApple.load (memory_order_acquire) || m_holdClosedApple.load (memory_order_acquire);
+    }
+    else if (m_mouse != nullptr)
+    {
+        return m_mouse->ReadButton();
+    }
+    else
+    {
+        isDown = m_shift.load (memory_order_acquire);
+    }
+
+    return isDown ? 0x80 : 0x00;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadButton
 //
 //  $C061-$C063. An attached Joyport answers first, so Open Apple, Closed

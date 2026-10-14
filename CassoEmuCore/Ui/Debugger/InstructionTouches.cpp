@@ -18,6 +18,10 @@ static constexpr std::pair<char, Byte>  s_kFlags[] =
     { 'V', InstructionSemantics::kOverflow }, { 'N', InstructionSemantics::kNegative },
 };
 
+//  The bytes a read with no peek returns, one run each: between them every
+//  bit is both 0 and 1, so anything the byte feeds comes out different.
+static constexpr Byte  s_kFills[] = { 0x00, 0xFF, 0x55, 0xAA };
+
 
 
 
@@ -68,8 +72,9 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
     Byte                            writes     = 0;
     AccessPrediction                prediction;
     Result                          result;
+    Trial                           first;
+    Trial                           other;
     Byte                            opcode     = 0;
-    uint32_t                        cycles     = 0;
     HRESULT                         hr         = S_OK;
 
 
@@ -196,21 +201,103 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
         }
     }
 
-    //  And what it would leave behind, from the core itself.
+    //  And the registers and memory after it, from the core itself. With a
+    //  read that has no peek, the instruction is run again with each other
+    //  fill value, and whatever comes out different between the runs is
+    //  unknown: the core's own execution determines what the byte feeds.
     before.pc = pc;
-    cpu.SetRegisters (before);
 
-    hr = cpu.Step (cycles);
+    hr = RunTrial (memory, before, s_kFills[0], first);
 
-    if (SUCCEEDED (hr) && cpu.IsComplete())
+    if (SUCCEEDED (hr))
     {
         result.isKnown = true;
-        result.after   = cpu.GetRegisters();
-        result.writes  = cpu.GetWrites();
-        result.cycles  = cycles;
+        result.after   = first.after;
+        result.writes  = first.writes;
+        result.cycles  = first.cycles;
+    }
+
+    for (size_t i = 1; SUCCEEDED (hr) && first.hasUnknownRead && i < std::size (s_kFills); i++)
+    {
+        hr = RunTrial (memory, before, s_kFills[i], other);
+
+        if (SUCCEEDED (hr))
+        {
+            MarkUnknown (first, other, result);
+        }
     }
 
     UNREFERENCED_PARAMETER (length);
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstructionTouches::RunTrial
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InstructionTouches::RunTrial (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Byte fill, Trial & trial)
+{
+    HRESULT    hr  = S_OK;
+    ShadowCpu  cpu (memory);
+
+
+
+    cpu.SetUnknownReadValue (fill);
+    cpu.SetRegisters        (registers);
+
+    hr = cpu.Step (trial.cycles);
+    CHR (hr);
+
+    trial.after          = cpu.GetRegisters();
+    trial.writes         = cpu.GetWrites();
+    trial.hasUnknownRead = cpu.HasUnknownRead();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstructionTouches::MarkUnknown
+//
+//  A register, flag or written value that differs from the first run is
+//  fed by the unknown read. When the writes went to different addresses,
+//  every write is unknown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InstructionTouches::MarkUnknown (const Trial & first, const Trial & other, Result & result)
+{
+    InstructionEffect::Unknowns  & unknowns  = result.unknowns;
+    bool                           isAligned = first.writes.size() == other.writes.size();
+
+
+
+    unknowns.a     = unknowns.a  || first.after.a  != other.after.a;
+    unknowns.x     = unknowns.x  || first.after.x  != other.after.x;
+    unknowns.y     = unknowns.y  || first.after.y  != other.after.y;
+    unknowns.s     = unknowns.s  || first.after.sp != other.after.sp;
+    unknowns.pc    = unknowns.pc || first.after.pc != other.after.pc;
+    unknowns.flags = (Byte) (unknowns.flags | (first.after.p ^ other.after.p));
+
+    for (size_t i = 0; isAligned && i < first.writes.size(); i++)
+    {
+        isAligned = first.writes[i].address == other.writes[i].address;
+    }
+
+    for (size_t i = 0; i < result.writes.size(); i++)
+    {
+        result.writes[i].isUnknown = result.writes[i].isUnknown || !isAligned || first.writes[i].value != other.writes[i].value;
+    }
 }

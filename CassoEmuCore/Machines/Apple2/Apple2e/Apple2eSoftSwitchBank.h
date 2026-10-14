@@ -58,6 +58,7 @@ public:
     };
 
     Byte Read      (Word address) override;
+    bool TryPeek   (Word address, Byte & value) override;
     void Write     (Word address, Byte value) override;
     Word GetEnd    () const override { return 0xC07F; }
     void Reset     () override;
@@ -158,6 +159,8 @@ private:
     static constexpr Byte     s_knPaddleTiming        = 0x80;
 
     Byte ReadStatusRegister (Word address);
+    Byte GetStatusBit       (Word address);
+    Byte PeekPaddle         (Word address) const;
     Byte ReadPaddle         (Word address);
     void ObservePaddle      (int axis, Byte position);
     void SyncObservedInputs ();

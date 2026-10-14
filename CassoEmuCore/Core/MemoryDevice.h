@@ -34,4 +34,10 @@ public:
     // injected Prng (FR-035, audit §10).
     virtual void SoftReset    ()                {}
     virtual void PowerCycle   (Prng & prng)     { (void) prng; SoftReset (); }
+
+    // The byte a read of `address` would return, worked out without operating
+    // anything: no strobe cleared, no timer armed, no event emitted, no input
+    // observed. False where reading is itself the operation, or where the
+    // device cannot work the byte out; the default is false.
+    virtual bool TryPeek      (Word address, Byte & value) { (void) address; value = 0; return false; }
 };

@@ -65,6 +65,99 @@ Byte AppleGamePort::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeek
+//
+//  What Read returns where reading operates nothing: the buttons and the
+//  paddle timers. PTRIG arms the timers and the cassette input is read from
+//  the tape, so they have no peek.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleGamePort::TryPeek (Word address, Byte & value)
+{
+    value = 0;
+
+    if (address >= s_kwFirstButtonAddress && address < s_kwFirstButtonAddress + s_knButtonCount)
+    {
+        value = PeekButton (address);
+        return true;
+    }
+
+    if (address >= s_kwPaddle0Address && address < s_kwPaddle0Address + s_knPaddleAxisCount)
+    {
+        value = PeekPaddle (address);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekButton
+//
+//  ReadButton's byte with nothing journaled or watched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleGamePort::PeekButton (Word address) const
+{
+    int   idx      = static_cast<int> (address - s_kwFirstButtonAddress);
+    Byte  joyValue = 0;
+
+
+
+    if (m_joyport != nullptr && m_joyport->TryPeekButton (idx, joyValue))
+    {
+        return joyValue;
+    }
+
+    return m_buttonState[idx].load (memory_order_acquire) ? 0x80 : 0x00;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekPaddle
+//
+//  ReadPaddle's byte with nothing journaled or watched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleGamePort::PeekPaddle (Word address) const
+{
+    int       axis    = static_cast<int> (address - s_kwPaddle0Address);
+    Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
+    uint64_t  elapsed = UINT64_MAX;
+
+
+
+    if (m_joyport != nullptr && m_joyport->PeekDrivingPaddles())
+    {
+        return s_knPaddleTiming;
+    }
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
+    }
+
+    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? s_knPaddleTiming : 0x00;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  A write to PTRIG ($C070) arms the paddle one-shots exactly like a read;

@@ -41,6 +41,11 @@ public:
 
     virtual bool          TryGetRegister   (const std::string & name, Word & value) const    = 0;
     virtual bool          TryPeek          (Word address, Byte & value) const                = 0;
+
+    //  The byte a read of a $C000-$C0FF switch would return, worked out by its
+    //  device without operating it; false where reading is the operation. The
+    //  default returns false, since it has no devices.
+    virtual bool          TryPeekIo        (Word address, Byte & value) const                { (void) address; value = 0; return false; }
     virtual bool          TryResolveSymbol (const std::string & name, Word & address) const  = 0;
     virtual NumberSyntax  GetNumberSyntax  () const                                          { return NumberSyntax::AppleWin; }
 };

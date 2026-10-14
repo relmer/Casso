@@ -46,6 +46,7 @@ public:
 
     Byte Read    (Word address) override;
     void Write   (Word address, Byte value) override;
+    bool TryPeek (Word address, Byte & value) override;
     Word GetEnd  () const override { return 0xC063; }
     void Reset   () override;
     void SoftReset () override;
@@ -195,6 +196,7 @@ protected:
     void EmitButtonRead (Word address, Byte value);
     void EmitHostButton (int index, bool pressed);
     Byte ReadButton     (Word address);
+    Byte PeekButton     (Word address) const;
 
     // The host-written switches a read can see, in InputLine order up to the
     // 80/40 switch. ObserveLine runs with a journal attached only.

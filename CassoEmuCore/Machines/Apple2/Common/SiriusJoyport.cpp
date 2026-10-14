@@ -180,6 +180,57 @@ bool SiriusJoyport::IsDrivingPaddles() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekButton
+//
+//  TryReadButton's value from the atomics themselves, with no journal entry
+//  written and no HeldInputWatch check made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SiriusJoyport::TryPeekButton (int index, Byte & value) const
+{
+    size_t            jack     = 0;
+    JoystickSwitches  switches;
+    JoystickSwitch    selected = JoystickSwitch::Fire;
+
+
+
+    value = 0;
+
+    if (index < 0 || index >= kButtonCount || !m_isAttached.load (memory_order_acquire) || IsInResetWindow())
+    {
+        return false;
+    }
+
+    jack     = IsAnnunciatorOn (kAnnunciatorJack) ? JoyportJacks::kRightJack : JoyportJacks::kLeftJack;
+    switches = GetJackSwitches (jack);
+    selected = GetSelectedSwitch (index);
+    value    = switches.test (static_cast<size_t> (selected)) ? kSwitchClosed : kSwitchOpen;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekDrivingPaddles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SiriusJoyport::PeekDrivingPaddles() const
+{
+    return m_isAttached.load (memory_order_acquire) && !ArePaddlesConnected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadAttached
 //
 //  CPU thread. The attached setting as a guest read sees it. With a journal

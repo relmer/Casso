@@ -14,10 +14,11 @@ class IDebugExpressionContext;
 //
 //  A 6502 that reads the machine without touching it and writes nowhere.
 //
-//  Reads are answered from `IDebugExpressionContext::TryPeek`, the same
-//  side-effect-free view the memory pane shows; a read it declines -- every
-//  address in $C000-$C0FF, where reading is how the machine is operated --
-//  stops the whole prediction. Writes are recorded instead of performed.
+//  A read returns the byte from `IDebugExpressionContext::TryPeek`, the
+//  side-effect-free view of the memory pane, or for $C000-$C0FF from
+//  `TryPeekIo`, the switch's own side-effect-free peek. A read neither
+//  returns a byte for gets the fill value set for the run and marks the run
+//  as having an unknown read. Writes are listed instead of performed.
 //
 //  `m_readPages` is left null, so no read takes the base class's inline fast
 //  path to real memory: every one arrives at ReadByteSlow.
@@ -29,14 +30,19 @@ class ShadowCpu : public Cpu6502
 public:
     struct Write
     {
-        Word  address = 0;
-        Byte  value   = 0;
+        Word  address   = 0;
+        Byte  value     = 0;
+
+        //  The value came out different when an unknown read returned a
+        //  different byte.
+        bool  isUnknown = false;
     };
 
     explicit ShadowCpu (const IDebugExpressionContext & memory) : m_memory (&memory) {}
 
-    //  False when a read could not be answered, which makes the run worthless.
-    bool                       IsComplete () const { return m_isComplete; }
+    //  The byte a read with no peek returns, and whether any read was one.
+    void                       SetUnknownReadValue (Byte value) { m_unknownValue = value; }
+    bool                       HasUnknownRead      () const     { return m_hasUnknownRead; }
     const std::vector<Write> & GetWrites  () const { return m_writes; }
 
     //  Every address read, the instruction's own bytes among them: the
@@ -57,10 +63,11 @@ public:
 private:
     const char *  GetRegisterName (const Byte * which) const;
 
-    const IDebugExpressionContext  * m_memory     = nullptr;
+    const IDebugExpressionContext  * m_memory         = nullptr;
     std::vector<Write>               m_writes;
     std::vector<Word>                m_reads;
-    bool                             m_isComplete = true;
+    Byte                             m_unknownValue   = 0;
+    bool                             m_hasUnknownRead = false;
 };
 
 
@@ -96,6 +103,19 @@ public:
     //  stores nothing, it operates the machine (FR-112).
     using WriteText = std::function<std::string (Word address)>;
 
+    //  What an unknown read feeds: the registers and flags that came out
+    //  different when the read returned a different byte. Each is written
+    //  as "?".
+    struct Unknowns
+    {
+        bool  a     = false;
+        bool  x     = false;
+        bool  y     = false;
+        bool  s     = false;
+        bool  pc    = false;
+        Byte  flags = 0;
+    };
+
     //  `next` is the address of the following instruction, so a PC that
     //  merely advanced is not reported and a branch or jump is. Empty when
     //  the instruction could not be run, or changed nothing anyone can see.
@@ -103,12 +123,13 @@ public:
                                 const Cpu6502Registers        & after,
                                 const std::vector<ShadowCpu::Write> & writes,
                                 Word                            next,
-                                const WriteText               & describeWrite = nullptr);
+                                const WriteText               & describeWrite = nullptr,
+                                const Unknowns                & unknowns      = {});
 
 private:
     static constexpr Word  kStackPage = 0x01;
 
-    static std::string  GetFlagChanges (Byte before, Byte after);
+    static std::string  GetFlagChanges (Byte before, Byte after, Byte unknown = 0);
     static std::string  GetPush        (Byte spBefore, Byte spAfter, const std::vector<ShadowCpu::Write> & writes);
     static bool         IsPushedByte   (Byte spBefore, Byte spAfter, Word address);
 };

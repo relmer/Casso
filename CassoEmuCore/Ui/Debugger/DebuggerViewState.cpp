@@ -3831,7 +3831,7 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
     //  The cycles end the line. The trial run counted them with the registers
     //  as they are, so a branch's count is for the way it goes.
-    effect  = InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite);
+    effect  = InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite, touches.unknowns);
     effect += std::format ("{}{} cycles", effect.empty() ? "" : "; ", touches.cycles);
 
     return effect;

@@ -59,9 +59,9 @@ public:
 
     struct Result
     {
-        //  False where the instruction cannot run without touching the
-        //  machine -- anything reading $C000-$C0FF. The items still stand:
-        //  what it touches is known even where the values are not.
+        //  False where the instruction could not be run. The items are
+        //  valid either way: what it touches is known even where the values
+        //  are not.
         bool                           isKnown = false;
 
         std::vector<Item>              items;
@@ -75,10 +75,27 @@ public:
         //  The cycles the instruction took on the core: a taken branch
         //  and a page crossing are in the count.
         uint32_t                       cycles  = 0;
+
+        //  What a read with no peek feeds; each write it feeds has
+        //  isUnknown set.
+        InstructionEffect::Unknowns    unknowns;
     };
 
     //  Everything the instruction at `pc` touches, with the registers as they
     //  stand. `length` is how many bytes it occupies.
     static Result  Find (const IDebugExpressionContext & memory, const Microcode * instructionSet,
                          const Cpu6502Registers & registers, Word pc, Word length);
+
+private:
+    //  One run of the instruction on a ShadowCpu.
+    struct Trial
+    {
+        Cpu6502Registers               after          = {};
+        std::vector<ShadowCpu::Write>  writes;
+        uint32_t                       cycles         = 0;
+        bool                           hasUnknownRead = false;
+    };
+
+    static HRESULT  RunTrial    (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Byte fill, Trial & trial);
+    static void     MarkUnknown (const Trial & first, const Trial & other, Result & result);
 };

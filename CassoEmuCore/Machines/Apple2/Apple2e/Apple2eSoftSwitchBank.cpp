@@ -152,10 +152,7 @@ std::string Apple2eSoftSwitchBank::GetModeName() const
 
 Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 {
-    Byte  kbdBits  = 0;
-    Byte  topBit   = 0;
-    bool  flag     = false;
-    bool  isMouseC = false;
+    Byte  kbdBits = 0;
 
 
 
@@ -163,6 +160,30 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     {
         kbdBits = m_keyboard->ReadLatchedKeyDataBits();
     }
+
+    return static_cast<Byte> (kbdBits | GetStatusBit (address));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStatusBit
+//
+//  Bit 7 of a status read, from the state it reports; reading it changes
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::GetStatusBit (Word address)
+{
+    Byte  topBit   = 0;
+    bool  flag     = false;
+    bool  isMouseC = false;
+
+
 
     // //c IOU mouse overrides: with no slots, the //c repurposes
     // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
@@ -208,7 +229,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
         topBit = flag ? 0x80 : 0x00;
     }
 
-    return static_cast<Byte> (kbdBits | topBit);
+    return topBit;
 }
 
 
@@ -260,6 +281,40 @@ Byte Apple2eSoftSwitchBank::ReadPaddle (Word address)
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekPaddle
+//
+//  ReadPaddle's byte with nothing journaled or watched, and the Joyport's
+//  state read the same way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::PeekPaddle (Word address) const
+{
+    int       axis    = static_cast<int> (address - s_kwPaddle0Address);
+    Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
+    uint64_t  elapsed = UINT64_MAX;
+
+
+
+    if (m_joyport != nullptr && m_joyport->PeekDrivingPaddles())
+    {
+        return s_knPaddleTiming;
+    }
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
+    }
+
+    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? s_knPaddleTiming : 0x00;
 }
 
 
@@ -486,6 +541,47 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
             m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeek
+//
+//  What Read returns where reading operates nothing: the status reads,
+//  with the keyboard's data bits read without journaling them, and the
+//  paddle timers, or on the //c the mouse's direction lines in place of
+//  paddles 2 and 3. PTRIG, the video switches and the annunciators operate
+//  the machine when read, so they have no peek.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eSoftSwitchBank::TryPeek (Word address, Byte & value)
+{
+    value = 0;
+
+    if (address >= 0xC011 && address <= 0xC01F)
+    {
+        value = static_cast<Byte> (((m_keyboard != nullptr) ? m_keyboard->GetLatchedKeyDataBits() : 0) | GetStatusBit (address));
+        return true;
+    }
+
+    if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
+    {
+        value = (address == 0xC066) ? m_mouse->ReadMouX1() : m_mouse->ReadMouY1();
+        return true;
+    }
+
+    if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
+    {
+        value = PeekPaddle (address);
+        return true;
+    }
+
+    return false;
 }
 
 

@@ -81,6 +81,7 @@ public:
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
+    bool TryPeek  (Word address, Byte & value) override;
     Word GetStart () const override { return 0xC000; }
     Word GetEnd   () const override { return 0xC01F; }
     void Reset    () override;

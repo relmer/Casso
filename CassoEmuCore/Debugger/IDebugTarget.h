@@ -72,6 +72,11 @@ public:
     virtual void                SetRegisters      (const Cpu6502Registers & registers) = 0;
 
     virtual bool                TryPeek           (Word address, Byte & value) const = 0;
+
+    //  A $C000-$C0FF switch's byte from its device's side-effect-free peek
+    //  (MemoryBus::TryPeekIo). TryPeek, and so every memory pane, never
+    //  reads I/O; only the trial run of the PC's instruction calls this.
+    virtual bool                TryPeekIo         (Word address, Byte & value) const { (void) address; value = 0; return false; }
     virtual bool                TryPoke           (Word address, Byte value) = 0;
 
     //  Everything TryPeek and GetRegion would answer, all at once. A target
