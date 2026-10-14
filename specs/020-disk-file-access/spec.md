@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-15
 
-**Status**: Shipped in 1.20.0 (2026-08-27); the disassembler (T135) is deferred to GH #121
+**Status**: Shipped in 1.20.0 (2026-08-27); GH #121 tracks the disassembler (T135)
 
 **Input**: User description: "Developer-focused features so a 6502 developer can edit source on Windows, assemble it, get the result onto an Apple II disk image, and boot it, without leaving Casso or hand-assembling on a 128K machine."
 
