@@ -83,30 +83,117 @@ uint32_t InspectorMarquee::Dim (const DiskInspectorPalette & palette, uint32_t a
 //
 //  InspectorMarquee::GetShimmer
 //
-//  A soft band of light on a faint glow. A point's place along the window's
-//  diagonal is (x + y) over (width + height); the band's center sweeps from
-//  just before 0 to just past 1, so the band moves fully across the window.
+//  A narrow band of light on a faint glow. A point's place along the
+//  window's diagonal is (x + y) from its top left; the band's center sweeps
+//  from before the top left corner to past the bottom right one, so the
+//  band moves fully across the window, at 45 degrees.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx)
 {
-    static constexpr double  kPeakAlpha = 150.0;
-    static constexpr double  kGlowShare = 0.2;
-    static constexpr double  kBandWidth = 0.07;
-    static constexpr double  kOverrun   = 0.15;
-
-
-
-    double  span   = std::max (1.0, static_cast<double> ((scenePx.right - scenePx.left) + (scenePx.bottom - scenePx.top)));
-    double  place  = ((xPx - scenePx.left) + (yPx - scenePx.top)) / span;
-    double  center = std::fmod (nowMs / kSweepMs, 1.0) * (1.0 + 2 * kOverrun) - kOverrun;
-    double  band   = std::exp (-std::pow ((place - center) / kBandWidth, 2.0));
-    double  alpha  = kPeakAlpha * (kGlowShare + (1.0 - kGlowShare) * band);
+    double  place = (xPx - scenePx.left) + (yPx - scenePx.top);
+    double  alpha = kShimmerPeakAlpha * (kShimmerGlowShare + (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, scenePx)));
 
 
 
     return (static_cast<uint32_t> (std::clamp (alpha, 0.0, 255.0)) << 24) | 0x00FFFFFFu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::GetBandCenter
+//
+//  Where the band's center is along the window's diagonal, in pixels of
+//  (x + y) from its top left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorMarquee::GetBandCenter (double nowMs, const RECT & scenePx)
+{
+    double  span    = std::max (1.0, static_cast<double> ((scenePx.right - scenePx.left) + (scenePx.bottom - scenePx.top)));
+    double  overrun = kShimmerReach * kShimmerBandPx;
+
+
+
+    return std::fmod (nowMs / kSweepMs, 1.0) * (span + 2 * overrun) - overrun;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::GetBand
+//
+//  The band's strength at a distance from its center along the diagonal:
+//  1 at the center, falling off as a bell curve.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorMarquee::GetBand (double distance)
+{
+    return std::exp (-std::pow (distance / kShimmerBandPx, 2.0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::PaintShimmer
+//
+//  The shimmer over a rectangle: the glow across it, then the band as
+//  diagonal stripes two pixels apart along (x + y), each its part of the
+//  bell curve, clipped to the rectangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorMarquee::PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & scenePx)
+{
+    static constexpr float  kStripePx = 2.0f;
+
+
+
+    double    center   = GetBandCenter (nowMs, scenePx) + scenePx.left + scenePx.top;
+    double    reach    = kShimmerReach * kShimmerBandPx;
+    double    alpha    = 0;
+    RECT      prior    = {};
+    RECT      box      = { static_cast<LONG> (std::floor (x)), static_cast<LONG> (std::floor (y)), static_cast<LONG> (std::ceil (x + w)), static_cast<LONG> (std::ceil (y + h)) };
+    RECT      clip     = box;
+    bool      hasPrior = painter.GetClipRect (prior);
+    bool      isShown  = !hasPrior || IntersectRect (&clip, &box, &prior) != FALSE;
+    uint32_t  white    = 0x00FFFFFFu;
+
+
+
+    painter.FillRect (x, y, w, h, (static_cast<uint32_t> (kShimmerPeakAlpha * kShimmerGlowShare) << 24) | white);
+
+    //  Only the stripes that cross the rectangle: x + y runs from x + y at
+    //  its top left to (x + w) + (y + h) at its bottom right.
+    if (isShown && center + reach > x + y && center - reach < x + w + y + h)
+    {
+        painter.SetClipRect (&clip);
+
+        for (double k = center - reach; k < center + reach; k += kStripePx)
+        {
+            alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (k + kStripePx / 2 - center);
+
+            painter.FillConvexQuad (static_cast<float> (k - y),                  y,
+                                    static_cast<float> (k + kStripePx - y),      y,
+                                    static_cast<float> (k + kStripePx - y - h),  y + h,
+                                    static_cast<float> (k - y - h),              y + h,
+                                    (static_cast<uint32_t> (std::clamp (alpha, 0.0, 255.0)) << 24) | white);
+        }
+
+        painter.SetClipRect (hasPrior ? &prior : nullptr);
+    }
 }
 
 

@@ -32,8 +32,8 @@ public:
     static constexpr double  kDefaultStripSpan = 0.125;
 
     //  A flight to a sector ends with its chord this share of the line
-    //  through the view's center along it, from edge to edge; each of its
-    //  two legs takes kFlightLegMs.
+    //  through the view's center along it, from edge to edge; it lasts
+    //  kFlightLegMs for each leg it has.
     static constexpr double  kFlightFill       = 0.75;
     static constexpr double  kFlightLegMs      = 400.0;
 

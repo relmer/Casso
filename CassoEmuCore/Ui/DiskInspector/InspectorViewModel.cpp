@@ -661,26 +661,44 @@ void InspectorViewModel::StartFlight (double nowMs)
 //
 //  InspectorViewModel::StepFlight
 //
-//  The view for the moment, each leg eased in and out. Returns whether the
+//  The view for the moment. The flight as a whole is eased, slow at its
+//  start and end and fastest between, and the two legs split it in the
+//  proportion of their changes in zoom by scale, so the zoom's speed runs on
+//  through the whole disk rather than stopping there. Returns whether the
 //  flight goes on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InspectorViewModel::StepFlight (double nowMs)
 {
-    double  outMs   = (m_flightFrom.zoom > 1.0) ? kFlightLegMs : 0.0;
-    double  elapsed = nowMs - m_flightStartMs;
-    double  t       = std::clamp ((elapsed - outMs) / kFlightLegMs, 0.0, 1.0);
-    View    view    = (elapsed < outMs) ? GetBetweenView (m_flightFrom, View(), Ease (elapsed / outMs))
-                                        : GetBetweenView (View(), m_flightTo, Ease (t));
+    double  out      = std::log (std::max (m_flightFrom.zoom, 1.0));
+    double  in       = std::log (std::max (m_flightTo.zoom, 1.0));
+    double  share    = (out + in > 0) ? out / (out + in) : 0.0;
+    double  duration = (out > 0) ? 2 * kFlightLegMs : kFlightLegMs;
+    double  t        = std::clamp ((nowMs - m_flightStartMs) / duration, 0.0, 1.0);
+    double  e        = Ease (t);
+    View    view;
 
 
+
+    if (out + in <= 0)
+    {
+        view = GetBetweenView (m_flightFrom, m_flightTo, e);
+    }
+    else if (e < share)
+    {
+        view = GetBetweenView (m_flightFrom, View(), e / share);
+    }
+    else
+    {
+        view = GetBetweenView (View(), m_flightTo, (e - share) / (1.0 - share));
+    }
 
     if (m_isFlying)
     {
         m_zoom     = view.zoom;
         m_pan      = view.pan;
-        m_isFlying = elapsed < outMs || t < 1.0;
+        m_isFlying = t < 1.0;
     }
 
     return m_isFlying;
@@ -694,13 +712,18 @@ bool InspectorViewModel::StepFlight (double nowMs)
 //
 //  InspectorViewModel::Ease
 //
-//  Slow at each end of a leg, fastest in its middle.
+//  Progress whose speed follows half a sine wave: slow at the start, fastest
+//  halfway, and slow at the end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 double InspectorViewModel::Ease (double t)
 {
-    return t * t * (3.0 - 2.0 * t);
+    static constexpr double  kPi = 3.141592653589793;
+
+
+
+    return (1.0 - std::cos (kPi * t)) / 2.0;
 }
 
 

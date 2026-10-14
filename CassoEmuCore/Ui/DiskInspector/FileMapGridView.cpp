@@ -23,7 +23,6 @@ static constexpr float     s_kSmallerWordScale = 0.85f;
 static constexpr float     s_kOutlineDip    = 2.0f;
 static constexpr float     s_kDiffBandDip   = 3.0f;
 static constexpr uint32_t  s_kMarkAlpha     = 0xE0000000u;
-static constexpr float     s_kShimmerSlicePx = 2.0f;
 static constexpr float     s_kWheelStepDip  = 48.0f;
 static constexpr float     s_kLineEm        = 1.4f;
 static constexpr Byte      s_kHighBit       = 0x80;
@@ -257,6 +256,8 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
     float     hexW    = 0;
     float     hexH    = 0;
     float     bitsTop = 0;
+    float     inset   = 0;
+    float     bitW    = 0;
     bool      isHex   = false;
     bool      isBits  = false;
     bool      isRoom  = GetCellRect (cell, cellPx);
@@ -289,6 +290,9 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
     isHex  = isRoom && slotW >= hexW + pad && slotH >= hexH;
     isBits = isRoom && slotW >= 8 * m_scaler.ToPxf (s_kMinBitDip) && slotH >= m_scaler.ToPxf (s_kMinBitDip) + (isHex ? hexH : 0.0f);
 
+    inset = m_scaler.ToPxf (s_kBytePadDip);
+    bitW  = (slotW - 2 * inset) / 8;
+
     for (int half = 0; isRoom && half < halves; half++)
     {
         const SectorSource::Sector &  sector = source.GetPhysical (m_map->GetTrack (cell), m_map->GetPhysical (cell, half));
@@ -310,11 +314,18 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
                 painter.FillRect (x, y, slotW - 1.0f, slotH - 1.0f, (b >= s_kHighBit) ? ink : faint);
             }
 
-            bitsTop = isHex ? y + hexH : y;
+            bitsTop = isHex ? y + hexH : y + inset;
+
+            //  At the bit level, each byte in a box of its own around its hex
+            //  and its eight bits.
+            if (isBits)
+            {
+                painter.OutlineRect (x + 0.5f, y + 0.5f, slotW - 2.0f, slotH - 2.0f, 1.0f, faint);
+            }
 
             for (int k = 0; isBits && k < 8; k++)
             {
-                painter.FillRect (x + k * slotW / 8, bitsTop, slotW / 8 - 1.0f, y + slotH - bitsTop - 1.0f, ((b >> (7 - k)) & 1) ? ink : zeroBit);
+                painter.FillRect (x + inset + k * bitW, bitsTop, bitW - 1.0f, y + slotH - inset - bitsTop - 1.0f, ((b >> (7 - k)) & 1) ? ink : zeroBit);
             }
         }
     }
@@ -438,13 +449,10 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
     }
 
-    //  The selected cell lit by the window's shimmer, in columns two pixels
-    //  wide, each a gradient from top to bottom (FR-038).
-    for (float sx = x; cell == m_selectedCell && sx < x + w; sx += s_kShimmerSlicePx)
+    //  The selected cell lit by the window's shimmer (FR-038).
+    if (cell == m_selectedCell)
     {
-        painter.FillGradientRect (sx, y, std::min (s_kShimmerSlicePx, x + w - sx), h,
-                                  InspectorMarquee::GetShimmer (InspectorMarquee::GetClockMs(), sx + s_kShimmerSlicePx / 2, y,     m_context.scenePx),
-                                  InspectorMarquee::GetShimmer (InspectorMarquee::GetClockMs(), sx + s_kShimmerSlicePx / 2, y + h, m_context.scenePx));
+        InspectorMarquee::PaintShimmer (painter, x, y, w, h, InspectorMarquee::GetClockMs(), m_context.scenePx);
     }
 
     //  The cell under the pointer lit faintly and outlined, so the tooltip's

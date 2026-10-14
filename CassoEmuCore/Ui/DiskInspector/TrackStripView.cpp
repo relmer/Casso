@@ -1029,19 +1029,14 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 //
 //  TrackStripView::PaintShimmer
 //
-//  The selection lit by the window's shimmer in columns two pixels wide,
-//  each a gradient from top to bottom so the band crosses at 45 degrees
-//  (FR-038), and the nibble under the pointer lit faintly and outlined, so
-//  the tooltip's subject is plain (FR-148).
+//  The selection lit by the window's shimmer (FR-038), and the nibble under
+//  the pointer lit faintly and outlined, so the tooltip's subject is plain
+//  (FR-148).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry & g) const
 {
-    static constexpr float  kSlicePx = 2.0f;
-
-
-
     double                       now    = InspectorMarquee::GetClockMs();
     RECT                         bar    = GetBarRect();
     std::array<StripSegment, 2>  parts  = {};
@@ -1061,12 +1056,7 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
 
     for (int k = 0; k < count; k++)
     {
-        for (float x = parts[k].x0; x < parts[k].x1; x += kSlicePx)
-        {
-            painter.FillGradientRect (x, static_cast<float> (bar.top), std::min (kSlicePx, parts[k].x1 - x), height,
-                                      InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, static_cast<float> (bar.top), m_context.scenePx),
-                                      InspectorMarquee::GetShimmer (now, x + kSlicePx / 2, static_cast<float> (bar.bottom), m_context.scenePx));
-        }
+        InspectorMarquee::PaintShimmer (painter, parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, height, now, m_context.scenePx);
     }
 
     if (PtInRect (&bar, m_context.hoverPx) && !m_isPanning && m_context.GetTrack() != nullptr)

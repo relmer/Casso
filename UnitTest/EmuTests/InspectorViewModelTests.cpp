@@ -316,12 +316,15 @@ public:
 
     TEST_METHOD (AFlightGoesOutToFitThenInToTheSector)
     {
-        DiskAnalysis                analysis;
-        InspectorViewModel          model;
-        InspectorViewModel::Point   point;
-        double                      end   = 0;
-        double                      start = 0;
-        constexpr double            kLeg  = InspectorViewModel::kFlightLegMs;
+        DiskAnalysis               analysis;
+        InspectorViewModel         model;
+        InspectorViewModel::Point  point;
+        double                     end      = 0;
+        double                     start    = 0;
+        double                     previous = 0;
+        double                     least    = InspectorViewModel::kMaxZoom;
+        bool                       isIn     = false;
+        constexpr double           kLeg     = InspectorViewModel::kFlightLegMs;
 
 
 
@@ -332,12 +335,19 @@ public:
         model.SelectSector (0, 8);
         model.StartFlight (1000.0);
 
-        Assert::IsTrue (model.StepFlight (1000.0 + kLeg / 2));
-        Assert::IsTrue (model.GetZoom() > 1.0 && model.GetZoom() < 4.0, L"on the way out");
+        //  Out to about the whole disk, then in, never turning back on the
+        //  way; the zoom moves least at the start.
+        for (double at = 1000.0; at < 1000.0 + 2 * kLeg; at += kLeg / 50)
+        {
+            previous = model.GetZoom();
+            Assert::IsTrue (model.StepFlight (at));
+            least    = std::min (least, model.GetZoom());
+            isIn     = isIn || model.GetZoom() > previous + 1e-9;
 
-        Assert::IsTrue   (model.StepFlight (1000.0 + kLeg));
-        Assert::AreEqual (1.0, model.GetZoom(), 1e-9, L"the whole disk between the legs");
+            Assert::IsTrue (!isIn || model.GetZoom() >= previous - 1e-9, L"no zooming out once zooming in");
+        }
 
+        Assert::IsTrue  (least < 1.1, L"the whole disk between the legs");
         Assert::IsFalse (model.StepFlight (1000.0 + 2 * kLeg), L"landed");
 
         start   = model.GetSelectionTurn (end);

@@ -24,7 +24,15 @@ class InspectorMarquee
 public:
     static constexpr float  kDashDip     = 4.0f;
     static constexpr int    kStepMs      = 80;
-    static constexpr int    kSweepMs     = 2000;
+    static constexpr int    kSweepMs     = 2500;
+
+    //  The shimmer: its peak alpha, the share of it the glow outside the band
+    //  has, the band's width along (x + y) in pixels, and how many widths on
+    //  each side of the band's center its stripes span.
+    static constexpr double  kShimmerPeakAlpha = 150.0;
+    static constexpr double  kShimmerGlowShare = 0.2;
+    static constexpr double  kShimmerBandPx    = 24.0;
+    static constexpr double  kShimmerReach     = 3.0;
 
     //  One device pixel at any scale, as thin as the platter's and the grid's
     //  own lines.
@@ -54,6 +62,14 @@ public:
     //  window from its top left to its bottom right every kSweepMs, so every
     //  map's selection lights up as the band crosses it.
     static uint32_t  GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx);
+
+    //  The shimmer painted over a rectangle, the band a stripe at 45 degrees.
+    static void  PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & scenePx);
+
+    //  The band: its center along the window's diagonal, and its strength at
+    //  a distance from that center.
+    static double  GetBandCenter (double nowMs, const RECT & scenePx);
+    static double  GetBand       (double distance);
 
     //  A clock in milliseconds fine enough that the shimmer moves a little
     //  every frame; GetTickCount64 advances only every 15.6 ms or so.
