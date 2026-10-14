@@ -1508,7 +1508,7 @@ Owner decisions 2026-10-13, plan.md item 9k (scheduled ahead of 9h) and its desi
 - [X] T801 [P] Add OperandValues, Pointers, BranchArrow and AddressColon to DisassemblyOptions::Option (CassoEmuCore/Ui/Debugger/DisassemblyOptions.h/.cpp), defaults on, off, on, off; write options turned off to the saved text as well as those turned on, and read a text without the new keys as their defaults; test both in UnitTest/DebuggerTests/DisassemblyOptionsTests.cpp, per FR-228
 - [X] T802 Rebuild ReverseOptionsDialog as a DxuiPropertySheet with a History page (the record check box, a DxuiSlider over T800's range in 1 MB steps with ten ticks, the minutes estimate following it, the available memory read from GlobalMemoryStatusEx as the sheet opens) and a Disassembly page with a check box per T801 option, bound to GlobalUserPrefs::debugger.disassemblyOptions so the page and the toolbar change one setting; test the two pages and the binding in UnitTest/DebuggerTests/DebuggerOptionsSheetTests.cpp, per FR-227 and FR-228
 - [X] T803 Make the code pane honor the new options in CassoEmuCore/Ui/Debugger/DebuggerWindow.cpp and DebuggerViewState.cpp: Operand values and Pointers filter the annotation's parts, Branch arrow gates the PC's BranchArrow, Address colon adds : to the address cell; test each in UnitTest/DebuggerTests/DisassemblyOptionsTests.cpp, per FR-201 and FR-228
-- [ ] T804 Launch a build for the owner on the portrait monitor: open Tools > Options, move the History slider by mouse and keys, turn each Disassembly option off and on, and check that the toolbar and the page have the same state
+- [X] T804 Launch a build for the owner on the portrait monitor: open Tools > Options, move the History slider by mouse and keys, turn each Disassembly option off and on, and check that the toolbar and the page have the same state
 
 **Dependencies**: T800 and T801 before T802; T801 before T803; T802 and T803 before T804.
 
@@ -1527,7 +1527,7 @@ Owner decisions 2026-10-13, second review of the Options sheet.
 - [X] T812 Add DisassemblyOptions::Dim (Source lines, Disassembly lines, Neither; Disassembly lines by default; saved as dim=) with a radio group on the Disassembly page, and dim the chosen rows in the views and the preview through DisassemblyCells::IsDimmed and DimRow, never the PC's row and nothing without source rows; test in DisassemblyOptionsTests.cpp and DebuggerOptionsSheetTests.cpp, per FR-230
 - [X] T813 [P] Measure history's growth for the DOS prompt, an Applesoft hi-res plot and a loop rewriting the hi-res page in ScenarioTests/HistoryRateTests.cpp; estimate from the recording's own rate once it covers 30 seconds (HistoryStatus storedBytes and arenaBytes, ReverseBudget::TryGetMeasuredRate) and from the busiest to the idlest measured rate before that; base the 48-hour cap on the busiest; test in ReverseBudgetRangeTests.cpp, per FR-227
 - [X] T814 [P] Expand source tabs to every fourth column (SourcePane::kTabWidth), per FR-228
-- [ ] T810 Launch a build for the owner: retest the focus at a stop, the slider's cap, the estimate, the preview, the dim choice and the sheet's size
+- [X] T810 Launch a build for the owner: retest the focus at a stop, the slider's cap, the estimate, the preview, the dim choice and the sheet's size
 
 **Dependencies**: T807 before T808; T808 before T812; T805 to T809, T811 and T812 before T810.
 
