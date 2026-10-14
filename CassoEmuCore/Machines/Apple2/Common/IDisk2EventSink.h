@@ -41,10 +41,11 @@
 //    * OnAddressMark   -- after D5 AA 96 + 4-and-4 fields + good XOR
 //                          checksum
 //    * OnDataMarkRead  -- after D5 AA AD + 342 nibbles + DE AA EB
-//    * OnDataMarkWrite -- DEFINED FOR FORWARD COMPATIBILITY ONLY.
-//                          DOES NOT FIRE in v1 (A-010). A symmetric
-//                          write-side watcher lands with issue #67
-//                          (bit-level write path through Q6/Q7).
+//    * OnDataMarkWrite -- after D5 AA AD + body + DE AA EB written
+//                          through the write latch
+//    * OnReadStall     -- two revolutions of nibbles read with no
+//                          address mark decoded and no head step; once
+//                          per stall
 //
 //  Drive / image lifecycle:
 //    * OnDriveSelect   -- active drive index flipped via $C0EA / $C0EB
@@ -76,6 +77,7 @@ public:
     virtual void OnAddressMark (int track, int sector, int volume) = 0;
     virtual void OnDataMarkRead (int track, int sector, int volume, int byteCount) = 0;
     virtual void OnDataMarkWrite (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnReadStall (int quarterTrack) {}
 
     virtual void OnDriveSelect (int drive) = 0;
     virtual void OnDiskInserted (int drive) = 0;

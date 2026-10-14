@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/ObserverSlots.h"
 
 class IDisk2EventSink;
@@ -28,7 +29,17 @@ class IDisk2EventSink;
 //  Both state machines run on every ObserveNibble call. They share
 //  only the cached most-recent sector number (written by the
 //  address-mark accept terminal, read by the data-mark accept
-//  terminal).
+//  terminal). A third machine runs on each nibble the program writes
+//  (ObserveWrittenNibble) and fires OnDataMarkWrite on a written data
+//  field.
+//
+//  A read stall is kStallRevolutions revolutions of nibbles read with no
+//  address mark decoded and no head step: OnReadStall fires once, and
+//  again only after an address mark or a step resets the count.
+//
+//  The watcher's state is part of the controller's saved state, so
+//  loading a keyframe puts every machine back where it was, and a replay
+//  from there fires the same events.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,12 +64,33 @@ public:
     static constexpr uint32_t kDataNibbleCount       = 342;
     static constexpr uint32_t kDataNibbleCountSlack  = 16;
 
+    // A track at 300 RPM passes about 6,400 nibbles a revolution (51,200
+    // four-microsecond bit cells, 8 to a nibble).
+    static constexpr uint32_t kNibblesPerRevolution  = 6400;
+    static constexpr uint32_t kStallRevolutions      = 2;
+    static constexpr uint32_t kStallNibbles          = kNibblesPerRevolution * kStallRevolutions;
+
+    static constexpr uint32_t kStateTag              = IMachineState::MakeTag ('D', '2', 'A', 'M');
+    static constexpr uint16_t kStateVersion          = 1;
+
     Disk2AddressMarkWatcher() = default;
 
     // Called by Disk2Controller::Read whenever the data latch returns
     // a fresh nibble to the CPU. The watcher inspects but does not
     // modify the nibble.
     void   ObserveNibble (uint8_t nibble) noexcept;
+
+    // Called by Disk2Controller::Write with each nibble the program
+    // loads into the write latch.
+    void   ObserveWrittenNibble (uint8_t nibble) noexcept;
+
+    // The head moved to quarterTrack: the read-stall count starts again.
+    void   NoteHeadMoved (int quarterTrack) noexcept;
+
+    // Every machine's state, inside the controller's state section.
+    HRESULT  SaveState  (StateWriter & writer) const;
+    HRESULT  LoadState  (StateReader & reader);
+    void     ResetState () noexcept;
 
     // Sets one slot to the controller's sink for that slot. Pass
     // nullptr to detach. Safe to call from the UI thread between CPU
@@ -99,8 +131,18 @@ private:
         Body    = 3,
     };
 
+    enum class WriteState : uint8_t
+    {
+        Idle    = 0,
+        SawD5   = 1,
+        SawAA   = 2,
+        Body    = 3,
+    };
+
     void   StepAddrMarkState (uint8_t nibble) noexcept;
     void   StepDataMarkState (uint8_t nibble) noexcept;
+    void   StepWriteState    (uint8_t nibble) noexcept;
+    void   CountForStall     () noexcept;
 
     static uint8_t Decode4and4 (uint8_t hi, uint8_t lo) noexcept
     {
@@ -127,4 +169,14 @@ private:
     int                 m_cachedSector  = -1;
     int                 m_cachedTrack   = -1;
     int                 m_cachedVolume  = -1;
+
+    WriteState          m_writeState    = WriteState::Idle;
+    uint32_t            m_writeNibCount = 0;
+    uint8_t             m_writePeek0    = 0;
+    uint8_t             m_writePeek1    = 0;
+    uint8_t             m_writePeek2    = 0;
+
+    uint32_t            m_stallNibbles  = 0;
+    bool                m_isStallFired  = false;
+    int                 m_quarterTrack  = 0;
 };

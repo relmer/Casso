@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
@@ -80,6 +82,16 @@ namespace Disk2AddressMarkWatcherTests
 
             std::vector<AddrEntry>  addrLog;
             std::vector<DataEntry>  dataLog;
+            std::vector<DataEntry>  writeLog;
+            std::vector<int>        stallLog;
+
+            void Clear()
+            {
+                addrLog.clear();
+                dataLog.clear();
+                writeLog.clear();
+                stallLog.clear();
+            }
 
             void OnMotorCommandOn() override                                  {}
             void OnMotorEngaged() override                                    {}
@@ -89,7 +101,8 @@ namespace Disk2AddressMarkWatcherTests
             void OnHeadBump (int) override                                    {}
             void OnAddressMark (int track, int sector, int volume) override   { addrLog.push_back ({ track, sector, volume }); }
             void OnDataMarkRead (int track, int sector, int volume, int byteCount) override { dataLog.push_back ({ track, sector, volume, byteCount }); }
-            void OnDataMarkWrite (int, int, int, int) override                {}
+            void OnDataMarkWrite (int track, int sector, int volume, int byteCount) override { writeLog.push_back ({ track, sector, volume, byteCount }); }
+            void OnReadStall (int quarterTrack) override                      { stallLog.push_back (quarterTrack); }
             void OnDriveSelect (int) override                                 {}
             void OnDiskInserted (int) override                                {}
             void OnDiskEjected (int) override                                 {}
@@ -455,6 +468,162 @@ namespace Disk2AddressMarkWatcherTests
             Assert::AreEqual (17, sink.dataLog[0].track);
             Assert::AreEqual (5,  sink.dataLog[0].sector);
             Assert::AreEqual (254, sink.dataLog[0].volume);
+        }
+
+
+        void FeedFill (Disk2AddressMarkWatcher & w, uint32_t count)
+        {
+            uint32_t  i = 0;
+
+            for (i = 0; i < count; i++)
+            {
+                w.ObserveNibble (0xFF);
+            }
+        }
+
+
+        void WriteAll (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles)
+        {
+            for (auto & nibble : nibbles)
+            {
+                w.ObserveWrittenNibble (nibble);
+            }
+        }
+
+
+        //  RWTS reads the address field, then writes the data field: the
+        //  write fires with that address. A format writes address fields,
+        //  which fire nothing.
+        TEST_METHOD (WrittenDataField_firesDataMarkWriteWithTheLastAddressRead)
+        {
+            Disk2AddressMarkWatcher   watcher;
+            RecordingSink             sink;
+            std::vector<uint8_t>      read;
+            std::vector<uint8_t>      written;
+            std::vector<uint8_t>      formatted;
+
+            watcher.SetEventSink (&sink);
+
+            AppendAddressMark (read, 254, 17, 7, 0, false);
+            AppendDataMark    (written);
+            AppendAddressMark (formatted, 254, 18, 0, 0, false);
+
+            FeedAll  (watcher, read);
+            WriteAll (watcher, written);
+            WriteAll (watcher, formatted);
+
+            Assert::AreEqual ((size_t) 1, sink.writeLog.size());
+            Assert::AreEqual (17,  sink.writeLog[0].track);
+            Assert::AreEqual (7,   sink.writeLog[0].sector);
+            Assert::AreEqual (254, sink.writeLog[0].volume);
+            Assert::AreEqual (256, sink.writeLog[0].byteCount);
+            Assert::AreEqual ((size_t) 0, sink.dataLog.size(), L"a written field is not a read");
+            Assert::AreEqual ((size_t) 1, sink.addrLog.size(), L"nor is a written address field");
+        }
+
+
+        //  Two revolutions of nibbles with no address mark fire one stall at
+        //  the head's quarter track; it fires again only after an address
+        //  mark or a step starts the count over.
+        TEST_METHOD (ReadStall_firesOncePerStall)
+        {
+            constexpr uint32_t        kStall  = Disk2AddressMarkWatcher::kStallNibbles;
+            Disk2AddressMarkWatcher   watcher;
+            RecordingSink             sink;
+            std::vector<uint8_t>      stream;
+
+            watcher.SetEventSink (&sink);
+            watcher.NoteHeadMoved (12);
+
+            FeedFill (watcher, kStall - 1);
+            Assert::AreEqual ((size_t) 0, sink.stallLog.size(), L"one nibble short");
+
+            FeedFill (watcher, 1);
+            Assert::AreEqual ((size_t) 1, sink.stallLog.size());
+            Assert::AreEqual (12, sink.stallLog[0]);
+
+            FeedFill (watcher, kStall * 2);
+            Assert::AreEqual ((size_t) 1, sink.stallLog.size(), L"one stall, however long");
+
+            AppendAddressMark (stream, 254, 3, 0, 0, false);
+            FeedAll  (watcher, stream);
+            FeedFill (watcher, kStall);
+            Assert::AreEqual ((size_t) 2, sink.stallLog.size(), L"an address mark starts the count over");
+
+            watcher.NoteHeadMoved (14);
+            FeedFill (watcher, kStall);
+            Assert::AreEqual ((size_t) 3, sink.stallLog.size(), L"so does a step");
+            Assert::AreEqual (14, sink.stallLog[2]);
+        }
+
+
+        //  Saved partway through an address field, a data field being
+        //  written and a stall count four nibbles from firing, a watcher
+        //  loaded from the blob fires what the saved one fires on the same
+        //  nibbles: the stall, then the address mark, then the write.
+        TEST_METHOD (SavedState_resumesEveryMachine)
+        {
+            constexpr ptrdiff_t       kAddrSplit  = 6;
+            constexpr ptrdiff_t       kDataSplit  = 100;
+            Disk2AddressMarkWatcher   source;
+            Disk2AddressMarkWatcher   target;
+            RecordingSink             sourceSink;
+            RecordingSink             targetSink;
+            std::vector<uint8_t>      addr;
+            std::vector<uint8_t>      data;
+            std::vector<uint8_t>      other;
+            StateWriter               writer;
+            HRESULT                   hr          = S_OK;
+
+            source.SetEventSink (&sourceSink);
+            target.SetEventSink (&targetSink);
+
+            AppendAddressMark (addr, 254, 9, 4, 0, false);
+            AppendDataMark    (data);
+            AppendAddressMark (other, 1, 30, 15, 0, false);
+
+            // The source: an address mark read, a data field half written,
+            // a step, the stall count ten short, then the first six nibbles
+            // of the next address field.
+            FeedAll  (source, addr);
+            WriteAll (source, { data.begin(), data.begin() + kDataSplit });
+            source.NoteHeadMoved (18);
+            FeedFill (source, Disk2AddressMarkWatcher::kStallNibbles - 10);
+            FeedAll  (source, { addr.begin(), addr.begin() + kAddrSplit });
+
+            // The target: somewhere else entirely.
+            FeedAll (target, other);
+
+            hr = source.SaveState (writer);
+            Assert::AreEqual (S_OK, hr);
+
+            {
+                StateReader  reader (writer.GetBytes());
+
+                hr = target.LoadState (reader);
+                Assert::AreEqual (S_OK, hr);
+                Assert::IsTrue   (reader.IsAtEnd());
+            }
+
+            sourceSink.Clear();
+            targetSink.Clear();
+
+            for (auto * watcher : { &source, &target })
+            {
+                FeedAll  (*watcher, { addr.begin() + kAddrSplit, addr.end() });
+                WriteAll (*watcher, { data.begin() + kDataSplit, data.end() });
+            }
+
+            Assert::AreEqual ((size_t) 1, sourceSink.stallLog.size(), L"the stall, four nibbles in");
+            Assert::AreEqual ((size_t) 1, sourceSink.addrLog.size(),  L"the split address field");
+            Assert::AreEqual ((size_t) 1, sourceSink.writeLog.size(), L"the split written field");
+            Assert::AreEqual (sourceSink.addrLog.size(),  targetSink.addrLog.size());
+            Assert::AreEqual (sourceSink.writeLog.size(), targetSink.writeLog.size());
+            Assert::AreEqual (sourceSink.stallLog.size(), targetSink.stallLog.size());
+            Assert::AreEqual (sourceSink.addrLog[0].sector,  targetSink.addrLog[0].sector);
+            Assert::AreEqual (sourceSink.writeLog[0].sector, targetSink.writeLog[0].sector);
+            Assert::AreEqual (18,                            targetSink.stallLog[0]);
+            Assert::AreEqual (source.GetCachedTrack(),       target.GetCachedTrack());
         }
     };
 }

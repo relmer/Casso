@@ -130,6 +130,7 @@ void Disk2Controller::Write (Word address, Byte value)
         else
         {
             m_engine[m_activeDrive].WriteLatch (value);
+            m_addrMarkWatcher.ObserveWrittenNibble (value);
         }
     }
 }
@@ -439,6 +440,11 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     }
 
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+
+    if (qtDelta != 0)
+    {
+        m_addrMarkWatcher.NoteHeadMoved (m_quarterTrack);
+    }
 
     // Audio sink (FR-003 / FR-004). Fire only when the head actually
     // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
@@ -944,6 +950,8 @@ void Disk2Controller::Reset()
         m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
+
+    m_addrMarkWatcher.ResetState();
 }
 
 
@@ -1137,6 +1145,9 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
         CHR (hr);
     }
 
+    hr = m_addrMarkWatcher.SaveState (writer);
+    CHR (hr);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -1154,9 +1165,10 @@ Error:
 //
 //  The engines load inside this section and check their own fields; this
 //  checks the phase mask, phase, head position and drive select, and that the
-//  saved machine had the same IWM wiring. Nothing goes through Reset or the
-//  switch handlers, so no sink hears a motor or drive change and the motor-off
-//  flush does not run.
+//  saved machine had the same IWM wiring. The address-mark watcher's section
+//  is read inside it too, from version 2 on. Nothing goes through Reset or
+//  the switch handlers, so no sink hears a motor or drive change and the
+//  motor-off flush does not run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1208,6 +1220,18 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     {
         hr = m_engine[drive].LoadState (reader);
         CHR (hr);
+    }
+
+    // Version 1 had no watcher state: its machines start from Idle.
+    if (version >= kWatcherStateVersion)
+    {
+        hr = m_addrMarkWatcher.LoadState (reader);
+        CHR (hr);
+    }
+    else
+    {
+        m_addrMarkWatcher.ResetState();
+        m_addrMarkWatcher.NoteHeadMoved (quarterTrack);
     }
 
     hr = reader.EndSection();

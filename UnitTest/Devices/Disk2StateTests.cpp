@@ -57,6 +57,20 @@ namespace Disk2State
     }
 
 
+    static std::vector<Byte> SaveWatcher (const Disk2AddressMarkWatcher & watcher)
+    {
+        StateWriter  writer;
+        HRESULT      hr = S_OK;
+
+
+
+        hr = watcher.SaveState (writer);
+        Assert::AreEqual (S_OK, hr);
+
+        return writer.GetBytes();
+    }
+
+
     // Loads a blob into a part; on success the part must have consumed it all.
     static HRESULT LoadFrom (IMachineState & target, const std::vector<Byte> & bytes)
     {
@@ -173,6 +187,8 @@ namespace Disk2State
     //  The controller with its state opened up. Its engines are filled by
     //  loading a blob saved from a filled StateProbeEngine, and compared by
     //  their saved blobs, which match exactly when every engine field does.
+    //  The address-mark watcher is filled by feeding it nibbles and compared
+    //  the same way.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -217,6 +233,32 @@ namespace Disk2State
                 hr = LoadFrom (m_engine[drive], SavePart (engine));
                 Assert::AreEqual (S_OK, hr);
             }
+
+            FillWatcher (seed);
+        }
+
+        // Steps the watcher to the seed's quarter track, counts the seed's
+        // nibbles toward a stall, and opens a written data field.
+        void FillWatcher (Byte seed)
+        {
+            Byte  i = 0;
+
+
+
+            m_addrMarkWatcher.NoteHeadMoved (seed);
+
+            for (i = 0; i < seed; i++)
+            {
+                m_addrMarkWatcher.ObserveNibble (0xFF);
+            }
+
+            m_addrMarkWatcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+            m_addrMarkWatcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+        }
+
+        const Disk2AddressMarkWatcher & GetWatcher() const
+        {
+            return m_addrMarkWatcher;
         }
 
         std::vector<Byte> SaveEngine (int drive) const
@@ -248,6 +290,8 @@ namespace Disk2State
             {
                 Assert::IsTrue (SaveEngine (drive) == other.SaveEngine (drive), L"engine state");
             }
+
+            Assert::IsTrue (SaveWatcher (m_addrMarkWatcher) == SaveWatcher (other.m_addrMarkWatcher), L"watcher state");
         }
     };
 
@@ -454,6 +498,57 @@ namespace Disk2State
             Assert::AreEqual (S_OK, hr);
 
             source->AssertSameState (*target);
+        }
+
+
+        //  A version 1 state has no watcher section: it loads, and the
+        //  watcher starts at rest over the loaded head position.
+        TEST_METHOD (ControllerVersionOneLoadsWithTheWatcherAtRest)
+        {
+            constexpr uint16_t        kVersionOne   = 1;
+            constexpr Byte            kQuarterTrack = 24;
+            constexpr Byte            kTargetSeed   = 0x4A;
+            auto                      target        = std::make_unique<StateProbeController>();
+            Disk2NibbleEngine         engine;
+            Disk2AddressMarkWatcher   expected;
+            StateWriter               writer;
+            HRESULT                   hr            = S_OK;
+            int                       drive         = 0;
+
+
+
+            target->Fill (kTargetSeed);
+
+            writer.BeginSection (Disk2Controller::kStateTag, kVersionOne);
+            writer.WriteByte    (0);                // phases
+            writer.WriteByte    (0);                // phase
+            writer.WriteByte    (kQuarterTrack);
+            writer.WriteBool    (false);            // motor on
+            writer.WriteUInt32  (0);                // spin-down cycles
+            writer.WriteUInt32  (0);                // spin-up remaining
+            writer.WriteByte    (0);                // active drive
+            writer.WriteBool    (false);            // Q6
+            writer.WriteBool    (false);            // Q7
+            writer.WriteBool    (false);            // IWM mode
+            writer.WriteByte    (0);                // IWM mode register
+            writer.WriteUInt32  (0);                // cycles since idle callback
+            writer.WriteBool    (false);            // busy since idle callback
+            writer.WriteUInt64  (0);                // last CPU sync
+
+            for (drive = 0; drive < Disk2Controller::kDriveCount; drive++)
+            {
+                hr = engine.SaveState (writer);
+                Assert::AreEqual (S_OK, hr);
+            }
+
+            hr = writer.EndSection();
+            Assert::AreEqual (S_OK, hr);
+
+            hr = LoadFrom (*target, writer.GetBytes());
+            Assert::AreEqual (S_OK, hr);
+
+            expected.NoteHeadMoved (kQuarterTrack);
+            Assert::IsTrue (SaveWatcher (expected) == SaveWatcher (target->GetWatcher()), L"watcher at rest");
         }
 
 

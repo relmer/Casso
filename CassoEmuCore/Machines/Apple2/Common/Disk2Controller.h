@@ -194,8 +194,9 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag            = IMachineState::MakeTag ('D', 'S', 'K', '2');
+    static constexpr uint16_t  kStateVersion        = 2;
+    static constexpr uint16_t  kWatcherStateVersion = 2;   // the first with the watcher's section
 
 private:
     void   HandleSwitch (int offset);

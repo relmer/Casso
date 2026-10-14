@@ -55,7 +55,7 @@ enum class Disk2EventType : uint8_t
     HeadBump            = 5,
     AddrMark            = 6,
     DataRead            = 7,
-    DataWrite           = 8,    // declared but never fires in v1 (A-010)
+    DataWrite           = 8,
     DriveSelect         = 9,
     DiskInserted        = 10,
     DiskEjected         = 11,
@@ -68,6 +68,9 @@ enum class Disk2EventType : uint8_t
     AudioSilent         = 16,
     AudioLoopStarted    = 17,
     AudioLoopStopped    = 18,
+
+    // Controller-side, added after the audio events
+    ReadStall           = 19,   // payload.bump.atQt is the head's quarter track
 };
 
 
