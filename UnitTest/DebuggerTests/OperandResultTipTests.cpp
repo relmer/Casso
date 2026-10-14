@@ -989,13 +989,12 @@ namespace OperandResultTipTests
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"the operand's color tip is not on its way");
             Assert::IsTrue (EqualRect (&under, &window.GetOperandTipLayout().rect) != FALSE, L"the color tip is placed by its cell, under the operand tip");
 
-            //  Over an operand that fits, the color tip is placed by its cell.
+            //  A plain row's operand has neither tip: the operand's colors are
+            //  on the column's heading.
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
-            under = window.GetTooltip().GetPendingAnchor();
 
             Assert::IsFalse (window.HasOperandTip());
-            Assert::IsTrue  (window.GetTooltip().WantsTick());
-            Assert::AreEqual (window.GetCodeList (0)->GetBounds().top + GetCellRect (window, 1).top, under.top, L"the color tip lies away from its cell");
+            Assert::IsFalse (window.GetTooltip().WantsTick(), L"a color tip over a plain row's operand");
         }
 
 
