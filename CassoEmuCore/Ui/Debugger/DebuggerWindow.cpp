@@ -5435,9 +5435,9 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 //
 //  DebuggerWindow::PaintBranchArrow
 //
-//  The arrows from GetBranchArrow, the one a step just took and the PC's,
-//  in the PC marker's color, or in the disabled color for a branch that the
-//  current flags do not take.
+//  The arrows from GetBranchArrow, the one a step just took, dotted, and the
+//  PC's, in the PC marker's color, or in the disabled color for a branch
+//  that the current flags do not take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5455,7 +5455,8 @@ void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 
         if (GetBranchArrow (view, input, goesTo, isTaken, isSteppedFrom))
         {
-            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
+            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080,
+                                                isSteppedFrom);
         }
     }
 }

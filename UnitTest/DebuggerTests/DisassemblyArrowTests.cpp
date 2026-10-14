@@ -3,6 +3,8 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
+#include "../Dxui/MockDxuiPainter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -76,6 +78,48 @@ namespace DebuggerTests
             Assert::IsFalse  (result.hasHead);
         }
 
+
+
+        //  The arrow of the branch that led to the PC is dotted: round dots as
+        //  wide as the line, two widths apart, in the same color; the PC's own
+        //  is one line a segment.
+        TEST_METHOD (TheSteppedArrowIsDottedAndThePcsIsSolid)
+        {
+            BranchArrow::Input   input  = MakeInput (50.0f, 150.0f, true);
+            BranchArrow::Result  arrow  = BranchArrow::Build (input);
+            MockDxuiPainter      solid;
+            MockDxuiPainter      dotted;
+            size_t               lines  = 0;
+            float                width  = 1.5f;
+
+
+
+            DisassemblyCells::PaintBranchArrow (solid,  input, true, 0xFFFFE34D, 0xFF808080);
+            DisassemblyCells::PaintBranchArrow (dotted, input, true, 0xFFFFE34D, 0xFF808080, true);
+
+            for (const RecordedPaintCall & call : solid.Calls())
+            {
+                lines += (call.kind == RecordedPaintKind::DrawLine) ? 1 : 0;
+            }
+
+            Assert::AreEqual (arrow.segments.size(), lines, L"solid: a line a segment");
+
+            lines = 0;
+
+            for (const RecordedPaintCall & call : dotted.Calls())
+            {
+                Assert::IsTrue (call.kind != RecordedPaintKind::DrawLine, L"no line, only dots");
+
+                if (call.kind == RecordedPaintKind::FillCircle)
+                {
+                    lines++;
+                    Assert::AreEqual (width,      call.width, 0.01f, L"a dot as wide as the line");
+                    Assert::AreEqual (0xFFFFE34Du, call.argb,         L"the taken color");
+                }
+            }
+
+            Assert::IsTrue (lines > 20, L"dotted: many dots along the arrow's hundred pixels");
+        }
 
 
         TEST_METHOD (APressOnTheUprightHitsTheArrowAndOneAwayDoesNot)

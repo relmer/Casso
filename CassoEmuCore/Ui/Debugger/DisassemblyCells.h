@@ -78,5 +78,12 @@ public:
 
     //  The arrow in takenArgb, or in notTakenArgb for a branch that the
     //  current flags do not take.
-    static void  PaintBranchArrow (IDxuiPainter & painter, const BranchArrow::Input & input, bool isTaken, uint32_t takenArgb, uint32_t notTakenArgb);
+    //  Dotted for the branch that led to the PC: round dots as wide as the
+    //  line, centered two widths apart, so a dot's width lies between each
+    //  two. Solid for the PC's own. The head is solid either way.
+    static void  PaintBranchArrow (IDxuiPainter & painter, const BranchArrow::Input & input, bool isTaken, uint32_t takenArgb, uint32_t notTakenArgb,
+                                   bool isDotted = false);
+
+private:
+    static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);
 };

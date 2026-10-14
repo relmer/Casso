@@ -331,17 +331,26 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisassemblyCells::PaintBranchArrow (IDxuiPainter & painter, const BranchArrow::Input & input, bool isTaken, uint32_t takenArgb, uint32_t notTakenArgb)
+void DisassemblyCells::PaintBranchArrow (IDxuiPainter & painter, const BranchArrow::Input & input, bool isTaken, uint32_t takenArgb, uint32_t notTakenArgb,
+                                         bool isDotted)
 {
     BranchArrow::Result  arrow = BranchArrow::Build (input);
     uint32_t             argb  = isTaken ? takenArgb : notTakenArgb;
     float                width = 1.5f * input.radiusPx / BranchArrow::Input().radiusPx;
+    float                along = 0.0f;
 
 
 
     for (const BranchArrow::Segment & segment : arrow.segments)
     {
-        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, width, argb);
+        if (isDotted)
+        {
+            PaintDots (painter, segment, width, argb, along);
+        }
+        else
+        {
+            painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, width, argb);
+        }
     }
 
     if (arrow.hasHead)
@@ -349,4 +358,39 @@ void DisassemblyCells::PaintBranchArrow (IDxuiPainter & painter, const BranchArr
         painter.FillConvexQuad (arrow.head[0], arrow.head[1], arrow.head[2], arrow.head[3],
                                 arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], argb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::PaintDots
+//
+//  A segment's dots, `along` the distance drawn so far, so the spacing runs
+//  on unbroken through the rounded corners, which are short segments: a dot
+//  is centered at every multiple of two widths along the whole arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyCells::PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along)
+{
+    float  dx     = segment.x1 - segment.x0;
+    float  dy     = segment.y1 - segment.y0;
+    float  length = std::sqrt (dx * dx + dy * dy);
+    float  period = 2.0f * width;
+    float  at     = 0.0f;
+
+
+
+    if (length > 0.0f && period > 0.0f)
+    {
+        for (at = std::ceil (along / period) * period - along; at <= length; at += period)
+        {
+            painter.FillCircle (segment.x0 + dx * at / length, segment.y0 + dy * at / length, width / 2.0f, argb);
+        }
+    }
+
+    along += length;
 }
