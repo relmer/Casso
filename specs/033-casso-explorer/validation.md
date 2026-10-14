@@ -164,6 +164,26 @@ Debug x64 at 125%, a host folder with a 300-line `LONG.Applesoft BASIC.txt`.
 | SC-026, FR-082 | The plain ASCII export previewed as lines of text in the theme's monospaced face; a plain `.txt` without an export suffix opens in the hex view, and a disk text file splits into lines (unit tests) |
 | FR-068 | The command bar ends with Theme and the Preview toggle; no Monitor drop-down |
 | Dropped | A CRT pass over the text and a font made from the video ROM were each built and run, then removed at the owner's request |
+
+### Shell previews, File Explorer's menus and archives, 2026-10-14
+
+Debug x64, commit `45787513`, driven with posted clicks. The files are a PDF,
+a Markdown file, a PNG and a two-paragraph Word document made for the test,
+and a zip of two of them.
+
+| Check | Result |
+|---|---|
+| SC-022: .pdf | The PDF handler's window appeared 111 to 120 ms after the click, and the page was drawn by 172 to 175 ms, over three rounds |
+| SC-022: .docx | Word's handler window appeared at 113 to 136 ms, and both paragraphs were drawn in the theme's colors by 171 to 183 ms |
+| SC-022: .png | The thumbnail settled in the preview pane within 264 to 311 ms. Each sample is a full-window capture, so these are upper bounds |
+| SC-022: same preview | Each preview comes from the handler File Explorer loads for the extension; a Markdown file on the disk uses the PowerToys handler |
+| SC-023: a .png file | Icon row Cut, Copy, Rename, Share, Delete; Open; Open with; New; Copy as path; Properties; then the installed apps' commands with their icons: Edit with Clipchamp, Edit with Paint, Unlock with File Locksmith, Edit with Photos, Edit in Notepad, Beyond Compare 5, a WinRAR submenu; `Show more options` |
+| SC-023: a tree node | Icon row Cut, Copy, Delete; Collapse; Open in new tab; Pin to Quick access; Add to Casso; Copy as path; Properties; then Move to OneDrive, Unlock with File Locksmith, Rename with PowerRename, Beyond Compare 5, a WinRAR submenu; `Show more options` |
+| SC-023: against File Explorer | Not compared yet; the comparison takes File Explorer's menus for the same items on this machine |
+| Open with Code | Absent from both programs on this machine. VS Code's `GetState` returns `ECS_HIDDEN` unless `Software\Classes\VSCodeContextMenu` exists under `HKCU` or `HKLM`, and neither key exists here. Its manifest is inside the `.appx` in its package folder, which is now read |
+| SC-024 | Double-click the zip, click a file, Extract all, Extract: four actions. The list and the preview each appeared within the 2 s allowed for them; the wizard opened 0.4 s after the click with the zip's own folder as the destination; both files were extracted 0.2 s after Extract |
+| SC-025 | Not measured: a drag from File Explorer moves the real pointer, so a person at the keyboard walks it (T077) |
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
