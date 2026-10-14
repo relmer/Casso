@@ -103,6 +103,10 @@ public:
     //  menu has Rename, and picking it calls the callback.
     virtual HRESULT  ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) = 0;
 
+    //  The shell's menu for a folder's background, as its classic menu has it
+    //  outside File Explorer: other programs' commands, New and Properties.
+    virtual HRESULT  ShowBackgroundMenu (HWND owner, const std::wstring & folder, POINT screenPx) = 0;
+
     //  One verb from the items' shell menu, by its canonical name, invoked
     //  as if picked there: an archive's `extract` opens its Extract All.
     virtual HRESULT  RunItemVerb (HWND owner, const std::vector<std::wstring> & paths, const char * verb) = 0;

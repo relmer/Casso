@@ -416,6 +416,48 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::ShowBackgroundMenu
+//
+//  The folder's own view object is its background menu. View, Sort by and
+//  the like are commands of File Explorer's view rather than of the folder,
+//  so they are not part of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::ShowBackgroundMenu (HWND owner, const std::wstring & folder, POINT screenPx)
+{
+    HRESULT               hr = S_OK;
+    ComPtr<IShellItem>    item;
+    ComPtr<IShellFolder>  shellFolder;
+    ComPtr<IContextMenu>  menu;
+
+
+
+    hr = CreateMenuHost (owner);
+    CHR (hr);
+
+    hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = item->BindToHandler (nullptr, BHID_SFObject, IID_PPV_ARGS (&shellFolder));
+    CHR (hr);
+
+    hr = shellFolder->CreateViewObject (m_menuHost, IID_PPV_ARGS (&menu));
+    CHR (hr);
+
+    hr = TrackMenu (owner, menu.Get(), screenPx, {});
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::RunItemVerb
 //
 //  The menu is built, as for showing it, so the handlers that own the verb

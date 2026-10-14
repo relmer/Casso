@@ -474,6 +474,13 @@ private:
                              std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk);
     void  RunNewChoice      (const Location & target, const std::wstring & verb);
     void  GoToLocation      (const Location & location);
+
+    //  The rows of the Sort, Group by and View menus, shared by the command
+    //  bar and the list's background menu.
+    std::vector<DxuiPopupMenuItem>  GetSortChoices  ();
+    std::vector<DxuiPopupMenuItem>  GetGroupChoices ();
+    std::vector<DxuiPopupMenuItem>  GetViewChoices  ();
+    void                            AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
     void  OnShellListed     (const std::wstring & key);
 
     //  A verb's label as a window's title: no access key, no trailing dots.

@@ -35,6 +35,7 @@ public:
     HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) override;
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;
     HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) override;
+    HRESULT  ShowBackgroundMenu  (HWND owner, const std::wstring & folder, POINT screenPx) override;
     HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb) override;
     bool     HasShellPreview     (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
     HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;

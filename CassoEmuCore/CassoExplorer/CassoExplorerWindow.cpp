@@ -3804,6 +3804,17 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  With nothing selected, Alt+Enter opens the current folder's Properties,
+    //  as the background menu's Properties row does.
+    if (m_focus == Pane::List && ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && ev.vk == VK_RETURN
+        && m_browser.GetSelectedRows().empty()
+        && (m_browser.GetLocation().kind == Location::Kind::HostFolder || m_browser.IsImageLocation())
+        && !SearchQuery::IsId (m_browser.GetLocation().path))
+    {
+        ShowLocationProperties (m_browser.GetLocation());
+        return true;
+    }
+
     //  The same keys on the tree act on its selected node.
     if (m_focus == Pane::Tree && ev.kind == DxuiKeyEventKind::Down
         && ((ev.ctrl && ev.shift && !ev.alt && ev.vk == 'C') || (ev.alt && !ev.ctrl && ev.vk == VK_RETURN)))
@@ -6168,11 +6179,21 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
     std::vector<DxuiPopupMenuItem>                   newChoices;
     std::shared_ptr<const DxuiCommand>               newFolder;
     std::shared_ptr<const DxuiCommand>               newDisk;
+    bool                                             background     = m_browser.GetSelectedRows().empty() && group < 0;
+    Location                                         shown          = m_browser.GetLocation();
 
 
 
     m_menuCommands.clear();
     AskCassoToDescribe();
+
+    //  The background's menu opens on the view's own choices, as Explorer's
+    //  does.
+    if (background)
+    {
+        AddViewMenus (items);
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
 
     //  Explorer's Undo, naming what it undoes, while there is one.
     if (!m_undo.empty())
@@ -6287,7 +6308,7 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
             parent->menuSvg   = GetMenuSvg (L"windows.newitem");
             parent->isEnabled = [dos33]() { return !dos33; };
 
-            if (!items.empty())
+            if (!items.empty() && items.back().kind != DxuiPopupMenuItem::Kind::Separator)
             {
                 items.push_back (DxuiPopupMenuItem::ForSeparator());
             }
@@ -6385,6 +6406,36 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
         {
             ChangeKnownFolder (folderForCasso, !known);
         });
+    }
+
+    //  From the current folder's background: Properties, then the commands
+    //  installed apps add there, such as Open in Terminal, then the shell's
+    //  own background menu.
+    if (background && (shown.kind == Location::Kind::HostFolder || m_browser.IsImageLocation()) && !SearchQuery::IsId (shown.path))
+    {
+        AddMenuCommand (items, L"P&roperties", [this, shown]() { ShowLocationProperties (shown); }, L"Alt+Enter");
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
+    }
+
+    if (background && shown.kind == Location::Kind::HostFolder && !SearchQuery::IsId (shown.path))
+    {
+        POINT  screen = { x, y };
+
+        ClientToScreen (GetHwnd(), &screen);
+
+        AddPackagedCommandsFor (items, { shown.path }, Win32PackagedCommands::ItemKind::Background);
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shown, screen]()
+        {
+            HRESULT  hr = m_shellVerbs.ShowBackgroundMenu (GetHwnd(), shown.path, screen);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            RefreshAfterHostChange();
+        });
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  A deleted item has no path to copy, and the bin itself describes it.
@@ -7759,6 +7810,99 @@ bool CassoExplorerWindow::IsListVerbOffered (CassoExplorerActions::Verb verb) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetSortChoices
+//
+//  One row for each column in the list here, in Explorer's order, then the
+//  sort direction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> CassoExplorerWindow::GetSortChoices()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    size_t                          column = 0;
+
+
+
+    for (column = 0; column < CassoExplorerBrowser::GetColumns().size(); column++)
+    {
+        bool  chosen = column >= m_listColumnChosen.size() || m_listColumnChosen[column];
+
+        if (!IsListColumnShown (column, chosen, m_browser.GetLocation().kind, SearchQuery::IsId (m_browser.GetLocation().path)))
+        {
+            continue;
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortByColumn + (int) column)));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortAscending)));
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortDescending)));
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetGroupChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> CassoExplorerWindow::GetGroupChoices()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (int field : { 1, 2, 3, 4, 0 })
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupByField + field)));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupAscending)));
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupDescending)));
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetViewChoices
+//
+//  In Explorer's order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> CassoExplorerWindow::GetViewChoices()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (int view : { 1, 2, 3, 4, 5, 0, 6, 7 })
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kViewFirst + view)));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::SetCommandBarDropDowns
 //
 //  The rows of New, Sort, View and Theme. They are commands, so each reads
@@ -7769,52 +7913,18 @@ bool CassoExplorerWindow::IsListVerbOffered (CassoExplorerActions::Verb verb) co
 void CassoExplorerWindow::SetCommandBarDropDowns()
 {
     std::vector<DxuiPopupMenuItem>  newItems;
-    std::vector<DxuiPopupMenuItem>  sortItems;
-    std::vector<DxuiPopupMenuItem>  viewItems;
+    std::vector<DxuiPopupMenuItem>  sortItems = GetSortChoices();
+    std::vector<DxuiPopupMenuItem>  viewItems = GetViewChoices();
     std::vector<DxuiPopupMenuItem>  themeItems;
-    std::vector<DxuiPopupMenuItem>  groupItems;
-    size_t                          column = 0;
 
 
 
     AddNewChoices (newItems, m_browser.GetLocation(), m_commands.Find (CassoExplorerCommands::kNewFolder),
                    m_commands.Find (CassoExplorerCommands::kNewDisk));
 
-    //  The columns the list shows here, as Explorer's menu lists them.
-    for (column = 0; column < CassoExplorerBrowser::GetColumns().size(); column++)
-    {
-        bool  chosen = column >= m_listColumnChosen.size() || m_listColumnChosen[column];
-
-        if (!IsListColumnShown (column, chosen, m_browser.GetLocation().kind, SearchQuery::IsId (m_browser.GetLocation().path)))
-        {
-            continue;
-        }
-
-        sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortByColumn + (int) column)));
-    }
-
+    //  Group by is at the foot of Explorer's Sort menu.
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortAscending)));
-    sortItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kSortDescending)));
-
-    //  Explorer keeps Group by at the foot of its Sort menu.
-    for (int field : { 1, 2, 3, 4, 0 })
-    {
-        groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupByField + field)));
-    }
-
-    groupItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupAscending)));
-    groupItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kGroupDescending)));
-
-    sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_commands.Find (CassoExplorerCommands::kGroupBy), std::move (groupItems)));
-
-    //  In Explorer's order.
-    for (int view : { 1, 2, 3, 4, 5, 0, 6, 7 })
-    {
-        viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kViewFirst + view)));
-    }
+    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_commands.Find (CassoExplorerCommands::kGroupBy), GetGroupChoices()));
 
     viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
     viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kOptions)));
@@ -9488,6 +9598,43 @@ void CassoExplorerWindow::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & it
         RefreshTree();
     });
     m_menuCommands.back()->menuSvg = GetMenuSvg (pinned ? L"windows.unpinfromhome" : L"windows.pintohome");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddViewMenus
+//
+//  View, Sort by and Group by, as the first rows of Explorer's background
+//  menu, with the command bar's rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
+{
+    std::shared_ptr<DxuiCommand>  view  = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>  sort  = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>  group = std::make_shared<DxuiCommand>();
+
+
+
+    view->label    = L"&View";
+    view->menuSvg  = GetMenuSvg (L"View");
+    sort->label    = L"S&ort by";
+    sort->menuSvg  = GetMenuSvg (L"SortBy");
+    group->label   = L"Grou&p by";
+    group->menuSvg = GetMenuSvg (L"windows.groupbycolumn");
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (view,  GetViewChoices()));
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (sort,  GetSortChoices()));
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (group, GetGroupChoices()));
+
+    m_menuCommands.push_back (std::move (view));
+    m_menuCommands.push_back (std::move (sort));
+    m_menuCommands.push_back (std::move (group));
 }
 
 
