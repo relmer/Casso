@@ -572,7 +572,7 @@ HRESULT ScratchCallReplayer::FindStartPart (
         hr = ReadPartMedia (job.parts[index], saved);
         CHR (hr);
 
-        isSame = IsSavedWith (saved, job.disks);
+        isSame = ScratchReplayMachine::IsSavedWith (saved, job.disks);
 
         if (!isSame && isNewerSame)
         {
@@ -697,7 +697,7 @@ HRESULT ScratchCallReplayer::LoadPart (
     hr = ReadPartMedia (part, saved);
     CHR (hr);
 
-    isSame = IsSavedWith (saved, job.disks);
+    isSame = ScratchReplayMachine::IsSavedWith (saved, job.disks);
 
     if (!isSame)
     {
@@ -1154,37 +1154,3 @@ bool ScratchCallReplayer::IsAbandoned (const CallStackRebuildJob & job) const
 {
     return m_latest.load (std::memory_order_acquire) != job.generation;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScratchCallReplayer::IsSavedWith
-//
-//  Whether a keyframe whose bays held saved holds the media the disks are,
-//  bay for bay, and no others.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ScratchCallReplayer::IsSavedWith (
-    const MachineHost::MediaIds    & saved,
-    const std::vector<ReplayDisk>  & disks)
-{
-    MachineHost::MediaIds  given = {};
-
-
-
-    for (const ReplayDisk & disk : disks)
-    {
-        given[(size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive] = disk.mediaId;
-    }
-
-    return given == saved;
-}
-
-
-
-
-

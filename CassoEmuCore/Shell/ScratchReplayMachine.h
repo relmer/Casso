@@ -52,6 +52,11 @@ public:
     MachineHost * GetMachine  () const { return m_machine.get(); }
     Replayer    * GetReplayer () const { return m_replayer.get(); }
 
+    //  Whether saved, the media in a keyframe's bays, are the disks' media,
+    //  bay for bay, and no others.
+    static bool   IsSavedWith (const std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount> & saved,
+                               const std::vector<ReplayDisk> & disks);
+
 private:
     //  The medium each drive bay holds, slot-major, zero for none.
     using BayIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;

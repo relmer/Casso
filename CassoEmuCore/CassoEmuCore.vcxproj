@@ -203,6 +203,7 @@
     <ClCompile Include="Ui\Debugger\ByteChanges.cpp" />
     <ClCompile Include="Ui\Debugger\OpeningFocusDeferral.cpp" />
     <ClCompile Include="Ui\Debugger\StopFocus.cpp" />
+    <ClCompile Include="Debugger\Events\DebugEventHistory.cpp" />
     <ClCompile Include="Ui\Debugger\DisassemblyCells.cpp" />
     <ClCompile Include="Ui\Debugger\DisassemblyPreview.cpp" />
     <ClCompile Include="Ui\Debugger\FocusAccentOwner.cpp" />
@@ -766,6 +767,11 @@
     <ClInclude Include="Ui\Debugger\ByteChanges.h" />
     <ClInclude Include="Ui\Debugger\OpeningFocusDeferral.h" />
     <ClInclude Include="Ui\Debugger\StopFocus.h" />
+    <ClInclude Include="Debugger\Events\DebugEventCache.h" />
+    <ClInclude Include="Debugger\Events\DebugEventJob.h" />
+    <ClInclude Include="Debugger\Events\DebugEventHistory.h" />
+    <ClInclude Include="Debugger\Events\DebugEventReplayer.h" />
+    <ClInclude Include="Shell\ScratchEventReplayer.h" />
     <ClInclude Include="Ui\Debugger\DisassemblyCells.h" />
     <ClInclude Include="Ui\Debugger\DisassemblyPreview.h" />
     <ClInclude Include="Ui\Debugger\FocusAccentOwner.h" />

@@ -960,6 +960,9 @@
     <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandGoLiveTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseBudgetRangeTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerOptionsSheetTests.cpp" />
     <ClCompile Include="DebuggerTests\StopFocusTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugEventCacheTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugEventReplayerTests.cpp" />
+    <ClCompile Include="EmuTests\DebugEventRebuildTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\DivergenceGateTests.cpp" /><ClCompile Include="EmuTests\HeldInputReadTests.cpp" /><ClCompile Include="DebuggerTests\HistoryGuardTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />

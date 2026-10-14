@@ -130,7 +130,6 @@ private:
     HRESULT     UseQueue        ();
     bool        IsAbandoned     (const CallStackRebuildJob & job) const;
 
-    static bool IsSavedWith     (const MachineHost::MediaIds & saved, const std::vector<ReplayDisk> & disks);
 
     //  The jobs, between the threads.
     std::mutex                                   m_lock;
