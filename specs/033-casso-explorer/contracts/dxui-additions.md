@@ -111,6 +111,17 @@ public:
 Paints via `DxuiTextRenderer::DrawFramebuffer`, centered, integer-scaled
 when it fits.
 
+```cpp
+    void  SetVirtualHeight (int heightPx);                          // 0 = the image's own height
+    void  SetOnScroll      (std::function<void (int topPx)> onScroll);
+    int   GetScrollTop     () const;
+```
+
+With a virtual height, the vertical scrollbar and the wheel range over
+that height, and the image is the band starting at `GetScrollTop()`. Each
+scroll calls `onScroll` with the new top, and the host replies with
+`SetDisplayImage` for that band.
+
 ## Light and Dark palettes
 
 `DxuiLightTheme` and `DxuiDarkTheme`, two `IDxuiTheme` implementations

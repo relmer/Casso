@@ -147,6 +147,29 @@ claim, so the preview is its bytes.
 - Toggle View, Disassemble binary. Expected: mnemonics from the same load
   address, as lines rather than a hex view.
 
+## 7a. Apple text on the monitor (Story 9, FR-082, FR-083)
+
+Pick the green monitor and select an Applesoft program on a disk image.
+
+- Result: the listing in the enhanced //e ROM's glyphs, green on black,
+  with the same scanlines and glow a picture gets, wrapped at the pane's
+  width.
+- Drag the preview splitter narrower and wider. Result: the text
+  reflows to the new width without clipping.
+- Scroll to the end of a long program with the wheel and the scrollbar.
+  Result: every line is reachable, and the effects stay on
+  while scrolling.
+- Switch to amber, then color. Result: amber text, then white text.
+- Select an Integer BASIC program and a disk text file. Result: the
+  same.
+- Export the Applesoft program to a host folder and select the
+  `.Applesoft BASIC.txt` file. Result: the same look. Select another
+  `.txt` file. Result: the theme's font.
+- Rename `%LOCALAPPDATA%\Casso\Machines\Apple2eEnhanced\Apple2eEnhanced_Video.rom`
+  away, leaving only a ][ or ][+ ROM, and reselect. Result: lowercase
+  drawn as uppercase. Rename every video ROM away. Result: the built-in
+  table, no error. Restore the ROMs.
+
 ## 8. Headless tests
 
 ```powershell

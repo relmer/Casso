@@ -128,6 +128,8 @@ CassoEmuCore/
 │       ├── CatalogModel.h/.cpp        # FileEntry and host entries to CatalogRow
 │       ├── PreviewDecoder.h/.cpp      # kind selection and rendering to PreviewContent
 │       ├── PicturePreview.h/.cpp      # video-mode render into a framebuffer
+│       ├── AppleTextFont.h/.cpp       # NEW: video ROM glyphs, built-in table fallback
+│       ├── AppleTextLayout.h/.cpp     # NEW: wraps Apple text to the pane's columns
 │       ├── HostFileNaming.h/.cpp
 │       ├── ContentSniffer.h/.cpp
 │       ├── DiskOperations.h/.cpp      # IVolume + DiskImageSession + DiskCommandRunner facade
@@ -266,7 +268,33 @@ window's `SetTheme` is called with the pointer and invalidated. Follow
 system reads `DxuiWindowsThemeColors` on the settings-change notification
 `DxuiHwndSource` already raises and swaps between Light and Dark.
 
+### Apple text on the monitor
+
+FR-082 and FR-083, research R14. A listing, a disk text file and a host
+file whose name `HostFileNaming::Parse` matches to an Applesoft, Integer
+or Text suffix produce `PreviewContent` with `appleText` set and its
+lines. The window routes such content to the picture's
+`DxuiFramebufferView` instead of `DxuiTextView`:
+
+1. `AppleTextLayout::Wrap (lines, columns)` returns the screen rows; the
+   column count comes from the pane width and the cell scale.
+2. On a layout, a scroll or a monitor or effect change, the rows in view
+   are drawn from `AppleTextFont` into a white-on-black BGRA band, tinted
+   by `PicturePreview::Tint`, and rendered by `CrtPictureRenderer`.
+3. The view's virtual height is the total row count times the cell
+   height; its scroll callback triggers step 2 for the new band.
+
+This replaces the hex view of a disk text file; the bytes are
+reachable through the hex toggle, as a binary's are.
+
 ## Risks
+
+- **Selection on the monitor**: Apple text drawn as a picture cannot be
+  selected. Ctrl+C copies the whole text; finer selection is out of
+  scope.
+- **Band redraw cost**: every scroll step runs the CRT pass on the band
+  in view. The band is at most the pane's size, which the picture path
+  already renders within the quarter second SC-021 allows.
 
 - **032 timing**: phase 6 is the only gate; everything before it merges
   on its own if 032 runs long.
