@@ -390,7 +390,7 @@ LRESULT CALLBACK Win32ShellItemVerbs::MenuHostProc (HWND hwnd, UINT message, WPA
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellItemVerbs::ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx)
+HRESULT Win32ShellItemVerbs::ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename)
 {
     HRESULT               hr = S_OK;
     ComPtr<IContextMenu>  menu;
@@ -403,7 +403,7 @@ HRESULT Win32ShellItemVerbs::ShowShellMenu (HWND owner, const std::vector<std::w
     hr = GetItemsMenu (m_menuHost, paths, &menu);
     CHR (hr);
 
-    hr = TrackMenu (owner, menu.Get(), screenPx);
+    hr = TrackMenu (owner, menu.Get(), screenPx, rename);
     CHR (hr);
 
 Error:
@@ -528,27 +528,33 @@ void Win32ShellItemVerbs::RemoveExtraSeparators (HMENU menu)
 //
 //  Win32ShellItemVerbs::TrackMenu
 //
-//  A shell menu shown at a point from the menu host, and whatever is picked
-//  carried out.
+//  Track a shell menu at a point from the menu host, and invoke the command
+//  picked. Rename is in the menu only for a caller that renames in its
+//  own view, as File Explorer's menu has it; the shell's own Rename does
+//  nothing outside a shell view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellItemVerbs::TrackMenu (HWND owner, IContextMenu * menu, POINT screenPx)
+HRESULT Win32ShellItemVerbs::TrackMenu (HWND owner, IContextMenu * menu, POINT screenPx, const std::function<void()> & rename)
 {
     CenterDialogsOver  centered (owner);
-    HRESULT                hr       = S_OK;
+    HRESULT                hr        = S_OK;
     ComPtr<IContextMenu2>  menu2;
-    HMENU                  popup    = nullptr;
-    UINT                   picked   = 0;
-    CMINVOKECOMMANDINFOEX  invoke   = { sizeof (invoke) };
-    HRESULT                hasMenu2 = S_OK;
+    HMENU                  popup     = nullptr;
+    UINT                   picked    = 0;
+    CMINVOKECOMMANDINFOEX  invoke    = { sizeof (invoke) };
+    HRESULT                hasMenu2  = S_OK;
+    HRESULT                hasVerb   = S_OK;
+    bool                   isRename  = false;
+    UINT                   flags     = rename ? (CMF_NORMAL | CMF_CANRENAME) : CMF_NORMAL;
+    char                   verb[64]  = {};
 
 
 
     popup = CreatePopupMenu();
     CWR (popup != nullptr);
 
-    hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, CMF_NORMAL);
+    hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, flags);
     CHR (hr);
 
     RemoveExtraSeparators (popup);
@@ -565,6 +571,16 @@ HRESULT Win32ShellItemVerbs::TrackMenu (HWND owner, IContextMenu * menu, POINT s
     m_activeMenu = nullptr;
 
     BAIL_OUT_IF (picked < s_kFirstCommandId, S_OK);
+
+    hasVerb  = menu->GetCommandString (picked - s_kFirstCommandId, GCS_VERBA, nullptr, verb, (UINT) std::size (verb));
+    isRename = rename && SUCCEEDED (hasVerb) && _stricmp (verb, "rename") == 0;
+
+    if (isRename)
+    {
+        rename();
+    }
+
+    BAIL_OUT_IF (isRename, S_OK);
 
     invoke.fMask        = CMIC_MASK_UNICODE | CMIC_MASK_PTINVOKE;
     invoke.hwnd         = owner;
@@ -1266,7 +1282,7 @@ HRESULT Win32ShellItemVerbs::ShowRecycledMenu (HWND owner, const std::vector<std
     hr = GetRecycledMenu (m_menuHost, ids, &menu);
     CHR (hr);
 
-    hr = TrackMenu (owner, menu.Get(), screenPx);
+    hr = TrackMenu (owner, menu.Get(), screenPx, {});
     CHR (hr);
 
 Error:

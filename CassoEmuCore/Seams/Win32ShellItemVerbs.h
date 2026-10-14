@@ -34,7 +34,7 @@ public:
     HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<Handler> & outHandlers) override;
     HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) override;
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;
-    HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) override;
+    HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) override;
     HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb) override;
     bool     HasShellPreview     (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
     HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;
@@ -86,7 +86,7 @@ private:
     HRESULT  GetItemArray    (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
     HRESULT  CreateOperation (HWND owner, IFileOperation ** outOperation);
     static void  RemoveExtraSeparators (HMENU menu);
-    HRESULT  TrackMenu       (HWND owner, IContextMenu * menu, POINT screenPx);
+    HRESULT  TrackMenu       (HWND owner, IContextMenu * menu, POINT screenPx, const std::function<void()> & rename);
     HRESULT  GetRecycledMenu (HWND owner, const std::vector<std::wstring> & ids, IContextMenu ** outMenu);
 
     //  The Recycle Bin's columns: where an item was, and when it went.

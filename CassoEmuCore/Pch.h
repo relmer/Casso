@@ -90,7 +90,6 @@
 #include <shellapi.h>
 #include <shobjidl.h>
 #include <xmllite.h>
-#include <AppxPackaging.h>
 #include <searchapi.h>
 #include <oledb.h>
 #include <oledberr.h>

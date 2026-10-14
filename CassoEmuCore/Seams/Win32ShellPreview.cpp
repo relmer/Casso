@@ -39,6 +39,7 @@ HRESULT Win32ShellPreview::Start (HWND owner, UINT message)
     std::promise<DWORD>     started;
     std::future<DWORD>      ready   = started.get_future();
     ATOM                    atom    = 0;
+    BOOL                    ok      = FALSE;
 
 
 
@@ -60,9 +61,15 @@ HRESULT Win32ShellPreview::Start (HWND owner, UINT message)
         CWR (atom != 0);
     }
 
-    m_host = CreateWindowExW (0, s_kpszHostClass, L"", WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+    //  Layered at full opacity: the owner window is composited with per-pixel
+    //  alpha, where a handler's GDI drawing has alpha 0 and is transparent to
+    //  the desktop. A layered window is drawn at its own alpha.
+    m_host = CreateWindowExW (WS_EX_LAYERED, s_kpszHostClass, L"", WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
                               0, 0, 0, 0, owner, nullptr, module, nullptr);
     CWR (m_host != nullptr);
+
+    ok = SetLayeredWindowAttributes (m_host, 0, 255, LWA_ALPHA);
+    CWR (ok);
 
     m_thread = std::thread ([this, &started]()
     {

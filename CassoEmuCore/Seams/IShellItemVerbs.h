@@ -99,8 +99,9 @@ public:
 
     //  The shell's full context menu for the items, which all share a
     //  folder, at a screen point. Whatever is picked is carried out there,
-    //  including by other programs' menu handlers.
-    virtual HRESULT  ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) = 0;
+    //  including by other programs' menu handlers. With a rename callback the
+    //  menu has Rename, and picking it calls the callback.
+    virtual HRESULT  ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) = 0;
 
     //  One verb from the items' shell menu, by its canonical name, invoked
     //  as if picked there: an archive's `extract` opens its Extract All.

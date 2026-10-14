@@ -166,6 +166,14 @@
       <AdditionalIncludeDirectories>..\CassoCore;..\CassoEmuCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
+  <!-- Windows 10 and 11 compatibility, merged with the shared manifest from
+       Directory.Build.props. Without it Windows refuses a layered child window,
+       which the Preview pane hosts other programs' preview handlers in. -->
+  <ItemDefinitionGroup>
+    <Manifest>
+      <AdditionalManifestFiles>..\Resources\CassoExplorerCompatibility.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>

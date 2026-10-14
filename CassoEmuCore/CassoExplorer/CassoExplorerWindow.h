@@ -550,6 +550,8 @@ private:
     void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
     void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
+    bool  AddWindowsCommands      (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    bool  GetSelectionKind        (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
     void  UpdateShellPreview      (const PreviewContent & preview);
     void  OnShellPreviewResult    ();
     void  ShowShellPreviewBytes   ();

@@ -175,17 +175,12 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
         verbs.push_back (Verb::Paste);
     }
 
-    //  New, for what the location can hold. A host folder takes folders and
-    //  disk images, and a new image made with files selected receives them.
-    //  An image takes folders when it is ProDOS; a DOS 3.3 image offers New
-    //  disabled, which the window decides from the volume.
-    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder)
+    //  New, from the background only, as in File Explorer: folders and disk
+    //  images in a host folder, folders in a ProDOS image. A DOS 3.3 image has
+    //  New disabled, which the window sets from the volume.
+    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected == 0)
     {
-        if (selected == 0)
-        {
-            verbs.push_back (Verb::NewFolder);
-        }
-
+        verbs.push_back (Verb::NewFolder);
         verbs.push_back (Verb::NewDisk);
     }
     else if (m_browser.IsImageLocation() && selected == 0)
