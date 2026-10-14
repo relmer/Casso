@@ -1577,7 +1577,7 @@ legend, and tilt the platter and back.
   tracks from its sector data, so they have no timing or copy protection. For
   NIB and NB2 the tab MUST explain that a nibble image has no timing between
   bits. For a WOZ file before 2.1, the tab's note MUST be that only WOZ 2.1
-  and later files can image a track as flux, which includes timing; for a
+  or higher supports imaging a track as flux, which includes timing; for a
   track imaged as bits in a WOZ 2.1 or later file, the note MUST have the
   file's version and that only tracks imaged as flux include timing.
   The track lengths of sector, NIB and NB2 images come from the format, so
@@ -1895,6 +1895,8 @@ legend, and tilt the platter and back.
 
 - **FR-039**: Under the label "Sectors, in the order they pass the head", one
   button per address field MUST show its hex sector number in passing order,
+  on as many rows as fit the column's width, the tabs below moving down for
+  each,
   in a state of good, bad address, bad data, not checked, or no data field.
   Each state MUST use the same color and symbol in every view. The tooltip
   MUST show the sector and its place in passing order (for example "Sector
@@ -2928,7 +2930,10 @@ legend, and tilt the platter and back.
   percentage at its right end; clicking it MUST show a slider between the
   "-" and "+" buttons, and clicking it again MUST hide them. The status band
   MUST show the hint for the view under the pointer. The zoom MUST be saved
-  with the rest of the window's state (FR-080).
+  with the rest of the window's state (FR-080). The zoom MUST stop at the
+  largest value at which the window's minimum size times the zoom fits the
+  work area of its monitor; a zoom MUST grow a smaller window to that size,
+  and the window MUST NOT be resized below it, so no zoom overlaps controls.
 
 **Preservation, later release**
 
