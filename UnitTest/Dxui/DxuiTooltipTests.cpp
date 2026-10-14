@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -266,6 +269,32 @@ public:
     //  A tip's tab-separated parts start at the same columns on every line,
     //  each column as wide as its widest part and a gap after it; a line with
     //  no tab spans the columns and widens only the whole table.
+    //  A table line with a color of its own is drawn in it, every part of
+    //  it; the other lines are in the tip's text color.
+    TEST_METHOD (ATableLineTakesItsOwnColor)
+    {
+        constexpr uint32_t    kRed = 0xFFE05050;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineColors     ({ 0, kRed });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"N\tNegative\t0\nZ\tZero\t1", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            bool  isZeroLine = call.text == L"Z" || call.text == L"Zero" || call.text == L"1";
+
+            Assert::AreEqual (isZeroLine ? kRed : t.GetTextArgb(), call.argb, call.text.c_str());
+        }
+
+        Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
+    }
+
     TEST_METHOD (LayOutTable_LinesUpTheColumnsOfEveryLine)
     {
         DxuiTooltip::TableLayout  table;

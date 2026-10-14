@@ -437,7 +437,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
     if (m_visible)
     {
-        bool  changed = wasAtPointer != isAtPointer || (text != m_text) ||
+        bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs ||
                         anchor.left   != m_anchor.left  ||
                         anchor.top    != m_anchor.top   ||
                         anchor.right  != m_anchor.right ||
@@ -774,6 +774,7 @@ void DxuiTooltip::ShowPopup()
 
     if (shows)
     {
+        m_shownLineArgbs            = m_lineArgbs;
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = DxuiPopupPlacement::Below;
@@ -1404,15 +1405,18 @@ void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table
 
 
 
-    for (const std::vector<std::wstring> & parts : table.lines)
+    for (size_t line = 0; line < table.lines.size(); line++)
     {
+        const std::vector<std::wstring>  & parts = table.lines[line];
+        uint32_t                           argb  = (line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb;
+
         for (size_t c = 0; c < parts.size(); c++)
         {
             bool  isSpan = parts.size() == 1;
 
             x  = isSpan ? 0.0f        : table.columnX[c];
             w  = isSpan ? table.width : table.width - table.columnX[c];
-            hr = text.DrawString (parts[c].c_str(), left + x, y, w, table.lineHeight, m_textArgb, fontPx, GetFace());
+            hr = text.DrawString (parts[c].c_str(), left + x, y, w, table.lineHeight, argb, fontPx, GetFace());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 

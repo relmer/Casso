@@ -8893,6 +8893,9 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     m_operandColorTip = nullptr;
 
+    //  Only the P register's flags color their lines.
+    tip.SetLineColors ({});
+
     if (IsAnyMenuOpen())
     {
         tip.HideImmediate();
@@ -9052,13 +9055,24 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         p = GetRegisterByte ("P");
     }
 
-    //  A tip of its own over a colored cell says what the color means as well.
+    //  Over P's flags, a line for each flag, a flag that changed since the
+    //  last stop in the changed color, as its letter is in the cell.
     if (p.has_value())
     {
+        uint32_t               changed = m_stopChanges.GetChangedBits ("R:P");
+        std::vector<uint32_t>  colors;
+
+
+
+        for (const FlagsDialog::Flag & flag : FlagsDialog::GetFlags())
+        {
+            colors.push_back ((changed & flag.bit) != 0 ? GetChangedArgb() : 0);
+        }
+
         OffsetRect (&cell, bounds.left, bounds.top);
-        (void) TryGetCellTip (clientPx, spot, colorTip);
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
+        tip.SetMonospace   (false);
+        tip.SetLineColors  (std::move (colors));
+        tip.RequestShow    (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 

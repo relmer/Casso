@@ -108,6 +108,11 @@ public:
     using MeasureFn = std::function<HRESULT (const std::wstring & part, float & widthPx, float & heightPx)>;
 
     static bool     IsTable     (const std::wstring & text) { return text.find (L'\t') != std::wstring::npos; }
+
+    //  A table's line colors, one for each line from the top; zero, or a line
+    //  past the last, is drawn in the tip's text color. Set before the
+    //  request it goes with; a change of colors raises the tip again.
+    void  SetLineColors (std::vector<uint32_t> argbs) { m_lineArgbs = std::move (argbs); }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -255,37 +260,39 @@ private:
     //  The table laid out with `text` measuring the parts at the tip's font.
     HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
 
-    DxuiDpiScaler      m_scaler;
-    RECT               m_anchor            = {};
-    std::wstring       m_text;
-    std::wstring       m_pendingText;
-    RECT               m_pendingAnchor     = {};
-    bool               m_isPointerTip      = true;
-    bool               m_isNextPointerTip  = true;
-    int64_t            m_showAtMs          = 0;
-    int64_t            m_hideAtMs          = 0;
-    int                m_dwellOpenMs       = 500;
-    int                m_dwellCloseMs      = 100;
-    float              m_fontDip           = 12.0f;
-    bool               m_monospace         = false;
-    uint32_t           m_bgArgb            = 0xFF2D2D2D;
-    uint32_t           m_borderArgb        = 0xFF606060;
-    uint32_t           m_textArgb          = 0xFFE8EEF4;
-    float              m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
-    bool               m_isWholePixelFrame = false;
-    DxuiShadow::Style  m_shadowOnDark;
-    DxuiShadow::Style  m_shadowOnLight;
-    int                m_viewportWPx       = 0;
-    int                m_viewportHPx       = 0;
-    bool               m_visible           = false;
-    bool               m_pending           = false;
-    bool               m_fadingOut         = false;
-    bool               m_isInstant         = false;
-    DxuiHwndSource   * m_popupHost         = nullptr;
-    DxuiPopupHost    * m_activePopup       = nullptr;
-    PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
-    PointerLocator     m_pfnLocatePointer  = LocatePointer;
-    PointerExtent      m_pointerExtent     = {};
-    bool               m_hasPointerExtent  = false;
-    int                m_showCount         = 0;
+    DxuiDpiScaler            m_scaler;
+    RECT                     m_anchor            = {};
+    std::wstring             m_text;
+    std::wstring             m_pendingText;
+    RECT                     m_pendingAnchor     = {};
+    bool                     m_isPointerTip      = true;
+    bool                     m_isNextPointerTip  = true;
+    int64_t                  m_showAtMs          = 0;
+    int64_t                  m_hideAtMs          = 0;
+    int                      m_dwellOpenMs       = 500;
+    int                      m_dwellCloseMs      = 100;
+    float                    m_fontDip           = 12.0f;
+    bool                     m_monospace         = false;
+    uint32_t                 m_bgArgb            = 0xFF2D2D2D;
+    uint32_t                 m_borderArgb        = 0xFF606060;
+    uint32_t                 m_textArgb          = 0xFFE8EEF4;
+    float                    m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
+    bool                     m_isWholePixelFrame = false;
+    DxuiShadow::Style        m_shadowOnDark;
+    DxuiShadow::Style        m_shadowOnLight;
+    int                      m_viewportWPx       = 0;
+    int                      m_viewportHPx       = 0;
+    bool                     m_visible           = false;
+    bool                     m_pending           = false;
+    bool                     m_fadingOut         = false;
+    bool                     m_isInstant         = false;
+    DxuiHwndSource         * m_popupHost         = nullptr;
+    DxuiPopupHost          * m_activePopup       = nullptr;
+    PointerMeasurer          m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator           m_pfnLocatePointer  = LocatePointer;
+    PointerExtent            m_pointerExtent     = {};
+    bool                     m_hasPointerExtent  = false;
+    int                      m_showCount         = 0;
+    std::vector<uint32_t>    m_lineArgbs;
+    std::vector<uint32_t>    m_shownLineArgbs;
 };
