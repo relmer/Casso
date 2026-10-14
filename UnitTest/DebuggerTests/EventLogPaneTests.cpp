@@ -251,9 +251,9 @@ namespace EventLogPaneTests
 
 
             pane.Configure();
-            pane.SetOptionsText ("severity=101;columns=00000 0,0,0,0,0");
+            pane.SetOptionsText ("severity=101;columnLayout=00000 0,0,0,0,0");
 
-            Assert::IsTrue  (pane.IsColumnShown (DiskLogPane::kCycle),  L"five columns saved, six now");
+            Assert::IsTrue  (pane.IsColumnShown (DiskLogPane::kTime),   L"five columns saved, six now");
             Assert::IsFalse (pane.IsSeverityShown (DiskLogPane::kWarning));
             Assert::IsTrue  (pane.IsSeverityShown (DiskLogPane::kError));
         }
@@ -504,6 +504,8 @@ namespace EventLogPaneTests
             delta.newer   = { MakeDiskRow (100, Disk2EventType::HeadBump) };
             pane.Apply   (delta);
             pane.Refresh();
+            pane.SetColumnShown (DiskLogPane::kTime,  false);
+            pane.SetColumnShown (DiskLogPane::kCycle, true);
 
             Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
 
@@ -528,14 +530,14 @@ namespace EventLogPaneTests
             pane.SetDrive       (1);
             pane.SetTrackText   (L"17-20");
             pane.SetSectorText  (L"0,5");
-            pane.SetColumnShown (DiskLogPane::kWall, true);
+            pane.SetColumnShown (DiskLogPane::kCycle, true);
 
             again.SetOptionsText (pane.GetOptionsText());
 
             Assert::AreEqual (pane.GetOptionsText(), again.GetOptionsText());
             Assert::IsFalse  (again.IsKindShown (DiskLogPane::kHeadStep));
             Assert::AreEqual (std::wstring (L"17-20"), again.GetTrackText());
-            Assert::IsTrue   (again.IsColumnShown (DiskLogPane::kWall));
+            Assert::IsTrue   (again.IsColumnShown (DiskLogPane::kCycle));
         }
 
 
@@ -638,6 +640,36 @@ namespace EventLogPaneTests
             cycles = GetColumn (pane, InputLogPane::kCycle);
 
             Assert::IsTrue (cycles == std::vector<std::wstring> { L"", L"200", L"300" }, L"the second strobe and the read");
+        }
+
+
+        //  The time is in the locale's format, its clock, markers and
+        //  separators, with the milliseconds after the seconds.
+        TEST_METHOD (TheTimeFollowsTheLocaleWithMilliseconds)
+        {
+            SYSTEMTIME  time = {};
+
+
+
+            time.wYear         = 2026;
+            time.wMonth        = 10;
+            time.wDay          = 14;
+            time.wHour         = 22;
+            time.wMinute       = 42;
+            time.wSecond       = 7;
+            time.wMilliseconds = 45;
+
+            Assert::AreEqual (std::wstring (L"10:42:07.045 PM"), EventLogText::FormatClockTime (time, L"en-US"));
+            Assert::AreEqual (std::wstring (L"22:42:07,045"),    EventLogText::FormatClockTime (time, L"de-DE"));
+        }
+
+
+        TEST_METHOD (MillisecondsGoAfterTheLastSecondsFieldOutsideQuotes)
+        {
+            Assert::AreEqual (std::wstring (L"h:mm:ss'.123' tt"),     EventLogText::AddMilliseconds (L"h:mm:ss tt",     L".", 123));
+            Assert::AreEqual (std::wstring (L"HH:mm:s',007'"),   EventLogText::AddMilliseconds (L"HH:mm:s",        L",", 7));
+            Assert::AreEqual (std::wstring (L"H'h's'.500' 'sec'"),    EventLogText::AddMilliseconds (L"H'h's 'sec'",    L".", 500));
+            Assert::AreEqual (std::wstring (L"HH:mm"),                EventLogText::AddMilliseconds (L"HH:mm",          L".", 1), L"no seconds, nothing added");
         }
     };
 }

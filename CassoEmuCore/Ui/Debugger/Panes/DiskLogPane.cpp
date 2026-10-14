@@ -190,7 +190,7 @@ std::wstring DiskLogPane::ListRejected (
 //
 //  GetOptionsText
 //
-//  kinds=11111111;severity=111;drive=0;track=...;sector=...;columns=111110 0,0,0,0,0,0
+//  kinds=11111111;severity=111;drive=0;track=...;sector=...;columnLayout=101111 0,0,0,0,0,0
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,7 +211,7 @@ std::string DiskLogPane::GetOptionsText() const
         severities += isShown ? '1' : '0';
     }
 
-    return std::format ("kinds={};severity={};drive={};track={};sector={};columns={}", kinds, severities, m_drive,
+    return std::format ("kinds={};severity={};drive={};track={};sector={};columnLayout={}", kinds, severities, m_drive,
                         TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)),
                         GetColumnsText());
 }
@@ -275,7 +275,7 @@ void DiskLogPane::SetOptionsText (const std::string & text)
         {
             m_sectorText = TextEncoding::Utf8ToWide (value);
         }
-        else if (key == "columns")
+        else if (key == "columnLayout")
         {
             SetColumnsText (value);
         }
@@ -547,12 +547,12 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
 
 DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
 {
-    return { { L"Cycle",     DxuiTextHAlign::Right,  110, true  },
+    return { { L"Time",      DxuiTextHAlign::Left,  kFit, true  },
+             { L"Cycle",     DxuiTextHAlign::Right,  110, false },
              { L"Drive",     DxuiTextHAlign::Right,   48, true  },
              { L"Severity",  DxuiTextHAlign::Left,  kFit, true  },
              { L"Event",     DxuiTextHAlign::Left,  kFit, true  },
-             { L"Detail",    DxuiTextHAlign::Left,     0, true  },
-             { L"Wall time", DxuiTextHAlign::Left,   100, false } };
+             { L"Detail",    DxuiTextHAlign::Left,     0, true  } };
 }
 
 

@@ -34,12 +34,12 @@ class DiskLogPane : public EventLogPane<Disk2Event>
 public:
     enum Column : size_t
     {
+        kTime,
         kCycle,
         kDrive,
         kSeverity,
         kEvent,
         kDetail,
-        kWall,
         kColumnCount,
     };
 

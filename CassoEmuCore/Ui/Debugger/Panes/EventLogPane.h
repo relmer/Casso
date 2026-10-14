@@ -24,7 +24,7 @@
 //
 //  A pane for one kind of event defines its columns, its filter and its
 //  event cells, and may look over every row before the filter runs. Its
-//  first column is the cycle and its last the wall time; its label and text
+//  first column is the time and its second the cycle; its label and text
 //  columns have the rows that are not events.
 //
 //  UI thread only.
@@ -50,8 +50,10 @@ public:
         bool              isShown  = true;
     };
 
-    static constexpr int  kTopRow = -1;
-    static constexpr int  kFit    = -1;
+    static constexpr int     kTopRow      = -1;
+    static constexpr int     kFit         = -1;
+    static constexpr size_t  kTimeColumn  = 0;
+    static constexpr size_t  kCycleColumn = 1;
 
     EventLogPane (DxuiListView * list, RequestFn request) :
         m_list    (list),
@@ -92,6 +94,11 @@ public:
                                        EventLogText::GetResetLabel(), EventLogText::GetPowerCycleLabel() })
         {
             m_list->NoteFitText (GetLabelColumn(), label);
+        }
+
+        for (const std::wstring & time : EventLogText::GetTimeFitTexts())
+        {
+            m_list->NoteFitText (kTimeColumn, time);
         }
 
         NoteFitTexts();
@@ -382,8 +389,8 @@ public:
 
         row = &m_rows.GetRows()[(size_t) index];
 
-        out[0].text                = (row->kind == DebugLogRowKind::Event || row->cycle != 0) ? EventLogText::FormatCycle (row->cycle) : std::wstring();
-        out[specs.size() - 1].text = EventLogText::FormatWallTime (row->wallTime);
+        out[kTimeColumn].text  = EventLogText::FormatTime (row->wallTime);
+        out[kCycleColumn].text = (row->kind == DebugLogRowKind::Event || row->cycle != 0) ? EventLogText::FormatCycle (row->cycle) : std::wstring();
 
         switch (row->kind)
         {
@@ -474,14 +481,14 @@ private:
         }
     }
 
-    //  The cycle and wall time columns sort by number, the others by their
-    //  text; rows that tie stay in position order.
+    //  The time and cycle columns sort by number, the others by their text;
+    //  rows that tie stay in position order.
     void  SortView()
     {
         const std::vector<Row>     & rows    = m_rows.GetRows();
         size_t                       column  = (size_t) m_sortColumn;
-        bool                         isCycle = column == 0;
-        bool                         isWall  = column == GetSpecs().size() - 1;
+        bool                         isTime  = column == kTimeColumn;
+        bool                         isCycle = column == kCycleColumn;
         std::vector<std::wstring>    keys;
         std::vector<size_t>          order;
         Cells                        cells;
@@ -490,7 +497,7 @@ private:
 
 
 
-        if (!isCycle && !isWall)
+        if (!isCycle && !isTime)
         {
             keys.resize (m_view.size());
 
@@ -516,7 +523,7 @@ private:
             {
                 less = m_isSortDescending ? right.cycle < left.cycle : left.cycle < right.cycle;
             }
-            else if (isWall)
+            else if (isTime)
             {
                 less = m_isSortDescending ? right.wallTime < left.wallTime : left.wallTime < right.wallTime;
             }

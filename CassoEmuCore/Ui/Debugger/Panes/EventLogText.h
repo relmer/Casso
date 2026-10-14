@@ -12,8 +12,8 @@
 //
 //  Text both event log panes put in their cells: a cycle count with
 //  thousands separators, a host clock reading as local time to the
-//  millisecond, a byte as hex with its character, and the rows that are not
-//  events.
+//  millisecond in the locale's time format, a byte as hex with its
+//  character, and the rows that are not events.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,8 +23,19 @@ public:
     //  1,234,567.
     static std::wstring  FormatCycle    (uint64_t cycle);
 
-    //  A UTC FILETIME as local HH:MM:SS.mmm; empty for 0.
-    static std::wstring  FormatWallTime (uint64_t fileTime);
+    //  A UTC FILETIME as local time in the locale's format, with the
+    //  milliseconds after the seconds: "10:42:07.123 PM"; empty for 0.
+    static std::wstring  FormatTime      (uint64_t fileTime, LPCWSTR locale = LOCALE_NAME_USER_DEFAULT);
+    static std::wstring  FormatClockTime (const SYSTEMTIME & localTime, LPCWSTR locale);
+
+    //  A time picture with a quoted literal of the decimal separator and
+    //  three digits of milliseconds after its last seconds field; the
+    //  picture as it is when it has no seconds.
+    static std::wstring  AddMilliseconds (const std::wstring & picture, const std::wstring & decimal, WORD milliseconds);
+
+    //  Every hour of the day at 58:58.888, so the locale's widest time is
+    //  among them whatever its markers and digits.
+    static std::vector<std::wstring>  GetTimeFitTexts (LPCWSTR locale = LOCALE_NAME_USER_DEFAULT);
 
     //  $C1 'A', the character from the low seven bits, or just $8D for a
     //  control character.

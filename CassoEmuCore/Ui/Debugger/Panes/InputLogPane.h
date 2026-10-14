@@ -33,12 +33,12 @@ class InputLogPane : public EventLogPane<InputEvent>
 public:
     enum Column : size_t
     {
+        kTime,
         kCycle,
         kSource,
         kAddress,
         kValue,
         kMeaning,
-        kWall,
         kColumnCount,
     };
 

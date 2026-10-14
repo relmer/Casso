@@ -62,7 +62,7 @@ void InputLogPane::SetMouseButtonAtC063 (bool isMouseButton)
 //
 //  GetOptionsText
 //
-//  lanes=11111;pairs=11;columns=111110 0,0,0,0,0,0
+//  lanes=11111;pairs=11;columnLayout=101111 0,0,0,0,0,0
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +77,7 @@ std::string InputLogPane::GetOptionsText() const
         lanes += isShown ? '1' : '0';
     }
 
-    return std::format ("lanes={};pairs={}{};columns={}", lanes, m_isPairJoystick[0] ? 1 : 0, m_isPairJoystick[1] ? 1 : 0, GetColumnsText());
+    return std::format ("lanes={};pairs={}{};columnLayout={}", lanes, m_isPairJoystick[0] ? 1 : 0, m_isPairJoystick[1] ? 1 : 0, GetColumnsText());
 }
 
 
@@ -127,7 +127,7 @@ void InputLogPane::SetOptionsText (const std::string & text)
                 m_isPairJoystick[i] = value[i] == '1';
             }
         }
-        else if (key == "columns")
+        else if (key == "columnLayout")
         {
             SetColumnsText (value);
         }
@@ -445,12 +445,12 @@ void InputLogPane::FormatEvent (
 
 InputLogPane::ColumnSpecs InputLogPane::GetColumnSpecs() const
 {
-    return { { L"Cycle",     DxuiTextHAlign::Right, 110, true  },
+    return { { L"Time",      DxuiTextHAlign::Left, kFit, true  },
+             { L"Cycle",     DxuiTextHAlign::Right, 110, false },
              { L"Source",    DxuiTextHAlign::Left,   60, true  },
              { L"Address",   DxuiTextHAlign::Left,   90, true  },
              { L"Value",     DxuiTextHAlign::Left,   80, true  },
-             { L"Meaning",   DxuiTextHAlign::Left,    0, true  },
-             { L"Wall time", DxuiTextHAlign::Left,  100, false } };
+             { L"Meaning",   DxuiTextHAlign::Left,    0, true  } };
 }
 
 
