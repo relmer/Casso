@@ -384,7 +384,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [X] T172 Draw `appleText` content in `CassoExplorerWindow` through the framebuffer view: columns from the pane width and a cell scaled to the theme's text line height, the band in view drawn white on black from `AppleTextFont`, tinted by `PicturePreview::Tint` and passed through `CrtPictureRenderer` with the picture's monitor, effects and glow margin, redrawn on layout, scroll and monitor or effect change, per FR-082, US9/AC6 and SC-026 (missing)
 - [X] T173 Test that hex views, catalogs and host text files other than exported Apple files stay in the theme's font on every monitor, that a 2 KB ROM draws lowercase as uppercase, and that no ROM falls back to the built-in table without an error, per FR-067 and Edge Cases (missing)
 - [X] T174 Copy the whole Apple text with Ctrl+C while it is drawn on the monitor, with a test, per the plan's Risks (missing)
-- [ ] T175 Walk quickstart section 7a on x64 Debug and Release and record SC-026 in validation.md, per SC-026 (missing)
+- [X] T175 Walk quickstart section 7a on x64 Debug and Release and record SC-026 in validation.md, per SC-026 (missing)
 
 ## Phase 15: Convergence
 

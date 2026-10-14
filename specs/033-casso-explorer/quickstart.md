@@ -154,7 +154,8 @@ claim, so the preview is its bytes.
 - Export an Applesoft program to a host folder and select the
   `.Applesoft BASIC.txt` file. Result: the same lines as the program
   inside the image, as text. Select a plain ASCII `.txt` file without an
-  export suffix. Result: the hex view.
+  export suffix. Result: the preview File Explorer draws for a `.txt`
+  file (FR-073), or the hex view where Windows has no preview for it.
 - Look at the command bar. Result: Theme and the Preview toggle at the
   far end, and no Monitor drop-down. Open the options dialog's Display
   page and pick amber. Result: a picture preview redrawn on amber.

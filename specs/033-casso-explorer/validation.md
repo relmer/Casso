@@ -184,6 +184,23 @@ and a zip of two of them.
 | SC-024 | Double-click the zip, click a file, Extract all, Extract: four actions. The list and the preview each appeared within the 2 s allowed for them; the wizard opened 0.4 s after the click with the zip's own folder as the destination; both files were extracted 0.2 s after Extract |
 | SC-025 | Not measured: a drag from File Explorer moves the real pointer, so a person at the keyboard walks it (T077) |
 
+### Quickstart 7a, 2026-10-14
+
+x64 Debug and Release, commit `f4537304`, driven with posted clicks on a copy
+of `UnitTest/Fixtures/CassoExplorer/dos33.dsk`. The export was written by
+`CassoCli disk get HELLO --basic` under Casso Explorer's descriptive name;
+Casso Explorer's own export reads the file through the same
+`DiskOperations::Get` call with the same encoding. The results were identical
+on both builds at every step.
+
+| Check | Result |
+|---|---|
+| SC-026, FR-082: the disk text file | NOTES previewed as its lines in the monospaced face, the tab expanded |
+| SC-026: the export against the image | `HELLO.Applesoft BASIC.txt` and HELLO inside the image previewed as the same six lines |
+| FR-073: a plain `.txt` | Previewed by the `.txt` preview handler installed here (PowerToys), as File Explorer previews it. The quickstart listed the hex view here, written before the shell previews; that line is corrected |
+| FR-068 | The command bar ends with Theme and the Preview toggle, with no Monitor drop-down |
+| FR-067, Release | With PICTURE selected, Amber monochrome picked on the options dialog's Display page turned the preview amber before OK: the lit pixels' mean went from R 118 G 121 B 121 to R 151 G 124 B 33. Cancel was then pressed |
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
