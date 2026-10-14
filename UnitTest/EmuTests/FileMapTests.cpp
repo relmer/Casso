@@ -388,7 +388,8 @@ public:
 
 
     //  The point under the pointer stays there as the grid zooms; the pan
-    //  stops with the last column and row at the view's edges; and back at a
+    //  stops with the last column and row at the scrollbars along the view's
+    //  edges; and back at a
     //  zoom of 1 the grid is where it started.
     TEST_METHOD (TheGridZoomsAboutThePointerAndPansWithinItsView)
     {
@@ -419,8 +420,8 @@ public:
 
         grid.ShiftPan (100000, 100000);
         Assert::IsTrue   (grid.GetCellRect (static_cast<int> (map.cells.size()) - 1, last));
-        Assert::IsTrue   (std::abs (600 - last.bottom) <= 1, L"the last row at the bottom edge");
-        Assert::IsTrue   (std::abs (640 - last.right)  <= 1, L"the last column at the right edge");
+        Assert::IsTrue   (std::abs (600 - DxuiScrollPanel::kScrollbarWidthDip - last.bottom) <= 1, L"the last row at the bottom scrollbar");
+        Assert::IsTrue   (std::abs (640 - DxuiScrollPanel::kScrollbarWidthDip - last.right)  <= 1, L"the last column at the right scrollbar");
 
         grid.ZoomAbout (0.01, p);
         Assert::IsFalse (grid.IsZoomed());

@@ -39,6 +39,24 @@ static constexpr uint32_t  s_kZeroBitAlpha  = 0x30000000u;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileMapGridView::FileMapGridView
+//
+//  The scrollbars of a zoomed grid set its pan.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileMapGridView::FileMapGridView (InspectorViewContext & context) : InspectorView (context)
+{
+    m_vBar.SetOnScroll ([this] (int, int pos) { m_panY = static_cast<float> (pos); ClampPan(); });
+    m_hBar.SetOnScroll ([this] (int, int pos) { m_panX = static_cast<float> (pos); ClampPan(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FileMapGridView::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +161,68 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
     painter.SetClipRect (hasPrior ? &prior : nullptr);
 
     PaintLabels (text, theme, g, textPx);
+
+    //  Zoomed, scrollbars along the right and bottom edges where the cells
+    //  run past them.
+    ConfigureBars (g);
+
+    if (m_vBar.IsVisible())
+    {
+        m_vBar.Paint (painter, theme.Foreground());
+    }
+
+    if (m_hBar.IsVisible())
+    {
+        m_hBar.Paint (painter, theme.Foreground());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::ConfigureBars
+//
+//  A bar where the cells run past their area, its range the cells' extent
+//  and its page the area's; a bar of no range is hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::ConfigureBars (const Grid & g)
+{
+    static constexpr int  kMinThumbDip = 16;
+
+
+
+    int             bar      = m_scaler.ToPx (DxuiScrollPanel::kScrollbarWidthDip);
+    int             contentW = static_cast<int> (m_map->cellsPerTrack * g.cellW);
+    int             contentH = static_cast<int> (m_map->tracks * g.rowH);
+    int             viewW    = m_boundsDip.right  - static_cast<int> (g.cellsLeft);
+    int             viewH    = m_boundsDip.bottom - static_cast<int> (g.cellsTop);
+    bool            isV      = IsZoomed() && contentH > viewH;
+    bool            isH      = IsZoomed() && contentW > viewW;
+    DxuiScrollInfo  info;
+
+
+
+    m_vBar.Configure (DxuiScrollbar::Orientation::Vertical,   bar, m_scaler.ToPx (kMinThumbDip), m_scaler.ToPx (static_cast<int> (s_kWheelStepDip)));
+    m_hBar.Configure (DxuiScrollbar::Orientation::Horizontal, bar, m_scaler.ToPx (kMinThumbDip), m_scaler.ToPx (static_cast<int> (s_kWheelStepDip)));
+    m_vBar.SetTrack ({ m_boundsDip.right - bar, static_cast<LONG> (g.cellsTop), m_boundsDip.right, m_boundsDip.bottom - (isH ? bar : 0) });
+    m_hBar.SetTrack ({ static_cast<LONG> (g.cellsLeft), m_boundsDip.bottom - bar, m_boundsDip.right - (isV ? bar : 0), m_boundsDip.bottom });
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = isV ? contentH : 0;
+    info.nPage = static_cast<UINT> (viewH - (isH ? bar : 0));
+    info.nPos  = static_cast<int> (m_panY);
+    m_vBar.SetScrollInfo (info);
+
+    info.nMax  = isH ? contentW : 0;
+    info.nPage = static_cast<UINT> (viewW - (isV ? bar : 0));
+    info.nPos  = static_cast<int> (m_panX);
+    m_hBar.SetScrollInfo (info);
 }
 
 
@@ -556,6 +636,25 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  A scrollbar takes the press on it and the drag that follows.
+    if (m_vBar.IsDragging() || m_hBar.IsDragging())
+    {
+        isHandled = (ev.kind == DxuiMouseEventKind::Move) ? (m_vBar.OnMouseMove (p.x, p.y) || m_hBar.OnMouseMove (p.x, p.y))
+                  : (ev.kind == DxuiMouseEventKind::Up)   ? (m_vBar.OnMouseUp() || m_hBar.OnMouseUp())
+                  : true;
+        return isHandled;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_vBar.IsVisible() && m_vBar.HitTest (p.x, p.y))
+    {
+        return m_vBar.OnMouseDown (p.x, p.y);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_hBar.IsVisible() && m_hBar.HitTest (p.x, p.y))
+    {
+        return m_hBar.OnMouseDown (p.x, p.y);
+    }
+
     switch (ev.kind)
     {
         //  Zoomed, the wheel pans the grid down and up, or with Shift
@@ -730,8 +829,9 @@ void FileMapGridView::ShiftPan (int dxPx, int dyPx)
 //
 //  FileMapGridView::ClampPan
 //
-//  The cells' edges no farther in than their area's, so the grid never pans
-//  past its last row or column; at a zoom of 1 there is no pan.
+//  The cells' edges no farther in than their area's, less a scrollbar along
+//  the other edge where there is one, so the grid never pans past its last
+//  row or column; at a zoom of 1 there is no pan.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -740,8 +840,13 @@ void FileMapGridView::ClampPan()
     Grid   g       = MakeGrid();
     int    columns = (m_map != nullptr) ? m_map->cellsPerTrack : 16;
     int    tracks  = (m_map != nullptr) ? m_map->tracks : 35;
-    float  maxX    = std::max (0.0f, columns * g.cellW - (m_boundsDip.right  - g.cellsLeft));
-    float  maxY    = std::max (0.0f, tracks  * g.rowH  - (m_boundsDip.bottom - g.cellsTop));
+    float  bar     = m_scaler.ToPxf (static_cast<float> (DxuiScrollPanel::kScrollbarWidthDip));
+    float  viewW   = m_boundsDip.right  - g.cellsLeft;
+    float  viewH   = m_boundsDip.bottom - g.cellsTop;
+    bool   isH     = columns * g.cellW > viewW;
+    bool   isV     = tracks  * g.rowH  > viewH;
+    float  maxX    = std::max (0.0f, columns * g.cellW - (viewW - (isV ? bar : 0.0f)));
+    float  maxY    = std::max (0.0f, tracks  * g.rowH  - (viewH - (isH ? bar : 0.0f)));
 
 
 

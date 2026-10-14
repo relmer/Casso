@@ -39,7 +39,7 @@ public:
 
     static constexpr double  kMaxZoom = 32.0;
 
-    explicit FileMapGridView (InspectorViewContext & context) : InspectorView (context) {}
+    explicit FileMapGridView (InspectorViewContext & context);
 
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
@@ -92,6 +92,7 @@ private:
     void      PaintLabels    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, float textPx) const;
     bool      PaintBytes     (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const;
     void      ClampPan       ();
+    void      ConfigureBars  (const Grid & g);
 
     static constexpr size_t  kRoleCount = static_cast<size_t> (SectorRole::CrossLinked) + 1;
 
@@ -112,4 +113,6 @@ private:
     POINT                                   m_pressAt      = {};
     POINT                                   m_lastAt       = {};
     int64_t                                 m_lastClickMs  = 0;
+    DxuiScrollbar                           m_vBar;
+    DxuiScrollbar                           m_hBar;
 };
