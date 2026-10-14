@@ -276,7 +276,9 @@ public:
     //  host time with fast loading on. The stretches the governor runs at
     //  Maximum are timed as this machine actually runs them; the rest count
     //  at the machine's real speed, as the shell would pace them. The real-
-    //  time length of the same load is reported beside it.
+    //  time length of the same load is reported beside it. The time budget
+    //  is asserted in Release only, as in PerformanceTests, because Debug
+    //  timings of the fast stretches have no relation to shipping speed.
     TEST_METHOD (SixteenKilobyteFastLoadTakesUnderTenSecondsOfHostTime)
     {
         constexpr uint64_t    kSlice     = 1023;
@@ -345,7 +347,11 @@ public:
             Assert::AreEqual (data[i], machine.GetMemoryBus().ReadByte ((Word) (kStart + i)), L"the load is intact");
         }
 
+#ifdef NDEBUG
         Assert::IsTrue (hostSec < 10.0, report);
+#else
+        Logger::WriteMessage (L"The host-time budget is asserted in Release only.\n");
+#endif
     }
 
 
