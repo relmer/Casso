@@ -344,6 +344,22 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
 6. In a keyboard polling loop, press a key. Expect one host key row and one
    guest read row in the input log, not a row per poll.
 7. Confirm neither emulator debug window nor its menu item remains (SC-055).
+8. In the Disk II log, find a Sector read row: its Detail has T/S/V, the size
+   and the first eight bytes. Hover the Detail: a monospaced hex dump of all
+   256 bytes. Right-click the row: Copy sector bytes copies the dump.
+9. Boot a 13-sector (DOS 3.2) disk: Sector read rows with 256 bytes each.
+10. Boot a copy-protected disk with bad fields: Error rows (address or data
+    checksum) on a reddish fill and Warning rows (cut off, no address field,
+    read stall, write protected) on a yellowish fill, each with Error or
+    Warning in the Severity column. Clear Info in the Severity drop-down:
+    only those rows remain.
+11. Right-click the column headings of the Disk II log, the input log and
+    the Breakpoints pane: a check for each column; the Detail, Meaning and
+    Name columns are dimmed. No pane has a column drop-down on its bar.
+12. Type 17.25 and 17-18.25 in the track filter: rows on quarter-track 17.25,
+    and on 17.0 to 18.25. There is no Quarter-tracks option.
+13. Run a program that turns two adjacent stepper phases on together: a Head
+    step row to the odd quarter-track between them (FR-233).
 
 ## FR-218: debugger and input components (measurement)
 
