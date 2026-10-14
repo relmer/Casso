@@ -59,6 +59,16 @@ column), or **Drop**. The owner decides each row.
 | Second controller | Slot 6 only; a stored "more than one controller" hint never appears | **As is**, slot 6 only |
 | Menu item enabled | Always enabled; silent when the machine has no Disk II (spec 006's gray item specified, not built) | **Change**: the pane has a line that the machine has no Disk II |
 
+## Disk II event log: from spec 012, not yet decided
+
+Spec 012 (Disk II debug telemetry, written for the old window) was closed on
+2026-10-13 as superseded by 035 and 040. These two of its items had no other
+home and were added here after the owner approved the rows above.
+
+| Feature | Spec 012 | Proposal |
+|---|---|---|
+| Read stall | US4, FR-008, FR-009: a Warning row when the program reads the data latch at one head position for K revolutions or more with no address mark decoded; an address mark or a head step resets it, so it can come again. K of 2 or 3, a constant tuned against self-sync gaps and normal spacing between sectors | **Change**: added, K = 2 revolutions, from the Disk II event feed, so a replay rebuilds it (FR-210). It could also be a disk breakpoint kind (User Story 20) |
+| Silent ratchet marker | FR-013: during a boot recalibrate, rapid bumps go through `Disk2AudioSource::OnHeadBump` in a thunk, silent, click, click cycle, with no audio event for the silent slot, so in a log of audio events that bump looks like a dropped event. The audio source would report the silent slot and the log would mark the bump | **Drop**: the mark applies to audio rows, which are dropped above |
 ## Input log
 
 | Feature | Old window | Proposal |
