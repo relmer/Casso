@@ -7405,6 +7405,10 @@ void DebuggerWindow::ApplySnapshot()
         std::wstring        delta;
         uint64_t            count    = 0;
 
+        //  The flags in the fixed-width face, so each letter and dot has a
+        //  column of its own in a list otherwise in the proportional face.
+        flags.face = DxuiTheme::kMonoFace;
+
         if (isCycles)
         {
             delta = Widen (m_stopChanges.GetDelta ("R:" + reg.name));

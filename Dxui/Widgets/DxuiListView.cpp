@@ -3450,6 +3450,9 @@ void DxuiListView::PaintDataRows (
                 iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }
 
+            //  The cell's own face where it has one, for every run drawn in it.
+            const wchar_t * cellFace = (cells[c].face != nullptr) ? cells[c].face : GetBodyFace();
+
             //  Selected characters, as a text box draws them: the selection
             //  color behind the text, placed by measuring the text before it.
             if (int s = 0, e = 0; m_hasTextSel && m_columns[c].align == DxuiTextHAlign::Left &&
@@ -3467,11 +3470,11 @@ void DxuiListView::PaintDataRows (
 
                 if (s > 0)
                 {
-                    hrS = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, GetBodyFace(), wS, hIgnore);
+                    hrS = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, cellFace, wS, hIgnore);
                     IGNORE_RETURN_VALUE (hrS, S_OK);
                 }
 
-                hrS = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, GetBodyFace(), wE, hIgnore);
+                hrS = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, cellFace, wE, hIgnore);
                 IGNORE_RETURN_VALUE (hrS, S_OK);
 
                 hx = cellX + wS;
@@ -3507,12 +3510,12 @@ void DxuiListView::PaintDataRows (
                     if (s > 0)
                     {
                         hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(),
-                                                  fontPx, GetBodyFace(), wS, hIgnore);
+                                                  fontPx, cellFace, wS, hIgnore);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
                     hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(),
-                                              fontPx, GetBodyFace(), wE, hIgnore);
+                                              fontPx, cellFace, wE, hIgnore);
                     IGNORE_RETURN_VALUE (hrM, S_OK);
 
                     hx = cellX + wS;
@@ -3573,7 +3576,7 @@ void DxuiListView::PaintDataRows (
 
                     if (pos > 0)
                     {
-                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, GetBodyFace(), offset, hIgnore);
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, cellFace, offset, hIgnore);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
@@ -3589,7 +3592,7 @@ void DxuiListView::PaintDataRows (
                                           rowH,
                                           colors[(size_t) pos],
                                           fontPx,
-                                          GetBodyFace(),
+                                          cellFace,
                                           DxuiTextHAlign::Left,
                                           DxuiTextVAlign::CenterOnCapHeight,
                                           DxuiFontWeight::Normal,
@@ -3609,7 +3612,7 @@ void DxuiListView::PaintDataRows (
                                   rowH,
                                   argb,
                                   fontPx,
-                                  (cells[c].face != nullptr) ? cells[c].face : GetBodyFace(),
+                                  cellFace,
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
                                   cells[c].weight,

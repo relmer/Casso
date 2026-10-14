@@ -86,8 +86,10 @@ public:
         bool      spansRow   = false;
 
         //  A face and weight of the cell's own in place of the list's, for a
-        //  row that is a label rather than a value; null keeps the list's.
-        //  Honored where the cell is drawn in one color.
+        //  row that is a label rather than a value, or a value whose
+        //  characters line up only in a fixed-width face; null for the
+        //  list's. The face is honored in every run of the cell; the weight
+        //  where the cell is drawn in one color.
         const wchar_t   * face       = nullptr;
         DxuiFontWeight    weight     = DxuiFontWeight::Normal;
 
