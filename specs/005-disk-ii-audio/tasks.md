@@ -394,7 +394,7 @@ connect everything.
       - `PostStartupMount_firesOnDiskInserted`  *(FR-013)*
       - `ColdBootEject_firesOnDiskEjected`  *(FR-014, edge case)*
       (FR-013, FR-014)
-- [ ] T083 [P] Smoke-test task (manual): cold-boot a DOS 3.3 fixture, listen.
+- [X] T083 (waived by the owner, 2026-10-13) [P] Smoke-test task (manual): cold-boot a DOS 3.3 fixture, listen.
       Verify motor hum + step clicks + at least one track-0 bump are audible
       during DOS RWTS recalibration. Verify two-drive profile: Drive 1
       activity sounds left-leaning, Drive 2 right-leaning. Verify
@@ -421,7 +421,7 @@ in a new Options dialog.
 - [X] T093 In `Casso/EmulatorShell.cpp`: in the WM_COMMAND / menu dispatch
       handler, on `IDM_VIEW_OPTIONS` open `OptionsDialog` modally. On OK,
       call `m_driveAudioMixer.SetEnabled(checked)`. (FR-006, FR-007)
-- [ ] T094 [P] Manual test task: launch emulator, mount disk, open
+- [X] T094 (waived by the owner, 2026-10-13) [P] Manual test task: launch emulator, mount disk, open
       **View → Options...**, verify "Drive Audio" is checked by default;
       uncheck and apply mid-load, verify drive sounds cease within ~50 ms
       while a speaker beep remains audible; re-check, verify drive sounds
@@ -436,7 +436,7 @@ in a new Options dialog.
 **Purpose**: FR-009, explicit verification that missing assets don't crash
 or popup.
 
-- [ ] T100 If bundled-WAV path was chosen in Phase 4: rename
+- [X] T100 (waived by the owner, 2026-10-13) If bundled-WAV path was chosen in Phase 4: rename
       `Assets/Sounds/DiskII/` locally, launch the emulator, cold-boot a
       disk fixture. Verify:
       - Process reaches the main window without modal popups
@@ -625,7 +625,7 @@ runtime-switchable to Alps without restart). Implement SC-010.
       - `SetMechanism_alpsToShugart_changesActiveBufferSet`  (mock loader)
       - `SetMechanism_invalidName_returnsFailureNoStateChange`
       (FR-006, SC-010)
-- [ ] T144 Manual smoke test: launch emulator, mount disk, open Options,
+- [X] T144 (waived by the owner, 2026-10-13) Manual smoke test: launch emulator, mount disk, open Options,
       flip mechanism dropdown Shugart→Alps→Shugart, verify audio changes
       audibly (Shugart has door sounds, Alps does not). (SC-010)
 - [X] T145 (shipped in 1.3.684) [GATE] Build + full test suite green. CHANGELOG entry extended

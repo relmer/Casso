@@ -417,7 +417,7 @@ description: "Task list for 034 physical game controllers"
 
 ## Phase 18: Validation and Gates (2026-09-27 work)
 
-- [ ] T164 Walk quickstart section 4a, scenarios 16-28, on Release x64 with real controllers and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why; measure with temporary, uncommitted instrumentation SC-005 (lone controller connect to first write, and first input to first write with two attached) and SC-007 (CPU time over 60 s idle with two controllers attached and none used, against the same run with none attached)
+- [X] T164 (waived by the owner, 2026-10-13) Walk quickstart section 4a, scenarios 16-28, on Release x64 with real controllers and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why; measure with temporary, uncommitted instrumentation SC-005 (lone controller connect to first write, and first input to first write with two attached) and SC-007 (CPU time over 60 s idle with two controllers attached and none used, against the same run with none attached)
 - [X] T165 (shipped in 1.29.0) Draft the CHANGELOG `[Unreleased]` line and any README change for the player slots and the notice stack, and hold them until the owner has tested and approved the feature
 - [X] T166 (run as T256; see validation.md, Phase 31) Merge `origin/master` into the branch if it moved; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
 - [X] T167 (run as T256; see validation.md, Phase 31) `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit (orphaned `////` banners included)
