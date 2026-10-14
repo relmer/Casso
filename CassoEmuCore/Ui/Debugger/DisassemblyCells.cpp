@@ -228,9 +228,11 @@ uint32_t DisassemblyCells::GetPcMarkerArgb (uint32_t background)
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
-                                          const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken)
+                                          const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
+                                          bool isSteppedFrom)
 {
     int    current  = -1;
+    int    pcLine   = -1;
     int    target   = -1;
     int    firstRow = 0;
     int    endRow   = 0;
@@ -246,7 +248,8 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
 
     for (size_t i = 0; i < lines.size(); i++)
     {
-        current = lines[i].isCurrent ? (int) i : current;
+        pcLine  = lines[i].isCurrent ? (int) i : pcLine;
+        current = (isSteppedFrom ? lines[i].isSteppedFrom : lines[i].isCurrent) ? (int) i : current;
     }
 
     firstRow = list.GetTopRow();
@@ -258,7 +261,13 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     }
 
     goesTo  = *lines[(size_t) current].target;
-    isTaken = lines[(size_t) current].isTargetTaken;
+    isTaken = isSteppedFrom || lines[(size_t) current].isTargetTaken;
+
+    //  The step took the branch only where it arrived at the target.
+    if (isSteppedFrom && (pcLine < 0 || lines[(size_t) pcLine].address != goesTo))
+    {
+        return false;
+    }
 
     for (size_t i = 0; i < lines.size(); i++)
     {

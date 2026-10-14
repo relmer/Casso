@@ -63,6 +63,7 @@ struct DebuggerViewSnapshot
         std::string  instruction;
         std::string  label;
         bool         isCurrent     = false;
+        bool         isSteppedFrom = false;
         bool         hasBreakpoint = false;
         bool         isEnabled     = true;
 
@@ -221,6 +222,9 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
+    //  Where the instruction a step just ran is, when the machine stopped
+    //  after one instruction; none after a free run or while running.
+    std::optional<Word>          steppedFrom;
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
@@ -769,6 +773,7 @@ private:
     //  anchor that puts the PC in the middle.
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
+    void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);
@@ -851,6 +856,7 @@ private:
         Cpu6502Registers                           at       = {};
         InstructionTouches::Result                 here;
         std::optional<InstructionTouches::Result>  previous;
+        std::optional<Word>                        previousPc;
         bool                                       isValid  = false;
     };
 

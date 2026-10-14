@@ -132,6 +132,53 @@ namespace DebuggerTests
 
 
 
+        //  A stop exactly where the last stop's instruction would put the
+        //  machine is a step, and the line that ran is marked, so its arrow
+        //  is drawn to where the PC landed; a stop anywhere else is not.
+        TEST_METHOD (AStepMarksTheBranchItRan)
+        {
+            ControllerRig         rig;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            bool                  isMarked = false;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p | 0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.steppedFrom.has_value(), L"the first stop follows no step");
+
+            r.pc = 0x0310;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue (snapshot.steppedFrom == std::optional<Word> (0x0300), L"the branch was the step");
+
+            for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+            {
+                isMarked = isMarked || (line.isSteppedFrom && line.address == 0x0300);
+            }
+
+            Assert::IsTrue (isMarked, L"its line is marked");
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::IsTrue (snapshot.steppedFrom == std::optional<Word> (0x0300), L"the same stop, built again");
+
+            r.pc = 0x0400;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.steppedFrom.has_value(), L"not where the instruction at $0310 goes");
+        }
+
+
+
         TEST_METHOD (TheResultFollowsTheOperandInTheResultColor)
         {
             DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);

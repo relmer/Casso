@@ -370,7 +370,7 @@ protected:
     bool     HasDragLayer    () const override;
     void     OnWindowFocusChanged (bool focused) override;
     void     PaintBranchArrow (IDxuiPainter & painter, int view);
-    bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
+    bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isSteppedFrom = false) const;
     bool     ClickBranchArrow (POINT pointPx);
 
     //  Protected so a test can apply one as the keys do.

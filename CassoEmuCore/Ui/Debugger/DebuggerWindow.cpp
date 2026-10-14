@@ -5361,13 +5361,15 @@ bool DebuggerWindow::HasDragLayer() const
 //  DebuggerWindow::GetBranchArrow
 //
 //  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
-//  where it goes. Either end scrolled out of view runs the line to that edge
-//  of the rows, so the arrow stays drawn while any part of it crosses them.
-//  A view past the code views is a source document's, whose pane places it.
+//  where it goes, or with isSteppedFrom, the arrow of the one a step just
+//  took to the PC. Either end scrolled out of view runs the line to that
+//  edge of the rows, so the arrow stays drawn while any part of it crosses
+//  them. A view past the code views is a source document's, whose pane
+//  places the PC's arrow alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
+bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isSteppedFrom) const
 {
     DxuiListView  * list = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
 
@@ -5382,7 +5384,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     {
         const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
 
-        return document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
+        return !isSteppedFrom && document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
     }
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
@@ -5390,7 +5392,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
         return false;
     }
 
-    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken);
+    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken, isSteppedFrom);
 }
 
 
@@ -5401,8 +5403,9 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 //
 //  DebuggerWindow::PaintBranchArrow
 //
-//  The arrow from GetBranchArrow, in the PC marker's color, or in the
-//  disabled color for a branch the flags as they stand will not take.
+//  The arrows from GetBranchArrow, the one a step just took and the PC's,
+//  in the PC marker's color, or in the disabled color for a branch that the
+//  current flags do not take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5414,9 +5417,14 @@ void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 
 
 
-    if (GetBranchArrow (view, input, goesTo, isTaken))
+    for (bool isSteppedFrom : { true, false })
     {
-        DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
+        input = BranchArrow::Input();
+
+        if (GetBranchArrow (view, input, goesTo, isTaken, isSteppedFrom))
+        {
+            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
+        }
     }
 }
 

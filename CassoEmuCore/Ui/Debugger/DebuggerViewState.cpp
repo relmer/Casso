@@ -170,6 +170,12 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
     }
 
+    //  Before the code views, which mark the line a step just ran.
+    if (isPaused)
+    {
+        UpdateLastStop (session, snapshot);
+    }
+
     //  The code views, the memory panes and the trace each read the machine
     //  and write only their own part of the snapshot, so they are built at
     //  once. What follows reads the code views and the call record.
@@ -756,39 +762,61 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::UpdateLastStop
+//
+//  A new stop. The instruction that just ran is known only when this stop
+//  is exactly where the last one's instruction would have put the machine,
+//  which is what a step looks like; after a free run it is not known, and
+//  nothing is marked rather than the wrong instruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    const Cpu6502Registers      & now     = session.GetTarget().GetRegisters();
+    Word                          length  = GetInstructionLength (session, now.pc);
+    InstructionTouches::Result    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
+    bool                          isStep  = false;
+
+
+
+    if (!m_lastStop.isValid || !IsSameRegisters (m_lastStop.at, now))
+    {
+        isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
+
+        m_lastStop.previous   = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
+        m_lastStop.previousPc = isStep ? std::optional<Word> (m_lastStop.at.pc) : std::nullopt;
+        m_lastStop.at         = now;
+        m_lastStop.isValid    = true;
+    }
+
+    //  At the same stop, memory the debugger edited can change what the
+    //  instruction does, so it is worked out again on every build.
+    m_lastStop.here      = current;
+    snapshot.steppedFrom = m_lastStop.previousPc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::BuildAutoWatches
 //
 //  What the instruction at the PC touches, then what the one just executed
-//  touched that this one does not (FR-095). Both come from InstructionTouches,
-//  the same account the code pane annotates from.
+//  touched that this one does not (FR-095). UpdateLastStop works both out
+//  with InstructionTouches, the same account the code pane annotates from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    const Cpu6502Registers      & now    = session.GetTarget().GetRegisters();
-    Word                          length = GetInstructionLength (session, now.pc);
-    InstructionTouches::Result    current;
+    const Cpu6502Registers  & now = session.GetTarget().GetRegisters();
 
 
 
-    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
-
-    AddAutoWatches (session, current, now, false, snapshot.autoWatches);
-
-    //  A new stop. The instruction that just ran is known only when this stop
-    //  is exactly where the last one's instruction would have left the
-    //  machine, which is what a step looks like; after a free run it is not
-    //  known, and is left out rather than shown for the wrong instruction.
-    if (!m_lastStop.isValid || !IsSameRegisters (m_lastStop.at, now))
-    {
-        bool  isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
-
-        m_lastStop.previous = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
-        m_lastStop.here     = current;
-        m_lastStop.at       = now;
-        m_lastStop.isValid  = true;
-    }
+    AddAutoWatches (session, m_lastStop.here, now, false, snapshot.autoWatches);
 
     if (m_lastStop.previous.has_value())
     {
@@ -2931,6 +2959,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
                                                              : line.instruction.mnemonic + " " + line.GetShownOperand();
         row.label         = line.label;
         row.isCurrent     = row.address == snapshot.pc;
+        row.isSteppedFrom = snapshot.steppedFrom == row.address;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
         //  is somewhere else by the time these are drawn.
