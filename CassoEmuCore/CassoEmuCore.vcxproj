@@ -278,6 +278,7 @@
     <ClCompile Include="CassoExplorer\Model\SearchQuery.cpp" />
     <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
+    <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
@@ -678,6 +679,7 @@
     <ClInclude Include="Seams\IShellItemVerbs.h" />
     <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
+    <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
     <ClInclude Include="CassoExplorer\Model\Location.h" />
     <ClInclude Include="CassoExplorer\Model\ArchiveProbe.h" />

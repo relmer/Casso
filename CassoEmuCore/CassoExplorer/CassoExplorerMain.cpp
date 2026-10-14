@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
+#include "Seams/Win32PreviewHelper.h"
 
 
 
@@ -56,6 +57,7 @@ extern "C" int WINAPI wCassoExplorerMain (
     int                                    exitCode   = 0;
     HWND                                   existing   = nullptr;
     HRESULT                                hrOptional = S_OK;
+    bool                                   helper     = false;
     std::unique_ptr<CassoExplorerShell>    shell      = std::make_unique<CassoExplorerShell>();
 
 
@@ -76,6 +78,14 @@ extern "C" int WINAPI wCassoExplorerMain (
     argv = CommandLineToArgvW (GetCommandLineW(), &argc);
     CWR (argv != nullptr);
 
+    //  Started by a Casso Explorer window to host its preview handlers.
+    helper = argc == 4 && wcscmp (argv[1], Win32PreviewHelper::kSwitch) == 0;
+
+    if (helper)
+    {
+        exitCode = Win32PreviewHelper::Run ((HWND) (uintptr_t) _wcstoui64 (argv[2], nullptr, 10), _wtoi (argv[3]));
+    }
+
     if (argc > 1)
     {
         arguments.assign (argv + 1, argv + argc);
@@ -83,6 +93,8 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     LocalFree (argv);
     argv = nullptr;
+
+    BAIL_OUT_IF (helper, S_OK);
 
     hr = CassoExplorerShell::ParseArguments (arguments, options);
 

@@ -27,7 +27,8 @@ Win32ShellPreview::~Win32ShellPreview()
 //  Win32ShellPreview::Start
 //
 //  The thread's message queue exists before Start returns, so the first load
-//  posted to it is in that queue.
+//  posted to it is in that queue. A helper at low integrity can post the
+//  owner only the messages the owner lets through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +72,12 @@ HRESULT Win32ShellPreview::Start (HWND owner, UINT message)
     ok = SetLayeredWindowAttributes (m_host, 0, 255, LWA_ALPHA);
     CWR (ok);
 
+    for (UINT helperMessage : { Win32PreviewHelper::kReadyMessage, Win32PreviewHelper::kResultMessage })
+    {
+        ok = ChangeWindowMessageFilterEx (owner, helperMessage, MSGFLT_ALLOW, nullptr);
+        CWR (ok);
+    }
+
     m_thread = std::thread ([this, &started]()
     {
         MSG  peek = {};
@@ -95,14 +102,44 @@ Error:
 //
 //  Win32ShellPreview::Stop
 //
+//  Post WM_CLOSE to each helper and terminate any that has not exited a
+//  second later, before destroying the host, since their windows are inside
+//  it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32ShellPreview::Stop()
 {
+    DWORD  waited = WAIT_OBJECT_0;
+
+
+
     if (m_thread.joinable())
     {
         PostThreadMessageW (m_threadId, WM_QUIT, 0, 0);
         m_thread.join();
+    }
+
+    for (Helper & helper : m_helpers)
+    {
+        if (helper.window != nullptr)
+        {
+            PostMessageW (helper.window, WM_CLOSE, 0, 0);
+        }
+
+        if (helper.process != nullptr)
+        {
+            waited = WaitForSingleObject (helper.process, s_kStopWaitMs);
+
+            if (waited != WAIT_OBJECT_0)
+            {
+                TerminateProcess (helper.process, 0);
+            }
+
+            CloseHandle (helper.process);
+        }
+
+        helper = Helper();
     }
 
     if (m_host != nullptr)
@@ -127,48 +164,11 @@ void Win32ShellPreview::Stop()
 bool Win32ShellPreview::HasPreview (const std::wstring & path)
 {
     CLSID    id = {};
-    HRESULT  hr = GetHandlerId (path, id);
+    HRESULT  hr = Win32PreviewHelper::GetHandlerId (path, id);
 
 
 
     return SUCCEEDED (hr) || IsPictureOrVideo (path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32ShellPreview::GetHandlerId
-//
-//  The class registered as the file type's preview handler, as Explorer
-//  finds it: under the type's shellex key, by the handler interface's id.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Win32ShellPreview::GetHandlerId (const std::wstring & path, CLSID & outId)
-{
-    HRESULT       hr        = S_OK;
-    wchar_t       text[64]  = {};
-    DWORD         length    = (DWORD) std::size (text);
-    std::wstring  extension = fs::path (path).extension().wstring();
-    bool          known     = !extension.empty();
-
-
-
-    outId = CLSID_NULL;
-
-    CBREx (known, E_INVALIDARG);
-
-    hr = AssocQueryStringW (ASSOCF_NONE, ASSOCSTR_SHELLEXTENSION, extension.c_str(), s_kpszPreviewHandlerId, text, &length);
-    CHR (hr);
-
-    hr = CLSIDFromString (text, &outId);
-    CHR (hr);
-
-Error:
-    return hr;
 }
 
 
@@ -201,24 +201,32 @@ bool Win32ShellPreview::IsPictureOrVideo (const std::wstring & path)
 //
 //  Win32ShellPreview::Load
 //
-//  The host moves to the rectangle now and becomes visible only when a
-//  handler draws in it, so a picture or a failure has no empty window over
-//  the pane.
+//  A file with a preview handler goes to the helper for the handler's
+//  integrity level, started if it is not running; anything else, or a load
+//  that cannot be sent to a helper, goes to the thumbnail thread. The host moves to
+//  the rectangle now and becomes visible only when a handler draws in it, so
+//  a picture or a failure has no empty window over the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t Win32ShellPreview::Load (const std::wstring & path, const RECT & rectPx, COLORREF background, COLORREF text)
 {
-    Job       * job     = new Job;
-    uint64_t    request = ++m_request;
+    HRESULT  hr   = S_OK;
+    CLSID    id   = {};
+    int      slot = Win32PreviewHelper::kLowSlot;
+    Job      job;
 
 
 
-    job->request    = request;
-    job->path       = path;
-    job->rect       = rectPx;
-    job->background = background;
-    job->text       = text;
+    job.request    = ++m_request;
+    job.path       = path;
+    job.rect       = rectPx;
+    job.background = background;
+    job.text       = text;
+
+    m_current    = job;
+    m_activeSlot = -1;
+    m_awaiting   = false;
 
     if (m_host != nullptr)
     {
@@ -227,12 +235,260 @@ uint64_t Win32ShellPreview::Load (const std::wstring & path, const RECT & rectPx
         SetWindowPos (m_host, HWND_TOP, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top, SWP_NOACTIVATE);
     }
 
-    if (m_threadId == 0 || !PostThreadMessageW (m_threadId, s_kLoadMessage, 0, (LPARAM) job))
+    HideHelpers();
+
+    hr = Win32PreviewHelper::GetHandlerId (path, id);
+
+    if (SUCCEEDED (hr))
     {
-        delete job;
+        slot = Win32PreviewHelper::GetSlot (id);
+        hr   = EnsureHelper (slot);
     }
 
-    return request;
+    if (SUCCEEDED (hr))
+    {
+        m_activeSlot = slot;
+        m_awaiting   = m_helpers[(size_t) slot].window == nullptr;
+        hr           = m_awaiting ? S_OK : SendLoad();
+    }
+
+    if (FAILED (hr))
+    {
+        m_activeSlot = -1;
+        m_awaiting   = false;
+        PostPictureJob (job);
+    }
+
+    return job.request;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::EnsureHelper
+//
+//  A helper that has exited, from a handler's crash or otherwise, is
+//  replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellPreview::EnsureHelper (int slot)
+{
+    HRESULT   hr      = S_OK;
+    Helper  & helper  = m_helpers[(size_t) slot];
+    DWORD     waited  = WAIT_TIMEOUT;
+
+
+
+    if (helper.process != nullptr)
+    {
+        waited = WaitForSingleObject (helper.process, 0);
+        BAIL_OUT_IF (waited == WAIT_TIMEOUT, S_OK);
+
+        CloseHandle (helper.process);
+        helper = Helper();
+    }
+
+    hr = Win32PreviewHelper::Launch (m_owner, slot, &helper.process);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::SendLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellPreview::SendLoad()
+{
+    HRESULT                         hr     = S_OK;
+    Win32PreviewHelper::LoadHeader  header;
+    bool                            active = m_activeSlot >= 0 && m_helpers[(size_t) m_activeSlot].window != nullptr;
+
+
+
+    CBREx (active, E_UNEXPECTED);
+
+    header.request    = m_current.request;
+    header.background = m_current.background;
+    header.text       = m_current.text;
+
+    hr = Win32PreviewHelper::SendLoad (m_helpers[(size_t) m_activeSlot].window, m_owner, header, m_current.path);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::OnHelperMessage
+//
+//  A helper's window arrives once, and is taken into the host; a load that
+//  waited for it is sent then. A success for the latest load makes the
+//  helper's window visible; a failure falls back to a thumbnail, then to the
+//  bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellPreview::OnHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    HRESULT   hr     = S_OK;
+    int       slot   = (int) wParam;
+    Result    result;
+
+
+
+    if (msg == Win32PreviewHelper::kReadyMessage)
+    {
+        if (slot >= 0 && slot < Win32PreviewHelper::kSlotCount && m_helpers[(size_t) slot].process != nullptr)
+        {
+            m_helpers[(size_t) slot].window = (HWND) lParam;
+            AdoptWindow (slot);
+
+            if (m_awaiting && m_activeSlot == slot)
+            {
+                m_awaiting = false;
+                hr         = SendLoad();
+
+                if (FAILED (hr))
+                {
+                    m_activeSlot = -1;
+                    PostPictureJob (m_current);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    if (msg != Win32PreviewHelper::kResultMessage)
+    {
+        return false;
+    }
+
+    if ((uint64_t) wParam != m_request || m_activeSlot < 0)
+    {
+        return true;
+    }
+
+    hr = (HRESULT) lParam;
+
+    if (FAILED (hr))
+    {
+        m_activeSlot = -1;
+        PostPictureJob (m_current);
+        return true;
+    }
+
+    ShowWindow (m_helpers[(size_t) m_activeSlot].window, SW_SHOWNA);
+
+    result.request = m_current.request;
+    result.outcome = Outcome::Shown;
+    Publish (std::move (result));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::AdoptWindow
+//
+//  The helper's popup becomes a child of the host, filling it, hidden until
+//  a handler draws in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::AdoptWindow (int slot)
+{
+    HWND      window = m_helpers[(size_t) slot].window;
+    LONG_PTR  style  = 0;
+    RECT      client = {};
+
+
+
+    if (window == nullptr || m_host == nullptr)
+    {
+        return;
+    }
+
+    style = GetWindowLongPtrW (window, GWL_STYLE);
+    style = (style & ~(LONG_PTR) (WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_VISIBLE)) | WS_CHILD | WS_CLIPCHILDREN;
+
+    SetParent (window, m_host);
+    SetWindowLongPtrW (window, GWL_STYLE, style);
+    GetClientRect (m_host, &client);
+    SetWindowPos (window, HWND_TOP, 0, 0, client.right, client.bottom, SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_HIDEWINDOW);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::HideHelpers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::HideHelpers()
+{
+    for (Helper & helper : m_helpers)
+    {
+        if (helper.window != nullptr)
+        {
+            ShowWindow (helper.window, SW_HIDE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::PostPictureJob
+//
+//  A job the thread drops is finished here as a failure, so every load ends
+//  in a result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::PostPictureJob (const Job & job)
+{
+    Job     * copy   = new Job (job);
+    Result    result;
+
+
+
+    if (m_threadId != 0 && PostThreadMessageW (m_threadId, s_kLoadMessage, 0, (LPARAM) copy))
+    {
+        return;
+    }
+
+    delete copy;
+
+    result.request = job.request;
+    Publish (std::move (result));
 }
 
 
@@ -261,22 +517,29 @@ void Win32ShellPreview::ShowHost (bool show)
 //
 //  Win32ShellPreview::SetRect
 //
+//  The helper's window follows the host, and the helper passes its new size
+//  to the handler.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32ShellPreview::SetRect (const RECT & rectPx)
 {
-    RECT  * rect = new RECT { 0, 0, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top };
+    int  width  = rectPx.right - rectPx.left;
+    int  height = rectPx.bottom - rectPx.top;
 
 
 
     if (m_host != nullptr)
     {
-        SetWindowPos (m_host, HWND_TOP, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top, SWP_NOACTIVATE);
+        SetWindowPos (m_host, HWND_TOP, rectPx.left, rectPx.top, width, height, SWP_NOACTIVATE);
     }
 
-    if (m_threadId == 0 || !PostThreadMessageW (m_threadId, s_kRectMessage, 0, (LPARAM) rect))
+    for (Helper & helper : m_helpers)
     {
-        delete rect;
+        if (helper.window != nullptr)
+        {
+            SetWindowPos (helper.window, nullptr, 0, 0, width, height, SWP_NOACTIVATE | SWP_NOZORDER);
+        }
     }
 }
 
@@ -297,11 +560,15 @@ void Win32ShellPreview::Unload()
     ++m_request;
 
     ShowHost (false);
+    HideHelpers();
 
-    if (m_threadId != 0)
+    if (m_activeSlot >= 0 && m_helpers[(size_t) m_activeSlot].window != nullptr)
     {
-        PostThreadMessageW (m_threadId, s_kUnloadMessage, 0, 0);
+        Win32PreviewHelper::SendUnload (m_helpers[(size_t) m_activeSlot].window, m_owner);
     }
+
+    m_activeSlot = -1;
+    m_awaiting   = false;
 }
 
 
@@ -371,8 +638,7 @@ LRESULT CALLBACK Win32ShellPreview::HostProc (HWND hwnd, UINT msg, WPARAM wParam
 //
 //  Win32ShellPreview::Run
 //
-//  A single-threaded apartment with a message loop, for a handler's calls
-//  back into it.
+//  The thumbnail thread's loop, in a single-threaded apartment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,27 +660,12 @@ void Win32ShellPreview::Run()
 
             RunLoad (*job);
         }
-        else if (msg.hwnd == nullptr && msg.message == s_kRectMessage)
-        {
-            std::unique_ptr<RECT>  rect ((RECT *) msg.lParam);
-
-            if (m_handler)
-            {
-                m_handler->SetRect (rect.get());
-            }
-        }
-        else if (msg.hwnd == nullptr && msg.message == s_kUnloadMessage)
-        {
-            RunUnload();
-        }
         else
         {
             TranslateMessage (&msg);
             DispatchMessageW (&msg);
         }
     }
-
-    RunUnload();
 
     if (SUCCEEDED (hrCom))
     {
@@ -430,8 +681,8 @@ void Win32ShellPreview::Run()
 //
 //  Win32ShellPreview::RunLoad
 //
-//  A handler first, as Explorer prefers one; then a thumbnail for a picture
-//  or a video; otherwise a failure, after which the window draws the bytes.
+//  A thumbnail for a picture or a video; otherwise a failure, after which the
+//  window draws the bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -443,155 +694,20 @@ void Win32ShellPreview::RunLoad (const Job & job)
 
 
 
-    RunUnload();
-
     result.request = job.request;
 
     BAIL_OUT_IF (job.request != m_request, S_OK);
 
-    hr = ShowHandler (job);
-
-    if (SUCCEEDED (hr))
-    {
-        result.outcome = Outcome::Shown;
-    }
-    else if (IsPictureOrVideo (job.path))
+    if (IsPictureOrVideo (job.path))
     {
         hrPicture      = MakePicture (job, result);
         result.outcome = SUCCEEDED (hrPicture) ? Outcome::Picture : Outcome::Failed;
-    }
-
-    //  The selection moved on while this loaded.
-    if (job.request != m_request)
-    {
-        RunUnload();
     }
 
     Publish (std::move (result));
 
 Error:
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32ShellPreview::RunUnload
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Win32ShellPreview::RunUnload()
-{
-    if (m_handler)
-    {
-        m_handler->Unload();
-        m_handler.Reset();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Win32ShellPreview::ShowHandler
-//
-//  Out of process first, in the shell's preview host as Explorer runs a
-//  handler registered for it, then in this process for one that is not.
-//  The handler is given the file by stream when it takes one, else as an
-//  item, else by path, in Explorer's order.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Win32ShellPreview::ShowHandler (const Job & job)
-{
-    HRESULT                          hr       = S_OK;
-    HRESULT                          hrColor  = S_OK;
-    HRESULT                          hrStream = S_OK;
-    HRESULT                          hrItem   = S_OK;
-    HRESULT                          hrVisual = S_OK;
-    CLSID                            id       = {};
-    ComPtr<IPreviewHandler>          handler;
-    ComPtr<IInitializeWithStream>    byStream;
-    ComPtr<IInitializeWithItem>      byItem;
-    ComPtr<IInitializeWithFile>      byFile;
-    ComPtr<IPreviewHandlerVisuals>   visuals;
-    ComPtr<IStream>                  stream;
-    ComPtr<IShellItem>               item;
-    RECT                             client   = { 0, 0, job.rect.right - job.rect.left, job.rect.bottom - job.rect.top };
-
-
-
-    hr = GetHandlerId (job.path, id);
-    CHR (hr);
-
-    hr = CoCreateInstance (id, nullptr, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS (&handler));
-
-    if (FAILED (hr))
-    {
-        hr = CoCreateInstance (id, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&handler));
-    }
-
-    CHR (hr);
-
-    hrStream = handler.As (&byStream);
-    hrItem   = handler.As (&byItem);
-
-    if (SUCCEEDED (hrStream))
-    {
-        hr = SHCreateStreamOnFileEx (job.path.c_str(), STGM_READ | STGM_SHARE_DENY_NONE, FILE_ATTRIBUTE_NORMAL, FALSE, nullptr, &stream);
-        CHR (hr);
-
-        hr = byStream->Initialize (stream.Get(), STGM_READ);
-    }
-    else if (SUCCEEDED (hrItem))
-    {
-        hr = SHCreateItemFromParsingName (job.path.c_str(), nullptr, IID_PPV_ARGS (&item));
-        CHR (hr);
-
-        hr = byItem->Initialize (item.Get(), STGM_READ);
-    }
-    else
-    {
-        hr = handler.As (&byFile);
-        CHR (hr);
-
-        hr = byFile->Initialize (job.path.c_str(), STGM_READ);
-    }
-
-    CHR (hr);
-
-    //  A handler that takes colors draws on the pane's.
-    hrVisual = handler.As (&visuals);
-
-    if (SUCCEEDED (hrVisual))
-    {
-        hrColor = visuals->SetBackgroundColor (job.background);
-        IGNORE_RETURN_VALUE (hrColor, S_OK);
-
-        hrColor = visuals->SetTextColor (job.text);
-        IGNORE_RETURN_VALUE (hrColor, S_OK);
-    }
-
-    hr = handler->SetWindow (m_host, &client);
-    CHR (hr);
-
-    hr = handler->DoPreview();
-    CHR (hr);
-
-    m_handler = handler;
-
-Error:
-    if (FAILED (hr) && handler)
-    {
-        handler->Unload();
-    }
-
-    return hr;
 }
 
 

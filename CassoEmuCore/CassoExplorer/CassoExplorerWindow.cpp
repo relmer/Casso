@@ -8841,7 +8841,10 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
 
 
-    UNREFERENCED_PARAMETER (lParam);
+    if (m_shellPreview.OnHelperMessage (msg, wParam, lParam))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     //  A change arrived. Restarting the timer rather than re-reading now is
     //  what collapses a burst: a copy of a hundred files re-reads once, when

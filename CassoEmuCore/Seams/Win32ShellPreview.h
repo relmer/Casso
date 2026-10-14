@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Seams/Win32PreviewHelper.h"
+
 
 
 
@@ -11,14 +13,15 @@
 //  Win32ShellPreview
 //
 //  Windows' own preview of a host file, as File Explorer's Preview pane draws
-//  it: the file type's preview handler in a window of its own over the pane,
-//  or, for a picture or a video, the shell's large thumbnail.
+//  it: the file type's preview handler in a window over the pane, or, for a
+//  picture or a video, the shell's large thumbnail.
 //
-//  EVERYTHING SLOW RUNS ON A THREAD OF ITS OWN. A handler is created out of
-//  process where it is registered for that, as Explorer creates it, and
-//  loading one can take a second or more; the window only posts requests
-//  and reads results, so the selection never waits on a handler. Each load
-//  has a number, and a result for any load but the latest is dropped.
+//  A HANDLER RUNS IN A HELPER PROCESS, Win32PreviewHelper, whose window is
+//  reparented into the host window over the pane; a thumbnail is made on a
+//  thread of this process. Nothing slow runs on the owner's thread: the
+//  window posts requests and reads results, so the selection never waits on
+//  a handler. Each load has a number, and a result for any load but the
+//  latest is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +43,8 @@ public:
     ~Win32ShellPreview();
 
     //  The host window, a child of `owner`, and the thread. Each finished
-    //  load posts `message` to `owner`.
+    //  load posts `message` to `owner`; the owner calls OnHelperMessage
+    //  with the helpers' messages.
     HRESULT  Start (HWND owner, UINT message);
     void     Stop  ();
 
@@ -57,6 +61,9 @@ public:
     void      ShowHost (bool show);
     void      Unload  ();
 
+    //  A helper's message to the owner; returns whether it was one.
+    bool  OnHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam);
+
     //  The latest load's result, once; false when none has arrived.
     bool  TakeResult (Result & outResult);
 
@@ -72,34 +79,45 @@ private:
         COLORREF      text       = 0;
     };
 
-    static constexpr UINT  s_kLoadMessage   = WM_APP + 1;
-    static constexpr UINT  s_kRectMessage   = WM_APP + 2;
-    static constexpr UINT  s_kUnloadMessage = WM_APP + 3;
+    struct Helper
+    {
+        HANDLE  process = nullptr;
+        HWND    window  = nullptr;
+    };
 
-    static constexpr const wchar_t *  s_kpszHostClass        = L"CassoExplorerPreviewHost";
-    static constexpr const wchar_t *  s_kpszPreviewHandlerId = L"{8895b1c6-b41f-4c1c-a562-0d564250836f}";
+    static constexpr UINT   s_kLoadMessage  = WM_APP + 1;
+    static constexpr DWORD  s_kStopWaitMs   = 1000;
+
+    static constexpr const wchar_t *  s_kpszHostClass = L"CassoExplorerPreviewHost";
 
     static LRESULT CALLBACK  HostProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+    HRESULT  EnsureHelper   (int slot);
+    HRESULT  SendLoad       ();
+    void     AdoptWindow    (int slot);
+    void     HideHelpers    ();
+    void     PostPictureJob (const Job & job);
+
     void     Run          ();
     void     RunLoad      (const Job & job);
-    void     RunUnload    ();
-    HRESULT  ShowHandler  (const Job & job);
     HRESULT  MakePicture  (const Job & job, Result & outResult);
     void     Publish      (Result result);
 
-    static HRESULT  GetHandlerId    (const std::wstring & path, CLSID & outId);
-    static bool     IsPictureOrVideo (const std::wstring & path);
+    static bool  IsPictureOrVideo (const std::wstring & path);
 
-    HWND                                       m_owner    = nullptr;
-    UINT                                       m_message  = 0;
-    HWND                                       m_host     = nullptr;
-    DWORD                                      m_threadId = 0;
-    std::thread                                m_thread;
-    std::atomic<uint64_t>                      m_request  { 0 };
-    std::mutex                                 m_lock;
-    std::optional<Result>                      m_result;
+    HWND                                          m_owner        = nullptr;
+    UINT                                          m_message      = 0;
+    HWND                                          m_host         = nullptr;
+    DWORD                                         m_threadId     = 0;
+    std::thread                                   m_thread;
+    std::atomic<uint64_t>                         m_request      { 0 };
+    std::mutex                                    m_lock;
+    std::optional<Result>                         m_result;
 
-    //  The worker thread's own: the handler in the host.
-    Microsoft::WRL::ComPtr<IPreviewHandler>    m_handler;
+    //  The owner's thread's own: the helpers, the latest load, its helper,
+    //  and whether that load waits for the helper's window.
+    std::array<Helper, Win32PreviewHelper::kSlotCount>  m_helpers;
+    Job                                                 m_current;
+    int                                                 m_activeSlot = -1;
+    bool                                                m_awaiting   = false;
 };
