@@ -10,7 +10,6 @@
 //  The event log bars' entries.
 static constexpr int  s_kDiskEvents        = 1;
 static constexpr int  s_kDiskDrive         = 2;
-static constexpr int  s_kDiskQuarterTracks = 3;
 static constexpr int  s_kInputGuest        = 6;
 static constexpr int  s_kInputHost         = 7;
 static constexpr int  s_kInputPair0        = 8;
@@ -111,9 +110,9 @@ void DebuggerWindow::ConfigureEventLogs()
 //
 //  DebuggerWindow::SetEventLogBarEntries
 //
-//  The Disk II log's bar: its kinds, its drive, its track and sector boxes
-//  and quarter-tracks. The input log's: the guest's and the host's input and
-//  each pair's view. The columns are chosen from the heading's menu.
+//  The Disk II log's bar: its kinds, its drive, and its track and sector
+//  boxes. The input log's: the guest's and the host's input and each pair's
+//  view. The columns are chosen from the heading's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,12 +159,6 @@ void DebuggerWindow::SetEventLogBarEntries()
 
         disk.push_back (std::move (box));
     }
-
-    add (m_diskLog, disk, s_kDiskQuarterTracks, L"Quarter-tracks", L"Read a bare number in the track list as a quarter-track", DxuiToolbar::Kind::Toggle, 2, [this]
-    {
-        m_diskLogPane->SetQuarterTracks (!m_diskLogPane->IsQuarterTracks());
-        SaveEventLogOptions (DebugLogKind::Disk);
-    })->isChecked = [this] { return m_diskLogPane->IsQuarterTracks(); };
 
 
     add (m_inputLog, input, s_kInputGuest,   L"Emulator input",      L"Choose the guest's reads in this log",            DxuiToolbar::Kind::DropDown, 0, [] {});

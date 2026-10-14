@@ -76,29 +76,13 @@ void DiskLogPane::SetSectorText (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetQuarterTracks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskLogPane::SetQuarterTracks (bool isQuarterTracks)
-{
-    m_isQuarterTracks = isQuarterTracks;
-    ParseTrack();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ParseTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskLogPane::ParseTrack()
 {
-    m_track = TrackSectorPredicate::Parse (m_trackText, TrackSectorPredicate::Mode::Track, m_isQuarterTracks);
+    m_track = TrackSectorPredicate::Parse (m_trackText, TrackSectorPredicate::Mode::Track);
     MarkDirty();
 }
 
@@ -169,7 +153,7 @@ std::wstring DiskLogPane::ListRejected (
 //
 //  GetOptionsText
 //
-//  kinds=11111111;drive=0;qt=0;track=...;sector=...;columns=11110 0,0,0,0,0
+//  kinds=11111111;drive=0;track=...;sector=...;columns=11110 0,0,0,0,0
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,7 +168,7 @@ std::string DiskLogPane::GetOptionsText() const
         kinds += isShown ? '1' : '0';
     }
 
-    return std::format ("kinds={};drive={};qt={};track={};sector={};columns={}", kinds, m_drive, m_isQuarterTracks ? 1 : 0,
+    return std::format ("kinds={};drive={};track={};sector={};columns={}", kinds, m_drive,
                         TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)),
                         GetColumnsText());
 }
@@ -232,10 +216,6 @@ void DiskLogPane::SetOptionsText (const std::string & text)
         else if (key == "drive" && value.size() == 1 && value[0] >= '0' && value[0] <= '2')
         {
             m_drive = value[0] - '0';
-        }
-        else if (key == "qt")
-        {
-            m_isQuarterTracks = value == "1";
         }
         else if (key == "track")
         {

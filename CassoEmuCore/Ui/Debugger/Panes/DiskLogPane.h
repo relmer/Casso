@@ -21,8 +21,7 @@
 //  track or sector passes those lists, and a read stall has no kind of its
 //  own, so only the drive and track filters apply to it. Head steps and
 //  bumps match the track list by quarter-track: a whole track matches every
-//  quarter-track on it, and 17.25 matches that one. With quarter-tracks on,
-//  a bare number in the track list is a quarter-track.
+//  quarter-track on it, and 17.25 matches that one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +60,6 @@ public:
     int   GetDrive         () const { return m_drive; }
     void  SetTrackText     (const std::wstring & text);
     void  SetSectorText    (const std::wstring & text);
-    void  SetQuarterTracks (bool isQuarterTracks);
-    bool  IsQuarterTracks  () const { return m_isQuarterTracks; }
 
     const std::wstring &  GetTrackText  () const { return m_trackText; }
     const std::wstring &  GetSectorText () const { return m_sectorText; }
@@ -94,9 +91,8 @@ private:
 
     void  ParseTrack ();
 
-    std::array<bool, kKindCount>  m_kinds           = { true, true, true, true, true, true, true, true };
-    int                           m_drive           = 0;
-    bool                          m_isQuarterTracks = false;
+    std::array<bool, kKindCount>  m_kinds = { true, true, true, true, true, true, true, true };
+    int                           m_drive = 0;
     std::wstring                  m_trackText;
     std::wstring                  m_sectorText;
     TrackSectorPredicate          m_track;

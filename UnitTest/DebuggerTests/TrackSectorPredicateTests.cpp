@@ -26,7 +26,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (EmptyExpression_matchesEverything_noRejectedSpans)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"", TrackSectorPredicate::Mode::Track);
 
             Assert::IsTrue  (p.IsMatchAll());
             Assert::IsTrue  (p.Matches (0));
@@ -38,7 +38,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (SingleValue_matchesOnlyThatValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17", TrackSectorPredicate::Mode::Track);
 
             Assert::IsFalse (p.IsMatchAll());
             Assert::IsTrue  (p.Matches (17));
@@ -50,7 +50,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (DecimalQuarterTrack_matchesQuarterTrackValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17.5", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17.5", TrackSectorPredicate::Mode::Track);
 
             // 17 * 4 + 2 == 70.
             Assert::IsTrue  (p.MatchesQuarterTrack (70));
@@ -62,7 +62,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (Range_matchesEveryValueInside)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2", TrackSectorPredicate::Mode::Track);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -74,7 +74,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (CommaSeparatedList_matchesEachListedValue)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0,17,34", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0,17,34", TrackSectorPredicate::Mode::Track);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (17));
@@ -86,7 +86,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (MixedRangeAndValues_unionMatches)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2,17,30-34", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2,17,30-34", TrackSectorPredicate::Mode::Track);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -102,22 +102,31 @@ namespace TrackSectorPredicateTests
         }
 
 
-        TEST_METHOD (RawQtFlag_interpretsBareIntegersAsQuarterTracks)
+        TEST_METHOD (AWholeTrackBesideAQuarterTrackBecomesItsQuarterTracks)
         {
-            TrackSectorPredicate  pRaw    = TrackSectorPredicate::Parse (L"68", TrackSectorPredicate::Mode::Track, true);
+            TrackSectorPredicate  pUp   = TrackSectorPredicate::Parse (L"17-18.25", TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  pDown = TrackSectorPredicate::Parse (L"17.5-18",  TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  pBare = TrackSectorPredicate::Parse (L"68",       TrackSectorPredicate::Mode::Track);
 
-            // rawQt: bare 68 is quarter-track 68 (== whole-track 17).
-            // kMaxQuarterTrackExclusive == 160, so 68 is in range.
-            Assert::IsTrue  (pRaw.MatchesQuarterTrack (68));
-            Assert::IsFalse (pRaw.MatchesQuarterTrack (67));
-            Assert::AreEqual ((size_t) 0, pRaw.GetRejectedSpans().size());
+            // 17-18.25 starts at 17.0 (qt 68); 17.5-18 ends at 18.75 (qt 75).
+            Assert::IsTrue  (pUp.MatchesQuarterTrack   (68));
+            Assert::IsTrue  (pUp.MatchesQuarterTrack   (73));
+            Assert::IsFalse (pUp.MatchesQuarterTrack   (74));
+            Assert::IsFalse (pDown.MatchesQuarterTrack (69));
+            Assert::IsTrue  (pDown.MatchesQuarterTrack (70));
+            Assert::IsTrue  (pDown.MatchesQuarterTrack (75));
+            Assert::IsFalse (pDown.MatchesQuarterTrack (76));
+            Assert::AreEqual ((size_t) 0, pUp.GetRejectedSpans().size());
+
+            // A bare number is a whole track, and 68 is past track 39.
+            Assert::AreEqual ((size_t) 1, pBare.GetRejectedSpans().size());
         }
 
 
         TEST_METHOD (MalformedToken_isSilentlyDroppedFromMatching)
         {
-            TrackSectorPredicate  pOnly = TrackSectorPredicate::Parse (L"abc", TrackSectorPredicate::Mode::Track, false);
-            TrackSectorPredicate  pMix  = TrackSectorPredicate::Parse (L"1, abc, 3", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  pOnly = TrackSectorPredicate::Parse (L"abc", TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  pMix  = TrackSectorPredicate::Parse (L"1, abc, 3", TrackSectorPredicate::Mode::Track);
 
             // An expression with tokens, none of them taken, matches
             // nothing. Only literally empty input matches everything.
@@ -134,7 +143,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (Whitespace_toleratedAroundTokensAndSeparators)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"  0 - 2 , 17  ", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"  0 - 2 , 17  ", TrackSectorPredicate::Mode::Track);
 
             Assert::IsTrue  (p.Matches (0));
             Assert::IsTrue  (p.Matches (1));
@@ -148,7 +157,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (LargeValue_outsideTrackRange_isRejected)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"999", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"999", TrackSectorPredicate::Mode::Track);
 
             // kMaxWholeTrackExclusive == 40, so any whole-track value
             // >= 40 is left out and its span listed.
@@ -162,8 +171,8 @@ namespace TrackSectorPredicateTests
         {
             // Tracks 0..39 are accepted (the head's full travel); 40
             // and up are left out.
-            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39", TrackSectorPredicate::Mode::Track, false);
-            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39", TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40", TrackSectorPredicate::Mode::Track);
 
             Assert::AreEqual ((size_t) 0, ok.GetRejectedSpans().size());
             Assert::IsTrue   (ok.Matches (39));
@@ -177,8 +186,8 @@ namespace TrackSectorPredicateTests
         {
             // 39.75 = quarter-track 159 (< 160) -> accepted.
             // 40.0  = quarter-track 160         -> left out.
-            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39.75", TrackSectorPredicate::Mode::Track, false);
-            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40.0",  TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  ok  = TrackSectorPredicate::Parse (L"39.75", TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  bad = TrackSectorPredicate::Parse (L"40.0",  TrackSectorPredicate::Mode::Track);
 
             Assert::AreEqual ((size_t) 0, ok.GetRejectedSpans().size());
             Assert::IsTrue   (ok.MatchesQuarterTrack (159));
@@ -205,7 +214,7 @@ namespace TrackSectorPredicateTests
         {
             // "0-77" track -> clamp hi to 39, accept the partial
             // range, and list the whole token as not taken.
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-77", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-77", TrackSectorPredicate::Mode::Track);
 
             Assert::AreEqual ((size_t) 1, p.GetRejectedSpans().size());
             Assert::IsTrue   (p.Matches (0));
@@ -218,7 +227,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (RejectedSpan_recordsExactBeginEndOfMalformedToken)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, abc, 17", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, abc, 17", TrackSectorPredicate::Mode::Track);
 
             // "0-2, abc, 17"
             //  0123456789012
@@ -231,7 +240,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (RejectedSpan_recordsMultipleMalformedTokensIndividually)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"xx, 5, yy", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"xx, 5, yy", TrackSectorPredicate::Mode::Track);
 
             // "xx, 5, yy"
             //  012345678
@@ -247,7 +256,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (FullyValidExpression_yieldsEmptyRejectedSpanList)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, 17, 30-34", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"0-2, 17, 30-34", TrackSectorPredicate::Mode::Track);
 
             Assert::AreEqual ((size_t) 0, p.GetRejectedSpans().size());
         }
@@ -255,7 +264,7 @@ namespace TrackSectorPredicateTests
 
         TEST_METHOD (AllJunkExpression_recordsAllSpansAndMatchesNothing)
         {
-            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"abc, def", TrackSectorPredicate::Mode::Track, false);
+            TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"abc, def", TrackSectorPredicate::Mode::Track);
 
             // "abc, def"
             //  01234567

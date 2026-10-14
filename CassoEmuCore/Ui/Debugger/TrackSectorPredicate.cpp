@@ -129,7 +129,6 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TrackSectorPredicate::TryParseValue (std::wstring_view tok,
-                                          bool               rawQt,
                                           int &              outVal,
                                           bool &             outIsQt) noexcept
 {
@@ -148,7 +147,7 @@ bool TrackSectorPredicate::TryParseValue (std::wstring_view tok,
     else if (TryParseDecimalInt (tok, val))
     {
         outVal  = val;
-        outIsQt = rawQt;
+        outIsQt = false;
         ok      = true;
     }
 
@@ -237,7 +236,7 @@ int TrackSectorPredicate::GetValueCap (TrackSectorPredicate::Mode mode, bool isQ
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode mode, bool rawQt)
+TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode mode)
 {
     TrackSectorPredicate   pred;
     int                    cursor       = 0;
@@ -248,6 +247,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
     bool                   sawAnyToken  = false;
     bool                   isQt         = false;
     bool                   hiIsQt       = false;
+    bool                   isParsed     = false;
     int                    val          = 0;
     int                    hiVal        = 0;
     size_t                 dashPos      = 0;
@@ -280,9 +280,20 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                     while (!loStr.empty() && IsAsciiSpace (loStr.back()))  { loStr.remove_suffix (1); }
                     while (!hiStr.empty() && IsAsciiSpace (hiStr.front())) { hiStr.remove_prefix (1); }
 
-                    if (TryParseValue (loStr, rawQt, val,   isQt)   &&
-                        TryParseValue (hiStr, rawQt, hiVal, hiIsQt) &&
-                        isQt == hiIsQt)
+                    isParsed = TryParseValue (loStr, val, isQt) && TryParseValue (hiStr, hiVal, hiIsQt);
+
+                    // A whole track at one end and a quarter-track at the
+                    // other: the whole track becomes its quarter-tracks,
+                    // its first at the low end and its last at the high end.
+                    if (isParsed && mode == Mode::Track && isQt != hiIsQt)
+                    {
+                        val    = isQt   ? val   : val * kQuarterTracksPerTrack;
+                        hiVal  = hiIsQt ? hiVal : hiVal * kQuarterTracksPerTrack + kQuarterTracksPerTrack - 1;
+                        isQt   = true;
+                        hiIsQt = true;
+                    }
+
+                    if (isParsed && isQt == hiIsQt)
                     {
                         cap = GetValueCap (mode, isQt);
 
@@ -317,7 +328,7 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
                 }
                 else
                 {
-                    if (TryParseValue (trimmed, rawQt, val, isQt))
+                    if (TryParseValue (trimmed, val, isQt))
                     {
                         cap = GetValueCap (mode, isQt);
 

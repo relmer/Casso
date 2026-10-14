@@ -412,12 +412,11 @@ namespace EventLogPaneTests
             pane.Configure();
             again.Configure();
 
-            pane.SetKindShown     (DiskLogPane::kHeadStep, false);
-            pane.SetDrive         (1);
-            pane.SetQuarterTracks (true);
-            pane.SetTrackText     (L"17-20");
-            pane.SetSectorText    (L"0,5");
-            pane.SetColumnShown   (DiskLogPane::kWall, true);
+            pane.SetKindShown   (DiskLogPane::kHeadStep, false);
+            pane.SetDrive       (1);
+            pane.SetTrackText   (L"17-20");
+            pane.SetSectorText  (L"0,5");
+            pane.SetColumnShown (DiskLogPane::kWall, true);
 
             again.SetOptionsText (pane.GetOptionsText());
 

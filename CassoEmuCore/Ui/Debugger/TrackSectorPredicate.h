@@ -24,8 +24,9 @@
 //
 //    * Empty or blank text matches everything.
 //    * Text with tokens, none of them taken, matches nothing.
-//    * With rawQt, a bare number is a quarter-track (68 is qt 68); a
-//      decimal_qt token is a quarter-track either way.
+//    * A bare number is a whole track and a decimal_qt token a quarter-track.
+//      A range with one of each runs over the whole track's quarter-tracks:
+//      17-18.25 starts at 17.0, and 17.5-18 ends at 18.75.
 //    * Tracks run 0 to 39 (quarter-tracks 0 to 159), sectors 0 to 15. A
 //      range with one end past the cap is clamped to it, and its token goes
 //      in the list of those not taken as well.
@@ -64,9 +65,8 @@ public:
 
     TrackSectorPredicate() = default;
 
-    // `mode` selects the caps a value is checked against; rawQt applies to
-    // tracks alone.
-    static TrackSectorPredicate    Parse (std::wstring_view expr, Mode mode, bool rawQt = false);
+    // `mode` selects the caps a value is checked against.
+    static TrackSectorPredicate    Parse (std::wstring_view expr, Mode mode);
 
     // A whole value against the whole-value ranges; quarter-track ranges
     // match nothing here.
@@ -92,7 +92,6 @@ private:
     static bool  TryParseDecimalInt (std::wstring_view tok, int & outVal) noexcept;
 
     static bool  TryParseValue (std::wstring_view tok,
-                                bool               rawQt,
                                 int &              outVal,
                                 bool &             outIsQt) noexcept;
 
