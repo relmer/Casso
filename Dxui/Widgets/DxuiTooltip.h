@@ -120,6 +120,12 @@ public:
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
 
+    // A tip for `item` that, once the open dwell ends, is placed clear of the
+    // pointer where it came to rest, as the system's tips are, rather than
+    // against the item. A move within the item with the same text does not
+    // move the tip; a different item or text puts it at the pointer again.
+    void  RequestShowAtPointer (const RECT & item, POINT pointer, const std::wstring & text, int64_t nowMs);
+
     // Shows at once, with no open dwell and no fade, for a tip that follows
     // the pointer from cell to cell, such as a hex view's address under the
     // pointer. Only this request skips the dwell; the next RequestShow waits
@@ -188,6 +194,9 @@ private:
     //
     void  ShowPopup          ();
 
+    //  The pointer's image, read once as a tip comes up.
+    void  MeasurePointerForPlacement ();
+
     //  The balloon's size for the current text, the anchor in screen
     //  pixels, and the balloon that is up moved to the anchor in place.
     void  MeasureBoxPx       (float & widthPx, float & heightPx);
@@ -218,6 +227,10 @@ private:
     std::wstring       m_text;
     std::wstring       m_pendingText;
     RECT               m_pendingAnchor     = {};
+    RECT               m_pointerRect       = {};
+    RECT               m_pendingPointer    = {};
+    bool               m_isAtPointer       = false;
+    bool               m_isNextAtPointer   = false;
     int64_t            m_showAtMs          = 0;
     int64_t            m_hideAtMs          = 0;
     int                m_dwellOpenMs       = 500;

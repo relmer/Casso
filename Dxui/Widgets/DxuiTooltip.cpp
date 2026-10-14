@@ -329,7 +329,8 @@ RECT DxuiTooltip::MakePointerClearAnchor (const RECT & anchor, const PointerExte
 //
 //  An instant tip follows the pointer, so it is placed clear of the pointer's
 //  image, where the anchor alone would put it under the pointer's arrow. A
-//  dwelled tip belongs to a control and is placed against the control.
+//  dwelled tip requested at the pointer is placed clear of the pointer where it
+//  came to rest; any other dwelled tip is placed against its control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -338,6 +339,11 @@ RECT DxuiTooltip::GetPlacementAnchor() const
     PointerExtent  extent = m_pointerExtent;
 
 
+
+    if (m_isAtPointer && m_hasPointerExtent)
+    {
+        return MakePointerClearAnchor (m_pointerRect, m_pointerExtent, m_scaler.ToPx (kPointerGapDip));
+    }
 
     if (!m_isInstant || m_pfnMeasurePointer == nullptr)
     {
@@ -389,11 +395,17 @@ int DxuiTooltip::GetSystemVisibleMs()
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    m_isInstant = false;
+    bool  wasAtPointer = m_isAtPointer;
+
+
+
+    m_isInstant       = false;
+    m_isAtPointer     = false;
+    m_isNextAtPointer = false;
 
     if (m_visible)
     {
-        bool  changed = (text != m_text) ||
+        bool  changed = wasAtPointer || (text != m_text) ||
                         anchor.left   != m_anchor.left  ||
                         anchor.top    != m_anchor.top   ||
                         anchor.right  != m_anchor.right ||
@@ -423,6 +435,84 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
     m_pendingText   = text;
     m_pending       = true;
     m_showAtMs      = nowMs + (int64_t) m_dwellOpenMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestShowAtPointer
+//
+//  Each request while the dwell runs restarts it, so the tip comes up where
+//  the pointer stopped. Once it is up, a request with the same item and
+//  text is the same tip, wherever the pointer is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowAtPointer (const RECT & item, POINT pointer, const std::wstring & text, int64_t nowMs)
+{
+    RECT  at     = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
+    bool  isSame = m_visible && !m_fadingOut && m_isAtPointer && text == m_text && EqualRect (&item, &m_anchor) != FALSE;
+
+
+
+    if (isSame)
+    {
+        return;
+    }
+
+    m_isInstant = false;
+
+    if (m_visible && !m_fadingOut)
+    {
+        m_anchor      = item;
+        m_text        = text;
+        m_pointerRect = at;
+        m_isAtPointer = true;
+        m_hideAtMs    = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+
+        MeasurePointerForPlacement();
+
+        if (m_popupHost != nullptr)
+        {
+            ReleaseActivePopup();
+            ShowPopup();
+        }
+
+        return;
+    }
+
+    m_pendingAnchor   = item;
+    m_pendingPointer  = at;
+    m_pendingText     = text;
+    m_pending         = true;
+    m_isNextAtPointer = true;
+    m_showAtMs        = nowMs + (int64_t) m_dwellOpenMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasurePointerForPlacement
+//
+//  The pointer's image, read once as a tip comes up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::MeasurePointerForPlacement()
+{
+    m_hasPointerExtent = false;
+
+    if (m_pfnMeasurePointer != nullptr)
+    {
+        m_pointerExtent    = m_pfnMeasurePointer();
+        m_hasPointerExtent = true;
+    }
 }
 
 
@@ -476,14 +566,9 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
         return;
     }
 
-    m_hasPointerExtent = false;
+    m_isAtPointer = false;
 
-    if (m_pfnMeasurePointer != nullptr)
-    {
-        m_pointerExtent    = m_pfnMeasurePointer();
-        m_hasPointerExtent = true;
-    }
-
+    MeasurePointerForPlacement();
     ReleaseActivePopup();
     ShowPopup();
 }
@@ -507,12 +592,13 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
 
 
 
-    m_anchor    = anchor;
-    m_text      = text;
-    m_pending   = false;
-    m_visible   = true;
-    m_isInstant = false;
-    m_hideAtMs  = nowMs + (int64_t) durationMs;
+    m_anchor      = anchor;
+    m_text        = text;
+    m_pending     = false;
+    m_visible     = true;
+    m_isInstant   = false;
+    m_isAtPointer = false;
+    m_hideAtMs    = nowMs + (int64_t) durationMs;
 
     if (m_popupHost != nullptr && (changed || m_activePopup == nullptr))
     {
@@ -558,10 +644,17 @@ void DxuiTooltip::Tick (int64_t nowMs)
 {
     if (m_pending && nowMs >= m_showAtMs)
     {
-        m_anchor   = m_pendingAnchor;
-        m_text     = m_pendingText;
-        m_visible  = true;
-        m_pending  = false;
+        m_anchor      = m_pendingAnchor;
+        m_text        = m_pendingText;
+        m_visible     = true;
+        m_pending     = false;
+        m_isAtPointer = m_isNextAtPointer;
+        m_pointerRect = m_pendingPointer;
+
+        if (m_isAtPointer)
+        {
+            MeasurePointerForPlacement();
+        }
 
         // A TOOLTIP HAS A LIFETIME. A hover tip used to set no hide time at
         // all, so it stayed up for as long as the pointer rested -- and a

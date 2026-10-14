@@ -256,4 +256,43 @@ public:
 
         t.HideImmediate();
     }
+
+    //  A tip requested at the pointer comes up clear of the pointer where it
+    //  stopped, not against the row; it stays put while the pointer moves
+    //  within the row, and a different row puts it at the pointer again.
+    TEST_METHOD (RequestShowAtPointer_PlacesTheTipWhereThePointerStopped)
+    {
+        constexpr int  kGapPx = 4;
+        DxuiTooltip    t;
+        RECT           row    = MakeRect (0, 200, 600, 216);
+        RECT           next   = MakeRect (0, 216, 600, 232);
+        RECT           anchor = {};
+
+
+
+        t.SetPointerMeasurer (GetTallPointer);
+        t.RequestShowAtPointer (row, POINT { 100, 205 }, L"a row's tip", 0);
+        t.RequestShowAtPointer (row, POINT { 300, 208 }, L"a row's tip", 400);
+
+        t.Tick (899);
+        Assert::IsFalse (t.IsVisible(), L"the move restarted the dwell");
+
+        t.Tick (900);
+        Assert::IsTrue (t.IsVisible());
+
+        anchor = t.GetPlacementAnchor();
+        Assert::AreEqual (300L,               anchor.left,   L"where the pointer stopped, not the row's left");
+        Assert::AreEqual (209L + 20 + kGapPx, anchor.bottom, L"below the pointer's image and a gap, not the row's bottom");
+        Assert::IsTrue   (EqualRect (&row, &t.GetAnchor()) != FALSE, L"the tip is the row's");
+
+        t.RequestShowAtPointer (row, POINT { 400, 210 }, L"a row's tip", 1000);
+        Assert::AreEqual (300L, t.GetPlacementAnchor().left, L"a move within the row does not move it");
+
+        t.RequestShowAtPointer (next, POINT { 420, 220 }, L"the next row's tip", 1100);
+        Assert::AreEqual (420L, t.GetPlacementAnchor().left, L"the next row's tip at the pointer");
+
+        t.RequestShow (row, L"a control's tip", 1200);
+        anchor = t.GetPlacementAnchor();
+        Assert::IsTrue (EqualRect (&anchor, &row) != FALSE, L"a control's tip against the control again");
+    }
 };

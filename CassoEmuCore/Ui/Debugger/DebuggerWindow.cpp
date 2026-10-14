@@ -8921,7 +8921,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (barTip != nullptr && *barTip != L'\0')
     {
         tip.SetMonospace (false);
-        tip.RequestShow  (cell, barTip, now);
+        tip.RequestShowAtPointer (cell, clientPx, barTip, now);
         return;
     }
 
@@ -8929,7 +8929,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (IsRoutable (m_heatMapView) && m_heatMapView->IsVisible() && m_heatMapView->TryGetZoomTipAt (clientPx, cell, text))
     {
         tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        tip.RequestShowAtPointer (cell, clientPx, text, now);
         return;
     }
 
@@ -8983,14 +8983,14 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         OffsetRect (&cell, bounds.left, bounds.top);
         (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
+        tip.RequestShowAtPointer (cell, clientPx, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
         return;
     }
 
     if (TryGetBranchTip (clientPx, cell, text))
     {
         tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        tip.RequestShowAtPointer (cell, clientPx, text, now);
         return;
     }
 
@@ -8998,7 +8998,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     {
         (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
+        tip.RequestShowAtPointer (cell, clientPx, ColorLegend::JoinLines ({ text, colorTip }), now);
         return;
     }
 
@@ -9015,12 +9015,21 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     //  means.
     if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
     {
-        cell              = GetColorTipAnchor (cell);
         m_operandColorTip = m_hasOperandTip ? &tip : nullptr;
 
         //  A sector's hex dump in the Disk II log lines up in columns.
         tip.SetMonospace (m_diskLog.list->IsVisible() && DxuiDockSite::Contains (m_diskLog.list->GetBounds(), clientPx));
-        tip.RequestShow  (cell, text, now);
+
+        //  Under the operand tip when there is one, so the two stack.
+        if (m_hasOperandTip)
+        {
+            tip.RequestShow (GetColorTipAnchor (cell), text, now);
+        }
+        else
+        {
+            tip.RequestShowAtPointer (cell, clientPx, text, now);
+        }
+
         return;
     }
 
@@ -9028,7 +9037,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
     {
         tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        tip.RequestShowAtPointer (cell, clientPx, text, now);
         return;
     }
 
@@ -9038,7 +9047,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (!text.empty())
     {
         tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        tip.RequestShowAtPointer (cell, clientPx, text, now);
         return;
     }
 
