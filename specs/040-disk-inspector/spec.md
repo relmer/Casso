@@ -1876,7 +1876,9 @@ legend, and tilt the platter and back.
   chooses a new sector anywhere but on the platter, the platter MUST zoom
   out smoothly from its view to the whole disk, then in until the sector is
   centered and the chord from its start to its end is 75% of the line
-  through the view's center along that chord, from edge to edge. A sector
+  through the view's center along that chord, from edge to edge, the
+  flight's speed slow at its start and end and fastest between, with no
+  pause at the whole disk. A sector
   chosen on the platter or by Follow head MUST NOT start this flight, and
   the user zooming or panning the platter MUST end it. A pan MUST stop with
   the disk's edge at the view's center, so a sector on the outermost ring
@@ -1884,8 +1886,9 @@ legend, and tilt the platter and back.
   outline the selected sector or nibbles in the selection color on a
   contrasting edge, at least 8 DIP across at any zoom, and the selection MUST
   shimmer continuously in the platter, the strip and the File map grid, lit
-  by a band of light at 45 degrees that sweeps across the whole window from
-  its top left to its bottom right. On a new track, the
+  by a narrow band of light at 45 degrees, its angle the same in a short
+  strip as in a tall cell, that sweeps across the whole window from its top
+  left to its bottom right. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
   selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
@@ -2477,7 +2480,7 @@ legend, and tilt the platter and back.
   64 to a row, the count with the most room for a byte's hex in the cell's
   width and height: as squares while they are too small for text, $00
   clear, $80 and up solid and the rest faint; then as hex; then, with room for eight bits a
-  byte, as its bits under the hex. A block's two sectors MUST follow one
+  byte, as its bits under the hex, each byte in a box of its own. A block's two sectors MUST follow one
   another, and a sector chosen elsewhere MUST be panned to the middle of a
   zoomed grid.
 
