@@ -19,7 +19,7 @@ This spec was never implemented. Closed 2026-10-14:
 - **Drive bar docking (US1, US2) and a default theme per machine (US4)** were
   never built.
 
-**Carried to a future spec**: let the user reposition the Disk II drives and the
+**For a future spec**: let the user reposition the Disk II drives and the
 cassette recorder in the desk scene. Today `DeskSceneLayout::SolveComposition`
 computes fixed positions for them, and `DeskSceneLayout::PlaceRecorder`
 computes the recorder's position, flat on the desk to the right of the stack.
