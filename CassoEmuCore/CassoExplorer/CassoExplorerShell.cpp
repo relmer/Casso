@@ -111,6 +111,10 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         {
             outOptions.titlePrefix = arguments[++i];
         }
+        else if (argument == L"--new-window" && !outOptions.newWindow)
+        {
+            outOptions.newWindow = true;
+        }
         else if (!argument.empty() && argument.rfind (L"--", 0) != 0 && outOptions.openPath.empty())
         {
             outOptions.openPath = argument;
@@ -118,7 +122,7 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         else
         {
             valid              = false;
-            outOptions.refusal = L"Casso Explorer does not take \"" + argument + L"\" here. It takes a path to open, --owner <handle> and --title <label>.";
+            outOptions.refusal = L"Casso Explorer does not take \"" + argument + L"\" here. It takes a path to open, --owner <handle>, --title <label> and --new-window.";
         }
     }
 
@@ -500,6 +504,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
         context.owner       = m_options.owner;
         context.titlePrefix = m_options.titlePrefix;
         context.openPath    = m_options.openPath;
+        context.newWindow   = m_options.newWindow;
         context.watcher     = &m_watcher;
 
         m_window = std::make_unique<CassoExplorerWindow> (m_browser, m_actions, m_prefs, context);

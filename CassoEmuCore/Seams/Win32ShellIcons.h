@@ -58,6 +58,9 @@ public:
     //  An icon by its "path,index" resource, as IExplorerCommand::GetIcon
     //  returns it, at the row's size; null when it cannot be read.
     std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource);
+
+    //  The icon of every file of a type, by its extension, at the row's size.
+    std::shared_ptr<const DxuiIconImage>  GetForExtension (const std::wstring & extension);
     std::shared_ptr<const DxuiIconImage>  GetForKind     (Kind kind) override;
     std::wstring                          GetTypeName (const std::wstring & path, bool isDirectory) override;
     bool                                  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override;

@@ -59,6 +59,7 @@ public:
         HWND            owner       = nullptr;
         std::wstring    titlePrefix;
         std::wstring    openPath;       // from the command line; empty: none
+        bool            newWindow   = false;   // a second window, cascaded from the saved placement
 
         //  Optional: without one, the browser shows what it read when it read
         //  it, and a change made elsewhere is seen on the next navigation.
@@ -188,6 +189,7 @@ public:
     static constexpr int  kMinListWidthDip     = 220;
     static constexpr int  kMinPreviewWidthDip  = 280;   // wide enough for the hex view's toolbar
     static constexpr int  kMinWindowWidthDip   = 200;
+    static constexpr int  kCascadeStepDip      = 32;    // a second window's offset from the saved placement
 
     //  Where DOS 3.3 on a 48K machine leaves HIMEM, against which Integer BASIC
     //  keeps its program.
@@ -275,6 +277,9 @@ private:
 
     //  Posted by the shell preview's thread when a load is done.
     static constexpr UINT      kShellPreviewMessage  = WM_APP + 0x3A;
+
+    //  Posted once the shell's New menu choices are read.
+    static constexpr UINT      kNewChoicesMessage    = WM_APP + 0x3D;
 
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
@@ -460,6 +465,15 @@ private:
 
     //  Pin to Quick access, or Unpin, for a folder, as Explorer's menus have it.
     void  AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+
+    //  Open in new tab and new window, and the pins, for a folder or image.
+    void  AddOpenRows       (std::vector<DxuiPopupMenuItem> & items, const Location & location);
+
+    //  New's choices for a location, as File Explorer's New lists them.
+    void  AddNewChoices     (std::vector<DxuiPopupMenuItem> & items, const Location & target,
+                             std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk);
+    void  RunNewChoice      (const Location & target, const std::wstring & verb);
+    void  GoToLocation      (const Location & location);
     void  OnShellListed     (const std::wstring & key);
 
     //  A verb's label as a window's title: no access key, no trailing dots.
@@ -501,7 +515,7 @@ private:
     //  deletion (from a copy kept aside), a rename or a new folder.
     struct UndoStep
     {
-        enum class Kind { Recycle, HostRename, HostNewFolder, ImageRename, ImageNewFolder, ImageDelete, HostCopy, HostMove, ImagePut };
+        enum class Kind { Recycle, HostRename, HostNewFolder, HostNewItem, ImageRename, ImageNewFolder, ImageDelete, HostCopy, HostMove, ImagePut };
 
         Kind                       kind = Kind::Recycle;
         Location                   location;    // where an image step was made
@@ -767,6 +781,8 @@ private:
     void  EndRename           (bool commit);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
     void  OpenInNewCasso      (const std::wstring & imagePath);
+    void  OpenInNewWindow     (const std::wstring & path);
+    void  RecordSession       ();
     HWND  FindCassoTarget     () const;
     int   GetDefaultMachineDriveCount();
     void  AskCassoToDescribe  ();

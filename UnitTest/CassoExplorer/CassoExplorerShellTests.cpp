@@ -101,6 +101,26 @@ public:
     }
 
 
+    TEST_METHOD (NewWindowArguments_ParseBack)
+    {
+        CassoExplorerLaunchOptions  options;
+        const wchar_t *             paths[] = { L"C:\\", L"C:\\My Disks\\", L"D:\\a b\\game.dsk" };
+
+        for (const wchar_t * path : paths)
+        {
+            Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (LaunchCommand::MakeNewWindowArguments (path, L"033 explorer")), options), path);
+            Assert::IsTrue   (options.newWindow, path);
+            Assert::IsFalse  (options.hasOwner, path);
+            Assert::AreEqual (std::wstring (path), options.openPath);
+            Assert::AreEqual (std::wstring (L"033 explorer"), options.titlePrefix);
+        }
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"C:\\One" }, options));
+        Assert::IsFalse  (options.newWindow);
+        Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"--new-window", L"--new-window" }, options));
+    }
+
+
     TEST_METHOD (ChooseTheme_FollowsPreferenceThenSystem)
     {
         DxuiLightTheme  light;

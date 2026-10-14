@@ -23,13 +23,16 @@
 //  `--owner <window handle in decimal>` and, when it has one, `--title
 //  <label>`; a launch from a shortcut has neither. A path, given once without
 //  a switch, opens in a tab: a folder, a disk image, or a file's folder.
+//  `--new-window` opens a window of its own rather than a tab in the window
+//  already open, as File Explorer's Open in new window does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct CassoExplorerLaunchOptions
 {
-    HWND          owner    = nullptr;
-    bool          hasOwner = false;
+    HWND          owner     = nullptr;
+    bool          hasOwner  = false;
+    bool          newWindow = false;
     std::wstring  titlePrefix;
     std::wstring  openPath;
     std::wstring  refusal;

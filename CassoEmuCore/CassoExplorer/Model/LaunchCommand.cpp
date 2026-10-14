@@ -145,6 +145,30 @@ std::wstring LaunchCommand::MakeCassoArguments (const std::wstring & diskPath, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LaunchCommand::MakeNewWindowArguments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring LaunchCommand::MakeNewWindowArguments (const std::wstring & path, const std::wstring & titlePrefix)
+{
+    std::wstring  arguments = L"--new-window " + QuoteArgument (path);
+
+
+
+    if (!titlePrefix.empty())
+    {
+        arguments += L" --title " + QuoteArgument (titlePrefix);
+    }
+
+    return arguments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LaunchCommand::DescribeMissing
 //
 ////////////////////////////////////////////////////////////////////////////////

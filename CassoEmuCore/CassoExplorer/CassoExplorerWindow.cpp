@@ -197,6 +197,17 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
             result = SetWindowPlacement (GetHwnd(), &place);
             IGNORE_RETURN_VALUE (result, TRUE);
 
+            //  A second window steps down and right from the first, as File
+            //  Explorer's do, rather than opening exactly over it.
+            if (m_context.newWindow)
+            {
+                int  step = MulDiv (kCascadeStepDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI);
+
+                OffsetRect (&place.rcNormalPosition, step, step);
+                result = SetWindowPlacement (GetHwnd(), &place);
+                IGNORE_RETURN_VALUE (result, TRUE);
+            }
+
             if (m_prefs.placement.maximized && showCommand != SW_SHOWMINIMIZED && showCommand != SW_SHOWMINNOACTIVE)
             {
                 showCommand = SW_SHOWMAXIMIZED;
@@ -729,8 +740,9 @@ void CassoExplorerWindow::ConfigureWidgets()
     hr = m_shellPreview.Start (GetHwnd(), kShellPreviewMessage);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  The commands installed apps add to Explorer's menus, read once.
-    m_packagedCommands.Start();
+    //  The commands installed apps add to Explorer's menus, and New's
+    //  choices, read once.
+    m_packagedCommands.Start (GetHwnd(), kNewChoicesMessage);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -893,7 +905,9 @@ void CassoExplorerWindow::ConfigureWidgets()
         return fs.EnumerateAllEntries (path, outEntries);
     });
 
-    m_browser.RestoreTabs (m_prefs.tabs);
+    //  A second window opens on its path alone, as File Explorer's new
+    //  window does, rather than on the saved tabs.
+    m_browser.RestoreTabs (m_context.newWindow ? std::vector<Location>() : m_prefs.tabs);
     m_browser.LeaveMissingLocation();
 
     m_driveMask = GetLogicalDrives();
@@ -917,6 +931,14 @@ void CassoExplorerWindow::ConfigureWidgets()
     if (!m_context.openPath.empty())
     {
         OpenPathInNewTab (m_context.openPath);
+    }
+
+    //  The first-run Home tab goes once the path has a tab of its own.
+    if (m_context.newWindow && m_browser.GetBrowserModel().GetTabCount() > 1)
+    {
+        bool  closed = m_browser.CloseTab (0);
+
+        IGNORE_RETURN_VALUE (closed, true);
     }
 
     FillList();
@@ -3782,6 +3804,27 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  The same keys on the tree act on its selected node.
+    if (m_focus == Pane::Tree && ev.kind == DxuiKeyEventKind::Down
+        && ((ev.ctrl && ev.shift && !ev.alt && ev.vk == 'C') || (ev.alt && !ev.ctrl && ev.vk == VK_RETURN)))
+    {
+        const DxuiTreeNode  * node     = m_tree->GetNodeAt (m_tree->GetHighlight());
+        Location              location;
+        bool                  copyable = node != nullptr && m_browser.TryGetNodeLocation (node->id, location)
+                                         && location.kind != Location::Kind::Root && location.kind != Location::Kind::RecycleBin;
+
+        if (copyable && ev.vk == 'C')
+        {
+            DxuiClipboard::SetText (GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
+        }
+        else if (copyable)
+        {
+            ShowLocationProperties (location);
+        }
+
+        return copyable;
+    }
+
     //  Copy in an image writes the files a paste would, as the context menu's
     //  Copy row does; cut and paste are the host's alone.
     if (m_focus == Pane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
@@ -4592,6 +4635,7 @@ void CassoExplorerWindow::ShowArchiveContextMenu (int x, int y)
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
     m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
 }
@@ -5422,9 +5466,7 @@ void CassoExplorerWindow::ShowAbout()
 
 void CassoExplorerWindow::OnWindowClose()
 {
-    m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
-    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
-    StorePlacement();
+    RecordSession();
     Hide();
     PostQuitMessage (0);
 }
@@ -5454,12 +5496,51 @@ void CassoExplorerWindow::SaveSession()
         return;
     }
 
-    m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
-    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
-    StorePlacement();
+    RecordSession();
 
     hr = m_prefs.Save (m_context.baseDir, *m_context.fs);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RecordSession
+//
+//  A second window's tabs and placement are its own for this run; the saved
+//  ones are read back from the file, so they stay the first window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RecordSession()
+{
+    CassoExplorerPrefs  saved;
+    HRESULT             hr    = S_OK;
+
+
+
+    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
+
+    if (!m_context.newWindow)
+    {
+        m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
+        StorePlacement();
+        return;
+    }
+
+    if (m_context.fs != nullptr)
+    {
+        hr = saved.Load (m_context.baseDir, *m_context.fs);
+
+        if (SUCCEEDED (hr))
+        {
+            m_prefs.tabs      = saved.tabs;
+            m_prefs.placement = saved.placement;
+        }
+    }
 }
 
 
@@ -5632,6 +5713,8 @@ void CassoExplorerWindow::ApplyMenuSvgs()
     }
 
     m_commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
+    m_commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,     GetMenuSvg (L"newfolder"));
+    m_commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,       GetMenuSvg (L"casso.floppy525"));
 }
 
 
@@ -6083,6 +6166,8 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
     bool                                             browsable      = false;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
     std::vector<DxuiPopupMenuItem>                   newChoices;
+    std::shared_ptr<const DxuiCommand>               newFolder;
+    std::shared_ptr<const DxuiCommand>               newDisk;
 
 
 
@@ -6118,20 +6203,14 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
     {
         browsable = true;
 
-        AddMenuCommand (items, L"Open in new &tab", [this, location]()
-        {
-            m_browser.OpenInNewTab (location);
-            FillList();
-        });
-        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
+        AddOpenRows (items, location);
 
-        if (location.kind == Location::Kind::HostFolder)
+        //  A folder's rows run on into Copy as path, as in File Explorer; an
+        //  image's Casso commands follow in a group of their own.
+        if (location.kind != Location::Kind::HostFolder)
         {
-            AddPinMenuCommand (items, location.path);
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
         }
-
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
     for (CassoExplorerActions::Verb verb : m_actions.GetListVerbs())
@@ -6179,22 +6258,29 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
             command           = std::make_shared<DxuiCommand>();
             command->id       = (int) verb;
             command->label    = GetVerbLabel (verb);
+            command->menuSvg  = GetMenuSvg ((verb == CassoExplorerActions::Verb::NewFolder) ? L"newfolder" : L"casso.floppy525");
             command->dispatch = [this, verb]() { RunVerb (verb); };
 
             if (verb == CassoExplorerActions::Verb::NewFolder)
             {
                 command->isEnabled = [this]() { return !m_browser.IsImageLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos; };
+                newFolder          = command;
+            }
+            else
+            {
+                newDisk = command;
             }
 
-            newChoices.push_back (DxuiPopupMenuItem::ForCommand (command));
             m_menuCommands.push_back (std::move (command));
             continue;
         }
 
-        if (verb == CassoExplorerActions::Verb::Refresh && !newChoices.empty())
+        if (verb == CassoExplorerActions::Verb::Refresh && (newFolder != nullptr || newDisk != nullptr))
         {
             std::shared_ptr<DxuiCommand>  parent = std::make_shared<DxuiCommand>();
             bool                          dos33  = m_browser.IsImageLocation() && m_browser.GetVolumeKind() != VolumeKind::ProDos;
+
+            AddNewChoices (newChoices, m_browser.GetLocation(), newFolder, newDisk);
 
             parent->label     = L"Ne&w";
             parent->menuGlyph = s_kpszMdl2Add;
@@ -6391,6 +6477,7 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
         m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  The menu takes the focus look from the list while it is open, as
@@ -7690,8 +7777,8 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
 
 
 
-    newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kNewFolder)));
-    newItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kNewDisk)));
+    AddNewChoices (newItems, m_browser.GetLocation(), m_commands.Find (CassoExplorerCommands::kNewFolder),
+                   m_commands.Find (CassoExplorerCommands::kNewDisk));
 
     //  The columns the list shows here, as Explorer's menu lists them.
     for (column = 0; column < CassoExplorerBrowser::GetColumns().size(); column++)
@@ -8699,6 +8786,40 @@ void CassoExplorerWindow::OpenInNewCasso (const std::wstring & imagePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::OpenInNewWindow
+//
+//  A second Casso Explorer, started with the path and --new-window, so it
+//  opens a window of its own rather than a tab in this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenInNewWindow (const std::wstring & path)
+{
+    wchar_t  module[MAX_PATH] = {};
+    DWORD    length           = GetModuleFileNameW (nullptr, module, ARRAYSIZE (module));
+    HRESULT  hr               = S_OK;
+
+
+
+    if (path.empty() || length == 0 || length >= ARRAYSIZE (module))
+    {
+        return;
+    }
+
+    hr = m_launcher.Launch (module, LaunchCommand::MakeNewWindowArguments (path, m_context.titlePrefix));
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OpenPathInNewTab
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -8936,6 +9057,14 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
+    //  New's file types join the command bar's New once the shell lists them.
+    if (msg == kNewChoicesMessage)
+    {
+        SetCommandBarDropDowns();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == kRunCommandMessage)
     {
         if (IsEnabled ((int) wParam))
@@ -9022,7 +9151,8 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddTreeIconRow (items, location.path);
     }
 
-    //  Explorer's first command expands or collapses the node.
+    //  Explorer's first command expands or collapses the node, in a group
+    //  of its own.
     if (node != nullptr && (!node->childrenLoaded || !node->children.empty()))
     {
         AddMenuCommand (items, node->expanded ? L"&Collapse" : L"&Expand", [this, id, expand = !node->expanded]()
@@ -9035,21 +9165,17 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
                 Invalidate();
             }
         });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (node->expanded ? L"windows.collapse" : L"windows.expand");
+
+        if (hasLocation)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
     }
 
     if (hasLocation)
     {
-        AddMenuCommand (items, L"Open in new &tab", [this, location]()
-        {
-            m_browser.OpenInNewTab (location);
-            FillList();
-        });
-        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-
-        if (location.kind == Location::Kind::HostFolder)
-        {
-            AddPinMenuCommand (items, location.path);
-        }
+        AddOpenRows (items, location);
     }
 
     if (hasFolder && m_browser.CanRemoveFromCasso (id))
@@ -9075,19 +9201,46 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
     }
     else if (hasLocation && location.kind != Location::Kind::Root)
     {
-        bool  windows = (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
-                        && AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
-
-        if (!windows)
+        //  One group, as in File Explorer: Windows' commands, Copy as path,
+        //  New and Properties follow the open and pin rows.
+        if (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
         {
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
         }
 
         AddMenuCommand (items, L"Copy as &path", [this, location]()
         {
             DxuiClipboard::SetText (GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
-        });
-        AddMenuCommand (items, L"P&roperties", [this, location]() { ShowLocationProperties (location); });
+        }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.copyaspath");
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            std::shared_ptr<DxuiCommand>    parent    = std::make_shared<DxuiCommand>();
+            std::shared_ptr<DxuiCommand>    newFolder = std::make_shared<DxuiCommand>();
+            std::shared_ptr<DxuiCommand>    newDisk   = std::make_shared<DxuiCommand>();
+            std::vector<DxuiPopupMenuItem>  choices;
+
+            newFolder->label    = GetVerbLabel (CassoExplorerActions::Verb::NewFolder);
+            newFolder->menuSvg  = GetMenuSvg (L"newfolder");
+            newFolder->dispatch = [this, location]() { GoToLocation (location); RunVerb (CassoExplorerActions::Verb::NewFolder); };
+            newDisk->label      = GetVerbLabel (CassoExplorerActions::Verb::NewDisk);
+            newDisk->menuSvg    = GetMenuSvg (L"casso.floppy525");
+            newDisk->dispatch   = [this, location]() { GoToLocation (location); RunVerb (CassoExplorerActions::Verb::NewDisk); };
+
+            AddNewChoices (choices, location, newFolder, newDisk);
+
+            parent->label     = L"Ne&w";
+            parent->menuGlyph = s_kpszMdl2Add;
+            parent->menuSvg   = GetMenuSvg (L"windows.newitem");
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
+
+            m_menuCommands.push_back (std::move (parent));
+            m_menuCommands.push_back (std::move (newFolder));
+            m_menuCommands.push_back (std::move (newDisk));
+        }
+
+        AddMenuCommand (items, L"P&roperties", [this, location]() { ShowLocationProperties (location); }, L"Alt+Enter");
         m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
         m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.properties");
     }
@@ -9110,6 +9263,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
         m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     if (!items.empty())
@@ -9327,6 +9481,174 @@ void CassoExplorerWindow::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & it
         m_browser.RefreshShellRoots();
         RefreshTree();
     });
+    m_menuCommands.back()->menuSvg = GetMenuSvg (pinned ? L"windows.unpinfromhome" : L"windows.pintohome");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddOpenRows
+//
+//  File Explorer's rows for a folder, in its order: Open in new tab, Open in
+//  new window, then Quick access's and Start's pins. A disk image opens in a
+//  tab or a window too, and has no pins.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const Location & location)
+{
+    Win32PackagedCommands::Entry  startPin;
+
+
+
+    AddMenuCommand (items, L"Open in new &tab", [this, location]()
+    {
+        m_browser.OpenInNewTab (location);
+        FillList();
+    });
+    m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
+
+    if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage)
+    {
+        AddMenuCommand (items, L"Open in new &window", [this, path = location.path]() { OpenInNewWindow (path); });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.opennewwindow");
+    }
+
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return;
+    }
+
+    AddPinMenuCommand (items, location.path);
+
+    if (m_packagedCommands.GetStartPinEntry (location.path, startPin))
+    {
+        AddPackagedEntry (items, startPin, { location.path });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddNewChoices
+//
+//  File Explorer's order: Folder and Shortcut, then the file types the shell
+//  offers. A disk image is Casso's own and follows Shortcut. Inside an image
+//  only a folder can be made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const Location & target,
+                                         std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk)
+{
+    std::vector<Win32PackagedCommands::NewChoice>  choices = m_packagedCommands.GetNewChoices();
+    bool                                           host    = target.kind == Location::Kind::HostFolder;
+    bool                                           types   = false;
+
+
+
+    if (folder != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (folder));
+    }
+
+    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    {
+        if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
+        {
+            AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
+            m_menuCommands.back()->menuSvg = GetMenuSvg (L"link");
+        }
+    }
+
+    if (host && disk != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (disk));
+    }
+
+    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    {
+        if (!host || choice.verb.empty() || choice.verb[0] != L'.')
+        {
+            continue;
+        }
+
+        if (!types)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            types = true;
+        }
+
+        AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
+        m_menuCommands.back()->menuImage = m_shellIcons.GetForExtension (choice.verb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RunNewChoice
+//
+//  The new item is selected and opened for renaming, as File Explorer does,
+//  except a shortcut, which is renamed when the shell's wizard finishes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RunNewChoice (const Location & target, const std::wstring & verb)
+{
+    std::wstring  created;
+    HRESULT       hr      = S_OK;
+    bool          named   = _wcsicmp (verb.c_str(), Win32PackagedCommands::kNewLinkVerb) != 0;
+
+
+
+    GoToLocation (target);
+
+    hr = m_packagedCommands.CreateNew (GetHwnd(), target.path, verb, created);
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The new item could not be created.", MB_ICONERROR);
+        return;
+    }
+
+    RefreshAfterHostChange();
+
+    if (!created.empty() && named)
+    {
+        PushUndo (UndoStep { UndoStep::Kind::HostNewItem, Location(), { created } });
+        SelectRowNamed (std::filesystem::path (created).filename().wstring());
+        BeginRename();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GoToLocation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::GoToLocation (const Location & location)
+{
+    if (m_browser.GetLocation() != location)
+    {
+        m_browser.NavigateToLocation (location);
+        FillList();
+    }
 }
 
 
@@ -11273,6 +11595,7 @@ const wchar_t * CassoExplorerWindow::GetUndoLabel (UndoStep::Kind kind)
         case UndoStep::Kind::ImageRename:    return L"&Undo rename";
         case UndoStep::Kind::HostNewFolder:
         case UndoStep::Kind::ImageNewFolder: return L"&Undo new folder";
+        case UndoStep::Kind::HostNewItem:    return L"&Undo new";
         case UndoStep::Kind::HostCopy:
         case UndoStep::Kind::ImagePut:       return L"&Undo copy";
         case UndoStep::Kind::HostMove:       return L"&Undo move";
@@ -11324,6 +11647,7 @@ void CassoExplorerWindow::UndoLast()
             break;
 
         case UndoStep::Kind::HostNewFolder:
+        case UndoStep::Kind::HostNewItem:
         case UndoStep::Kind::HostCopy:
             hr = m_shellVerbs.Recycle (GetHwnd(), step.paths);
             break;

@@ -35,6 +35,9 @@ public:
     //  `--disk1 "<path>"`, and `--title <prefix>` when there is one.
     static std::wstring  MakeCassoArguments (const std::wstring & diskPath, const std::wstring & titlePrefix);
 
+    //  `--new-window "<path>"`, and `--title <prefix>` when there is one.
+    static std::wstring  MakeNewWindowArguments (const std::wstring & path, const std::wstring & titlePrefix);
+
     //  One argument in the quoting CommandLineToArgvW reads back unchanged.
     static std::wstring  QuoteArgument (const std::wstring & argument);
 

@@ -518,6 +518,31 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForIconResource (const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::GetForExtension
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForExtension (const std::wstring & extension)
+{
+    std::wstring  key   = GetSizedKey (L"*type:" + extension);
+    auto          found = m_cache.find (key);
+
+
+
+    if (found != m_cache.end())
+    {
+        return found->second;
+    }
+
+    return Remember (key, LoadByAttributes (L"New" + extension, false, m_sizePx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::LoadPicture
 //
 //  A PNG decoded, premultiplied and scaled to the row's size.
