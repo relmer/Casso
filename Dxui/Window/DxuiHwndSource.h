@@ -668,6 +668,7 @@ public:
     //  the full WndProc dispatch.
     //
     static LRESULT  KindToHt  (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu (POINT ptScreen);
 
     //
     //  Whether an NC mouse message may be claimed by a caption system

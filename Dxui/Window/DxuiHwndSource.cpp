@@ -2746,6 +2746,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
             break;
 
+        //  Windows opens no system menu for a right-click on a caption the
+        //  window draws itself, so the host opens it.
+        case WM_NCRBUTTONUP:
+            isHandled = wp == HTCAPTION && (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0;
+
+            if (isHandled)
+            {
+                HRESULT  hrMenu = ShowSystemMenu (ptScreen);
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+            }
+
+            result = 0;
+            break;
+
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
 
@@ -4473,6 +4488,50 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
     else if (right)             { kind = DxuiHitTestKind::ResizeEdgeRight;  }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ShowSystemMenu
+//
+//  The window's system menu at a point on the screen, its items enabled as
+//  Windows enables them for the window's state, and the chosen command
+//  posted as WM_SYSCOMMAND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
+{
+    HRESULT  hr        = S_OK;
+    HMENU    menu      = GetSystemMenu (m_hwnd, FALSE);
+    bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
+    bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
+    UINT     command   = 0;
+    BOOL     isPosted  = FALSE;
+
+
+
+    CWRA (menu);
+
+    EnableMenuItem (menu, SC_RESTORE,  MF_BYCOMMAND | (isMax ? MF_ENABLED : MF_GRAYED));
+    EnableMenuItem (menu, SC_MOVE,     MF_BYCOMMAND | (isMax ? MF_GRAYED  : MF_ENABLED));
+    EnableMenuItem (menu, SC_SIZE,     MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MAXIMIZE, MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
+    SetMenuDefaultItem (menu, SC_CLOSE, FALSE);
+
+    command = static_cast<UINT> (TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, ptScreen.x, ptScreen.y, 0, m_hwnd, nullptr));
+    BAIL_OUT_IF (command == 0, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_SYSCOMMAND, command, 0);
+    CWRA (isPosted);
+
+Error:
+    return hr;
 }
 
 
