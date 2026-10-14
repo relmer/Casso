@@ -191,13 +191,13 @@ Byte MemoryBus::ReadFromDevice (Word address)
 //
 //  TryPeekIo
 //
-//  The device at a $C000-$C0FF address works out the byte without operating
-//  anything; an address no device decodes, whose byte is the floating bus,
-//  has no peek.
+//  The device at a $C000-$CFFF address works out the byte without operating
+//  anything; an address no device decodes reads the floating bus, as
+//  ReadFromDevice has it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryBus::TryPeekIo (Word address, Byte & value) const
+bool MemoryBus::TryPeekIo (Word address, Byte & value)
 {
     MemoryDevice *  device = nullptr;
 
@@ -212,7 +212,13 @@ bool MemoryBus::TryPeekIo (Word address, Byte & value) const
 
     device = FindDevice (address);
 
-    return device != nullptr && device->TryPeek (address, value);
+    if (device == nullptr)
+    {
+        value = ReadFloatingBus();
+        return true;
+    }
+
+    return device->TryPeekIo (address, value);
 }
 
 

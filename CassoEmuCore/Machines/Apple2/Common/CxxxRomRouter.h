@@ -82,6 +82,10 @@ public:
     // I/O device is not readable this way, since reading a device has effects.
     bool TryPeek (Word address, Byte & value) const;
 
+    // The debugger's I/O peek: a slot page owned by an I/O device is that
+    // device's peek, any other page the byte TryPeek reads.
+    bool TryPeekIo (Word address, Byte & value) override;
+
     // The debugger's ROM patch: one byte of whichever image the switches
     // select for address, internal or slot, so TryPeek and the CPU then read
     // it. False where no image answers (a device page, the floating bus).

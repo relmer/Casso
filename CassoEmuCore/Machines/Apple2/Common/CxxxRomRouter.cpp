@@ -495,6 +495,34 @@ bool CxxxRomRouter::TryPeek (Word address, Byte & value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  The $C3xx and $CFFF INTC8ROM side effects are not applied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CxxxRomRouter::TryPeekIo (Word address, Byte & value)
+{
+    MemoryDevice *  io = (m_noExternalSlots && !m_hasSlotIoDevice) ? nullptr : GetSlotIoDevice (address);
+
+
+
+    if (io != nullptr)
+    {
+        return io->TryPeekIo (address, value);
+    }
+
+    value = ResolveByte (address);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryPatch
 //
 //  The same choice of image ResolveByte makes, spelled with

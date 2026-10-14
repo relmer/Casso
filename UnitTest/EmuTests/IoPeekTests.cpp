@@ -14,27 +14,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace IoPeekTests
 {
-    //  Every peekable switch of the I/O page, on each kind of machine.
-    static constexpr Word  s_kPeekable[] =
-    {
-        0xC000, 0xC005, 0xC00F,
-        0xC011, 0xC012, 0xC013, 0xC014, 0xC015, 0xC016, 0xC017,
-        0xC018, 0xC019, 0xC01A, 0xC01B, 0xC01C, 0xC01D, 0xC01E, 0xC01F,
-        0xC061, 0xC062, 0xC063,
-        0xC064, 0xC065, 0xC066, 0xC067,
-    };
-
-    //  Switches that a read operates: the strobe clear, the speaker, the
-    //  video switches, the annunciators, PTRIG and the Disk II.
-    static constexpr Word  s_kOperated[] =
-    {
-        0xC010, 0xC030, 0xC050, 0xC054, 0xC058, 0xC05E, 0xC070, 0xC07F, 0xC0E9,
-    };
-
-
-
-
-
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  SetInputs
@@ -89,6 +68,9 @@ namespace IoPeekTests
     {
     public:
 
+        //  Every address of the I/O page and the slot pages has a peek, and
+        //  each peek is the byte the read made just after it returns, on
+        //  every kind of machine.
         TEST_METHOD (EachPeekReturnsTheByteAReadReturns)
         {
             for (const char * id : { "Apple2Plus", "Apple2e", "Apple2eEnhanced", "Apple2c" })
@@ -97,52 +79,27 @@ namespace IoPeekTests
                 MemoryBus  & bus     = machine.GetMemoryBus();
                 Byte         peeked  = 0;
                 Byte         read    = 0;
-                int          peeks   = 0;
 
 
 
                 machine.PowerCycle();
                 SetInputs (machine);
 
-                for (Word address : s_kPeekable)
-                {
-                    if (!bus.TryPeekIo (address, peeked))
-                    {
-                        continue;
-                    }
-
-                    read = bus.ReadByte (address);
-                    peeks++;
-
-                    Assert::AreEqual ((int) read, (int) peeked, std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (id), address).c_str());
-                }
-
-                Assert::IsTrue (peeks > 0, TextEncoding::NarrowToWide (id).c_str());
-                Assert::IsTrue (bus.TryPeekIo (0xC000, peeked), L"the keyboard data has a peek");
+                Assert::IsTrue   (bus.TryPeekIo (0xC000, peeked), L"the keyboard data has a peek");
                 Assert::AreEqual ((int) (Byte) ('A' | 0x80), (int) peeked, L"with the key and its strobe");
-            }
-        }
 
-
-        TEST_METHOD (ASwitchAReadOperatesHasNoPeek)
-        {
-            for (const char * id : { "Apple2Plus", "Apple2e", "Apple2c" })
-            {
-                TestMachine  machine (id, TestMachine::Slots::AsShipped);
-                MemoryBus  & bus     = machine.GetMemoryBus();
-                Byte         peeked  = 0;
-
-
-
-                machine.PowerCycle();
-
-                for (Word address : s_kOperated)
+                for (uint32_t address = 0xC000; address <= 0xCFFF; address++)
                 {
-                    Assert::IsFalse (bus.TryPeekIo (address, peeked), std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (id), address).c_str());
+                    std::wstring  what = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (id), address);
+
+                    Assert::IsTrue (bus.TryPeekIo ((Word) address, peeked), what.c_str());
+
+                    read = bus.ReadByte ((Word) address);
+
+                    Assert::AreEqual ((int) read, (int) peeked, what.c_str());
                 }
             }
         }
-
 
         TEST_METHOD (APeekChangesNothing)
         {

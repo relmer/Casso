@@ -52,6 +52,11 @@ public:
     // quarterTrack (HandlePhase).
     static int  GetPull (uint8_t phases, int quarterTrack);
 
+    // Read's byte for a switch, with no switch thrown and the drive not
+    // moved on. False while the drive is writing, which a copy of it cannot
+    // run without writing to the disk.
+    bool  TryPeekIo (Word address, Byte & value) override;
+
     // Real Disk II: writing $C0E8 (motor off) starts a ~1-second
     // spindown so DOS RWTS can toggle the motor off between
     // commands without losing rotational sync. UTAIIe ch. 9 /

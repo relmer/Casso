@@ -75,6 +75,36 @@ Byte Acia6551::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Read's byte with RDRF and the IRQ latch left as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Acia6551::TryPeekIo (Word address, Byte & value)
+{
+    Word  reg = static_cast<Word> (address - m_baseAddress);
+
+
+
+    switch (reg)
+    {
+    case kRegData:    value = m_rxData;  break;
+    case kRegStatus:  value = m_status;  break;
+    case kRegCommand: value = m_command; break;
+    case kRegControl: value = m_control; break;
+    default:          value = 0;         break;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  A write to the status address is a programmed reset. Writing the command

@@ -622,9 +622,9 @@ namespace DebuggerViewStateTests
         }
 
 
-        //  PTRIG arms the paddle timers when read, so it is not peeked: what
-        //  its byte feeds is written as "?", and the cycles are in the result.
-        TEST_METHOD (AnUnpeekableSwitchReadFeedsUnknownsAndArmsNothing)
+        //  PTRIG arms the paddle timers when read; its peek returns the byte
+        //  the read returns, 0, and arms nothing.
+        TEST_METHOD (APtrigReadHasItsValueAndArmsNothing)
         {
             MachineRig            rig;
             IDebugTarget        & target  = rig.controller.GetSession().GetTarget();
@@ -644,6 +644,7 @@ namespace DebuggerViewStateTests
             (void) target.TryPoke (0x0302, 0xC0);
 
             r.pc = 0x0300;
+            r.a  = 0x41;
             r.p  = 0x20;
             target.SetRegisters (r);
 
@@ -651,10 +652,39 @@ namespace DebuggerViewStateTests
             rig.view.CenterCodeOn (0x0300);
             effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
 
-            Assert::AreEqual (std::string ("A=? Z=? N=?; 4 cycles"), effect);
+            Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect);
             Assert::AreEqual (trigger, rig.machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle(), L"the trial run arms no timer");
         }
 
+
+        //  A byte nothing can peek feeds unknowns: each run of the instruction
+        //  with another fill value changes A, N and Z, so the result writes
+        //  them as "?", with the cycles and the next PC as they are.
+        TEST_METHOD (AnUnpeekableReadFeedsUnknowns)
+        {
+            MachineRig                   rig;
+            MockExpressionContext        memory;
+            Cpu6502Registers             registers = {};
+            InstructionTouches::Result   touches;
+            const Microcode            * set       = rig.controller.GetSession().GetTarget().GetInstructionSet();
+
+
+
+            memory.memory[0x0300] = 0xAD;     // LDA $C000, which the mock cannot read
+            memory.memory[0x0301] = 0x00;
+            memory.memory[0x0302] = 0xC0;
+
+            registers.pc = 0x0300;
+            registers.a  = 0x41;
+            registers.p  = 0x20;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 3);
+
+            Assert::IsTrue   (touches.isKnown);
+            Assert::IsTrue   (touches.unknowns.a);
+            Assert::AreEqual (std::string ("A=? Z=? N=?"), InstructionEffect::Format (registers, touches.after, touches.writes, 0x0303, nullptr, touches.unknowns));
+            Assert::AreEqual (4u, touches.cycles);
+        }
 
         //  The PC's line ends with the cycles its instruction will take with
         //  the registers as they are: a branch's count is for the way it goes.

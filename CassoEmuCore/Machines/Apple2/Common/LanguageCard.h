@@ -56,6 +56,9 @@ public:
     LanguageCard (MemoryBus & bus);
 
     Byte Read     (Word address) override;
+
+    // A switch read returns 0, as Read does; the peek throws no switch.
+    bool TryPeekIo (Word address, Byte & value) override { (void) address; value = 0; return true; }
     void Write    (Word address, Byte value) override;
     Word GetStart () const override { return 0xC080; }
     Word GetEnd   () const override { return 0xC08F; }

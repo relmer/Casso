@@ -20,5 +20,9 @@ public:
     virtual ~ITapeDeckPort () = default;
 
     virtual bool  ReadInputLevel (uint64_t busCycle) = 0;
+
+    // The level ReadInputLevel would return, with nothing advanced: the
+    // debugger's peek.
+    virtual bool  PeekInputLevel (uint64_t busCycle) const { (void) busCycle; return false; }
     virtual void  OnOutputToggle (uint64_t busCycle) = 0;
 };

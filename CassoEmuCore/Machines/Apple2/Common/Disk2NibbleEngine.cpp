@@ -43,6 +43,36 @@ Disk2NibbleEngine::~Disk2NibbleEngine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekLatchAfter
+//
+//  A pending flux-track write is cleared on the copy before it runs, so the
+//  copy cannot put it in the image, neither on the way nor when it goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::PeekLatchAfter (uint32_t cpuCycles) const
+{
+    Disk2NibbleEngine  copy = *this;
+
+
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+
+    copy.Tick (cpuCycles);
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+
+    return copy.m_readLatch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDiskImage
 //
 //  Called by Disk2Controller on Mount / Eject / DriveSelect transitions.

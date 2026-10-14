@@ -549,39 +549,62 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeek
+//  TryPeekIo
 //
-//  What Read returns where reading operates nothing: the status reads,
-//  with the keyboard's data bits read without journaling them, and the
-//  paddle timers, or on the //c the mouse's direction lines in place of
-//  paddles 2 and 3. PTRIG, the video switches and the annunciators operate
-//  the machine when read, so they have no peek.
+//  Read's byte for each address, worked out as Read works it out, with no
+//  switch thrown, no timer armed and nothing observed: the status reads
+//  with the keyboard's data bits read without journaling them, PTRIG and
+//  the //c status reads behind it, the cassette input, the paddle timers or
+//  the //c mouse's direction lines, and the floating bus for the video and
+//  annunciator switches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple2eSoftSwitchBank::TryPeek (Word address, Byte & value)
+bool Apple2eSoftSwitchBank::TryPeekIo (Word address, Byte & value)
 {
+    constexpr Byte  kStatusBit = 0x80;
+
+
+
     value = 0;
 
     if (address >= 0xC011 && address <= 0xC01F)
     {
         value = static_cast<Byte> (((m_keyboard != nullptr) ? m_keyboard->GetLatchedKeyDataBits() : 0) | GetStatusBit (address));
-        return true;
     }
-
-    if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
+    else if ((address & 0xFFF0) == s_kwPaddleTimerStrobe)
+    {
+        if (m_mouse != nullptr && address == 0xC07E)
+        {
+            value = m_mouse->IsIouAccessEnabled() ? 0 : kStatusBit;
+        }
+        else if (m_mouse != nullptr && address == 0xC07F)
+        {
+            value = m_doubleHiRes ? 0 : kStatusBit;
+        }
+    }
+    else if (address == CassettePort::kInputMirrorAddress && m_cassettePort != nullptr)
+    {
+        value = m_cassettePort->PeekInputLevel() ? CassettePort::kInputBit : 0;
+    }
+    else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
     {
         value = (address == 0xC066) ? m_mouse->ReadMouX1() : m_mouse->ReadMouY1();
-        return true;
     }
-
-    if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
+    else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
     {
         value = PeekPaddle (address);
-        return true;
+    }
+    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled() && address >= 0xC058 && address <= 0xC05F)
+    {
+        value = 0;
+    }
+    else if (address == 0xC05E || address == 0xC05F || (address >= 0xC050 && address <= 0xC05D))
+    {
+        value = ReadFloatingBus();
     }
 
-    return false;
+    return true;
 }
 
 

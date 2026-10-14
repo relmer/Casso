@@ -65,31 +65,32 @@ Byte AppleGamePort::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeek
+//  TryPeekIo
 //
-//  What Read returns where reading operates nothing: the buttons and the
-//  paddle timers. PTRIG arms the timers and the cassette input is read from
-//  the tape, so they have no peek.
+//  Read's byte for each address with nothing armed or observed: the
+//  cassette input over the floating bus, the buttons, the paddle timers,
+//  and 0 for PTRIG and the rest of the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleGamePort::TryPeek (Word address, Byte & value)
+bool AppleGamePort::TryPeekIo (Word address, Byte & value)
 {
     value = 0;
 
-    if (address >= s_kwFirstButtonAddress && address < s_kwFirstButtonAddress + s_knButtonCount)
+    if ((address == s_kwCassetteInputAddress || address == s_kwCassetteMirrorAddress) && m_cassettePort != nullptr)
+    {
+        value = m_cassettePort->PeekInputOverFloatingBus();
+    }
+    else if (address >= s_kwFirstButtonAddress && address < s_kwFirstButtonAddress + s_knButtonCount)
     {
         value = PeekButton (address);
-        return true;
     }
-
-    if (address >= s_kwPaddle0Address && address < s_kwPaddle0Address + s_knPaddleAxisCount)
+    else if (address >= s_kwPaddle0Address && address < s_kwPaddle0Address + s_knPaddleAxisCount)
     {
         value = PeekPaddle (address);
-        return true;
     }
 
-    return false;
+    return true;
 }
 
 

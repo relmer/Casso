@@ -122,6 +122,12 @@ public:
     // Effective pin state on each port: output bits come from the output
     // register, input bits from the external input latch.
     Byte    GetPortA      () const { return static_cast<Byte> ((m_ora & m_ddra) | (m_portAIn & ~m_ddra)); }
+
+    // Port A with `input` on its input pins in place of the input latch.
+    Byte    GetPortAWith  (Byte input) const { return static_cast<Byte> ((m_ora & m_ddra) | (input & ~m_ddra)); }
+
+    // ReadRegister's byte with no flag cleared: the debugger's peek.
+    Byte    PeekRegister  (Byte reg) const;
     Byte    GetPortB      () const { return static_cast<Byte> ((m_orb & m_ddrb) | (m_portBIn & ~m_ddrb)); }
 
     // Drive the external input pins (used by the card to hand the AY data

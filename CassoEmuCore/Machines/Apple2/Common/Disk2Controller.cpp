@@ -95,6 +95,74 @@ Byte Disk2Controller::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Q6, Q7 and the drive as they are after the switch at address, then the
+//  byte HandleReadDispatch returns for those: the data latch, run forward
+//  to the CPU's cycle on a copy of the drive; the sense line or the IWM
+//  status; or 0 with Q7 on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::TryPeekIo (Word address, Byte & value)
+{
+    int       offset = (address - m_ioStart) & 0x0F;
+    bool      q6     = m_q6;
+    bool      q7     = m_q7;
+    int       drive  = m_activeDrive;
+    uint64_t  delta  = 0;
+    Byte      sense  = 0;
+
+
+
+    switch (offset)
+    {
+        case 0xA: drive = 0;     break;
+        case 0xB: drive = 1;     break;
+        case 0xC: q6    = false; break;
+        case 0xD: q6    = true;  break;
+        case 0xE: q7    = false; break;
+        case 0xF: q7    = true;  break;
+        default:                 break;
+    }
+
+    value = 0;
+
+    if (q7)
+    {
+        return true;
+    }
+
+    if (q6)
+    {
+        sense = m_activeDisk[drive]->IsWriteProtected() ? 0x80 : 0x00;
+        value = m_iwmMode ? static_cast<Byte> (sense | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F))
+                          : sense;
+        return true;
+    }
+
+    if (m_engine[drive].IsWriteMode())
+    {
+        return false;
+    }
+
+    if (drive == m_activeDrive && m_cpuCycleSource != nullptr && *m_cpuCycleSource > m_lastCpuSync)
+    {
+        delta = *m_cpuCycleSource - m_lastCpuSync;
+    }
+
+    //  A motor turned on from rest starts the spin-up, which reads $80.
+    value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : m_engine[drive].PeekLatchAfter (static_cast<uint32_t> (delta));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  Soft-switch side effects fire on writes too. When Q7=1 + Q6=1, the

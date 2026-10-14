@@ -71,6 +71,7 @@ public:
 
     bool  ReadInputLevel (uint64_t busCycle) override;
     bool  PeekLevel      (uint64_t busCycle) const;
+    bool  PeekInputLevel (uint64_t busCycle) const override { return PeekLevel (busCycle); }
     void  OnOutputToggle (uint64_t busCycle) override;
 
     TapeTransport      GetTransport       () const { return m_transport; }

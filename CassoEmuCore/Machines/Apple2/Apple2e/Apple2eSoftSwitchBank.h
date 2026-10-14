@@ -58,7 +58,7 @@ public:
     };
 
     Byte Read      (Word address) override;
-    bool TryPeek   (Word address, Byte & value) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     void Write     (Word address, Byte value) override;
     Word GetEnd    () const override { return 0xC07F; }
     void Reset     () override;

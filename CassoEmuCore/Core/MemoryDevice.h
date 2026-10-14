@@ -35,9 +35,10 @@ public:
     virtual void SoftReset    ()                {}
     virtual void PowerCycle   (Prng & prng)     { (void) prng; SoftReset (); }
 
-    // The byte a read of `address` would return, worked out without operating
-    // anything: no strobe cleared, no timer armed, no event emitted, no input
-    // observed. False where reading is itself the operation, or where the
-    // device cannot work the byte out; the default is false.
-    virtual bool TryPeek      (Word address, Byte & value) { (void) address; value = 0; return false; }
+    // The byte a read of `address` would return, worked out without doing
+    // what the read does: no strobe cleared, no switch thrown, no timer
+    // armed, no flag cleared, no event emitted, no input observed. False only
+    // where the byte cannot be worked out without the read itself; the
+    // default is false.
+    virtual bool TryPeekIo    (Word address, Byte & value) { (void) address; value = 0; return false; }
 };

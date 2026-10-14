@@ -43,6 +43,13 @@ public:
 
     void  ToggleOutput             ();
     bool  ReadInputLevel           ();
+
+    // The input level and the floating-bus byte for the debugger's peek,
+    // with the tape not advanced and no input journaled; the output
+    // toggle's peek is the floating bus, which its read returns.
+    bool  PeekInputLevel           () const;
+    Byte  PeekInputOverFloatingBus () const;
+    bool  TryPeekIo                (Word address, Byte & value) override;
     Byte  ReadInputOverFloatingBus ();
     bool  GetOutputLevel           () const { return m_outputLevel; }
 

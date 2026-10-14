@@ -44,7 +44,7 @@ public:
     AppleGamePort () = default;
 
     Byte Read      (Word address) override;
-    bool TryPeek   (Word address, Byte & value) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     void Write     (Word address, Byte value) override;
     Word GetStart  () const override { return s_kwCassetteInputAddress; }
     Word GetEnd    () const override { return s_kwPaddleTimerStrobe; }

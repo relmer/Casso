@@ -104,6 +104,11 @@ public:
     // ReadLatch but const and counter-free.
     uint8_t    PeekReadLatch() const { return m_readLatch; }
 
+    // The latch after cpuCycles more cycles of reading, worked out on a copy
+    // of the engine, so the drive itself does not move: the debugger's peek.
+    // Only for a drive that is not writing.
+    uint8_t    PeekLatchAfter (uint32_t cpuCycles) const;
+
     void       Tick (uint32_t cpuCycles);
     uint8_t    ReadLatch();
     void       WriteLatch (uint8_t value);

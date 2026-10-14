@@ -131,28 +131,50 @@ Byte Apple2eKeyboard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeek
+//  TryPeekIo
 //
-//  What Read returns where reading operates nothing: the status reads the
-//  soft-switch bank owns, the buttons, the //c 80/40 switch and the
-//  keyboard data. The cassette output, the speaker, the video switches,
-//  ROMBANK, RSTXY and the strobe clear operate the machine when read, so
-//  they have no peek.
+//  Read's byte for each address, worked out as Read works it out, with
+//  nothing toggled, cleared or observed: the soft-switch bank's and the
+//  speaker's addresses from them, the buttons, the cassette input and the
+//  //c 80/40 switch, the keyboard's own two switches, and 0 where no device
+//  drives the bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple2eKeyboard::TryPeek (Word address, Byte & value)
+bool Apple2eKeyboard::TryPeekIo (Word address, Byte & value)
 {
+    bool  isSoftSwitch = (address >= 0xC011 && address <= 0xC01F)
+                         || (address == 0xC028)
+                         || (address >= 0xC050 && address <= 0xC05F);
+
+
+
     value = 0;
 
-    if (address >= 0xC011 && address <= 0xC01F)
+    if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
     {
-        return m_softSwitchSibling != nullptr && m_softSwitchSibling->TryPeek (address, value);
+        return true;
+    }
+
+    if (isSoftSwitch && m_softSwitchSibling != nullptr)
+    {
+        return m_softSwitchSibling->TryPeekIo (address, value);
+    }
+
+    if (address >= 0xC030 && address <= 0xC03F && m_speakerSibling != nullptr)
+    {
+        return m_speakerSibling->TryPeekIo (address, value);
     }
 
     if (address >= kFirstButtonAddress && address < kFirstButtonAddress + kButtonCount)
     {
         value = PeekButton (address);
+        return true;
+    }
+
+    if (address == CassettePort::kInputAddress && m_cassettePort != nullptr)
+    {
+        value = m_cassettePort->PeekInputLevel() ? CassettePort::kInputBit : 0;
         return true;
     }
 
@@ -162,7 +184,12 @@ bool Apple2eKeyboard::TryPeek (Word address, Byte & value)
         return true;
     }
 
-    return AppleKeyboard::TryPeek (address, value);
+    if (address <= 0xC010)
+    {
+        return AppleKeyboard::TryPeekIo (address, value);
+    }
+
+    return true;
 }
 
 

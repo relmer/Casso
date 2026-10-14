@@ -117,25 +117,35 @@ Byte AppleKeyboard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeek
+//  TryPeekIo
 //
-//  The data read alone: it returns the latch and operates nothing. The
-//  strobe clear is the operation, so it has no peek.
+//  The data read returns the latch; the strobe clear returns the data bits
+//  with bit 7 the key-down state, as Read has it, without clearing the
+//  strobe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleKeyboard::TryPeek (Word address, Byte & value)
+bool AppleKeyboard::TryPeekIo (Word address, Byte & value)
 {
+    Byte  latch = m_latchedKey.load (memory_order_acquire);
+
+
+
     value = 0;
 
-    if (address < 0xC000 || address > 0xC00F)
+    if (address >= 0xC000 && address <= 0xC00F)
     {
-        return false;
+        value = latch;
+        return true;
     }
 
-    value = m_latchedKey.load (memory_order_acquire);
+    if (address >= 0xC010 && address <= 0xC01F)
+    {
+        value = static_cast<Byte> ((latch & 0x7F) | (m_anyKeyDown.load (memory_order_acquire) ? 0x80 : 0x00));
+        return true;
+    }
 
-    return true;
+    return false;
 }
 
 

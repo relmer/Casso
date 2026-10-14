@@ -108,6 +108,41 @@ Byte MockingboardCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Read's byte with no VIA flag cleared and nothing latched into port A: a
+//  PSG read puts the PSG's data on port A's input pins, as Read does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MockingboardCard::TryPeekIo (Word address, Byte & value)
+{
+    Word   offset = static_cast<Word> ((address - m_base) & (kPageSize - 1));
+    int    index  = (offset & kVia2Select) ? 1 : 0;
+    Byte   reg    = static_cast<Byte> (offset & Via6522::kRegisterMask);
+    Byte   portB  = m_via[index].GetPortB();
+
+
+
+    if ((reg == Via6522::kRegOra || reg == Via6522::kRegOraNh) &&
+        (portB & kAyResetLow) != 0 &&
+        (portB & kAyControlMask) == kAyBc1)
+    {
+        value = m_via[index].GetPortAWith (m_psg[index].ReadData());
+        return true;
+    }
+
+    value = m_via[index].PeekRegister (reg);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  The VIA path always executes -- the board's VIAs see none of A4-A6, so a
