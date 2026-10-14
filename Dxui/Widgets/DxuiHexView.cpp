@@ -3,6 +3,7 @@
 #include "DxuiHexView.h"
 
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiClipboard.h"
@@ -715,10 +716,16 @@ void DxuiHexView::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & the
     if (starts)
     {
         label = std::to_wstring (line);
-        label.insert (0, (size_t) (std::max) (0, GetLineDigits() - (int) label.size()), L' ');
+
+        //  Right-aligned with spaces only in the grid; in the proportional
+        //  face the numbers start at the column's left.
+        if (!m_isProportionalOffsets)
+        {
+            label.insert (0, (size_t) (std::max) (0, GetLineDigits() - (int) label.size()), L' ');
+        }
 
         DrawCell (text, GetRowOffsetRect (row), label.c_str(),
-                  DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+                  DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), GetOffsetFont (font));
     }
 
     length = GetShownLength (start, end);
@@ -3033,7 +3040,7 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
     }
 
     //  The addresses are a shade darker than the bytes, so the bytes stand out.
-    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), GetOffsetFont (font));
 
     //  The value column, a value at a time.
     for (int first = 0; m_showValues && (first < count); first += m_grouping)
@@ -3246,6 +3253,30 @@ RECT DxuiHexView::GetSelectionCellRect (uint64_t offset, int index, const RECT &
     }
 
     return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetOffsetFont
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFontHandle DxuiHexView::GetOffsetFont (const DxuiFontHandle & grid) const
+{
+    DxuiFontHandle  font = grid;
+
+
+
+    if (m_isProportionalOffsets)
+    {
+        font.face = DxuiTheme::kBodyFace;
+    }
+
+    return font;
 }
 
 

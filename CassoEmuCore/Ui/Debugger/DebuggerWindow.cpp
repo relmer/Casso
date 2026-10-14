@@ -507,7 +507,7 @@ void DebuggerWindow::ConfigureWidgets()
         MakeDense (list);
     }
 
-    //  The panes of text rather than code are in the proportional face, as
+    //  Every list but the disassemblies is in the proportional face, as
     //  Visual Studio's Breakpoints, Watch and Call Stack windows are. Each
     //  column is aligned on its own, so a column lines up in either face.
     //  The event logs' fitted columns are measured from the labels the panes
@@ -1085,14 +1085,16 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 //
 //  DebuggerWindow::GetTextLists
 //
-//  The lists of text rather than code: every pane but the disassemblies,
-//  the registers, the stack and the trace.
+//  Every list but the disassemblies, whose columns are code laid out as
+//  Visual Studio lays out its own. Each column is aligned on its own, so a
+//  column lines up in either face.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_breakpointList, m_watchList, m_callStackList, m_heatRangeList, m_diskLog.list, m_inputLog.list };
+    std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
+                                           m_heatRangeList, m_diskLog.list, m_inputLog.list };
 
 
 
