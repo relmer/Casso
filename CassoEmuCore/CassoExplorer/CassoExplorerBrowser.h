@@ -140,6 +140,13 @@ private:
     void  PreviewArchive     (const std::wstring & path);
     bool  IsLocalArchivePath (const std::wstring & id) const;
 
+    //  Why an archive the shell lists nothing in is empty, by its name;
+    //  empty when it has nothing in it.
+    std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
+
+    //  The largest archive read whole for the reason it lists nothing.
+    static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
+
 public:
     std::wstring  GetTabLabel (size_t index) const;
 
@@ -205,6 +212,9 @@ public:
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
     std::vector<DxuiListView::Group>  GetListGroups () const;
     void  SetSelectedRows  (const std::vector<int> & rows);
+
+    //  The preview made again for the selection, as when a slow read arrives.
+    void  RefreshPreview   () { UpdatePreview(); }
     void  SetDisassemble   (bool disassemble);
 
     const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }
@@ -258,6 +268,9 @@ public:
     //  folder; empty otherwise.
     void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
 
+    //  The archive Extract all applies to, selected or open; empty for none.
+    std::wstring  GetExtractTarget () const;
+
     //  The files the selected rows are when they are a search's matches inside
     //  disk images, each with its image, found again in that image's catalog.
     struct SearchMatch
@@ -292,6 +305,12 @@ public:
     //  The keys a shell folder's listing is read under, for the list and the
     //  tree apart.
     static constexpr const wchar_t *  s_kListKey = L"list:";
+
+    //  An archive's preview, read on a thread of its own when on a network.
+    static constexpr const wchar_t *  s_kPreviewKey = L"preview:";
+
+    //  The list or preview message while a slow read is under way.
+    static constexpr const wchar_t *  s_kWorkingText = L"Working on it...";
     static constexpr const wchar_t *  s_kTreeKey = L"tree:";
 
     //  Shell folders read on threads of their own; the window sets where the

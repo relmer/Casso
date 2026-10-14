@@ -135,6 +135,13 @@ public:
         Assert::IsTrue  (bar[9].seeMoreOnly, L"About lives in See more");
         Assert::IsTrue  (bar[10].trailing && bar[11].trailing, L"The theme and the preview toggle sit at the far end");
         Assert::IsFalse (bar[8].trailing);
+
+        //  An archive's Extract all follows View, as Explorer's does.
+        bar = commands.BuildCommandBarEntries (false, true);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kView,       bar[8].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kExtractAll, bar[9].command->id);
+        Assert::IsFalse  (bar[9].iconOnly, L"with its label");
     }
 
 

@@ -34,6 +34,7 @@ public:
     HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) override;
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;
     HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) override;
+    HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb) override;
     HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;
     HRESULT  RestoreRecycled     (HWND owner, const std::vector<std::wstring> & paths) override;
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override;

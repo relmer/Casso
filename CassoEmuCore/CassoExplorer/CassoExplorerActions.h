@@ -68,6 +68,9 @@ public:
         //  them gone for good.
         Restore,
         EmptyRecycleBin,
+
+        //  An archive's own Extract All, from the shell.
+        ExtractAll,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

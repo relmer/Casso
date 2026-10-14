@@ -596,6 +596,7 @@ void CassoExplorerWindow::ConfigureWidgets()
         m_browser.SetSelectedRows (m_list->GetSelectedRows());
         FillPreview();
         FillStatus();
+        UpdateCommandBar();
     });
 
     m_list->SetView (m_listView);
@@ -1552,17 +1553,7 @@ void CassoExplorerWindow::FillList()
     //  view's size.
     ApplyFolderView();
 
-    //  The Recycle Bin has buttons of its own on the command bar.
-    if ((m_browser.GetLocation().kind == Location::Kind::RecycleBin) != m_commandBarForBin)
-    {
-        m_commandBarForBin = !m_commandBarForBin;
-
-        //  Explorer's own icons for the bin's two buttons, in the theme's set.
-        m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, GetMenuSvg (L"windows.recyclebin.empty"));
-        m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    GetMenuSvg (L"windows.recyclebin.restoreall"));
-        m_commandBar->SetEntries (m_commands.BuildCommandBarEntries (m_commandBarForBin));
-        m_commandBar->Layout     (m_menuBand.GetBounds(), m_scaler);
-    }
+    UpdateCommandBar();
 
     //  A file's size or date may have changed with the listing.
     m_infoTips.Clear();
@@ -2033,6 +2024,9 @@ void CassoExplorerWindow::FillPreview()
         m_previewList->SetShowHeader      (true);
         m_previewList->SetMonospace       (!preview.archive);
         m_previewList->SetExplorerDetails (preview.archive);
+
+        //  An archive's rows move and extend by the keys the file list takes.
+        m_previewList->SetKeyboardColumnNav (preview.archive);
         m_previewList->SetIconColumn      (preview.archive ? 0 : -1);
         m_previewList->SetFontDip         (preview.archive ? kProseFontDip : 0.0f);
         m_previewList->SetRowHeightDip    (kPreviewRowHeightDip);
@@ -2116,6 +2110,72 @@ void CassoExplorerWindow::FillPreview()
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateCommandBar
+//
+//  The Recycle Bin, and an archive selected or open, have buttons of their
+//  own on the command bar, after View, as Explorer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateCommandBar()
+{
+    bool  bin     = m_browser.GetLocation().kind == Location::Kind::RecycleBin;
+    bool  archive = !bin && !m_browser.GetExtractTarget().empty();
+
+
+
+    if (bin == m_commandBarForBin && archive == m_commandBarForArchive)
+    {
+        return;
+    }
+
+    m_commandBarForBin     = bin;
+    m_commandBarForArchive = archive;
+
+    //  Explorer's own icons for the buttons, in the theme's set.
+    m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, GetMenuSvg (L"windows.recyclebin.empty"));
+    m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    GetMenuSvg (L"windows.recyclebin.restoreall"));
+    m_commands.SetSvg (CassoExplorerCommands::kExtractAll,      GetMenuSvg (L"windows.compressedfile.extract"));
+    m_commandBar->SetEntries (m_commands.BuildCommandBarEntries (bin, archive));
+    m_commandBar->Layout     (m_menuBand.GetBounds(), m_scaler);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ExtractAll
+//
+//  The archive's own Extract All: its wizard, for where the files go, then
+//  the copy of the files there, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ExtractAll()
+{
+    HRESULT       hr     = S_OK;
+    std::wstring  target = m_browser.GetExtractTarget();
+
+
+
+    BAIL_OUT_IF (target.empty(), S_OK);
+
+    hr = m_shellVerbs.RunItemVerb (GetHwnd(), { target }, "extract");
+    CHR (hr);
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -3721,6 +3781,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
                                                          && m_shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
+        case CassoExplorerCommands::kExtractAll:        return !m_browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
@@ -4437,8 +4498,9 @@ RECT CassoExplorerWindow::GetMessageRect (const RECT & pane) const
 //  CassoExplorerWindow::FormatPreviewError
 //
 //  "No preview", and three lines below it, why. An image refused for its size
-//  holds a whole sentence about the file for the command line; the preview
-//  says only the reason.
+//  has a whole sentence about the file for the command line; the preview
+//  has only the reason. A read under way is no failure, and its message
+//  has no heading.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4451,6 +4513,11 @@ std::wstring CassoExplorerWindow::FormatPreviewError (const std::wstring & messa
     if (message.find (L"800K images") != std::wstring::npos)
     {
         reason = L"800K images are not supported yet";
+    }
+
+    if (message == CassoExplorerBrowser::s_kWorkingText)
+    {
+        return message;
     }
 
     return L"No preview\n\n\n" + reason;
@@ -4945,6 +5012,7 @@ void CassoExplorerWindow::Dispatch (int id)
 
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
+        case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
         case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
@@ -5299,6 +5367,7 @@ const wchar_t * CassoExplorerWindow::GetVerbLabel (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::Share:          return L"&Share";
         case CassoExplorerActions::Verb::Restore:        return L"&Restore";
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"Empty Recycle &Bin";
+        case CassoExplorerActions::Verb::ExtractAll:     return L"Extract A&ll...";
         default:                                   return L"";
     }
 }
@@ -5398,6 +5467,7 @@ const wchar_t * CassoExplorerWindow::GetVerbMenuSvgName (CassoExplorerActions::V
         case CassoExplorerActions::Verb::Share:        return L"Windows.ModernShare";
         case CassoExplorerActions::Verb::Restore:      return L"windows.recyclebin.restoreitems";
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"windows.recyclebin.empty";
+        case CassoExplorerActions::Verb::ExtractAll:   return L"windows.compressedfile.extract";
         default:                                       return nullptr;
     }
 }
@@ -8087,6 +8157,10 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             hr = m_shellVerbs.Share (GetHwnd(), hostPaths);
             break;
 
+        case CassoExplorerActions::Verb::ExtractAll:
+            ExtractAll();
+            break;
+
         case CassoExplorerActions::Verb::Paste:
             PasteHere (GetPasteFolder());
             break;
@@ -8933,12 +9007,13 @@ void CassoExplorerWindow::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & it
 
 void CassoExplorerWindow::OnShellListed (const std::wstring & key)
 {
-    std::wstring  listKey  = CassoExplorerBrowser::s_kListKey;
-    std::wstring  treeKey  = CassoExplorerBrowser::s_kTreeKey;
-    std::wstring  hostKey  = CassoExplorerBrowser::s_kHostListKey;
-    std::wstring  hostTree = CassoExplorerBrowser::s_kHostTreeKey;
-    std::wstring  nodeId;
-    HRESULT       hr       = S_OK;
+    std::wstring               listKey  = CassoExplorerBrowser::s_kListKey;
+    std::wstring               treeKey  = CassoExplorerBrowser::s_kTreeKey;
+    std::wstring               hostKey  = CassoExplorerBrowser::s_kHostListKey;
+    std::wstring               hostTree = CassoExplorerBrowser::s_kHostTreeKey;
+    std::wstring               nodeId;
+    HRESULT                    hr       = S_OK;
+    std::vector<std::wstring>  paths;
 
 
 
@@ -8962,6 +9037,18 @@ void CassoExplorerWindow::OnShellListed (const std::wstring & key)
             hr = m_browser.Refresh();
             IGNORE_RETURN_VALUE (hr, S_OK);
             FillList();
+        }
+    }
+    else if (key.starts_with (CassoExplorerBrowser::s_kPreviewKey))
+    {
+        //  An archive's contents, read on a network, for the preview of the
+        //  archive selected, if it is the selection.
+        m_browser.GetSelectedHostPaths (paths);
+
+        if (paths.size() == 1 && paths[0] == key.substr (wcslen (CassoExplorerBrowser::s_kPreviewKey)))
+        {
+            m_browser.RefreshPreview();
+            FillPreview();
         }
     }
     else if (key.starts_with (listKey))

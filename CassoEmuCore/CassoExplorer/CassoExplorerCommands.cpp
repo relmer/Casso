@@ -82,6 +82,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     ApplyToolbarRows (kToolbarRows);
     ApplyToolbarRows (kCommandBarRows);
     ApplyToolbarRows (kRecycleBinRows);
+    ApplyToolbarRows (kArchiveRows);
     ApplyToolbarRows (kPreviewToolbarRows);
 }
 
@@ -367,7 +368,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildToolbarEntries() con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (bool recycleBin) const
+std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (bool recycleBin, bool archive) const
 {
     std::vector<DxuiToolbar::Entry>  entries = BuildEntries (kCommandBarRows);
     std::vector<DxuiToolbar::Entry>  bin;
@@ -375,10 +376,11 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (b
 
 
 
-    //  The bin's buttons follow View, ahead of what lives in See more.
-    if (recycleBin)
+    //  The bin's buttons, or an archive's, follow View, ahead of what lives in
+    //  See more.
+    if (recycleBin || archive)
     {
-        bin   = BuildEntries (kRecycleBinRows);
+        bin   = recycleBin ? BuildEntries (kRecycleBinRows) : BuildEntries (kArchiveRows);
         after = std::find_if (entries.begin(), entries.end(), [] (const DxuiToolbar::Entry & entry)
         {
             return entry.command != nullptr && entry.command->id == kView;

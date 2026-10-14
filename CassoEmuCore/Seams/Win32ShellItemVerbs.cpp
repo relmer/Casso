@@ -416,6 +416,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::RunItemVerb
+//
+//  The menu is built, as for showing it, so the handlers that own the verb
+//  are loaded, and the verb is then invoked by name rather than by position,
+//  from the items' folder, which an archive's Extract All offers as where
+//  the files go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::RunItemVerb (HWND owner, const std::vector<std::wstring> & paths, const char * verb)
+{
+    CenterDialogsOver      centered (owner);
+    HRESULT                hr       = S_OK;
+    ComPtr<IContextMenu>   menu;
+    HMENU                  popup    = nullptr;
+    CMINVOKECOMMANDINFOEX  invoke   = { sizeof (invoke) };
+    std::wstring           wideVerb (verb, verb + strlen (verb));
+    std::wstring           folder   = paths.empty() ? std::wstring() : paths[0].substr (0, paths[0].find_last_of (L'\\'));
+    std::string            narrow   = TextEncoding::WideToNarrow (folder);
+
+
+
+    hr = CreateMenuHost (owner);
+    CHR (hr);
+
+    hr = GetItemsMenu (m_menuHost, paths, &menu);
+    CHR (hr);
+
+    popup = CreatePopupMenu();
+    CWR (popup != nullptr);
+
+    hr = menu->QueryContextMenu (popup, 0, s_kFirstCommandId, s_kLastCommandId, CMF_NORMAL);
+    CHR (hr);
+
+    invoke.fMask        = CMIC_MASK_UNICODE;
+    invoke.hwnd         = owner;
+    invoke.lpVerb       = verb;
+    invoke.lpVerbW      = wideVerb.c_str();
+    invoke.lpDirectory  = narrow.c_str();
+    invoke.lpDirectoryW = folder.c_str();
+    invoke.nShow        = SW_SHOWNORMAL;
+
+    hr = menu->InvokeCommand ((LPCMINVOKECOMMANDINFO) &invoke);
+    CHR (hr);
+
+Error:
+    if (popup != nullptr)
+    {
+        DestroyMenu (popup);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::RemoveExtraSeparators
 //
 //  The shell's handlers each add their own separators, so two can meet, or

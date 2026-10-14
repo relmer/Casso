@@ -114,6 +114,10 @@ public:
         kPictureMonochrome,
         kPictureColor,
 
+        //  An archive's Extract all, on the command bar while one is selected
+        //  or open, and on its menu.
+        kExtractAll,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -146,7 +150,7 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, and the
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
-    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (bool recycleBin = false) const;
+    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (bool recycleBin = false, bool archive = false) const;
 
     //  The Fluent icon the command bar draws for a command, or none.
     static const DxuiVectorIcon    * GetCommandBarIcon (int id);
@@ -291,6 +295,7 @@ private:
         { kTheme,             Menu::Count, L"Theme",               nullptr,     false },
         { kPictureMonochrome, Menu::Count, L"Monochrome",          nullptr,     true  },
         { kPictureColor,      Menu::Count, L"Color",               nullptr,     true  },
+        { kExtractAll,        Menu::Count, L"Extract All...",      nullptr,     false },
         { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
         { kNewDisk,           Menu::Count, L"&Disk image...",      nullptr,     false },
         { kSortAscending,     Menu::Count, L"&Ascending",          nullptr,     true  },
@@ -374,6 +379,13 @@ private:
     {
         { kEmptyRecycleBin, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Delete,  L"Empty Recycle Bin", L"Empty Recycle Bin" },
         { kRestoreItems,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Restore, L"",                  L"Restore"           },
+    };
+
+    //  An archive's button, after View while one is selected or open, as
+    //  Explorer's.
+    static constexpr ToolbarRow  kArchiveRows[] =
+    {
+        { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
     };
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =

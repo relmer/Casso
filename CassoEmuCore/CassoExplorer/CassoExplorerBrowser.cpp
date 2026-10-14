@@ -2,6 +2,7 @@
 
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
@@ -339,7 +340,7 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
     {
         if (!m_hostListings.TryTake (s_kHostListKey + path, path, m_hostEntries, hr))
         {
-            m_listError = L"Working on it...";
+            m_listError = s_kWorkingText;
             return S_OK;
         }
     }
@@ -423,14 +424,22 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
     }
     else if (!m_shellListings.TryTake (s_kListKey + id, id, items, hr))
     {
-        m_listError = L"Working on it...";
+        m_listError = s_kWorkingText;
         return S_OK;
     }
 
     if (FAILED (hr))
     {
-        m_listError = L"This folder could not be read.";
+        m_listError = PathResolver::IsNetworkPath (id) ? id.substr (id.find_last_of (L"\\/") + 1) + L" is unavailable."
+                                                       : std::wstring (L"This folder could not be read.");
         return hr;
+    }
+
+    //  An archive the shell lists nothing in gets the reason, damaged or locked,
+    //  in place of an empty folder.
+    if (items.empty() && IsLocalArchivePath (id) && m_fs.Exists (id))
+    {
+        m_listError = DescribeEmptyArchive (id);
     }
 
     //  Where Up goes: a folder on a disk opens as one.
@@ -1370,6 +1379,94 @@ bool CassoExplorerBrowser::IsLocalArchivePath (const std::wstring & id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::DescribeEmptyArchive
+//
+//  Read whole, up to a size past which a damaged file is more likely than
+//  an archive worth probing, and judged by its directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::DescribeEmptyArchive (const std::wstring & path) const
+{
+    std::error_code  error;
+    uintmax_t        size  = fs::file_size (fs::path (path), error);
+    std::string      bytes;
+    std::wstring     name  = path.substr (path.find_last_of (L"\\/") + 1);
+    HRESULT          hr    = S_OK;
+
+
+
+    if (!error && size > s_kArchiveProbeMaxBytes)
+    {
+        return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
+    }
+
+    hr = m_fs.ReadAllText (path, bytes);
+
+    if (FAILED (hr))
+    {
+        return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
+    }
+
+    return ArchiveProbe::GetReason (name, ArchiveProbe::ProbeZip (std::span<const Byte> ((const Byte *) bytes.data(), bytes.size())));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetExtractTarget
+//
+//  The archive Extract all applies to: the one selected alone in a host
+//  folder, or the one open, found as the first part of the open path that is
+//  a file. Empty when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::GetExtractTarget() const
+{
+    std::vector<std::wstring>  paths;
+    std::wstring               prefix;
+    const Location           & location = GetLocation();
+
+
+
+    if (location.kind == Location::Kind::HostFolder && m_selectedRows.size() == 1
+        && m_rows[(size_t) m_selectedRows[0]].isArchive)
+    {
+        GetSelectedHostPaths (paths);
+        return paths.empty() ? std::wstring() : paths[0];
+    }
+
+    if (location.kind != Location::Kind::ShellFolder || !IsLocalArchivePath (location.path))
+    {
+        return std::wstring();
+    }
+
+    for (size_t at = location.path.find (L'\\', 3); ; at = location.path.find (L'\\', at + 1))
+    {
+        prefix = location.path.substr (0, at);
+
+        if (m_fs.Exists (prefix) && !m_fs.DirectoryExists (prefix))
+        {
+            return prefix;
+        }
+
+        if (at == std::wstring::npos)
+        {
+            return std::wstring();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::PreviewArchive
 //
 //  What an archive holds, folders first, in the columns a catalog uses.
@@ -1388,12 +1485,31 @@ void CassoExplorerBrowser::PreviewArchive (const std::wstring & path)
         return;
     }
 
-    hr = m_shellVerbs->ListShellFolder (path, items);
+    //  One on a network share is read on a thread of its own, with a working
+    //  message meanwhile, so an unreachable share never blocks the window.
+    if (!PathResolver::IsNetworkPath (path))
+    {
+        hr = m_shellVerbs->ListShellFolder (path, items);
+    }
+    else if (!m_shellListings.TryTake (s_kPreviewKey + path, path, items, hr))
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = s_kWorkingText;
+        return;
+    }
 
     if (FAILED (hr))
     {
         m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = L"The archive could not be read";
+        m_preview.message = PathResolver::IsNetworkPath (path) ? path.substr (path.find_last_of (L"\\/") + 1) + L" is unavailable." : DescribeEmptyArchive (path);
+        m_preview.message = m_preview.message.empty() ? L"The archive could not be read" : m_preview.message;
+        return;
+    }
+
+    if (items.empty() && !DescribeEmptyArchive (path).empty())
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = DescribeEmptyArchive (path);
         return;
     }
 

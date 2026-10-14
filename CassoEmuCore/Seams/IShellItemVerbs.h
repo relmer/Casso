@@ -102,6 +102,10 @@ public:
     //  including by other programs' menu handlers.
     virtual HRESULT  ShowShellMenu (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) = 0;
 
+    //  One verb from the items' shell menu, by its canonical name, invoked
+    //  as if picked there: an archive's `extract` opens its Extract All.
+    virtual HRESULT  RunItemVerb (HWND owner, const std::vector<std::wstring> & paths, const char * verb) = 0;
+
     //  Explorer's own file operations, with its progress, conflict and undo
     //  handling: deleting to the Recycle Bin, renaming, and cut, copy and
     //  paste through the clipboard other programs share.

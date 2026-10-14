@@ -537,6 +537,8 @@ private:
     static BrowserModel::AddressRoot  GetProfileRoot();
     void  SwitchToTab (size_t index);
     void  FillPreview();
+    void  UpdateCommandBar();
+    void  ExtractAll();
     void  FillStatus();
     void  SetFocusPane (Pane pane);
 
@@ -827,7 +829,8 @@ private:
     std::vector<std::wstring>                 m_rowProblems;
 
     //  Whether the command bar has the Recycle Bin's buttons on it.
-    bool                                      m_commandBarForBin    = false;
+    bool  m_commandBarForBin     = false;
+    bool  m_commandBarForArchive = false;
 
     //  The list's view, and the key of the folder it was chosen for: a new
     //  folder opens in its own view.

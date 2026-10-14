@@ -58,6 +58,7 @@ public:
     HRESULT  OpenWith            (HWND, const std::wstring &, size_t) override                          { return E_NOTIMPL; }
     HRESULT  ChooseOtherApp      (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  ShowShellMenu       (HWND, const std::vector<std::wstring> &, POINT) override              { return E_NOTIMPL; }
+    HRESULT  RunItemVerb         (HWND, const std::vector<std::wstring> &, const char *) override       { return E_NOTIMPL; }
     HRESULT  Recycle             (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  RestoreRecycled     (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override                        { outItems = items; return S_OK; }
@@ -341,6 +342,53 @@ public:
             Assert::AreEqual ((size_t) 2, host.browser.GetPreview().rows.size());
             Assert::AreEqual (std::wstring (L"docs"), host.browser.GetPreview().rows[0].name);
         }
+    }
+
+
+    //  A damaged zip, which the shell lists nothing in, has the reason in the preview
+    //  and in the list rather than showing as an empty folder.
+    TEST_METHOD (DamagedArchive_SaysWhyInThePreviewAndTheList)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\broken.zip", std::string ("PK\x03\x04garbage", 11)));
+        shell.archiveExtension = L".zip";
+        host.browser.SetShellVerbs (&shell);
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"broken.zip") });
+        Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Error);
+        Assert::AreEqual (std::wstring (L"broken.zip can't be opened because it is damaged."), host.browser.GetPreview().message);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\broken.zip", L"broken.zip"));
+        Assert::AreEqual (std::wstring (L"broken.zip can't be opened because it is damaged."), host.browser.GetListError());
+    }
+
+
+    //  Extract all applies to an archive selected alone, or to the one open,
+    //  from any folder inside it.
+    TEST_METHOD (ExtractAll_TargetsTheSelectedOrOpenArchive)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.zip", "PK"));
+        shell.archiveExtension = L".zip";
+        host.browser.SetShellVerbs (&shell);
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetExtractTarget());
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        Assert::IsTrue (host.browser.GetExtractTarget().empty(), L"A plain file has none");
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip"), FindRow (host.browser, L"readme.txt") });
+        Assert::IsTrue (host.browser.GetExtractTarget().empty(), L"nor does a selection of several");
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetExtractTarget(), L"Inside, the archive open");
     }
 
 

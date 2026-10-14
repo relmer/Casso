@@ -369,10 +369,10 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [ ] T160 Resize a shell preview with the pane, hide it with the pane, unload it when the selection moves, load it off the window's thread, and draw the bytes instead when it fails or takes longer than File Explorer allows, per FR-074, US10/AC4 and Edge Cases (missing)
 - [ ] T161 Match File Explorer's first-level context menu for files, folders and selections: the clipboard row, the same commands in the same order with the same icons, Open with as a submenu, and the commands other programs add, per FR-075, US11/AC1 and US11/AC3 (partial)
 - [ ] T162 Match File Explorer's context menu for a navigation tree node, item for item, per FR-075 and US11/AC2 (partial)
-- [ ] T163 Offer Extract All on the first level of an archive's menu and on the command bar when an archive is selected or open, as File Explorer does, per FR-078, US12/AC4 and SC-024 (partial)
-- [ ] T164 Move the selection in an archive's preview with the arrow keys, Home, End and Page Up and Down, with Shift extending it, as in the file list, per FR-078 (partial)
-- [ ] T165 Report a damaged or password-protected archive with the reason, in the preview and in the list, rather than as an empty folder, per Edge Cases (partial)
-- [ ] T166 List an archive on a network path for its preview off the window's thread, listing it as unavailable when the share is offline, per Edge Cases (partial)
+- [X] T163 Offer Extract All on the first level of an archive's menu and on the command bar when an archive is selected or open, as File Explorer does, per FR-078, US12/AC4 and SC-024 (partial)
+- [X] T164 Move the selection in an archive's preview with the arrow keys, Home, End and Page Up and Down, with Shift extending it, as in the file list, per FR-078 (partial)
+- [X] T165 Report a damaged or password-protected archive with the reason, in the preview and in the list, rather than as an empty folder, per Edge Cases (partial)
+- [X] T166 List an archive on a network path for its preview off the window's thread, listing it as unavailable when the share is offline, per Edge Cases (partial)
 - [ ] T167 Measure SC-022 (a .docx, a .pdf and a .png previewed as File Explorer previews them, within a second), SC-023 (the same first-level menu items in the same order for a file, a folder and a tree node), SC-024 (open a zip, preview a file in it and extract it in under a minute) and SC-025 (highlight and words under the pointer over each target kind), and record each in validation.md, per SC-022, SC-023, SC-024 and SC-025 (missing)
 
 ## Phase 14: Convergence

@@ -124,6 +124,11 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
             verbs.push_back (Verb::Open);
             verbs.push_back (Verb::OpenWith);
         }
+
+        if (selected == 1 && row.isArchive)
+        {
+            verbs.push_back (Verb::ExtractAll);
+        }
         else if (selected > 1)
         {
             //  Several open each on its own, as Explorer's Open does.
