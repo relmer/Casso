@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-03
 
-**Status**: Draft
+**Status**: Shipped in 1.23.0 (2026-09-06)
 
 **Input**: User description: "Per-field CRT user overrides, keyed by monitor and mode, replacing the whole-block userOverride flag."
 

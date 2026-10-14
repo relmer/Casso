@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-10
 
-**Status**: Draft
+**Status**: Shipped in 1.21.0 (2026-08-29)
 
 **Input**: User description: "Replace the skeuomorphic theme's 2D monitor frame and drive band with a real-time 3D desk scene rendering the checked-in parametric models (Monitor //c + two Disk II drives for now). The emulator display becomes a texture mapped onto the monitor model's spherical-sag glass mesh so the picture has period-correct curvature. Mouse/touch input over the curved display must inverse-project to the correct emulated pixel. Feature-parity with today's skeuo theme is the bar. Compact/dark-modern/retro themes keep their existing simple 2D widgets, untouched."
 

@@ -282,7 +282,7 @@ description: "Task list for 034 physical game controllers"
 - [X] T107 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit
 - [X] T108 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release, x64 and ARM64; zero warnings
 - [X] T109 Full suite with `scripts/RunTests.ps1` in Debug and Release; confirm `UnitTest.dll` is newer than the build before trusting the result
-- [ ] T110 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval; merge to master with `--no-ff`, subject `merge(input): 034 physical game controllers (...)`, body `Closes #97`
+- [X] T110 (merged in `fa20a643f`, shipped in 1.25.0) Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval; merge to master with `--no-ff`, subject `merge(input): 034 physical game controllers (...)`, body `Closes #97`
 
 ---
 
@@ -418,12 +418,12 @@ description: "Task list for 034 physical game controllers"
 ## Phase 18: Validation and Gates (2026-09-27 work)
 
 - [ ] T164 Walk quickstart section 4a, scenarios 16-28, on Release x64 with real controllers and record outcomes in `specs/034-game-controllers/validation.md`, including any scenario that could not run and why; measure with temporary, uncommitted instrumentation SC-005 (lone controller connect to first write, and first input to first write with two attached) and SC-007 (CPU time over 60 s idle with two controllers attached and none used, against the same run with none attached)
-- [ ] T165 Draft the CHANGELOG `[Unreleased]` line and any README change for the player slots and the notice stack, and hold them until the owner has tested and approved the feature
-- [ ] T166 Merge `origin/master` into the branch if it moved; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
-- [ ] T167 `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit (orphaned `////` banners included)
-- [ ] T168 `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release x64, and a build of ARM64; zero warnings
-- [ ] T169 Full suite with `scripts/RunTests.ps1` in Debug and in Release, after confirming `UnitTest.dll` is newer than the build start; a filtered pass is not a suite pass
-- [ ] T170 Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval
+- [X] T165 (shipped in 1.29.0) Draft the CHANGELOG `[Unreleased]` line and any README change for the player slots and the notice stack, and hold them until the owner has tested and approved the feature
+- [X] T166 (run as T256; see validation.md, Phase 31) Merge `origin/master` into the branch if it moved; rebuild with `-Target Rebuild`; fix any renames the compiler surfaces
+- [X] T167 (run as T256; see validation.md, Phase 31) `git add -A`, then `scripts/CheckStyle.ps1 -Mode Tree`; fix every hit (orphaned `////` banners included)
+- [X] T168 (run as T256; see validation.md, Phase 31) `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for Debug and Release x64, and a build of ARM64; zero warnings
+- [X] T169 (run as T256; see validation.md, Phase 31) Full suite with `scripts/RunTests.ps1` in Debug and in Release, after confirming `UnitTest.dll` is newer than the build start; a filtered pass is not a suite pass
+- [X] T170 (merged in `09e2e0e74`, shipped in 1.29.0) Present every commit subject, the CHANGELOG entry and any README change for approval; push only after approval
 
 ---
 

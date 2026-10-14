@@ -219,7 +219,7 @@ preference is documented per NFR-005; either path satisfies the spec.
       synthesis, with a `README.md` describing expected files, preferred
       sourcing per NFR-005, and licensing requirements per NFR-004).
       (FR-009, FR-013, FR-014, NFR-003, NFR-004, NFR-005)
-- [ ] T042 **If procedural path**: Implement
+- [~] T042 (not taken: T040 chose the bundled-sample path) **If procedural path**: Implement
       `DiskIIAudioSource::SynthesizeSamples(uint32_t targetSampleRate)`.
       Generate motor loop, head step, head stop, door open, door close per
       `plan.md` §"Sample Sourcing". Buffers owned as `std::vector<float>`
@@ -480,12 +480,12 @@ or popup.
 `Assets/Sounds/DiskII/` in favor of `Devices/DiskII/<Mechanism>/`.
 Replace blacklist `.gitignore` rules with a whitelist-JSON-only rule.
 
-- [ ] T120 Create the new directory layout: `Machines/Apple2/`,
+- [X] T120 (shipped in 1.3.675) Create the new directory layout: `Machines/Apple2/`,
       `Machines/Apple2Plus/`, `Machines/Apple2e/`, `Machines/Apple2eEnhanced/`,
       `Devices/DiskII/`, `Devices/DiskII/Alps/`, `Devices/DiskII/Shugart/`.
       Move each `Machines/*.json` into its eponymous subdir (e.g.,
       `Machines/Apple2e.json` → `Machines/Apple2e/Apple2e.json`).
-- [ ] T121 Update `.gitignore`: remove the `ROMs/` line and add a
+- [X] T121 (shipped in 1.3.675) Update `.gitignore`: remove the `ROMs/` line and add a
       whitelist-JSON-only rule scoped to `Machines/**` and `Devices/**`:
       ```
       Machines/**
@@ -500,33 +500,33 @@ Replace blacklist `.gitignore` rules with a whitelist-JSON-only rule.
       ```
       Keep `/Disks/Apple/dos33-master.dsk`. Verify `git status` shows no
       new untracked files inside the migrated directories.
-- [ ] T122 Update `Casso/AssetBootstrap.cpp`'s `s_kRomCatalog` so each
+- [X] T122 (shipped in 1.3.675) Update `Casso/AssetBootstrap.cpp`'s `s_kRomCatalog` so each
       ROM's local path is `Machines/<MachineName>/<RomName>` for
       machine-specific ROMs, and `Devices/DiskII/<RomName>` for the
       Disk II controller ROMs (`Disk2.rom`, `Disk2_13Sector.rom`). Update
       `GetRomDirectory` semantics accordingly (it now returns multiple
       paths or a resolver function rather than a single dir).
-- [ ] T123 Update `CassoEmuCore/Core/PathResolver` (or its callers) to
+- [X] T123 (shipped in 1.3.675 without the `ROMs/` fallback; see the 1.3.675 CHANGELOG migration note) Update `CassoEmuCore/Core/PathResolver` (or its callers) to
       know about the new per-machine ROM locations. Backward-compat
       search SHOULD also check a top-level `ROMs/` directory so existing
       user installs with ROMs in `ROMs/` continue to work (with a one-time
       migration log line on first launch).
-- [ ] T124 Update `Casso/Main.cpp`'s `configRelPath` computation:
+- [X] T124 (shipped in 1.3.675) Update `Casso/Main.cpp`'s `configRelPath` computation:
       `Machines/<Name>/<Name>.json` instead of `Machines/<Name>.json`.
       Update `AssetBootstrap::EnsureMachineConfigs` similarly.
-- [ ] T125 Move (`git mv`) any existing `Assets/Sounds/DiskII/README.md`
+- [X] T125 (shipped in 1.3.675) Move (`git mv`) any existing `Assets/Sounds/DiskII/README.md`
       into `Devices/DiskII/README.md`. Keep `Assets/` for screenshots
       (unchanged).
-- [ ] T126 Update `DiskIIAudioSource::LoadSamples` signature: take a
+- [X] T126 (shipped in 1.3.675) Update `DiskIIAudioSource::LoadSamples` signature: take a
       mechanism subdirectory name (`L"Alps"` or `L"Shugart"`) and the
       `Devices/DiskII/` base path. Per-file precedence per FR-019:
       `Devices/DiskII/<filename>.wav` → `Devices/DiskII/<Mechanism>/<filename>.wav`
       → silent.
-- [ ] T127 [P] Update `UnitTest/EmuTests/AssetBootstrapTests.cpp` and
+- [X] T127 (shipped in 1.3.675) [P] Update `UnitTest/EmuTests/AssetBootstrapTests.cpp` and
       `UnitTest/EmuTests/MachineConfigTests.cpp` for the new path
       conventions. Tests use in-memory resolvers / temp dirs (per
       constitution §II, no real filesystem dependency on the new layout).
-- [ ] T128 [GATE] Build + full test suite green. Existing installations
+- [X] T128 (shipped in 1.3.675) [GATE] Build + full test suite green. Existing installations
       (with ROMs in old `ROMs/`) still boot via backward-compat search.
 
 ---
@@ -539,31 +539,31 @@ decodes in memory with stb_vorbis, resamples to the WASAPI device rate,
 and writes WAVs to the per-mechanism subdirectories. No `.ogg` files on
 disk.
 
-- [ ] T130 Add `stb_vorbis.c` to the repo at
+- [X] T130 (shipped in 1.3.682) Add `stb_vorbis.c` to the repo at
       `CassoEmuCore/External/stb_vorbis.c` (single header / single impl,
       public domain / MIT). Wrap include with
       `#define STB_VORBIS_NO_PUSHDATA_API` (we only need pulldata) and
       `#define STB_VORBIS_NO_STDIO` (we decode from memory only). Add to
       `CassoEmuCore.vcxproj`. (FR-018, NFR-006)
-- [ ] T131 Add `s_kDiskAudioCatalog[]` to `Casso/AssetBootstrap.cpp`
+- [X] T131 (shipped in 1.3.682) Add `s_kDiskAudioCatalog[]` to `Casso/AssetBootstrap.cpp`
       mirroring `s_kRomCatalog[]`. Entries: 5 Shugart sounds and 3 Alps
       sounds with upstream OGG basenames, target WAV filenames, and
       mechanism subdir. URL prefix:
       `/openemulator/libemulation/master/res/sounds/<Mechanism>/`
       with host `raw.githubusercontent.com`. (FR-017, FR-018)
-- [ ] T132 Add `AssetBootstrap::CheckAndFetchDiskAudio(HINSTANCE,
+- [X] T132 (shipped in 1.3.682) Add `AssetBootstrap::CheckAndFetchDiskAudio(HINSTANCE,
       const wstring & machineName, HWND, const fs::path & devicesDir,
       string & outError)` mirroring `CheckAndFetchRoms`. Detection:
       checks for the presence of at least one WAV in each mechanism's
       subdir. If both subdirs are populated, no prompt. If either is
       empty, surfaces the FR-017 consent dialog. (FR-017)
-- [ ] T133 Implement the consent dialog resource in `Casso/Casso.rc`
+- [X] T133 (shipped in 1.3.682) Implement the consent dialog resource in `Casso/Casso.rc`
       (or build a runtime DLGTEMPLATE per the existing OptionsDialog
       pattern). Body MUST include: explicit GPL-3 disclosure, recipient-
       obligation note, link to OpenEmulator's `COPYING` file, link to
       the GPL-3 text. Buttons: Download / Skip / Don't ask again this
       session. (FR-017)
-- [ ] T134 Implement the in-memory fetch + decode pipeline in
+- [X] T134 (shipped in 1.3.682) Implement the in-memory fetch + decode pipeline in
       `AssetBootstrap::FetchAndDecodeOgg(LPCWSTR urlPath, vector<float> &
       outPcm, uint32_t & outSampleRate, uint32_t targetSampleRate,
       string & outError)`:
@@ -576,16 +576,16 @@ disk.
         rationale).
       - Discard `oggBytes`.
       EHM pattern. (FR-018, NFR-006)
-- [ ] T135 Implement `AssetBootstrap::WritePcmAsWav(const fs::path &
+- [X] T135 (shipped in 1.3.682) Implement `AssetBootstrap::WritePcmAsWav(const fs::path &
       outPath, const vector<float> & pcm, uint32_t sampleRate,
       string & outError)`. Write a standard 16-bit PCM WAV (since that's
       what the existing `IMFSourceReader`-based `LoadSamples` will read).
       EHM pattern. (FR-018)
-- [ ] T136 Wire `CheckAndFetchDiskAudio` into `Casso/Main.cpp` startup,
+- [X] T136 (shipped in 1.3.682) Wire `CheckAndFetchDiskAudio` into `Casso/Main.cpp` startup,
       right after `CheckAndFetchRoms` and only when the machine config
       contains a Disk II controller (reuse `AssetBootstrap::HasDiskController`).
       Errors do not block startup (FR-009); they log and continue. (FR-017)
-- [ ] T137 [P] Tests in `UnitTest/EmuTests/DiskAudioFetchTests.cpp`:
+- [X] T137 (shipped in 1.3.682) [P] Tests in `UnitTest/EmuTests/DiskAudioFetchTests.cpp`:
       - `FetchAndDecodeOgg_validOggBytes_producesFloatPcm` (use a tiny
         embedded test OGG, not real OpenEmulator content)
       - `FetchAndDecodeOgg_invalidBytes_returnsFailureNoCrash`
@@ -595,7 +595,7 @@ disk.
       - `CheckAndFetchDiskAudio_mechanismMissing_returnsConsentNeeded`
       Tests do NOT hit the network; the WinHTTP call site is mocked or
       separately tested at integration level. (Constitution §II.)
-- [ ] T138 [GATE] Build + full test suite. Manual integration test:
+- [X] T138 (shipped in 1.3.682) [GATE] Build + full test suite. Manual integration test:
       delete `Devices/DiskII/Alps/` and `Devices/DiskII/Shugart/`,
       launch the emulator with a //e profile, accept the consent dialog,
       verify both subdirs are populated with WAVs and zero `.ogg` files
@@ -608,19 +608,19 @@ disk.
 **Purpose**: Implement the FR-006 mechanism selection (Shugart default,
 runtime-switchable to Alps without restart). Implement SC-010.
 
-- [ ] T140 Extend `Casso/OptionsDialog.{h,cpp}` to add a "Disk II
+- [X] T140 (shipped in 1.3.684) Extend `Casso/OptionsDialog.{h,cpp}` to add a "Disk II
       mechanism" dropdown (combobox) with two entries: "Shugart SA400"
       (default) and "Alps 2124A". Wire to a new
       `m_driveAudioMixer.SetMechanism(L"Shugart" | L"Alps")` or
       equivalent.
-- [ ] T141 Add `DriveAudioMixer::SetMechanism(const wstring & mechanism)`
+- [X] T141 (shipped in 1.3.684) Add `DriveAudioMixer::SetMechanism(const wstring & mechanism)`
       that iterates registered sources and re-invokes
       `LoadSamples(devicesDir, mechanism, deviceSampleRate)` on each.
       State change MUST take effect within one audio frame.
-- [ ] T142 In `Casso/EmulatorShell.cpp`'s Options-dialog OK handler:
+- [X] T142 (shipped in 1.3.684) In `Casso/EmulatorShell.cpp`'s Options-dialog OK handler:
       detect mechanism change and call `m_driveAudioMixer.SetMechanism(...)`.
       No restart / no disk remount required. (FR-006)
-- [ ] T143 [P] Tests in `UnitTest/Audio/DriveAudioMixerMechanismTests.cpp`:
+- [X] T143 (shipped in 1.3.684) [P] Tests in `UnitTest/Audio/DriveAudioMixerMechanismTests.cpp`:
       - `SetMechanism_callsLoadSamplesOnAllRegisteredSources`
       - `SetMechanism_alpsToShugart_changesActiveBufferSet`  (mock loader)
       - `SetMechanism_invalidName_returnsFailureNoStateChange`
@@ -628,7 +628,7 @@ runtime-switchable to Alps without restart). Implement SC-010.
 - [ ] T144 Manual smoke test: launch emulator, mount disk, open Options,
       flip mechanism dropdown Shugart→Alps→Shugart, verify audio changes
       audibly (Shugart has door sounds, Alps does not). (SC-010)
-- [ ] T145 [GATE] Build + full test suite green. CHANGELOG entry extended
+- [X] T145 (shipped in 1.3.684) [GATE] Build + full test suite green. CHANGELOG entry extended
       with the mechanism dropdown and bootstrap consent dialog details.
 
 ---

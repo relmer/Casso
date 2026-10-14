@@ -193,7 +193,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 ## Phase 8: Polish and Cross-Cutting Concerns
 
 - [ ] T057 Run quickstart V6 (Wavy Navy on the ][+), V7 (Boulder Dash on the //e) and V10 (detached, `JoystickTest.dsk`), with the user supplying the game disks; restore the machine's `disk1Path` afterward; record in `validation.md`, including a note for SC-002 that the switches ride the same `Submit` and flush as the controller buttons whose latency spec 034 measured, so no separate measurement was made
-- [ ] T058 [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
+- [X] T058 (shipped in 1.28.0) [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
 - [X] T059 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release, `scripts/RunTests.ps1` Debug and Release (full suite, not filtered), `scripts/CheckStyle.ps1 -Mode Tree`, and `rg -n '\w \(\)'` over the new code; ARM64 build only
 - [X] T060 Reconcile `spec.md`, `plan.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results (036-sirius-joyport)`
 
@@ -338,8 +338,8 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 ## Phase 14: Validation and gate (2026-09-27 design)
 
 - [ ] T109 Run quickstart V11-V20 in the running app (V16 needs a DirectInput gamepad and a flight stick, V18 two controllers, V19 the Bandits disk from the user), restoring the global `gamePortAdapter` and `disk1Path` afterward; record in `validation.md` under a new "2026-09-27 design" heading, including SC-009 (V18) and SC-010 (V19)
-- [ ] T110 [P] Draft the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only, `GH #156:` first) and the README headline change, and show both to the user for approval before any push
-- [ ] T111 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release; `scripts/RunTests.ps1` Debug and Release, full suite, not filtered; `scripts/RunTests.ps1 -Build -Scenario`, since the Joyport is guest-visible; `git add` the new files (not `.specify/feature.json`), then `scripts/CheckStyle.ps1 -Mode Tree`; ARM64 Debug build only; `rg -n '\w \(\)'` over the new code. Record every result in `validation.md`, including any suite that could not run and why
+- [X] T110 (shipped in 1.29.0) [P] Draft the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only, `GH #156:` first) and the README headline change, and show both to the user for approval before any push
+- [X] T111 (run as spec 034's T256; see its validation.md, Phase 31) Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release; `scripts/RunTests.ps1` Debug and Release, full suite, not filtered; `scripts/RunTests.ps1 -Build -Scenario`, since the Joyport is guest-visible; `git add` the new files (not `.specify/feature.json`), then `scripts/CheckStyle.ps1 -Mode Tree`; ARM64 Debug build only; `rg -n '\w \(\)'` over the new code. Record every result in `validation.md`, including any suite that could not run and why
 - [ ] T112 Reconcile `spec.md`, `plan.md`, `research.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results for the GH #156 design (036-sirius-joyport)`
 
 ---
