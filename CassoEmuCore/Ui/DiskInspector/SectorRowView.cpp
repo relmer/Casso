@@ -166,6 +166,32 @@ vector<int> SectorRowView::GetPassingOrder (const TrackAnalysis & track)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorRowView::GetRowCount
+//
+//  Buttons as wide as the width allows for one row each, down to a minimum,
+//  then the rest on further rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorRowView::GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const
+{
+    const TrackAnalysis *  track  = m_context.GetTrack();
+    int                    count  = (track != nullptr) ? std::max (static_cast<int> (track->sectors.size()), 1) : 1;
+    int                    gap    = scaler.ToPx (kGapDip);
+    int                    w      = std::clamp ((widthPx + gap) / count - gap, scaler.ToPx (kMinButtonDip), scaler.ToPx (kButtonDip));
+    int                    perRow = std::max (1, (widthPx + gap) / (w + gap));
+
+
+
+    return (count + perRow - 1) / perRow;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorRowView::GetButtonRect
 //
 //  Buttons run left to right and wrap onto further rows.

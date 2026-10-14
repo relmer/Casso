@@ -36,6 +36,10 @@ public:
     //  The sector indices in passing order.
     static vector<int>  GetPassingOrder (const TrackAnalysis & track);
 
+    //  How many rows the buttons take at a width; the window lays the row out
+    //  that many rows tall.
+    int  GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const;
+
 private:
     RECT  GetButtonRect (int position) const;
     int   HitTest       (POINT pointPx, const TrackAnalysis & track) const;

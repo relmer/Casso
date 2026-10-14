@@ -87,7 +87,7 @@ std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersio
     return (format == DiskFormat::Woz && wozInfoVersion >= kFluxInfoVersion)
                ? std::format (L"This is a WOZ 2.{} disk image, but this track does not contain timing information because it was imaged as bits. "
                               L"Only tracks imaged as flux include timing information.", wozInfoVersion - kFluxInfoVersion + 1)
-               : std::wstring (L"This track does not have timing information. Only WOZ 2.1 and later files support imaging tracks as flux, "
+               : std::wstring (L"This track does not have timing information. Only WOZ 2.1 or higher supports imaging tracks as flux, "
                                L"which includes timing information.");
 }
 

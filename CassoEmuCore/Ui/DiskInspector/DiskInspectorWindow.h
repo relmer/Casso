@@ -183,6 +183,8 @@ private:
     int   GetSelectedMapCell   () const;
     void  SyncFileMapSelection ();
     bool  IsOverMapGrid        (POINT pointPx) const;
+    double   GetMostZoom       () const;
+    HRESULT  GrowToMinSize     ();
     void  ZoomMapGrid          (float notches, POINT pointPx);
     void  CopyFileMap          ();
     void  ShowContextMenu (POINT pointPx);
@@ -332,6 +334,7 @@ private:
     std::wstring                            m_pickerLabel        = L"Choose a file";
     float                                   m_pickerTextPx       = 0.0f;
     bool                                    m_isLayoutStale      = false;
+    int                                     m_sectorRows         = 1;
     DxuiLabel                             * m_statusText         = nullptr;
     RECT                                    m_statusPx           = {};
     DxuiZoomControl                       * m_zoomControl        = nullptr;

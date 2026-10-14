@@ -240,6 +240,9 @@ public:
 
     void     SetTheme   (const IDxuiTheme * theme);
     void     SetTitle   (const std::wstring & title);
+
+    //  The smallest size the user can resize the window to, as at creation.
+    void     SetMinSizeDip (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
     int      GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT     GetDpi         () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 

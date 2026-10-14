@@ -324,7 +324,10 @@ HRESULT DiskInspectorWindow::RenderFrame()
     //  in the platter and the strip as in the grid (FR-090).
     m_context.isFileHighlighted = m_isDiskGroup && m_diskTab == kTabFileMap && m_context.selectedFile >= 0;
 
-    //  The picker's width matches its label, measured as it is drawn.
+    //  The picker's width matches its label, measured as it is drawn, and the
+    //  sector row's height its row count for the track selected.
+    m_isLayoutStale = m_isLayoutStale || m_sectorRow->GetRowCount (m_sectorRow->GetBounds().right - m_sectorRow->GetBounds().left, m_scaler) != m_sectorRows;
+
     if (m_isLayoutStale)
     {
         m_isLayoutStale = false;
@@ -581,9 +584,100 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 void DiskInspectorWindow::SetZoom (double zoom)
 {
-    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
+    double  most = std::clamp (GetMostZoom(), DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
+
+
+
+    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, most);
     m_zoomControl->SetZoom (m_zoom);
+
+    //  The layout fits in the window's minimum size times the zoom; a smaller
+    //  window is enlarged to it, and the user cannot resize it smaller.
+    SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });
+    GrowToMinSize();
+
     Layout (m_boundsDip, m_hostScaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetMostZoom
+//
+//  The largest zoom whose layout fits the work area of the window's
+//  monitor: the window's minimum size times the zoom, in DIPs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DiskInspectorWindow::GetMostZoom() const
+{
+    HRESULT      hr      = S_OK;
+    double       most    = DxuiZoomControl::kMaxZoom;
+    MONITORINFO  monitor = { sizeof (monitor) };
+    BOOL         isRead  = FALSE;
+    double       scale   = static_cast<double> (GetDpi()) / USER_DEFAULT_SCREEN_DPI;
+
+
+
+    BAIL_OUT_IF (GetHwnd() == nullptr, S_OK);
+
+    isRead = GetMonitorInfoW (MonitorFromWindow (GetHwnd(), MONITOR_DEFAULTTONEAREST), &monitor);
+    CWRA (isRead);
+
+    most = std::min ((monitor.rcWork.right - monitor.rcWork.left) / scale / kMinWidthDip, (monitor.rcWork.bottom - monitor.rcWork.top) / scale / kMinHeightDip);
+
+Error:
+    return most;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GrowToMinSize
+//
+//  A window smaller than its minimum size grows to it, moved back onto the
+//  work area of its monitor where it would run off it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskInspectorWindow::GrowToMinSize()
+{
+    HRESULT      hr       = S_OK;
+    MONITORINFO  monitor  = { sizeof (monitor) };
+    RECT         windowPx = {};
+    BOOL         isRead   = FALSE;
+    BOOL         isPlaced = FALSE;
+    int          widthPx  = 0;
+    int          heightPx = 0;
+    int          x        = 0;
+    int          y        = 0;
+
+
+
+    BAIL_OUT_IF (GetHwnd() == nullptr || ::IsZoomed (GetHwnd()), S_OK);
+
+    isRead = GetWindowRect (GetHwnd(), &windowPx) && GetMonitorInfoW (MonitorFromWindow (GetHwnd(), MONITOR_DEFAULTTONEAREST), &monitor);
+    CWRA (isRead);
+
+    widthPx  = std::max (static_cast<int> (windowPx.right - windowPx.left), MulDiv (static_cast<int> (std::lround (kMinWidthDip  * std::max (1.0, m_zoom))), static_cast<int> (GetDpi()), USER_DEFAULT_SCREEN_DPI));
+    heightPx = std::max (static_cast<int> (windowPx.bottom - windowPx.top), MulDiv (static_cast<int> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))), static_cast<int> (GetDpi()), USER_DEFAULT_SCREEN_DPI));
+
+    BAIL_OUT_IF (widthPx == windowPx.right - windowPx.left && heightPx == windowPx.bottom - windowPx.top, S_OK);
+
+    x = std::max (static_cast<int> (monitor.rcWork.left), std::min (static_cast<int> (windowPx.left), static_cast<int> (monitor.rcWork.right)  - widthPx));
+    y = std::max (static_cast<int> (monitor.rcWork.top),  std::min (static_cast<int> (windowPx.top),  static_cast<int> (monitor.rcWork.bottom) - heightPx));
+
+    isPlaced = SetWindowPos (GetHwnd(), nullptr, x, y, widthPx, heightPx, SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (isPlaced);
+
+Error:
+    return hr;
 }
 
 
@@ -644,6 +738,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        y         = 0;
     int                        i         = 0;
     int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
+    int                        rowsH     = 0;
     RECT                       right     = {};
     RECT                       platter   = {};
     vector<DxuiTabStrip::Tab>  tabs;
@@ -717,8 +812,11 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     y = right.top;
     m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
     y += header;
-    m_sectorRow->Layout ({ right.left, y, right.right, y + scaler.ToPx (s_kSectorRowDip) }, scaler);
-    y += scaler.ToPx (s_kSectorRowDip);
+    //  Rows of sector buttons past the first push the tabs down.
+    m_sectorRows = m_sectorRow->GetRowCount (right.right - right.left, scaler);
+    rowsH        = scaler.ToPx (s_kSectorRowDip) + (m_sectorRows - 1) * scaler.ToPx (SectorRowView::kRowDip + SectorRowView::kGapDip);
+    m_sectorRow->Layout ({ right.left, y, right.right, y + rowsH }, scaler);
+    y += rowsH;
     m_trackAreaPx = { m_splitterPx.right, top, boundsDip.right, y };
 
     y = LayoutTabs ({ right.left, y, right.right, right.bottom }, scaler);
