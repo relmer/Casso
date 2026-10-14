@@ -377,43 +377,28 @@ and the DIP they come to.
 **Decision**: `DxuiTabStrip` takes these metrics and shape, the selected
 tab's fill supplied by the host as the color of the row it joins.
 
-## R14. Apple text on the monitor
+## R14. Apple text previews
 
-**Finding**: `CharacterRomData` loads a 2 KB or 4 KB video ROM without a
-machine, decodes every glyph to rows with bit 0 the leftmost dot
-(`GetGlyphRow`), and contains the built-in table from construction. Casso
-installs the ROMs at `%LOCALAPPDATA%\Casso\Machines\<Machine>\`, the one
-directory `PathResolver` searches: `Apple2eEnhanced_Video.rom`,
-`Apple2e_Video.rom`, `Apple2c_Video.rom` and `Apple2_Video.rom`. A 2 KB ROM
-has no lowercase. On the 4 KB ROMs the primary set's `$E0`-`$FF` is
-lowercase and `$A0`-`$DF` the normal uppercase and punctuation. DirectWrite
-loads a font from memory into a collection of its own
-(`IDWriteFactory5::CreateInMemoryFontFileLoader`), and a text format built
-against that collection draws it by family name.
+**Finding**: a disk text file previewed in the hex view's character mode
+reads as a block of characters rather than lines, and a listing exported
+to the host in plain ASCII opens in the hex view like any ASCII file.
 
-**Decision**:
+**Decision**: a disk text file whose bytes are text is split into lines,
+the high bit cleared, a return ending each line and zero bytes dropped;
+one whose bytes are not text stays in the hex view. A host file whose name
+ends in an export suffix is read as text whatever its character set. Both
+are drawn in `DxuiTextView` in the theme's monospaced face.
 
-- `AppleTextFont` in the model loads the first ROM present, in the order
-  above, and uses the built-in table when none is found. It maps a
-  character to a primary-set code with the high bit set, folds lowercase
-  to uppercase for a ROM without it, and draws anything outside printable
-  ASCII as `?`.
-- `AppleFontFile`, pure, writes a TrueType file from those glyphs: each
-  run of lit dots in a row a rectangle, 125 units a dot, eight rows to
-  the 1000-unit em and seven dots to the advance, the baseline one row up.
-  Printable ASCII is mapped; other characters fall back to another font.
-- The window registers it at startup with `AddPrivateFont`, for this
-  process alone, and the text view draws Apple text in it at a size
-  rounded to a whole multiple of eight pixels, so each dot is whole
-  pixels. The colors are the monitor's: its color on black, selected text
-  black on its color.
-- The text is drawn without the display effects, so it is ordinary text
-  in the view: wrapped at word breaks, selectable and copyable.
+**Alternatives considered**, both built on 2026-10-13 and dropped at the
+owner's request:
 
-**Alternatives considered**: a TrueType face from the built-in table,
-shipped in the executable, dropped in the 2026-09 pass because the table
-is a partial copy of Apple's ROM; a face made at run time from the user's
-own ROM redistributes nothing. Drawing the text through the CRT pass, a
-band at a time, was built and then dropped at the owner's request; it
-could not be selected. A fixed 40 or 80 column screen was an option the
-owner turned down: the goal is the character set, not the screen's size.
+- The text drawn through Casso's CRT pass on the picture monitor, a band
+  of rows at a time in `DxuiFramebufferView`, since a program drawn whole
+  is taller than a texture can be. It could not be selected.
+- A TrueType font made at run time from the installed video ROM, each lit
+  dot a square, registered for the process alone, drawn in the monitor's
+  color. It was selectable and redistributed nothing, but the owner chose
+  the theme's face.
+
+A face built from the built-in table was dropped in the 2026-09 pass, since
+the table is a partial copy of Apple's ROM.

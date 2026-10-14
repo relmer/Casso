@@ -147,29 +147,17 @@ claim, so the preview is its bytes.
 - Toggle View, Disassemble binary. Expected: mnemonics from the same load
   address, as lines rather than a hex view.
 
-## 7a. Apple text on the monitor (Story 9, FR-082, FR-083)
+## 7a. Apple text previews (FR-082, FR-068)
 
-Pick the green monitor and select an Applesoft program on a disk image.
-
-- Result: the listing in the enhanced //e ROM's glyphs, sharp green on
-  black with no scanlines or glow, wrapped at the pane's width.
-- Drag the preview splitter narrower and wider. Result: the text
-  reflows to the new width without clipping.
-- Scroll to the end of a long program with the wheel and the scrollbar.
-  Result: every line is reachable.
-- Drag across some of the text, then Ctrl+C, and paste into Notepad.
-  Result: the selection in black on green while selected, and the same
-  characters pasted.
-- Switch to amber, then color. Result: amber text, then white text.
-- Select an Integer BASIC program and a disk text file. Result: the
-  same.
-- Export the Applesoft program to a host folder and select the
-  `.Applesoft BASIC.txt` file. Result: the same look. Select another
-  `.txt` file. Result: the theme's font.
-- Rename `%LOCALAPPDATA%\Casso\Machines\Apple2eEnhanced\Apple2eEnhanced_Video.rom`
-  away, leaving only a ][ or ][+ ROM, and restart Casso Explorer. Result:
-  lowercase drawn as uppercase. Rename every video ROM away and restart.
-  Result: the built-in table, no error. Restore the ROMs.
+- Select a text file on a disk image. Result: lines of text in the
+  theme's monospaced face, not the hex view.
+- Export an Applesoft program to a host folder and select the
+  `.Applesoft BASIC.txt` file. Result: the same lines as the program
+  inside the image, as text. Select a plain ASCII `.txt` file without an
+  export suffix. Result: the hex view.
+- Look at the command bar. Result: Theme and the Preview toggle at the
+  far end, and no Monitor drop-down. Open the options dialog's Display
+  page and pick amber. Result: a picture preview redrawn on amber.
 
 ## 8. Headless tests
 

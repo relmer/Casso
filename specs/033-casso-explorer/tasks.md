@@ -390,3 +390,5 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 
 - [X] T176 Draw Apple text in `DxuiTextView` in a font made at run time from the video ROM (`AppleFontFile`, `DxuiTextRenderer::AddPrivateFont`, `DxuiTextView::SetFace` and `SetColors`), in the monitor's color on black without the display effects, selectable and copyable, in place of the CRT band of T172, per FR-082 and the Session 2026-10-13 clarifications (contradicts)
 - [X] T177 Remove `DxuiFramebufferView`'s virtual height, unused once Apple text left the CRT band, at the owner's request, and apply the text view's zoom after the face is rounded to its pixel grid, per FR-082 (unrequested)
+- [X] T178 Remove the ROM font and its Dxui face, color and private-font support, and draw Apple text in the theme's monospaced face, per FR-082 as revised on 2026-10-13 (contradicts)
+- [X] T179 Remove the command bar's Monitor drop-down, leaving the monitor on the options dialog's Display page, per FR-068 as revised on 2026-10-13 (contradicts)

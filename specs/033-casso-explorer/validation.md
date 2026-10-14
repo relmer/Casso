@@ -155,20 +155,15 @@ hi-res picture.
 | SC-020: before the fixes | 38% of pixels identical, every one within 2 codes per channel inside the picture, and up to 25 apart in its first and last rows. The final pass's dither was keyed on the pixel's place in the render target, and Casso draws the picture lower in its back buffer than the preview drew it in its own; and the preview's target ended at the picture's edges, where Casso's bloom spills into its letterbox |
 | SC-020: after | 99.72% of pixels identical over the picture and its top and bottom margin, and the rest one code apart in one channel, scattered through the bright areas. The dither is now counted from the picture's corner, and the preview draws the picture in a black margin as wide as its bloom and bleed sample, the glow showing in it. The one-code differences are float rounding: Casso's target is its whole client area and the preview's is the picture and its margin |
 
-### Apple text on the monitor, 2026-10-13
+### Apple text previews, 2026-10-13
 
-Debug x64 at 125%, the green monitor, the fixture DOS 3.3 image and a host
-folder with a 300-line `LONG.Applesoft BASIC.txt`.
+Debug x64 at 125%, a host folder with a 300-line `LONG.Applesoft BASIC.txt`.
 
 | Check | Result |
 |---|---|
-| SC-026: glyphs | The long export in the enhanced //e ROM's glyphs, sharp green on black at 16 pixels, two to a dot; lowercase from the ROM's lowercase set, its descenders below the baseline |
-| SC-026: wrapping | Lines wrapped at word breaks at the pane's width |
-| Selection | A drag across the first lines drew them black on green |
-| The font | DirectWrite reads the generated file as one family, `Casso Apple II`, with 96 glyphs; every printable character's outline starts at its first lit dot and ends at its last (unit test) |
-| Host text | A `.txt` file without an export suffix drew in the theme's font, and the export drew in the Apple face (unit test) |
-| No ROM, a ][+ ROM | The built-in table with no error, and lowercase folded to uppercase (unit tests) |
-| Earlier pass | The same text through the CRT pass, a band at a time, drew and scrolled correctly; the effects were dropped at the owner's request, and the text with them became selectable |
+| SC-026, FR-082 | The plain ASCII export previewed as lines of text in the theme's monospaced face; a plain `.txt` without an export suffix opens in the hex view, and a disk text file splits into lines (unit tests) |
+| FR-068 | The command bar ends with Theme and the Preview toggle; no Monitor drop-down |
+| Dropped | A CRT pass over the text and a font made from the video ROM were each built and run, then removed at the owner's request |
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of

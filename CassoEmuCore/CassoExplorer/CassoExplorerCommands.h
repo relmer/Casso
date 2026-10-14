@@ -110,15 +110,6 @@ public:
         //  The command bar's Share, after the others so no id moves.
         kShareItems,
 
-        //  The command bar's monitor for picture previews, beside Theme, and
-        //  its monitors: Casso's, in Casso's order, then the custom one.
-        kMonitor,
-        kMonitorColor,
-        kMonitorGreen,
-        kMonitorAmber,
-        kMonitorWhite,
-        kMonitorCustom,
-
         //  A double hi-res picture's form, on the preview toolbar.
         kPictureMonochrome,
         kPictureColor,
@@ -298,12 +289,6 @@ private:
         { kSort,              Menu::Count, L"Sort",                nullptr,     false },
         { kView,              Menu::Count, L"View",                nullptr,     false },
         { kTheme,             Menu::Count, L"Theme",               nullptr,     false },
-        { kMonitor,           Menu::Count, L"Monitor",             nullptr,     false },
-        { kMonitorColor,      Menu::Count, L"Color",               nullptr,     true  },
-        { kMonitorGreen,      Menu::Count, L"Green",               nullptr,     true  },
-        { kMonitorAmber,      Menu::Count, L"Amber",               nullptr,     true  },
-        { kMonitorWhite,      Menu::Count, L"White",               nullptr,     true  },
-        { kMonitorCustom,     Menu::Count, L"Custom",              nullptr,     true  },
         { kPictureMonochrome, Menu::Count, L"Monochrome",          nullptr,     true  },
         { kPictureColor,      Menu::Count, L"Color",               nullptr,     true  },
         { kNewFolder,         Menu::Count, L"&Folder",             nullptr,     false },
@@ -378,7 +363,6 @@ private:
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
         { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
-        { kMonitor,       DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Monitor, L"Monitor", L"Monitor",               false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
     };

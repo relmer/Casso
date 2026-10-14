@@ -116,13 +116,13 @@ public:
             Assert::IsFalse   (entry.command->tip.empty());
         }
 
-        //  The command bar, in Explorer's order, then the monitor, the theme and
-        //  the preview toggle at the far end.
+        //  The command bar, in Explorer's order, then the theme and the preview
+        //  toggle at the far end.
         Assert::IsTrue (ids == std::vector<int> { CassoExplorerCommands::kNew,
                                                   CassoExplorerCommands::kCutItems, CassoExplorerCommands::kCopyItems, CassoExplorerCommands::kPasteItems,
                                                   CassoExplorerCommands::kRenameItem, CassoExplorerCommands::kShareItems, CassoExplorerCommands::kDeleteItems,
                                                   CassoExplorerCommands::kSort, CassoExplorerCommands::kView, CassoExplorerCommands::kAbout,
-                                                  CassoExplorerCommands::kMonitor, CassoExplorerCommands::kTheme, CassoExplorerCommands::kTogglePreview });
+                                                  CassoExplorerCommands::kTheme, CassoExplorerCommands::kTogglePreview });
 
         for (size_t i = 1; i < 7; i++)
         {
@@ -133,7 +133,7 @@ public:
         Assert::IsTrue  (bar[0].kind == DxuiToolbar::Kind::DropDown, L"New opens its choices");
         Assert::IsTrue  (bar[7].kind == DxuiToolbar::Kind::DropDown && bar[8].kind == DxuiToolbar::Kind::DropDown);
         Assert::IsTrue  (bar[9].seeMoreOnly, L"About lives in See more");
-        Assert::IsTrue  (bar[10].trailing && bar[11].trailing && bar[12].trailing, L"The monitor, the theme and the preview toggle sit at the far end");
+        Assert::IsTrue  (bar[10].trailing && bar[11].trailing, L"The theme and the preview toggle sit at the far end");
         Assert::IsFalse (bar[8].trailing);
     }
 

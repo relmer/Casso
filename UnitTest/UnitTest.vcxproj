@@ -337,7 +337,6 @@
     <ClCompile Include="CassoExplorer\CassoExplorerMetricsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDropTests.cpp" />
-    <ClCompile Include="CassoExplorer\AppleTextTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerSourcePreviewTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerToolbarRoutingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />

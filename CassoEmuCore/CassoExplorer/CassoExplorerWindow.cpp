@@ -8,8 +8,6 @@
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
-#include "CassoExplorer/Model/AppleFontFile.h"
-#include "CassoExplorer/Model/AppleTextFont.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -724,8 +722,6 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  A picture fills the pane at any size, as Explorer's preview does, not
     //  only at whole multiples of its own.
     m_picture->SetScaling (false, true);
-
-    RegisterAppleFont();
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -1987,42 +1983,6 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::RegisterAppleFont
-//
-//  The face Apple text is drawn in, made from the video ROM Casso installed,
-//  or the built-in table without one, and registered for this process alone.
-//  Without it, Apple text is drawn in the theme's monospaced face.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::RegisterAppleFont()
-{
-    HRESULT            hr   = S_OK;
-    Win32FileSystem    fs;
-    AppleTextFont      font;
-    std::vector<Byte>  file;
-
-
-
-    font.Load (fs, PathResolver::GetLocalAppDataDir (L"Casso").wstring());
-    AppleFontFile::Build (font, file);
-
-    hr = DxuiTextRenderer::AddPrivateFont (file.data(), file.size(), m_appleFace);
-    CHR (hr);
-
-Error:
-    if (FAILED (hr))
-    {
-        m_appleFace.clear();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerWindow::FillPreview
 //
 //  The preview's kind picks the widget: a picture in the framebuffer view, a
@@ -2051,7 +2011,6 @@ void CassoExplorerWindow::FillPreview()
                                                              : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                                                         : CassoExplorerCommands::kPreviewBarNone;
     bool                                            blank    = false;
-    std::vector<uint32_t>                           appleArgb (1);
 
 
 
@@ -2094,17 +2053,6 @@ void CassoExplorerWindow::FillPreview()
     m_previewList->SetTopRow (0);
 
     m_textView->SetRows (BuildTextRows (preview, m_prefs.lineAddresses, GetSourceColors (m_theme)));
-
-    //  Apple text is drawn in the face made from the Apple's own ROM, in the
-    //  monitor's color on black, and selected in inverse video.
-    appleArgb[0] = 0xFFFFFFFF;
-    PicturePreview::Tint (appleArgb, m_browser.GetPictureMonitor(), m_prefs.previewCustomArgb);
-
-    m_textView->SetFace   (preview.appleText ? m_appleFace : std::wstring(), kAppleTextSizeDip, AppleTextFont::kDotsHigh);
-    m_textView->SetColors (preview.appleText ? appleArgb[0] : 0,
-                           preview.appleText ? kAppleScreenArgb : 0,
-                           preview.appleText ? appleArgb[0] : 0,
-                           preview.appleText ? kAppleScreenArgb : 0);
 
     //  A new kind of preview brings its own toolbar, which changes the height
     //  left for the content.
@@ -3832,11 +3780,6 @@ bool CassoExplorerWindow::IsChecked (int id) const
         case CassoExplorerCommands::kThemeSkeuomorphic: return m_prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
         case CassoExplorerCommands::kThemeDarkModern:   return m_prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
         case CassoExplorerCommands::kThemeRetroTerminal: return m_prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
-        case CassoExplorerCommands::kMonitorColor:
-        case CassoExplorerCommands::kMonitorGreen:
-        case CassoExplorerCommands::kMonitorAmber:
-        case CassoExplorerCommands::kMonitorWhite:
-        case CassoExplorerCommands::kMonitorCustom:      return (int) GetPreviewMonitor() == id - CassoExplorerCommands::kMonitorColor;
         case CassoExplorerCommands::kPictureMonochrome: return m_browser.CanTogglePictureColor() && m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_browser.CanTogglePictureColor() && m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
         case CassoExplorerCommands::kNoData:            return !m_hexView->IsShowingValues();
@@ -3976,16 +3919,7 @@ std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const Preview
         addresses = GetLineAddresses (preview.bytes, preview.integerBasic);
     }
 
-    //  Apple text is one cell a line, as on the Apple's screen, with
-    //  a listing's addresses in the line rather than a column of their own.
-    if (preview.appleText)
-    {
-        for (std::wstring & line : GetAppleTextLines (preview, lineAddresses))
-        {
-            rows.push_back (DxuiTextView::Row { { std::move (line) } });
-        }
-    }
-    else if (!addresses.empty())
+    if (!addresses.empty())
     {
         for (size_t i = 0; i < preview.lines.size(); i++)
         {
@@ -4046,36 +3980,6 @@ std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const Preview
     }
 
     return rows;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::GetAppleTextLines
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> CassoExplorerWindow::GetAppleTextLines (const PreviewContent & preview, bool lineAddresses)
-{
-    std::vector<std::wstring>  lines     = preview.lines;
-    std::vector<Word>          addresses;
-
-
-
-    if (lineAddresses && preview.kind == PreviewContent::Kind::Listing)
-    {
-        addresses = GetLineAddresses (preview.bytes, preview.integerBasic);
-    }
-
-    for (size_t i = 0; i < addresses.size() && i < lines.size(); i++)
-    {
-        lines[i] = std::format (L"${:04X} {}", addresses[i], lines[i]);
-    }
-
-    return lines;
 }
 
 
@@ -5114,11 +5018,6 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kThemeSkeuomorphic:  SelectTheme (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
         case CassoExplorerCommands::kThemeDarkModern:    SelectTheme (CassoExplorerPrefs::kThemeDarkModern);    break;
         case CassoExplorerCommands::kThemeRetroTerminal: SelectTheme (CassoExplorerPrefs::kThemeRetroTerminal); break;
-        case CassoExplorerCommands::kMonitorColor:       SelectMonitor (PicturePreview::Monitor::Color);        break;
-        case CassoExplorerCommands::kMonitorGreen:       SelectMonitor (PicturePreview::Monitor::Green);        break;
-        case CassoExplorerCommands::kMonitorAmber:       SelectMonitor (PicturePreview::Monitor::Amber);        break;
-        case CassoExplorerCommands::kMonitorWhite:       SelectMonitor (PicturePreview::Monitor::White);        break;
-        case CassoExplorerCommands::kMonitorCustom:      SelectMonitor (PicturePreview::Monitor::Custom);       break;
         case CassoExplorerCommands::kPictureMonochrome:  ShowPictureForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       ShowPictureForm (true);                                break;
 
@@ -7498,7 +7397,6 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     std::vector<DxuiPopupMenuItem>  viewItems;
     std::vector<DxuiPopupMenuItem>  themeItems;
     std::vector<DxuiPopupMenuItem>  groupItems;
-    std::vector<DxuiPopupMenuItem>  monitorItems;
     size_t                          column = 0;
 
 
@@ -7555,16 +7453,6 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kSort,  std::move (sortItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
-
-    for (int id = CassoExplorerCommands::kMonitorColor; id <= CassoExplorerCommands::kMonitorCustom; id++)
-    {
-        monitorItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
-    }
-
-    m_commandBar->SetDropDownItems (CassoExplorerCommands::kMonitor, std::move (monitorItems));
-
-    //  As in Casso, each monitor is applied as the pointer passes over its row.
-    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kMonitor, [this] (int index) { PreviewMonitor (index); }, nullptr);
 
     //  Each theme is shown as the pointer passes over its row; leaving the
     //  menu without a choice puts back the one it opened on.
@@ -11911,29 +11799,6 @@ void CassoExplorerWindow::SelectMonitor (PicturePreview::Monitor monitor)
     m_browser.SetPreviewMonitor (monitor, m_prefs.previewCustomArgb);
     FillPreview();
     Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::PreviewMonitor
-//
-//  The monitor on a row of the Monitor menu, applied while the pointer is
-//  over it, as Casso's toolbar does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::PreviewMonitor (int index)
-{
-    if (index < 0 || index >= PicturePreview::kMonitorCount || GetPreviewMonitor() == (PicturePreview::Monitor) index)
-    {
-        return;
-    }
-
-    SelectMonitor ((PicturePreview::Monitor) index);
 }
 
 

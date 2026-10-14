@@ -57,15 +57,6 @@ public:
     // names nothing at all.
     static bool  HasSymbolFont () { return s_fontFallback != nullptr; }
 
-    //  Registers a font the process then selects BY FAMILY NAME, as it selects
-    //  an installed one. AddSymbolFont's mapping covers codepoints nothing else
-    //  draws; this covers a face chosen for text the system fonts could also
-    //  draw, such as one built at run time. The font's family name is returned
-    //  in outFamily. Formats built before the call do not use it.
-    static HRESULT  AddPrivateFont (const void   * pFontBytes,
-                                    size_t         byteCount,
-                                    std::wstring & outFamily);
-
     //  Whether a font family with this name is installed. Private-use glyphs
     //  in a missing face render as nothing, so a caller choosing between icon
     //  fonts checks first.
@@ -394,10 +385,6 @@ private:
     // nothing looks a family up in it by name.
     static inline ComPtr<IDWriteFontCollection1>  s_symbolFonts;
     static inline ComPtr<IDWriteFontFallback>     s_fontFallback;
-
-    //  Every family AddPrivateFont registered, by name, with the collection
-    //  a format in it is built against; the system collection has none.
-    static inline std::unordered_map<std::wstring, ComPtr<IDWriteFontCollection1>>  s_privateFamilies;
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;

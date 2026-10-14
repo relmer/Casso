@@ -591,95 +591,6 @@ void DxuiTextView::SetZoom (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextView::SetFace
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextView::SetFace (std::wstring face, float sizeDip, int pixelGrid)
-{
-    if (face == m_face && sizeDip == m_faceSizeDip && pixelGrid == m_pixelGrid)
-    {
-        return;
-    }
-
-    m_face        = std::move (face);
-    m_faceSizeDip = sizeDip;
-    m_pixelGrid   = (std::max) (pixelGrid, 0);
-
-    if (!m_cellPinned)
-    {
-        m_cellWidthPx  = 0;
-        m_cellHeightPx = 0;
-    }
-
-    Rebuild();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::SetColors
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextView::SetColors (uint32_t text, uint32_t background, uint32_t selection, uint32_t selectedText)
-{
-    m_textArgb    = text;
-    m_backArgb    = background;
-    m_selArgb     = selection;
-    m_selTextArgb = selectedText;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::GetFont
-//
-//  The face the text is drawn in, its size in pixels at the zoom: the host's
-//  face when it set one, and the theme's monospaced face otherwise. The
-//  host's face is rounded to its pixel grid before the zoom, so it lands on
-//  whole pixels unzoomed and at whole-number zooms, and every zoom step
-//  changes its size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiFontHandle DxuiTextView::GetFont (const IDxuiTheme & theme) const
-{
-    DxuiFontHandle  font  = theme.MonospaceFont();
-    float           grid  = (float) m_pixelGrid;
-
-
-
-    if (!m_face.empty())
-    {
-        font.face    = m_face.c_str();
-        font.sizeDip = m_faceSizeDip;
-    }
-
-    font.sizeDip = m_scaler.ToPxf (font.sizeDip);
-
-    if (!m_face.empty() && m_pixelGrid > 0)
-    {
-        font.sizeDip = (std::max) (grid, std::round (font.sizeDip / grid) * grid);
-    }
-
-    font.sizeDip *= m_zoom;
-
-    return font;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiTextView::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -712,7 +623,7 @@ void DxuiTextView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    DxuiFontHandle  font   = GetFont (theme);
+    DxuiFontHandle  font   = theme.MonospaceFont();
     float           width  = 0.0f;
     float           height = 0.0f;
     HRESULT         hr     = S_OK;
@@ -724,7 +635,7 @@ void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & 
         return;
     }
 
-    hr = text.MeasureString (L"00000000", font.sizeDip, font.face, width, height);
+    hr = text.MeasureString (L"00000000", m_scaler.ToPxf (font.sizeDip * m_zoom), font.face, width, height);
 
     if (FAILED (hr) || width <= 0.0f || height <= 0.0f)
     {
@@ -752,23 +663,26 @@ void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & 
 void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT         hr   = S_OK;
-    DxuiFontHandle  font = GetFont (theme);
+    DxuiFontHandle  font = theme.MonospaceFont();
     int             last = 0;
 
 
+
+    font.sizeDip *= m_zoom;
 
     EnsureCellSize (text, theme);
 
     painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                       (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top),
-                      (m_backArgb != 0) ? m_backArgb : theme.ContentBackground());
+                      theme.ContentBackground());
 
     if (m_cellWidthPx <= 0 || m_cellHeightPx <= 0)
     {
         return;
     }
 
-    last = (std::min) ((int) m_lines.size(), m_topLine + GetLineCap() + 1);
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip);
+    last         = (std::min) ((int) m_lines.size(), m_topLine + GetLineCap() + 1);
 
     hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
                             (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
@@ -815,7 +729,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     bool                     selected = HasSelection() && from.row <= line.row && line.row <= to.row;
     int                      selFrom  = (line.row == from.row) ? from.offset : 0;
     int                      selTo    = (line.row == to.row)   ? to.offset   : INT_MAX;
-    uint32_t                 selArgb  = (m_selArgb != 0) ? m_selArgb : theme.SelectionBackground();
+    uint32_t                 selArgb  = theme.SelectionBackground();
     std::vector<uint32_t>    colors   = GetRowColors (row);
 
 
@@ -896,8 +810,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
     int       count  = (int) chars.size();
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
-    uint32_t  normal = (m_textArgb != 0) ? m_textArgb : DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
-    uint32_t  chosen = (m_selTextArgb != 0) ? m_selTextArgb : theme.Foreground();
+    uint32_t  normal = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
     int       start  = 0;
 
 
@@ -906,7 +819,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
     {
         size_t  flat = (size_t) (flatStart + i);
 
-        return (i >= first && i < end)                    ? chosen
+        return (i >= first && i < end)                    ? theme.Foreground()
              : (flat < colors.size() && colors[flat] != 0) ? colors[flat]
                                                             : normal;
     };

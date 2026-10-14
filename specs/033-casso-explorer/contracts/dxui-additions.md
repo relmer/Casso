@@ -111,23 +111,6 @@ public:
 Paints via `DxuiTextRenderer::DrawFramebuffer`, centered, integer-scaled
 when it fits.
 
-## A face built at run time
-
-```cpp
-//  DxuiTextRenderer
-static HRESULT  AddPrivateFont (const void * pFontBytes, size_t byteCount, std::wstring & outFamily);
-
-//  DxuiTextView
-void  SetFace   (std::wstring face, float sizeDip, int pixelGrid = 0);
-void  SetColors (uint32_t text, uint32_t background, uint32_t selection, uint32_t selectedText);
-```
-
-`AddPrivateFont` loads a font from memory into a collection of its own and
-returns its family; a format for that family is built against that
-collection. `SetFace` replaces the theme's monospaced face in a text view,
-its pixel size rounded to a whole multiple of `pixelGrid` when that is set, before the zoom applies.
-`SetColors` replaces the theme's colors; a zero color is the theme's.
-
 ## Light and Dark palettes
 
 `DxuiLightTheme` and `DxuiDarkTheme`, two `IDxuiTheme` implementations

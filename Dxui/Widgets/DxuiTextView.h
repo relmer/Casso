@@ -89,16 +89,6 @@ public:
     float  GetZoom         () const               { return m_zoom; }
     void   SetTextStrength (float strength)       { m_textStrength = strength; }
 
-    //  A face of the host's own in place of the theme's monospaced one, at
-    //  `sizeDip` and, with `pixelGrid` set, at the nearest whole multiple of
-    //  that many pixels before the zoom, so a face drawn from a grid of dots
-    //  lands on whole pixels unzoomed. An empty face is the theme's.
-    void  SetFace (std::wstring face, float sizeDip, int pixelGrid = 0);
-
-    //  Colors of the host's own: the text, the background, the selection's
-    //  fill and the text over it. Zero is the theme's color.
-    void  SetColors (uint32_t text, uint32_t background, uint32_t selection, uint32_t selectedText);
-
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
@@ -158,7 +148,6 @@ private:
     std::wstring  GetRowText        (const Row & row) const;
     void          SyncScrollbar     ();
     void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    DxuiFontHandle  GetFont         (const IDxuiTheme & theme) const;
     void          SelectWordAt      (Position pos);
     void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
 
@@ -197,13 +186,6 @@ private:
     Position           m_wordLast;
     HWND               m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
-    std::wstring       m_face;
-    float              m_faceSizeDip   = 0.0f;
-    int                m_pixelGrid     = 0;
-    uint32_t           m_textArgb      = 0;
-    uint32_t           m_backArgb      = 0;
-    uint32_t           m_selArgb       = 0;
-    uint32_t           m_selTextArgb   = 0;
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;

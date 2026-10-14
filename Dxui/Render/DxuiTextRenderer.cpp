@@ -295,107 +295,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AddPrivateFont
-//
-//  Loads a font from memory into a collection of its own and adds the
-//  family to the private ones, for a format to use as it uses an installed one. No
-//  fallback mapping: the face is chosen for text, not used for characters
-//  another font lacks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTextRenderer::AddPrivateFont (
-    const void   * pFontBytes,
-    size_t         byteCount,
-    std::wstring & outFamily)
-{
-    HRESULT                                hr          = S_OK;
-    IUnknown                             * factoryRaw  = nullptr;
-    ComPtr<IDWriteFactory>                 dwrite;
-    ComPtr<IDWriteFactory5>                factory;
-    ComPtr<IDWriteInMemoryFontFileLoader>  loader;
-    ComPtr<IDWriteFontFile>                fontFile;
-    ComPtr<IDWriteFontSetBuilder1>         setBuilder;
-    ComPtr<IDWriteFontSet>                 fontSet;
-    ComPtr<IDWriteFontCollection1>         collection;
-    ComPtr<IDWriteFontFamily>              family;
-    ComPtr<IDWriteLocalizedStrings>        familyNames;
-    UINT32                                 familyCount = 0;
-    UINT32                                 nameLength  = 0;
-    std::wstring                           familyName;
-
-
-
-    DXUI_ASSERT_UI_THREAD();
-
-    CBRAEx (pFontBytes, E_INVALIDARG);
-    CBRAEx (byteCount > 0, E_INVALIDARG);
-
-    outFamily.clear();
-
-    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory), &factoryRaw);
-    CHRA (hr);
-
-    dwrite.Attach (static_cast<IDWriteFactory *> (factoryRaw));
-
-    hr = dwrite.As (&factory);
-    CHRA (hr);
-
-    hr = factory->CreateInMemoryFontFileLoader (&loader);
-    CHRA (hr);
-
-    hr = factory->RegisterFontFileLoader (loader.Get());
-    CHRA (hr);
-
-    //  A null owner means DirectWrite copies the bytes, so the caller's
-    //  buffer does not have to outlive this call.
-    hr = loader->CreateInMemoryFontFileReference (factory.Get(), pFontBytes, static_cast<UINT32> (byteCount), nullptr, &fontFile);
-    CHRA (hr);
-
-    hr = factory->CreateFontSetBuilder (&setBuilder);
-    CHRA (hr);
-
-    hr = setBuilder->AddFontFile (fontFile.Get());
-    CHRA (hr);
-
-    hr = setBuilder->CreateFontSet (&fontSet);
-    CHRA (hr);
-
-    hr = factory->CreateFontCollectionFromFontSet (fontSet.Get(), &collection);
-    CHRA (hr);
-
-    familyCount = collection->GetFontFamilyCount();
-    CBRA (familyCount > 0);
-
-    hr = collection->GetFontFamily (0, &family);
-    CHRA (hr);
-
-    hr = family->GetFamilyNames (&familyNames);
-    CHRA (hr);
-
-    hr = familyNames->GetStringLength (0, &nameLength);
-    CHRA (hr);
-
-    familyName.resize (static_cast<size_t> (nameLength) + 1);
-
-    hr = familyNames->GetString (0, familyName.data(), static_cast<UINT32> (familyName.size()));
-    CHRA (hr);
-
-    //  GetString writes its terminator into the buffer; the map's key must
-    //  not have it, or a lookup by the same name misses.
-    outFamily = familyName.c_str();
-    s_privateFamilies[outFamily] = collection;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Shutdown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1178,10 +1077,9 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
     if (*outFormat == nullptr)
     {
         ComPtr<IDWriteTextFormat>  format;
-        auto                       found  = s_privateFamilies.find (useFamily);
 
         hr = m_dwriteFactory->CreateTextFormat (useFamily,
-                                                (found != s_privateFamilies.end()) ? found->second.Get() : nullptr,
+                                                nullptr,
                                                 static_cast<DWRITE_FONT_WEIGHT> ((int) weight & 0xFFFF),
                                                 (((int) weight & 0x10000) != 0) ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,

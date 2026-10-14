@@ -523,16 +523,14 @@ HRESULT PreviewDecoder::Render (
             }
 
             SplitIntoLines (text, outContent.lines);
-            outContent.appleText = outContent.kind == PreviewContent::Kind::Listing;
             break;
 
         case PreviewContent::Kind::Text:
-            //  Text is drawn in the Apple's own characters. A text file whose
-            //  bytes are not text goes to the hex view, as a binary does.
+            //  Text is lines of text. A text file whose bytes are not text
+            //  goes to the hex view, as a binary does.
             if (LooksLikeText (payload.bytes))
             {
                 SplitAppleText (payload.bytes, outContent.lines);
-                outContent.appleText = true;
             }
             else
             {

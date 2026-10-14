@@ -120,18 +120,15 @@ public:
 
         RenderDos33 ("HELLO", false, content);
         Assert::IsTrue (content.kind == Kind::Listing);
-        Assert::IsTrue (content.appleText, L"A listing is drawn in the Apple's characters");
         Assert::AreEqual (std::wstring (L"10  PRINT \"HELLO, CASSQUE\""), content.lines[0]);
 
         RenderDos33 ("INTPROG", false, content);
         Assert::IsTrue (content.kind == Kind::Listing);
-        Assert::IsTrue (content.appleText);
         Assert::AreEqual (std::wstring (L"15 DSP I"), content.lines[1]);
 
-        //  Text is lines, the high bit cleared, drawn in the Apple's characters.
+        //  Text is lines, the high bit cleared.
         RenderDos33 ("NOTES", false, content);
         Assert::IsTrue (content.kind == Kind::Text);
-        Assert::IsTrue (content.appleText);
         Assert::IsTrue (!content.lines.empty() && content.lines[0].starts_with (L"C"),
             L"The first line is the file's, without the high bit Apple text uses");
 

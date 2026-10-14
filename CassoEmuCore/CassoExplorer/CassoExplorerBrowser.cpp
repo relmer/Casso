@@ -1622,8 +1622,9 @@ void CassoExplorerBrowser::ReadTextPreview (const std::wstring & path, const std
 //
 //  CassoExplorerBrowser::TryPreviewText
 //
-//  A file's bytes as lines of text: an assembler's source, in whatever
-//  character set it is, or any text in UTF-8, or in UTF-16 when a byte order
+//  A file's bytes as lines of text: an assembler's source or an Apple file
+//  Casso Explorer exported, in whatever character set it is, or any text in
+//  UTF-8, or in UTF-16 when a byte order
 //  mark leads it. Anything else, binary above all, stays as it was. A byte
 //  order mark is dropped, and tabs are expanded to the next stop of eight.
 //
@@ -1697,7 +1698,6 @@ bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<
 
     m_preview.kind      = PreviewContent::Kind::Text;
     m_preview.source    = source;
-    m_preview.appleText = apple;
     m_preview.bytes.clear();
     m_preview.hostPath.clear();
 

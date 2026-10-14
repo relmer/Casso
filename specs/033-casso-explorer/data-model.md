@@ -89,26 +89,6 @@ entry.
 | Catalog | A `VolumeListing` rendered as rows |
 | Error | The decoder's message and the offset it stopped at |
 
-`appleText` is set on a Listing, on a disk text file, and on a host file
-whose name `HostFileNaming::Parse` matches to an Applesoft, Integer or
-Text suffix. Such content is drawn in the Apple II character set, in the
-chosen monitor's color on black (FR-082), rather than in the theme's font.
-
-### AppleTextFont
-
-| Field | Meaning |
-|---|---|
-| glyphs | A `CharacterRomData` from the first video ROM found, else the built-in table |
-| hasLowercase | False for a 2 KB ROM and for the built-in table; lowercase is folded to uppercase |
-| source | The ROM's path, or empty for the built-in table |
-
-### AppleFontFile
-
-Pure: an `AppleTextFont` in, the bytes of a TrueType font out, family
-`Casso Apple II`, with a glyph for each printable ASCII character drawn
-from the ROM's dots, 125 units a dot on a 1000-unit em. Registered in
-memory at startup and never written to disk.
-
 ### HostFileName
 
 The rule from the clarifications, in both directions.

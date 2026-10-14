@@ -129,7 +129,7 @@ public:
     static bool              IsSourceName   (const std::wstring & name);
 
     //  Whether a file is a BASIC listing or text Casso Explorer exported, by
-    //  its suffix, which previews in the Apple II character set.
+    //  its suffix, which previews as lines of text even in plain ASCII.
     static bool              IsAppleExportName (const std::wstring & name);
 
     //  The largest host file that previews as text rather than in the hex view.

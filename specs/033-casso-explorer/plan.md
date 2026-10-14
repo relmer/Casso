@@ -128,8 +128,6 @@ CassoEmuCore/
 │       ├── CatalogModel.h/.cpp        # FileEntry and host entries to CatalogRow
 │       ├── PreviewDecoder.h/.cpp      # kind selection and rendering to PreviewContent
 │       ├── PicturePreview.h/.cpp      # video-mode render into a framebuffer
-│       ├── AppleTextFont.h/.cpp       # NEW: video ROM glyphs, built-in table fallback
-│       ├── AppleFontFile.h/.cpp       # NEW: a TrueType font made from those glyphs
 │       ├── HostFileNaming.h/.cpp
 │       ├── ContentSniffer.h/.cpp
 │       ├── DiskOperations.h/.cpp      # IVolume + DiskImageSession + DiskCommandRunner facade
@@ -268,37 +266,23 @@ window's `SetTheme` is called with the pointer and invalidated. Follow
 system reads `DxuiWindowsThemeColors` on the settings-change notification
 `DxuiHwndSource` already raises and swaps between Light and Dark.
 
-### Apple text on the monitor
+### Apple text previews
 
-FR-082 and FR-083, research R14. A listing, a disk text file and a host
-file whose name `HostFileNaming::Parse` matches to an Applesoft, Integer
-or Text suffix produce `PreviewContent` with `appleText` set and its
-lines. They go to `DxuiTextView`, as other text does, so wrapping,
-scrolling, selection and copy are the view's own:
+FR-082, research R14. A disk text file whose bytes are text becomes
+`PreviewContent::Kind::Text` lines through `PreviewDecoder::SplitAppleText`
+instead of the hex view. A host file whose name `HostFileNaming::Parse`
+matches to an Applesoft, Integer or Text suffix is read as text even in
+plain ASCII, which otherwise opens in the hex view. Both go to
+`DxuiTextView` in the theme's monospaced face, as other text is.
 
-1. At startup the window loads `AppleTextFont` from the installed ROMs,
-   builds a TrueType file from it with `AppleFontFile::Build`, and
-   registers that with `DxuiTextRenderer::AddPrivateFont`, for this
-   process alone.
-2. For Apple text, `BuildTextRows` makes one cell a line, a listing's
-   address leading its line, and the window sets the view's face to the
-   registered family at a size rounded to whole pixels a dot, and its
-   colors to the monitor's color on black with the selection inverted.
-3. A monitor change refills the preview, which sets the colors again.
+Two richer looks were built and dropped at the owner's request: the text
+drawn through the CRT pass a band at a time, and a TrueType font made at
+run time from the video ROM. Neither's code remains.
 
-This replaces the hex view of a disk text file. A text file whose bytes
-are not text, such as a random-access file with zeros between its
-entries, goes to the hex view, as a binary does.
-
-An earlier pass drew the text through the CRT pass a band at a time in
-`DxuiFramebufferView`; the owner dropped the effects, and with them the
-reason the text could not be text. The view's virtual height was removed
-with it.
+The monitor for pictures is chosen on the options dialog's Display page;
+the command bar's Monitor drop-down was removed (FR-068).
 
 ## Risks
-
-- **A face that fails to register**: the text is drawn in the theme's
-  monospaced face, in the monitor's colors.
 
 - **032 timing**: phase 6 is the only gate; everything before it merges
   on its own if 032 runs long.
