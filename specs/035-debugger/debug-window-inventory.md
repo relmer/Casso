@@ -59,11 +59,12 @@ column), or **Drop**. The owner decides each row.
 | Second controller | Slot 6 only; a stored "more than one controller" hint never appears | **As is**, slot 6 only |
 | Menu item enabled | Always enabled; silent when the machine has no Disk II (spec 006's gray item specified, not built) | **Change**: the pane has a line that the machine has no Disk II |
 
-## Disk II event log: from spec 012, not yet decided
+## Disk II event log: from spec 012
 
 Spec 012 (Disk II debug telemetry, written for the old window) was closed on
 2026-10-13 as superseded by 035 and 040. These two of its items had no other
-home and were added here after the owner approved the rows above.
+home and were added here after the owner approved the rows above; the
+owner approved both proposals on 2026-10-13.
 
 | Feature | Spec 012 | Proposal |
 |---|---|---|
