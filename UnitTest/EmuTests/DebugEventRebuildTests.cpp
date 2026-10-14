@@ -173,8 +173,8 @@ namespace DebugEventRebuildTests
         void OnHeadStep        (int from, int to) override                   { Add (5, from, to); }
         void OnHeadBump        (int at) override                             { Add (6, at); }
         void OnAddressMark     (int track, int sector, int volume) override  { Add (7, track, sector, volume); }
-        void OnDataMarkRead    (int track, int sector, int, int) override    { Add (8, track, sector); }
-        void OnDataMarkWrite   (int track, int sector, int, int) override    { Add (9, track, sector); }
+        void OnDataMarkRead    (int track, int sector, int, std::span<const Byte>) override    { Add (8, track, sector); }
+        void OnDataMarkWrite   (int track, int sector, int, std::span<const Byte>) override    { Add (9, track, sector); }
         void OnDriveSelect     (int drive) override                          { Add (10, drive); }
         void OnDiskInserted    (int drive) override                          { Add (11, drive); }
         void OnDiskEjected     (int drive) override                          { Add (12, drive); }

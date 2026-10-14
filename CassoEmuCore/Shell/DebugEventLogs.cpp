@@ -728,6 +728,7 @@ void DebugEventLogs::AppendEntries (
         row.cycle    = entry.cycle;
         row.wallTime = GetWallTime (entry.cycle);
         row.event    = entry.event;
+        row.data     = entry.data;
 
         rows.push_back (row);
     }

@@ -122,16 +122,20 @@ bool MachineEventFeed::IsRecording() const
 //
 //  EmitDisk
 //
+//  A sector's bytes are copied once, into a block the entry shares.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineEventFeed::EmitDisk (
     Disk2EventType                type,
     int                           drive,
-    const Disk2Event::Payload   & payload)
+    const Disk2Event::Payload   & payload,
+    std::span<const Byte>         bytes)
 {
-    uint64_t    position = 0;
-    uint64_t    cycle    = 0;
-    Disk2Event  event    = {};
+    uint64_t                                  position = 0;
+    uint64_t                                  cycle    = 0;
+    Disk2Event                                event    = {};
+    std::shared_ptr<const std::vector<Byte>>  data;
 
 
 
@@ -149,13 +153,23 @@ void MachineEventFeed::EmitDisk (
     event.cycle    = cycle;
     event.payload  = payload;
 
+    if (m_diskOut == nullptr && !IsRecording())
+    {
+        return;
+    }
+
+    if (!bytes.empty())
+    {
+        data = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
+    }
+
     if (m_diskOut != nullptr)
     {
-        m_diskOut->push_back (DiskEntry { DebugEventEntryKind::Event, position, cycle, event });
+        m_diskOut->push_back (DiskEntry { DebugEventEntryKind::Event, position, cycle, event, std::move (data) });
     }
-    else if (IsRecording())
+    else
     {
-        m_diskCache->Append (position, cycle, event);
+        m_diskCache->Append (position, cycle, event, std::move (data));
     }
 }
 
@@ -339,15 +353,15 @@ void MachineEventFeed::OnAddressMark (int track, int sector, int volume)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineEventFeed::OnDataMarkRead (int track, int sector, int volume, int byteCount)
+void MachineEventFeed::OnDataMarkRead (int track, int sector, int volume, std::span<const Byte> bytes)
 {
     Disk2Event::Payload  payload = {};
 
 
 
-    payload.dataMark = { track, sector, volume, byteCount };
+    payload.dataMark = { track, sector, volume, (int) bytes.size() };
 
-    EmitDisk (Disk2EventType::DataRead, m_drive, payload);
+    EmitDisk (Disk2EventType::DataRead, m_drive, payload, bytes);
 }
 
 
@@ -360,15 +374,15 @@ void MachineEventFeed::OnDataMarkRead (int track, int sector, int volume, int by
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineEventFeed::OnDataMarkWrite (int track, int sector, int volume, int byteCount)
+void MachineEventFeed::OnDataMarkWrite (int track, int sector, int volume, std::span<const Byte> bytes)
 {
     Disk2Event::Payload  payload = {};
 
 
 
-    payload.dataMark = { track, sector, volume, byteCount };
+    payload.dataMark = { track, sector, volume, (int) bytes.size() };
 
-    EmitDisk (Disk2EventType::DataWrite, m_drive, payload);
+    EmitDisk (Disk2EventType::DataWrite, m_drive, payload, bytes);
 }
 
 
@@ -390,6 +404,105 @@ void MachineEventFeed::OnReadStall (int quarterTrack)
     payload.bump = { quarterTrack };
 
     EmitDisk (Disk2EventType::ReadStall, m_drive, payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAddressChecksumError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnAddressChecksumError (int track, int sector, int volume)
+{
+    Disk2Event::Payload  payload = {};
+
+
+
+    payload.addrMark = { track, sector, volume };
+
+    EmitDisk (Disk2EventType::AddrChecksumError, m_drive, payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDataChecksumError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnDataChecksumError (int track, int sector, int volume, std::span<const Byte> bytes)
+{
+    Disk2Event::Payload  payload = {};
+
+
+
+    payload.dataMark = { track, sector, volume, (int) bytes.size() };
+
+    EmitDisk (Disk2EventType::DataChecksumError, m_drive, payload, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDataFieldCutOff
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnDataFieldCutOff (int track, int sector, int volume)
+{
+    Disk2Event::Payload  payload = {};
+
+
+
+    payload.addrMark = { track, sector, volume };
+
+    EmitDisk (Disk2EventType::DataCutOff, m_drive, payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDataWithoutAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnDataWithoutAddress (std::span<const Byte> bytes)
+{
+    Disk2Event::Payload  payload = {};
+
+
+
+    payload.dataMark = { -1, -1, -1, (int) bytes.size() };
+
+    EmitDisk (Disk2EventType::DataNoAddress, m_drive, payload, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnWriteProtected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnWriteProtected()
+{
+    EmitDisk (Disk2EventType::WriteProtected, m_drive, Disk2Event::Payload {});
 }
 
 

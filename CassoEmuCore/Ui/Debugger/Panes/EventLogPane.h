@@ -303,7 +303,13 @@ public:
 
 
 
-        for (c = 0; c < shown.size() && c < m_list->GetColumnCount(); c++)
+        //  A choice saved with another set of columns does not fit this one.
+        if (shown.size() != m_list->GetColumnCount())
+        {
+            return;
+        }
+
+        for (c = 0; c < shown.size(); c++)
         {
             m_list->SetColumnVisible (c, shown[c] == '1');
         }
@@ -320,6 +326,18 @@ public:
 
             start = (comma == std::string::npos) ? widths.size() : comma + 1;
         }
+    }
+
+    //  The bytes the row in the list's order has, as a sector's; null for
+    //  none.
+    std::shared_ptr<const std::vector<Byte>>  GetRowData (int viewRow) const
+    {
+        if (viewRow < 0 || (size_t) viewRow >= m_view.size() || m_view[(size_t) viewRow] == kTopRow)
+        {
+            return nullptr;
+        }
+
+        return m_rows.GetRows()[(size_t) m_view[(size_t) viewRow]].data;
     }
 
     //  The rows behind the list, in the list's order: indices into the

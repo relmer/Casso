@@ -1421,7 +1421,7 @@ private:
 
     EventLogWidgets        * GetEventLogOf            (const std::wstring & pane);
     const EventLogWidgets  * GetEventLogOf            (const std::wstring & pane) const;
-    void                     AddEventLogMenuItems     (DxuiListView * list, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void                     AddEventLogMenuItems     (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     void                     AddEventLogColumnItems   (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands);
     void                     AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands);
     bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);

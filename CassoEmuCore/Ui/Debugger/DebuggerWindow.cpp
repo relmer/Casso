@@ -6342,7 +6342,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     }
     else if (list == m_diskLog.list || list == m_inputLog.list)
     {
-        AddEventLogMenuItems (list, items);
+        AddEventLogMenuItems (list, row, items);
     }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
@@ -9014,7 +9014,8 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         cell              = GetColorTipAnchor (cell);
         m_operandColorTip = m_hasOperandTip ? &tip : nullptr;
 
-        tip.SetMonospace (false);
+        //  A sector's hex dump in the Disk II log lines up in columns.
+        tip.SetMonospace (m_diskLog.list->IsVisible() && DxuiDockSite::Contains (m_diskLog.list->GetBounds(), clientPx));
         tip.RequestShow  (cell, text, now);
         return;
     }

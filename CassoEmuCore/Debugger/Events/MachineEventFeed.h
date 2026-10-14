@@ -54,10 +54,15 @@ public:
     void  OnMotorDisengaged() override;
     void  OnHeadStep        (int prevQt, int newQt) override;
     void  OnHeadBump        (int atQt) override;
-    void  OnAddressMark     (int track, int sector, int volume) override;
-    void  OnDataMarkRead    (int track, int sector, int volume, int byteCount) override;
-    void  OnDataMarkWrite   (int track, int sector, int volume, int byteCount) override;
-    void  OnReadStall       (int quarterTrack) override;
+    void  OnAddressMark          (int track, int sector, int volume) override;
+    void  OnDataMarkRead         (int track, int sector, int volume, std::span<const Byte> bytes) override;
+    void  OnDataMarkWrite        (int track, int sector, int volume, std::span<const Byte> bytes) override;
+    void  OnReadStall            (int quarterTrack) override;
+    void  OnAddressChecksumError (int track, int sector, int volume) override;
+    void  OnDataChecksumError    (int track, int sector, int volume, std::span<const Byte> bytes) override;
+    void  OnDataFieldCutOff      (int track, int sector, int volume) override;
+    void  OnDataWithoutAddress   (std::span<const Byte> bytes) override;
+    void  OnWriteProtected       () override;
     void  OnDriveSelect     (int drive) override;
     void  OnDiskInserted    (int drive) override;
     void  OnDiskEjected     (int drive) override;
@@ -75,7 +80,7 @@ public:
 private:
     void  Attach      (MachineHost & machine);
     bool  IsRecording () const;
-    void  EmitDisk    (Disk2EventType type, int drive, const Disk2Event::Payload & payload);
+    void  EmitDisk    (Disk2EventType type, int drive, const Disk2Event::Payload & payload, std::span<const Byte> bytes = {});
     void  EmitInput   (InputEventType type, Word address, Byte value, uint8_t flags);
 
     MachineHost                    * m_machine    = nullptr;

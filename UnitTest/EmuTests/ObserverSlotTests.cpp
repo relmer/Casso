@@ -43,8 +43,8 @@ namespace ObserverSlotTests
         void OnHeadStep        (int, int) override            { disk++; }
         void OnHeadBump        (int) override                 { disk++; }
         void OnAddressMark     (int, int, int) override       { disk++; }
-        void OnDataMarkRead    (int, int, int, int) override  { disk++; }
-        void OnDataMarkWrite   (int, int, int, int) override  { disk++; }
+        void OnDataMarkRead    (int, int, int, std::span<const Byte>) override  { disk++; }
+        void OnDataMarkWrite   (int, int, int, std::span<const Byte>) override  { disk++; }
         void OnDriveSelect     (int) override                 { disk++; }
         void OnDiskInserted    (int) override                 { disk++; }
         void OnDiskEjected     (int) override                 { disk++; }

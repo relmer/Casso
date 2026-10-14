@@ -71,6 +71,11 @@ enum class Disk2EventType : uint8_t
 
     // Controller-side, added after the audio events
     ReadStall           = 19,   // payload.bump.atQt is the head's quarter track
+    AddrChecksumError   = 20,   // payload.addrMark, as the field decoded
+    DataChecksumError   = 21,   // payload.dataMark
+    DataCutOff          = 22,   // payload.addrMark: the address field the data field followed, -1 for none
+    DataNoAddress       = 23,   // payload.dataMark, its track, sector and volume -1
+    WriteProtected      = 24,   // no payload
 };
 
 

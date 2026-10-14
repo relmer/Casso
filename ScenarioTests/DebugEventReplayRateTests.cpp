@@ -53,8 +53,8 @@ namespace DebugEventReplayRateTests
         void OnHeadStep        (int, int) override           { Add (5); }
         void OnHeadBump        (int) override                { Add (6); }
         void OnAddressMark     (int, int, int) override      { Add (7); }
-        void OnDataMarkRead    (int, int, int, int) override { Add (8); }
-        void OnDataMarkWrite   (int, int, int, int) override { Add (9); }
+        void OnDataMarkRead    (int, int, int, std::span<const Byte>) override { Add (8); }
+        void OnDataMarkWrite   (int, int, int, std::span<const Byte>) override { Add (9); }
         void OnDriveSelect     (int) override                { Add (10); }
         void OnDiskInserted    (int) override                { Add (11); }
         void OnDiskEjected     (int) override                { Add (12); }

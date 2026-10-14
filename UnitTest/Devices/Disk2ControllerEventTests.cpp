@@ -82,8 +82,8 @@ namespace Disk2ControllerEventTests
             void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
             void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
             void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
-            void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
-            void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
+            void OnDataMarkRead (int, int sector, int, std::span<const Byte>) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
+            void OnDataMarkWrite (int, int sector, int, std::span<const Byte>) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
             void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
             void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
             void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }

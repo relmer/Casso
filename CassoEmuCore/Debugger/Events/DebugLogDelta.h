@@ -54,18 +54,19 @@ enum class DebugLogRowKind : uint8_t
 //
 //  One row of an event log pane, stamped with the machine's position and
 //  cycle, and the host's clock at that cycle (a UTC FILETIME, 0 when
-//  unknown).
+//  unknown), with the event's own bytes, as a sector's, where it has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 struct DebugLogRow
 {
-    DebugLogRowKind  kind     = DebugLogRowKind::Event;
-    uint64_t         position = 0;
-    uint64_t         cycle    = 0;
-    uint64_t         wallTime = 0;
-    T                event    = {};
+    DebugLogRowKind                           kind     = DebugLogRowKind::Event;
+    uint64_t                                  position = 0;
+    uint64_t                                  cycle    = 0;
+    uint64_t                                  wallTime = 0;
+    T                                         event    = {};
+    std::shared_ptr<const std::vector<Byte>>  data;
 };
 
 using DiskLogRow  = DebugLogRow<Disk2Event>;

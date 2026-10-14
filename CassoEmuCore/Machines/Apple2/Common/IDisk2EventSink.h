@@ -37,15 +37,27 @@
 //                       kMaxQuarterTrack. Mutually exclusive with
 //                       OnHeadStep for any single HandlePhase call.
 //
-//  Address / data marks (fired by Disk2AddressMarkWatcher):
-//    * OnAddressMark   -- after D5 AA 96 + 4-and-4 fields + good XOR
-//                          checksum
-//    * OnDataMarkRead  -- after D5 AA AD + 342 nibbles + DE AA EB
-//    * OnDataMarkWrite -- after D5 AA AD + body + DE AA EB written
-//                          through the write latch
-//    * OnReadStall     -- two revolutions of nibbles read with no
-//                          address mark decoded and no head step; once
-//                          per stall
+//  Address and data fields (fired by Disk2AddressMarkWatcher), 16-sector
+//  or 13-sector:
+//    * OnAddressMark          -- after D5 AA 96 or B5 + 4-and-4 fields +
+//                                 good XOR checksum
+//    * OnAddressChecksumError -- the same with a checksum that fails
+//    * OnDataMarkRead         -- after D5 AA AD + body + DE AA, the
+//                                 decoded bytes with a good checksum
+//    * OnDataChecksumError    -- the same with a checksum that fails
+//    * OnDataFieldCutOff      -- a data field with no epilogue, or one
+//                                 ended at a length neither encoding has
+//    * OnDataWithoutAddress   -- a whole data field with no address
+//                                 field read before it
+//    * OnDataMarkWrite        -- after D5 AA AD + body + DE AA written
+//                                 through the write latch, with its bytes
+//    * OnReadStall            -- two revolutions of nibbles read with no
+//                                 address field decoded and no head step;
+//                                 once per stall
+//
+//  Writing:
+//    * OnWriteProtected       -- the program turned on writing with a
+//                                 write-protected disk in the drive
 //
 //  Drive / image lifecycle:
 //    * OnDriveSelect   -- active drive index flipped via $C0EA / $C0EB
@@ -75,9 +87,15 @@ public:
     virtual void OnHeadBump (int atQt) = 0;
 
     virtual void OnAddressMark (int track, int sector, int volume) = 0;
-    virtual void OnDataMarkRead (int track, int sector, int volume, int byteCount) = 0;
-    virtual void OnDataMarkWrite (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnDataMarkRead (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
+    virtual void OnDataMarkWrite (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
     virtual void OnReadStall (int quarterTrack) {}
+
+    virtual void OnAddressChecksumError (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
+    virtual void OnDataChecksumError    (int track, int sector, int volume, std::span<const Byte> bytes) { (void) track; (void) sector; (void) volume; (void) bytes; }
+    virtual void OnDataFieldCutOff      (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
+    virtual void OnDataWithoutAddress   (std::span<const Byte> bytes)                                    { (void) bytes; }
+    virtual void OnWriteProtected       ()                                                                {}
 
     virtual void OnDriveSelect (int drive) = 0;
     virtual void OnDiskInserted (int drive) = 0;

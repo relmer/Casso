@@ -89,8 +89,8 @@ namespace DebugEventLogsTests
         void OnHeadStep        (int, int) override          { Add(); }
         void OnHeadBump        (int) override               { Add(); }
         void OnAddressMark     (int, int, int) override     { Add(); }
-        void OnDataMarkRead    (int, int, int, int) override { Add(); }
-        void OnDataMarkWrite   (int, int, int, int) override { Add(); }
+        void OnDataMarkRead    (int, int, int, std::span<const Byte>) override { Add(); }
+        void OnDataMarkWrite   (int, int, int, std::span<const Byte>) override { Add(); }
         void OnReadStall       (int) override               { Add(); }
         void OnDriveSelect     (int) override               { Add(); }
         void OnDiskInserted    (int) override               { Add(); }

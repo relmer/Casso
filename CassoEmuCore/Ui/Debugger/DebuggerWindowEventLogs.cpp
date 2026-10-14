@@ -10,10 +10,15 @@
 //  The event log bars' entries.
 static constexpr int  s_kDiskEvents        = 1;
 static constexpr int  s_kDiskDrive         = 2;
+static constexpr int  s_kDiskSeverity      = 3;
 static constexpr int  s_kInputGuest        = 6;
 static constexpr int  s_kInputHost         = 7;
 static constexpr int  s_kInputPair0        = 8;
 static constexpr int  s_kInputPair1        = 9;
+
+//  How far a warning or error row's fill is from the list's background
+//  toward the theme's warning or error color.
+static constexpr float  s_kSeverityTint = 0.25f;
 
 
 
@@ -110,8 +115,8 @@ void DebuggerWindow::ConfigureEventLogs()
 //
 //  DebuggerWindow::SetEventLogBarEntries
 //
-//  The Disk II log's bar: its kinds, its drive, and its track and sector
-//  boxes. The input log's: the guest's and the host's input and each pair's
+//  The Disk II log's bar: its kinds, its drive, its severities, and its track
+//  and sector boxes. The input log's: the guest's and the host's input and each pair's
 //  view. The columns are chosen from the heading's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +152,8 @@ void DebuggerWindow::SetEventLogBarEntries()
     m_inputLog.commands.clear();
 
     add (m_diskLog, disk, s_kDiskEvents, L"Events", L"Choose the kinds of event in this log",  DxuiToolbar::Kind::DropDown, 0, [] {});
-    add (m_diskLog, disk, s_kDiskDrive,  L"Drive",  L"Choose the drive whose events are in this log", DxuiToolbar::Kind::DropDown, 0, [] {});
+    add (m_diskLog, disk, s_kDiskDrive,    L"Drive",    L"Choose the drive whose events are in this log",  DxuiToolbar::Kind::DropDown, 0, [] {});
+    add (m_diskLog, disk, s_kDiskSeverity, L"Severity", L"Choose the severities of event in this log",     DxuiToolbar::Kind::DropDown, 0, [] {});
 
     for (ToolbarBoxEntry * entry : { m_diskTrackEntry.get(), m_diskSectorEntry.get() })
     {
@@ -187,6 +193,7 @@ void DebuggerWindow::SetEventLogMenus()
 {
     std::vector<DxuiPopupMenuItem>  kinds;
     std::vector<DxuiPopupMenuItem>  drives;
+    std::vector<DxuiPopupMenuItem>  severities;
     std::vector<DxuiPopupMenuItem>  guest;
     std::vector<DxuiPopupMenuItem>  host;
     std::vector<DxuiPopupMenuItem>  pair0;
@@ -235,6 +242,17 @@ void DebuggerWindow::SetEventLogMenus()
         })));
     }
 
+    for (i = 0; i < DiskLogPane::kSeverityCount; i++)
+    {
+        DiskLogPane::Severity  severity = (DiskLogPane::Severity) i;
+
+        severities.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (DiskLogPane::GetSeverityLabel (severity), m_diskLogPane->IsSeverityShown (severity), [this, severity]
+        {
+            m_diskLogPane->SetSeverityShown (severity, !m_diskLogPane->IsSeverityShown (severity));
+            SaveEventLogOptions (DebugLogKind::Disk);
+        })));
+    }
+
     for (InputLogPane::Lane lane : { InputLogPane::kGuestKeyboard, InputLogPane::kJoystick, InputLogPane::kPaddle, InputLogPane::kHostKeyboard, InputLogPane::kHostMouse })
     {
         bool  isGuest = lane == InputLogPane::kGuestKeyboard || lane == InputLogPane::kJoystick || lane == InputLogPane::kPaddle;
@@ -277,7 +295,8 @@ void DebuggerWindow::SetEventLogMenus()
     }
 
     m_diskLog.bar->SetDropDownItems  (s_kDiskEvents,  std::move (kinds));
-    m_diskLog.bar->SetDropDownItems  (s_kDiskDrive,   std::move (drives));
+    m_diskLog.bar->SetDropDownItems  (s_kDiskDrive,    std::move (drives));
+    m_diskLog.bar->SetDropDownItems  (s_kDiskSeverity, std::move (severities));
     m_inputLog.bar->SetDropDownItems (s_kInputGuest,  std::move (guest));
     m_inputLog.bar->SetDropDownItems (s_kInputHost,   std::move (host));
     m_inputLog.bar->SetDropDownItems (s_kInputPair0,  std::move (pair0));
@@ -487,6 +506,14 @@ void DebuggerWindow::ApplyEventLogs()
         isDisk = std::ranges::any_of (m_snapshot->panels, [] (const DebuggerViewSnapshot::PanelInfo & panel) { return panel.id == "disk"; });
     }
 
+    if (m_theme != nullptr)
+    {
+        uint32_t  row = m_theme->ContentBackground() | 0xFF000000u;
+
+        m_diskLogPane->SetSeverityFills (DxuiColor::Mix (row, m_theme->WarningAccent()   | 0xFF000000u, s_kSeverityTint),
+                                         DxuiColor::Mix (row, m_theme->ErrorForeground() | 0xFF000000u, s_kSeverityTint));
+    }
+
     m_diskLogPane->SetShownBefore        (before);
     m_inputLogPane->SetShownBefore       (before);
     m_inputLogPane->SetMouseButtonAtC063 (isTwoC);
@@ -689,17 +716,27 @@ const DebuggerWindow::EventLogWidgets * DebuggerWindow::GetEventLogOf (const std
 //
 //  DebuggerWindow::AddEventLogMenuItems
 //
-//  An event log's menu on its rows: Copy for the selected rows, and Copy all
-//  rows.
+//  An event log's menu on its rows: Copy for the selected rows, Copy all
+//  rows, and on a sector's row Copy sector bytes, as its hex dump.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddEventLogMenuItems (
     DxuiListView                                                   * list,
+    int                                                              row,
     std::vector<std::pair<std::wstring, std::function<void()>>>    & items)
 {
+    std::shared_ptr<const std::vector<Byte>>  bytes = (list == m_diskLog.list) ? m_diskLogPane->GetRowData (row) : nullptr;
+
+
+
     items.push_back ({ L"Copy",          [this, list] { CopyEventLog (list, false); } });
     items.push_back ({ L"Copy all rows", [this, list] { CopyEventLog (list, true);  } });
+
+    if (bytes != nullptr)
+    {
+        items.push_back ({ L"Copy sector bytes", [this, bytes] { DxuiClipboard::SetText (GetHwnd(), DiskLogPane::GetHexDump (*bytes)); } });
+    }
 }
 
 

@@ -16,7 +16,8 @@
 //  bays. Each is stamped with the machine's position (instructions retired)
 //  and CPU cycle at the time. An event's position is the index of the
 //  instruction running at the time, so the events before position P are
-//  those of the instructions before P.
+//  those of the instructions before P. An event may come with bytes of its
+//  own, as a sector's decoded bytes, shared rather than copied.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +31,11 @@ enum class DebugEventEntryKind
 template <typename T>
 struct DebugEventEntry
 {
-    DebugEventEntryKind  kind     = DebugEventEntryKind::Event;
-    uint64_t             position = 0;
-    uint64_t             cycle    = 0;
-    T                    event    = {};
+    DebugEventEntryKind                       kind     = DebugEventEntryKind::Event;
+    uint64_t                                  position = 0;
+    uint64_t                                  cycle    = 0;
+    T                                         event    = {};
+    std::shared_ptr<const std::vector<Byte>>  data;
 };
 
 
@@ -85,15 +87,15 @@ public:
         m_hasDropped  = false;
     }
 
-    void  Append (uint64_t position, uint64_t cycle, const T & event)
+    void  Append (uint64_t position, uint64_t cycle, const T & event, std::shared_ptr<const std::vector<Byte>> data = nullptr)
     {
-        Push (DebugEventEntryKind::Event, position, cycle, event);
+        Push (DebugEventEntryKind::Event, position, cycle, event, std::move (data));
     }
 
     //  History recording paused before position, which it resumed at.
     void  MarkGap (uint64_t position, uint64_t cycle)
     {
-        Push (DebugEventEntryKind::Gap, position, cycle, T {});
+        Push (DebugEventEntryKind::Gap, position, cycle, T {}, nullptr);
     }
 
     //  Drops every entry at or after position, newest first. After a cut to
@@ -161,7 +163,7 @@ public:
     }
 
 private:
-    void  Push (DebugEventEntryKind kind, uint64_t position, uint64_t cycle, const T & event)
+    void  Push (DebugEventEntryKind kind, uint64_t position, uint64_t cycle, const T & event, std::shared_ptr<const std::vector<Byte>> data)
     {
         size_t  slot = (m_first + m_count) % m_entries.size();
 
@@ -177,7 +179,7 @@ private:
             m_count--;
         }
 
-        m_entries[slot] = Entry { kind, position, cycle, event };
+        m_entries[slot] = Entry { kind, position, cycle, event, std::move (data) };
         m_count++;
         m_endSerial++;
     }

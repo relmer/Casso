@@ -31,6 +31,7 @@ namespace EventLogPaneTests
 
             case Disk2EventType::DataRead:
             case Disk2EventType::DataWrite:
+            case Disk2EventType::DataChecksumError:
                 row.event.payload.dataMark = { track, sector, 254, 256 };
                 break;
 
@@ -146,6 +147,117 @@ namespace EventLogPaneTests
             Assert::IsTrue   (list.GetColumnAt (DiskLogPane::kDetail).stretch);
             Assert::AreEqual (110,   list.GetColumnAt (DiskLogPane::kCycle).widthDip);
         }
+
+
+        //  An error row and a warning row have their severity and the fill of
+        //  it on every cell; an info row has neither fill. The severity
+        //  filter hides a severity's rows.
+        TEST_METHOD (SeverityRowsHaveTheirFillAndFilter)
+        {
+            constexpr uint32_t  kWarning = 0xFF806000u;
+            constexpr uint32_t  kError   = 0xFF800000u;
+            DxuiListView        list;
+            DiskLogPane         pane (&list, [] (const std::string &) {});
+            DiskLogDelta                     delta;
+            std::vector<DxuiListView::Cell>  cells;
+
+
+
+            pane.Configure();
+            pane.SetSeverityFills (kWarning, kError);
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (10, Disk2EventType::DataRead,          17, 5),
+                                MakeDiskRow (20, Disk2EventType::DataChecksumError, 17, 6),
+                                MakeDiskRow (30, Disk2EventType::ReadStall) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (std::wstring (L"Info"),          GetColumn (pane, DiskLogPane::kSeverity)[1]);
+            Assert::AreEqual (std::wstring (L"Error"),         GetColumn (pane, DiskLogPane::kSeverity)[2]);
+            Assert::AreEqual (std::wstring (L"Warning"),       GetColumn (pane, DiskLogPane::kSeverity)[3]);
+            Assert::AreEqual (std::wstring (L"Data checksum"), GetColumn (pane, DiskLogPane::kEvent)[2]);
+            Assert::AreEqual (std::wstring (L"Sector read"),   GetColumn (pane, DiskLogPane::kEvent)[1]);
+
+            pane.ProvideRow (1, cells);
+            Assert::AreEqual (0u, cells[DiskLogPane::kEvent].background, L"no fill on an info row");
+
+            pane.ProvideRow (2, cells);
+            Assert::AreEqual (kError, cells[DiskLogPane::kCycle].background);
+            Assert::AreEqual (kError, cells[DiskLogPane::kDetail].background);
+
+            pane.ProvideRow (3, cells);
+            Assert::AreEqual (kWarning, cells[DiskLogPane::kEvent].background);
+
+            pane.SetSeverityShown (DiskLogPane::kInfo, false);
+            pane.Refresh();
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the start row, the error and the warning");
+        }
+
+
+        //  A sector's row has its first bytes in the detail, the whole sector
+        //  as a hex dump in the detail's tip, and the bytes for Copy.
+        TEST_METHOD (ASectorRowHasItsBytes)
+        {
+            DxuiListView                      list;
+            DiskLogPane                       pane (&list, [] (const std::string &) {});
+            DiskLogDelta                      delta;
+            DiskLogRow                        row  = MakeDiskRow (10, Disk2EventType::DataRead, 0, 0);
+            std::vector<Byte>                 bytes (256);
+            std::vector<DxuiListView::Cell>   cells;
+            std::wstring                      dump;
+
+
+
+            for (size_t i = 0; i < bytes.size(); i++)
+            {
+                bytes[i] = (Byte) i;
+            }
+
+            bytes[0x10] = 0xC1;
+            row.data    = std::make_shared<const std::vector<Byte>> (bytes);
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { row };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            pane.ProvideRow (1, cells);
+
+            dump = cells[DiskLogPane::kDetail].tip;
+
+            Assert::AreEqual (std::wstring (L"T0 S0 V254 (256 bytes) 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
+            Assert::IsTrue   (dump.starts_with (L"00: 00 01 02 03"), dump.c_str());
+            Assert::IsTrue   (dump.find (L"\n10: C1 11 ") != std::wstring::npos, L"the second line starts at $10");
+            Assert::IsTrue   (dump.find (L" A") != std::wstring::npos, L"$C1 is A with its high bit dropped");
+            Assert::AreEqual ((size_t) 16, (size_t) std::ranges::count (dump, L'\n') + 1, L"sixteen lines of sixteen");
+            Assert::IsNotNull (pane.GetRowData (1).get());
+            Assert::IsNull    (pane.GetRowData (0).get(), L"the start row has none");
+        }
+
+
+        //  Columns saved with another set of columns are left out rather
+        //  than put on the wrong columns.
+        TEST_METHOD (ColumnsSavedForOtherColumnsAreLeftOut)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+
+
+
+            pane.Configure();
+            pane.SetOptionsText ("severity=101;columns=00000 0,0,0,0,0");
+
+            Assert::IsTrue  (pane.IsColumnShown (DiskLogPane::kCycle),  L"five columns saved, six now");
+            Assert::IsFalse (pane.IsSeverityShown (DiskLogPane::kWarning));
+            Assert::IsTrue  (pane.IsSeverityShown (DiskLogPane::kError));
+        }
+
 
         //  With the row above the oldest in view, the pane requests the rows
         //  before it once, and again only after older rows came in.
@@ -393,10 +505,10 @@ namespace EventLogPaneTests
             pane.Apply   (delta);
             pane.Refresh();
 
-            Assert::AreEqual (std::wstring (L"1,000\t1\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
 
             pane.SetColumnShown (DiskLogPane::kDrive, false);
-            Assert::AreEqual (std::wstring (L"1,000\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
         }
 
 

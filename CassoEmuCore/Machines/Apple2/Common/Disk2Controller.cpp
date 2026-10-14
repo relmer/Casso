@@ -273,6 +273,14 @@ void Disk2Controller::HandleSwitch (int offset)
             UpdateEngineWriteMode();
             break;
         case 0xF:
+            // Writing turned on with a write-protected disk in the drive:
+            // the nibbles go nowhere. RWTS checks the sense line first, so
+            // only a program that does not check gets here.
+            if (!m_q7 && m_eventSinks.IsAny() && m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsWriteProtected())
+            {
+                m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnWriteProtected(); });
+            }
+
             m_q7 = true;
             UpdateEngineWriteMode();
             break;
@@ -331,7 +339,7 @@ Byte Disk2Controller::HandleReadDispatch()
         // the CPU-visible read path.
         if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
         {
-            m_addrMarkWatcher.ObserveNibble (fresh);
+            m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0);
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
