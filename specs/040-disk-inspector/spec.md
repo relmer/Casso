@@ -1638,8 +1638,9 @@ legend, and tilt the platter and back.
   The window MUST open at 1280×800, wide enough for the track tabs and the
   disk tabs on one row with Differences among them, and not shrink below
   960×720, all scaled for the display, and the platter MUST stay square. A
-  "Default size" command on the window's system menu MUST return it to the
-  size it opens at, centered over the main window.
+  "Default size" command on the window's system menu, opened by a right-click
+  on its title bar or Alt+Space, MUST return it to the size it opens at,
+  centered over the main window.
 
 **Analysis**
 
