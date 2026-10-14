@@ -298,6 +298,12 @@
     <ClCompile Include="Debugger\Reverse\SnapshotCompressor.cpp" />
     <ClCompile Include="Debugger\Handlers\TraceHandlers.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\TracePane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DiskLogPane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\EventLogText.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\InputLogPane.cpp" />
+    <ClCompile Include="Ui\Debugger\TrackSectorPredicate.cpp" />
+    <ClCompile Include="Ui\Debugger\ToolbarBoxEntry.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowEventLogs.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\Source\SourcePathList.cpp" />
     <ClCompile Include="Debugger\Source\SourceService.cpp" />
@@ -873,6 +879,13 @@
     <ClInclude Include="Debugger\Reverse\SnapshotCompressor.h" />
     <ClInclude Include="Debugger\Handlers\TraceHandlers.h" />
     <ClInclude Include="Ui\Debugger\Panes\TracePane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DiskLogPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\EventLogPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\EventLogRows.h" />
+    <ClInclude Include="Ui\Debugger\Panes\EventLogText.h" />
+    <ClInclude Include="Ui\Debugger\Panes\InputLogPane.h" />
+    <ClInclude Include="Ui\Debugger\TrackSectorPredicate.h" />
+    <ClInclude Include="Ui\Debugger\ToolbarBoxEntry.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />
     <ClInclude Include="Debugger\Source\SourcePathList.h" />
     <ClInclude Include="Debugger\Source\SourceService.h" />

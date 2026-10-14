@@ -142,7 +142,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog };
 
 
 
@@ -341,7 +341,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if (pane == kTrace && layout.Contains (kConsole))
+    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog) && layout.Contains (kConsole))
     {
         return kConsole;
     }
@@ -360,10 +360,10 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
 //  Built by the same operations a user would perform, so the default is a
 //  layout like any other and saves and restores the same way.
 //
-//  On the left the disassembly over the console, which carries the trace
-//  and the device panels as tabs; on the right the registers beside the
-//  stack, then watches, call stack, breakpoints and memory, top to bottom,
-//  with the heat map a tab beside the memory windows.
+//  On the left the disassembly over the console, which has the trace, the
+//  event logs and the device panels as tabs; on the right the registers
+//  beside the stack, then watches, call stack, breakpoints and memory, top to
+//  bottom, with the heat map a tab beside the memory windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -403,7 +403,9 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetCodePaneId (view), kCode);
     }
 
-    layout.Add (kTrace,   kConsole);
+    layout.Add (kTrace,    kConsole);
+    layout.Add (kDiskLog,  kConsole);
+    layout.Add (kInputLog, kConsole);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

@@ -37,6 +37,8 @@ public:
     static constexpr const wchar_t * kTrace       = L"trace";
     static constexpr const wchar_t * kHeatMap     = L"heatmap";
     static constexpr const wchar_t * kHeatRanges  = L"heatranges";
+    static constexpr const wchar_t * kDiskLog     = L"disklog";
+    static constexpr const wchar_t * kInputLog    = L"inputlog";
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);

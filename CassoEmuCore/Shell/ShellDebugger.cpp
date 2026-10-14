@@ -169,6 +169,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OpenDebuggerLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::OpenDebuggerLog (DebugLogKind kind)
+{
+    OpenDebuggerWindow();
+
+    if (m_debuggerWindow != nullptr)
+    {
+        m_debuggerWindow->OpenEventLog (kind);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsDebuggerMessageRoot
 //
 //  A floating pane is a top-level window of its own, owned by the debugger
@@ -2365,4 +2385,48 @@ void ShellDebugger::ServiceEventLogs()
             m_eventLogsPending.input.push_back (std::move (input));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDebuggerEventLogOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebugger::GetDebuggerEventLogOptions (DebugLogKind kind)
+{
+    return (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerEventLogOptions
+//
+//  Saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerEventLogOptions (
+    DebugLogKind          kind,
+    const std::string   & text)
+{
+    std::string  & options = (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+
+
+
+    if (options == text)
+    {
+        return;
+    }
+
+    options = text;
+    m_host.SaveSettings();
 }

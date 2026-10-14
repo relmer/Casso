@@ -316,6 +316,7 @@ void DebuggerWindow::OnCreate()
         list->SetVisible (false);
     }
 
+    CreateEventLogs();
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -382,6 +383,7 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureMemoryBar();
     ConfigureBreakpointBar();
     ConfigureUndoBars();
+    ConfigureEventLogs();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -1053,7 +1055,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList };
+                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list };
 
 
 
@@ -1249,7 +1251,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox });
 
     //  Every pane's find widget, open or not, its buttons before its box: the
     //  option toggles lie inside the box, and a press on one is the toggle's.
@@ -2576,7 +2578,7 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
     {
         if (focused != nullptr && focused == box)
         {
@@ -4160,6 +4162,16 @@ void DebuggerWindow::OnWindowClose()
     SavePlacementIfMoved();
     SaveFocusedPane();
 
+    //  The logs' column widths, which a drag changes without telling; and
+    //  the machine's thread stops sending deltas until the window opens.
+    if (m_diskLogPane != nullptr)
+    {
+        SaveEventLogOptions (DebugLogKind::Disk);
+        SaveEventLogOptions (DebugLogKind::Input);
+        m_diskLogPane->SetShown  (false);
+        m_inputLogPane->SetShown (false);
+    }
+
     Hide();
 
     for (const auto & entry : m_floats)
@@ -4285,6 +4297,7 @@ void DebuggerWindow::LayoutWidgets()
     PlaceBreakpointBar();
     PlaceHeatMapBar();
     PlaceHeatRangeBar();
+    PlaceEventLogBars();
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
@@ -5061,6 +5074,30 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kHeatMap,     L"Heat map",    m_heatMapFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kHeatRanges,  L"Heat map ranges", m_heatRangeFrame.get());
 
+    //  The event logs are each their bar over their rows; between them, the
+    //  Disk II log has a line listing the filter tokens not taken, only when
+    //  there are any.
+    for (EventLogWidgets * log : { &m_diskLog, &m_inputLog })
+    {
+        bool  isDisk = log == &m_diskLog;
+
+        log->slot  = std::make_unique<DebuggerPaneFrame> (L"Event log commands");
+        log->frame = std::make_unique<DebuggerPaneFrame> (isDisk ? L"Disk II log" : L"Input log");
+        log->frame->AddPart (log->slot.get(), barHeight);
+
+        if (isDisk)
+        {
+            log->frame->AddPart (m_diskLogError, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); },
+                                 [this] { return !m_diskLogError->GetText().empty(); });
+            log->frame->SetPartTextAligned (m_diskLogError);
+        }
+
+        log->frame->AddPart (log->list);
+    }
+
+    m_dockSite->AddPane (DebuggerLayout::kDiskLog,  L"Disk II log", m_diskLog.frame.get());
+    m_dockSite->AddPane (DebuggerLayout::kInputLog, L"Input log",   m_inputLog.frame.get());
+
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
     //  pane, are put in the bar of the one they act on (PlaceMemoryBar).
@@ -5158,6 +5195,11 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (pane == DebuggerLayout::kHeatRanges)
     {
         return m_isHeatRangesOpened;
+    }
+
+    if (GetEventLogOf (pane) != nullptr)
+    {
+        return GetEventLogOf (pane)->isOpened;
     }
 
     if (GetSourceSlotOf (pane) >= 0)
@@ -5548,6 +5590,8 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     panes.push_back (DebuggerLayout::kTrace);
     panes.push_back (DebuggerLayout::kHeatMap);
     panes.push_back (DebuggerLayout::kHeatRanges);
+    panes.push_back (DebuggerLayout::kDiskLog);
+    panes.push_back (DebuggerLayout::kInputLog);
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)
@@ -5595,6 +5639,13 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     {
         m_isHeatRangesOpened = true;
         SaveHeatRanges();
+    }
+
+    //  The event logs the same, with their options.
+    if (GetEventLogOf (pane) != nullptr && !GetEventLogOf (pane)->isOpened)
+    {
+        GetEventLogOf (pane)->isOpened = true;
+        SaveEventLogOptions ((pane == DebuggerLayout::kDiskLog) ? DebugLogKind::Disk : DebugLogKind::Input);
     }
 
     if (!IsPaneShown (pane))
@@ -6223,6 +6274,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
     }
+    else if (list == m_diskLog.list || list == m_inputLog.list)
+    {
+        AddEventLogMenuItems (list, items);
+    }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
         const DebuggerViewSnapshot::BreakpointLine  bp     = *GetBreakpointOfRow (row);
@@ -6435,7 +6490,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6485,6 +6540,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     m_tracePane->FollowScroll();
+    ApplyEventLogs();
 
     isAnimating = m_heatMapView->TickScrollbars (now) || m_timelineScrub.IsScrubbing() || isAnimating;
 
@@ -6497,6 +6553,7 @@ void DebuggerWindow::RenderFrame()
     PlaceBreakpointBar();
     PlaceHeatMapBar();
     PlaceHeatRangeBar();
+    PlaceEventLogBars();
     PlaceUndoBars();
     PlaceConsoleBar();
     PlaceSourceBars();
@@ -8595,7 +8652,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -8696,6 +8753,16 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_heatRangeBar != nullptr && m_heatRangeBar->IsVisible())
     {
         barTip = m_heatRangeBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+    }
+
+    //  And the event logs'.
+    for (auto [log, logPane] : { std::pair { &m_diskLog, DebuggerLayout::kDiskLog }, std::pair { &m_inputLog, DebuggerLayout::kInputLog } })
+    {
+        if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (logPane) &&
+            log->bar != nullptr && log->bar->IsVisible())
+        {
+            barTip = log->bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        }
     }
 
     //  And the registers, stack and watch panes'.
@@ -11226,6 +11293,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the event logs'.
+    if (RouteEventLogBarMouse (ev))
+    {
+        return true;
+    }
+
     //  Then the registers, stack and watch panes' Undo and Redo.
     if (RouteUndoBarMouse (ev))
     {
@@ -11353,7 +11426,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         HoverGutter   (ev.positionDip);
         DragPcMarker  (ev.positionDip);
 
-        for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+        for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
         {
             if (IsRoutable (box))
             {
@@ -11559,6 +11632,8 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
     if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar, m_heatViewBar }; }
     if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }
+    if (pane == DebuggerLayout::kDiskLog)     { return { m_diskLog.slot.get(), m_diskLogError, m_diskLog.list, m_diskLog.bar, m_diskTrackBox, m_diskSectorBox }; }
+    if (pane == DebuggerLayout::kInputLog)    { return { m_inputLog.slot.get(), m_inputLog.list, m_inputLog.bar }; }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -11630,6 +11705,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_heatRangeFrame.get();
     }
 
+    if (GetEventLogOf (pane) != nullptr)
+    {
+        return GetEventLogOf (pane)->frame.get();
+    }
+
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -11686,6 +11766,8 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
     if (pane == DebuggerLayout::kHeatMap)     { return L"Heat map";    }
     if (pane == DebuggerLayout::kHeatRanges)  { return L"Heat map ranges"; }
+    if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
+    if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {
@@ -13479,6 +13561,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  Ctrl+C in an event log copies its selected rows.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'C' && CopyEventLog (focused, false))
+    {
+        return true;
+    }
+
     //  Ctrl+C with nothing selected in the command line copies what is
     //  selected in the output above it, where a click leaves the focus.
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && ev.ctrl && !ev.alt && ev.vk == 'C' &&
@@ -13551,7 +13639,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  floating window keeps its own focused flag after a click back here.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return (focused == m_commandBox || focused == m_memoryBox) && focused->OnKey (ev);
+        return (focused == m_commandBox || focused == m_memoryBox || focused == m_diskTrackBox || focused == m_diskSectorBox) && focused->OnKey (ev);
     }
 
     //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).

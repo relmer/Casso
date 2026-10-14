@@ -1,4 +1,4 @@
-﻿#include "resource.h"
+#include "resource.h"
 #include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
 #include "Version.h"    // single source of truth for the app version
@@ -98,6 +98,8 @@ BEGIN
     "1",            IDM_DISK_INSERT1,       VIRTKEY, CONTROL
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
     VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
+    "D",            IDM_VIEW_DISK2_LOG,     VIRTKEY, CONTROL, SHIFT
+    "I",            IDM_VIEW_INPUT_LOG,     VIRTKEY, CONTROL, SHIFT
     VK_OEM_COMMA,   IDM_VIEW_SETTINGS,      VIRTKEY, CONTROL
     "J",            IDM_MACHINE_ARROWS_JOYSTICK, VIRTKEY, CONTROL, SHIFT
     "C",            IDM_EDIT_COPY_SCREENSHOT, VIRTKEY, CONTROL, ALT

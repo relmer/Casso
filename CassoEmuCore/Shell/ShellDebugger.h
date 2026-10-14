@@ -201,6 +201,9 @@ public:
     // keys where they are, for a window the launch opens.
     void    OpenDebuggerWindow (bool activate = true);
 
+    // Opens the window with an event log pane in front. UI thread.
+    void    OpenDebuggerLog    (DebugLogKind kind);
+
     // True when a message went to the debugger window or a floating pane.
     bool    IsDebuggerMessage  (const MSG & msg) const;
 
@@ -250,6 +253,8 @@ public:
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
     void    SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) override;
     void    TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
+    std::string  GetDebuggerEventLogOptions (DebugLogKind kind) override;
+    void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override;
     void    SetDebuggerHeatMapShown  (bool shown) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;

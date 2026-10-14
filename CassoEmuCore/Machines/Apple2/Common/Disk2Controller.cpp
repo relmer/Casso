@@ -1063,7 +1063,9 @@ void Disk2Controller::SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) n
 //  Disk2Controller::GetDiagnostics
 //
 //  Q6 and Q7 together select what the sequencer does: read, sense the write
-//  protect, shift out a write, or load the write latch.
+//  protect, shift out a write, or load the write latch. With the motor on,
+//  Q7 is whether the drive is reading or writing (FR-216). The last address
+//  field is the one the watcher decoded last; a field not yet seen is "?".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1074,13 +1076,16 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     constexpr int                 kHundredth = 25;      // hundredths of a track in a quarter
     const Disk2NibbleEngine     & engine     = m_engine[m_activeDrive];
     int                           mode       = ((int) m_q7 << 1) | (int) m_q6;
+    const char                  * activity   = !m_motorOn ? "idle" : (m_q7 ? "writing" : "reading");
     DiagnosticsGroup              drive      { "Drive", {} };
     DiagnosticsGroup              head       { "Head", {} };
     DiagnosticsGroup              sequencer  { "Sequencer", {} };
+    auto                          field      = [] (char prefix, int value) { return (value < 0) ? std::format ("{}?", prefix) : std::format ("{}{}", prefix, value); };
 
 
 
     drive.rows.push_back (MakeTextRow ("Active drive",   std::format ("{}", m_activeDrive + 1)));
+    drive.rows.push_back (MakeTextRow ("Activity",       activity));
     drive.rows.push_back (MakeFlagRow ("Motor",          m_motorOn));
     drive.rows.push_back (MakeFlagRow ("At speed",       IsMotorAtSpeed()));
     drive.rows.push_back (MakeTextRow ("Spin-up left",   std::format ("{} cycles", m_motorSpinupRemaining)));
@@ -1090,6 +1095,9 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", m_quarterTrack)));
     head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", m_quarterTrack / kQuarters, (m_quarterTrack % kQuarters) * kHundredth)));
     head.rows.push_back (MakeByteRow ("Phases",        m_phases, { "", "", "", "", "PH3", "PH2", "PH1", "PH0" }));
+    head.rows.push_back (MakeTextRow ("Last address field", std::format ("{} {} {}", field ('T', m_addrMarkWatcher.GetCachedTrack()),
+                                                                                    field ('S', m_addrMarkWatcher.GetCachedSector()),
+                                                                                    field ('V', m_addrMarkWatcher.GetCachedVolume()))));
 
     sequencer.rows.push_back (MakeTextRow ("Mode",            kModes[mode]));
     sequencer.rows.push_back (MakeFlagRow ("Q6",              m_q6));

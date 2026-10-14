@@ -32,6 +32,9 @@
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/DiskLogPane.h"
+#include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Ui/Debugger/ToolbarBoxEntry.h"
 #include "Ui/Debugger/Panes/FindWidgetPlate.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
@@ -103,6 +106,11 @@ public:
     //  is, sends nothing and has none.
     virtual void  SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) { (void) kind; (void) request; }
     virtual void  TakeDebuggerEventLogs       (DebugLogDeltas & deltas)                         { (void) deltas; }
+
+    //  An event log pane's options text, saved the same way. A host with no
+    //  preferences, as a test's is, has none.
+    virtual std::string  GetDebuggerEventLogOptions (DebugLogKind kind)                          { (void) kind; return {}; }
+    virtual void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) { (void) kind; (void) text; }
 
     //  Whether the heat map pane is shown; the machine records its accesses
     //  only while it is. A host with no machine, as a test's is, records none.
@@ -340,6 +348,9 @@ public:
     //  Writes the placement if the user put the window somewhere else, for a
     //  shell shutting down while the window is still open.
     void     SavePlacementIfMoved ();
+
+    //  Puts an event log pane in front, opening it for good.
+    void     OpenEventLog         (DebugLogKind kind);
 
 protected:
     void     OnCreate        () override;
@@ -1364,6 +1375,49 @@ private:
     const HeatMapRangeSet *  GetEditedSet             () const;
     const HeatMapSymbols &   GetHeatRangeSymbols      () const;
     std::optional<size_t>    GetSelectedHeatRange     () const;
+
+    //  The Disk II event log and the input log, each its bar over its list.
+    //  The Disk II log's bar has its track and sector boxes, and a line under
+    //  it lists the tokens not taken. Each pane is closed until the user
+    //  first opens it; its options text then has "open=1".
+    struct EventLogWidgets
+    {
+        DxuiListView                               * list     = nullptr;
+        DxuiToolbar                                * bar      = nullptr;
+        std::unique_ptr<DebuggerPaneFrame>           frame;
+        std::unique_ptr<DebuggerPaneFrame>           slot;
+        std::vector<std::shared_ptr<DxuiCommand>>    commands;
+        bool                                         isOpened = false;
+    };
+
+    static constexpr int                         kEventLogBoxDip    = 90;
+    static constexpr int                         kTrackLabelDip     = 48;
+    static constexpr int                         kSectorLabelDip    = 56;
+    EventLogWidgets                              m_diskLog;
+    EventLogWidgets                              m_inputLog;
+    std::unique_ptr<DiskLogPane>                 m_diskLogPane;
+    std::unique_ptr<InputLogPane>                m_inputLogPane;
+    DxuiLabel                                  * m_diskLogError     = nullptr;
+    DxuiTextInput                              * m_diskTrackBox     = nullptr;
+    DxuiTextInput                              * m_diskSectorBox    = nullptr;
+    std::unique_ptr<ToolbarBoxEntry>             m_diskTrackEntry;
+    std::unique_ptr<ToolbarBoxEntry>             m_diskSectorEntry;
+
+    void                     CreateEventLogs          ();
+    void                     ConfigureEventLogs       ();
+    void                     SetEventLogBarEntries    ();
+    void                     SetEventLogMenus         ();
+    void                     PlaceEventLogBars        ();
+    void                     PlaceEventLogBar         (EventLogWidgets & log, const std::wstring & pane);
+    bool                     RouteEventLogBarMouse    (const DxuiMouseEvent & ev);
+    void                     ApplyEventLogs           ();
+    void                     ReadEventLogBoxes        ();
+    void                     SaveEventLogOptions      (DebugLogKind kind);
+    bool                     CopyEventLog             (IDxuiControl * focused, bool isAll);
+
+    EventLogWidgets        * GetEventLogOf            (const std::wstring & pane);
+    const EventLogWidgets  * GetEventLogOf            (const std::wstring & pane) const;
+    void                     AddEventLogMenuItems     (DxuiListView * list, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>           m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryFrames;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryBars;

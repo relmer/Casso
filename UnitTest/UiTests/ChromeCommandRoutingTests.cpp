@@ -56,6 +56,8 @@ public:
 
         IDM_MACHINE_PAUSE,
         IDM_MACHINE_STEP,
+        IDM_VIEW_DISK2_LOG,
+        IDM_VIEW_INPUT_LOG,
 
         IDM_DISK_INSERT1,
         IDM_DISK_EJECT1,
@@ -132,6 +134,8 @@ public:
         { L"IDM_VIEW_FULLSCREEN",           IDM_VIEW_FULLSCREEN           },
         { L"IDM_VIEW_CRT_SHADER",           IDM_VIEW_CRT_SHADER           },
         { L"IDM_VIEW_RESET_SIZE",           IDM_VIEW_RESET_SIZE           },
+        { L"IDM_VIEW_INPUT_LOG",            IDM_VIEW_INPUT_LOG            },
+        { L"IDM_VIEW_DISK2_LOG",            IDM_VIEW_DISK2_LOG            },
         { L"IDM_VIEW_DEBUGGER",             IDM_VIEW_DEBUGGER             },
         { L"IDM_DEBUG_RESTART",             IDM_DEBUG_RESTART             },
         { L"IDM_DEBUG_COMMAND",             IDM_DEBUG_COMMAND             },

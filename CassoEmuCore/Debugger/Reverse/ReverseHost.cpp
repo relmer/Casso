@@ -349,6 +349,7 @@ HistoryStatus ReverseHost::GetStatus() const
     status.isBehindLive = m_controller.IsInHistory();
     status.cycle        = cycle;
     status.wallTime     = m_controller.GetWallTimeAt (cycle);
+    status.position     = position;
 
     if (status.isRecording)
     {

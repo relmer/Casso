@@ -260,6 +260,8 @@
     <ClCompile Include="DebuggerTests\CommandCompletionTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerCommandCompletionWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceTests.cpp" />
+    <ClCompile Include="DebuggerTests\EventLogPaneTests.cpp" />
+    <ClCompile Include="DebuggerTests\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />

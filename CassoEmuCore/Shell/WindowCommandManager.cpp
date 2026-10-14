@@ -1071,6 +1071,13 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        case IDM_VIEW_DISK2_LOG:
+        case IDM_VIEW_INPUT_LOG:
+        {
+            m_shell.m_debugger->OpenDebuggerLog ((id == IDM_VIEW_DISK2_LOG) ? DebugLogKind::Disk : DebugLogKind::Input);
+            break;
+        }
+
         case IDM_DEBUG_RESTART:
         {
             // Both go to the CPU queue in order: the channel opens, which

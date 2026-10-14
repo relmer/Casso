@@ -27,7 +27,8 @@
 //
 //  cycle is the machine's CPU cycle count since power-on, where it stands,
 //  and wallTime the host's clock when the machine stood there live, counted
-//  on from the newest snapshot at or before it; 0 when unknown.
+//  on from the newest snapshot at or before it; 0 when unknown. position is
+//  the instructions it has retired.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +52,7 @@ struct HistoryStatus
 
     uint64_t                       cycle              = 0;
     uint64_t                       wallTime           = 0;
+    uint64_t                       position           = 0;
 
     //  The emulated clock's rate, and the host time at cycle given the host
     //  time at baseCycle: 0 when that is unknown.

@@ -73,6 +73,12 @@ struct DebuggerSettings
     // HeatMapRangeSets' text; empty until the ranges pane first opens.
     std::string  heatMapRanges;
 
+    // The Disk II event log's and the input log's filters and columns, and
+    // whether each pane was open, in the panes' options text; empty is the
+    // defaults, closed.
+    std::string  diskLogOptions;
+    std::string  inputLogOptions;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout
