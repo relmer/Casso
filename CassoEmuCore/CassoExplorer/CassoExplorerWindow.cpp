@@ -8002,6 +8002,12 @@ void CassoExplorerWindow::SelectRowNamed (const std::wstring & name)
             m_browser.SetSelectedRows ({ (int) i });
             m_list->SetSelectedRows ({ (int) i }, (int) i);
             m_list->EnsureVisible ((int) i);
+
+            //  As a click on the row would: the preview, the status bar's
+            //  count and the command bar follow the new selection.
+            FillPreview();
+            FillStatus();
+            UpdateCommandBar();
             break;
         }
     }
