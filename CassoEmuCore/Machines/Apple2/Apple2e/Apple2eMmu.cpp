@@ -644,27 +644,19 @@ void Apple2eMmu::ResolveHires20_3F()
 //
 //  Apple2eMmu::GetDiagnostics
 //
-//  The seven MMU switches as one byte with a decode, each switch as a row of
-//  its own, the language card's state where there is one, and the page map.
+//  Each MMU switch as a row of its own, the language card's state where
+//  there is one, and the page map. The switches are not one register, so
+//  they are not packed into a byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2eMmu::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 {
-    std::array<bool, 8>  bits     = { false, m_ramRd, m_ramWrt, m_altZp, m_store80, m_intCxRom, m_slotC3Rom, m_intC8Rom };
     DiagnosticsGroup     switches { "Switches", {} };
     DiagnosticsGroup     lc       { "Language card", {} };
-    Byte                 packed   = 0;
 
 
 
-    //  Bit 7 first, the order the decode lists them in.
-    for (bool bit : bits)
-    {
-        packed = (Byte) ((packed << 1) | (int) bit);
-    }
-
-    switches.rows.push_back (MakeByteRow ("MMU",       packed, { "", "RAMRD", "RAMWRT", "ALTZP", "80STORE", "INTCXROM", "SLOTC3ROM", "INTC8ROM" }));
     switches.rows.push_back (MakeFlagRow ("RAMRD",     m_ramRd));
     switches.rows.push_back (MakeFlagRow ("RAMWRT",    m_ramWrt));
     switches.rows.push_back (MakeFlagRow ("ALTZP",     m_altZp));

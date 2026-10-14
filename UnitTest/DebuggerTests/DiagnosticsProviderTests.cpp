@@ -162,11 +162,13 @@ namespace DebuggerTests
             TestMachine                  machine  ("Apple2e", TestMachine::Slots::Empty);
             DiagnosticsSnapshot          snapshot = Snapshot (*machine.GetMmu());
             const DiagnosticsMemoryMap * map      = std::get_if<DiagnosticsMemoryMap> (&snapshot.visual);
-            const DiagnosticsRow       & packed   = FindRow (snapshot, "MMU");
 
 
 
-            Assert::AreEqual ((size_t) 7, packed.bits.size(), L"RAMRD to INTC8ROM");
+            Assert::IsTrue (std::none_of (snapshot.groups.begin(), snapshot.groups.end(), [] (const DiagnosticsGroup & group)
+            {
+                return std::any_of (group.rows.begin(), group.rows.end(), [] (const DiagnosticsRow & row) { return row.label == "MMU"; });
+            }), L"no packed row: each switch is listed once");
 
             for (const char * name : { "RAMRD", "RAMWRT", "ALTZP", "80STORE", "INTCXROM", "SLOTC3ROM", "INTC8ROM" })
             {
@@ -195,7 +197,6 @@ namespace DebuggerTests
             on = Snapshot (*machine.GetMmu());
 
             Assert::AreEqual (std::string ("on"), FindRow (on, "ALTZP").value);
-            Assert::IsTrue   (IsBitSet (FindRow (on, "MMU"), "ALTZP"));
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x00].read  == MemorySource::Aux);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x01].write == MemorySource::Aux);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x02].read  == MemorySource::Main, L"only pages 0 and 1");
