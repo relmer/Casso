@@ -277,6 +277,8 @@
     <ClCompile Include="Config\FileAssociations.cpp" />
     <ClCompile Include="CassoExplorer\Model\SearchQuery.cpp" />
     <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
+    <ClCompile Include="CassoExplorer\Model\AppleTextFont.cpp" />
+    <ClCompile Include="CassoExplorer\Model\AppleTextLayout.cpp" />
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
@@ -675,6 +677,8 @@
     <ClInclude Include="Seams\IShellItemVerbs.h" />
     <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
     <ClInclude Include="CassoExplorer\Model\Location.h" />
+    <ClInclude Include="CassoExplorer\Model\AppleTextFont.h" />
+    <ClInclude Include="CassoExplorer\Model\AppleTextLayout.h" />
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />

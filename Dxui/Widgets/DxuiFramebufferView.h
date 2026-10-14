@@ -62,6 +62,23 @@ public:
     //  The picture's drawn size: the fitted size, times the zoom.
     void  GetScaledSize  (int & outWidth, int & outHeight) const;
 
+    //  A picture too tall to draw whole, drawn a band at a time by the host.
+    //  The vertical scrollbar and the wheel range over `heightPx`, and each
+    //  scroll calls `onScroll` with the new top, for the host to set the band
+    //  in view. Zero ends it; a framebuffer ends it too.
+    void  SetVirtualHeight (int heightPx);
+    void  SetOnScroll      (std::function<void (int topPx)> onScroll) { m_onScroll = std::move (onScroll); }
+    void  ScrollTo         (int topPx);
+    int   GetScrollTop     () const { return m_scrollTop; }
+    bool  IsVirtual        () const { return m_virtualHeight > 0; }
+
+    //  The width a band can take: the bounds less the vertical scrollbar.
+    int   GetBandWidth () const;
+
+    //  The band of a virtual picture whose top is `topPx` down it, drawn one
+    //  to one and centered across, with `margin` past it on every side.
+    void  SetBand (std::vector<uint32_t> bgra, int width, int height, int margin, int topPx);
+
     //  Where the picture lands inside the bounds after the last layout.
     RECT  GetDestinationRect () const;
 
@@ -75,6 +92,9 @@ public:
 private:
     void  ClampPan       ();
     void  SyncScrollbars ();
+    bool  OnVirtualMouse (const DxuiMouseEvent & ev);
+    void  PaintVirtual   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    int   GetMaxScrollTop () const;
 
     static constexpr int  s_kScrollbarWidthDip = 10;
     static constexpr int  s_kWheelStepDip      = 48;
@@ -98,4 +118,9 @@ private:
     bool                   m_integer    = true;
     bool                   m_keepAspect = true;
     float                  m_zoom       = 1.0f;
+
+    int                                m_virtualHeight = 0;
+    int                                m_scrollTop     = 0;
+    int                                m_bandTop       = 0;
+    std::function<void (int topPx)>    m_onScroll;
 };

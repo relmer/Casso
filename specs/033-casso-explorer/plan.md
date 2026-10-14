@@ -284,8 +284,10 @@ lines. The window routes such content to the picture's
 3. The view's virtual height is the total row count times the cell
    height; its scroll callback triggers step 2 for the new band.
 
-This replaces the hex view of a disk text file; the bytes are
-reachable through the hex toggle, as a binary's are.
+This replaces the hex view of a disk text file. A text file whose bytes
+are not text, such as a random-access file with zeros between its
+entries, goes to the hex view,
+as a binary does.
 
 ## Risks
 

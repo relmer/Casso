@@ -2,6 +2,7 @@
 
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -1632,12 +1633,13 @@ bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<
 {
     HostCharset   charset = GetHostCharset (bytes.subspan (0, (std::min) (bytes.size(), s_kTextSampleBytes)));
     bool          source  = IsSourceName (name);
+    bool          apple   = IsAppleExportName (name);
     bool          wideLe  = bytes.size() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE;
     bool          wideBe  = bytes.size() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF;
     std::string   narrow ((const char *) bytes.data(), bytes.size());
     std::wstring  text;
     std::wstring  line;
-    bool          isText  = (source && charset != HostCharset::None) || charset == HostCharset::Utf8 || wideLe || wideBe;
+    bool          isText  = ((source || apple) && charset != HostCharset::None) || charset == HostCharset::Utf8 || wideLe || wideBe;
 
 
 
@@ -1693,12 +1695,35 @@ bool CassoExplorerBrowser::TryPreviewText (const std::wstring & name, std::span<
         m_preview.lines.pop_back();
     }
 
-    m_preview.kind   = PreviewContent::Kind::Text;
-    m_preview.source = source;
+    m_preview.kind      = PreviewContent::Kind::Text;
+    m_preview.source    = source;
+    m_preview.appleText = apple;
     m_preview.bytes.clear();
     m_preview.hostPath.clear();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsAppleExportName
+//
+//  A BASIC listing or a text file Casso Explorer exported to the host, by the
+//  suffix the export appends to its catalog name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsAppleExportName (const std::wstring & name)
+{
+    ParsedHostName  parsed;
+
+
+
+    return HostFileNaming::Parse (name, parsed) && parsed.converted != ParsedHostName::ConvertedKind::None;
 }
 
 

@@ -8,6 +8,7 @@
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
+#include "CassoExplorer/Model/AppleTextLayout.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -722,6 +723,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  A picture fills the pane at any size, as Explorer's preview does, not
     //  only at whole multiples of its own.
     m_picture->SetScaling (false, true);
+    m_picture->SetOnScroll ([this] (int) { UpdateAppleText (false); Invalidate(); });
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -1948,6 +1950,13 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
 
 
 
+    //  Apple text is drawn through the same pass, a band at a time.
+    if (preview.appleText)
+    {
+        UpdateAppleText (force);
+        return;
+    }
+
     if (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || GetPopupHost() == nullptr)
     {
         return;
@@ -1983,6 +1992,115 @@ void CassoExplorerWindow::UpdateCrtPicture (bool force)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::UpdateAppleText
+//
+//  An Apple text preview in the Apple II character set on the picture's
+//  monitor, through the same CRT pass. The lines are wrapped to as many
+//  characters as the pane's width takes, at the preview's zoom, and only the
+//  rows in view are drawn, since a long program drawn whole is taller than a
+//  texture can be. A new text starts at its top; the same text wrapped again,
+//  for a new width, a monitor or the line addresses, stays at the same top.
+//
+//  The band is drawn again only when it moved, the view changed height or
+//  `force` is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateAppleText (bool force)
+{
+    const PreviewContent &     preview  = m_browser.GetPreview();
+    RECT                       bounds   = m_picture->GetBounds();
+    float                      zoom     = (float) m_prefs.previewZoom / 100.0f;
+    int                        cellW    = (std::max) (1, (int) ((float) m_scaler.ToPx (AppleTextFont::kCellWidth)  * zoom));
+    int                        cellH    = (std::max) (1, (int) ((float) m_scaler.ToPx (AppleTextFont::kCellHeight) * zoom));
+    int                        columns  = (std::max) (1, m_picture->GetBandWidth() / cellW);
+    int                        viewH    = (int) (bounds.bottom - bounds.top);
+    std::vector<std::wstring>  lines    = GetAppleTextLines (preview, m_prefs.lineAddresses);
+    PicturePreview::Monitor    monitor  = m_browser.GetPictureMonitor();
+    auto                       found    = m_prefs.crtOverrides.end();
+    Win32FileSystem            fs;
+    std::vector<uint32_t>      source;
+    std::vector<uint32_t>      drawn;
+    int                        sourceW  = 0;
+    int                        sourceH  = 0;
+    int                        margin   = 0;
+    size_t                     first    = 0;
+    size_t                     last     = 0;
+    CrtResolved                resolved;
+    CrtParams                  params;
+    HRESULT                    hr       = S_OK;
+
+
+
+    if (!preview.appleText || GetPopupHost() == nullptr || viewH <= 0 || m_picture->GetBandWidth() <= 0)
+    {
+        return;
+    }
+
+    if (!m_appleFontLoaded)
+    {
+        m_appleFont.Load (fs, PathResolver::GetLocalAppDataDir (L"Casso").wstring());
+        m_appleFontLoaded = true;
+    }
+
+    if (lines != m_appleLines)
+    {
+        m_picture->SetVirtualHeight (0);
+        m_appleLines = std::move (lines);
+        force        = true;
+    }
+
+    if (force || columns != m_appleColumns || cellH != m_appleCellHeight)
+    {
+        m_appleRows       = AppleTextLayout::MakeScreenRows (m_appleLines, columns);
+        m_appleColumns    = columns;
+        m_appleCellHeight = cellH;
+        force             = true;
+
+        m_picture->SetVirtualHeight ((std::max) (1, (int) m_appleRows.size() * cellH));
+    }
+
+    if (!force && m_picture->GetScrollTop() == m_appleBandTop && viewH == m_appleViewHeight)
+    {
+        return;
+    }
+
+    first = (size_t) (m_picture->GetScrollTop() / cellH);
+    last  = (size_t) ((m_picture->GetScrollTop() + viewH + cellH - 1) / cellH);
+
+    m_appleBandTop    = m_picture->GetScrollTop();
+    m_appleViewHeight = viewH;
+
+    if (last <= first)
+    {
+        m_picture->SetBand ({}, 0, 0, 0, 0);
+        return;
+    }
+
+    m_appleFont.Render (m_appleRows, first, last - first, columns, source, sourceW, sourceH);
+    PicturePreview::Tint (source, monitor, m_prefs.previewCustomArgb);
+
+    found              = m_prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) monitor]);
+    resolved           = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (monitor)), GetPreviewCrtDefaults(),
+                                               (found != m_prefs.crtOverrides.end()) ? found->second : CrtOverrides());
+    params             = MakeCrtParams (resolved, (float) (columns * cellW), (float) ((last - first) * (size_t) cellH));
+    params.persistence = 0.0f;
+
+    hr = m_crtPicture.Render (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext(), source, sourceW, sourceH,
+                              columns * cellW, (int) (last - first) * cellH, params, drawn, margin);
+
+    if (SUCCEEDED (hr))
+    {
+        m_picture->SetBand (std::move (drawn), columns * cellW + 2 * margin, (int) (last - first) * cellH + 2 * margin, margin, (int) first * cellH);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::FillPreview
 //
 //  The preview's kind picks the widget: a picture in the framebuffer view, a
@@ -1996,6 +2114,7 @@ void CassoExplorerWindow::FillPreview()
     std::vector<std::vector<DxuiListView::Cell>>    rows;
     bool                                            visible  = m_prefs.previewVisible;
     bool                                            picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
+    bool                                            apple    = preview.appleText && !preview.lines.empty();
     bool                                            hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
     bool                                            opened   = hostFile && (m_fileBytes.GetPath() == preview.hostPath || m_fileBytes.Open (preview.hostPath));
     HostCharset                                     charset  = opened ? m_fileBytes.GetCharset() : preview.hostCharset;
@@ -2022,6 +2141,11 @@ void CassoExplorerWindow::FillPreview()
     else
     {
         m_picture->Clear();
+    }
+
+    if (apple)
+    {
+        UpdateAppleText (true);
     }
 
     //  A catalog of any volume but DOS 3.3 or ProDOS arrives as rows under
@@ -2097,7 +2221,7 @@ void CassoExplorerWindow::FillPreview()
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
-    blank = m_list->GetSelectedRows().empty() && !picture && !error && !hex && !columns && !program;
+    blank = m_list->GetSelectedRows().empty() && !picture && !apple && !error && !hex && !columns && !program;
 
     m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
                                : !error                ? std::wstring()
@@ -2110,9 +2234,9 @@ void CassoExplorerWindow::FillPreview()
     m_previewMessage->SetTextRole (blank ? DxuiTextRole::Body : DxuiTextRole::Muted);
     m_previewMessage->SetFontDip  (blank ? kPromptFontDip : 0.0f);
 
-    m_picture->SetVisible (visible && picture);
+    m_picture->SetVisible (visible && (picture || apple));
     m_previewList->SetVisible (visible && columns);
-    m_textView->SetVisible (visible && !picture && !error && !hex && !columns && !blank);
+    m_textView->SetVisible (visible && !picture && !apple && !error && !hex && !columns && !blank);
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
@@ -3679,6 +3803,11 @@ bool CassoExplorerWindow::IsEnabled (int id) const
 
     //  A standard command row is enabled when the focused control reports it
     //  available, and grayed when no control handles it.
+    if (standard == DxuiStandardCommand::Copy && m_focus == Pane::Preview && IsAppleTextShowing())
+    {
+        return true;
+    }
+
     if (standard != DxuiStandardCommand::None)
     {
         return DxuiCommandRouter::Query (GetFocusedControl(), standard, enabled) && enabled;
@@ -3824,6 +3953,7 @@ IDxuiControl * CassoExplorerWindow::GetFocusedControl() const
         case Pane::List:    return m_list;
         case Pane::Preview: return IsHexPreviewShowing()  ? (IDxuiControl *) m_hexView
                                  : IsTextPreviewShowing() ? (IDxuiControl *) m_textView
+                                 : IsAppleTextShowing()   ? nullptr
                                                           : (IDxuiControl *) m_previewList;
         default:            return nullptr;
     }
@@ -3857,6 +3987,21 @@ bool CassoExplorerWindow::IsHexPreviewShowing() const
 bool CassoExplorerWindow::IsTextPreviewShowing() const
 {
     return m_prefs.previewVisible && m_textView->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsAppleTextShowing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsAppleTextShowing() const
+{
+    return m_prefs.previewVisible && m_picture->IsVisible() && m_picture->IsVirtual();
 }
 
 
@@ -3985,6 +4130,70 @@ std::vector<DxuiTextView::Row> CassoExplorerWindow::BuildTextRows (const Preview
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetAppleTextLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerWindow::GetAppleTextLines (const PreviewContent & preview, bool lineAddresses)
+{
+    std::vector<std::wstring>  lines     = preview.lines;
+    std::vector<Word>          addresses;
+
+
+
+    if (lineAddresses && preview.kind == PreviewContent::Kind::Listing)
+    {
+        addresses = GetLineAddresses (preview.bytes, preview.integerBasic);
+    }
+
+    for (size_t i = 0; i < addresses.size() && i < lines.size(); i++)
+    {
+        lines[i] = std::format (L"${:04X} {}", addresses[i], lines[i]);
+    }
+
+    if (!preview.warning.empty())
+    {
+        lines.emplace_back();
+        lines.push_back (preview.warning);
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::JoinAppleText
+//
+//  The lines as the clipboard takes text, each ended by a return and a line
+//  feed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::JoinAppleText (const std::vector<std::wstring> & lines)
+{
+    std::wstring  text;
+
+
+
+    for (const std::wstring & line : lines)
+    {
+        text += line;
+        text += L"\r\n";
+    }
+
+    return text;
 }
 
 
@@ -4877,6 +5086,13 @@ void CassoExplorerWindow::Dispatch (int id)
     //  rather than decided here.
     if (CassoExplorerCommands::GetStandardCommand (id) != DxuiStandardCommand::None)
     {
+        //  Apple text on the monitor is a picture, with no selection, so Copy
+        //  takes the whole text.
+        if (id == CassoExplorerCommands::kCopy && m_focus == Pane::Preview && IsAppleTextShowing())
+        {
+            DxuiClipboard::SetText (GetHwnd(), JoinAppleText (m_appleLines));
+        }
+
         IGNORE_RETURN_VALUE (routed, true);
         Invalidate();
         return;
@@ -5043,6 +5259,7 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kLineAddresses:
             m_prefs.lineAddresses = !m_prefs.lineAddresses;
             m_textView->SetRows (BuildTextRows (m_browser.GetPreview(), m_prefs.lineAddresses, GetSourceColors (m_theme)));
+            UpdateAppleText (true);
             Invalidate();
             break;
 

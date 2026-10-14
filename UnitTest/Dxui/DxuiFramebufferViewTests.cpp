@@ -131,4 +131,67 @@ public:
         Assert::AreEqual (40, text.GetLastFramebufferWidth());
         Assert::AreEqual (30, text.GetLastFramebufferHeight());
     }
+
+
+    TEST_METHOD (VirtualHeight_ScrollsByTheWheelAndAnnouncesTheTop)
+    {
+        DxuiFramebufferView    view;
+        DxuiMouseEvent         wheel;
+        std::vector<int>       tops;
+        std::vector<uint32_t>  pixels (4 * 4);
+
+        LayOut (view, 100, 50);
+        view.SetVirtualHeight (500);
+        view.SetOnScroll ([&tops] (int top) { tops.push_back (top); });
+
+        wheel.kind       = DxuiMouseEventKind::Wheel;
+        wheel.wheelDelta = -1.0f;
+
+        Assert::IsTrue   (view.IsVirtual());
+        Assert::IsTrue   (view.CanPan());
+        Assert::IsTrue   (view.OnMouse (wheel), L"A notch down scrolls");
+        Assert::AreEqual (48, view.GetScrollTop());
+        Assert::AreEqual ((size_t) 1, tops.size());
+        Assert::AreEqual (48, tops[0], L"and calls back with the new top");
+
+        view.ScrollTo (10000);
+        Assert::AreEqual (450, view.GetScrollTop(), L"No further than puts the end at the bottom");
+
+        LayOut (view, 100, 200);
+        Assert::AreEqual (300, view.GetScrollTop(), L"A taller view has less to scroll");
+        Assert::AreEqual (90, view.GetBandWidth(), L"The band is as wide as the bounds less the scrollbar");
+
+        view.SetFramebuffer (pixels.data(), 4, 4);
+        Assert::IsFalse  (view.IsVirtual(), L"A framebuffer ends it");
+        Assert::AreEqual (0, view.GetScrollTop());
+    }
+
+
+    TEST_METHOD (Band_IsPaintedWhereItLiesLessTheScroll)
+    {
+        DxuiFramebufferView    view;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        int                    draws = 0;
+
+        LayOut (view, 100, 50);
+        view.SetVirtualHeight (500);
+        view.ScrollTo (100);
+        view.SetBand (std::vector<uint32_t> (84 * 44), 84, 44, 2, 90);
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawFramebuffer)
+            {
+                draws++;
+                Assert::AreEqual (3.0f,   call.x, L"Centered across the band width, its margin to the left");
+                Assert::AreEqual (-12.0f, call.y, L"Ten above the top, less its margin");
+                Assert::AreEqual (84.0f,  call.width);
+            }
+        }
+
+        Assert::AreEqual (1, draws);
+    }
 };

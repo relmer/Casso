@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/Model/AppleTextFont.h"
 #include "CassoExplorer/Model/FocusRing.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/IFileSystem.h"
@@ -336,6 +337,12 @@ public:
     //  as Casso's debugger colors its source.
     static SourceSyntax::Colors            GetSourceColors (const IDxuiTheme * theme);
 
+    //  An Apple text preview's lines as drawn on the monitor: a listing's with
+    //  each line's address before it when `lineAddresses` is set, and a warning
+    //  after a blank.
+    static std::vector<std::wstring>       GetAppleTextLines (const PreviewContent & preview, bool lineAddresses);
+    static std::wstring                    JoinAppleText     (const std::vector<std::wstring> & lines);
+
     //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
     static constexpr uint32_t              s_kDarkLumaLimit = 127500;
 
@@ -568,6 +575,7 @@ private:
     //  depend on it.
     bool  IsHexPreviewShowing() const;
     bool  IsTextPreviewShowing() const;
+    bool  IsAppleTextShowing() const;
 
     //  The text view's rows for a preview: a BASIC line as its number and its
     //  statement, a detail as its label and value, anything else as one cell.
@@ -605,6 +613,7 @@ private:
     PicturePreview::Monitor   GetPreviewMonitor     () const;
     const ThemeCrtDefaults *  GetPreviewCrtDefaults ();
     void                      UpdateCrtPicture      (bool force);
+    void                      UpdateAppleText       (bool force);
     void                      SelectMonitor         (PicturePreview::Monitor monitor);
     void                      PreviewMonitor        (int index);
     void                      ShowPictureContextMenu (int x, int y);
@@ -789,6 +798,14 @@ private:
     std::string                                  m_crtThemeName;
     LoadedTheme                                  m_crtTheme;
     bool                                         m_crtThemeValid   = false;
+    AppleTextFont                                m_appleFont;
+    bool                                         m_appleFontLoaded = false;
+    std::vector<std::wstring>                    m_appleLines;
+    std::vector<std::wstring>                    m_appleRows;
+    int                                          m_appleColumns    = 0;
+    int                                          m_appleCellHeight = 0;
+    int                                          m_appleBandTop    = -1;
+    int                                          m_appleViewHeight = 0;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 

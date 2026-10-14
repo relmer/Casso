@@ -197,6 +197,56 @@ bool PreviewDecoder::LooksLikeText (std::span<const Byte> bytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDecoder::SplitAppleText
+//
+//  A line feed after a return ends nothing more, so a file written on the
+//  host with both reads the same as one written on the Apple.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::SplitAppleText (std::span<const Byte> bytes, std::vector<std::wstring> & outLines)
+{
+    static constexpr size_t  kTabStop = 8;
+    std::wstring             line;
+    Byte                     previous = 0;
+
+
+
+    outLines.clear();
+
+    for (Byte raw : bytes)
+    {
+        Byte  value = (Byte) (raw & 0x7F);
+
+        if (value == '\r' || (value == '\n' && previous != '\r'))
+        {
+            outLines.push_back (std::move (line));
+            line.clear();
+        }
+        else if (value == '\t')
+        {
+            line.append (kTabStop - line.size() % kTabStop, L' ');
+        }
+        else if (value != 0 && value != '\n')
+        {
+            line.push_back ((wchar_t) value);
+        }
+
+        previous = (value == 0) ? previous : value;
+    }
+
+    if (!line.empty())
+    {
+        outLines.push_back (std::move (line));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDecoder::SplitIntoLines
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,15 +523,24 @@ HRESULT PreviewDecoder::Render (
             }
 
             SplitIntoLines (text, outContent.lines);
+            outContent.appleText = outContent.kind == PreviewContent::Kind::Listing;
             break;
 
         case PreviewContent::Kind::Text:
-            //  Text shows in the hex view with only its characters, where its
-            //  bytes are one toggle away.
-            outContent.kind     = PreviewContent::Kind::Hex;
-            outContent.bytes    = payload.bytes;
-            outContent.origin   = origin;
-            outContent.textFile = LooksLikeText (payload.bytes);
+            //  Text is drawn in the Apple's own characters. A text file whose
+            //  bytes are not text goes to the hex view, as a binary does.
+            if (LooksLikeText (payload.bytes))
+            {
+                SplitAppleText (payload.bytes, outContent.lines);
+                outContent.appleText = true;
+            }
+            else
+            {
+                outContent.kind   = PreviewContent::Kind::Hex;
+                outContent.bytes  = payload.bytes;
+                outContent.origin = origin;
+            }
+
             break;
 
         case PreviewContent::Kind::Picture:

@@ -1495,6 +1495,30 @@ public:
     }
 
 
+    //  A listing or text Casso Explorer exported is drawn in the Apple's
+    //  characters, by its name; other text is not.
+    TEST_METHOD (ExportedAppleText_PreviewsInTheAppleCharacters)
+    {
+        Host  host;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\HELLO.Applesoft BASIC.txt", "10  PRINT \"HELLO\"\r\n"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.txt", "a \xE2\x80\x94 b\n"));
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO.Applesoft BASIC.txt") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"ASCII, read as lines");
+        Assert::IsTrue (host.browser.GetPreview().appleText);
+        Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"10  PRINT \"HELLO\"" }));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.txt") });
+        Assert::IsFalse (host.browser.GetPreview().appleText);
+
+        Assert::IsTrue  (CassoExplorerBrowser::IsAppleExportName (L"GAME.Integer BASIC.txt"));
+        Assert::IsTrue  (CassoExplorerBrowser::IsAppleExportName (L"NOTES.Text.txt"));
+        Assert::IsFalse (CassoExplorerBrowser::IsAppleExportName (L"readme.txt"));
+    }
+
+
     //  A disk image opens as one even with no file system on it, and the
     //  reason appears in the list, rather than another program opening it.
     TEST_METHOD (ImageWithNoFileSystem_OpensAndSaysWhy)

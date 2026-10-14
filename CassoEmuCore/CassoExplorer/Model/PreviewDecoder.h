@@ -99,6 +99,10 @@ struct PreviewContent
     //  numbers.
     bool                       source = false;
 
+    //  Set for a BASIC listing, an Apple text file and a host file exported
+    //  from one, drawn in the Apple II character set on the chosen monitor.
+    bool                       appleText = false;
+
     //  A picture's mode, as chosen and as drawn, with its bytes in `bytes` and
     //  its load address in `origin`, so it can be drawn again for another
     //  monitor, or a double hi-res picture the other way, without a read.
@@ -163,6 +167,11 @@ public:
     //  Whether a file's leading bytes read as text, with or without the high
     //  bit Apple text uses; a DOS 3.3 file's zero padding does not count.
     static bool  LooksLikeText (std::span<const Byte> bytes);
+
+    //  An Apple text file's lines: the high bit cleared, a return ending each
+    //  line, zero bytes dropped, and tabs expanded to the next
+    //  stop of eight.
+    static void  SplitAppleText (std::span<const Byte> bytes, std::vector<std::wstring> & outLines);
 
 private:
     static bool  IsApplesoftType (Byte type, VolumeKind kind);

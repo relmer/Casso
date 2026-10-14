@@ -120,18 +120,20 @@ public:
 
         RenderDos33 ("HELLO", false, content);
         Assert::IsTrue (content.kind == Kind::Listing);
+        Assert::IsTrue (content.appleText, L"A listing is drawn in the Apple's characters");
         Assert::AreEqual (std::wstring (L"10  PRINT \"HELLO, CASSQUE\""), content.lines[0]);
 
         RenderDos33 ("INTPROG", false, content);
         Assert::IsTrue (content.kind == Kind::Listing);
+        Assert::IsTrue (content.appleText);
         Assert::AreEqual (std::wstring (L"15 DSP I"), content.lines[1]);
 
-        //  Text goes to the hex view, showing only its characters.
+        //  Text is lines, the high bit cleared, drawn in the Apple's characters.
         RenderDos33 ("NOTES", false, content);
-        Assert::IsTrue (content.kind == Kind::Hex);
-        Assert::IsTrue (content.textFile);
-        Assert::IsTrue (!content.bytes.empty() && (content.bytes[0] & 0x7F) == 'C',
-            L"The bytes are the file's, with the high bit Apple text uses");
+        Assert::IsTrue (content.kind == Kind::Text);
+        Assert::IsTrue (content.appleText);
+        Assert::IsTrue (!content.lines.empty() && content.lines[0].starts_with (L"C"),
+            L"The first line is the file's, without the high bit Apple text uses");
 
         RenderDos33 ("PICTURE", false, content);
         Assert::IsTrue (content.kind == Kind::Picture);
@@ -558,5 +560,20 @@ public:
         Assert::IsTrue  (PreviewDecoder::LooksLikeText (apple),  L"High-bit Apple text, with its sector padding");
         Assert::IsFalse (PreviewDecoder::LooksLikeText (binary), L"Machine code");
         Assert::IsFalse (PreviewDecoder::LooksLikeText (zeros),  L"Nothing but padding");
+    }
+
+
+    TEST_METHOD (AppleText_SplitsAtEachReturn)
+    {
+        const Byte                 bytes[] = { 0xC8, 0xC9, 0x8D, 0x8D, 0xC1, 0x89, 0xC2, 0x8D, 0x0A, 0x00, 0x00, 0xC3 };
+        std::vector<std::wstring>  lines;
+
+        PreviewDecoder::SplitAppleText (bytes, lines);
+
+        Assert::AreEqual ((size_t) 4, lines.size());
+        Assert::AreEqual (std::wstring (L"HI"),       lines[0], L"The high bit is cleared");
+        Assert::AreEqual (std::wstring(),            lines[1], L"Between two returns is an empty line");
+        Assert::AreEqual (std::wstring (L"A       B"), lines[2], L"A tab is expanded to the next stop of eight, and a line feed after a return ends no line");
+        Assert::AreEqual (std::wstring (L"C"),        lines[3], L"Zero bytes are dropped, and a last line without a return is a line");
     }
 };

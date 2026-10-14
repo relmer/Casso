@@ -128,6 +128,10 @@ public:
     //  previews as text with its line numbers.
     static bool              IsSourceName   (const std::wstring & name);
 
+    //  Whether a file is a BASIC listing or text Casso Explorer exported, by
+    //  its suffix, which previews in the Apple II character set.
+    static bool              IsAppleExportName (const std::wstring & name);
+
     //  The largest host file that previews as text rather than in the hex view.
     static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
 

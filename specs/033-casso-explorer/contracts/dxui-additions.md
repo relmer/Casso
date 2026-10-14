@@ -112,15 +112,19 @@ Paints via `DxuiTextRenderer::DrawFramebuffer`, centered, integer-scaled
 when it fits.
 
 ```cpp
-    void  SetVirtualHeight (int heightPx);                          // 0 = the image's own height
+    void  SetVirtualHeight (int heightPx);                          // 0 ends it
     void  SetOnScroll      (std::function<void (int topPx)> onScroll);
+    void  ScrollTo         (int topPx);
     int   GetScrollTop     () const;
+    int   GetBandWidth     () const;                                // bounds less the scrollbar
+    void  SetBand          (std::vector<uint32_t> bgra, int width, int height, int margin, int topPx);
 ```
 
 With a virtual height, the vertical scrollbar and the wheel range over
-that height, and the image is the band starting at `GetScrollTop()`. Each
-scroll calls `onScroll` with the new top, and the host replies with
-`SetDisplayImage` for that band.
+that height. Each scroll calls `onScroll` with the new top, and the host
+replies with `SetBand`: an image of the rows in view, whose top is `topPx`
+down the whole, drawn one to one and centered across the band width. A
+framebuffer ends the virtual height.
 
 ## Light and Dark palettes
 

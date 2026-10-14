@@ -154,6 +154,19 @@ hi-res picture.
 | SC-020: setup | The Casso Rocks color hi-res cassowary, booted straight to hi-res page 1 in Casso and stored as a binary at $2000 for Casso Explorer; both on the color monitor in Dark Modern with no effect changed; Casso's client 1120 wide and Casso Explorer's preview pane widened so both drew it at 1120 by 768 |
 | SC-020: before the fixes | 38% of pixels identical, every one within 2 codes per channel inside the picture, and up to 25 apart in its first and last rows. The final pass's dither was keyed on the pixel's place in the render target, and Casso draws the picture lower in its back buffer than the preview drew it in its own; and the preview's target ended at the picture's edges, where Casso's bloom spills into its letterbox |
 | SC-020: after | 99.72% of pixels identical over the picture and its top and bottom margin, and the rest one code apart in one channel, scattered through the bright areas. The dither is now counted from the picture's corner, and the preview draws the picture in a black margin as wide as its bloom and bleed sample, the glow showing in it. The one-code differences are float rounding: Casso's target is its whole client area and the preview's is the picture and its margin |
+
+### Apple text on the monitor, 2026-10-13
+
+Debug x64 at 125%, the green monitor, the fixture DOS 3.3 image and a host
+folder with a 300-line `LONG.Applesoft BASIC.txt`.
+
+| Check | Result |
+|---|---|
+| SC-026: glyphs | HELLO's listing in the enhanced //e ROM's glyphs, green on black, with scanlines and glow; the long export's lowercase drawn from the ROM's lowercase set |
+| SC-026: wrapping | Lines wrapped at the pane's width, with one blank row and column of border; the black screen fills the pane below the last line |
+| Scrolling | 60 wheel notches moved the text to line 46 and the scrollbar thumb with it; 900 more stopped at line 300 with the bottom border in view, within five seconds of the burst |
+| Host text | A `.txt` file without an export suffix drew in the theme's font, and the export drew on the monitor (unit test) |
+| No ROM, a ][+ ROM | The built-in table with no error, and lowercase folded to uppercase (unit tests) |
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of

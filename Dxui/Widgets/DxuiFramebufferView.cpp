@@ -36,6 +36,113 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
     m_displayW   = 0;
     m_displayH   = 0;
     m_displayPad = 0;
+
+    m_virtualHeight = 0;
+    m_scrollTop     = 0;
+    m_bandTop       = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::SetVirtualHeight
+//
+//  The top is unmoved, within the new height, so a band redrawn
+//  for a new width stays where the reader left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::SetVirtualHeight (int heightPx)
+{
+    m_virtualHeight = (std::max) (heightPx, 0);
+    m_scrollTop     = (m_virtualHeight == 0) ? 0 : (std::max) (0, (std::min) (m_scrollTop, GetMaxScrollTop()));
+
+    if (m_virtualHeight == 0)
+    {
+        m_display.clear();
+        m_displayW   = 0;
+        m_displayH   = 0;
+        m_displayPad = 0;
+        m_bandTop    = 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::ScrollTo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::ScrollTo (int topPx)
+{
+    int  clamped = (std::max) (0, (std::min) (topPx, GetMaxScrollTop()));
+
+
+
+    if (m_virtualHeight == 0 || clamped == m_scrollTop)
+    {
+        return;
+    }
+
+    m_scrollTop = clamped;
+
+    if (m_onScroll)
+    {
+        m_onScroll (m_scrollTop);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::GetMaxScrollTop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiFramebufferView::GetMaxScrollTop() const
+{
+    return (std::max) (0, m_virtualHeight - (int) (m_boundsDip.bottom - m_boundsDip.top));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::GetBandWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiFramebufferView::GetBandWidth() const
+{
+    return (std::max) (0, (int) (m_boundsDip.right - m_boundsDip.left) - m_scaler.ToPx (s_kScrollbarWidthDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::SetBand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::SetBand (std::vector<uint32_t> bgra, int width, int height, int margin, int topPx)
+{
+    SetDisplayImage (std::move (bgra), width, height, margin);
+    m_bandTop = topPx;
 }
 
 
@@ -192,6 +299,11 @@ bool DxuiFramebufferView::CanPan() const
 
 
 
+    if (m_virtualHeight > 0)
+    {
+        return GetMaxScrollTop() > 0;
+    }
+
     GetScaledSize (destW, destH);
 
     return destW > (m_boundsDip.right - m_boundsDip.left) || destH > (m_boundsDip.bottom - m_boundsDip.top);
@@ -257,12 +369,13 @@ void DxuiFramebufferView::SyncScrollbars()
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
 
+    //  A virtual picture scrolls only down, so its bar runs the full height.
     m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, s_kWheelStepDip);
-    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom - barW });
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom - ((m_virtualHeight > 0) ? 0 : barW) });
 
-    info.nMax  = (std::max) (destH - 1, 0);
+    info.nMax  = (m_virtualHeight > 0) ? m_virtualHeight - 1 : (std::max) (destH - 1, 0);
     info.nPage = (UINT) (std::max) (viewH, 0);
-    info.nPos  = (std::max) (0, (destH - viewH) / 2 + m_panY);
+    info.nPos  = (m_virtualHeight > 0) ? m_scrollTop : (std::max) (0, (destH - viewH) / 2 + m_panY);
     m_vertScroll.SetScrollInfo (info);
 
     m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barW, barW, s_kWheelStepDip);
@@ -294,6 +407,11 @@ bool DxuiFramebufferView::OnMouse (const DxuiMouseEvent & ev)
     int    step   = m_scaler.ToPx (s_kWheelStepDip);
 
 
+
+    if (m_virtualHeight > 0)
+    {
+        return OnVirtualMouse (ev);
+    }
 
     GetScaledSize (destW, destH);
     SyncScrollbars();
@@ -397,6 +515,73 @@ bool DxuiFramebufferView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiFramebufferView::OnVirtualMouse
+//
+//  A virtual picture moves by its scrollbar and the vertical wheel; there is
+//  nothing across to pan, so a press elsewhere is not taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiFramebufferView::OnVirtualMouse (const DxuiMouseEvent & ev)
+{
+    POINT  pt   = ev.positionDip;
+    int    step = m_scaler.ToPx (s_kWheelStepDip);
+
+
+
+    SyncScrollbars();
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Down:
+        if (ev.button != DxuiMouseButton::Left || !CanPan() || !m_vertScroll.HitTest (pt.x, pt.y))
+        {
+            return false;
+        }
+
+        m_vertScroll.OnMouseDown (pt.x, pt.y);
+        ScrollTo (m_vertScroll.GetScrollPos());
+        return true;
+
+    case DxuiMouseEventKind::Move:
+        if (!m_vertScroll.IsDragging())
+        {
+            return false;
+        }
+
+        m_vertScroll.OnMouseMove (pt.x, pt.y);
+        ScrollTo (m_vertScroll.GetScrollPos());
+        return true;
+
+    case DxuiMouseEventKind::Up:
+        if (!m_vertScroll.IsDragging())
+        {
+            return false;
+        }
+
+        m_vertScroll.OnMouseUp();
+        return true;
+
+    case DxuiMouseEventKind::Wheel:
+        if (!CanPan() || ev.wheelHorizontal || ev.shift)
+        {
+            return false;
+        }
+
+        ScrollTo (m_scrollTop - (int) (ev.wheelDelta * (float) step));
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiFramebufferView::GetCursorForPoint  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -405,7 +590,7 @@ LPCWSTR DxuiFramebufferView::GetCursorForPoint (POINT clientPx) const
 {
     (void) clientPx;
 
-    return CanPan() ? IDC_HAND : nullptr;
+    return (CanPan() && m_virtualHeight == 0) ? IDC_HAND : nullptr;
 }
 
 
@@ -424,6 +609,10 @@ void DxuiFramebufferView::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_scaler.SetDpi (scaler.GetDpi());
 
     ClampPan();
+
+    //  A taller view has less to scroll; the host draws the band again
+    //  after a layout, so `onScroll` is not called.
+    m_scrollTop = (std::max) (0, (std::min) (m_scrollTop, GetMaxScrollTop()));
 }
 
 
@@ -442,6 +631,12 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     HRESULT  hr   = S_OK;
 
 
+
+    if (m_virtualHeight > 0)
+    {
+        PaintVirtual (painter, text, theme);
+        return;
+    }
 
     if (m_pixels.empty() || dest.right <= dest.left)
     {
@@ -477,5 +672,46 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         SyncScrollbars();
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
         m_horzScroll.Paint (painter, theme.ForegroundMuted());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::PaintVirtual
+//
+//  The band where it lies in the whole picture, less the scroll, cut off at
+//  the bounds like a zoomed picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::PaintVirtual (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT  hr    = S_OK;
+    int      left  = m_boundsDip.left + (GetBandWidth() - (m_displayW - 2 * m_displayPad)) / 2 - m_displayPad;
+    int      top   = m_boundsDip.top + m_bandTop - m_scrollTop - m_displayPad;
+
+
+
+    if (!m_display.empty())
+    {
+        hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
+                                (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.DrawFramebuffer (m_display.data(), m_displayW, m_displayH, (float) left, (float) top, (float) m_displayW, (float) m_displayH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (CanPan())
+    {
+        SyncScrollbars();
+        m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
