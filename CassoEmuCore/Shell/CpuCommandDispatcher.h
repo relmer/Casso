@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Debugger/DebugCommand.h"
+#include "Debugger/Events/DebugLogDelta.h"
 #include "Debugger/HeatAccessJump.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 #include "Shell/CpuCommandTargets.h"
@@ -53,6 +54,10 @@ public:
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
+
+    //  An event log pane's request: "open", "close", or "earlier" for the
+    //  rows before its oldest.
+    virtual void     SetDebugEventLog         (DebugLogKind kind, const std::string & request)  { (void) kind; (void) request; }
 
     //  Whether the heat map pane is shown, which is whether the machine
     //  records its accesses.

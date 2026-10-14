@@ -121,6 +121,13 @@ public:
             const DebugEventBounds  & bounds  = m_stretches[i];
             Rebuilt                 * rebuilt = nullptr;
 
+            //  Recording resumed where this stretch begins; a gap within the
+            //  cache's span is an entry in the cache.
+            if (i > 0 && m_stretches[i - 1].hasGapAfter && IsWithin (bounds.startPosition, from, std::min (to, covered)))
+            {
+                out.push_back (Entry { DebugEventEntryKind::Gap, bounds.startPosition, 0, T {} });
+            }
+
             if (!IsNeeded (bounds, from, std::min (to, covered)))
             {
                 continue;
@@ -137,13 +144,6 @@ public:
             rebuilt->lastUse = ++m_useClock;
 
             AppendRebuilt (*rebuilt, from, std::min (to, covered), out);
-
-            //  Recording resumed where the next stretch begins; a gap within
-            //  the cache's span is an entry in the cache.
-            if (bounds.hasGapAfter && i + 1 < m_stretches.size() && IsWithin (m_stretches[i + 1].startPosition, from, std::min (to, covered)))
-            {
-                out.push_back (Entry { DebugEventEntryKind::Gap, m_stretches[i + 1].startPosition, 0, T {} });
-            }
         }
 
         m_cache.CopySpan (std::max (from, covered), to, out);

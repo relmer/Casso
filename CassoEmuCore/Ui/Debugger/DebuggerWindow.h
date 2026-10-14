@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerTextColors.h"
+#include "Debugger/Events/DebugLogDelta.h"
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Seams/IHostDialogs.h"
@@ -95,6 +96,13 @@ public:
 
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void  SetDebuggerTraceTop     (std::optional<uint64_t> first) = 0;
+
+    //  An event log pane's request for the machine: "open", "close", or
+    //  "earlier" for the rows before its oldest. And every delta for the
+    //  panes made since the last call. A host with no machine, as a test's
+    //  is, sends nothing and has none.
+    virtual void  SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) { (void) kind; (void) request; }
+    virtual void  TakeDebuggerEventLogs       (DebugLogDeltas & deltas)                         { (void) deltas; }
 
     //  Whether the heat map pane is shown; the machine records its accesses
     //  only while it is. A host with no machine, as a test's is, records none.

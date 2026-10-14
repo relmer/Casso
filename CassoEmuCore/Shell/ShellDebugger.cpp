@@ -1124,6 +1124,46 @@ void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SendDebuggerEventLogRequest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SendDebuggerEventLogRequest (
+    DebugLogKind          kind,
+    const std::string   & request)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", (kind == DebugLogKind::Disk) ? "disklog" : "inputlog", request));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeDebuggerEventLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
+{
+    std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+
+
+    deltas.disk.clear();
+    deltas.input.clear();
+
+    deltas.disk.swap  (m_eventLogsPending.disk);
+    deltas.input.swap (m_eventLogsPending.input);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebuggerHeatMapShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2066,6 +2106,16 @@ void ShellDebugger::CloseDebugger()
     SetDebugSession    (nullptr);
     SetReverseStopTest (nullptr);
 
+    //  The panes went with the window; the logs record on.
+    m_eventLogs.SetOpen (DebugLogKind::Disk,  false);
+    m_eventLogs.SetOpen (DebugLogKind::Input, false);
+
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        m_eventLogsPending = DebugLogDeltas();
+    }
+
     m_debugController.reset();
     m_pipeTransport.reset();
     m_pipeApi.reset();
@@ -2081,7 +2131,8 @@ void ShellDebugger::CloseDebugger()
 //
 //  The CPU manager's service tick: once per pass through its loop, paused or
 //  running, so a client gets a reply either way. The call record's rebuild
-//  from history is looked after here too, before the panes are gathered.
+//  from history and the event logs are looked after here too, before the
+//  panes are gathered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2091,6 +2142,7 @@ void ShellDebugger::ServiceDebugger()
     {
         m_debugController->Pump();
         ServiceCallHistory();
+        ServiceEventLogs();
         PublishDebuggerView();
     }
 
@@ -2249,3 +2301,68 @@ void ShellDebugger::DestroyWindow()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugEventLog
+//
+//  CPU thread: an event log pane opened or closed, or sent a request for
+//  the rows before its oldest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugEventLog (
+    DebugLogKind          kind,
+    const std::string   & request)
+{
+    if (request == "open" || request == "close")
+    {
+        m_eventLogs.SetOpen (kind, request == "open");
+    }
+    else if (request == "earlier")
+    {
+        m_eventLogs.RequestEarlier (kind);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceEventLogs
+//
+//  CPU thread, each pass: the stretches rebuilt come in, and each open
+//  pane's delta goes to the UI thread when it has anything in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServiceEventLogs()
+{
+    DiskLogDelta   disk;
+    InputLogDelta  input;
+    bool           isDisk  = false;
+    bool           isInput = false;
+
+
+
+    m_eventLogs.Pump();
+
+    isDisk  = m_eventLogs.TakeDelta (disk);
+    isInput = m_eventLogs.TakeDelta (input);
+
+    if (isDisk || isInput)
+    {
+        std::lock_guard<std::mutex>  held (m_debugViewMutex);
+
+        if (isDisk)
+        {
+            m_eventLogsPending.disk.push_back (std::move (disk));
+        }
+
+        if (isInput)
+        {
+            m_eventLogsPending.input.push_back (std::move (input));
+        }
+    }
+}

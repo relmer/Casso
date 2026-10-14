@@ -55,6 +55,11 @@ struct DebugEventEntry
 //  A rewind or seek cuts it back to the machine's position (CutBack), so
 //  every entry in it is from before the machine's position.
 //
+//  Each entry appended is given the next serial number. CutBack lowers the
+//  end serial by the entries it drops, so the next entry appended is given
+//  the first serial dropped. A reader that has read the entries before
+//  serial S reads those from S on next.
+//
 //  It is used on one thread, the one that runs the machine; a view copies
 //  spans out of it there.
 //
@@ -100,6 +105,7 @@ public:
         while (m_count > 0 && GetAt (m_count - 1).position >= position)
         {
             m_count--;
+            m_endSerial--;
         }
 
         m_coveredFrom = std::min (m_coveredFrom, position);
@@ -109,6 +115,8 @@ public:
     size_t          GetCapacity    () const             { return m_entries.size(); }
     bool            HasDropped     () const             { return m_hasDropped; }
     uint64_t        GetCoveredFrom () const             { return m_coveredFrom; }
+    uint64_t        GetFirstSerial () const             { return m_endSerial - m_count; }
+    uint64_t        GetEndSerial   () const             { return m_endSerial; }
     const Entry &   GetAt          (size_t index) const { return m_entries[(m_first + index) % m_entries.size()]; }
 
     //  The entries from position from up to but not including to, oldest
@@ -171,11 +179,13 @@ private:
 
         m_entries[slot] = Entry { kind, position, cycle, event };
         m_count++;
+        m_endSerial++;
     }
 
     std::vector<Entry>  m_entries;
     size_t              m_first       = 0;
     size_t              m_count       = 0;
     uint64_t            m_coveredFrom = 0;
+    uint64_t            m_endSerial   = 0;
     bool                m_hasDropped  = false;
 };

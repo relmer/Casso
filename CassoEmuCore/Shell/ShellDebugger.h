@@ -12,6 +12,7 @@
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 #include "Shell/CpuCommandDispatcher.h"
+#include "Shell/DebugEventLogs.h"
 #include "Shell/DebuggerSliceHooks.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Shell/ScratchHeatReplayer.h"
@@ -209,6 +210,7 @@ public:
     void    PauseDebugRun      () override;
     void    SetDebugView       (const std::string & view, std::optional<Word> address) override;
     void    SetDebugTraceView  (std::optional<uint64_t> first) override;
+    void    SetDebugEventLog   (DebugLogKind kind, const std::string & request) override;
     void    GoToDebugMemory    (int window, const std::string & text) override;
     void    ScrollDebugCode    (int lines, int view) override;
     void    RunDebugActions    () override;
@@ -246,6 +248,8 @@ public:
     static std::string  GetCodeViewSuffix (int view);
     void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
+    void    SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) override;
+    void    TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
     void    SetDebuggerHeatMapShown  (bool shown) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
@@ -389,9 +393,15 @@ private:
     // debugger, whose call history holds it.
     ScratchCallReplayer           m_callReplayer;
 
+    // The Disk II event log and the input log, recording from the start of
+    // the session on the History slot. Declared after the history it reads,
+    // so it lets go of it first.
+    DebugEventLogs                m_eventLogs             { m_machine };
+
     bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
     void            ServiceCallHistory();
+    void            ServiceEventLogs();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -422,6 +432,7 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
     bool                                           m_isDebugViewFresh   = false;
     std::vector<std::string>                       m_debugConsolePending;
+    DebugLogDeltas                                 m_eventLogsPending;
     std::vector<DebuggerAction>                    m_debugActionsPending;
 
     // The panes are built off the CPU thread from what it gathers each frame.

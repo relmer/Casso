@@ -684,6 +684,12 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
         return;
     }
 
+    if (view == "disklog" || view == "inputlog")
+    {
+        target.SetDebugEventLog ((view == "disklog") ? DebugLogKind::Disk : DebugLogKind::Input, where);
+        return;
+    }
+
     if (view == "trace")
     {
         if (where == "end")

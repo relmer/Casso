@@ -51,6 +51,7 @@ void ShellDebugger::StartReverseRecording()
     if (!m_isReverseOn)
     {
         StopReverseRecording();
+        m_eventLogs.Start (nullptr);
         return;
     }
 
@@ -96,6 +97,10 @@ void ShellDebugger::StartReverseRecording()
     m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_callReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+
+    //  The event logs begin again with history, or without it when it did
+    //  not start.
+    m_eventLogs.Start (m_reverseHost->IsRecording() ? &m_reverseHost->GetController() : nullptr);
 }
 
 
@@ -110,6 +115,8 @@ void ShellDebugger::StartReverseRecording()
 
 void ShellDebugger::StopReverseRecording()
 {
+    m_eventLogs.Stop();
+
     if (m_reverseHost != nullptr)
     {
         m_reverseHost->StopRecording();
@@ -154,6 +161,7 @@ void ShellDebugger::ApplyReverseOptions (
         }
 
         StopReverseRecording();
+        m_eventLogs.Start (nullptr);
     }
     else if (!wasOn)
     {
