@@ -178,6 +178,8 @@
     <ClCompile Include="HistoryRateTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />
     <ClCompile Include="Disk2SectorEventTests.cpp" />
+    <ClCompile Include="DebugEventLogRebuildTests.cpp" />
+    <ClCompile Include="DebugEventLogScrollTests.cpp" />
     <ClCompile Include="MachineStateCompatibilityTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
