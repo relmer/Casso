@@ -185,6 +185,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How are a watch's symbol and address colored? -> A: As the code pane colors them: a symbol in the symbol color and an address in the operand color (FR-238).
 - Q: Does a press on the heat map focus its pane? -> A: Yes, and the pane is drawn with the focus accent (FR-239).
 - Q: Why did the MMU panel list each switch twice? -> A: It had a row with the switches packed into a byte as well as a row for each. The switches are not one register, so the packed row is removed and each switch is listed once (FR-240).
+- Q: How is the arrow of the branch that brought the PC drawn, beside the PC's own? -> A: It is drawn in round dots as wide as the line, centered two widths apart, in the same color; the PC's own arrow is solid (FR-237).
+- Q: Is that arrow drawn at a breakpoint stop or after a run, not only after a step? -> A: Yes: at any stop, from the CPU's record of the last branch, jump or call, when its target is the PC. A source line out of view has its arrow run in from the view's edge (FR-237).
+- Q: Are P's flags drawn in the proportional face? -> A: No: the flags cell on the P register's row is monospace, so the letters line up; the rest of the registers pane is proportional (FR-236).
+- Q: How is a flag that changed since the last stop drawn in P's tip? -> A: Its line in the changed color, as its letter is in the cell, with no line explaining the color (FR-081).
 - Q: Is the repo's Karateka.woz a corrupted copy? -> A: No. It is byte for byte the archive.org Woz-A-Day preservation copy (the same SHA-1), so its address checksum errors are on the original disk.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -1954,8 +1958,10 @@ run something, switch back to the //e: it is where it was left.
   pane to the PC.
 - **FR-081**: The registers pane MUST show the flags decoded, one letter per
   flag (N V - B D I Z C), in a third column on the P register's row, labeled
-  "Flags:". Hovering them MUST show each flag's name and value, one per line.
-  Double-clicking P MUST open an editor with a checkbox per flag, and
+  "Flags:". Hovering them MUST raise a tip with each flag's name and value, one per line,
+  the line of a flag that changed since the last stop in the changed color,
+  as its letter is in the cell, with no line explaining the color (amended
+  2026-10-14). Double-clicking P MUST open an editor with a checkbox per flag, and
   double-clicking S an editor for the stack pointer; each writes through `R`.
   The flags remain settable by command (`SEC`, `CLC` and the other set and
   clear forms, `R P`).
@@ -3049,13 +3055,18 @@ run something, switch back to the //e: it is where it was left.
   call stack, breakpoints, trace, heat map ranges, both event logs and the
   diagnostics panes) and the tips of text MUST use the proportional face. A
   memory window's addresses MUST be proportional and its bytes monospace.
-  The disassemblies, the source panes, the console and the tips of code or
+  The flags cell on the P register's row MUST be monospace, so its letters
+  line up. The disassemblies, the source panes, the console and the tips of code or
   bytes MUST be monospace; the console's text is a grid of fixed-width cells
   with dumps and tables lined up by spaces. A tip with columns separated by
   tabs MUST line them up in either face (amended 2026-10-14).
-- **FR-237**: After a step that took a branch, jump or call, that
-  instruction's arrow MUST be drawn to where the PC landed, beside the PC's
-  own arrow, and drawn when the PC's own line has no arrow.
+- **FR-237**: At any stop (a step, a breakpoint, a pause) where the last
+  branch, jump or call the CPU took went to the PC, that instruction's arrow
+  MUST be drawn to the PC, beside the PC's own arrow, and drawn when the
+  PC's own line has no arrow. It MUST be drawn in round dots as wide as the
+  line, centered two widths apart, in the same color, unlike the PC's own
+  solid arrow. A source line out of view MUST have its arrow run in from
+  the view's edge (amended 2026-10-14).
 - **FR-238**: A watch's symbol and address MUST be colored as the code pane
   colors them: a symbol in the symbol color, an address in the operand
   color.

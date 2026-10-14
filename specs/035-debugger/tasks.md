@@ -1554,7 +1554,7 @@ Owner decisions 2026-10-14, review of the Disk II and input log panes.
 - [X] T828 Add the Disk II log's Severity column (Info, Warning, Error), warning and error row backgrounds from the theme (a yellowish and a reddish fill), and a Severity filter drop-down on its bar saved with the options (DiskLogPane, DebuggerWindowEventLogs.cpp, the theme's colors); test in UnitTest/DebuggerTests/EventLogPaneTests.cpp, per FR-232 **Done 2026-10-14** (0f3d48705, e9040e0f0): the fills are the theme's warning and error colors a quarter of the way from the list's background; the fitted columns are measured from the labels the pane notes (DxuiListView::NoteFitText), and the logs are in the proportional face.
 - [X] T829 Model the head stepper by magnet pull in Disk2Controller::HandlePhase (CassoEmuCore/Machines/Apple2/Common/Disk2Controller.cpp): the head moves to the energized phases' pull, two adjacent phases put it on the quarter track between them, a set with no net pull does not move it, a head step event for each quarter-track move, the saved state's phase bits honored; test DOS 3.3 seeks, a head resting on a quarter track and opposite phases in UnitTest/EmuTests, and rerun a WOZ boot and the DOS 3.3 boot scenario tests, per FR-233 **Done 2026-10-14** (c72fc2b9c): Disk2Controller::GetPull; the step sound fires on a move that ends on a half-track position. Eleven demo WOZ images booted for 60 million cycles end on the same quarter track as with the old model, every game running.
 - [X] T830 Update quickstart.md's Story 24 steps for Sector read and write, the Severity column and filter, the sector bytes and the heading menus (specs/035-debugger/quickstart.md)
-- [ ] T831 Launch a build for the owner on the portrait monitor to retest the operand heading tip, P's flags, the heading menus, the Event column, the sector bytes and hex dump, the severity rows and filter, and a quarter-track seek
+- [X] T831 Launch a build for the owner on the portrait monitor to retest the operand heading tip, P's flags, the heading menus, the Event column, the sector bytes and hex dump, the severity rows and filter, and a quarter-track seek **Passed 2026-10-14**
 
 **Dependencies**: T821 before T822; T824 before T825, T826 and T827; T827 before T828; T821 to T829 before T830 and T831.
 
@@ -1573,7 +1573,7 @@ Owner decisions 2026-10-14, third review of the event log panes and tooltips.
 - [X] T838 Use the proportional face for the text panes (DebuggerWindow::GetTextLists: Breakpoints, Watches, Call stack, Heat map ranges, both logs, the diagnostics panes) and the tips of text, and line up a tip's tab-separated columns in either face (DxuiTooltip::LayOutTable and DrawTable, FlagsDialog::Describe); test in UnitTest/Dxui/DxuiTooltipTests.cpp, per FR-236 **Done 2026-10-14** (a12cb2faf)
 - [X] T839 Check Karateka's Disk II errors against its image (Apple2/Demos/Karateka.woz): track 0 has one D5 AA B5 and one D5 AA 96 address field, both with stored checksums that do not match, and track 1 has no standard fields, so the events come from the disk; no code change **Done 2026-10-14**
 - [ ] T840 Confirm on screen that the sector hex dump tip in the Disk II log has its drop shadow (DxuiTooltip::ShowPopup, Dxui/Window/DxuiPopupHost.cpp PaintShadowAndCard); this session could not read the screen back to capture it
-- [ ] T841 Launch a build for the owner on the portrait monitor to retest the Time column, the selection, the tip placement, the faces, the stepped branch arrow and the hex dump tip's shadow
+- [X] T841 Launch a build for the owner on the portrait monitor to retest the Time column, the selection, the tip placement, the faces, the stepped branch arrow and the hex dump tip's shadow **Passed 2026-10-14**, apart from the shadow, which T840 tracks
 
 **Dependencies**: T832 to T839 before T841; T840 with T841.
 
@@ -1590,8 +1590,20 @@ Owner decisions 2026-10-14, fourth review.
 - [X] T846 [P] Remove the MMU panel's packed byte so each switch is listed once (Apple2eMmu::GetDiagnostics in CassoEmuCore/Machines/Apple2/Apple2e/Apple2eMmu.cpp); test in UnitTest/DebuggerTests/DiagnosticsProviderTests.cpp, per FR-240 **Done 2026-10-14** (33b98489e)
 - [X] T847 [P] Focus the heat map on a press so its pane is drawn with the focus accent (HeatMapView focusable, DebuggerWindow::RouteHeatMapMouse); test in UnitTest/DebuggerTests/DebuggerFocusAccentTests.cpp, per FR-239 **Done 2026-10-14** (f51a77a1e)
 - [X] T848 Compare Apple2/Demos/Karateka.woz with the archive.org Woz-A-Day preservation copy: the SHA-1 is the same, so the checksum errors are on the original disk; no code change **Done 2026-10-14**
-- [ ] T849 Retest with the owner the tip placement, the stepped branch arrow, the watch colors, the faces, the MMU panel and the heat map's focus accent
+- [X] T849 Retest with the owner the tip placement, the stepped branch arrow, the watch colors, the faces, the MMU panel and the heat map's focus accent **Passed 2026-10-14**
 
 **Dependencies**: T842 to T848 before T849.
 
 **Parallel**: T844, T846 and T847 touch separate files.
+
+## Phase 38: The event log review, fifth round (FR-081, FR-236, FR-237)
+
+Owner decisions 2026-10-14, fifth review.
+
+- [X] T850 Draw the arrow of the branch that brought the PC in round dots as wide as the line, centered two widths apart, in the same color, apart from the PC's solid arrow (DisassemblyCells::PaintBranchArrow and PaintDots in CassoEmuCore/Ui/Debugger/DisassemblyCells.cpp, DebuggerWindow::GetBranchArrow); test in UnitTest/DebuggerTests/DisassemblyArrowTests.cpp, per FR-237 **Done 2026-10-14** (666b603d4)
+- [X] T851 Draw that arrow at any stop, a breakpoint's included, from the CPU's last branch when its target is the PC, and run it in from the view's edge when its source line is out of view (DebuggerViewState::UpdateLastStop and snapshot.branchedFrom in CassoEmuCore/Ui/Debugger/DebuggerViewState.cpp, CodeLine::isBranchedFrom, DisassemblyCells::TryGetBranchArrow); test in UnitTest/DebuggerTests/DisassemblyArrowTests.cpp, per FR-237 **Done 2026-10-14** (484fc4871, 6ff06772e)
+- [X] T852 [P] Draw the flags cell on the P register's row in the monospace face, with a cell's own face honored in each of its colored runs (DxuiListView cell paint in Dxui/Widgets/DxuiListView.cpp, DebuggerWindow's registers cells), per FR-236 **Done 2026-10-14** (c4a9aae94)
+- [X] T853 Draw the line of each flag that changed since the last stop in the changed color in P's tip, with no line explaining the color (DxuiTooltip::SetLineColors in Dxui/Widgets/DxuiTooltip.h/.cpp, DebuggerWindow::UpdateTip); test in UnitTest/Dxui/DxuiTooltipTests.cpp, per FR-081 **Done 2026-10-14** (1c3c4106b)
+- [X] T854 Retest with the owner the dotted arrow at a step and at a breakpoint, an arrow from out of view, P's flags and P's tip **Passed 2026-10-14**
+
+**Parallel**: T852 touches only the list view's paint and the registers cells.
