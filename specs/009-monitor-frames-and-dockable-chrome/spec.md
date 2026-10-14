@@ -30,8 +30,16 @@ there is no recorder. The camera is fitted to contain the whole arrangement.
   reposition the drives and the tape deck in the desk scene. The 2D drive bar
   docking, the 2D monitor frame and the per-machine default theme are dropped.
 - Q: How is a device moved? → A: An arrange mode, toggled from the View menu.
-  While it is on, a plain drag on a drive or the recorder moves it, and the
-  devices' other controls are off.
+  While it is on, an Alt+drag on a drive or the recorder moves it, and the
+  devices' other controls are off. Zoom, pan and orbit work through their
+  usual gestures, during a move as well, so the user can look from any
+  angle before placing a device. An infobar lists what each modifier does
+  while arrange mode is on.
+- Q: Where does a device go when the scene is fitted tightly around the
+  arrangement? → A: Arrange mode makes room. The fitted view has no
+  space beside the monitor for a drive, and with the drives stacked to one
+  side no space below it, so arrange mode frames free desk space around the
+  arrangement on every side.
 - Q: Where can devices go? → A: On the desk, and stacked: drives on each other
   and under the monitor. Nothing can be placed on top of the recorder, because
   its top must be clear for it to open. The monitor is not moved by the user.
@@ -53,7 +61,9 @@ there is no recorder. The camera is fitted to contain the whole arrangement.
 A user with the Skeuomorphic theme wants the recorder on the left of the
 monitor instead of the right, or wants the two drives on the desk beside the
 monitor rather than under it, the way their own Apple II was set up. They turn
-on arrange mode from the View menu and drag the device to the new spot, where
+on arrange mode from the View menu, which steps the view back to reveal free
+desk around the monitor, orbit the view to see the desk from the side, and
+Alt+drag the device to the new spot, where
 it snaps into line with the monitor or the other devices. It stays where they
 put it, the camera
 refits so the whole desk is in view, and every control on the moved
@@ -71,15 +81,26 @@ loads.
 **Acceptance Scenarios**:
 
 1. **Given** the default arrangement and arrange mode on, **When** the user
-   drags the recorder to the left of the monitor, **Then** the recorder lies
-   flat on the desk plane at the new spot and the camera refits to contain the
-   scene.
+   Alt+drags the recorder to the left of the monitor, **Then** the recorder
+   lies flat on the desk plane at the new spot.
 2. **Given** arrange mode off and a moved drive, **When** the user clicks its
    door notch, drops a disk image on it or opens its right-click menu, **Then**
    each acts on that drive exactly as in the default arrangement.
-3. **Given** arrange mode on, **When** the user drags a drive, **Then** the
-   drag moves it and does not open its door; dragging the recorder does not
+3. **Given** arrange mode on, **When** the user Alt+drags a drive, **Then** the
+   drag moves it and does not open its door; Alt+dragging the recorder does not
    press its keys or turn its volume wheel.
+3a. **Given** arrange mode on, **When** the user drags without Alt, turns the
+   wheel or uses the compass, **Then** the view orbits, zooms or pans as it does
+   outside arrange mode, and no device moves.
+3b. **Given** a device being Alt+dragged, **When** the user turns the wheel or
+   changes the view, **Then** the view changes and the device stays under the
+   pointer at the new view.
+3c. **Given** arrange mode turned on, **Then** the view steps back so free desk
+   is visible on every side of the arrangement, and an infobar lists what
+   each modifier does; **When** arrange mode is turned off, **Then** the infobar
+   closes and the view refits to the arrangement.
+3d. **Given** an Alt+drag that ends, **When** Alt is released, **Then** the
+   menu bar does not activate.
 4. **Given** a drag in progress, **When** the device would overlap another
    device, **Then** it does not settle overlapping; it stops at the nearest
    position clear of the others.
@@ -169,6 +190,10 @@ the default arrangement returns and is the one saved.
   object below it or onto the desk plane, whichever is higher.
 - The //c's drive, whose door latch rises above its lid: nothing settles in
   the latch's path, as FR-004 requires for any door.
+- A small window: the free desk FR-002d frames makes the devices small. The
+  user can zoom in on the area they are working in, or maximize the window.
+- Alt pressed or released partway through a drag: pressing Alt over a device
+  starts a move; releasing it ends the move as if the button were released.
 
 ## Requirements *(mandatory)*
 
@@ -177,10 +202,22 @@ the default arrangement returns and is the one saved.
 - **FR-001**: In the Skeuomorphic theme's desk scene, the user MUST be able to
   move each Disk II drive and the cassette recorder to another position on the
   desk.
-- **FR-002**: The View menu MUST have an arrange mode toggle. While it is on, a
-  plain drag on a drive or the recorder MUST move that device, and the
+- **FR-002**: The View menu MUST have an arrange mode toggle. While it is on,
+  an Alt+drag on a drive or the recorder MUST move that device, and the
   devices' other pointer controls (doors, keys, the volume wheel, labels) MUST
   NOT respond. While it is off, devices MUST NOT move.
+- **FR-002a**: In arrange mode, zoom, pan and orbit MUST work through their usual
+  gestures, including during an Alt+drag. A device being dragged MUST stay
+  under the pointer while the view changes.
+- **FR-002b**: While arrange mode is on, an infobar MUST list what each
+  modifier and gesture does (Alt+drag moves a device; the camera gestures
+  change the view).
+- **FR-002c**: Releasing Alt after an Alt+drag MUST NOT activate the menu bar.
+- **FR-002d**: Turning arrange mode on MUST frame the view to include free desk
+  on every side of the arrangement, at least the width of the widest movable
+  device beside it and the height of the tallest one below and above it, and
+  MUST allow zooming out at least that far. Turning it off MUST refit the
+  view to the arrangement.
 - **FR-003**: A drive MUST be placeable on the desk plane, on another drive or
   under the monitor. The recorder MUST be placeable on the desk plane or on a
   drive. Nothing MUST be placeable on top of the recorder, whose top must be
@@ -198,8 +235,9 @@ the default arrangement returns and is the one saved.
   only after a slightly longer drag than at other snap lines.
 - **FR-005c**: A device released with nothing under it MUST settle onto the
   object below it or onto the desk plane, whichever is higher.
-- **FR-006**: After any move, the camera MUST refit so the whole arrangement is
-  in view, as it does for the default arrangement.
+- **FR-006**: The camera MUST NOT refit while arrange mode is on, so the view
+  does not move under the pointer. Outside arrange mode, the fitted view MUST
+  contain the whole arrangement, as it does for the default arrangement.
 - **FR-007**: Every interaction a device has in the default arrangement MUST
   work the same at any position: doors, keys, the volume wheel, labels, the
   right-click menu, hover text and drag and drop of disk and tape files.
@@ -248,6 +286,8 @@ the default arrangement returns and is the one saved.
 - The //c, which has no recorder, arranges its drives and monitor only.
 - Devices rotate with the scene's orbit only; turning one device on its own is
   out of scope.
+- Arrange mode does not resize or maximize the window; the free desk comes
+  from stepping the view back (FR-002d).
 - A drag moves a device left and right and up and down as seen from the front.
   Front-to-back depth follows the stacking rules, with each device's front on
   the shared front plane as today.
