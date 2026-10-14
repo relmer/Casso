@@ -952,7 +952,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
 
     //  Any other Apple file type's icon is Explorer's page with the type's
     //  badge, the page drawn at the icon's own size.
-    if (kind >= Kind::AppleText)
+    if (kind >= Kind::AppleText && kind <= Kind::AppleRelocatable)
     {
         HICON  page = (m_sizePx > s_kLargeIconPx) ? LoadLargerByAttributes (false, m_sizePx) : LoadForKind (Kind::File, flag);
 
@@ -1414,6 +1414,7 @@ HICON Win32ShellIcons::LoadForKind (Kind kind, UINT sizeFlag)
     wchar_t           module[MAX_PATH] = {};
     std::wstring      folder;
     size_t            slash            = 0;
+    SHSTOCKICONINFO   stock            = {};
 
 
 
@@ -1441,6 +1442,12 @@ HICON Win32ShellIcons::LoadForKind (Kind kind, UINT sizeFlag)
         result = SHGetFileInfoW (L"file", FILE_ATTRIBUTE_NORMAL, &info, sizeof (info),
                                  SHGFI_USEFILEATTRIBUTES | SHGFI_ICON | sizeFlag);
         break;
+
+    case Kind::Search:
+        stock.cbSize = sizeof (stock);
+        hr           = SHGetStockIconInfo (SIID_FIND, SHGSI_ICON | sizeFlag, &stock);
+
+        return SUCCEEDED (hr) ? stock.hIcon : nullptr;
 
     case Kind::Casso:
         GetModuleFileNameW (nullptr, module, MAX_PATH);

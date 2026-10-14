@@ -99,6 +99,7 @@ public:
 
     static constexpr const wchar_t *  kCassoNodeTip    = L"Folders Casso has opened disk images from, most recently used first";
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
+    static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
     static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
     static constexpr uint32_t         kPreviewLift     = 7;       // the dark Preview pane over the list, per channel
     static uint32_t  GetPreviewBackground (const IDxuiTheme & theme);
@@ -205,6 +206,10 @@ public:
 
     //  The widest a pane's message runs before it wraps.
     static constexpr int     kMessageWidthDip = 400;
+
+    //  How far below the list's top a search's message sits: File Explorer's,
+    //  measured at 150% as 27 pixels.
+    static constexpr int     kSearchMessageTopDip = 18;
 
     //  How far each level of the tree sits in from its parent: File
     //  Explorer's, measured at 125% as 10 pixels.
@@ -707,6 +712,7 @@ private:
 
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
+    RECT  GetListMessageRect() const;
 
 
     //  The archive files selected in the preview, by the shell's names for
@@ -896,6 +902,7 @@ private:
     DxuiTextInput        * m_renameBox       = nullptr;
     int                    m_renameRow       = -1;
     DxuiLabel            * m_listMessage     = nullptr;
+    bool                   m_listMessageTop  = false;
     DxuiSplitter         * m_previewSplitter = nullptr;
     DxuiListView         * m_previewList     = nullptr;
     DxuiTextView         * m_textView        = nullptr;

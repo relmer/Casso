@@ -130,6 +130,15 @@ void Win32PackagedCommands::ReadAll()
         RegCloseKey (packages);
     }
 
+    //  File Explorer lists apps' commands by the app's name.
+    std::stable_sort (found.begin(), found.end(), [] (const Registration & a, const Registration & b)
+    {
+        const std::wstring &  nameA = a.appName.empty() ? a.package : a.appName;
+        const std::wstring &  nameB = b.appName.empty() ? b.package : b.appName;
+
+        return _wcsicmp (nameA.c_str(), nameB.c_str()) < 0;
+    });
+
     {
         std::lock_guard<std::mutex>  guard (m_lock);
 

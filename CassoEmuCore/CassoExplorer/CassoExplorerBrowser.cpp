@@ -4027,6 +4027,13 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
 
 std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetLocationIcon (const Location & at, IShellIcons & icons)
 {
+    //  A search's path is its query, not a place; File Explorer's address bar
+    //  leads with This PC for one.
+    if (SearchQuery::IsId (at.path))
+    {
+        return icons.GetForKind (IShellIcons::Kind::ThisPc);
+    }
+
     switch (at.kind)
     {
         case Location::Kind::HostFolder:    return icons.GetForPath (at.path, true);

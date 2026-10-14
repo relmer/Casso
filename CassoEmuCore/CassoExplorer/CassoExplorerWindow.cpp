@@ -1187,7 +1187,7 @@ void CassoExplorerWindow::RecomputeLayout()
         }
 
         m_list->Layout           (listRect,    m_scaler);
-        m_listMessage->Layout    (GetMessageRect (listRect),    m_scaler);
+        m_listMessage->Layout    (GetListMessageRect(),         m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
 
         m_previewContent = previewRect;
@@ -1215,7 +1215,7 @@ void CassoExplorerWindow::RecomputeLayout()
 
         m_previewToolbar->SetVisible (false);
         m_list->Layout        (right, m_scaler);
-        m_listMessage->Layout (GetMessageRect (right), m_scaler);
+        m_listMessage->Layout (GetListMessageRect(), m_scaler);
     }
 
     LayoutStatusFields();
@@ -1673,10 +1673,18 @@ void CassoExplorerWindow::FillList()
         m_list->SetSortIndicator ((int) model.GetActiveTab().sortColumn, model.GetActiveTab().sortDescending);
     }
 
+    //  An empty search's message is File Explorer's, at the top of the list;
+    //  any other empty location's is centered in the pane.
+    m_listMessageTop = false;
+
     if (message.empty() && m_browser.GetRows().empty() && m_browser.GetLocation().kind != Location::Kind::None)
     {
-        message = GetEmptyLocationMessage (m_browser.GetLocation().kind);
+        m_listMessageTop = SearchQuery::IsId (m_browser.GetLocation().path);
+        message          = m_listMessageTop ? std::wstring (kNoSearchMatches) : GetEmptyLocationMessage (m_browser.GetLocation().kind);
     }
+
+    m_listMessage->SetTextAlign (DxuiTextHAlign::Center, m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
+    m_listMessage->Layout       (GetListMessageRect(), m_scaler);
 
     m_listMessage->SetText (message);
     m_listMessage->SetVisible (!message.empty());
@@ -4646,6 +4654,33 @@ RECT CassoExplorerWindow::GetMessageRect (const RECT & pane) const
 
     rect.left  = pane.left + ((pane.right - pane.left) - width) / 2;
     rect.right = rect.left + width;
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetListMessageRect
+//
+//  The list's message, over the list; a search's sits a line below the top
+//  of the list, as File Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetListMessageRect() const
+{
+    RECT  rect = GetMessageRect (m_list->GetBounds());
+
+
+
+    if (m_listMessageTop)
+    {
+        rect.top += m_scaler.ToPx (kSearchMessageTopDip);
+    }
 
     return rect;
 }
@@ -12037,7 +12072,9 @@ void CassoExplorerWindow::FillTabs()
             case Location::Kind::RecycleBin:    tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
             case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
             case Location::Kind::DiskImage:     tab.icon = m_shellIcons.GetForPath (location.path, false);     break;
-            default:                            tab.icon = m_shellIcons.GetForPath (location.path, true);      break;
+            default:                            tab.icon = SearchQuery::IsId (location.path) ? m_shellIcons.GetForKind (IShellIcons::Kind::Search)
+                                                                                         : m_shellIcons.GetForPath (location.path, true);
+                                                break;
         }
 
         tabs.push_back (tab);

@@ -31,6 +31,7 @@ public:
     {
         ThisPc, Folder, File, Casso, RecycleBin, DiskImage,
         AppleText, AppleApplesoft, AppleInteger, AppleBinary, AppleSystem, AppleRelocatable,
+        Search,
     };
 
     virtual ~IShellIcons () = default;
