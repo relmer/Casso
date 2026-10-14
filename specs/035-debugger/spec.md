@@ -106,7 +106,7 @@ competitors in the parts a user sees first would waste the launch.
 - Q: How does an auto-hidden pane open? -> A: Its edge tab is a button: a click slides the pane out over the others, which do not move, and a second click slides it back; a hover does nothing.
 - Q: What does the selected tab look like? -> A: As Visual Studio's: it opens into its pane with no line between them, flared into the pane's border and rounded at the far corners; the pane's border runs on round it, in the accent color while the group has focus.
 - Q: Which commands does help list? -> A: Only what can be typed in the dialect in force, written as it is typed. Each dialect lists its own commands, then the Casso commands it has no equivalent for, all of which run from it -- DISK among them in GSSquared. A new Casso dialect holds Casso's complete native set. Every help uses one layout: by category, alphabetical within each, syntax then description.
-- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
+- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out. (The column drop-down moved to the column headings' context menu 2026-10-14, FR-118.)
 
 ### Session 2026-10-08 (disk breakpoints)
 
@@ -160,6 +160,17 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Are hidden columns padded with spaces, and is source text reformatted? -> A: Neither. A hidden column is removed, as in Visual Studio, and a source line is shown as written in its file, with only tabs expanded to every fourth column (FR-228).
 - Q: Can the disassembly set source rows and instruction rows apart? -> A: Yes: an option dims Source lines, Disassembly lines, or Neither while the view has source rows, Disassembly lines by default. With no source rows nothing is dimmed, and the PC's row is never dimmed (FR-230).
 - Q: How is the History estimate worked out, now that history grows at very different rates? -> A: From the recording's own rate once it covers 30 emulated seconds; before that, as a range from the busiest measured program (a loop redrawing the whole hi-res screen, 69,540 bytes a second) to the idlest (the DOS prompt, 694). The 48-hour cap uses the busiest rate. Tabs in source lines expand to every fourth column (FR-227, FR-228).
+
+### Session 2026-10-14 (owner review: event log panes)
+
+- Q: What is the PC line's result for an instruction that reads I/O? -> A: The value a side-effect-free device peek returns: a device whose soft switch can be read without operating it (paddle timers, buttons, keyboard data, status reads) is peeked, so the result for LDA PADDL0,X has A, its flags and its cycles. A switch whose read operates the machine (PTRIG, the Disk II, the speaker) is not peeked; whatever its value feeds is written as "?", and the rest of the result, the cycles and the PC among it, is written in full. I/O in the memory panes is unreadable, as it is today (FR-111).
+- Q: Which switch's title and description go with an indexed I/O operand? -> A: Those of the switch at the address the instruction touches, after indexing: LDA PADDL0,X with X=1 gets paddle 1's (FR-112).
+- Q: Should an indexed operand's annotation write out the index arithmetic, as `$65+X=$0066`? -> A: No. The annotation of INC $65,X is `X=01 $0066=0D` (FR-078).
+- Q: Does the Disk II log have a Quarter-tracks option? -> A: No; it is removed. A quarter-track is typed as a decimal track, such as 17.25, read as text and never as floating point (FR-213).
+- Q: What are a sector's read and write events called, and how is a sector recognized? -> A: Sector read and Sector write. A sector is recognized by the nibble patterns on the track, not by a DOS version: both 6-and-2 (16-sector) and 5-and-3 (13-sector) fields, with the size taken from the decoded field. The Detail cell has T/S/V, the size and the first bytes; its tooltip has the whole decoded sector as a hex dump; the row's context menu has Copy sector bytes. A track in a custom format yields motor and head events only (FR-231).
+- Q: Which errors and warnings does the Disk II log list, and how are they set apart? -> A: Address field checksum mismatch and data field checksum mismatch (errors); a data field cut off before its epilogue, a data field with no address field before it, a write to a write-protected disk, and a read stall (warnings). A Severity column (Info, Warning, Error), warning rows on a yellowish background and error rows on a reddish one, both from the theme, and a Severity filter on the log's bar (FR-232).
+- Q: Can the emulated head rest on a quarter track? -> A: Yes. The stepper is modeled by magnet pull: the head moves to the position the energized phases pull it to: two adjacent phases put it on the quarter track between them, and a set with no net pull (none, or two opposite phases) does not move it. A head step event is reported for each quarter-track move (FR-233).
+- Q: Where are a list's columns chosen? -> A: From the column headings' context menu, a check for each column, in the Breakpoints pane and both event logs; the drop-down that listed the columns is removed. The logs' Copy is on their rows' context menu only, and the Disk II log's Event column fits the widest label drawn in it (FR-118, FR-234).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -879,7 +890,7 @@ confirm it disables without being removed.
 11. **Given** several breakpoints, **When** the user chooses Disable all,
     **Then** every row's checkbox clears in one step, and one Undo checks them
     all again.
-12. **Given** the Show columns drop-down, **When** the user checks Address and
+12. **Given** the column headings' context menu, **When** the user checks Address and
     unchecks Condition, **Then** the list shows an Address column and no
     Condition column, and does so again after the debugger reopens.
 13. **Given** a breakpoint set from a source line, **When** the user chooses
@@ -2026,8 +2037,10 @@ run something, switch back to the //e: it is where it was left.
   confirming the layout as built. Amended again 2026-10-08 on the owner's
   request: Kind split into Kind and Trigger, so no value is long enough to be
   cut in a narrow pane, and "Source line" dropped as a kind.
-- **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
-  Name, which always does; the choice MUST be kept across sessions. Condition,
+- **FR-118**: Which columns are visible MUST be chosen from the column
+  headings' context menu, a check for each column; Name is always visible.
+  The choice MUST persist across sessions. The pane has no column drop-down
+  (amended 2026-10-14). Condition,
   Hit count, Kind and Trigger show by default (owner decision 2026-10-08). A
   choice saved before Kind was added MUST come back with the same columns,
   Labels as Symbol, no Filter, and Kind and Trigger shown (T736); one saved
@@ -2041,7 +2054,7 @@ run something, switch back to the //e: it is where it was left.
   asking only for what that kind needs; Delete, for the selected rows; Delete
   all; Enable all;
   Disable all; Undo; Redo; Go to source code and Go to disassembly, for the
-  selected row; Show columns; Export; and Import. A button that cannot act --
+  selected row; Export; and Import. A button that cannot act --
   nothing selected, nothing to undo, no source line for the selection -- MUST
   be disabled.
 - **FR-120**: Undo and Redo MUST reverse and repeat the breakpoint changes made
@@ -2103,10 +2116,16 @@ run something, switch back to the //e: it is where it was left.
   without touching the machine and its writes captured rather than performed.
   A SECOND DESCRIPTION OF WHAT AN INSTRUCTION DOES MUST NOT EXIST: a table
   written beside the CPU can disagree with it, and a prediction that disagrees
-  with the machine is worse than none. Where a read cannot be answered without
-  a side effect, the line MUST be left unannotated.
+  with the machine is worse than none. A read in `$C000-$C0FF` MUST be
+  served by the device's side-effect-free peek where the device has one
+  (paddle timers, buttons, keyboard data, status reads). Where a read has a
+  side effect, whatever its value feeds MUST be written as `?`, and the rest
+  of the result, the cycles and the PC among it, MUST be written in full. I/O
+  in the memory panes MUST be unreadable (amended 2026-10-14).
 - **FR-112**: An operand in `$C000-$C0FF` MUST be shown as the soft switch the
-  instruction operates, with its title and description, chosen by whether it
+  instruction operates -- the switch at the address it touches after indexing,
+  not the one at its symbol (amended 2026-10-14) -- with its title and
+  description, chosen by whether it
   reads or writes it, since one address is two switches (`$C000` read is the
   keyboard, `$C000` written is 80STORE off). Such an operand MUST NOT be
   annotated with a byte value, which does not exist to be read, and a write
@@ -2856,7 +2875,10 @@ run something, switch back to the //e: it is where it was left.
   kind of event the emulator's Disk II debug window shows today (among them
   address marks, sector reads and writes, and head steps), with its filters,
   the track and sector filter among them, and its columns; live while the
-  machine runs and rebuilt from history per FR-210 to FR-212.
+  machine runs and rebuilt from history per FR-210 to FR-212. A quarter-track
+  in the track filter MUST be typed as a decimal track (17.25) and read as
+  text, never as floating point; there is no Quarter-tracks option (amended
+  2026-10-14).
 - **FR-214**: The debugger MUST have an input log pane showing the host's
   input (keys, mouse, game controllers, paddles and joysticks, with the
   per-pair paddle or joystick view) from the input journal, and the guest's
@@ -2968,6 +2990,29 @@ run something, switch back to the //e: it is where it was left.
   or Neither, Disassembly lines by default, saved with the other disassembly
   options and followed by the preview. A view with no source rows MUST dim
   nothing, and the PC's row MUST never be dimmed.
+- **FR-231**: A sector MUST be recognized by the nibble patterns on its track,
+  not by a DOS version: both 6-and-2 (16-sector) and 5-and-3 (13-sector)
+  fields, its size taken from the decoded field. Its events MUST be called
+  Sector read and Sector write. The Detail cell MUST have the track, sector,
+  volume, size and first bytes; its tooltip MUST have the whole decoded sector
+  as a hex dump; the row's context menu MUST have Copy sector bytes. A track
+  in a custom format MUST yield motor and head events only.
+- **FR-232**: The Disk II log MUST list errors and warnings among its events:
+  address field checksum mismatch and data field checksum mismatch as errors;
+  a data field cut off before its epilogue, a data field with no address
+  field before it, a write to a write-protected disk and a read stall as
+  warnings. A Severity column MUST contain Info, Warning or Error, warning rows
+  MUST be on a yellowish background and error rows on a reddish one, both
+  from the theme, and the log's bar MUST have a Severity filter.
+- **FR-233**: The Disk II head stepper MUST be modeled by magnet pull: the head
+  moves to the position the energized phases pull it to, so two adjacent
+  phases put it on the quarter track between them, and a set with no net
+  pull (none, or two opposite phases) does not move it. A head step event
+  MUST be reported for each quarter-track move.
+- **FR-234**: In both event logs the columns MUST be chosen from the column
+  headings' context menu, a check for each column, and Copy MUST be on the
+  rows' context menu only. The Disk II log's Event column MUST fit the widest
+  label drawn in it.
 
 ### Key Entities
 
