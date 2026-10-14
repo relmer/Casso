@@ -1,205 +1,256 @@
-# Feature Specification: Dockable Drive Bar and Monitor Frames
+# Feature Specification: Desk Scene Arrangement
 
-**Feature Branch**: `009-monitor-frames-and-dockable-chrome` (proposed)
-**Created**: 2026-05-25
-**Status**: Superseded (never implemented; see "Superseded by" below)
-**Input**: User-described future capabilities that build on the chrome layout
-manager primitive (`ChromeLayout`, `IChromeContributor`, edge slots, center
-layers) shipped in spec 007.
+**Feature Branch**: `009-desk-scene-arrangement`
 
-## Superseded by the 3D desk scene
+**Created**: 2026-05-25 (rewritten 2026-10-14)
 
-This spec was never implemented. Closed 2026-10-14:
+**Status**: Not started
 
-- **Monitor frame (US3)**: the 3D desk scene (spec 018, 1.21.0) draws a
-  monitor model per machine around the picture. The 2D monitor frame was
-  deleted, and its preference key is ignored on load.
-- **The layout it extends is gone.** `ChromeLayout`, its edge slots and
-  `ICenterLayer` were replaced by `DxuiDockLayout` in spec 013.
-- **Drive bar docking (US1, US2) and a default theme per machine (US4)** were
-  never built.
+**Input**: User description: "Let the user reposition the Disk II drives and the cassette recorder (tape deck) in the Skeuomorphic theme's 3D desk scene. Today the scene places them at fixed positions: the monitor is centered on the drives' lids, and the recorder lies flat on the desk to the right of the stack. The user wants to arrange them differently on the desk."
 
-**For a future spec**: let the user reposition the Disk II drives and the
-cassette recorder in the desk scene. Today `DeskSceneLayout::SolveComposition`
-computes fixed positions for them, and `DeskSceneLayout::PlaceRecorder`
-computes the recorder's position, flat on the desk to the right of the stack.
+## Background
 
-Nothing below should be implemented as written.
+This spec first covered a dockable 2D drive bar, a 2D monitor frame and a
+default theme per machine. The 3D desk scene (spec 018, 1.21.0) replaced the 2D
+monitor frame and the 2D drive band in the Skeuomorphic theme, and spec 013
+removed the chrome layout those features extended. The remaining scope is the
+desk scene's version of moving the drives: arranging the drives and the
+recorder on the desk.
 
-## Overview
+Today the scene's arrangement is fixed. The monitor is centered on the
+drives' lids, the drives sit side by side under it, and the recorder lies flat
+on the desk to the right of the stack. On the //c, which has no cassette port,
+there is no recorder. The camera is fitted to contain the whole arrangement.
 
-Spec 007 ships a `ChromeLayout` core that resolves edge-slot reservations and
-center-wrapping layer paddings into a canonical `{topPx, bottomPx, leftPx,
-rightPx, centerRect}` snapshot. It ships with the drive bar nailed to the
-bottom edge and zero registered center layers. This spec consumes that
-foundation to deliver two long-promised capabilities:
+## Clarifications
 
-1. **The drive bar becomes dockable** to any of the four window edges (top,
-   bottom, left, right), driven by user config and, eventually, drag
-   gestures.
-2. **The Skeuomorphic theme grows a monitor-frame center layer** that wraps the
-   emulator viewport in a realistic CRT bezel selected per-machine or
-   per-user-override.
+### Session 2026-10-14
 
-Neither capability requires re-architecting chrome sizing math, they slot into
-`ChromeLayout` as additional contributors and inherit its single-source-of-truth
-sizing discipline.
+- Q: What earlier scope remains in this spec? → A: Only the ability to
+  reposition the drives and the tape deck in the desk scene. The 2D drive bar
+  docking, the 2D monitor frame and the per-machine default theme are dropped.
+- Q: How is a device moved? → A: An arrange mode, toggled from the View menu.
+  While it is on, a plain drag on a drive or the recorder moves it, and the
+  devices' other controls are off.
+- Q: Where can devices go? → A: On the desk, and stacked: drives on each other
+  and under the monitor. Nothing can be placed on top of the recorder, because
+  its top must be clear for it to open. The monitor is not moved by the user.
+- Q: How does a dragged device line up? → A: It snaps. It tends to snap to any
+  other object's boundary lines and its horizontal and vertical center lines,
+  and to the desk plane. A drive tends to snap against the side of another
+  object, and is slightly sticky at alignment with an object's corner: drive 1
+  under the monitor left-aligned to the monitor's left edge, drive 2 under it
+  right-aligned to the right edge.
+- Q: Where is the desk? → A: The desk plane is the bottom of the lowest object.
+  While a device is dragged, it is the bottom of the lowest object not being
+  dragged: with one drive under the monitor, grabbing the drive puts the desk
+  plane at the monitor's bottom.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1: Drive Bar Docks to Any Edge (Priority: P1)
+### User Story 1 - Move a drive or the recorder on the desk (Priority: P1)
 
-When the user opens Settings → Display, they see a "Drive bar position"
-dropdown with the four cardinal directions (top, bottom, left, right). Picking
-a different edge moves the drive bar to that edge immediately; the emulator
-content area stays the same pixel size and the window resizes to accommodate
-the new chrome layout.
+A user with the Skeuomorphic theme wants the recorder on the left of the
+monitor instead of the right, or wants the two drives on the desk beside the
+monitor rather than under it, the way their own Apple II was set up. They turn
+on arrange mode from the View menu and drag the device to the new spot, where
+it snaps into line with the monitor or the other devices. It stays where they
+put it, the camera
+refits so the whole desk is in view, and every control on the moved
+device (drive doors, recorder keys, volume wheel, tape and disk labels, drag
+and drop of disk and tape files) works the same.
 
-**Why this priority**: Direct user-facing payoff and the simplest way to prove
-the layout manager's slot-reassignment plumbing works end-to-end.
+**Why this priority**: This is the feature. The other stories refine it.
 
-**Independent Test**: Launch with the active theme set to DarkModern; open
-Settings → Display; pick each of the four edges in turn; confirm the drive bar
-relocates, the emulator pixel area is preserved, the window resizes
-appropriately, and Ctrl+0 still snaps to a clean integer scale relative to the
-new chrome geometry.
-
-**Acceptance Scenarios**:
-
-1. **Given** the drive bar is docked at Bottom,
-   **When** the user picks Left in Settings → Display → Drive bar position,
-   **Then** the drive bar repositions to the left edge, drives stack
-   vertically with their LEDs visible, the emulator content area shifts right
-   without changing its pixel dimensions, and the window resizes by the
-   delta between the old bottom inset and the new left inset.
-2. **Given** the active theme is Skeuomorphic (which only allows Bottom),
-   **When** the user opens Settings → Display → Drive bar position,
-   **Then** the Left/Right/Top options are disabled with a tooltip explaining
-   the active theme allows only Bottom.
-3. **Given** the user has selected Left,
-   **When** they close and relaunch Casso,
-   **Then** the drive bar reappears at the left edge.
-
----
-
-### User Story 2: Drag-to-Dock the Drive Bar (Priority: P3)
-
-When the user drags the drive bar's caption / handle region, drop zones light
-up at each edge of the window. Releasing over a zone redocks the drive bar to
-that edge.
-
-**Why this priority**: Polish UX. P1 already exposes the capability through
-Settings; drag is the discoverable surface.
-
----
-
-### User Story 3: Monitor Frame Wraps the Emulator (Priority: P2)
-
-When the active theme is Skeuomorphic, the emulator image renders inside a
-realistic CRT bezel that visually matches the active machine (Apple ][, ][+,
-//e, //c, etc.). The bezel contributes uneven padding on all four sides of
-the emulator viewport, typically heavier on the bottom for the brand logo
-and power LED, and the window grows to accommodate the bezel while keeping
-the emulator pixel grid unchanged.
-
-**Why this priority**: Highest-impact visual identity payoff. The whole
-skeuomorphic theme story benefits dramatically.
-
-**Independent Test**: Switch the active machine between Apple ][ and Apple //c
-under the Skeuomorphic theme; confirm the bezel art changes; confirm the
-emulator pixel grid is unchanged across the switch; confirm the window
-resizes to absorb the bezel padding without distorting the framebuffer.
+**Independent Test**: On a //e with two drives and the recorder connected,
+move the recorder to the left of the monitor and drive 2 to the right of it.
+Confirm both appear where they were put, the whole arrangement is in view,
+drive 2's door opens from its notch, and a `.wav` dropped on the recorder
+loads.
 
 **Acceptance Scenarios**:
 
-1. **Given** Skeuomorphic theme is active and the machine is Apple ][,
-   **When** the emulator window paints,
-   **Then** the framebuffer is wrapped by an Apple ][-style monitor bezel
-   with non-uniform padding (heavier bottom), the emulator pixel grid is
-   unchanged, and the window's overall size reflects the bezel padding plus
-   chrome insets.
-2. **Given** the user picks a different monitor profile in Settings → Display
-   → Monitor frame,
-   **When** the panel closes,
-   **Then** the bezel updates to the new profile without restarting the
-   emulator.
-3. **Given** the DarkModern or RetroTerminal theme is active,
-   **When** the emulator window paints,
-   **Then** no monitor frame is rendered (those themes register no monitor
-   center layer); the chrome is flat around the emulator viewport.
+1. **Given** the default arrangement and arrange mode on, **When** the user
+   drags the recorder to the left of the monitor, **Then** the recorder lies
+   flat on the desk plane at the new spot and the camera refits to contain the
+   scene.
+2. **Given** arrange mode off and a moved drive, **When** the user clicks its
+   door notch, drops a disk image on it or opens its right-click menu, **Then**
+   each acts on that drive exactly as in the default arrangement.
+3. **Given** arrange mode on, **When** the user drags a drive, **Then** the
+   drag moves it and does not open its door; dragging the recorder does not
+   press its keys or turn its volume wheel.
+4. **Given** a drag in progress, **When** the device would overlap another
+   device, **Then** it does not settle overlapping; it stops at the nearest
+   position clear of the others.
+5. **Given** a drive dragged over the top of the recorder, **When** it is
+   released, **Then** it does not settle on the recorder.
+6. **Given** drive 1 dragged near the monitor's lower left corner, **When** it
+   comes within the snap distance, **Then** it snaps under the monitor with its
+   left edge aligned to the monitor's left edge, and stays there against a
+   small further drag.
+7. **Given** a drive dragged near another object's edge or center line,
+   **When** it comes within the snap distance, **Then** it snaps into line, and
+   dragging past the snap distance releases it.
+8. **Given** one drive under the monitor, **When** the user grabs that drive,
+   **Then** the desk plane becomes the monitor's bottom for the drag, and the
+   drive snaps to it.
+9. **Given** a move that ends where a drive's door has no room to open,
+   **Then** the drive is placed far enough from other devices for its door to
+   open.
 
 ---
 
-### User Story 4: Machine Picks a Default Theme (Priority: P3)
+### User Story 2 - The arrangement is kept (Priority: P2)
 
-The active machine config carries an optional `defaultTheme` field. On first
-load of a machine for a given user (or when the user has never explicitly
-chosen a theme), Casso activates the machine's default theme instead of the
-global default. Explicit user choices override and persist.
+A user arranges the desk once and expects it to look the same next time,
+including after switching to another machine and back.
 
-**Why this priority**: Polish. Decouples "which machine am I emulating" from
-"which theme do I want to look at" while giving sensible defaults.
+**Why this priority**: An arrangement that resets on every launch is not worth
+making.
+
+**Independent Test**: Arrange a //e's desk, quit, relaunch: the arrangement is
+the same. Switch to a ][+ and back: the //e's arrangement returns.
+
+**Acceptance Scenarios**:
+
+1. **Given** an arranged desk, **When** Casso is relaunched, **Then** each
+   device is where the user left it.
+2. **Given** an arranged //e desk, **When** the user switches to another
+   machine and back, **Then** the //e's arrangement returns, and the other
+   machine has its own arrangement.
+3. **Given** a saved arrangement that a later change makes impossible (a drive
+   removed, the recorder disconnected), **When** the scene is drawn, **Then**
+   the remaining devices are at their saved positions and nothing overlaps.
 
 ---
 
-## Requirements
+### User Story 3 - Put the desk back (Priority: P3)
+
+A user who has moved things around wants the original arrangement back in one
+step.
+
+**Why this priority**: A safety net; without it a bad arrangement has to be
+undone one move at a time.
+
+**Independent Test**: Arrange the desk, choose the reset command, and confirm
+the default arrangement returns and is the one saved.
+
+**Acceptance Scenarios**:
+
+1. **Given** an arranged desk, **When** the user chooses the command to reset
+   the arrangement, **Then** the default arrangement returns.
+2. **Given** a reset arrangement, **When** Casso is relaunched, **Then** the
+   default arrangement is drawn.
+3. **Given** a moved camera (orbit, pan or zoom), **When** the user resets the
+   view with Ctrl+0, **Then** only the camera resets; the arrangement stays.
+
+---
+
+### Edge Cases
+
+- A device moved so far from the monitor that the scene becomes very wide: the
+  camera contains the whole scene, so the devices get smaller. The
+  allowed area of the desk is bounded so the monitor's picture stays usable.
+- A second drive added to a machine whose desk was arranged with one: the new
+  drive takes a free default spot without overlapping anything.
+- The recorder connected again after being disconnected: it returns to its
+  saved spot if that spot is free, otherwise to the nearest free spot.
+- The fullscreen drive strip: it lays out its devices in its own row and is not
+  affected by the desk arrangement.
+- The flat themes (Dark Modern, Retro Terminal): they have no desk scene and
+  are not affected.
+- Arrange mode turned off mid-drag: the drag ends and the device settles at
+  the nearest valid position.
+- A drive dragged out from under the monitor: the monitor does not move. The
+  desk plane is the bottom of the lowest object, so with nothing under it the
+  monitor is on the desk.
+- A drive released in the air with nothing under it: it settles onto the
+  object below it or onto the desk plane, whichever is higher.
+- The //c's drive, whose door latch rises above its lid: nothing settles in
+  the latch's path, as FR-004 requires for any door.
+
+## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: `ChromeLayout` supports moving an edge-slot contributor from one
-  edge to another without recreating the contributor.
-- **FR-002**: `ChromeTheme` carries a `driveBar.allowedSlots` set; the Settings
-  drive-bar-position dropdown grays out disallowed slots for the active theme.
-  Skeuomorphic permits only Bottom; DarkModern and RetroTerminal permit all
-  four edges.
-- **FR-003**: Drive-bar slot assignment persists in `GlobalUserPrefs` under
-  `chrome.dockSlots.driveBar`.
-- **FR-004**: The compact `DriveWidget` paint path adapts to the perpendicular
-  axis of its slot, drives stack horizontally on top/bottom edges, vertically
-  on left/right edges. LED placement and label legibility are preserved.
-- **FR-005**: `ChromeLayout` supports an `ICenterLayer` interface contributors
-  can implement to reserve `{topPad, bottomPad, leftPad, rightPad}` around the
-  center rect. Padding values are non-uniform per layer.
-- **FR-006**: A `MonitorFrame` center layer paints a per-profile CRT bezel
-  using image assets bundled in the theme.
-- **FR-007**: Monitor frame profile is resolved with the precedence:
-  user override → theme override → machine default → none.
-- **FR-008**: Activating a theme or machine that changes the resolved monitor
-  frame triggers a single `ChromeLayout::OnLayoutChanged` event; the host
-  resizes the HWND by the inset/padding delta to preserve the emulator pixel
-  grid.
-- **FR-009**: Machine config gains an optional `defaultTheme` string field.
-  When a user has never explicitly picked a theme for a machine, the machine's
-  default is activated; explicit choices recorded in `GlobalUserPrefs` take
-  precedence on subsequent launches.
+- **FR-001**: In the Skeuomorphic theme's desk scene, the user MUST be able to
+  move each Disk II drive and the cassette recorder to another position on the
+  desk.
+- **FR-002**: The View menu MUST have an arrange mode toggle. While it is on, a
+  plain drag on a drive or the recorder MUST move that device, and the
+  devices' other pointer controls (doors, keys, the volume wheel, labels) MUST
+  NOT respond. While it is off, devices MUST NOT move.
+- **FR-003**: A drive MUST be placeable on the desk plane, on another drive or
+  under the monitor. The recorder MUST be placeable on the desk plane or on a
+  drive. Nothing MUST be placeable on top of the recorder, whose top must be
+  clear for it to open. The monitor MUST NOT be movable by the user.
+- **FR-004**: A device MUST NOT settle overlapping another device, on top of
+  the recorder, or in the travel of a drive door or the recorder's lid.
+- **FR-005**: The desk plane MUST be the bottom of the lowest object. During a
+  drag, it MUST be the bottom of the lowest object not being dragged.
+- **FR-005a**: A dragged device MUST snap, within a snap distance, to every
+  other object's boundary lines and horizontal and vertical center lines, and
+  to the desk plane. Dragging past the snap distance MUST release it.
+- **FR-005b**: A dragged drive MUST snap against the side of another object.
+  At a corner alignment (its edge aligned to that object's edge, as drive 1
+  left-aligned and drive 2 right-aligned under the monitor), it MUST release
+  only after a slightly longer drag than at other snap lines.
+- **FR-005c**: A device released with nothing under it MUST settle onto the
+  object below it or onto the desk plane, whichever is higher.
+- **FR-006**: After any move, the camera MUST refit so the whole arrangement is
+  in view, as it does for the default arrangement.
+- **FR-007**: Every interaction a device has in the default arrangement MUST
+  work the same at any position: doors, keys, the volume wheel, labels, the
+  right-click menu, hover text and drag and drop of disk and tape files.
+- **FR-008**: The arrangement MUST be saved per machine and restored on launch
+  and on switching back to that machine.
+- **FR-009**: A command MUST reset the current machine's arrangement to the
+  default. Ctrl+0 (reset view) MUST reset the camera only.
+- **FR-010**: When a saved arrangement no longer fits the machine (a device
+  added or removed), the scene MUST draw the devices present without overlap,
+  keeping saved positions where they remain valid.
+- **FR-011**: The fullscreen drive strip and the flat themes MUST NOT change.
 
-### Non-Functional / Out of Scope
+### Key Entities
 
-- Floating undocked drive bar (separate window) is explicitly out of scope.
-- Tab-grouped chrome panels are out of scope.
-- Splitter panes between chrome and emulator are out of scope.
-- Custom user-authored monitor frames (vs picking from bundled profiles) are
-  out of scope; a later spec may add an authoring path.
+- **Desk arrangement**: per machine, the position of each drive and of the
+  recorder, including what each one rests on. Absent until the user first
+  moves something; the default arrangement applies until then.
+- **Snap line**: an object's left, right, top and bottom boundary, its
+  horizontal and vertical center line, and the desk plane.
 
-## Design Notes
+## Success Criteria *(mandatory)*
 
-- The 007 layout manager defines `IEdgeSlot` and `ICenterLayer` interfaces; the
-  drive bar already implements `IEdgeSlot`, and this spec adds the first
-  `ICenterLayer` implementation (`MonitorFrame`). No changes to `ChromeLayout`
-  itself are required beyond a slot-reassignment helper for FR-001.
-- Window-size math is unchanged in shape; it is already
-  `window = NC overhead + edge insets + Σ center layer paddings + emulator
-  pixel grid`. This spec adds non-zero `Σ center layer paddings` for the first
-  time but the formula is the same.
-- Drag-to-dock (US2) layers on top of the Settings-driven dock path. It
-  reuses the same `ChromeLayout::ReassignSlot()` operation; only the gesture
-  recognizer and drop-zone visualization are new.
+### Measurable Outcomes
 
-## Dependencies
+- **SC-001**: A user can move the recorder from the right of the monitor to the
+  left in under 10 seconds, on the first attempt, counting turning arrange
+  mode on and off.
+- **SC-001a**: A user can place drive 1 under the monitor left-aligned and
+  drive 2 under it right-aligned, each aligned to within 1 mm, without
+  adjusting either after the snap.
+- **SC-002**: After 20 random moves of each device on a //e with two drives and
+  the recorder, no two devices overlap and every drive door opens fully.
+- **SC-003**: After any arrangement, the whole scene is in view at the
+  window's size, with no device clipped at any edge.
+- **SC-004**: An arrangement survives a relaunch and a machine switch with every
+  device within 1 mm of where it was left.
+- **SC-005**: With the default arrangement (no moves made), the scene is
+  identical to today's, frame for frame.
 
-- **Hard**: the `ChromeLayout`, `IChromeContributor`, edge-slot registration,
-  center-layer interface, and theme-listener resize orchestration shipped in
-  spec 007 must be merged before this spec can begin.
-- **Soft**: spec 008 (3D chrome rendering) is orthogonal but compatible, the
-  monitor frame center layer could be rendered through the 3D pipeline once it
-  lands, or via the existing 2D painter, at the implementer's discretion.
+## Assumptions
+
+- The default arrangement is today's fixed arrangement, and it stays the
+  default for every machine.
+- Positions are saved per machine model in the user's preferences, not in the
+  machine's configuration file.
+- The //c, which has no recorder, arranges its drives and monitor only.
+- Devices rotate with the scene's orbit only; turning one device on its own is
+  out of scope.
+- A drag moves a device left and right and up and down as seen from the front.
+  Front-to-back depth follows the stacking rules, with each device's front on
+  the shared front plane as today.
+- The snap distance and the corner release distance are tuned against the
+  running scene, at a few pixels at the window's scale.
+- Moving a device is a desk-scene change only; it has no effect on emulation.
