@@ -2355,6 +2355,22 @@ never written back, so a rebuilt event sees the disk as it was.
 **To measure before the panes rely on it**: stretches replayed per second on
 a DOS 3.3 boot, the slowest case, which sets the prefetch depth for SC-054.
 
+**Measured 2026-10-14 (T778).** `DebugEventReplayRateTests` (ScenarioTests)
+boots a //e from the DOS 3.3 master with history on, then replays each of the
+boot's stretches alone on the scratch machine with the Disk II feed attached,
+newest first, in the order a log scrolling back requests them, timing each
+from unpack to its end. Release x64: 78 stretches in 206 ms, 379 a second; median 2.83 ms
+a stretch, slowest 6.41 ms. 59 of the 78 had disk events, at most 29 in one,
+1,099 in all.
+
+A quarter second (SC-054) replays about 39 stretches at the slowest stretch's
+time. A screen of about 40 rows takes two or three stretches while the disk
+reads, but many more across quiet history, where a stretch may have no event
+at all, so the prefetch is set by time rather than by rows:
+`DebugEventReplayer::kPrefetch` is 32 stretches, about 0.2 s at the slowest,
+and the LRU of rebuilt stretches has room for four times that, so a stretch
+prefetched is not evicted before the user scrolls to it.
+
 **Alternatives considered**: keeping the old windows' own buffers, started
 when a window opens (rejected: no events from before it opened, wall-clock
 stamps, and a second record that a rewind leaves wrong); a buffer as deep as
