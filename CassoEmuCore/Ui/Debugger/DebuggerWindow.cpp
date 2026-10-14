@@ -7198,6 +7198,13 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 
     isUsed = m_heatMapView->OnMouse (ev);
 
+    //  A press on the map focuses it, as a press in any pane focuses that
+    //  pane, so the pane takes the accent.
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        SetFocusedControl (m_heatMapView);
+    }
+
     //  Painted once the messages waiting are handled, so a wheel spun hard
     //  moves the map by every notch before it is drawn, rather than drawing
     //  each notch while the rest wait.

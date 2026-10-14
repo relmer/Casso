@@ -76,6 +76,10 @@ public:
     using Mode = HeatMapOptions::View;
     using Bank = HeatMapOptions::Bank;
 
+    //  Focusable, as every pane's content is, so after a click on the map
+    //  its pane has the focus and is drawn with the accent.
+    HeatMapView() { m_focusable = true; }
+
     //  What a click on a cell asks for, by the keys held.
     enum class PickAction
     {
