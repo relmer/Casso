@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-dragdrop-blur`
 **Created**: 2026-05-26
-**Status**: Draft (deferred, depends on Gaussian shader + textured-quad primitive in DxUiPainter)
+**Status**: Draft (deferred; revisit the design before planning, see "Status update" below)
 **Input**: Planning draft for two related drag-drop visual upgrades requiring
 shader + offscreen-render-target plumbing in `DxUiPainter`:
 
@@ -23,6 +23,23 @@ shader + offscreen-render-target plumbing in `DxUiPainter`:
 Both items want the same new painter primitive: `DrawTexturedQuad` with an
 explicit blend state. Shipping them together amortizes the plumbing cost, which
 is the least glamorous kind of bargain but still a bargain.
+
+## Status update (2026-10-14)
+
+Never implemented. Since this draft was written:
+
+- **The blur exists.** `SettingsCompositor` runs a separable Gaussian
+  (`gaussian_h.hlsl`, `gaussian_v.hlsl`) through offscreen render targets for
+  the Settings preview, and `DxuiRenderTarget` supports post-processing the
+  whole frame. The painter primitive does not: `IDxuiPainter` has no
+  textured-quad call.
+- **No drag overlay exists to upgrade.** During a drag, the only feedback is
+  the copy or no-drop cursor that `DxuiDragDropTarget::DragOver` sets. The
+  flat dim overlay and the hover tint in the input above are gone.
+- **The drives are 3D models in the Skeuomorphic theme.** The desk scene
+  (spec 018) replaced the 2D drive widgets there, so a target glow in that
+  theme is drawn by the scene renderer. The flat themes have 2D drive widgets.
+- **The soft dependency on 009 no longer applies.** 009 is superseded.
 
 ## Overview
 

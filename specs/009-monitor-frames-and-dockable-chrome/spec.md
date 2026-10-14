@@ -2,10 +2,29 @@
 
 **Feature Branch**: `009-monitor-frames-and-dockable-chrome` (proposed)
 **Created**: 2026-05-25
-**Status**: Draft (deferred, depends on the chrome layout manager shipped in 007)
+**Status**: Superseded (never implemented; see "Superseded by" below)
 **Input**: User-described future capabilities that build on the chrome layout
 manager primitive (`ChromeLayout`, `IChromeContributor`, edge slots, center
 layers) shipped in spec 007.
+
+## Superseded by the 3D desk scene
+
+This spec was never implemented. Closed 2026-10-14:
+
+- **Monitor frame (US3)**: the 3D desk scene (spec 018, 1.21.0) draws a
+  monitor model per machine around the picture. The 2D monitor frame was
+  deleted, and its preference key is ignored on load.
+- **The layout it extends is gone.** `ChromeLayout`, its edge slots and
+  `ICenterLayer` were replaced by `DxuiDockLayout` in spec 013.
+- **Drive bar docking (US1, US2) and a default theme per machine (US4)** were
+  never built.
+
+**Carried to a future spec**: let the user reposition the Disk II drives and the
+cassette recorder in the desk scene. Today `DeskSceneLayout::SolveComposition`
+computes fixed positions for them, and `DeskSceneLayout::PlaceRecorder`
+computes the recorder's position, flat on the desk to the right of the stack.
+
+Nothing below should be implemented as written.
 
 ## Overview
 
