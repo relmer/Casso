@@ -480,6 +480,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     std::vector<DxuiTreeNode>  roots;
     bool                       grouped = false;
     bool                       opened  = false;
+    HRESULT                    hr      = S_OK;
 
 
 
@@ -723,6 +724,10 @@ void CassoExplorerWindow::ConfigureWidgets()
     //  A picture fills the pane at any size, as Explorer's preview does, not
     //  only at whole multiples of its own.
     m_picture->SetScaling (false, true);
+
+    //  Windows' own previews of host files, hosted over the pane.
+    hr = m_shellPreview.Start (GetHwnd(), kShellPreviewMessage);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     grouped = m_hexView->SetGrouping (m_prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
@@ -1181,6 +1186,14 @@ void CassoExplorerWindow::RecomputeLayout()
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (GetMessageRect (listRect),    m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
+
+        m_previewContent = previewRect;
+
+        if (!m_shellPreviewPath.empty())
+        {
+            m_shellPreview.SetRect (previewRect);
+        }
+
         m_textView->Layout       (previewRect, m_scaler);
         m_hexView->Layout        (previewRect, m_scaler);
         m_picture->Layout        (RECT { previewRect.left  + m_scaler.ToPx (kPictureInsetDip), previewRect.top    + m_scaler.ToPx (kPictureInsetDip),
@@ -1190,6 +1203,13 @@ void CassoExplorerWindow::RecomputeLayout()
     }
     else
     {
+        if (!m_shellPreviewPath.empty())
+        {
+            m_shellPreview.Unload();
+            m_shellPreviewPath.clear();
+            m_shellPicture = false;
+        }
+
         m_previewToolbar->SetVisible (false);
         m_list->Layout        (right, m_scaler);
         m_listMessage->Layout (GetMessageRect (right), m_scaler);
@@ -1996,6 +2016,7 @@ void CassoExplorerWindow::FillPreview()
     bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                                            forms    = picture && m_browser.CanTogglePictureColor();
+    bool                                            shell    = preview.kind == PreviewContent::Kind::Shell;
     int                                             mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                                              : hex      ? CassoExplorerCommands::kPreviewBarHex
                                                              : program  ? CassoExplorerCommands::kPreviewBarListing
@@ -2005,12 +2026,14 @@ void CassoExplorerWindow::FillPreview()
 
 
 
+    UpdateShellPreview (preview);
+
     if (picture)
     {
         m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height);
         UpdateCrtPicture (true);
     }
-    else
+    else if (!(shell && m_shellPicture))
     {
         m_picture->Clear();
     }
@@ -2091,7 +2114,7 @@ void CassoExplorerWindow::FillPreview()
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
-    blank = m_list->GetSelectedRows().empty() && !picture && !error && !hex && !columns && !program;
+    blank = m_list->GetSelectedRows().empty() && !picture && !shell && !error && !hex && !columns && !program;
 
     m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
                                : !error                ? std::wstring()
@@ -2104,9 +2127,9 @@ void CassoExplorerWindow::FillPreview()
     m_previewMessage->SetTextRole (blank ? DxuiTextRole::Body : DxuiTextRole::Muted);
     m_previewMessage->SetFontDip  (blank ? kPromptFontDip : 0.0f);
 
-    m_picture->SetVisible (visible && picture);
+    m_picture->SetVisible (visible && (picture || (shell && m_shellPicture)));
     m_previewList->SetVisible (visible && columns);
-    m_textView->SetVisible (visible && !picture && !error && !hex && !columns && !blank);
+    m_textView->SetVisible (visible && !picture && !shell && !error && !hex && !columns && !blank);
     m_hexView->SetVisible (visible && hex);
 
     Invalidate();
@@ -2176,6 +2199,125 @@ void CassoExplorerWindow::ExtractAll()
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::UpdateShellPreview
+//
+//  A shell preview is loaded once for its file and reused while the same
+//  file is previewed; any other preview, or the pane hidden, unloads it. A
+//  load that takes longer than a few seconds is replaced by the bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::UpdateShellPreview (const PreviewContent & preview)
+{
+    bool      shell      = preview.kind == PreviewContent::Kind::Shell && m_prefs.previewVisible;
+    uint32_t  background = m_theme->ContentBackground();
+    uint32_t  text       = m_theme->Foreground();
+
+
+
+    if (!shell)
+    {
+        if (!m_shellPreviewPath.empty())
+        {
+            KillTimer (GetHwnd(), kShellPreviewTimerId);
+            m_shellPreview.Unload();
+            m_shellPreviewPath.clear();
+            m_shellPicture = false;
+        }
+
+        return;
+    }
+
+    if (preview.hostPath == m_shellPreviewPath)
+    {
+        return;
+    }
+
+    m_shellPreviewPath = preview.hostPath;
+    m_shellPicture     = false;
+    m_picture->Clear();
+
+    m_shellPreview.Load (m_shellPreviewPath, m_previewContent,
+                         RGB ((background >> 16) & 0xFF, (background >> 8) & 0xFF, background & 0xFF),
+                         RGB ((text >> 16) & 0xFF, (text >> 8) & 0xFF, text & 0xFF));
+
+    SetTimer (GetHwnd(), kShellPreviewTimerId, kShellPreviewTimeoutMs, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnShellPreviewResult
+//
+//  A handler's window becomes visible over the pane; a thumbnail is drawn in
+//  the picture view, fitted; after a failure the bytes are drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnShellPreviewResult()
+{
+    Win32ShellPreview::Result  result;
+
+
+
+    if (m_shellPreviewPath.empty() || !m_shellPreview.TakeResult (result))
+    {
+        return;
+    }
+
+    KillTimer (GetHwnd(), kShellPreviewTimerId);
+
+    switch (result.outcome)
+    {
+        case Win32ShellPreview::Outcome::Shown:
+            m_shellPreview.ShowHost (true);
+            break;
+
+        case Win32ShellPreview::Outcome::Picture:
+            m_picture->SetFramebuffer (result.bgra.data(), result.width, result.height);
+            m_picture->SetVisible (m_prefs.previewVisible);
+            m_shellPicture = true;
+            break;
+
+        case Win32ShellPreview::Outcome::Failed:
+        default:
+            ShowShellPreviewBytes();
+            break;
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowShellPreviewBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowShellPreviewBytes()
+{
+    KillTimer (GetHwnd(), kShellPreviewTimerId);
+    m_shellPreview.Unload();
+    m_shellPreviewPath.clear();
+    m_shellPicture = false;
+
+    m_browser.ShowShellPreviewBytes();
+    FillPreview();
 }
 
 
@@ -8628,6 +8770,12 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  what collapses a burst: a copy of a hundred files re-reads once, when
     //  the copying stops. Only for so long, though: a folder that never stops
     //  changing (a log being written, say) would hold off every re-read.
+    if (msg == kShellPreviewMessage)
+    {
+        OnShellPreviewResult();
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == kFolderChangedMessage)
     {
         ULONGLONG  now = GetTickCount64();
@@ -12692,6 +12840,12 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     bool  barsMoved = false;
 
 
+
+    if (timerId == kShellPreviewTimerId)
+    {
+        ShowShellPreviewBytes();
+        return DxuiMessageResult::Handled;
+    }
 
     //  The Recycle Bin restores on its own time, so the folder is read again
     //  each second for a while after an undo.

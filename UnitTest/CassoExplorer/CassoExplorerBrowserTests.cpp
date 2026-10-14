@@ -35,12 +35,20 @@ public:
 
     //  The extension the shell opens as a folder, and the bytes any item reads.
     std::wstring                  archiveExtension;
+
+    //  The extension Windows previews.
+    std::wstring                  previewExtension;
     std::vector<Byte>             itemBytes;
 
     HRESULT  ListShellFolder (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
     HRESULT  ListNavigationRoots (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
     HRESULT  ListPinnedFolders   (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
     HRESULT  ListDesktopNamespace (std::vector<ShellFolderItem> & outFolders) override                { outFolders = desktopItems; return S_OK; }
+
+    bool     HasShellPreview (const std::wstring & path) override
+    {
+        return !previewExtension.empty() && path.ends_with (previewExtension);
+    }
 
     bool     IsArchive (const std::wstring & path) override
     {
@@ -342,6 +350,37 @@ public:
             Assert::AreEqual ((size_t) 2, host.browser.GetPreview().rows.size());
             Assert::AreEqual (std::wstring (L"docs"), host.browser.GetPreview().rows[0].name);
         }
+    }
+
+
+    //  A file of a type Windows previews gets Windows' preview; an assembler's
+    //  source and an exported Apple file are Casso Explorer's own.
+    TEST_METHOD (ShellPreview_ForTypesWindowsPreviews)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\report.pdf", "%PDF"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\demo.pdf.a65", "; source"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\HELLO.Text.txt", "HELLO"));
+        shell.previewExtension = L".pdf";
+        host.browser.SetShellVerbs (&shell);
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"report.pdf") });
+        Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Shell);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\report.pdf"), host.browser.GetPreview().hostPath);
+
+        host.browser.ShowShellPreviewBytes();
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"A failed shell preview is replaced by the bytes");
+
+        shell.previewExtension = L".txt";
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO.Text.txt") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"An exported Apple file is Casso Explorer's");
+
+        shell.previewExtension = L".a65";
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"demo.pdf.a65") });
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"and so is an assembler's source");
     }
 
 

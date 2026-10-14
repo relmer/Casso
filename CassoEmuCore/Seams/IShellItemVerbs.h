@@ -134,6 +134,10 @@ public:
     //  read on the caller's thread.
     using ShellLister = std::function<HRESULT (const std::wstring & id, std::vector<ShellFolderItem> & outItems)>;
 
+    //  Whether Windows previews a host file: a preview handler for its type,
+    //  or a thumbnail for a picture or a video.
+    virtual bool  HasShellPreview (const std::wstring & path) { (void) path; return false; }
+
     virtual ShellLister  GetShellLister ()                                                                { return [this] (const std::wstring & id, std::vector<ShellFolderItem> & outItems) { return ListShellFolder (id, outItems); }; }
     virtual HRESULT  GetShellItemName  (const std::wstring & id, std::wstring & outName)               { (void) id; (void) outName; return E_NOTIMPL; }
     virtual HRESULT  OpenShellItem     (HWND owner, const std::wstring & id)                            { (void) owner; (void) id; return E_NOTIMPL; }

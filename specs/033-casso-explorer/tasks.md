@@ -365,8 +365,8 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 
 ## Phase 13: Convergence
 
-- [ ] T159 Host Windows' preview handler for a host file of a type that has one, in the Preview pane where File Explorer draws it, with Casso Explorer's own previews first for Apple files and disk images and the bytes for a file nothing previews, per FR-073 and US10/AC1-3 (missing)
-- [ ] T160 Resize a shell preview with the pane, hide it with the pane, unload it when the selection moves, load it off the window's thread, and draw the bytes instead when it fails or takes longer than File Explorer allows, per FR-074, US10/AC4 and Edge Cases (missing)
+- [X] T159 Host Windows' preview handler for a host file of a type that has one, in the Preview pane where File Explorer draws it, with Casso Explorer's own previews first for Apple files and disk images and the bytes for a file nothing previews, per FR-073 and US10/AC1-3 (missing)
+- [X] T160 Resize a shell preview with the pane, hide it with the pane, unload it when the selection moves, load it off the window's thread, and draw the bytes instead when it fails or takes longer than File Explorer allows, per FR-074, US10/AC4 and Edge Cases (missing)
 - [ ] T161 Match File Explorer's first-level context menu for files, folders and selections: the clipboard row, the same commands in the same order with the same icons, Open with as a submenu, and the commands other programs add, per FR-075, US11/AC1 and US11/AC3 (partial)
 - [ ] T162 Match File Explorer's context menu for a navigation tree node, item for item, per FR-075 and US11/AC2 (partial)
 - [X] T163 Offer Extract All on the first level of an archive's menu and on the command bar when an archive is selected or open, as File Explorer does, per FR-078, US12/AC4 and SC-024 (partial)

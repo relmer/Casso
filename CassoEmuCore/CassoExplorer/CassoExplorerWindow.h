@@ -267,12 +267,19 @@ private:
     //  Posted by the Content view's reader when items' details are in.
     static constexpr UINT      kContentDetailsMessage = WM_APP + 0x39;
 
+    //  Posted by the shell preview's thread when a load is done.
+    static constexpr UINT      kShellPreviewMessage  = WM_APP + 0x3A;
+
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
     static constexpr UINT_PTR  kRestoreTimerId       = 0x5155;   // re-reads while the Recycle Bin restores
     static constexpr UINT_PTR  kRecycleBinTimerId    = 0x5156;   // settles the bin's changes before a re-read
     static constexpr UINT_PTR  kDriveTimerId         = 0x5157;   // polls for drives attached or removed
-    static constexpr UINT      kDrivePollMs          = 2000;
+    static constexpr UINT_PTR  kShellPreviewTimerId  = 0x5158;   // gives up on a shell preview that has not arrived
+
+    //  How long a shell preview has before the bytes replace it.
+    static constexpr UINT  kShellPreviewTimeoutMs = 5000;
+    static constexpr UINT  kDrivePollMs           = 2000;
 
     //  File Explorer's Quick access, pinned and frequent folders alike, is the
     //  jump list of this application id, in the Recent folder's
@@ -538,6 +545,9 @@ private:
     void  SwitchToTab (size_t index);
     void  FillPreview();
     void  UpdateCommandBar();
+    void  UpdateShellPreview      (const PreviewContent & preview);
+    void  OnShellPreviewResult    ();
+    void  ShowShellPreviewBytes   ();
     void  ExtractAll();
     void  FillStatus();
     void  SetFocusPane (Pane pane);
@@ -784,6 +794,10 @@ private:
     Win32ShellIcons                              m_listIcons;
     Win32InfoTips                                m_infoTips;
     Win32ContentDetails                          m_contentDetails;
+    Win32ShellPreview                            m_shellPreview;
+    std::wstring                                 m_shellPreviewPath;
+    bool                                         m_shellPicture    = false;
+    RECT                                         m_previewContent  = {};
     CrtPictureRenderer                           m_crtPicture;
     int                                          m_crtWidth        = 0;
     int                                          m_crtHeight       = 0;

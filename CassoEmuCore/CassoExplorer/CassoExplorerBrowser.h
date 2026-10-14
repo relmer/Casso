@@ -215,6 +215,10 @@ public:
 
     //  The preview made again for the selection, as when a slow read arrives.
     void  RefreshPreview   () { UpdatePreview(); }
+
+    //  A shell preview that failed or took too long is replaced by the file's
+    //  bytes.
+    void  ShowShellPreviewBytes ();
     void  SetDisassemble   (bool disassemble);
 
     const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }

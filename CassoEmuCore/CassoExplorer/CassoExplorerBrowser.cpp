@@ -1311,6 +1311,16 @@ void CassoExplorerBrowser::UpdatePreview()
 
             m_preview.hostPath += m_rows[m_selectedRows[0]].name;
 
+            //  Windows' own preview, as Explorer's, for a file of a type it
+            //  previews; an assembler's source and an exported Apple file are
+            //  Casso Explorer's to preview.
+            if (m_shellVerbs != nullptr && !IsSourceName (m_rows[m_selectedRows[0]].name) && !IsAppleExportName (m_rows[m_selectedRows[0]].name)
+                && m_shellVerbs->HasShellPreview (m_preview.hostPath))
+            {
+                m_preview.kind = PreviewContent::Kind::Shell;
+                return;
+            }
+
             //  A source file, or text the hex view cannot draw, is read whole
             //  as text when it is small and on this computer.
             if (m_rows[m_selectedRows[0]].sizeBytes <= s_kTextPreviewMaxBytes && !PathResolver::IsNetworkPath (m_preview.hostPath))
@@ -1409,6 +1419,24 @@ std::wstring CassoExplorerBrowser::DescribeEmptyArchive (const std::wstring & pa
     }
 
     return ArchiveProbe::GetReason (name, ArchiveProbe::ProbeZip (std::span<const Byte> ((const Byte *) bytes.data(), bytes.size())));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ShowShellPreviewBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::ShowShellPreviewBytes()
+{
+    if (m_preview.kind == PreviewContent::Kind::Shell)
+    {
+        m_preview.kind = PreviewContent::Kind::Hex;
+    }
 }
 
 

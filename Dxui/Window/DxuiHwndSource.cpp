@@ -1952,7 +1952,10 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         hr = desktopDevice.As (&m_compDevice);
         CHRA (hr);
 
-        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        //  Behind the window's children, so a child window a host places over
+        //  the content, such as a file's preview from another program, is
+        //  drawn on top of it.
+        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, FALSE, m_compTarget.GetAddressOf());
         CHRA (hr);
 
         hr = desktopDevice->CreateVisual (compVisual2.GetAddressOf());

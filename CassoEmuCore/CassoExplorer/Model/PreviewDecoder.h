@@ -55,7 +55,8 @@ enum class HostCharset
 
 struct PreviewContent
 {
-    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error };
+    //  Shell is Windows' own preview of a host file, which the window hosts.
+    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell };
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;

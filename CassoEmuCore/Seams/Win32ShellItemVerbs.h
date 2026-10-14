@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/IShellItemVerbs.h"
+#include "Seams/Win32ShellPreview.h"
 
 
 
@@ -35,6 +36,7 @@ public:
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;
     HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx) override;
     HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb) override;
+    bool     HasShellPreview     (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
     HRESULT  Recycle             (HWND owner, const std::vector<std::wstring> & paths) override;
     HRESULT  RestoreRecycled     (HWND owner, const std::vector<std::wstring> & paths) override;
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override;
