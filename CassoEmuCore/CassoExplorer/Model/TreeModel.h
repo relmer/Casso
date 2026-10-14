@@ -133,6 +133,10 @@ public:
 
     static bool  IsSupportedImage (const std::wstring & fileName);
 
+    //  What follows an image's file name when it loads but has no file system
+    //  this browser reads.
+    static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
+
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
     //  for the second and later entries of the same name, which one it is.

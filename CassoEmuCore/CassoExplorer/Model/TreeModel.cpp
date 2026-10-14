@@ -954,9 +954,8 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     {
         //  A file the loader refused says why, as the list does; one that
         //  loaded holds no file system this browser reads.
-        inOutNode.loadError = BreakAfterFirstSentence (GetLeaf (path) + L" "
-                            + TextEncoding::NarrowToWide (loaded ? std::string (DiskImageSession::kNoFilesystemText) : diagnosis.Describe())
-                            + L".");
+        inOutNode.loadError = loaded ? GetLeaf (path) + L" " + kNoFilesystemText
+                                     : BreakAfterFirstSentence (GetLeaf (path) + L" " + TextEncoding::NarrowToWide (diagnosis.Describe()) + L".");
         inOutNode.broken         = !loaded;
         m_children[inOutNode.id] = children;
 

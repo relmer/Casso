@@ -1502,12 +1502,15 @@ public:
         Host  host;
 
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\blank.dsk", std::string (143360, '\0')));
+        host.io.files["C:\\Disks\\blank.dsk"]  = std::vector<Byte> (143360, 0);
+        host.io.stamps["C:\\Disks\\blank.dsk"] = FileStamp { 143360, 100 };
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
         Assert::IsTrue (host.browser.OpenRow (FindRow (host.browser, L"blank.dsk")));
         Assert::IsTrue (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\blank.dsk"));
         Assert::IsTrue (host.browser.GetRows().empty());
-        Assert::IsFalse (host.browser.GetListError().empty(), L"with the reason the list is empty");
+        Assert::AreEqual (std::wstring (L"blank.dsk can't be previewed because it doesn't have a recognized file system."),
+                          host.browser.GetListError(), L"with the reason the list is empty");
     }
 
 

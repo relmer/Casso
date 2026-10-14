@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImageSession.h"
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -2578,7 +2579,9 @@ std::wstring CassoExplorerBrowser::ShortenPaths (const std::wstring & message)
 //  CassoExplorerBrowser::FormatImageError
 //
 //  The command line's refusal, "path: reason", as a sentence about the file
-//  by its own name: the address bar and the tree already show where it is.
+//  by its own name, since its path is in the address bar and the tree. An
+//  image with no file system gets one plain sentence, and the rest is in the
+//  preview's details.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2587,8 +2590,14 @@ std::wstring CassoExplorerBrowser::FormatImageError (const std::wstring & imageP
     std::wstring  text   = TextEncoding::NarrowToWide (message);
     std::wstring  prefix = imagePath + L": ";
     size_t        slash  = imagePath.find_last_of (L"\\/");
+    std::wstring  leaf   = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1);
 
 
+
+    if (message.find (DiskImageSession::kNoFilesystemText) != std::string::npos)
+    {
+        return leaf + L" " + TreeModel::kNoFilesystemText;
+    }
 
     while (!text.empty() && (text.back() == L'\n' || text.back() == L'\r' || text.back() == L' '))
     {
@@ -2597,7 +2606,7 @@ std::wstring CassoExplorerBrowser::FormatImageError (const std::wstring & imageP
 
     if (text.compare (0, prefix.size(), prefix) == 0)
     {
-        text = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1) + L" " + text.substr (prefix.size());
+        text = leaf + L" " + text.substr (prefix.size());
     }
 
     //  The general part leads and the detail follows on a line of its own.
