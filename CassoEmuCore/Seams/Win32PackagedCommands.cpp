@@ -249,6 +249,14 @@ HRESULT Win32PackagedCommands::ReadManifest (IStream * stream, const wchar_t * f
         element   = node == XmlNodeType_Element;
         inAppName = element && inProperties && wcscmp (local, L"DisplayName") == 0;
 
+        //  The first application's small logo, the icon of an app's group.
+        if (element && registration.logo.empty() && wcscmp (local, L"VisualElements") == 0)
+        {
+            hr                = GetAttribute (reader.Get(), L"Square44x44Logo", value);
+            registration.logo = SUCCEEDED (hr) ? FindLogoFile (fullName, value) : std::wstring();
+            continue;
+        }
+
         if (wcscmp (local, L"Properties") == 0)
         {
             inProperties = element;
@@ -328,6 +336,56 @@ std::wstring Win32PackagedCommands::LoadAppName (const wchar_t * fullName, const
     hr = SHLoadIndirectString ((L"@{" + std::wstring (fullName) + L"?" + source + L"}").c_str(), text, (UINT) std::size (text), nullptr);
 
     return SUCCEEDED (hr) ? std::wstring (text) : name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::FindLogoFile
+//
+//  The logo file a menu draws: the manifest's logo path has no resource
+//  qualifiers, and the package has a file for each size and plate.
+//  The unplated 32-pixel art first, as File Explorer's menu draws an app;
+//  then the nearest sizes and scales; then the name as given. The files of
+//  a sparse package are in its effective folder, not its install folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32PackagedCommands::FindLogoFile (const wchar_t * fullName, const std::wstring & logo)
+{
+    static constexpr const wchar_t *  s_kpszQualifiers[] =
+    {
+        L".altform-unplated_targetsize-32", L".altform-unplated_targetsize-48", L".altform-unplated_targetsize-24",
+        L".targetsize-32", L".targetsize-48", L".targetsize-24",
+        L".scale-200", L".scale-150", L".scale-100", L""
+    };
+    wchar_t          folder[MAX_PATH] = {};
+    UINT32           length           = (UINT32) std::size (folder);
+    LONG             status           = GetPackagePathByFullName2 (fullName, PackagePathType_Effective, &length, folder);
+    fs::path         file             = fs::path (folder) / logo;
+    std::error_code  error;
+
+
+
+    if (status != ERROR_SUCCESS || logo.empty())
+    {
+        return std::wstring();
+    }
+
+    for (const wchar_t * qualifier : s_kpszQualifiers)
+    {
+        fs::path  candidate = file.parent_path() / (file.stem().wstring() + qualifier + file.extension().wstring());
+
+        if (fs::exists (candidate, error))
+        {
+            return candidate.wstring();
+        }
+    }
+
+    return std::wstring();
 }
 
 
@@ -578,7 +636,7 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
             }
         }
 
-        AddPackageEntries (registrations[first].appName, applies, own, entries);
+        AddPackageEntries (registrations[first], applies, own, entries);
     }
 
 Error:
@@ -594,12 +652,12 @@ Error:
 //  Win32PackagedCommands::AddPackageEntries
 //
 //  An app with more than one command for the items has them in a submenu
-//  under its name, as File Explorer groups them; one with a single command
-//  has it on the menu itself.
+//  under its name and logo, as File Explorer groups them; one with a single
+//  command has it on the menu itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PackagedCommands::AddPackageEntries (const std::wstring & appName, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries)
+void Win32PackagedCommands::AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries)
 {
     Entry  group;
 
@@ -610,14 +668,14 @@ void Win32PackagedCommands::AddPackageEntries (const std::wstring & appName, siz
         return;
     }
 
-    if (applies < 2 || appName.empty())
+    if (applies < 2 || package.appName.empty())
     {
         std::move (own.begin(), own.end(), std::back_inserter (outEntries));
         return;
     }
 
-    group.title    = appName;
-    group.icon     = own.front().icon;
+    group.title    = package.appName;
+    group.icon     = package.logo.empty() ? own.front().icon : package.logo;
     group.children = std::move (own);
 
     outEntries.push_back (std::move (group));
@@ -633,7 +691,8 @@ void Win32PackagedCommands::AddPackageEntries (const std::wstring & appName, siz
 //
 //  Skip a command hidden for these items and gray a disabled one. After
 //  E_PENDING from a quick GetState, call it again with okToBeSlow set, as
-//  File Explorer does. A command with no title or icon of its
+//  File Explorer does, and list the command whatever the slow answer hides,
+//  as File Explorer lists Beyond Compare's. A command with no title or icon of its
 //  own takes the fallbacks, and one with subcommands becomes a submenu.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -641,24 +700,27 @@ void Win32PackagedCommands::AddPackageEntries (const std::wstring & appName, siz
 void Win32PackagedCommands::AddEntry (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
                                       const std::wstring & fallbackIcon, std::vector<Entry> & outEntries)
 {
-    EXPCMDSTATE                                    state  = ECS_ENABLED;
-    EXPCMDFLAGS                                    flags  = ECF_DEFAULT;
-    PWSTR                                          title  = nullptr;
-    PWSTR                                          icon   = nullptr;
-    Entry                                          entry;
-    Microsoft::WRL::ComPtr<IEnumExplorerCommand>   children;
-    HRESULT                                        hr     = S_OK;
+    EXPCMDSTATE                                   state    = ECS_ENABLED;
+    EXPCMDFLAGS                                   flags    = ECF_DEFAULT;
+    PWSTR                                         title    = nullptr;
+    PWSTR                                         icon     = nullptr;
+    Entry                                         entry;
+    Microsoft::WRL::ComPtr<IEnumExplorerCommand>  children;
+    HRESULT                                       hr       = S_OK;
+    bool                                          pending  = false;
 
 
 
-    hr = command->GetState (items, FALSE, &state);
+    hr      = command->GetState (items, FALSE, &state);
+    pending = hr == E_PENDING;
 
-    if (hr == E_PENDING)
+    if (pending)
     {
         hr = command->GetState (items, TRUE, &state);
     }
 
     state = SUCCEEDED (hr) ? state : ECS_ENABLED;
+    state = pending ? (state & ~ECS_HIDDEN) : state;
 
     hr = command->GetFlags (&flags);
     flags = SUCCEEDED (hr) ? flags : ECF_DEFAULT;

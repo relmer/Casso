@@ -85,6 +85,7 @@ private:
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon, int overlay = 0);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
+    std::shared_ptr<const DxuiIconImage>  LoadPicture (const std::wstring & key, const std::wstring & file);
     std::shared_ptr<const DxuiIconImage>  Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays);
     void                                  RunLoader();

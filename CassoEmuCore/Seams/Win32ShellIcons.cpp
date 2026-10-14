@@ -7,6 +7,7 @@
 #include "resource.h"
 
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "Devices/Printer/PngCodec.h"
 
 
 
@@ -492,6 +493,12 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForIconResource (const 
         return nullptr;
     }
 
+    //  A package's logo is a picture file, not an icon resource.
+    if (_wcsicmp (fs::path (resource).extension().c_str(), L".png") == 0)
+    {
+        return LoadPicture (key, resource);
+    }
+
     wcscpy_s (path, resource.c_str());
     index = PathParseIconLocationW (path);
 
@@ -503,6 +510,57 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForIconResource (const 
     }
 
     return (hr == S_OK && bigIcon != nullptr) ? Remember (key, bigIcon) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadPicture
+//
+//  A PNG decoded, premultiplied and scaled to the row's size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::LoadPicture (const std::wstring & key, const std::wstring & file)
+{
+    HRESULT                         hr     = S_OK;
+    std::ifstream                   input  (file, std::ios::binary);
+    bool                            opened = input.good();
+    std::vector<Byte>               bytes;
+    RgbaImage                       rgba;
+    DxuiIconImage                   source;
+    std::shared_ptr<DxuiIconImage>  image;
+
+
+
+    CBREx (opened, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    bytes.assign (std::istreambuf_iterator<char> (input), std::istreambuf_iterator<char>());
+
+    hr = PngCodec::DecodeRgba (bytes, rgba);
+    CHR (hr);
+
+    source.width  = rgba.width;
+    source.height = rgba.height;
+    source.bgraPremul.resize ((size_t) rgba.width * (size_t) rgba.height);
+
+    for (size_t i = 0; i < source.bgraPremul.size(); i++)
+    {
+        const Byte  * px    = &rgba.rgba[i * 4];
+        uint32_t      alpha = px[3];
+
+        source.bgraPremul[i] = (alpha << 24) | ((px[0] * alpha / 255) << 16) | ((px[1] * alpha / 255) << 8) | (px[2] * alpha / 255);
+    }
+
+    image = std::make_shared<DxuiIconImage> (DxuiIconImage::Resample (source, m_sizePx));
+
+    m_cache[key] = image;
+
+Error:
+    return image;
 }
 
 

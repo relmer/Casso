@@ -67,6 +67,7 @@ private:
         CLSID         clsid = {};
         std::wstring  package;      // the package's full name
         std::wstring  appName;      // the package's display name
+        std::wstring  logo;         // the package's small logo file, or empty
     };
 
     static constexpr int  s_kMaxDepth = 2;
@@ -76,6 +77,7 @@ private:
     static HRESULT  OpenManifest     (const wchar_t * fullName, IStream ** outStream);
     static HRESULT  ReadManifest     (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
     static std::wstring  LoadAppName        (const wchar_t * fullName, const std::wstring & displayName);
+    static std::wstring  FindLogoFile       (const wchar_t * fullName, const std::wstring & logo);
     static std::wstring  LoadIndirectString (const std::wstring & text);
     static HRESULT  GetAttribute     (IXmlReader * reader, const wchar_t * attribute, std::wstring & outValue);
     static HRESULT  ParseClsid       (const std::wstring & text, CLSID & outClsid);
@@ -84,7 +86,7 @@ private:
     static HRESULT  MakeItems        (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
     static void     AddEntry         (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
                                       const std::wstring & fallbackIcon, std::vector<Entry> & outEntries);
-    static void     AddPackageEntries (const std::wstring & appName, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries);
+    static void     AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries);
     static void     AddStoreEntry    (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries);
     static void     AddStaticVerbs   (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries);
     static HRESULT  AddStaticVerb    (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries);
