@@ -5320,7 +5320,8 @@ bool DebuggerWindow::HasTopLayer() const
     {
         for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
         {
-            if (m_codeOpen[(size_t) view] && line.isCurrent && line.target.has_value())
+            //  The PC's branch, or the one a step just took to the PC.
+            if (m_codeOpen[(size_t) view] && (line.isCurrent || line.isSteppedFrom) && line.target.has_value())
             {
                 return true;
             }

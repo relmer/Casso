@@ -107,6 +107,7 @@ namespace DisassemblyOptionsTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
+        using DebuggerWindow::HasTopLayer;
         using DebuggerWindow::GetCodeBar;
         using DebuggerWindow::ToggleCodeOption;
         using DebuggerWindow::IsCodeOptionEnabled;
@@ -682,6 +683,7 @@ namespace DisassemblyOptionsTests
 
             Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
             Assert::AreEqual ((int) 0x0300, (int) goesTo);
+            Assert::IsTrue   (window.HasTopLayer(), L"and the layer it is drawn on is painted, though the PC's NOP has no arrow");
         }
     };
 }
