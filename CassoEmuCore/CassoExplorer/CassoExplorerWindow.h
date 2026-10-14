@@ -287,10 +287,15 @@ public:
     static constexpr UINT_PTR  kRecycleBinTimerId    = 0x5156;   // settles the bin's changes before a re-read
     static constexpr UINT_PTR  kDriveTimerId         = 0x5157;   // polls for drives attached or removed
     static constexpr UINT_PTR  kShellPreviewTimerId  = 0x5158;   // gives up on a shell preview that has not arrived
+    static constexpr UINT_PTR  kRefreshTimerId       = 0x5159;   // refills the list after a refresh's blank
 
     //  How long a shell preview has before the bytes replace it.
     static constexpr UINT  kShellPreviewTimeoutMs = 5000;
     static constexpr UINT  kDrivePollMs           = 2000;
+
+    //  How long the list stays empty on a refresh, as File Explorer's does,
+    //  so the refresh can be seen.
+    static constexpr UINT  kRefreshBlankMs        = 100;
 
     //  File Explorer's Quick access, pinned and frequent folders alike, is the
     //  jump list of this application id, in the Recent folder's
@@ -481,6 +486,7 @@ private:
     std::vector<DxuiPopupMenuItem>  GetGroupChoices ();
     std::vector<DxuiPopupMenuItem>  GetViewChoices  ();
     void                            AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
+    bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
     void  OnShellListed     (const std::wstring & key);
 
     //  A verb's label as a window's title: no access key, no trailing dots.

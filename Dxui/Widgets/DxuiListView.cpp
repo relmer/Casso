@@ -3645,12 +3645,13 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     }
 
     //  The rows first and the header over them, so a row drawn partly above
-    //  the body, at the end of the list, goes under the header.
-    if (IsItemsView())
+    //  the body, at the end of the list, goes under the header. While the
+    //  content is hidden, no rows are drawn.
+    if (!m_contentHidden && IsItemsView())
     {
         PaintItems (painter, text, pal, x, y);
     }
-    else
+    else if (!m_contentHidden)
     {
         //  Below the header the rows are clipped as well: its fill covers
         //  theirs, but text is drawn after every fill, so a row a sliding page
@@ -3687,8 +3688,11 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
         painter.PopClipRect();
     }
 
-    PaintScrollbar  (painter, pal, x, y);
-    PaintHScrollbar (painter, pal, x, y);
+    if (!m_contentHidden)
+    {
+        PaintScrollbar  (painter, pal, x, y);
+        PaintHScrollbar (painter, pal, x, y);
+    }
 
     if (layout.vBar && layout.hBar)
     {
@@ -6851,4 +6855,43 @@ std::wstring DxuiListView::GetSelectionText() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetScrollbarMenu
+//
+//  The bars' positions are a top line and a left pixel, as the list's are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiListView::GetScrollbarMenu (POINT pt)
+{
+    POINT  barPt = {};
+
+
+
+    SyncVertScroll();
+    SyncHorzScroll();
+
+    m_vertScroll.SetOnScroll ([this] (int, int pos) { SetTopRow (pos); });
+    m_horzScroll.SetOnScroll ([this] (int, int pos) { SetLeftPx (pos); });
+
+    if (m_vertScroll.GetMetrics().visible && IsOverBar (m_vertScroll, pt))
+    {
+        barPt = GetBarPoint (m_vertScroll, pt);
+        return m_vertScroll.BuildContextMenu (barPt.x, barPt.y);
+    }
+
+    if (IsHorzScrollbarVisible() && IsOverBar (m_horzScroll, pt))
+    {
+        barPt = GetBarPoint (m_horzScroll, pt);
+        return m_horzScroll.BuildContextMenu (barPt.x, barPt.y);
+    }
+
+    return {};
 }

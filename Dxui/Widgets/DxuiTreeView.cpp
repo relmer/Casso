@@ -1898,3 +1898,33 @@ bool DxuiTreeView::OnKey (const DxuiKeyEvent & ev)
 
     return handled;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTreeView::GetScrollbarMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiTreeView::GetScrollbarMenu (POINT pt)
+{
+    m_vertScroll.SetOnScroll ([this] (int, int pos) { SetTopRow (pos); });
+    m_horzScroll.SetOnScroll ([this] (int, int pos) { SetLeftPx (pos); });
+
+    if (IsOverVertBar (pt))
+    {
+        SyncVertScroll();
+        return m_vertScroll.BuildContextMenu (pt.x, pt.y);
+    }
+
+    if (IsOverHorzBar (pt))
+    {
+        SyncHorzScroll();
+        return m_horzScroll.BuildContextMenu (pt.x, pt.y);
+    }
+
+    return {};
+}

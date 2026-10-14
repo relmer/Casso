@@ -3070,3 +3070,33 @@ std::wstring DxuiHexView::GetHexFor (uint64_t offset, uint64_t count) const
 
     return out;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetScrollbarMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiHexView::GetScrollbarMenu (POINT pt)
+{
+    SyncScrollbar();
+
+    m_vertScroll.SetOnScroll ([this] (int, int) { ScrollToBarPos(); });
+    m_horzScroll.SetOnScroll ([this] (int, int) { ScrollToBarPos(); });
+
+    if (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y))
+    {
+        return m_vertScroll.BuildContextMenu (pt.x, pt.y);
+    }
+
+    if (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y))
+    {
+        return m_horzScroll.BuildContextMenu (pt.x, pt.y);
+    }
+
+    return {};
+}

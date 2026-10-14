@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Widgets/DxuiPopupMenu.h"
+
 class IDxuiPainter;
 
 
@@ -116,6 +118,15 @@ public:
 
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
 
+    //  Windows' menu for a scrollbar, for a right-click at a point on the bar:
+    //  Scroll here, the two ends, a page and a line each way. Each row moves
+    //  the bar and calls onScroll, as a click on the bar's own parts does.
+    std::vector<DxuiPopupMenuItem>  BuildContextMenu (int xPx, int yPx);
+
+    //  Opens that menu when the point is on the bar, at atPx in the window's
+    //  client pixels. Returns whether the point was on the bar.
+    bool     ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx);
+
 private:
     int    GetContentExtent() const;     // nMax - nMin
     int    GetMainTrackStart() const;    // along the scroll axis
@@ -125,6 +136,7 @@ private:
     float  GetThumbLength() const;
     RECT   GetMainRect (int mainStart, int mainExtent) const;
     void   NotifyPos (int sbCode, int newPos);
+    int    GetPosAt (int xPx, int yPx) const;
     void   PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
     void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
 

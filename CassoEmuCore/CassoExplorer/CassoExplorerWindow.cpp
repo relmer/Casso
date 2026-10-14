@@ -2989,6 +2989,62 @@ DxuiMouseEvent CassoExplorerWindow::ToLocal (const DxuiMouseEvent & ev, const RE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ShowScrollbarMenu
+//
+//  The lists take points relative to their own bounds, as their OnMouse
+//  does; the other views take the window's. Returns whether the point was
+//  on a bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::ShowScrollbarMenu (const DxuiMouseEvent & ev)
+{
+    POINT                           point = ev.positionDip;
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    if (m_tree->IsVisible() && Contains (m_tree->GetBounds(), point))
+    {
+        items = m_tree->GetScrollbarMenu (point);
+    }
+    else if (m_list->IsVisible() && Contains (m_list->GetBounds(), point))
+    {
+        items = m_list->GetScrollbarMenu (ToLocal (ev, m_list->GetBounds()).positionDip);
+    }
+    else if (m_previewList->IsVisible() && Contains (m_previewList->GetBounds(), point))
+    {
+        items = m_previewList->GetScrollbarMenu (ToLocal (ev, m_previewList->GetBounds()).positionDip);
+    }
+    else if (m_textView->IsVisible() && Contains (m_textView->GetBounds(), point))
+    {
+        items = m_textView->GetScrollbarMenu (point);
+    }
+    else if (m_hexView->IsVisible() && Contains (m_hexView->GetBounds(), point))
+    {
+        items = m_hexView->GetScrollbarMenu (point);
+    }
+    else if (m_picture->IsVisible() && Contains (m_picture->GetBounds(), point))
+    {
+        items = m_picture->GetScrollbarMenu (point);
+    }
+
+    if (items.empty())
+    {
+        return false;
+    }
+
+    DxuiContextMenu::Show (*GetPopupHost(), point.x, point.y, std::move (items), [this] (bool) { Invalidate(); });
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OnMouse
 //
 //  The menu bar and the splitters take first refusal, since both reach over
@@ -3248,6 +3304,13 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         m_tabs->OnMouse (ev);
         Invalidate();
+        return true;
+    }
+
+    //  A right-click on a scrollbar opens the bar's own menu, as Windows'
+    //  bars do.
+    if (press && ev.button == DxuiMouseButton::Right && ShowScrollbarMenu (ev))
+    {
         return true;
     }
 
@@ -5312,8 +5375,13 @@ void CassoExplorerWindow::Dispatch (int id)
             ReadFolderOptions();
             ReloadKnownFolders();
             m_browser.GetBrowserModel().InvalidateAllCatalogs();
-            hr     = m_browser.Refresh();
-            refill = true;
+            hr = m_browser.Refresh();
+
+            //  The list's rows are hidden for a moment and then refilled, as
+            //  File Explorer's are, so the refresh can be seen. Its scroll
+            //  position does not change.
+            m_list->SetContentHidden (true);
+            SetTimer (GetHwnd(), kRefreshTimerId, kRefreshBlankMs, nullptr);
             break;
 
         case CassoExplorerCommands::kTogglePreview:
@@ -13708,6 +13776,16 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (timerId == kDriveTimerId)
     {
         CheckDrives();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    if (timerId == kRefreshTimerId)
+    {
+        KillTimer (GetHwnd(), kRefreshTimerId);
+        m_list->SetContentHidden (false);
+        FillList();
+        Invalidate();
 
         return DxuiMessageResult::Handled;
     }

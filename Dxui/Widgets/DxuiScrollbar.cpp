@@ -4,6 +4,8 @@
 
 #include "Render/IDxuiPainter.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Window/DxuiHwndSource.h"
 
 
 
@@ -572,6 +574,133 @@ void DxuiScrollbar::NotifyPos (int sbCode, int newPos)
     {
         m_onScroll (sbCode, m_pos);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::BuildContextMenu
+//
+//  Windows' rows and order, in sentence case. Scroll here moves the puck's
+//  middle to the point the menu was opened on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiScrollbar::BuildContextMenu (int xPx, int yPx)
+{
+    struct Row
+    {
+        const wchar_t *  vertical;
+        const wchar_t *  horizontal;
+        int              sbCode;
+    };
+
+    static constexpr Row  kRows[] =
+    {
+        { L"Scroll &here",  L"Scroll &here",  SB_THUMBPOSITION },
+        { nullptr,          nullptr,          0                },
+        { L"&Top",          L"&Left edge",    SB_TOP           },
+        { L"&Bottom",       L"&Right edge",   SB_BOTTOM        },
+        { nullptr,          nullptr,          0                },
+        { L"Page &up",      L"Page l&eft",    SB_PAGEUP        },
+        { L"Page &down",    L"Page r&ight",   SB_PAGEDOWN      },
+        { nullptr,          nullptr,          0                },
+        { L"Scroll u&p",    L"Scroll le&ft",  SB_LINEUP        },
+        { L"Scroll do&wn",  L"Scroll ri&ght", SB_LINEDOWN      },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    int                             here     = GetPosAt (xPx, yPx);
+    bool                            vertical = m_orientation == Orientation::Vertical;
+
+
+
+    for (const Row & row : kRows)
+    {
+        std::shared_ptr<DxuiCommand>  command;
+        int                           sbCode  = row.sbCode;
+
+        if (row.vertical == nullptr)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            continue;
+        }
+
+        command           = std::make_shared<DxuiCommand>();
+        command->label    = vertical ? row.vertical : row.horizontal;
+        command->dispatch = [this, sbCode, here]()
+        {
+            switch (sbCode)
+            {
+                case SB_THUMBPOSITION: NotifyPos (sbCode, here);                        break;
+                case SB_TOP:           NotifyPos (sbCode, m_min);                       break;
+                case SB_BOTTOM:        NotifyPos (sbCode, m_min + GetMaxScrollPos());   break;
+                case SB_PAGEUP:        NotifyPos (sbCode, m_pos - m_page);              break;
+                case SB_PAGEDOWN:      NotifyPos (sbCode, m_pos + m_page);              break;
+                case SB_LINEUP:        NotifyPos (sbCode, m_pos - m_arrowStepPx);       break;
+                default:               NotifyPos (sbCode, m_pos + m_arrowStepPx);       break;
+            }
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::ShowContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx)
+{
+    DxuiHwndSource  * host  = DxuiHwndSource::FromHwnd (hwnd);
+    bool              onBar = GetMetrics().visible && HitTest (xPx, yPx);
+
+
+
+    if (onBar && host != nullptr)
+    {
+        DxuiContextMenu::Show (*host, atPx.x, atPx.y, BuildContextMenu (xPx, yPx));
+    }
+
+    return onBar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::GetPosAt
+//
+//  The position that centers the puck on a point along the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiScrollbar::GetPosAt (int xPx, int yPx) const
+{
+    Metrics  m        = GetMetrics();
+    bool     vertical = m_orientation == Orientation::Vertical;
+    float    mainPt   = (float) (vertical ? yPx : xPx);
+    float    start    = (float) (vertical ? m.track.top : m.track.left);
+    float    length   = (float) (vertical ? m.track.bottom - m.track.top : m.track.right - m.track.left);
+    float    travel   = length - m.thumbLength;
+    float    ratio    = (travel > 0.0f) ? std::clamp ((mainPt - start - m.thumbLength / 2.0f) / travel, 0.0f, 1.0f) : 0.0f;
+
+
+
+    return m_min + (int) std::lround (ratio * (float) GetMaxScrollPos());
 }
 
 

@@ -359,6 +359,10 @@ public:
     bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
     POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
     int   GetTopRow             () const                 { return m_topRow; }
+
+    //  Draws the background and the header but no rows or bars while set, as
+    //  File Explorer's list is drawn for a moment when it is refreshed.
+    void  SetContentHidden      (bool hidden)            { m_contentHidden = hidden; }
     int   GetVisibleRowCapacity () const;
     int   GetMaxTopRow          () const;
     bool  IsAtBottom            () const                 { return m_topRow >= GetMaxTopRow(); }
@@ -628,6 +632,10 @@ public:
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
+
+    //  Windows' scrollbar menu when the point is on one of the bars, in the
+    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
@@ -1315,6 +1323,7 @@ private:
     int                    m_scrollRepeatXPx    = 0;
     int                    m_scrollRepeatYPx    = 0;
     int64_t                m_scrollRepeatNextMs = 0;
+    bool                   m_contentHidden      = false;
     mutable DxuiScrollbar  m_vertScroll;
     mutable DxuiScrollbar  m_horzScroll;
     std::function<void (int)>         m_onSelectionChanged;

@@ -250,6 +250,10 @@ public:
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+
+    //  Windows' scrollbar menu when the point is on one of the bars, in the
+    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }

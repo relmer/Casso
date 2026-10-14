@@ -479,3 +479,44 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::GetScrollbarMenu
+//
+//  A bar's position is where the picture's middle is, as a drag on it sets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiFramebufferView::GetScrollbarMenu (POINT pt)
+{
+    auto  pan = [this] (int, int)
+    {
+        int  destW = 0;
+        int  destH = 0;
+
+        GetScaledSize (destW, destH);
+
+        m_panY = m_vertScroll.GetScrollPos() - (destH - (int) (m_boundsDip.bottom - m_boundsDip.top)) / 2;
+        m_panX = m_horzScroll.GetScrollPos() - (destW - (int) (m_boundsDip.right - m_boundsDip.left)) / 2;
+        ClampPan();
+    };
+
+
+
+    if (!IsOverScrollbar (pt))
+    {
+        return {};
+    }
+
+    SyncScrollbars();
+
+    m_vertScroll.SetOnScroll (pan);
+    m_horzScroll.SetOnScroll (pan);
+
+    return m_vertScroll.HitTest (pt.x, pt.y) ? m_vertScroll.BuildContextMenu (pt.x, pt.y) : m_horzScroll.BuildContextMenu (pt.x, pt.y);
+}

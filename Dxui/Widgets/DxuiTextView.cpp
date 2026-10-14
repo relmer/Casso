@@ -1156,3 +1156,27 @@ bool DxuiTextView::InvokeCommand (DxuiStandardCommand command)
 
     return handled;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetScrollbarMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiTextView::GetScrollbarMenu (POINT pt)
+{
+    m_vertScroll.SetOnScroll ([this] (int, int pos) { SetTopLine (pos); });
+
+    if (!IsOverScrollbar (pt))
+    {
+        return {};
+    }
+
+    SyncScrollbar();
+
+    return m_vertScroll.BuildContextMenu (pt.x, pt.y);
+}
