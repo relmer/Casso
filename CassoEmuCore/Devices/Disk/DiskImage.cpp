@@ -23,6 +23,25 @@ static std::atomic<uint64_t>  s_nextImageId { 0 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatQuarterTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImage::FormatQuarterTrack (int quarterTrack)
+{
+    static constexpr const char *  kFractions[kQuarterTracksPerWholeTrack] = { "", ".25", ".5", ".75" };
+
+
+
+    return std::format ("{}{}", quarterTrack / kQuarterTracksPerWholeTrack, kFractions[quarterTrack % kQuarterTracksPerWholeTrack]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImage::DiskImage
 //
 //  Construct an empty disk: 35 tracks of zero-length bit streams. Load()

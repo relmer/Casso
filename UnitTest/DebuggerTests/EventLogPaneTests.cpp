@@ -409,7 +409,7 @@ namespace EventLogPaneTests
 
             Assert::AreEqual ((size_t) 4, details.size(), L"the start row, track 17's mark, the step to 17.25 and the unknown read");
             Assert::AreEqual (std::wstring (L"T17 S1 V254"),            details[1]);
-            Assert::AreEqual (std::wstring (L"quarter-track 67 -> 69"), details[2]);
+            Assert::AreEqual (std::wstring (L"track 16.75 -> 17.25"), details[2]);
 
             pane.SetTrackText (L"18.5");
             pane.Refresh();
@@ -505,10 +505,10 @@ namespace EventLogPaneTests
             pane.Apply   (delta);
             pane.Refresh();
 
-            Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
 
             pane.SetColumnShown (DiskLogPane::kDrive, false);
-            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\tat quarter-track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
         }
 
 

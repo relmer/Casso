@@ -106,6 +106,9 @@ public:
     static constexpr int     kQuarterTrackCount          = 160;
     static constexpr int     kQuarterTracksPerWholeTrack = 4;
 
+    // A quarter-track index as a track: "17", "17.25", "17.5" or "17.75".
+    static std::string  FormatQuarterTrack (int quarterTrack);
+
     DiskImage ();
 
     int           GetTrackCount     () const override;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 
 
@@ -462,6 +463,7 @@ const wchar_t * DiskLogPane::GetEventLabel (Disk2EventType type)
 std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector<Byte> * bytes)
 {
     auto          field  = [] (wchar_t prefix, int value) { return (value < 0) ? std::format (L"{}?", prefix) : std::format (L"{}{}", prefix, value); };
+    auto          track  = [] (int quarterTrack) { return TextEncoding::NarrowToWide (DiskImage::FormatQuarterTrack (quarterTrack)); };
     std::wstring  detail;
     std::wstring  first;
     size_t        i      = 0;
@@ -483,11 +485,11 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
     switch (event.type)
     {
         case Disk2EventType::HeadStep:
-            detail = std::format (L"quarter-track {} -> {}", event.payload.step.prevQt, event.payload.step.newQt);
+            detail = std::format (L"track {} -> {}", track (event.payload.step.prevQt), track (event.payload.step.newQt));
             break;
 
         case Disk2EventType::HeadBump:
-            detail = std::format (L"at quarter-track {}", event.payload.bump.atQt);
+            detail = std::format (L"at track {}", track (event.payload.bump.atQt));
             break;
 
         case Disk2EventType::AddrMark:
@@ -523,7 +525,7 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
             break;
 
         case Disk2EventType::ReadStall:
-            detail = std::format (L"no address field in two revolutions at quarter-track {}", event.payload.bump.atQt);
+            detail = std::format (L"no address field in two revolutions at track {}", track (event.payload.bump.atQt));
             break;
 
         default:
