@@ -129,7 +129,7 @@ CassoEmuCore/
 │       ├── PreviewDecoder.h/.cpp      # kind selection and rendering to PreviewContent
 │       ├── PicturePreview.h/.cpp      # video-mode render into a framebuffer
 │       ├── AppleTextFont.h/.cpp       # NEW: video ROM glyphs, built-in table fallback
-│       ├── AppleTextLayout.h/.cpp     # NEW: wraps Apple text to the pane's columns
+│       ├── AppleFontFile.h/.cpp       # NEW: a TrueType font made from those glyphs
 │       ├── HostFileNaming.h/.cpp
 │       ├── ContentSniffer.h/.cpp
 │       ├── DiskOperations.h/.cpp      # IVolume + DiskImageSession + DiskCommandRunner facade
@@ -273,30 +273,32 @@ system reads `DxuiWindowsThemeColors` on the settings-change notification
 FR-082 and FR-083, research R14. A listing, a disk text file and a host
 file whose name `HostFileNaming::Parse` matches to an Applesoft, Integer
 or Text suffix produce `PreviewContent` with `appleText` set and its
-lines. The window routes such content to the picture's
-`DxuiFramebufferView` instead of `DxuiTextView`:
+lines. They go to `DxuiTextView`, as other text does, so wrapping,
+scrolling, selection and copy are the view's own:
 
-1. `AppleTextLayout::Wrap (lines, columns)` returns the screen rows; the
-   column count comes from the pane width and the cell scale.
-2. On a layout, a scroll or a monitor or effect change, the rows in view
-   are drawn from `AppleTextFont` into a white-on-black BGRA band, tinted
-   by `PicturePreview::Tint`, and rendered by `CrtPictureRenderer`.
-3. The view's virtual height is the total row count times the cell
-   height; its scroll callback triggers step 2 for the new band.
+1. At startup the window loads `AppleTextFont` from the installed ROMs,
+   builds a TrueType file from it with `AppleFontFile::Build`, and
+   registers that with `DxuiTextRenderer::AddPrivateFont`, for this
+   process alone.
+2. For Apple text, `BuildTextRows` makes one cell a line, a listing's
+   address leading its line, and the window sets the view's face to the
+   registered family at a size rounded to whole pixels a dot, and its
+   colors to the monitor's color on black with the selection inverted.
+3. A monitor change refills the preview, which sets the colors again.
 
 This replaces the hex view of a disk text file. A text file whose bytes
 are not text, such as a random-access file with zeros between its
-entries, goes to the hex view,
-as a binary does.
+entries, goes to the hex view, as a binary does.
+
+An earlier pass drew the text through the CRT pass a band at a time in
+`DxuiFramebufferView`; the owner dropped the effects, and with them the
+reason the text could not be text. The view's virtual height stays in
+Dxui.
 
 ## Risks
 
-- **Selection on the monitor**: Apple text drawn as a picture cannot be
-  selected. Ctrl+C copies the whole text; finer selection is out of
-  scope.
-- **Band redraw cost**: every scroll step runs the CRT pass on the band
-  in view. The band is at most the pane's size, which the picture path
-  already renders within the quarter second SC-021 allows.
+- **A face that fails to register**: the text is drawn in the theme's
+  monospaced face, in the monitor's colors.
 
 - **032 timing**: phase 6 is the only gate; everything before it merges
   on its own if 032 runs long.

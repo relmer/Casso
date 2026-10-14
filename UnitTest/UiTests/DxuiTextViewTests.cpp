@@ -101,6 +101,66 @@ public:
     }
 
 
+    //  A face of the host's own at a size rounded to whole multiples of its
+    //  pixel grid, in the host's colors, with the selection in the host's.
+    TEST_METHOD (Face_IsRoundedToItsGridAndDrawnInTheHostsColors)
+    {
+        DxuiTextView           view;
+        DxuiDpiScaler          scaler;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   faced    = true;
+        bool                   back     = false;
+        bool                   plain    = false;
+        bool                   inverse  = false;
+        bool                   selFill  = false;
+
+        scaler.SetDpi (120);
+        view.SetCellSize (10, 16);
+        view.Layout (RECT { 0, 0, 400, 200 }, scaler);
+        view.SetRows ({ MakeRow ({ L"HELLO" }), MakeRow ({ L"WORLD" }) });
+        view.SetFace (L"Casso Apple II", 14.0f, 8);
+        view.SetColors (0xFF00FF00, 0xFF000000, 0xFF00FF00, 0xFF000000);
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString)
+            {
+                faced = faced && call.fontFamily == L"Casso Apple II" && call.fontSizeDip == 16.0f;
+                plain = plain || call.argb == 0xFF00FF00;
+            }
+        }
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            back = back || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF000000);
+        }
+
+        Assert::IsTrue (faced, L"14 DIP at 120 DPI is 17.5 pixels, rounded to 16, two to a dot");
+        Assert::IsTrue (plain, L"The text is in the host's color");
+        Assert::IsTrue (back,  L"on the host's background");
+
+        text.Reset();
+        painter.Reset();
+        view.SelectAll();
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            inverse = inverse || (call.kind == RecordedTextKind::DrawString && call.text == L"HELLO" && call.argb == 0xFF000000);
+        }
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            selFill = selFill || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF00FF00);
+        }
+
+        Assert::IsTrue (inverse && selFill, L"A selection is the host's text over its fill");
+    }
+
+
     TEST_METHOD (SelectionText_SpansCellsAndRows)
     {
         DxuiTextView  view;

@@ -162,11 +162,13 @@ folder with a 300-line `LONG.Applesoft BASIC.txt`.
 
 | Check | Result |
 |---|---|
-| SC-026: glyphs | HELLO's listing in the enhanced //e ROM's glyphs, green on black, with scanlines and glow; the long export's lowercase drawn from the ROM's lowercase set |
-| SC-026: wrapping | Lines wrapped at the pane's width, with one blank row and column of border; the black screen fills the pane below the last line |
-| Scrolling | 60 wheel notches moved the text to line 46 and the scrollbar thumb with it; 900 more stopped at line 300 with the bottom border in view, within five seconds of the burst |
-| Host text | A `.txt` file without an export suffix drew in the theme's font, and the export drew on the monitor (unit test) |
+| SC-026: glyphs | The long export in the enhanced //e ROM's glyphs, sharp green on black at 16 pixels, two to a dot; lowercase from the ROM's lowercase set, its descenders below the baseline |
+| SC-026: wrapping | Lines wrapped at word breaks at the pane's width |
+| Selection | A drag across the first lines drew them black on green |
+| The font | DirectWrite reads the generated file as one family, `Casso Apple II`, with 96 glyphs; every printable character's outline starts at its first lit dot and ends at its last (unit test) |
+| Host text | A `.txt` file without an export suffix drew in the theme's font, and the export drew in the Apple face (unit test) |
 | No ROM, a ][+ ROM | The built-in table with no error, and lowercase folded to uppercase (unit tests) |
+| Earlier pass | The same text through the CRT pass, a band at a time, drew and scrolled correctly; the effects were dropped at the owner's request, and the text with them became selectable |
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of

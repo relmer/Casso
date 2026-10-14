@@ -385,3 +385,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [X] T173 Test that hex views, catalogs and host text files other than exported Apple files stay in the theme's font on every monitor, that a 2 KB ROM draws lowercase as uppercase, and that no ROM falls back to the built-in table without an error, per FR-067 and Edge Cases (missing)
 - [X] T174 Copy the whole Apple text with Ctrl+C while it is drawn on the monitor, with a test, per the plan's Risks (missing)
 - [ ] T175 Walk quickstart section 7a on x64 Debug and Release and record SC-026 in validation.md, per SC-026 (missing)
+
+## Phase 15: Convergence
+
+- [X] T176 Draw Apple text in `DxuiTextView` in a font made at run time from the video ROM (`AppleFontFile`, `DxuiTextRenderer::AddPrivateFont`, `DxuiTextView::SetFace` and `SetColors`), in the monitor's color on black without the display effects, selectable and copyable, in place of the CRT band of T172, per FR-082 and the Session 2026-10-13 clarifications (contradicts)

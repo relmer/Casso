@@ -151,14 +151,15 @@ claim, so the preview is its bytes.
 
 Pick the green monitor and select an Applesoft program on a disk image.
 
-- Result: the listing in the enhanced //e ROM's glyphs, green on black,
-  with the same scanlines and glow a picture gets, wrapped at the pane's
-  width.
+- Result: the listing in the enhanced //e ROM's glyphs, sharp green on
+  black with no scanlines or glow, wrapped at the pane's width.
 - Drag the preview splitter narrower and wider. Result: the text
   reflows to the new width without clipping.
 - Scroll to the end of a long program with the wheel and the scrollbar.
-  Result: every line is reachable, and the effects stay on
-  while scrolling.
+  Result: every line is reachable.
+- Drag across some of the text, then Ctrl+C, and paste into Notepad.
+  Result: the selection in black on green while selected, and the same
+  characters pasted.
 - Switch to amber, then color. Result: amber text, then white text.
 - Select an Integer BASIC program and a disk text file. Result: the
   same.
@@ -166,9 +167,9 @@ Pick the green monitor and select an Applesoft program on a disk image.
   `.Applesoft BASIC.txt` file. Result: the same look. Select another
   `.txt` file. Result: the theme's font.
 - Rename `%LOCALAPPDATA%\Casso\Machines\Apple2eEnhanced\Apple2eEnhanced_Video.rom`
-  away, leaving only a ][ or ][+ ROM, and reselect. Result: lowercase
-  drawn as uppercase. Rename every video ROM away. Result: the built-in
-  table, no error. Restore the ROMs.
+  away, leaving only a ][ or ][+ ROM, and restart Casso Explorer. Result:
+  lowercase drawn as uppercase. Rename every video ROM away and restart.
+  Result: the built-in table, no error. Restore the ROMs.
 
 ## 8. Headless tests
 

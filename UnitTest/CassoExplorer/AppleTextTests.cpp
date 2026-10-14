@@ -2,8 +2,8 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
+#include "CassoExplorer/Model/AppleFontFile.h"
 #include "CassoExplorer/Model/AppleTextFont.h"
-#include "CassoExplorer/Model/AppleTextLayout.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -17,7 +17,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  AppleTextTests
 //
 //  An Apple text preview's character set, from the video ROMs under an
-//  in-memory asset directory, and its lines wrapped to the pane's columns.
+//  in-memory asset directory, the TrueType font made from it as DirectWrite
+//  reads it, and the lines of the preview.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,24 +42,36 @@ public:
 
 
 
-    //  Whether the source pixels of a character cell match a glyph's dots,
-    //  each dot two pixels across and two down.
-    static bool IsGlyphDrawn (const std::vector<uint32_t> & bgra, int width, int column, const CharacterRomData & rom, Byte code)
+    //  The font file as DirectWrite loads it, its one family's first face.
+    static void LoadFace (const std::vector<Byte> & file, ComPtr<IDWriteFontFace> & outFace, std::wstring & outFamily)
     {
-        bool  same = true;
+        ComPtr<IDWriteFactory5>                factory;
+        ComPtr<IDWriteInMemoryFontFileLoader>  loader;
+        ComPtr<IDWriteFontFile>                fontFile;
+        ComPtr<IDWriteFontSetBuilder1>         builder;
+        ComPtr<IDWriteFontSet>                 set;
+        ComPtr<IDWriteFontCollection1>         collection;
+        ComPtr<IDWriteFontFamily>              family;
+        ComPtr<IDWriteFont>                    font;
+        ComPtr<IDWriteLocalizedStrings>        names;
+        wchar_t                                name[64] = {};
 
-        for (int y = 0; y < AppleTextFont::kCellHeight; y++)
-        {
-            for (int x = 0; x < AppleTextFont::kCellWidth; x++)
-            {
-                bool      lit   = (rom.GetGlyphRow (code, y / 2) & (1 << (x / 2))) != 0;
-                uint32_t  pixel = bgra[(size_t) y * (size_t) width + (size_t) (column * AppleTextFont::kCellWidth + x)];
+        AssertSucceeded (DWriteCreateFactory (DWRITE_FACTORY_TYPE_ISOLATED, __uuidof (IDWriteFactory5), (IUnknown **) factory.GetAddressOf()));
+        AssertSucceeded (factory->CreateInMemoryFontFileLoader (&loader));
+        AssertSucceeded (factory->RegisterFontFileLoader (loader.Get()));
+        AssertSucceeded (loader->CreateInMemoryFontFileReference (factory.Get(), file.data(), (UINT32) file.size(), nullptr, &fontFile));
+        AssertSucceeded (factory->CreateFontSetBuilder (&builder));
+        AssertSucceeded (builder->AddFontFile (fontFile.Get()));
+        AssertSucceeded (builder->CreateFontSet (&set));
+        AssertSucceeded (factory->CreateFontCollectionFromFontSet (set.Get(), &collection));
+        Assert::AreEqual (1u, collection->GetFontFamilyCount(), L"DirectWrite reads the file as one family");
+        AssertSucceeded (collection->GetFontFamily (0, &family));
+        AssertSucceeded (family->GetFamilyNames (&names));
+        AssertSucceeded (names->GetString (0, name, (UINT32) std::size (name)));
+        AssertSucceeded (family->GetFont (0, &font));
+        AssertSucceeded (font->CreateFontFace (&outFace));
 
-                same = same && pixel == (lit ? AppleTextFont::kLitArgb : AppleTextFont::kUnlitArgb);
-            }
-        }
-
-        return same;
+        outFamily = name;
     }
 
 
@@ -102,21 +115,21 @@ public:
 
     TEST_METHOD (Load_WithNoRom_UsesTheBuiltInTable)
     {
-        InMemoryFileSystem     fs;
-        AppleTextFont          font;
-        CharacterRomData       builtIn;
-        std::vector<uint32_t>  bgra;
-        int                    width  = 0;
-        int                    height = 0;
+        InMemoryFileSystem  fs;
+        AppleTextFont       font;
+        CharacterRomData    builtIn;
 
         AssertSucceeded (fs.WriteAllText (std::wstring (kAssets) + L"\\" + AppleTextFont::kRomPaths[0], "not a ROM"));
 
         font.Load (fs, kAssets);
-        font.Render ({ L"A" }, 0, 1, 1, bgra, width, height);
 
         Assert::IsTrue  (font.GetSource().empty(), L"A file of the wrong size is passed over");
         Assert::IsFalse (font.HasLowercase());
-        Assert::IsTrue  (IsGlyphDrawn (bgra, width, 0, builtIn, 0xC1));
+
+        for (int row = 0; row < AppleTextFont::kDotsHigh; row++)
+        {
+            Assert::AreEqual (builtIn.GetGlyphRow (0xC1, row), font.GetGlyphRow (L'A', row));
+        }
     }
 
 
@@ -133,62 +146,80 @@ public:
 
 
 
-    TEST_METHOD (Render_DrawsEachCharacterFromTheRom)
+    //  DirectWrite reads the file as one family whose glyph for each
+    //  character spans the ROM's lit dots, a dot to a square of the grid.
+    TEST_METHOD (FontFile_IsReadByDirectWriteWithTheRomsShapes)
     {
-        InMemoryFileSystem     fs;
-        AppleTextFont          font;
-        FixtureProvider        fixtures;
-        std::vector<Byte>      bytes;
-        CharacterRomData       rom;
-        std::vector<uint32_t>  bgra;
-        int                    width  = 0;
-        int                    height = 0;
+        InMemoryFileSystem       fs;
+        AppleTextFont            font;
+        std::vector<Byte>        file;
+        ComPtr<IDWriteFontFace>  face;
+        std::wstring             family;
+        DWRITE_FONT_METRICS      metrics         = {};
+        UINT32                   codes[3]        = { L'A', L'a', L' ' };
+        UINT16                   glyphs[3]       = {};
+        DWRITE_GLYPH_METRICS     glyphMetrics[3] = {};
+        int                      left            = INT_MAX;
+        int                      right           = INT_MIN;
 
         Install (fs, "Apple2eEnhanced_Video.rom", AppleTextFont::kRomPaths[0]);
-        AssertSucceeded (fixtures.OpenFixture ("Apple2eEnhanced_Video.rom", bytes));
-        AssertSucceeded (rom.LoadFromMemory (bytes.data(), bytes.size()));
-
         font.Load (fs, kAssets);
-        font.Render ({ L"skip", L"Hi", L"after" }, 1, 1, 3, bgra, width, height);
 
-        Assert::AreEqual (3 * AppleTextFont::kCellWidth, width, L"As wide as the columns");
-        Assert::AreEqual (AppleTextFont::kCellHeight, height, L"and as tall as the row count");
-        Assert::IsTrue   (IsGlyphDrawn (bgra, width, 0, rom, 0xC8), L"H");
-        Assert::IsTrue   (IsGlyphDrawn (bgra, width, 1, rom, 0xE9), L"i, in lowercase");
+        AppleFontFile::Build (font, file);
+        LoadFace (file, face, family);
 
-        for (int y = 0; y < height; y++)
+        face->GetMetrics (&metrics);
+        AssertSucceeded (face->GetGlyphIndices (codes, 3, glyphs));
+        AssertSucceeded (face->GetDesignGlyphMetrics (glyphs, 3, glyphMetrics, FALSE));
+
+        Assert::AreEqual (std::wstring (AppleFontFile::kFamily), family);
+        Assert::AreEqual ((UINT16) AppleFontFile::kUnitsPerEm, metrics.designUnitsPerEm);
+        Assert::AreEqual ((UINT16) AppleFontFile::kAscent, metrics.ascent);
+        Assert::AreEqual ((UINT16) AppleFontFile::kDescent, metrics.descent);
+        Assert::AreEqual ((UINT16) 96, face->GetGlyphCount(), L".notdef and the printable characters");
+        Assert::AreEqual ((UINT16) (L'A' - L' ' + 1), glyphs[0]);
+        Assert::AreNotEqual (glyphs[0], glyphs[1], L"Lowercase has glyphs of its own");
+
+        for (int i = 0; i < 3; i++)
         {
-            for (int x = 2 * AppleTextFont::kCellWidth; x < width; x++)
+            Assert::AreEqual ((UINT32) AppleFontFile::kAdvance, glyphMetrics[i].advanceWidth, L"Every character is one dot grid wide");
+        }
+
+        //  Every character's outline starts at its first lit dot and ends at
+        //  its last, which a glyph offset by one would miss.
+        for (wchar_t ch = L'!'; ch <= L'~'; ch++)
+        {
+            UINT32                code   = ch;
+            UINT16                glyph  = 0;
+            DWRITE_GLYPH_METRICS  metric = {};
+
+            left  = INT_MAX;
+            right = INT_MIN;
+
+            for (int row = 0; row < AppleTextFont::kDotsHigh; row++)
             {
-                Assert::AreEqual (AppleTextFont::kUnlitArgb, bgra[(size_t) y * (size_t) width + (size_t) x], L"Past the row's end is black");
+                for (int dot = 0; dot < AppleTextFont::kDotsWide; dot++)
+                {
+                    if ((font.GetGlyphRow (ch, row) & (1 << dot)) != 0)
+                    {
+                        left  = (std::min) (left, dot);
+                        right = (std::max) (right, dot + 1);
+                    }
+                }
             }
+
+            AssertSucceeded (face->GetGlyphIndices (&code, 1, &glyph));
+            AssertSucceeded (face->GetDesignGlyphMetrics (&glyph, 1, &metric, FALSE));
+
+            Assert::AreEqual (left * AppleFontFile::kUnitsPerDot, metric.leftSideBearing, std::format (L"{} starts at its first lit dot", ch).c_str());
+            Assert::AreEqual ((AppleTextFont::kDotsWide - right) * AppleFontFile::kUnitsPerDot, metric.rightSideBearing, std::format (L"{} ends at its last", ch).c_str());
         }
     }
 
 
 
-    TEST_METHOD (Wrap_ContinuesALongLineOnTheNextRow)
-    {
-        std::vector<std::wstring>  rows = AppleTextLayout::Wrap ({ L"10 PRINT", L"", L"20 END" }, 4);
-
-        Assert::AreEqual ((size_t) 5, rows.size());
-        Assert::AreEqual (std::wstring (L"10 P"), rows[0]);
-        Assert::AreEqual (std::wstring (L"RINT"), rows[1]);
-        Assert::AreEqual (std::wstring(),       rows[2], L"An empty line is one empty row");
-        Assert::AreEqual (std::wstring (L"20 E"), rows[3]);
-        Assert::AreEqual (std::wstring (L"ND"),   rows[4]);
-        Assert::AreEqual ((size_t) 6, AppleTextLayout::Wrap ({ L"ABCDEF" }, 0).size(), L"Fewer than one column is one");
-
-        rows = AppleTextLayout::MakeScreenRows ({ L"10 PRINT" }, 6);
-        Assert::IsTrue (rows == std::vector<std::wstring> ({ L"", L" 10 P", L" RINT", L"" }),
-                        L"A blank row above and below, and a blank column each side");
-    }
-
-
-
-    //  A listing's lines with their addresses when set, a warning after a
-    //  blank line, and the copy of them all with Windows line breaks.
-    TEST_METHOD (Lines_HaveTheirAddressesAndWarningAndCopyWhole)
+    //  A listing's lines with their addresses when set.
+    TEST_METHOD (Lines_HaveTheirAddresses)
     {
         PreviewContent             preview;
         std::vector<std::wstring>  lines;
@@ -197,15 +228,21 @@ public:
         preview.appleText = true;
         preview.lines     = { L"10  END" };
         preview.bytes     = { 0x07, 0x08, 0x0A, 0x00, 0x80, 0x00, 0x00, 0x00 };
-        preview.warning   = L"Cut off.";
 
         lines = CassoExplorerWindow::GetAppleTextLines (preview, false);
-        Assert::IsTrue (lines == std::vector<std::wstring> ({ L"10  END", L"", L"Cut off." }));
+        Assert::IsTrue (lines == std::vector<std::wstring> ({ L"10  END" }));
 
         lines = CassoExplorerWindow::GetAppleTextLines (preview, true);
         Assert::AreEqual (std::wstring (L"$0801 10  END"), lines[0], L"The line's address leads it");
 
-        Assert::AreEqual (std::wstring (L"10  END\r\n\r\nCut off.\r\n"),
-                          CassoExplorerWindow::JoinAppleText (CassoExplorerWindow::GetAppleTextLines (preview, false)));
+        //  In the text view, each line is one cell, the number in the line as
+        //  on the Apple's screen, and the warning after a blank row.
+        preview.warning = L"Cut off.";
+
+        std::vector<DxuiTextView::Row>  rows = CassoExplorerWindow::BuildTextRows (preview, true);
+
+        Assert::AreEqual ((size_t) 3, rows.size());
+        Assert::IsTrue   (rows[0].cells == std::vector<std::wstring> ({ L"$0801 10  END" }));
+        Assert::IsTrue   (rows[2].warning);
     }
 };

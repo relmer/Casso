@@ -30,15 +30,9 @@ class IFileSystem;
 class AppleTextFont
 {
 public:
-    //  A glyph's dots, and the source pixels each character takes: two per
-    //  dot across and down, as the text modes draw them.
-    static constexpr int  kDotsWide   = 7;
-    static constexpr int  kDotsHigh   = 8;
-    static constexpr int  kCellWidth  = kDotsWide * 2;
-    static constexpr int  kCellHeight = kDotsHigh * 2;
-
-    static constexpr uint32_t  kLitArgb   = 0xFFFFFFFF;
-    static constexpr uint32_t  kUnlitArgb = 0xFF000000;
+    //  A glyph's dots, bit 0 of a row the leftmost.
+    static constexpr int  kDotsWide = 7;
+    static constexpr int  kDotsHigh = 8;
 
     //  The ROMs looked for under Casso's asset directory, in order.
     static constexpr const wchar_t *  kRomPaths[] =
@@ -59,16 +53,8 @@ public:
     //  The primary-set code a character is drawn with.
     Byte  GetCode (wchar_t ch) const;
 
-    //  `count` of the rows from `first`, `columns` characters wide, white on
-    //  black. A row shorter than the columns is padded with black, and rows
-    //  past the last are black.
-    void  Render (const std::vector<std::wstring>  & rows,
-                  size_t                             first,
-                  size_t                             count,
-                  int                                columns,
-                  std::vector<uint32_t>            & outBgra,
-                  int                              & outWidth,
-                  int                              & outHeight) const;
+    //  One row of the dots a character is drawn with, row 0 the top.
+    Byte  GetGlyphRow (wchar_t ch, int row) const { return m_rom.GetGlyphRow (GetCode (ch), row); }
 
 private:
     static constexpr size_t  s_kLowercaseRomBytes = 4096;

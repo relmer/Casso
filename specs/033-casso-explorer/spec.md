@@ -182,11 +182,17 @@ the browser layout needs and the browser itself.
   host text file is drawn in the theme's font.
 - Q: How is the Apple text laid out? → A: To fit the Preview pane, wrapping
   at its width and scrolling when longer than the pane; the goal is the character set and
-  the display effects, not the Apple II screen's 40 or 80 columns.
+  the monitor's color, not the Apple II screen's 40 or 80 columns.
 - Q: Which machine's character ROM supplies the glyphs? → A: The enhanced
   //e video ROM; when it is missing, another installed machine's video ROM,
   with lowercase drawn as uppercase where that ROM has none; when none is
   installed, the built-in character table.
+- Q: Is Apple text drawn with the display effects? → A: No. It is drawn
+  sharp in the monitor's color on black, without scanlines, glow or any
+  other effect. Pictures have the effects.
+- Q: Can Apple text be selected and copied? → A: Yes, as any other text
+  preview: its glyphs come from a font made at run time from the same ROM,
+  for Casso Explorer's own use, so the text stays text.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -519,7 +525,7 @@ A user previewing a picture inside a disk image sees it as Casso would show
 it: on a color, green, amber, white or custom monitor, with the same
 display effects Casso offers, switched from a drop-down beside Theme and
 tuned on a Display page in Casso Explorer's options. A BASIC listing or an
-Apple text file is drawn the same way, in the Apple II character set.
+Apple text file is drawn on the same monitor, in its color and the Apple II set, without the effects.
 
 **Why this priority**: An Apple II picture was made to be seen on a
 monitor, and a green or amber screen changes how it reads; a user who has
@@ -554,7 +560,8 @@ picture between color and monochrome and see it redrawn each way.
 6. **Given** an Applesoft listing, an Integer BASIC listing or a text file
    inside a disk image, or a copy Casso Explorer exported to the host,
    **When** it is previewed, **Then** its text is drawn in the Apple II
-   character set on the chosen monitor with the same effects, wrapped to
+   character set in the chosen monitor's color on black, without the
+   display effects, wrapped to
    the pane's width and scrolled when longer than the pane.
 ### User Story 10 - Previews of everything File Explorer previews (Priority: P3)
 
@@ -1225,9 +1232,11 @@ words at each, and drop on each.
 - **FR-082**: An Applesoft or Integer BASIC listing or a text file inside a
   disk image, and a host file Casso Explorer exported from one, whose file
   name ends in `.Applesoft BASIC.txt`, `.Integer BASIC.txt` or `.Text.txt`,
-  MUST be previewed in the Apple II character set on the chosen monitor
-  with Casso's display effects, wrapped to the Preview pane's width and
-  scrolled when longer than the pane, not laid out as the Apple II's 40 or 80 column screen.
+  MUST be previewed in the Apple II character set in the chosen monitor's
+  color on black, without Casso's display effects, wrapped to the Preview pane's width and
+  scrolled when longer than the pane, not laid out as the Apple II's 40 or
+  80 column screen, and MUST be selectable and copyable as the other text
+  previews are.
 - **FR-083**: Apple text MUST take its glyphs from the enhanced //e video
   ROM Casso installs; when that is missing, from another installed
   machine's video ROM, with lowercase drawn as uppercase where that ROM has
@@ -1340,8 +1349,8 @@ words at each, and drop on each.
 - **SC-025**: Over a folder, a drive, a disk image, an archive and a program, the highlight and the
   words under the pointer match File Explorer's for the same drag.
 - **SC-026**: In an Applesoft listing previewed on the green monitor, each
-  character is the enhanced //e ROM's glyph, with the same effects as a
-  picture, and the text reflows without clipping as the pane is resized.
+  character is the enhanced //e ROM's glyph in green on black, with no
+  scanlines or glow, and the text reflows without clipping as the pane is resized.
 ## Assumptions
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and

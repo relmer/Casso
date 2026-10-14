@@ -380,41 +380,40 @@ tab's fill supplied by the host as the color of the row it joins.
 ## R14. Apple text on the monitor
 
 **Finding**: `CharacterRomData` loads a 2 KB or 4 KB video ROM without a
-machine (`LoadFromFile`), decodes every glyph to rows with bit 0 the
-leftmost dot (`GetGlyphRow`), and contains the built-in table from construction.
-Casso installs the ROMs at `%LOCALAPPDATA%\Casso\Machines\<Machine>\`, the
-one directory `PathResolver` searches: `Apple2eEnhanced_Video.rom`,
-`Apple2e_Video.rom`, `Apple2c_Video.rom` and `Apple2_Video.rom`. A 2 KB
-ROM has no lowercase. On the 4 KB ROMs the primary set's `$E0`-`$FF` is
-lowercase and `$A0`-`$DF` the normal uppercase and punctuation.
-`CrtPictureRenderer` takes any BGRA source and output size, and
-`PicturePreview::Tint` turns a white-on-black source into the chosen
-monitor's color. An Applesoft program can run to thousands of lines,
-past the largest texture the device takes when drawn whole.
+machine, decodes every glyph to rows with bit 0 the leftmost dot
+(`GetGlyphRow`), and contains the built-in table from construction. Casso
+installs the ROMs at `%LOCALAPPDATA%\Casso\Machines\<Machine>\`, the one
+directory `PathResolver` searches: `Apple2eEnhanced_Video.rom`,
+`Apple2e_Video.rom`, `Apple2c_Video.rom` and `Apple2_Video.rom`. A 2 KB ROM
+has no lowercase. On the 4 KB ROMs the primary set's `$E0`-`$FF` is
+lowercase and `$A0`-`$DF` the normal uppercase and punctuation. DirectWrite
+loads a font from memory into a collection of its own
+(`IDWriteFactory5::CreateInMemoryFontFileLoader`), and a text format built
+against that collection draws it by family name.
 
 **Decision**:
 
 - `AppleTextFont` in the model loads the first ROM present, in the order
-  above, through `PathResolver`, and uses the built-in table when none is
-  found. It maps a character to a primary-set code with the high bit set,
-  folds lowercase to uppercase for a ROM without it, and draws anything
-  outside printable ASCII as `?`.
-- `AppleTextLayout`, pure, wraps the preview's lines at a column count
-  and returns screen rows. The window computes the column count from the
-  pane's width and a cell of 7 by 8 ROM dots at the scale of the theme's
-  text line height.
-- The window renders only the rows in view, white on black at two source
-  pixels per dot as the text modes do, tints them, and passes them through
-  `CrtPictureRenderer` with the picture's monitor, effects and glow margin.
-- `DxuiFramebufferView` gains a virtual content height. Its scrollbar and
-  wheel move over the whole text, and a callback requests from the host the
-  band in view.
-- The text is not selectable on the monitor. Ctrl+C copies the whole text.
+  above, and uses the built-in table when none is found. It maps a
+  character to a primary-set code with the high bit set, folds lowercase
+  to uppercase for a ROM without it, and draws anything outside printable
+  ASCII as `?`.
+- `AppleFontFile`, pure, writes a TrueType file from those glyphs: each
+  run of lit dots in a row a rectangle, 125 units a dot, eight rows to
+  the 1000-unit em and seven dots to the advance, the baseline one row up.
+  Printable ASCII is mapped; other characters fall back to another font.
+- The window registers it at startup with `AddPrivateFont`, for this
+  process alone, and the text view draws Apple text in it at a size
+  rounded to a whole multiple of eight pixels, so each dot is whole
+  pixels. The colors are the monitor's: its color on black, selected text
+  black on its color.
+- The text is drawn without the display effects, so it is ordinary text
+  in the view: wrapped at word breaks, selectable and copyable.
 
-**Alternatives considered**: a TrueType face from the table, dropped in
-the 2026-09 pass because the table is a partial copy of Apple's ROM. A
-face built from the user's ROM at run time avoids that but cannot have
-the CRT effects. Rendering the whole text once is ruled out by the
-texture limit. A fixed 40 or 80 column screen was an option the owner turned down
-option: the goal is the character set and the effects, not the
-screen's size.
+**Alternatives considered**: a TrueType face from the built-in table,
+shipped in the executable, dropped in the 2026-09 pass because the table
+is a partial copy of Apple's ROM; a face made at run time from the user's
+own ROM redistributes nothing. Drawing the text through the CRT pass, a
+band at a time, was built and then dropped at the owner's request; it
+could not be selected. A fixed 40 or 80 column screen was an option the
+owner turned down: the goal is the character set, not the screen's size.
