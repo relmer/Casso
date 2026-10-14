@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-30
 
-**Status**: Draft
+**Status**: Shipped in 1.23.0 (2026-09-06)
 
 **Input**: User description: "Allow CassoCli to modify disks mounted by Casso, and have Casso deal properly with that when it happens."
 

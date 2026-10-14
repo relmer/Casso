@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-09
 
-**Status**: Draft
+**Status**: Shipped in 1.24.0 (2026-09-10)
 
 **Input**: GitHub issue #85, "Reduce every executable to a trivially thin shim — move all testable logic into core". `CassoCli.exe` was already reduced this way (3,639 lines to 57) and the extraction caught two shipped defects. `Casso.exe` is the remaining offender, and `CassoCli.exe`'s surviving `main` comes along at the end so the issue's "every executable" is literally true.
 

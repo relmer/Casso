@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-02
 
-**Status**: Draft
+**Status**: Shipped in 1.30.0 (2026-10-03)
 
 **Input**: GH #159, "WOZ disk images with type FLUX don't boot or give error"
 (https://github.com/relmer/Casso/issues/159). A user reported that

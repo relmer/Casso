@@ -470,9 +470,9 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 
 ### P5c: Final code analysis + residue audit
 
-- [ ] T142 Run `scripts\Build.ps1 -RunCodeAnalysis` on the fully integrated branch and confirm zero findings; RUN AT MERGE TIME
+- [X] T142 (run at the merge; shipped in 1.4.1171) Run `scripts\Build.ps1 -RunCodeAnalysis` on the fully integrated branch and confirm zero findings; RUN AT MERGE TIME
 - [x] T143 Re-run `rg -n "Rml|RMLUI"` across all source trees, confirmed zero hits in Casso/CassoCore/CassoEmuCore/CassoCli/UnitTest (External/ retains license text only)
-- [ ] T144 Run `scripts\RunTests.ps1` on the merged branch HEAD and confirm a green run with deterministic, side-effect-free results (SC-013); RUN AT MERGE TIME (1572 tests currently green on 007 HEAD)
+- [X] T144 (run at the merge; shipped in 1.4.1171) Run `scripts\RunTests.ps1` on the merged branch HEAD and confirm a green run with deterministic, side-effect-free results (SC-013); RUN AT MERGE TIME (1572 tests currently green on 007 HEAD)
 
 ### P5d: Full screenshot matrix
 
@@ -480,11 +480,11 @@ analysis sweep, full screenshot matrix capture, residue audit, documentation.
 
 ### P5e: Documentation
 
-- [ ] T146 Update `C:\Users\relmer\repos\relmer\Casso\CHANGELOG.md` with the user-visible UI overhaul entry (chrome, settings panel, theme system, RmlUi removal)
-- [ ] T147 Update `C:\Users\relmer\repos\relmer\Casso\README.md` to reflect the native UI runtime, the three shipped themes, the per-machine user-JSON model, and updated test counts
-- [ ] T148 Update `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md` with any matrix or harness changes discovered during P5
+- [X] T146 (shipped in 1.4.1171) Update `C:\Users\relmer\repos\relmer\Casso\CHANGELOG.md` with the user-visible UI overhaul entry (chrome, settings panel, theme system, RmlUi removal)
+- [X] T147 (shipped in 1.4.1171) Update `C:\Users\relmer\repos\relmer\Casso\README.md` to reflect the native UI runtime, the three shipped themes, the per-machine user-JSON model, and updated test counts
+- [~] T148 (superseded: 013 and 032 replaced the chrome and menus in this file) Update `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\quickstart.md` with any matrix or harness changes discovered during P5
 - [x] T149 Retire `RegistrySettings.cpp` and `.h`, DEFERRED; still consumed by Win32RegistrySettings, WindowPlacementProfile, AssetBootstrap, EmulatorShell, MachineManager, WindowManager, DiskSettings, Main. Retirement is its own cross-cutting refactor for a follow-up spec.
-- [ ] T150 Refresh `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\menu-command-parity.md` after T095/T101 so task references and generated command coverage remain synchronized
+- [~] T150 (superseded: 013 and 032 replaced the chrome and menus in this file) Refresh `C:\Users\relmer\repos\relmer\Casso\specs\007-ui-overhaul\menu-command-parity.md` after T095/T101 so task references and generated command coverage remain synchronized
 
 ---
 

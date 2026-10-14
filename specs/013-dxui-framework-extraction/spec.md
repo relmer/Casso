@@ -2,7 +2,7 @@
 
 **Feature Branch**: `013-dxui-framework-extraction`
 **Created**: 2026-03-19
-**Status**: Draft
+**Status**: Shipped in 1.6.0 (2026-07-07)
 **Input**: User description: "Extract a reusable, generic Windows DirectX-based UI framework called Dxui from Casso's existing in-house UI layer under `Casso/Ui/`, then migrate Casso's UI to consume it."
 
 ## Overview
