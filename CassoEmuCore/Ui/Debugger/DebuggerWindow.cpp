@@ -5324,7 +5324,7 @@ bool DebuggerWindow::HasTopLayer() const
         {
             //  The PC's branch, or the one a step just took to the PC, which
             //  can be out of the lines built for the view.
-            if (m_codeOpen[(size_t) view] && line.isCurrent && (line.target.has_value() || m_snapshot->steppedFrom.has_value()))
+            if (m_codeOpen[(size_t) view] && line.isCurrent && (line.target.has_value() || m_snapshot->branchedFrom.has_value()))
             {
                 return true;
             }
@@ -5394,7 +5394,7 @@ bool DebuggerWindow::HasDragLayer() const
 //  DebuggerWindow::GetBranchArrow
 //
 //  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
-//  where it goes, or with isSteppedFrom, the arrow of the one a step just
+//  where it goes, or with isBranchedFrom, the arrow of the one a step just
 //  took to the PC. Either end scrolled out of view runs the line to that
 //  edge of the rows, so the arrow stays drawn while any part of it crosses
 //  them. A view past the code views is a source document's, whose pane
@@ -5402,7 +5402,7 @@ bool DebuggerWindow::HasDragLayer() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isSteppedFrom) const
+bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
 {
     DxuiListView  * list = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
 
@@ -5417,7 +5417,7 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
     {
         const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
 
-        return !isSteppedFrom && document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
+        return !isBranchedFrom && document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
     }
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
@@ -5425,13 +5425,13 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
         return false;
     }
 
-    if (isSteppedFrom && (m_snapshot == nullptr || !m_snapshot->steppedFrom.has_value()))
+    if (isBranchedFrom && (m_snapshot == nullptr || !m_snapshot->branchedFrom.has_value()))
     {
         return false;
     }
 
     return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken,
-                                                isSteppedFrom ? m_snapshot->steppedFrom : std::nullopt);
+                                                isBranchedFrom ? m_snapshot->branchedFrom : std::nullopt);
 }
 
 
@@ -5456,14 +5456,14 @@ void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 
 
 
-    for (bool isSteppedFrom : { true, false })
+    for (bool isBranchedFrom : { true, false })
     {
         input = BranchArrow::Input();
 
-        if (GetBranchArrow (view, input, goesTo, isTaken, isSteppedFrom))
+        if (GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
         {
             DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080,
-                                                isSteppedFrom);
+                                                isBranchedFrom);
         }
     }
 }

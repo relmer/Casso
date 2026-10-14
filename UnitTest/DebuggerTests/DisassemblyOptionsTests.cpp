@@ -611,7 +611,7 @@ namespace DisassemblyOptionsTests
             bne.address       = 0x0300;
             bne.bytes         = "D0 01";
             bne.instruction   = "BNE $0303";
-            bne.isSteppedFrom = true;
+            bne.isBranchedFrom = true;
             bne.target        = Word (0x0303);
 
             rts.address       = 0x0303;
@@ -620,7 +620,7 @@ namespace DisassemblyOptionsTests
             rts.isCurrent     = true;
 
             snapshot->pc           = 0x0303;
-            snapshot->steppedFrom  = Word (0x0300);
+            snapshot->branchedFrom  = Word (0x0300);
             snapshot->isPaused     = true;
             snapshot->codeViews[0] = { bne, rts };
             snapshot->code         = snapshot->codeViews[0];
@@ -670,7 +670,7 @@ namespace DisassemblyOptionsTests
             rts.isCurrent   = true;
 
             snapshot->pc           = 0x0401;
-            snapshot->steppedFrom  = Word (0x0300);
+            snapshot->branchedFrom  = Word (0x0300);
             snapshot->isPaused     = true;
             snapshot->codeViews[0] = { nop, rts };
             snapshot->code         = snapshot->codeViews[0];

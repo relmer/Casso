@@ -767,9 +767,14 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 //  A new stop. The instruction that just ran is known only when this stop
 //  is exactly where the last one's instruction would have put the machine,
 //  which is what a step looks like; after a free run it is not known, and
-//  nothing is marked rather than the wrong instruction. The snapshot has its
-//  address when it was a branch, jump or call that went to its target, so
-//  the window draws its arrow whether or not its line is in a view.
+//  nothing is marked rather than the wrong instruction.
+//
+//  The branch that brought the machine to the PC, by a step or a run that
+//  stopped, is the CPU's last transfer when that is a branch, jump or call
+//  whose target is the PC: PC moves on in order from a transfer's target,
+//  so the instruction at the target runs only after a transfer to it. The
+//  snapshot has its address, so the window draws its arrow whether or not
+//  its line is in a view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -779,7 +784,8 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     Word                          length  = GetInstructionLength (session, now.pc);
     InstructionTouches::Result    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
     bool                          isStep  = false;
-    DisassemblyData               ran;
+    Word                          from    = 0;
+    DisassemblyData               transfer;
 
 
 
@@ -787,22 +793,24 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     {
         isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
 
-        if (isStep)
-        {
-            (void) DataDirectiveHandlers::Disassemble (session, m_lastStop.at.pc, std::nullopt, 1, ran);
-        }
-
-        m_lastStop.previous   = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
-        m_lastStop.previousPc = (isStep && !ran.lines.empty() && ran.lines.front().instruction.hasTarget && ran.lines.front().instruction.target == now.pc)
-                                    ? std::optional<Word> (m_lastStop.at.pc) : std::nullopt;
-        m_lastStop.at         = now;
-        m_lastStop.isValid    = true;
+        m_lastStop.previous = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
+        m_lastStop.at       = now;
+        m_lastStop.isValid  = true;
     }
 
     //  At the same stop, memory the debugger edited can change what the
     //  instruction does, so it is worked out again on every build.
-    m_lastStop.here      = current;
-    snapshot.steppedFrom = m_lastStop.previousPc;
+    m_lastStop.here = current;
+
+    if (session.GetTarget().TryGetLastBranch (from))
+    {
+        (void) DataDirectiveHandlers::Disassemble (session, from, std::nullopt, 1, transfer);
+    }
+
+    if (!transfer.lines.empty() && transfer.lines.front().instruction.hasTarget && transfer.lines.front().instruction.target == now.pc)
+    {
+        snapshot.branchedFrom = from;
+    }
 }
 
 
@@ -2968,7 +2976,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
                                                              : line.instruction.mnemonic + " " + line.GetShownOperand();
         row.label         = line.label;
         row.isCurrent     = row.address == snapshot.pc;
-        row.isSteppedFrom = snapshot.steppedFrom == row.address;
+        row.isBranchedFrom = snapshot.branchedFrom == row.address;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
         //  is somewhere else by the time these are drawn.

@@ -157,13 +157,13 @@ namespace DebugViewBuilderTests
             session.GetTarget().SetRegisters (r);
 
             built = build();
-            Assert::IsFalse (built.steppedFrom.has_value());
+            Assert::IsFalse (built.branchedFrom.has_value());
 
             rig.machine.StepOne();
             built = build();
 
             Assert::AreEqual ((int) 0x0310, (int) built.pc);
-            Assert::IsTrue   (built.steppedFrom == std::optional<Word> (0x0300), L"the branch was the step");
+            Assert::IsTrue   (built.branchedFrom == std::optional<Word> (0x0300), L"the branch was the step");
         }
 
     private:

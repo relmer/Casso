@@ -176,10 +176,11 @@ namespace DebuggerTests
 
 
 
-        //  A stop exactly where the last stop's instruction would put the
-        //  machine is a step, and the line that ran is marked, so its arrow
-        //  is drawn to where the PC landed; a stop anywhere else is not.
-        TEST_METHOD (AStepMarksTheBranchItRan)
+        //  The branch, jump or call that brought the machine to the PC, by a
+        //  step or by a run of several instructions, is marked, so its arrow
+        //  is drawn to the PC; a PC the machine moved on to in order marks
+        //  nothing.
+        TEST_METHOD (TheTransferThatBroughtThePcIsMarked)
         {
             ControllerRig         rig;
             Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
@@ -190,35 +191,47 @@ namespace DebuggerTests
 
             rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
             rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+            rig.machine.GetMemoryBus().WriteByte (0x0310, 0xEA);    // NOP
+            rig.machine.GetMemoryBus().WriteByte (0x0311, 0x4C);    // JMP $0320
+            rig.machine.GetMemoryBus().WriteByte (0x0312, 0x20);
+            rig.machine.GetMemoryBus().WriteByte (0x0313, 0x03);
+            rig.machine.GetMemoryBus().WriteByte (0x0320, 0xEA);    // NOP
 
             r.pc = 0x0300;
             r.p  = (Byte) (r.p | 0x02);
             rig.controller.GetSession().GetTarget().SetRegisters (r);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse (snapshot.steppedFrom.has_value(), L"the first stop follows no step");
+            Assert::IsFalse (snapshot.branchedFrom.has_value(), L"no transfer to $0300");
 
-            r.pc = 0x0310;
-            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            rig.machine.StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue (snapshot.steppedFrom == std::optional<Word> (0x0300), L"the branch was the step");
+            Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the BEQ was taken to the PC");
 
             for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
             {
-                isMarked = isMarked || (line.isSteppedFrom && line.address == 0x0300);
+                isMarked = isMarked || (line.isBranchedFrom && line.address == 0x0300);
             }
 
             Assert::IsTrue (isMarked, L"its line is marked");
 
             snapshot = rig.view.Build (rig.controller.GetSession());
-            Assert::IsTrue (snapshot.steppedFrom == std::optional<Word> (0x0300), L"the same stop, built again");
+            Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the same stop, built again");
 
-            r.pc = 0x0400;
-            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            //  A run of two instructions with no build between, as a run that
+            //  a breakpoint stops: the JMP brought the machine to $0320.
+            rig.machine.StepOne();
+            rig.machine.StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse (snapshot.steppedFrom.has_value(), L"not where the instruction at $0310 goes");
+            Assert::AreEqual ((int) 0x0320, (int) snapshot.pc);
+            Assert::IsTrue   (snapshot.branchedFrom == std::optional<Word> (0x0311), L"the JMP, found with no stop at it");
+
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.branchedFrom.has_value(), L"the PC moved on in order from the JMP's target, so nothing is marked");
         }
 
 

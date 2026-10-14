@@ -58,14 +58,14 @@ struct DebuggerViewSnapshot
 
     struct CodeLine
     {
-        Word         address       = 0;
+        Word         address        = 0;
         std::string  bytes;
         std::string  instruction;
         std::string  label;
-        bool         isCurrent     = false;
-        bool         isSteppedFrom = false;
-        bool         hasBreakpoint = false;
-        bool         isEnabled     = true;
+        bool         isCurrent      = false;
+        bool         isBranchedFrom = false;
+        bool         hasBreakpoint  = false;
+        bool         isEnabled      = true;
 
         //  Where a branch or jump goes, and what the instruction acts on as
         //  the registers stand: its effective address and the byte there, or
@@ -222,10 +222,10 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
-    //  Where the branch, jump or call a step just took to the PC is, when the
-    //  machine stopped after it; none after any other step, a free run, or
-    //  while running.
-    std::optional<Word>          steppedFrom;
+    //  Where the branch, jump or call that brought the machine to the PC is,
+    //  by a step or a run that stopped there; none where the machine came to
+    //  the PC otherwise, or while running.
+    std::optional<Word>          branchedFrom;
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
@@ -857,7 +857,6 @@ private:
         Cpu6502Registers                           at       = {};
         InstructionTouches::Result                 here;
         std::optional<InstructionTouches::Result>  previous;
-        std::optional<Word>                        previousPc;
         bool                                       isValid  = false;
     };
 
