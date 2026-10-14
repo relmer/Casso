@@ -179,6 +179,13 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Which panes and tips use the proportional face? -> A: The panes of text rather than code (Breakpoints, Watches, Call stack, Heat map ranges, both event logs, the diagnostics panes) and the tips of text. Disassembly, source, trace, memory, registers, stack and console, and the tips of code or bytes (a memory address, a symbol, a sector's hex dump), are monospace. A tip with columns separated by tabs lines them up in either face, as the P register's flag table does (FR-236).
 - Q: After a step that took a branch, is its arrow drawn? -> A: Yes: the arrow of the branch, jump or call a step just ran is drawn to where the PC landed, beside the PC's own arrow (FR-237).
 - Q: Do the address checksum, cut-off data and read stall events while Karateka boots come from the disk or from the emulator? -> A: From the disk image: its track 0 has one D5 AA B5 and one D5 AA 96 address field, both with stored checksums that do not match their fields, and its track 1 has no standard fields. The Disk II boot ROM does not check an address field's checksum, so the disk boots.
+- Q: Where is a tip placed now that 040-disk-inspector places its tips by the pointer? -> A: Every hover tip, a control's or a cell's, is placed by the pointer where it came to rest, as 040-disk-inspector places them. A timed notice and a tip stacked under another tip are placed against their anchor (FR-235).
+- Q: Which panes use the proportional face, and does the console? -> A: Every list but the disassemblies: registers, stack, watches, call stack, breakpoints, trace, heat map ranges, both event logs and the diagnostics panes. A memory window's addresses are proportional and its bytes monospace. The console is monospace: its text is a grid of fixed-width cells, with dumps and tables lined up by spaces (FR-236).
+- Q: Is a stepped branch's arrow drawn when the PC's own line has no arrow? -> A: Yes (FR-237).
+- Q: How are a watch's symbol and address colored? -> A: As the code pane colors them: a symbol in the symbol color and an address in the operand color (FR-238).
+- Q: Does a press on the heat map focus its pane? -> A: Yes, and the pane is drawn with the focus accent (FR-239).
+- Q: Why did the MMU panel list each switch twice? -> A: It had a row with the switches packed into a byte as well as a row for each. The switches are not one register, so the packed row is removed and each switch is listed once (FR-240).
+- Q: Is the repo's Karateka.woz a corrupted copy? -> A: No. It is byte for byte the archive.org Woz-A-Day preservation copy (the same SHA-1), so its address checksum errors are on the original disk.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3032,19 +3039,30 @@ run something, switch back to the //e: it is where it was left.
   range they began; a right-click on a selected row MUST NOT change the
   selection, and a mouse release with no press in the list MUST select
   nothing.
-- **FR-235**: A hover tip MUST be placed clear of the pointer where it came to
-  rest, as the system's tips are, not against the item under it, and a move
-  within the same item MUST NOT move it. A color tip under an operand tip
-  MUST stack under it.
-- **FR-236**: The panes of text rather than code (Breakpoints, Watches, Call
-  stack, Heat map ranges, both event logs, the diagnostics panes) and the
-  tips of text MUST use the proportional face; disassembly, source, trace,
-  memory, registers, stack and console, and the tips of code or bytes, MUST
-  be monospace. A tip with columns separated by tabs MUST line them up in
-  either face.
+- **FR-235**: Every hover tip, a control's or a cell's, MUST be placed clear
+  of the pointer where it came to rest, as the system's tips are and as
+  040-disk-inspector places them, not against the item under it, and a move
+  within the same item MUST NOT move it. A timed notice and a color tip
+  stacked under an operand tip MUST be placed against their anchor (amended
+  2026-10-14).
+- **FR-236**: Every list but the disassemblies (registers, stack, watches,
+  call stack, breakpoints, trace, heat map ranges, both event logs and the
+  diagnostics panes) and the tips of text MUST use the proportional face. A
+  memory window's addresses MUST be proportional and its bytes monospace.
+  The disassemblies, the source panes, the console and the tips of code or
+  bytes MUST be monospace; the console's text is a grid of fixed-width cells
+  with dumps and tables lined up by spaces. A tip with columns separated by
+  tabs MUST line them up in either face (amended 2026-10-14).
 - **FR-237**: After a step that took a branch, jump or call, that
   instruction's arrow MUST be drawn to where the PC landed, beside the PC's
-  own arrow.
+  own arrow, and drawn when the PC's own line has no arrow.
+- **FR-238**: A watch's symbol and address MUST be colored as the code pane
+  colors them: a symbol in the symbol color, an address in the operand
+  color.
+- **FR-239**: A press on the heat map MUST focus its pane, so the pane is
+  drawn with the focus accent.
+- **FR-240**: The MMU panel MUST list each switch once; the switches are not
+  one register and MUST NOT be packed into a byte.
 
 ### Key Entities
 

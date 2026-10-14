@@ -1578,3 +1578,20 @@ Owner decisions 2026-10-14, third review of the event log panes and tooltips.
 **Dependencies**: T832 to T839 before T841; T840 with T841.
 
 **Parallel**: T833 touches only the Disk II log's text and DiskImage, apart from the other tasks' files.
+
+## Phase 37: The event log review, fourth round (FR-235 to FR-240)
+
+Owner decisions 2026-10-14, fourth review.
+
+- [X] T842 Place every hover tip by the pointer where it came to rest, as 040-disk-inspector does, with a timed notice and a stacked color tip placed against their anchor (DxuiTooltip::LocatePointer, SetPointerLocator, RequestShow's isAtPointer in Dxui/Widgets/DxuiTooltip.h/.cpp; DebuggerWindow::UpdateTip); test in UnitTest/Dxui/DxuiTooltipTests.cpp, per FR-235 **Done 2026-10-14** (20bfaf62c)
+- [X] T843 Paint the top layer when the line a step just ran has an arrow, not only the PC's line (DebuggerWindow::HasTopLayer); test a real step in UnitTest/DebuggerTests/DisassemblyOptionsTests.cpp and a captured build in DebugViewBuilderTests.cpp, per FR-237 **Done 2026-10-14** (302f66210)
+- [X] T844 [P] Color a watch's symbol and address as the code pane colors them (SourceSyntax::GetOperandRuns, DebuggerTextColors::GetOperandRanges, DebuggerWindow::ApplySnapshot); test in UnitTest/DebuggerTests/DebuggerTextColorsTests.cpp, per FR-238 **Done 2026-10-14** (ff9169dcc)
+- [X] T845 Use the proportional face for the registers, stack, trace and memory addresses, keeping the bytes and the console monospace (DebuggerWindow::GetTextLists, DxuiHexView::SetProportionalOffsets, MemoryPane), per FR-236 **Done 2026-10-14** (17aac06b0)
+- [X] T846 [P] Remove the MMU panel's packed byte so each switch is listed once (Apple2eMmu::GetDiagnostics in CassoEmuCore/Machines/Apple2/Apple2e/Apple2eMmu.cpp); test in UnitTest/DebuggerTests/DiagnosticsProviderTests.cpp, per FR-240 **Done 2026-10-14** (33b98489e)
+- [X] T847 [P] Focus the heat map on a press so its pane is drawn with the focus accent (HeatMapView focusable, DebuggerWindow::RouteHeatMapMouse); test in UnitTest/DebuggerTests/DebuggerFocusAccentTests.cpp, per FR-239 **Done 2026-10-14** (f51a77a1e)
+- [X] T848 Compare Apple2/Demos/Karateka.woz with the archive.org Woz-A-Day preservation copy: the SHA-1 is the same, so the checksum errors are on the original disk; no code change **Done 2026-10-14**
+- [ ] T849 Retest with the owner the tip placement, the stepped branch arrow, the watch colors, the faces, the MMU panel and the heat map's focus accent
+
+**Dependencies**: T842 to T848 before T849.
+
+**Parallel**: T844, T846 and T847 touch separate files.
