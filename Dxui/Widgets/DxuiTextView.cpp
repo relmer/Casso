@@ -642,8 +642,10 @@ void DxuiTextView::SetColors (uint32_t text, uint32_t background, uint32_t selec
 //  DxuiTextView::GetFont
 //
 //  The face the text is drawn in, its size in pixels at the zoom: the host's
-//  face when it set one, rounded to its pixel grid, and the theme's
-//  monospaced face otherwise.
+//  face when it set one, and the theme's monospaced face otherwise. The
+//  host's face is rounded to its pixel grid before the zoom, so it lands on
+//  whole pixels unzoomed and at whole-number zooms, and every zoom step
+//  changes its size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -660,12 +662,14 @@ DxuiFontHandle DxuiTextView::GetFont (const IDxuiTheme & theme) const
         font.sizeDip = m_faceSizeDip;
     }
 
-    font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom);
+    font.sizeDip = m_scaler.ToPxf (font.sizeDip);
 
     if (!m_face.empty() && m_pixelGrid > 0)
     {
         font.sizeDip = (std::max) (grid, std::round (font.sizeDip / grid) * grid);
     }
+
+    font.sizeDip *= m_zoom;
 
     return font;
 }

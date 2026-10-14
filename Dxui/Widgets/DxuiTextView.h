@@ -91,8 +91,8 @@ public:
 
     //  A face of the host's own in place of the theme's monospaced one, at
     //  `sizeDip` and, with `pixelGrid` set, at the nearest whole multiple of
-    //  that many pixels, so a face drawn from a grid of dots lands on whole
-    //  pixels. An empty face is the theme's.
+    //  that many pixels before the zoom, so a face drawn from a grid of dots
+    //  lands on whole pixels unzoomed. An empty face is the theme's.
     void  SetFace (std::wstring face, float sizeDip, int pixelGrid = 0);
 
     //  Colors of the host's own: the text, the background, the selection's

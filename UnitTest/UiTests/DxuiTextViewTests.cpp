@@ -158,6 +158,19 @@ public:
         }
 
         Assert::IsTrue (inverse && selFill, L"A selection is the host's text over its fill");
+
+        //  The zoom applies to the rounded size, so each step changes it.
+        text.Reset();
+        view.SetZoom (1.1f);
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString)
+            {
+                Assert::AreEqual (16.0f * 1.1f, call.fontSizeDip, 0.01f, L"110% of the rounded 16 pixels");
+            }
+        }
     }
 
 

@@ -389,3 +389,4 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 ## Phase 15: Convergence
 
 - [X] T176 Draw Apple text in `DxuiTextView` in a font made at run time from the video ROM (`AppleFontFile`, `DxuiTextRenderer::AddPrivateFont`, `DxuiTextView::SetFace` and `SetColors`), in the monitor's color on black without the display effects, selectable and copyable, in place of the CRT band of T172, per FR-082 and the Session 2026-10-13 clarifications (contradicts)
+- [X] T177 Remove `DxuiFramebufferView`'s virtual height, unused once Apple text left the CRT band, at the owner's request, and apply the text view's zoom after the face is rounded to its pixel grid, per FR-082 (unrequested)

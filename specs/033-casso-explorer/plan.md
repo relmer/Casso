@@ -292,8 +292,8 @@ entries, goes to the hex view, as a binary does.
 
 An earlier pass drew the text through the CRT pass a band at a time in
 `DxuiFramebufferView`; the owner dropped the effects, and with them the
-reason the text could not be text. The view's virtual height stays in
-Dxui.
+reason the text could not be text. The view's virtual height was removed
+with it.
 
 ## Risks
 

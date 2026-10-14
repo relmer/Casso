@@ -111,21 +111,6 @@ public:
 Paints via `DxuiTextRenderer::DrawFramebuffer`, centered, integer-scaled
 when it fits.
 
-```cpp
-    void  SetVirtualHeight (int heightPx);                          // 0 ends it
-    void  SetOnScroll      (std::function<void (int topPx)> onScroll);
-    void  ScrollTo         (int topPx);
-    int   GetScrollTop     () const;
-    int   GetBandWidth     () const;                                // bounds less the scrollbar
-    void  SetBand          (std::vector<uint32_t> bgra, int width, int height, int margin, int topPx);
-```
-
-With a virtual height, the vertical scrollbar and the wheel range over
-that height. Each scroll calls `onScroll` with the new top, and the host
-replies with `SetBand`: an image of the rows in view, whose top is `topPx`
-down the whole, drawn one to one and centered across the band width. A
-framebuffer ends the virtual height.
-
 ## A face built at run time
 
 ```cpp
@@ -140,7 +125,7 @@ void  SetColors (uint32_t text, uint32_t background, uint32_t selection, uint32_
 `AddPrivateFont` loads a font from memory into a collection of its own and
 returns its family; a format for that family is built against that
 collection. `SetFace` replaces the theme's monospaced face in a text view,
-its pixel size rounded to a whole multiple of `pixelGrid` when that is set.
+its pixel size rounded to a whole multiple of `pixelGrid` when that is set, before the zoom applies.
 `SetColors` replaces the theme's colors; a zero color is the theme's.
 
 ## Light and Dark palettes
