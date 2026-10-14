@@ -17,7 +17,7 @@
 //  is complete, and before that from stretches of history replayed by a
 //  runner with the view's probe (FR-210 to FR-212). A request queues the
 //  stretches the span overlaps that are not rebuilt yet, newest first, then
-//  kPrefetch more before them, as one job; a request for other stretches
+//  the prefetch, kPrefetch more before them by default, as one job; a request for other stretches
 //  replaces the job waiting. Rebuilt stretches go in a small LRU, so
 //  scrolling back and forth replays nothing twice.
 //
@@ -36,13 +36,19 @@ class DebugEventReplayer
 public:
     using Entry = DebugEventEntry<T>;
 
-    static constexpr size_t  kLruStretches = 64;
-    static constexpr size_t  kPrefetch     = 2;
+    //  Stretches replayed ahead of a request. A DOS 3.3 boot, the disk's
+    //  busiest, replays at 379 stretches a second with the Disk II feed, the
+    //  slowest stretch in 6.4 ms (R-045), so 32 take about 0.2 s and the
+    //  next screen back is rebuilt within SC-054's quarter second however
+    //  sparse its events are.
+    static constexpr size_t  kPrefetch     = 32;
+    static constexpr size_t  kLruStretches = 4 * kPrefetch;
 
-    DebugEventReplayer (const DebugEventCache<T> & cache, IDebugEventHistory & history, IDebugEventRunner<T> & runner)
-        : m_cache   (cache),
-          m_history (history),
-          m_runner  (runner)
+    DebugEventReplayer (const DebugEventCache<T> & cache, IDebugEventHistory & history, IDebugEventRunner<T> & runner, size_t prefetch = kPrefetch)
+        : m_cache    (cache),
+          m_history  (history),
+          m_runner   (runner),
+          m_prefetch (prefetch)
     {
     }
 
@@ -177,7 +183,7 @@ private:
     }
 
     //  The stretches the span overlaps that are not rebuilt, newest first,
-    //  then those of the kPrefetch before the oldest of them that are not
+    //  then those of the m_prefetch before the oldest of them that are not
     //  rebuilt.
     void  FindWanted (uint64_t from, uint64_t to, std::vector<DebugEventBounds> & outWanted)
     {
@@ -205,7 +211,7 @@ private:
             }
         }
 
-        for (i = oldest; i > 0 && taken < kPrefetch && oldest < m_stretches.size(); i--)
+        for (i = oldest; i > 0 && taken < m_prefetch && oldest < m_stretches.size(); i--)
         {
             if (Find (m_stretches[i - 1]) == nullptr)
             {
@@ -282,6 +288,7 @@ private:
     std::vector<DebugEventBounds>    m_stretches;
     std::vector<DebugEventBounds>    m_pending;
     std::vector<Rebuilt>             m_rebuilt;
+    size_t                           m_prefetch   = kPrefetch;
     uint64_t                         m_generation = 0;
     uint64_t                         m_useClock   = 0;
 };

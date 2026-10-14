@@ -154,7 +154,7 @@ namespace DebugEventReplayerTests
             DebugEventCache<int>       cache    { 1024 };
             FakeHistory                history;
             FakeRunner                 runner;
-            DebugEventReplayer<int>    replayer { cache, history, runner };
+            DebugEventReplayer<int>    replayer { cache, history, runner, 2 };
 
             //  The cache complete from 800 on, an event every ten positions.
             Rig()
