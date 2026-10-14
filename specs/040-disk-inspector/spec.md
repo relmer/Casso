@@ -2474,7 +2474,10 @@ legend, and tilt the platter and back.
   grid fits the tab's width, to 32 times. Past 1, the grid MUST fill its view
   and pan in it by a drag, by the wheel down and up, and by Shift and the
   wheel across, with the track numbers and column headers pinned at its left
-  and top edges, each centered on the part of its row or column in view. A
+  and top edges, each centered on the part of its row or column in view, and
+  with a scrollbar along the right or bottom edge wherever the cells run
+  past the view, its thumb placed and sized as the view is among the cells,
+  and a drag on the thumb panning the grid. A
   double-click MUST return the grid to 1, and a new disk MUST start it at 1.
   As a cell grows, its sector's bytes MUST appear under its label, 16, 32 or
   64 to a row, the count with the most room for a byte's hex in the cell's
