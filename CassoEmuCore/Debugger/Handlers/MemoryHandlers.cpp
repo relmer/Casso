@@ -8,6 +8,7 @@
 #include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/MemoryMap.h"
+#include "Sha1.h"
 
 
 
@@ -518,6 +519,10 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 
         loaded += count;
     }
+
+    session.NoteBinaryLoad (Sha1::ToHex (Sha1::Compute (std::span<const uint8_t> ((const uint8_t *) content.data(), content.size()))),
+                            image.segments.empty() ? (Word) 0 : image.segments.front().address,
+                            name.substr (name.find_last_of ("/\\") + 1));
 
     data.path        = std::format ("{} ({})", name, BinaryImageReader::GetFormatName (image.format));
     data.echo        = session.GetPathEcho (name, "from");

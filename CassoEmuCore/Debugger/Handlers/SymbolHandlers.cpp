@@ -335,6 +335,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     }
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
+    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
     lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
     BreakpointHandlers::FollowSymbols (session, lines);
@@ -412,6 +413,8 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     {
         session.GetSymbols().AddOrigin (table, base);
     }
+
+    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
                                     loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
@@ -511,6 +514,7 @@ void SymbolHandlers::Clear (DebugSession & session, const DebugCommand & command
 
     TryGetTable (command, table);
     session.GetSymbols().Clear (table);
+    session.ForgetSymbolLoads (table);
 
     if (session.GetDebugFileTable() == table)
     {

@@ -196,6 +196,27 @@ public:
     // The routines a step into runs as a step over, in every dialect.
     const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
 
+    //  Each symbol or debug file loaded, with the table and the offset, for
+    //  a debug project to load again; a later load of one path into one
+    //  table replaces the earlier, and clearing a table removes its loads.
+    struct SymbolLoad
+    {
+        SymbolTableId  table  = SymbolTableId::User;
+        std::wstring   path;
+        int            offset = 0;
+    };
+
+    void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset);
+    void                              ForgetSymbolLoads (SymbolTableId table);
+    const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_symbolLoads; }
+
+    //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
+    //  and its file's name; a debug project's key while no debug file is
+    //  loaded (FR-167).
+    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name);
+    const std::string   & GetBinaryKey   () const { return m_binaryKey; }
+    const std::string   & GetBinaryName  () const { return m_binaryName; }
+
     // The call-stack record (FR-068), kept only while the debugger is attached:
     // while the window or the channel is open, and for a batch run. Turning it
     // on starts a new record at PC; off discards it.
@@ -464,6 +485,9 @@ private:
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
     StepFilter                            m_stepFilter;
+    std::vector<SymbolLoad>               m_symbolLoads;
+    std::string                           m_binaryKey;
+    std::string                           m_binaryName;
     CallStackRecorder                     m_callRecorder;
     std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
