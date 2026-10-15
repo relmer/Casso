@@ -36,6 +36,11 @@ struct MachineRefs
     class PrinterCard *           printerCard      = nullptr;
     class SuperSerialCard *       superSerialCard  = nullptr;
 
+    // The $C800-$CFFF expansion space the slot cards share, created with the
+    // first card that has expansion ROM. A bus device on the ][ and ][+; on
+    // the //e the CxxxRomRouter calls it.
+    class ExpansionRomBus *       expansionRomBus  = nullptr;
+
     // Every 6551 the machine has, the //c's built-in ports and any Super
     // Serial Card's, ticked once per instruction so their character timing
     // follows the CPU clock.

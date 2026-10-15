@@ -26,11 +26,6 @@ namespace fs = std::filesystem;
 TestMachine::TestMachine (const std::string & machineId, Slots slots)
     : m_builder (*this, m_nothingListening)
 {
-    std::wstring  wide = TextEncoding::NarrowToWide (machineId);
-    HRESULT       hr   = S_OK;
-
-
-
     //  Built FROM a config of its own, and the host keeps a copy of what
     //  it was built from. Handing the builder the host's own config makes
     //  it walk a list the build is entitled to rewrite as it goes.
@@ -47,6 +42,50 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
         std::erase_if (config.slots,
                        [] (const SlotConfig & slot) { return slot.slot != 6; });
     }
+
+    BuildFrom (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (configure)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string                         & machineId,
+    const std::function<void (MachineConfig &)> & configure)
+    : m_builder (*this, m_nothingListening)
+{
+    MachineConfig  config;
+
+
+
+    LoadConfig (machineId, config);
+    configure  (config);
+    BuildFrom  (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::BuildFrom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMachine::BuildFrom (const std::string & machineId, const MachineConfig & config)
+{
+    std::wstring  wide = TextEncoding::NarrowToWide (machineId);
+    HRESULT       hr   = S_OK;
+
+
 
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);

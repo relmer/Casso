@@ -257,6 +257,7 @@
     <ClCompile Include="Machines\Apple2\Common\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Devices\AciaByteSourceEndpoint.cpp" />
     <ClCompile Include="Devices\SerialByteQueue.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
@@ -361,6 +362,8 @@
     <ClCompile Include="Machines\Apple2\Common\CxxxRomRouter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ExpansionRomBus.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SlotRomPage.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SscSwitches.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SuperSerialCard.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2c\Apple2cRomBank.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleTextMode.cpp" />
@@ -723,6 +726,7 @@
     <ClInclude Include="Machines\Apple2\Common\LanguageCard.h" />
     <ClInclude Include="Devices\Acia6551.h" />
     <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Devices\AciaByteSourceEndpoint.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />
     <ClInclude Include="Devices\Ay8910.h" />
@@ -746,6 +750,8 @@
     <ClInclude Include="Machines\Apple2\Common\ExpansionRomBus.h" />
     <ClInclude Include="Machines\Apple2\Common\IExpansionRomCard.h" />
     <ClInclude Include="Machines\Apple2\Common\SlotRomPage.h" />
+    <ClInclude Include="Machines\Apple2\Common\SscSwitches.h" />
+    <ClInclude Include="Machines\Apple2\Common\SuperSerialCard.h" />
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2cRomBank.h" />
     <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.h" />

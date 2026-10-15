@@ -404,6 +404,9 @@
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
     <ClCompile Include="EmuTests\SerialByteQueueTests.cpp" />
     <ClCompile Include="EmuTests\ExpansionRomBusTests.cpp" />
+    <ClCompile Include="EmuTests\SscSwitchesTests.cpp" />
+    <ClCompile Include="EmuTests\SuperSerialCardTests.cpp" />
+    <ClCompile Include="EmuTests\SuperSerialCardMachineTests.cpp" />
     <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
     <ClCompile Include="EmuTests\Via6522Tests.cpp" />
     <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
