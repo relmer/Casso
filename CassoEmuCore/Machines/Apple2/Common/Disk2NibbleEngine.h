@@ -109,6 +109,12 @@ public:
     // Only for a drive that is not writing.
     uint8_t    PeekLatchAfter (uint32_t cpuCycles) const;
 
+    // The next `count` nibbles the latch will assemble, read on a copy of the
+    // engine, so the drive and its latch do not move; isRandom is set when
+    // any bit came from the rule for long runs without a transition. Fewer
+    // come back when the disk does not turn. Only for a drive not writing.
+    void       PeekNibbles (int count, std::vector<Byte> & outNibbles, bool & outIsRandom) const;
+
     void       Tick (uint32_t cpuCycles);
     uint8_t    ReadLatch();
     void       WriteLatch (uint8_t value);

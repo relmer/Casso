@@ -73,6 +73,46 @@ uint8_t Disk2NibbleEngine::PeekLatchAfter (uint32_t cpuCycles) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekNibbles
+//
+//  One bit cell at a time on the copy, taking each nibble as it assembles,
+//  for at most a revolution and a half. A weak bit drawn on the way moves
+//  the copy's generator, so comparing the two generators finds a random
+//  region.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::PeekNibbles (int count, std::vector<Byte> & outNibbles, bool & outIsRandom) const
+{
+    constexpr int      kCellLimit = 75000;
+    Disk2NibbleEngine  copy       = *this;
+    uint8_t            nibble     = 0;
+
+
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+    outNibbles.clear();
+
+    for (int cell = 0; cell < kCellLimit && (int) outNibbles.size() < count; cell++)
+    {
+        copy.Tick (kCyclesPerBit);
+
+        if (copy.ConsumeFreshNibble (nibble))
+        {
+            outNibbles.push_back (nibble);
+        }
+    }
+
+    outIsRandom = copy.m_weakRngState != m_weakRngState;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDiskImage
 //
 //  Called by Disk2Controller on Mount / Eject / DriveSelect transitions.
