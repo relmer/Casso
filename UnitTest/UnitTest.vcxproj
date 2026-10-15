@@ -634,6 +634,7 @@
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\Disk2StateTests.cpp" />
     <ClCompile Include="Devices\Disk2PerDriveHeadTests.cpp" />
+    <ClCompile Include="Devices\Disk2WriteHookTests.cpp" />
     <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
     <ClCompile Include="Devices\DiskMarkPatternTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />

@@ -226,6 +226,14 @@ private:
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
 
+    // The one place a guest write to a disk is reported: a load of the data
+    // latch with Q6 and Q7 set while the motor runs, its spin-down included,
+    // with the drive, the nibble, that drive's head and whether write
+    // protection drops the bits. A load with the motor stopped writes
+    // nothing, and the //c's mode-register load is not a latch load; neither
+    // is reported.
+    virtual void  OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped);
+
 protected:
     int                  m_slot;
     Word                 m_ioStart;

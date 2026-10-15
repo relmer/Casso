@@ -172,7 +172,9 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
 
 void Disk2Controller::Write (Word address, Byte value)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
+    int   offset      = (address - m_ioStart) & 0x0F;
+    bool  isModeLoad  = false;
+    bool  isLatchLoad = false;
 
 
 
@@ -182,6 +184,9 @@ void Disk2Controller::Write (Word address, Byte value)
 
     if (m_q7 && m_q6)
     {
+        isModeLoad  = m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0);
+        isLatchLoad = !isModeLoad && m_motorOn;
+
         // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
         // instead of the write latch; with the motor on it is the data-field
         // write path, same as a Disk II card.
@@ -191,7 +196,7 @@ void Disk2Controller::Write (Word address, Byte value)
         // reads it back until the two agree; judged by the spin-down instead,
         // the write was refused for a second and the machine sat in that
         // loop at every reset, power cycle and launch.
-        if (m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0))
+        if (isModeLoad)
         {
             m_iwmModeReg = value;
         }
@@ -200,7 +205,30 @@ void Disk2Controller::Write (Word address, Byte value)
             m_engine[m_activeDrive].WriteLatch (value);
             m_addrMarkWatcher.ObserveWrittenNibble (value);
         }
+
+        if (isLatchLoad)
+        {
+            OnLatchLoad (m_activeDrive, value, GetQuarterTrack(), m_activeDisk[m_activeDrive]->IsWriteProtected());
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLatchLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped)
+{
+    UNREFERENCED_PARAMETER (drive);
+    UNREFERENCED_PARAMETER (nibble);
+    UNREFERENCED_PARAMETER (quarterTrack);
+    UNREFERENCED_PARAMETER (isDropped);
 }
 
 
