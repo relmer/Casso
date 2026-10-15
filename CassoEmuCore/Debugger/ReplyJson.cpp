@@ -144,6 +144,11 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         members.emplace_back ("watch", JsonValue (std::move (watch)));
     }
 
+    if (stop.disk.has_value())
+    {
+        members.emplace_back ("disk", MakeDiskReport (*stop.disk));
+    }
+
     if (!stop.condition.empty())
     {
         members.emplace_back ("condition", MakeString (stop.condition));
@@ -1010,6 +1015,16 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
     {
         members.emplace_back ("access", MakeString (GetAccessName (breakpoint.access)));
         members.emplace_back ("mode",   MakeString (GetWatchModeName (breakpoint.mode)));
+    }
+
+    if (breakpoint.disk.has_value())
+    {
+        members.emplace_back ("disk", MakeDiskSpec (*breakpoint.disk, breakpoint.resolved));
+    }
+
+    if (breakpoint.resolved.has_value())
+    {
+        members.emplace_back ("resolved", MakeNumber (*breakpoint.resolved));
     }
 
     members.emplace_back ("enabled",   JsonValue (breakpoint.enabled));

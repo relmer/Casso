@@ -41,7 +41,9 @@ void AppleWinFormatter::Format (Reply & reply)
 //  A watchpoint stop says who touched what: the access, the value, the byte
 //  a write replaced when it is known, and the instruction that did it. A
 //  before-mode stop has no value yet. A read before written says so, with
-//  the value read. Other stops give the reason and PC.
+//  the value read. A disk stop is its report, and any other stop with a disk
+//  report has the report's lines after its own. Any other stop is its reason
+//  and PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +86,24 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
             }
         }
 
-        return text + FormatCondition (stop);
+        return text + FormatCondition (stop) + JoinDiskReport (stop);
+    }
+
+    if (stop.reason == StopReason::Disk && stop.disk.has_value())
+    {
+        Lines  lines;
+
+
+
+        FormatDiskReport (*stop.disk, lines);
+        lines.front() += FormatCondition (stop);
+
+        for (const std::string & line : lines)
+        {
+            text += (text.empty() ? "" : "\n") + line;
+        }
+
+        return text;
     }
 
     text = std::format ("{} at ${:04X}", kReasons[(int) stop.reason], stop.pc);
@@ -99,6 +118,39 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
     if (stop.sourceLine > 0)
     {
         text += std::format (", {} line {}", stop.sourceFile, stop.sourceLine);
+    }
+
+    return text + JoinDiskReport (stop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::JoinDiskReport
+//
+//  A disk report's lines, each after a newline, for a stop that came
+//  another way; nothing when the stop has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::JoinDiskReport (const StopEvent & stop)
+{
+    Lines        lines;
+    std::string  text;
+
+
+
+    if (stop.disk.has_value())
+    {
+        FormatDiskReport (*stop.disk, lines);
+    }
+
+    for (const std::string & line : lines)
+    {
+        text += "\n" + line;
     }
 
     return text;
@@ -1027,16 +1079,8 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::MemoryValue:
         text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
         break;
-    //  An RWTS or driver breakpoint lists its routine, or that its vector
-    //  has none yet.
     case BreakpointKind::Disk:
-        text = "on disk " + DiskBreakSpecText::GetDescription (breakpoint.disk.value_or (DiskBreakSpec {}));
-
-        if (breakpoint.disk.has_value() && (breakpoint.disk->event == DiskEvent::RwtsCall || breakpoint.disk->event == DiskEvent::DriverCall))
-        {
-            text += breakpoint.resolved.has_value() ? std::format (" at ${:04X}", *breakpoint.resolved) : std::string (", unresolved");
-        }
-
+        text = "on disk " + DescribeDisk (breakpoint);
         break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }

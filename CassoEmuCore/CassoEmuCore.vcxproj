@@ -265,7 +265,9 @@
     <ClCompile Include="Debugger\DiskCallVector.cpp" />
     <ClCompile Include="Debugger\DiskValueSymbols.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
+    <ClCompile Include="Debugger\AppleWinFormatterDisk.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
+    <ClCompile Include="Debugger\ReplyJsonDisk.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\StateFileHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BreakpointHandlers.cpp" />

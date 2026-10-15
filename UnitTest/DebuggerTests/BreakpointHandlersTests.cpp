@@ -551,5 +551,46 @@ namespace DebuggerTests
             rig.session.SetFileSystem (nullptr);
             rig.RunFails ("BPSAVE x.txt", "no file access");
         }
+
+        //  Each disk breakpoint saves as one BPDISK line, marks and the
+        //  user's IF included, and an RWTS breakpoint's request stays out of
+        //  its condition both ways.
+        TEST_METHOD (BPSAVE_DiskBreakpoints_ReplayRestoresTheTable)
+        {
+            Rig                       rig;
+            std::vector<Breakpoint>   before;
+            std::string               script;
+
+
+
+            rig.target.machineInfo.disks = { "", "" };
+            rig.RunOk ("BPDISK D2 READ 3 4 ADDR D5 AA 96 DATA D5 AA AD PASSED");
+            rig.RunOk ("BPDISK RWTS 11 READ IF A == 21");
+            rig.RunOk ("BPDISK HEAD T 1:3 BUMP");
+            before = rig.session.GetBreakpoints().GetAll();
+
+            rig.RunOk ("BPSAVE bp.txt");
+            script = rig.files.PeekContent (L"C:\\Work\\bp.txt");
+            Assert::IsTrue (script.find ("BPDISK RWTS 11 READ IF A == 21\n") != std::string::npos, TextEncoding::NarrowToWide (script).c_str());
+
+            rig.RunOk ("BPC *");
+
+            for (size_t start = 0, end = script.find ('\n'); end != std::string::npos; start = end + 1, end = script.find ('\n', start))
+            {
+                rig.RunOk (script.substr (start, end - start));
+            }
+
+            Assert::AreEqual (before.size(), rig.session.GetBreakpoints().GetAll().size());
+
+            for (size_t at = 0; at < before.size(); at++)
+            {
+                const Breakpoint  & replayed = rig.session.GetBreakpoints().GetAll().at (at);
+
+
+
+                Assert::IsTrue   (before[at].disk == replayed.disk, std::format (L"entry {}", at).c_str());
+                Assert::AreEqual (before[at].condition.text, replayed.condition.text);
+            }
+        }
     };
 }

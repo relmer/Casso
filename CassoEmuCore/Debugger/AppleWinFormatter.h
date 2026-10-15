@@ -39,6 +39,13 @@ public:
     // The BPV scanline break's line under a breakpoint list, in every mode.
     static void         AppendVideoBreak (const BreakpointListData & data, std::vector<std::string> & lines);
 
+    // A disk breakpoint's event and filters, then an RWTS or driver
+    // breakpoint's routine or ", unresolved", as every listing has them.
+    static std::string  DescribeDisk     (const BreakpointInfo & breakpoint);
+
+    // A disk stop's report, as every mode's stop text has it.
+    static void         FormatDiskReport (const DiskReport & report, std::vector<std::string> & lines);
+
 private:
     using Lines = std::vector<std::string>;
 
@@ -70,6 +77,11 @@ private:
     static double  GetShare             (uint64_t part, uint64_t total);
 
     static std::string  FormatCondition    (const StopEvent & stop);
+    static std::string  DescribeDiskEvent  (const DiskReport & report);
+    static std::string  FormatDiskChecksums (const DiskReport & report);
+    static std::string  FormatDiskRequest  (const DiskReport & report);
+    static std::string  FormatDiskState    (const DiskReport & report);
+    static std::string  JoinDiskReport     (const StopEvent & stop);
 
     static constexpr int   kBytesPerRow  = 8;
     static constexpr int   kDetailIndent = 7;

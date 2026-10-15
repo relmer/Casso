@@ -230,7 +230,22 @@ std::string MonitorFormatter::FormatRegisters (const Cpu6502Registers & register
 
 std::string MonitorFormatter::FormatStop (const StopEvent & stop)
 {
-    return FormatRegisters (stop.registers);
+    std::vector<std::string>  lines;
+    std::string               text  = FormatRegisters (stop.registers);
+
+
+
+    if (stop.disk.has_value())
+    {
+        AppleWinFormatter::FormatDiskReport (*stop.disk, lines);
+    }
+
+    for (const std::string & line : lines)
+    {
+        text += "\n" + line;
+    }
+
+    return text;
 }
 
 

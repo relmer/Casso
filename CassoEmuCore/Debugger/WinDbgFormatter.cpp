@@ -409,7 +409,8 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //  its first hit. A value entry shows its byte. A condition follows, then the
 //  hits and any flag that is off its default. A breakpoint on an opcode, a
 //  register, BRK or an interrupt has no address, so what it stops on takes
-//  that place.
+//  that place. A disk breakpoint has `disk` there, and its event after the
+//  counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -443,6 +444,11 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
         }
 
         text = std::format ("{} {} {} {}0001 (0001)", breakpoint.id, breakpoint.enabled ? "e" : "d", address, kind);
+
+        if (breakpoint.kind == BreakpointKind::Disk)
+        {
+            text += "  " + AppleWinFormatter::DescribeDisk (breakpoint);
+        }
 
         if (!breakpoint.condition.empty() && breakpoint.kind != BreakpointKind::Register)
         {

@@ -202,8 +202,9 @@ void GSSquaredFormatter::FormatDisassembly (const DisassemblyData & data, Lines 
 //
 //  GSSquaredFormatter::FormatBreakpointList
 //
-//  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`. A
-//  kind GSSquared has no word for is described as AppleWin describes it.
+//  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`,
+//  `[id] disk sector read, ...`. A kind GSSquared has no word for has
+//  AppleWin's text for it.
 //  A condition, BEFORE and the entry's state follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,6 +238,10 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
 
         case BreakpointKind::Memory:
             text = std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]);
+            break;
+
+        case BreakpointKind::Disk:
+            text = std::format ("[{}] disk {}", breakpoint.id, AppleWinFormatter::DescribeDisk (breakpoint));
             break;
 
         default:

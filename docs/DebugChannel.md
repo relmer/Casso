@@ -187,7 +187,7 @@ already arrived.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, and `flags` with `n`, `v`, `b`, `d`, `i`, `z`, `c` as booleans |
 | `memory` | `rows`: `{address, bytes, region}`, where `region` is `mainRam`, `auxRam`, `lcBank1`, `lcBank2`, `rom`, `slotRom` or `io`. An I/O byte that cannot be read without side effects is `null` |
 | `disassembly` | `lines`: `{address, bytes, mnemonic, operand, operandAddress, operandSymbol, target, label, documented}`. `operand` is always numeric; `operandSymbol` is the name of `operandAddress` and `label` the name of `address`, each `null` when none is loaded. |
-| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, enabled, hits}`, with absent fields left out |
+| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, disk, resolved, enabled, hits}`, with absent fields left out. Kind `disk` has a `disk` object, the breakpoint's definition (see "Disk breakpoints" below), and an RWTS or driver breakpoint has `resolved`, the routine it stops at now, absent while its vector has no target |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `{id, address, enabled, value}` |
 | `searchHits` | `addresses` |
 | `stack` | `sp`, and `entries`: `{address, value}` |
@@ -222,6 +222,7 @@ Notifications have no `id` and go to every connected client.
 | `budget` | the run's cycle budget ran out |
 | `pause` | a `pause` request, or someone paused Casso itself |
 | `brk`, `invalidOpcode` | a `BRK` or an invalid opcode, when those stops are on |
+| `disk` | a disk breakpoint (`BPDISK`) fired. `breakpointId` is the lowest id that matched, and `disk` is the report (below). `pc` is the next instruction, or for an RWTS or driver call the routine's first instruction, not yet run. When a breakpoint or watchpoint matches at the same stop, the reason is theirs and the stop has the `disk` object as well |
 
 - `causeId` is present only when a command's run ended. A breakpoint hit while
   the machine was simply running, or a pause from the Casso window, carries
@@ -229,6 +230,41 @@ Notifications have no `id` and go to every connected client.
 - `machineChanged` means every breakpoint and watchpoint was cleared, since
   their addresses belonged to the old machine. `reset` keeps them.
 - `closing` is the last record before the pipe closes.
+### Disk breakpoints
+
+A disk breakpoint's `disk` object in `breakpointSet` and `breakpointList` is
+what `BPDISK` was given; a filter left out matches any and is omitted.
+
+| Field | Meaning |
+|---|---|
+| `event` | `sectorRead`, `addressField`, `head`, `writeMode`, `writePrologue`, `writeBlocked`, `dosSector`, `proDosBlock`, `rwtsCall`, `driverCall`, `motor`, `driveSelect`, `inserted`, `ejected` |
+| `drive` | 1 or 2 |
+| `track`, `sector`, `volume`, `block` | the numbers given |
+| `head`, `quarterTracks` | head and write-mode positions: `any`, `range`, `wholeTracks` or `half`, and `[first, last]` for a range |
+| `motor` | `any`, `on`, `off` or `stopped` |
+| `command` | the RWTS or driver command, as its number |
+| `options` | `passed`, `badChecksum`, `wrongTrack`, `bump`, `every` |
+| `addressMarks`, `dataMarks`, `format` | custom marks, each nibble a number or `null` for `??`, and 13 or 16 with custom address marks |
+| `unresolved` | `true` while an RWTS or driver breakpoint's vector has no target |
+
+A stop's `disk` object is the report. Fields that do not apply to the event
+are omitted, and drives are numbered from 1.
+
+| Field | Meaning |
+|---|---|
+| `event`, `slot`, `drive`, `quarterTrack`, `motorOn`, `instruction` | every stop: the instruction is the one responsible |
+| `previousQuarterTrack`, `bump`, `phases` | head stops |
+| `field` | field stops: `{format, track, sector, volume, storedChecksum, expectedChecksum, wrongTrack, storedDataChecksum, expectedDataChecksum, dataChecksumGood, addressInstruction, dataInstruction, passed}`, `wrongTrack` on an address field only, the data fields where a data field was read |
+| `epilogue`, `epilogueRandom` | sector reads: the three nibbles after the data checksum, and whether the drive reads them at random |
+| `logicalSector`, `block`, `physicalSectors`, `order` | DOS sector and block stops; `order` is `dos33` or `proDos` |
+| `protected` | write stops |
+| `request`, `vector` | RWTS stops: `{slot, drive, volume, track, sector, command, buffer}` from the IOB; driver stops: `{command, unit, buffer, block}`; and the vector the routine was found through |
+| `motorEvent` | motor stops: `on`, `off` or `stopped` |
+| `previousDrive` | drive-select stops |
+| `image` | insert and eject stops: the image's file name |
+
+New `event` values may be added; for one you do not recognize, display the
+stop by its reason and `pc`.
 
 ## Errors outside a command
 
