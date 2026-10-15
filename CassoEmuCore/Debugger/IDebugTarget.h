@@ -5,6 +5,8 @@
 #include "Debugger/Reply.h"
 
 class AccessHeatMap;
+class Disk2NibbleRecord;
+class IDisk2EventSink;
 class DebugHook;
 class IDiagnosticsProvider;
 class IHeatAccessFinder;
@@ -44,6 +46,22 @@ struct DebugMachineInfo
     std::string               name;
     std::string               title;
     std::vector<std::string>  disks;
+};
+
+//  The Disk II controller's state, read from its getters, never through the
+//  bus: the selected drive, each drive's head, the motor, write mode, the
+//  magnets on, and each drive's disk.
+struct DebugDiskState
+{
+    int                          slot          = 0;
+    int                          selectedDrive = 0;
+    std::array<int, 2>           quarterTrack  = {};
+    bool                         isMotorOn     = false;
+    bool                         isWriteMode   = false;
+    Byte                         phases        = 0;
+    std::array<bool, 2>          isProtected   = {};
+    std::array<bool, 2>          hasDisk       = {};
+    std::array<std::string, 2>   imageName;
 };
 
 static constexpr size_t  s_kDebugPageCount = 256;
@@ -132,6 +150,16 @@ public:
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;
+
+    // The Disk II controller for disk breakpoints: its Breakpoints listener
+    // slot, its state, its recent nibbles, a look-ahead of a drive's next
+    // nibbles that moves nothing, and the address of the instruction
+    // running. A target with no controller has none of them.
+    virtual void                        SetDiskEventSink        (IDisk2EventSink *) {}
+    virtual bool                        TryGetDiskState         (DebugDiskState &) const { return false; }
+    virtual const Disk2NibbleRecord   * GetDiskRecord           () const { return nullptr; }
+    virtual bool                        PeekDiskNibbles         (int, int, std::vector<Byte> &, bool &) const { return false; }
+    virtual Word                        GetInstructionAddress   () const { return 0; }
 
     // The cassette deck and the bus cycle its transport runs by; null on a
     // target with no deck.

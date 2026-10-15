@@ -5,6 +5,7 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
@@ -415,6 +416,7 @@ private:
     bool   HasEnteredVideoBreak  ();
     bool   HasReachedBeamBreak   ();
     uint32_t  GetBeamCycle       () const;
+    void   AttachDiskReport      (StopEvent & event);
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 
@@ -434,6 +436,7 @@ private:
     int                                   m_nextId        = 0;
     BreakpointTable                       m_breakpoints   { m_nextId };
     WatchpointTable                       m_watchpoints   { m_nextId };
+    DiskBreakpointMonitor                 m_diskMonitor   { m_breakpoints, m_target };
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
@@ -488,6 +491,7 @@ private:
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;
     bool                                  m_monitorReturned = false;
+    bool                                  m_isDiskStop      = false;     // ShouldStopBefore stopped for a disk breakpoint
 
     //  A counted step over, step out or source step runs as that many single
     //  steps: the one to start after each step completes, how many are left,

@@ -187,6 +187,7 @@ public:
     const Disk2NibbleRecord &  GetNibbleRecord() const { return m_nibbleRecord; }
 
     // Inspectors used by Phase 9 tests.
+    int    GetSlot() const { return m_slot; }
     int    GetActiveDrive() const { return m_activeDrive; }
     bool   IsMotorOn() const { return m_motorOn; }
     bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }

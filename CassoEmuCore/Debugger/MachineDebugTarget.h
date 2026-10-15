@@ -69,6 +69,12 @@ public:
     bool                IsTraceOn         () const override { return m_trace.IsOn(); }
     void                ClearTrace        () override       { m_trace.Clear(); }
     TapeDeck          * GetTapeDeck       () override;
+
+    void                        SetDiskEventSink        (IDisk2EventSink * sink) override;
+    bool                        TryGetDiskState         (DebugDiskState & state) const override;
+    const Disk2NibbleRecord   * GetDiskRecord           () const override;
+    bool                        PeekDiskNibbles         (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const override;
+    Word                        GetInstructionAddress   () const override;
     uint64_t            GetBusCycle       () const override;
     size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
     void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;

@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/CassettePort.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
@@ -818,6 +819,128 @@ VideoPosition MachineDebugTarget::GetVideoPosition() const
 TapeDeck * MachineDebugTarget::GetTapeDeck()
 {
     return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTapeDeck() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::SetDiskEventSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineDebugTarget::SetDiskEventSink (IDisk2EventSink * sink)
+{
+    Disk2Controller  * controller = m_host.GetRefs().diskController;
+
+
+
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (ObserverSlot::Breakpoints, sink);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::TryGetDiskState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::TryGetDiskState (DebugDiskState & state) const
+{
+    Disk2Controller  * controller = m_host.GetRefs().diskController;
+    DiskImage        * disk       = nullptr;
+
+
+
+    if (controller == nullptr)
+    {
+        return false;
+    }
+
+    state               = DebugDiskState();
+    state.slot          = controller->GetSlot();
+    state.selectedDrive = controller->GetActiveDrive();
+    state.isMotorOn     = controller->IsMotorOn();
+    state.isWriteMode   = controller->IsQ7();
+    state.phases        = controller->GetPhases();
+
+    for (int drive = 0; drive < Disk2Controller::kDriveCount; drive++)
+    {
+        disk                      = controller->GetDisk (drive);
+        state.quarterTrack[drive] = controller->GetQuarterTrack (drive);
+        state.isProtected[drive]  = disk != nullptr && disk->IsWriteProtected();
+        state.hasDisk[drive]      = disk != nullptr && disk->IsLoaded();
+        state.imageName[drive]    = (disk != nullptr && disk->IsLoaded()) ? disk->GetFilePath() : std::string();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetDiskRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Disk2NibbleRecord * MachineDebugTarget::GetDiskRecord() const
+{
+    Disk2Controller  * controller = m_host.GetRefs().diskController;
+
+
+
+    return (controller != nullptr) ? &controller->GetNibbleRecord() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::PeekDiskNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::PeekDiskNibbles (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const
+{
+    Disk2Controller  * controller = m_host.GetRefs().diskController;
+
+
+
+    if (controller == nullptr || drive < 0 || drive >= Disk2Controller::kDriveCount)
+    {
+        return false;
+    }
+
+    controller->GetEngine (drive).PeekNibbles (count, nibbles, isRandom);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetInstructionAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word MachineDebugTarget::GetInstructionAddress() const
+{
+    return (m_host.GetCpu() != nullptr) ? *m_host.GetCpu()->GetInstructionStartPtr() : 0;
 }
 
 

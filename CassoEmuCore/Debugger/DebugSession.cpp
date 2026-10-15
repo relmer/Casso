@@ -55,6 +55,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetContext          (this);
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
+    m_diskMonitor.SetNotice           ([this] (const std::string & line) { m_sink.OnDiskNotice (line); });
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
     m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
@@ -1473,21 +1474,32 @@ void DebugSession::SetAttached (bool isAttached)
 
 bool DebugSession::ShouldStopBefore (Word pc)
 {
-    Byte  opcode   = 0;
-    int   hitId    = -1;
-    bool  isHit    = false;
-    bool  isPeeked = false;
+    Byte  opcode    = 0;
+    int   hitId     = -1;
+    bool  isHit     = false;
+    bool  isDiskHit = false;
+    bool  isPeeked  = false;
 
 
 
     m_watchpoints.SetAccessPc (pc);
     isPeeked = m_target.TryPeek (pc, opcode);
 
-    isHit = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
+    //  A disk event the last instruction made stops here, after it, as a
+    //  watchpoint hit does; with an address breakpoint here as well, the stop
+    //  has the breakpoint's reason and the disk report beside it.
+    isDiskHit = m_diskMonitor.Poll (*this);
+    isHit     = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
 
     if (isHit)
     {
         m_lastBreakpointId = hitId;
+        return true;
+    }
+
+    if (isDiskHit)
+    {
+        m_isDiskStop = true;
         return true;
     }
 
@@ -2016,6 +2028,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
         }
     }
 
+    AttachDiskReport (event);
     AttachCondition (event);
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
@@ -2055,6 +2068,41 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_sink.OnStopped (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachDiskReport
+//
+//  The last instruction's disk events, for a stop that came another way,
+//  then the disk report: a stop of its own when the disk breakpoint made it
+//  or ended a step, beside a breakpoint's or watchpoint's stop otherwise
+//  (FR-153).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachDiskReport (StopEvent & event)
+{
+    bool  isDiskReason = false;
+
+
+
+    m_diskMonitor.Poll (*this);
+
+    if (m_diskMonitor.HasStop())
+    {
+        isDiskReason       = m_isDiskStop || event.reason == StopReason::Step || event.reason == StopReason::Pause;
+        event.disk         = m_diskMonitor.GetReport();
+        event.reason       = isDiskReason ? StopReason::Disk : event.reason;
+        event.breakpointId = isDiskReason ? std::optional<int> (event.disk->breakpointId) : event.breakpointId;
+    }
+
+    m_diskMonitor.ClearStop();
+    m_isDiskStop = false;
 }
 
 
@@ -3144,6 +3192,8 @@ void DebugSession::UpdateHookInstalled()
 
 
 
+    m_diskMonitor.Refresh();
+    m_diskMonitor.SetPaused (m_state == RunState::Paused);
     RefreshHookFilter();
 
     if (shouldInstall != m_hookInstalled)
