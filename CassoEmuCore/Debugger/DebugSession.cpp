@@ -3204,6 +3204,14 @@ void DebugSession::RefreshHookFilter()
             m_hookFilter.opcodesStop           = true;
             break;
 
+        //  A disk event is raised during an instruction and reported at the
+        //  next boundary, as a watchpoint hit is; an RWTS or driver call stops
+        //  before its routine, whose page the filter marks once it is resolved.
+        case BreakpointKind::Disk:
+            isEvery = isEvery || !entry.IsDiskCall();
+            m_hookFilter.pages[entry.resolved.value_or (0) >> 8] = m_hookFilter.pages[entry.resolved.value_or (0) >> 8] || entry.resolved.has_value();
+            break;
+
         default:
             isEvery = true;
             break;

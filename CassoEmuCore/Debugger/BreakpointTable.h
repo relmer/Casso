@@ -35,6 +35,15 @@ struct Breakpoint
     bool                 stops     = true;        // false: counts hits only
     uint32_t             hits      = 0;
     std::string          symbol;                  // the symbol an address breakpoint was set by
+
+    // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
+    // breakpoint stops at now, absent while its vector has no target.
+    std::optional<DiskBreakSpec>  disk;
+    std::optional<Word>           resolved;
+
+    // An RWTS or driver breakpoint, which stops before its routine rather
+    // than after the instruction that made a disk event.
+    bool  IsDiskCall() const { return disk.has_value() && (disk->event == DiskEvent::RwtsCall || disk->event == DiskEvent::DriverCall); }
 };
 
 
@@ -65,6 +74,7 @@ public:
     int   AddCondition     (const Expression & condition);
     int   AddBrk           ();
     int   AddInterrupt     ();
+    int   AddDisk          (const DiskBreakSpec & spec, const Expression & condition = {});
 
     //  Adds a copy of an entry under a new id, its hit count started afresh,
     //  for an undo that brings back a deleted breakpoint as it was.
@@ -77,6 +87,7 @@ public:
     bool  TrySetFlags      (int id, bool temporary, bool stops);
     bool  TrySetSymbol     (int id, const std::string & symbol);
     bool  TryMove          (int id, Word first);
+    bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;
     bool  HasOpcode        (Byte opcode) const;
 
@@ -115,11 +126,21 @@ public:
     //  an interrupt. Counts hits as TryMatchBeforeInstruction does.
     bool  TryMatchInterrupt (int & hitId);
 
+    //  True when an enabled Disk entry that isMatch accepts, its IF
+    //  expression, if any, being true, stops. Every such entry counts the
+    //  hit; hitId receives the lowest id of the ones that stop, and
+    //  conditionValue its expression's value.
+    bool  TryMatchDisk     (const std::function<bool (const Breakpoint &)> & isMatch,
+                            const IDebugExpressionContext                   & context,
+                            int                                             & hitId,
+                            std::optional<int32_t>                          & conditionValue);
+
     //  The same tests as TryMatchBeforeInstruction and TryMatchWrite, for a
     //  replay of history: true when an enabled entry that stops matches. No
     //  hit is counted and nothing is remembered.
     bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context) const;
     bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
+    bool  IsDiskStop       (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
 
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.

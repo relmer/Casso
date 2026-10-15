@@ -118,6 +118,8 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.stops     = entry.stops;
     info.hits      = entry.hits;
     info.symbol    = entry.symbol;
+    info.disk      = entry.disk;
+    info.resolved  = entry.resolved;
     return info;
 }
 

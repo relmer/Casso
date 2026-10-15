@@ -363,6 +363,130 @@ bool BreakpointTable::TryMove (int id, Word first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::AddDisk
+//
+//  The condition is the user's IF alone: an RWTS or driver breakpoint's
+//  request is in its spec, never in its condition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddDisk (const DiskBreakSpec & spec, const Expression & condition)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind      = BreakpointKind::Disk;
+    entry.disk      = spec;
+    entry.condition = condition;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TrySetResolved
+//
+//  An RWTS or driver breakpoint's routine: the address its vector has now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetResolved (int id, std::optional<Word> routine)
+{
+    auto  found = std::find_if (m_entries.begin(), m_entries.end(), [id] (const Breakpoint & entry) { return entry.id == id; });
+    bool  isCall = found != m_entries.end() && found->IsDiskCall();
+
+
+
+    if (isCall)
+    {
+        found->resolved = routine;
+    }
+
+    return isCall;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMatchDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchDisk (
+    const std::function<bool (const Breakpoint &)> & isMatch,
+    const IDebugExpressionContext                   & context,
+    int                                             & hitId,
+    std::optional<int32_t>                          & conditionValue)
+{
+    bool                    isHit = false;
+    std::optional<int32_t>  entryValue;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        bool  isTarget = entry.enabled && entry.kind == BreakpointKind::Disk && isMatch (entry);
+
+
+
+        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, entryValue))
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops || isHit)
+        {
+            continue;
+        }
+
+        hitId          = entry.id;
+        conditionValue = entryValue;
+        isHit          = true;
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsDiskStop
+//
+//  TryMatchDisk for a replay of history: no hit is counted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsDiskStop (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const
+{
+    std::optional<int32_t>  entryValue;
+
+
+
+    return std::any_of (m_entries.begin(), m_entries.end(), [&] (const Breakpoint & entry)
+    {
+        return entry.enabled && entry.stops && entry.kind == BreakpointKind::Disk && isMatch (entry) &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, entryValue);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::AddCopy
 //
 ////////////////////////////////////////////////////////////////////////////////
