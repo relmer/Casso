@@ -16,14 +16,15 @@ Casso already emulates the 6551 ACIA for the //c's two built-in ports. It has a 
 
 ### The card
 
-From Apple's *Super Serial Card Reference Card* and *Super Serial Card User's Manual* (1985), with the register layout to be confirmed against the *Installation and Operating Manual* (1981):
+From Apple's *Super Serial Card Reference Card* and *Super Serial Card User's Manual* (1985), and its *Installation and Operating Manual* (1981):
 
 | Location | Function |
 |---|---|
 | `$C0n1`, `$C0n2` (n = slot + 8) | the two DIP switch banks, SW1 and SW2, read by the firmware |
 | `$C0n8`-`$C0nB` | the 6551: data, status, command, control |
 | `$Cn00`-`$CnFF` | the top page of the 2 KB firmware ROM; any access selects the card's expansion ROM |
-| `$C800`-`$CFFF` | the whole firmware ROM while the card is selected; an access to `$CFFF` deselects every card |
+| `$C800`-`$CEFF` | the rest of the firmware ROM while the card is selected |
+| `$CF00`-`$CFFF` | unmapped; any access deselects every card |
 
 The firmware is Apple part 341-0065-A, 2 KB.
 
@@ -34,7 +35,7 @@ The firmware is Apple part 341-0065-A, 2 KB.
 | ON, OFF | SIC P8 emulation |
 | OFF, OFF | SIC P8A emulation |
 
-SW1-1 to SW1-4 select the baud rate as a 4-bit value, OFF reading as 1 and SW1-1 the high bit: all OFF is 19,200 baud, OFF OFF OFF ON is 9,600, ON OFF OFF ON is 300. The value matches the 6551's own baud-rate code, which is also what the firmware's `<n>B` command takes; all ON is undefined on the switches. SW1-7 and SW2-7 choose which RS-232 signal is used as clear to send.
+SW1-1 to SW1-4 select the baud rate as a 4-bit value, OFF reading as 1 and SW1-1 the high bit: all OFF is 19,200 baud, OFF OFF OFF ON is 9,600, ON OFF OFF ON is 300. The value matches the 6551's own baud-rate code, which is also what the firmware's `<n>B` command takes; all ON is undefined on the switches. SW1-7 and SW2-7 choose which RS-232 pin drives the 6551's DCD input (the reference card lists them as normal or secondary clear to send).
 
 In communications mode SW2-1 and SW2-2 set the data format (8 or 7 data bits, 1 or 2 stop bits), SW2-3 and SW2-4 the parity, SW2-5 a line feed after each carriage return sent, and SW2-6 interrupts on or off. In printer mode SW2-1 sets the stop bits, SW2-2 a delay after carriage return, SW2-3 and SW2-4 the line width and whether the Apple's screen echoes the output, and SW2-5 and SW2-6 are as in communications mode.
 
@@ -63,7 +64,7 @@ A user opens Settings on an Apple ][, ][+ or //e, turns on the Super Serial Card
 
 1. **Given** a //e with no card in slot 2, **When** the user turns on the Super Serial Card in slot 2 and confirms the reset, **Then** the machine restarts with the card in slot 2.
 2. **Given** the card is in slot 2 and its firmware is installed, **When** a program reads `$C200`-`$C2FF`, **Then** it reads the top page of Apple's firmware.
-3. **Given** the card is in slot 2, **When** a program accesses `$C200` and then reads `$C800`-`$CFFF`, **Then** it reads the whole firmware ROM; **When** it then accesses `$CFFF`, **Then** `$C800`-`$CFFF` no longer reads the card's ROM.
+3. **Given** the card is in slot 2, **When** a program accesses `$C200` and then reads `$C800`-`$CEFF`, **Then** it reads the first 1,792 bytes of the firmware ROM; **When** it then accesses any address in `$CF00`-`$CFFF`, **Then** `$C800`-`$CEFF` no longer reads the card's ROM.
 4. **Given** a //c, **When** the user opens Settings, **Then** no Super Serial Card is offered, since the //c has no slots and its serial ports are built in.
 5. **Given** the card is in a slot, **When** Casso is closed and started again, **Then** the card is in that slot with the switch settings the user set.
 
@@ -158,7 +159,7 @@ In the card's settings the user chooses what is plugged into its serial connecto
 ### Edge Cases
 
 - The firmware file is the wrong size or not the SSC firmware: Casso reports it as invalid, with the correct size, and runs the card without firmware.
-- Two cards both have their expansion ROM selected, which a program can cause by accessing two `$Cn00` pages without an access to `$CFFF` between them: Casso resolves `$C800`-`$CFFF` the way the hardware's bus resolves it, as determined during planning.
+- Two cards both have their expansion ROM selected, which a program can cause by accessing two `$Cn00` pages without an access to `$CF00`-`$CFFF` between them: a read of `$C800`-`$CEFF` returns the AND of the selected cards' bytes, approximating two drivers fighting over the bus.
 - On the //e, `INTCXROM` or `INTC8ROM` set: the card's `$Cn00` page and expansion ROM are hidden behind the internal ROM, exactly as for any other slot card, and an access while hidden does not select the card.
 - The card is in slot 3 of a //e: the //e's 80-column firmware owns `$C300` unless `SLOTC3ROM` is set, as for any card in slot 3.
 - A program sets parity or a word length shorter than 8 bits: the character time changes accordingly, and a received byte has its unused high bits clear.
@@ -175,8 +176,8 @@ In the card's settings the user chooses what is plugged into its serial connecto
 
 - **FR-001**: Casso MUST offer a Super Serial Card in slot 2 of the Apple ][, ][+, //e and enhanced //e, and MUST NOT offer it on the //c. A custom machine config MAY put it in any slot 1-7.
 - **FR-002**: The card MUST decode the 6551 at `$C0n8`-`$C0nB`, the DIP switch banks at `$C0n1` and `$C0n2`, and the rest of its 16-byte I/O window as the hardware does, with the bit layout of the switch registers taken from Apple's SSC documentation.
-- **FR-003**: With the firmware installed, `$Cn00`-`$CnFF` MUST read the top 256 bytes of the 2 KB firmware, and `$C800`-`$CFFF` MUST read the whole firmware while the card's expansion ROM is selected.
-- **FR-004**: An access to `$Cn00`-`$CnFF` MUST select the card's expansion ROM, and an access to `$CFFF` MUST deselect it, on every machine the card is offered for, including under the //e's `INTCXROM`, `SLOTC3ROM` and `INTC8ROM` rules.
+- **FR-003**: With the firmware installed, `$Cn00`-`$CnFF` MUST read the top 256 bytes of the 2 KB firmware, and `$C800`-`$CEFF` MUST read the firmware's first 1,792 bytes while the card's expansion ROM is selected.
+- **FR-004**: An access to `$Cn00`-`$CnFF` MUST select the card's expansion ROM, and an access to `$CF00`-`$CFFF` or a reset MUST deselect it, on every machine the card is offered for, including under the //e's `INTCXROM`, `SLOTC3ROM` and `INTC8ROM` rules.
 - **FR-005**: The 6551's interrupt MUST drive the CPU's IRQ line through the card as the hardware routes it, including the effect of switch SW2-6.
 - **FR-006**: The firmware MUST be supplied by the user as a file, found the way Casso's other ROMs are. Turning the card on in Settings MUST offer to download it when it is absent. Its absence MUST NOT stop or delay the machine's start, and the startup download dialog MUST NOT open for it.
 - **FR-007**: When the card is on and its firmware is missing or invalid, Casso MUST display an infobar each time the machine starts, with the file Casso looked for and a Download button. A successful download MUST install the firmware for the next reset.
