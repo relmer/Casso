@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-14
 
-**Status**: Draft
+**Status**: Implemented on branch `043-uthernet-ii`; not merged
 
 **Input**: Emulate the Uthernet II Ethernet card (WIZnet W5100) for the Apple ][+ and //e. The card sits in a slot and is driven in the W5100's indirect bus mode through four registers at `$C0n4`-`$C0n7`. Emulate the common registers, the four hardware sockets and the 8 KB TX and RX buffers. Hardware TCP and UDP sockets map onto Windows sockets on the PC, behind a seam unit tests can fake. Card settings, machine config and settings UI to put the card in a slot. The original Uthernet (CS8900A) is out of scope. Clean-room: the WIZnet W5100 datasheet and the card's published documentation only. Motivation: spec 033 (Casso Explorer) adds an ADTPro-compatible Apple II link, which on a ][+ or //e can run over Ethernet with an Uthernet II; the owner has no card.
 
