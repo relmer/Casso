@@ -2107,6 +2107,52 @@ findings the design did not have:
   Spec 006's window was replaced by 035's Disk II log, whose "Sector read"
   rows are these events: GH #175.
 
+### Measured 2026-10-14 (T732)
+
+Release x64, pinned to one core (`/affinity 10`, high priority), vstest
+running a scratch benchmark that is not committed; ns per emulated cycle,
+best of the repetitions in each run, median of five alternated runs.
+
+| Build | //e idle at BASIC | DOS 3.3 boot, reading throughout |
+|---|---|---|
+| master `325bfbb5` | 4.874 | 12.223 |
+| branch before T714 (`a199887b8`) | 6.758 | 13.115 |
+| branch after T731 (`72f1c7502`), nothing armed | 6.751 | 13.320 |
+
+The record and the other disk work cost nothing measurable idle and 1.6% on
+a boot that reads the disk throughout. The master row is not a like-for-like
+comparison: the branch's test machine models video timing and master's has
+none, which T165 removed from the branch's to compare; that gap was there
+before T714, so SC-008 against master was not measured again here.
+
+Armed, on a //e booted to the DOS 3.3 prompt with the drive idle, best of
+seven, at the prompt and in a loop that writes page 3 throughout:
+
+| Armed | Prompt | Page 3 writes |
+|---|---|---|
+| nothing | 8.45 | 5.42 |
+| one memory watchpoint (`BPM 9000`) | 17.85 | 31.19 |
+| one disk breakpoint (`BPDISK READ 11 0`) | 17.96 | 18.34 |
+| `BP 9000` and `BPMW 3D9:3DB` | 17.87 | 33.71 |
+| `BPDISK RWTS` | 8.64 | 8.07 |
+| `BP 9000` and `BPMW BF1C:BF1D` | 18.07 | 31.81 |
+| `BPDISK DRIVER` | 8.67 | 5.63 |
+
+A disk breakpoint costs what a watchpoint costs at the prompt (0.6% apart,
+within one run's noise) and less under writes, since it watches no page; an
+RWTS or driver breakpoint costs about a twentieth of the address breakpoint
+and vector watchpoint it replaces.
+
+History, from `RewindProfile` (`b816bc7d7`) cherry-picked onto the commits
+before and after T717, 600 frames with recording on, in bytes of keyframes
+per emulated second; `read` is a fourth workload added for this measurement,
+an Applesoft loop that catalogs the disk without end. `game` was not run: the game disk R-040 used is not in the tree.
+
+| Workload | Before T717 | After T717 |
+|---|---|---|
+| read | 54,753 | 54,996 (+0.44%) |
+| hgr | 84,048 | 84,429 (+0.45%) |
+| write | 164,176 | 164,648 (+0.29%) |
 ### The epilogue in a sector-read report
 
 **Decision**: the three nibbles after the checksum are read by running a copy
