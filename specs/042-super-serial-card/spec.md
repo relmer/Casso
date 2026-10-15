@@ -40,19 +40,28 @@ In communications mode SW2-1 and SW2-2 set the data format (8 or 7 data bits, 1 
 
 The 6551's baud code 0 selects 16 times the external clock. The SSC clocks its 6551 from a 1.8432 MHz crystal, so code 0 runs at 115,200 baud, which is the rate ADTPro uses on the card.
 
+## Clarifications
+
+### Session 2026-10-14
+
+- Q: How does a user put the Super Serial Card in a slot? → A: In slot 2 only. The shipped ][, ][+ and //e configs gain a Super Serial Card in slot 2, off by default, turned on and off by its checkbox on the Hardware tab like the parallel printer and the Mockingboard, with a migration that adds it to existing configs. Another slot means a custom machine config. A Hardware tab picker for any card in any slot is a separate spec (FR-001, FR-019).
+- Q: How do the card's DIP switches look in Settings? → A: As settings for what the switches select, not drawn switches: drop-downs for mode, baud rate, data format, parity, line feed after carriage return, interrupts and the printer-mode options, each offered only in the modes where its switches have that meaning. Below them a readout lists the resulting positions of SW1 and SW2, so a user can match them against Apple's manual (FR-009).
+- Q: Which attachments does the serial connector offer before spec 033? → A: Nothing, a loopback plug, a file that receives what the card sends, and a file sent into the card, whose bytes arrive one character time apart at the card's baud rate and format (FR-015).
+- Q: How does Casso report missing firmware? → A: Turning the card on in Settings offers to download the firmware at once. At each start with the card on and no valid firmware, an infobar reports the missing file with a Download button. The startup download dialog never stops a launch for it (FR-006, FR-007).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Put a Super Serial Card in a slot (Priority: P1)
 
-A user opens Settings on an Apple ][, ][+ or //e, adds a Super Serial Card to a slot, and resets the machine. The card is now in that slot: ProDOS and other software that scan the slots find a serial card there, and `PR#n` and `IN#n` jump into Apple's firmware.
+A user opens Settings on an Apple ][, ][+ or //e, turns on the Super Serial Card in slot 2, and resets the machine. The card is now in that slot: software that scans the slots for Apple's firmware identification bytes finds a serial card there, and `PR#n` and `IN#n` jump into Apple's firmware.
 
 **Why this priority**: Every other story assumes the card is in the machine.
 
-**Independent Test**: Add the card to slot 2 of a //e with the firmware installed, boot ProDOS, and check that ProDOS reports a serial card in slot 2; remove it, reset, and check that the slot is empty again.
+**Independent Test**: Turn on the card in slot 2 of a //e with the firmware installed, and check that the Pascal 1.1 identification bytes in $C200-$C2FF identify a serial card; turn it off, reset, and check that the slot is empty again.
 
 **Acceptance Scenarios**:
 
-1. **Given** a //e with no card in slot 2, **When** the user adds a Super Serial Card to slot 2 and confirms the reset, **Then** the machine restarts with the card in slot 2.
+1. **Given** a //e with no card in slot 2, **When** the user turns on the Super Serial Card in slot 2 and confirms the reset, **Then** the machine restarts with the card in slot 2.
 2. **Given** the card is in slot 2 and its firmware is installed, **When** a program reads `$C200`-`$C2FF`, **Then** it reads the top page of Apple's firmware.
 3. **Given** the card is in slot 2, **When** a program accesses `$C200` and then reads `$C800`-`$CFFF`, **Then** it reads the whole firmware ROM; **When** it then accesses `$CFFF`, **Then** `$C800`-`$CFFF` no longer reads the card's ROM.
 4. **Given** a //c, **When** the user opens Settings, **Then** no Super Serial Card is offered, since the //c has no slots and its serial ports are built in.
@@ -87,7 +96,7 @@ A program that programs the 6551 itself, as ADTPro's client and most terminal pr
 
 **Acceptance Scenarios**:
 
-1. **Given** the card in slot 2 with no firmware installed, **When** the machine starts, **Then** Casso reports that the Super Serial Card firmware is missing, which file it looked for, and how to get it, and the machine starts anyway.
+1. **Given** the card in slot 2 with no firmware installed, **When** the machine starts, **Then** an infobar reports that the Super Serial Card firmware is missing, with the file Casso looked for and a Download button, and the machine starts.
 2. **Given** no firmware is installed, **When** a program writes the 6551's control and command registers and transmits a byte, **Then** the byte goes out the connector at the baud rate set in the control register.
 3. **Given** no firmware is installed, **When** a program reads `$C200`-`$C2FF` or the expansion space after selecting the card, **Then** it reads what an empty ROM socket reads on the hardware.
 4. **Given** a program sets baud code 0, **When** it transmits, **Then** the card transmits at 115,200 baud, as on the hardware.
@@ -104,9 +113,9 @@ A user opens the card's settings and sets its switches: mode, baud rate, data fo
 
 **Acceptance Scenarios**:
 
-1. **Given** the card's settings, **When** the user opens them, **Then** the page lists each switch with its current position and what that position means in the selected mode.
+1. **Given** the card's settings, **When** the user opens them, **Then** the page lists the switch settings for the selected mode with their current values, and the SW1 and SW2 positions they produce.
 2. **Given** the user changes the baud rate switches, **When** a program next reads `$C0n1`, **Then** it reads the new positions, without a reset.
-3. **Given** the user changes the mode, **When** the user views the settings, **Then** the page lists the SW2 switches with their meaning in the new mode.
+3. **Given** the user changes the mode, **When** the user views the settings, **Then** the page offers the settings that apply in the new mode, and the readout lists the SW2 positions they produce.
 4. **Given** an Applesoft program running on the card, **When** the user changes a switch, **Then** the change takes effect where the hardware would apply it: the firmware reads the switches when it starts, so a running session continues with the settings it started with until the next `PR#n`, `IN#n` or reset.
 
 ---
@@ -131,7 +140,7 @@ A host connection (in this spec the loopback and the file attachments; in spec 0
 
 ### User Story 6 - Choose what the connector is attached to (Priority: P3)
 
-In the card's settings the user chooses what is plugged into its serial connector: nothing, a loopback plug, or a file that receives what the card sends. Spec 033 adds Casso Explorer, a TCP port and a COM port to the same choice.
+In the card's settings the user chooses what is plugged into its serial connector: nothing, a loopback plug, a file that receives what the card sends, or a file to send into the card. Spec 033 adds Casso Explorer, a TCP port and a COM port to the same choice.
 
 **Why this priority**: Until spec 033 arrives, the loopback and file attachments are the only attachments a user can test the card with, and both serve as test fixtures for the stories above.
 
@@ -142,6 +151,7 @@ In the card's settings the user chooses what is plugged into its serial connecto
 1. **Given** the connector has nothing attached, **When** a program transmits, **Then** the bytes go out at the baud rate and are discarded, and the receiver gets nothing.
 2. **Given** the user attaches a file, **When** the card transmits, **Then** the bytes are appended to the file.
 3. **Given** a loopback plug, **When** the card transmits a byte, **Then** the same byte arrives at the receiver one character time later.
+4. **Given** the user attaches a file to send in, with the card at 2400 baud, **When** a program reads through `IN#2`, **Then** it receives the file's bytes one character time apart, in order, and the receiver gets nothing more after the last byte.
 
 ---
 
@@ -163,31 +173,32 @@ In the card's settings the user chooses what is plugged into its serial connecto
 
 ### Functional Requirements
 
-- **FR-001**: Casso MUST offer a Super Serial Card for the slots of the Apple ][, ][+, //e and enhanced //e, and MUST NOT offer it on the //c.
+- **FR-001**: Casso MUST offer a Super Serial Card in slot 2 of the Apple ][, ][+, //e and enhanced //e, and MUST NOT offer it on the //c. A custom machine config MAY put it in any slot 1-7.
 - **FR-002**: The card MUST decode the 6551 at `$C0n8`-`$C0nB`, the DIP switch banks at `$C0n1` and `$C0n2`, and the rest of its 16-byte I/O window as the hardware does, with the bit layout of the switch registers taken from Apple's SSC documentation.
 - **FR-003**: With the firmware installed, `$Cn00`-`$CnFF` MUST read the top 256 bytes of the 2 KB firmware, and `$C800`-`$CFFF` MUST read the whole firmware while the card's expansion ROM is selected.
 - **FR-004**: An access to `$Cn00`-`$CnFF` MUST select the card's expansion ROM, and an access to `$CFFF` MUST deselect it, on every machine the card is offered for, including under the //e's `INTCXROM`, `SLOTC3ROM` and `INTC8ROM` rules.
 - **FR-005**: The 6551's interrupt MUST drive the CPU's IRQ line through the card as the hardware routes it, including the effect of switch SW2-6.
-- **FR-006**: The firmware MUST be supplied by the user as a file, found and reported missing the way Casso's other ROMs are, and offered by Casso's startup downloader alongside them. Its absence MUST NOT stop the machine from starting.
-- **FR-007**: When the card is in a slot and its firmware is missing or invalid, Casso MUST report it to the user each time the machine starts, with the file Casso looked for and how to get it.
+- **FR-006**: The firmware MUST be supplied by the user as a file, found the way Casso's other ROMs are. Turning the card on in Settings MUST offer to download it when it is absent. Its absence MUST NOT stop or delay the machine's start, and the startup download dialog MUST NOT open for it.
+- **FR-007**: When the card is on and its firmware is missing or invalid, Casso MUST display an infobar each time the machine starts, with the file Casso looked for and a Download button. A successful download MUST install the firmware for the next reset.
 - **FR-008**: Without the firmware, the 6551, the switches and the interrupt MUST work as with it, and the ROM space MUST read as an empty ROM socket reads.
-- **FR-009**: The user MUST be able to set each DIP switch from Settings, listed with its meaning in the selected mode. The settings MUST be saved per machine and MUST take effect in the switch registers without a reset.
+- **FR-009**: The user MUST be able to set the card's DIP switches from Settings as the settings they select (mode, baud rate, data format, parity, line feed after carriage return, interrupts, and the printer-mode options), each offered only in the modes where its switches have that meaning, with a readout of the resulting SW1 and SW2 positions. The settings MUST be saved per machine and MUST take effect in the switch registers without a reset.
 - **FR-010**: The default switch settings MUST be communications mode, 9,600 baud, 8 data bits, 1 stop bit, no parity, no line feed after carriage return, and interrupts off.
 - **FR-011**: The 6551 MUST transmit each byte over one character time at the baud rate, word length, parity and stop bits set in its registers, with its transmit-register-empty flag and transmitter interrupt following that timing, wherever the 6551 is emulated, the //c's ports included.
 - **FR-012**: The 6551 MUST deliver received bytes from a host connection no closer together than one character time at the format set in its registers, with a single receive data register and overrun reported as the datasheet specifies. The host side MUST be able to queue bytes ahead of delivery without loss.
 - **FR-013**: Baud code 0 MUST run at 115,200 baud on the SSC, as its 1.8432 MHz crystal clocks it.
 - **FR-014**: The 6551's modem lines MUST be visible to a host connection: DTR and RTS from the command register out, and DSR, DCD and CTS in, with CTS gating the transmitter and DCD and DSR read in the status register as the datasheet specifies.
-- **FR-015**: The card's serial connector MUST accept an attachment chosen in Settings: nothing, a loopback plug, or a file that receives transmitted bytes. The attachment interface MUST let spec 033 add Casso Explorer, a TCP port and a COM port without changing the card.
+- **FR-015**: The card's serial connector MUST accept an attachment chosen in Settings: nothing, a loopback plug, a file that receives transmitted bytes, or a file whose bytes are sent into the card one character time apart. The attachment interface MUST let spec 033 add Casso Explorer, a TCP port and a COM port without changing the card.
 - **FR-016**: The card's pacing MUST be measured in emulated CPU cycles, so it is the same at any emulation speed and pauses with the machine.
 - **FR-017**: Ctrl-Reset and power-on MUST reset the card as the hardware's reset line resets it.
 - **FR-018**: The emulation MUST be written from the 6551 datasheet and Apple's published SSC manuals only, never from the source of another emulator.
+- **FR-019**: The shipped Apple ][, ][+, //e and enhanced //e configs MUST list a Super Serial Card in slot 2, off by default and turned on from its checkbox on the Hardware tab, and existing configs MUST be migrated to list it. The migration MUST NOT replace a card already in slot 2. A card in another slot is configured by editing a custom machine config.
 
 ### Key Entities
 
 - **Super Serial Card**: a card in one slot of a ][, ][+ or //e, with its 6551, its two switch banks, its firmware ROM and its expansion-ROM select.
 - **Switch settings**: the positions of SW1-1 to SW1-7 and SW2-1 to SW2-7, saved per machine with the card's slot entry.
 - **Firmware ROM**: Apple's 2 KB SSC firmware, supplied by the user; present, missing or invalid.
-- **Serial connector attachment**: what is plugged into the card's connector: nothing, a loopback plug, a file, or, from spec 033, a host connection. It exchanges bytes and modem-line states with the 6551.
+- **Serial connector attachment**: what is plugged into the card's connector: nothing, a loopback plug, a file to receive what it sends, a file to send in, or, from spec 033, a host connection. It exchanges bytes and modem-line states with the 6551.
 - **Receive queue**: bytes a host connection has sent that the 6551 has not yet received, delivered one character time apart.
 
 ## Success Criteria *(mandatory)*
@@ -195,7 +206,7 @@ In the card's settings the user chooses what is plugged into its serial connecto
 ### Measurable Outcomes
 
 - **SC-001**: With Apple's firmware installed, `PR#2` and `LIST` of a 100-line Applesoft program produce a file identical to the listing as the firmware formats it.
-- **SC-002**: ProDOS 8 identifies the card in its slot as a serial card.
+- **SC-002**: With the firmware installed, the Pascal 1.1 identification bytes in the card's $Cn00 page identify a serial card, as Apple's manual documents them.
 - **SC-003**: Over a looped-back connector, a program receives 64 KB at 19,200 baud with no overruns when it reads each byte within one character time, and with an overrun reported on the first byte it fails to read in time.
 - **SC-004**: At every baud rate the switches offer and at 115,200 baud, the emulated time to transmit 1,000 bytes is within 1% of the character time multiplied by 1,000.
 - **SC-005**: With the firmware absent, the machine starts, Casso reports which file is missing, and a program driving the 6551 directly sends and receives as in SC-003.
@@ -205,7 +216,7 @@ In the card's settings the user chooses what is plugged into its serial connecto
 
 - The Apple ][ is included beside the ][+ and //e, since it has the same slots and Apple's firmware supports it.
 - The card's DIP switch register layout, its interrupt routing and its RS-232 signal wiring are taken from Apple's *Installation and Operating Manual* (1981) during planning; the reference card and the 1985 user's manual list the switch meanings but not the register bits.
-- The startup downloader offers Apple's firmware from the same Apple II Documentation Project mirror Casso already uses for the //c ROM.
+- The firmware download fetches Apple's 341-0065-A image from the same Apple II Documentation Project mirror Casso already uses for the //c ROM.
 - The jumper block's MODEM and TERMINAL positions swap RS-232 signals outside the chip, so they matter only to a host connection that exposes those signals; Casso presents the card as if wired MODEM, straight through.
 - Host connections to Casso Explorer, a TCP port or a COM port, and the link itself, are spec 033's. This spec supplies the attachment point and its pacing.
 - Spec 043 (Uthernet II) is separate and unaffected.
