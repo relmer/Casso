@@ -96,7 +96,7 @@ A user boots ADTPro's Ethernet client on an emulated //e with the card, points i
 
 **Why this priority**: This is the reason the feature exists. ADTPro's shipped client uses MACRAW, and so do IP65's and Contiki's other programs.
 
-**Independent Test**: A 6502 program in MACRAW mode on socket 0 obtains an address by DHCP, resolves the PC by ARP, and completes a UDP exchange and a TCP exchange with test peers on the PC, all through the virtual network, with no real network access in the unit-level version.
+**Independent Test**: Frames the test builds pass through a 6502 frame pump in MACRAW mode on socket 0: a DHCP exchange for the guest address, an ARP request for the gateway, and a TCP exchange with a test peer, all through the virtual network, with no real network access.
 
 **Acceptance Scenarios**:
 
@@ -219,7 +219,7 @@ A user sets the card's MAC address, whether the LAN can connect to the guest, an
 - **SC-004**: Every register's reset value and every documented command transition in the datasheet has a unit test, run against a fake host socket layer with no real network access.
 - **SC-005**: With the card idle, emulation speed at 1x stays within 1% of the same machine without the card.
 - **SC-006**: Shipped ADTPro's Ethernet client transfers a disk image to and from an ADTPro server on the same PC, through the virtual network.
-- **SC-007**: A 6502 program in MACRAW mode on an emulated //e obtains its address by DHCP and completes a TCP round trip of at least 1 KB with a test peer through the virtual network, byte for byte.
+- **SC-007**: On an emulated //e, frames built by the test and sent through a 6502 MACRAW frame pump on socket 0 obtain the guest address by DHCP, resolve the gateway by ARP, and complete a TCP round trip of at least 1 KB with a test peer through the virtual network, byte for byte.
 
 ## Assumptions
 

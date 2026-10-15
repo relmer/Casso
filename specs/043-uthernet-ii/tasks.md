@@ -82,7 +82,7 @@ description: "Task list for the Uthernet II Ethernet card"
 
 - [X] T023 [P] [US2] Write bridge TCP tests against `FakeHostNetwork`: OPEN to SOCK_INIT; CONNECT to SYNSENT then ESTABLISHED + CON, or CLOSED + TIMEOUT on refusal; `10.0.65.1` connects to `127.0.0.1`; SEND of bytes spanning the buffer end, partial host sends, SEND_OK and Sn_TX_FSR recovery; received bytes limited to RX free space, RECV and Sn_RX_RSR; peer EOF to CLOSE_WAIT + DISCON; DISCON and CLOSE to CLOSED; LISTEN bound to loopback (any address with LAN access), accept to ESTABLISHED with Sn_DIPR/Sn_DPORT from the peer, port in use to CLOSED + TIMEOUT; software reset closes host sockets, in UnitTest/NetworkTests/W5100SocketBridgeTests.cpp
 - [X] T024 [P] [US2] Write bridge UDP tests: OPEN binds Sn_PORT (ephemeral when 0 or taken) to SOCK_UDP; SEND to Sn_DIPR:Sn_DPORT; broadcast enables SO_BROADCAST; datagrams land with the 8-byte header (payload length excludes the header); a datagram waits for RX space and one larger than the buffer is discarded; FR-019a filter delivers loopback and sent-to peers only unless LAN access; IPRAW, PPPoE and MACRAW on sockets 1-3 stay CLOSED, in UnitTest/NetworkTests/W5100SocketBridgeTests.cpp
-- [ ] T025 [P] [US2] Write guest tests on a //e `TestMachine` with the card in slot 3 and `FakeHostNetwork`: 6502 programs assembled by `Assembler` at test time open a hardware UDP socket for a 1 KB round trip (SC-002) and a hardware TCP socket for a round trip larger than the socket's 2 KB share in both directions (SC-003), checked byte for byte, in UnitTest/EmuTests/UthernetGuestTests.cpp
+- [X] T025 [P] [US2] Write guest tests on a //e `TestMachine` with the card in slot 3 and `FakeHostNetwork`: 6502 programs assembled by `Assembler` at test time open a hardware UDP socket for a 1 KB round trip (SC-002) and a hardware TCP socket for a round trip larger than the socket's 2 KB share in both directions (SC-003), checked byte for byte, in UnitTest/EmuTests/UthernetGuestTests.cpp
 
 ### Implementation for User Story 2
 
@@ -102,23 +102,23 @@ description: "Task list for the Uthernet II Ethernet card"
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Write `PacketCodec` tests: Internet checksum vectors (RFC 1071 example), IPv4/UDP/TCP pseudo-header checksums, Ethernet/ARP/IPv4/ICMP/UDP/TCP build-then-parse round trips, rejection of truncated and bad-checksum frames, in UnitTest/NetworkTests/PacketCodecTests.cpp
-- [ ] T030 [P] [US3] Write `DhcpServer` tests: DISCOVER to OFFER and REQUEST to ACK with yiaddr `10.0.65.15`, mask `255.255.255.0`, router `10.0.65.1`, DNS `10.0.65.3`, lease 86,400, server identifier `10.0.65.1`; transaction id and client MAC echoed; other message types and malformed packets get no reply, in UnitTest/NetworkTests/DhcpServerTests.cpp
-- [ ] T031 [P] [US3] Write `UdpNat` tests: flow per guest source port bound to the same host port when free; gateway destination to loopback; DNS address relayed to `GetDnsServer` and replies rewritten to `10.0.65.3:53`; no DNS server means no reply; inbound datagrams become guest frames, with a loopback source rewritten to the gateway; FR-019a filter; expiry after 120 s of emulated cycles, in UnitTest/NetworkTests/UdpNatTests.cpp
-- [ ] T032 [P] [US3] Write `TcpNat` tests: SYN to host connect, SYN-ACK with MSS `min(guest, 1460)` and window 4,096, RST on refusal; in-sequence guest data queued (cap 4,096) and ACKed, out-of-sequence data gets a duplicate ACK; host data segmented by MSS within the guest window; resend of the oldest unacked segment after 1 s of emulated cycles; FIN and RST in both directions; inbound connections from port forwards send SYN to the guest, in UnitTest/NetworkTests/TcpNatTests.cpp
-- [ ] T033 [P] [US3] Write `VirtualNetwork` tests: ARP replies for every address but the guest's; ICMP echo to the gateway; MAC filter on socket 0 with Sn_MR bit 6; frames queue when socket 0's RX buffer is full and none are dropped; the 2-byte MACRAW header includes itself, in UnitTest/NetworkTests/VirtualNetworkTests.cpp
-- [ ] T034 [P] [US3] Write `PortForwarder` tests: one listener or bound socket per forward, loopback unless LAN access, bind conflicts reported as errors, accepted connections and datagrams go to the NAT, in UnitTest/NetworkTests/PortForwarderTests.cpp
-- [ ] T035 [P] [US3] Write a MACRAW guest test on a //e `TestMachine`: a 6502 program assembled at test time opens socket 0 with `Sn_MR = $44`, runs DISCOVER/REQUEST, ARPs for `10.0.65.1`, and completes a 1 KB TCP round trip with a fake peer through the gateway (SC-007), in UnitTest/EmuTests/UthernetGuestTests.cpp
+- [X] T029 [P] [US3] Write `PacketCodec` tests: Internet checksum vectors (RFC 1071 example), IPv4/UDP/TCP pseudo-header checksums, Ethernet/ARP/IPv4/ICMP/UDP/TCP build-then-parse round trips, rejection of truncated and bad-checksum frames, in UnitTest/NetworkTests/PacketCodecTests.cpp
+- [X] T030 [P] [US3] Write `DhcpServer` tests: DISCOVER to OFFER and REQUEST to ACK with yiaddr `10.0.65.15`, mask `255.255.255.0`, router `10.0.65.1`, DNS `10.0.65.3`, lease 86,400, server identifier `10.0.65.1`; transaction id and client MAC echoed; other message types and malformed packets get no reply, in UnitTest/NetworkTests/DhcpServerTests.cpp
+- [X] T031 [P] [US3] Write `UdpNat` tests: flow per guest source port bound to the same host port when free; gateway destination to loopback; DNS address relayed to `GetDnsServer` and replies rewritten to `10.0.65.3:53`; no DNS server means no reply; inbound datagrams become guest frames, with a loopback source rewritten to the gateway; FR-019a filter; expiry after 120 s of emulated cycles, in UnitTest/NetworkTests/UdpNatTests.cpp
+- [X] T032 [P] [US3] Write `TcpNat` tests: SYN to host connect, SYN-ACK with MSS `min(guest, 1460)` and window 4,096, RST on refusal; in-sequence guest data queued (cap 4,096) and ACKed, out-of-sequence data gets a duplicate ACK; host data segmented by MSS within the guest window; resend of the oldest unacked segment after 1 s of emulated cycles; FIN and RST in both directions; inbound connections from port forwards send SYN to the guest, in UnitTest/NetworkTests/TcpNatTests.cpp
+- [X] T033 [P] [US3] Write `VirtualNetwork` tests: ARP replies for every address but the guest's; ICMP echo to the gateway; MAC filter on socket 0 with Sn_MR bit 6; frames queue when socket 0's RX buffer is full and none are dropped; the 2-byte MACRAW header includes itself, in UnitTest/NetworkTests/VirtualNetworkTests.cpp
+- [X] T034 [P] [US3] Write `PortForwarder` tests: one listener or bound socket per forward, loopback unless LAN access, bind conflicts reported as errors, accepted connections and datagrams go to the NAT, in UnitTest/NetworkTests/PortForwarderTests.cpp
+- [X] T035 [P] [US3] Write a MACRAW guest test on a //e `TestMachine`: a 6502 frame pump assembled at test time opens socket 0 with `Sn_MR = $44` and all 8 KB of both buffers, and carries frames the test builds: DISCOVER/REQUEST, an ARP for `10.0.65.1`, and a 1 KB TCP round trip with a fake peer (SC-007), in UnitTest/EmuTests/UthernetGuestTests.cpp
 
 ### Implementation for User Story 3
 
-- [ ] T036 [P] [US3] Implement `PacketCodec` in CassoEmuCore/Devices/Network/PacketCodec.h/.cpp
-- [ ] T037 [P] [US3] Implement `DhcpServer` in CassoEmuCore/Devices/Network/DhcpServer.h/.cpp
-- [ ] T038 [US3] Implement `UdpNat` in CassoEmuCore/Devices/Network/UdpNat.h/.cpp
-- [ ] T039 [US3] Implement `TcpNatConnection` and `TcpNat` in CassoEmuCore/Devices/Network/TcpNatConnection.h/.cpp and TcpNat.h/.cpp
-- [ ] T040 [US3] Implement `PortForwarder` in CassoEmuCore/Devices/Network/PortForwarder.h/.cpp
-- [ ] T041 [US3] Implement `VirtualNetwork` (dispatch, ARP, ICMP echo, outbound queue, guest MAC) in CassoEmuCore/Devices/Network/VirtualNetwork.h/.cpp
-- [ ] T042 [US3] Connect socket 0 MACRAW in the bridge to `VirtualNetwork` (SEND to `OnGuestFrame`, queued frames into RX with the 2-byte header, MF filter) and hardware UDP to port 67 to `DhcpServer`, in CassoEmuCore/Devices/Network/W5100SocketBridge.cpp and CassoEmuCore/Machines/Apple2/Common/UthernetCard.cpp
+- [X] T036 [P] [US3] Implement `PacketCodec` in CassoEmuCore/Devices/Network/PacketCodec.h/.cpp
+- [X] T037 [P] [US3] Implement `DhcpServer` in CassoEmuCore/Devices/Network/DhcpServer.h/.cpp
+- [X] T038 [US3] Implement `UdpNat` in CassoEmuCore/Devices/Network/UdpNat.h/.cpp
+- [X] T039 [US3] Implement `TcpNatConnection` and `TcpNat` in CassoEmuCore/Devices/Network/TcpNatConnection.h/.cpp and TcpNat.h/.cpp
+- [X] T040 [US3] Implement `PortForwarder` in CassoEmuCore/Devices/Network/PortForwarder.h/.cpp
+- [X] T041 [US3] Implement `VirtualNetwork` (dispatch, ARP, ICMP echo, outbound queue, guest MAC) in CassoEmuCore/Devices/Network/VirtualNetwork.h/.cpp
+- [X] T042 [US3] Connect socket 0 MACRAW in the bridge to `VirtualNetwork` (SEND to `OnGuestFrame`, queued frames into RX with the 2-byte header, MF filter) and hardware UDP to port 67 to `DhcpServer`, in CassoEmuCore/Devices/Network/W5100SocketBridge.cpp and CassoEmuCore/Machines/Apple2/Common/UthernetCard.cpp
 
 **Checkpoint**: SC-007 passes against the fake.
 

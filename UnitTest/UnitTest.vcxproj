@@ -641,6 +641,14 @@
     <ClCompile Include="NetworkTests\UthernetRig.cpp" />
     <ClCompile Include="NetworkTests\DhcpTestPackets.cpp" />
     <ClCompile Include="NetworkTests\W5100SocketBridgeTests.cpp" />
+    <ClCompile Include="NetworkTests\RecordingPacketSink.cpp" />
+    <ClCompile Include="NetworkTests\PacketCodecTests.cpp" />
+    <ClCompile Include="NetworkTests\DhcpServerTests.cpp" />
+    <ClCompile Include="NetworkTests\UdpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\TcpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\VirtualNetworkTests.cpp" />
+    <ClCompile Include="NetworkTests\PortForwarderTests.cpp" />
+    <ClCompile Include="EmuTests\UthernetGuestTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -691,6 +699,7 @@
     <ClInclude Include="NetworkTests\W5100Driver.h" />
     <ClInclude Include="NetworkTests\UthernetRig.h" />
     <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
+    <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">
