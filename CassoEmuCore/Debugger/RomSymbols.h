@@ -26,5 +26,7 @@ public:
     static const char *  GetProDos  ();
 
 private:
-    static bool  IsIie (const std::string & machineName);
+    static bool         IsIie   (const std::string & machineName);
+    static bool         IsIic   (const std::string & machineName);
+    static std::string  MakeIic (const std::string & iie);
 };

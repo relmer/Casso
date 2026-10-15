@@ -180,6 +180,8 @@ static constexpr std::pair<const char *, const char *>  s_kDescriptions[] =
     { "SETAN3", "Annunciator 3 on (IIe: double hi-res off)" },
     { "CLRAN3", "Annunciator 3 off (IIe: double hi-res on)" },
     { "TAPEIN", "Read: cassette input in bit 7" },
+    { "RD80SW", "Read: the //c's 80/40 switch in bit 7" },
+    { "ROMBANK", "Switch the //c's ROM bank" },
     { "BUTN0", "Read: button 0 (Open Apple) in bit 7" },
     { "BUTN1", "Read: button 1 (Closed Apple) in bit 7" },
     { "BUTN2", "Read: button 2 in bit 7" },

@@ -1,5 +1,10 @@
 #include "Pch.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Tape/ITapeAudioDecoder.h"
+#include "Devices/Tape/TapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
+#include "EmuTests/TapeTestEncoder.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "EmuTests/TestMachine.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
@@ -122,6 +127,48 @@ namespace IoPeekTests
 
             Assert::IsFalse  (machine.GetRefs().keyboard->IsStrobeClear(), L"the strobe is set");
             Assert::AreEqual (trigger, machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle(), L"no paddle timer is armed");
+        }
+
+
+        //  With a tape playing, a peek at the cassette's output toggle or its
+        //  input marks no access, toggles nothing into a recording, and moves
+        //  nothing; the input's peek has the tape's level at that cycle.
+        TEST_METHOD (APeekLeavesThePlayingTapeAlone)
+        {
+            TestMachine            machine ("Apple2e", TestMachine::Slots::Empty);
+            MemoryBus            & bus     = machine.GetMemoryBus();
+            TapeDeck             & deck    = machine.GetTapeDeck();
+            NullTapeAudioDecoder   mp3;
+            TapeImage              image;
+            std::vector<Byte>      wav;
+            std::string            error;
+            Byte                   peeked  = 0;
+            uint64_t               now     = 0;
+            HRESULT                hr      = S_OK;
+
+
+
+            machine.PowerCycle();
+
+            TapeTestEncoder::MakeWav ({ std::vector<Byte> (64, 0x55) }, TapeEncodeOptions(), wav);
+            hr = TapeImageLoader::Load (wav, "test.wav", false, mp3, image, error);
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
+
+            deck.Insert (std::move (image));
+            now = *machine.GetCpu()->GetBusCyclePtr();
+            deck.Play (now);
+
+            for (Word address : { (Word) 0xC020, (Word) 0xC02F, (Word) 0xC060, (Word) 0xC068 })
+            {
+                (void) bus.TryPeekIo (address, peeked);
+            }
+
+            Assert::IsFalse  (deck.HasBeenAccessed(),               L"no access is marked");
+            Assert::IsTrue   (deck.GetCapturedToggles().empty(),    L"no toggle is captured");
+            Assert::IsTrue   (deck.GetTransport() == TapeTransport::Playing);
+
+            (void) bus.TryPeekIo (0xC060, peeked);
+            Assert::AreEqual (deck.PeekLevel (now), (peeked & CassettePort::kInputBit) != 0, L"the tape's level at that cycle");
         }
     };
 }

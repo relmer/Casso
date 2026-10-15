@@ -105,6 +105,23 @@ namespace DebuggerTests
 
 
 
+        //  R and W with no file name are the Monitor's tape commands; here they
+        //  take a host file, and the error points tape work at the guest.
+        TEST_METHOD (ReadAndWrite_WithNoName_PointAtTheGuestsMonitorForTape)
+        {
+            Rig    rig;
+            Reply  read  = rig.Run ("800.8FFR");
+            Reply  write = rig.Run ("800.8FFW");
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) read.status);
+            Assert::IsTrue   (read.error.detail.find ("type R in the guest's own Monitor") != std::string::npos, Widen (read.error.detail).c_str());
+            Assert::AreEqual ((int) CommandStatus::Error, (int) write.status);
+            Assert::IsTrue   (write.error.detail.find ("type W in the guest's own Monitor") != std::string::npos, Widen (write.error.detail).c_str());
+        }
+
+
         //  L on its own goes on from where the last listing ended, as the
         //  Monitor's does, not from $0000.
         TEST_METHOD (List_WithoutAddress_ContinuesFromTheLastListing)

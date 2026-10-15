@@ -100,6 +100,31 @@ namespace DebuggerTests
 
 
 
+        //  The //c has no cassette port: its $C028 flips the ROM bank and its
+        //  $C060 reads the 80/40 switch, so it has ROMBANK and RD80SW where
+        //  the //e has TAPEOUT and TAPEIN.
+        TEST_METHOD (Iic_NamesItsRomBankAndSwitchInPlaceOfTheCassette)
+        {
+            SymbolTable  iic;
+            SymbolTable  iie;
+            Word         address = 0;
+
+
+
+            Load (iic, SymbolTableId::Main, RomSymbols::GetMain ("Apple2c"));
+            Load (iie, SymbolTableId::Main, RomSymbols::GetMain ("Apple2e"));
+
+            Assert::AreEqual ((Word) 0xC028, Resolve (iic, SymbolTableId::Main, "ROMBANK"));
+            Assert::AreEqual ((Word) 0xC060, Resolve (iic, SymbolTableId::Main, "RD80SW"));
+            Assert::IsFalse  (iic.TryResolveIn (SymbolTableId::Main, "TAPEIN",  address), L"no cassette input");
+            Assert::IsFalse  (iic.TryResolveIn (SymbolTableId::Main, "TAPEOUT", address), L"no cassette output");
+            Assert::AreEqual ((Word) 0xC060, Resolve (iie, SymbolTableId::Main, "TAPEIN"));
+            Assert::IsFalse  (iie.TryResolveIn (SymbolTableId::Main, "RD80SW", address), L"the //e has the cassette there");
+            Assert::AreEqual ((Word) 0xC019, Resolve (iic, SymbolTableId::Main, "RDVBL"), L"and the //e's switches");
+        }
+
+
+
         TEST_METHOD (Basic_Dos33_ProDos_SpotEntries)
         {
             SymbolTable  table;
