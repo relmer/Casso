@@ -392,3 +392,301 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 - [X] T177 Remove `DxuiFramebufferView`'s virtual height, unused once Apple text left the CRT band, at the owner's request, and apply the text view's zoom after the face is rounded to its pixel grid, per FR-082 (unrequested)
 - [X] T178 Remove the ROM font and its Dxui face, color and private-font support, and draw Apple text in the theme's monospaced face, per FR-082 as revised on 2026-10-13 (contradicts)
 - [X] T179 Remove the command bar's Monitor drop-down, leaving the monitor on the options dialog's Display page, per FR-068 as revised on 2026-10-13 (contradicts)
+
+---
+
+# Section H: the Apple II link
+
+**Input**: spec.md section H (User Stories 14 to 16, FR-083 to FR-098 with
+FR-083a, SC-027 to SC-033), plan.md phases 10 to 17, research.md R15 to
+R23, [contracts/apple-link.md](contracts/apple-link.md), data-model.md's
+Apple II link section, quickstart.md §7b.
+
+**Stories**:
+
+- US14: files and disks to and from a real Apple II;
+- US15: start from a bare Apple and stay current;
+- US16: the link inside Casso.
+
+**Tests**: required, as for sections A to G. No unit test opens a COM port
+or a socket. Every transport sits behind `IByteStream`, and scenario tests
+run the Apple program in a `TestMachine` over the in-process stream.
+
+**Order**:
+
+- Phases 16 to 22 run on this branch alone.
+- Phase 23 waits on the 042 (Super Serial Card) and 043 (Uthernet II)
+  merges.
+- Phase 24 closes the section.
+- Commit per phase, with subjects such as `feat(explorer): ...`,
+  `feat(emu): ...` and `test(link): ...`.
+
+## Phase 16: Bridge and streams (US16)
+
+**Purpose**: an emulated //c's serial port reachable from the PC side,
+in-process and over TCP, at real line timing.
+
+- [ ] T180 Add `UnitTest/AppleLink/` to `UnitTest/UnitTest.vcxproj`, and `ScenarioTests/AppleLink*.cpp` to `ScenarioTests/ScenarioTests.vcxproj`, each with a placeholder test that builds and runs; add `CassoEmuCore/AppleLink/` to `CassoEmuCore/CassoEmuCore.vcxproj`
+- [ ] T181 [US16] Add the stream seam:
+  - `IByteStream` in `CassoEmuCore/Seams/IByteStream.h`: open, close, write, read with a timeout in milliseconds, readable count, closed;
+  - `IByteStreamFactory` in `CassoEmuCore/Seams/IByteStreamFactory.h`: list COM ports, open a COM port, listen on or connect to a TCP port;
+  - `InProcessByteStream` in `CassoEmuCore/Seams/InProcessByteStream.h/.cpp`: two thread-safe linked ends over queues;
+  - tests in `UnitTest/AppleLink/InProcessByteStreamTests.cpp`.
+
+  Per R19 and FR-093.
+- [ ] T182 [US16] Add `AciaBridgeEndpoint` to `CassoEmuCore/Devices/AciaEndpoints.h/.cpp`, over an `IByteStream`:
+  - **Receive**: pass `Acia6551::ReceiveByte` one byte at a time, never sooner than one character time at the baud rate and word length set in the 6551 after the last, and never while RxFull is set.
+  - **Transmit**: send the guest's bytes out at the same rate, with the transmit-empty flag clearing and setting at that timing.
+  - **Clock**: count machine cycles, not wall time.
+  - **Byte log**: optional, with a direction mark on each byte, for captures.
+  - **Acia6551**: add only what it lacks, an RxFull read and a cycle count from the machine.
+  - **Tests** in `UnitTest/EmuTests/AciaBridgeEndpointTests.cpp`: pacing at 9,600 and 115,200 baud, no delivery while RxFull is set, no overrun for a guest that reads each byte in time, an overrun for one that does not, and transmit pacing.
+
+  Per FR-095 and R18.
+- [ ] T183 [US16] Make each //c serial port's endpoint a machine setting in `CassoEmuCore/Shell/MachineBuilder.cpp` and `CassoEmuCore/Shell/MachineHost.h`:
+  - loopback by default;
+  - a bridge to an in-process stream, a TCP listen port, or a COM port.
+
+  Extend `UnitTest/EmuTests/Apple2cBootTests.cpp` with a //c whose port 2 bridges to an `InProcessByteStream` end and exchanges bytes with the test through the guest's own 6551 code. Per FR-095.
+- [ ] T184 [P] [US16] Add `Win32TcpStream` in `CassoEmuCore/Seams/Win32TcpStream.h/.cpp`:
+  - Winsock listen and connect, one connection at a time;
+  - bound to 127.0.0.1 unless the caller selects the network;
+  - the port released on close.
+
+  Per FR-097 and R19.
+- [ ] T185 [P] [US16] Add `Win32ComPort` in `CassoEmuCore/Seams/Win32ComPort.h/.cpp`:
+  - `CreateFile` on `\\.\COMn`, opened exclusively;
+  - `SetCommState` for speed, data format and hardware handshake;
+  - `SetCommTimeouts` for the read timeout;
+  - `GetCommPorts` for the port list, through `IByteStreamFactory`.
+
+  Per FR-093, FR-094 and R19.
+- [ ] T186 [US16] Offer each emulated serial port's endpoint (loopback or a TCP listen port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
+
+## Phase 17: ADTPro captures (US16)
+
+**Purpose**: settle what ADTPro's protocol document omits, from its
+own host and client, never from its source (FR-096).
+
+- [ ] T187 [US16] Capture traffic between ADTPro 2.1.0's host (`C:\Users\relmer\Downloads\ADTPro-2.1.0`, its serial-over-IP transport) and its own client disk booted in an emulated //c on T186's TCP port, through T182's byte log:
+  - a disk sent to the host and one received from it;
+  - a Directory and a Size query;
+  - virtual-drive block reads, timestamped reads and writes.
+
+  Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. Per R15.
+- [ ] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/apple-link.md` marked *captured*, replacing the mark:
+  - the length field's byte order;
+  - the CRC's polynomial, initial value and bit order;
+  - the RLE encoding of image pages;
+  - the virtual drive's block EOR scope;
+  - the timeout and retry counts.
+
+  Per R15.
+
+## Phase 18: Codec and ADTPro host (US14)
+
+**Purpose**: Casso serves an unmodified ADTPro client (FR-088).
+
+- [ ] T189 [P] [US14] Add `AppleLinkCodec` in `CassoEmuCore/AppleLink/AppleLinkCodec.h/.cpp`:
+  - the envelope: start `$C1`, a two-byte length, the command, and an EOR of those four bytes;
+  - the payload EOR;
+  - Send Image Data with T188's RLE and CRC;
+  - Sector data (`$CA`): 256 bytes unencoded with CRC-16/XMODEM (polynomial `$1021`, initial value 0);
+  - Acknowledgement (`$CB`) with ACK `$06` and NAK `$15`.
+
+  Tests in `UnitTest/AppleLink/AppleLinkCodecTests.cpp` decode every T187 capture, round-trip every packet kind, and fail on damaged envelopes, damaged payloads and bad CRCs. Per FR-087 and the contract.
+- [ ] T190 [US14] Add `AppleLinkHost` in `CassoEmuCore/AppleLink/AppleLinkHost.h/.cpp`, serving ADTPro's clients:
+  - CD, Directory, Size, Get, Put, Batch, Multiple, Summary, Home and Send File;
+  - virtual drives (`$C5`) over 512-byte blocks: Read, Read with timestamp, Write;
+  - Nibble with ADTPro's abort reply.
+
+  Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` replay T187's client side over an `InProcessByteStream` and compare the host's replies with the captures. Per FR-088 and US14/AC7.
+- [ ] T191 [US14] Set `AppleLinkHost`'s image folder from Casso Explorer:
+  - the host folder open in the current tab;
+  - for a tab inside a disk image, the folder the image is in;
+  - with no host folder open, such as This PC, each request fails with ADTPro's unable status.
+
+  Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp`. Per FR-088.
+- [ ] T192 [US14] Add retries and failure handling to `AppleLinkHost`:
+  - resend on NAK up to the retry limit, then fail with the reason;
+  - close the link when no byte arrives within the timeout;
+  - commit an image file only after its last packet, through `IDiskFileIo`'s atomic replace, so no file exists after a failed transfer.
+
+  Tests for each, including a stream closed mid-transfer followed by a second transfer that succeeds with neither end restarted. Per FR-087, SC-030 and the edge cases.
+- [ ] T193 [US16] Add `ScenarioTests/AppleLinkAdtProTests.cpp`:
+  - boot ADTPro 2.1.0's client disk (a GPL fixture under `UnitTest/Fixtures/AppleLink/` with its `LICENSE` note) in a //c `TestMachine`;
+  - send a disk to `AppleLinkHost` and receive one from it over T182's bridge;
+  - compare each image byte for byte with the one ADTPro's own host made in T187.
+
+  Per SC-032 and US16/AC4.
+
+## Phase 19: The Apple program (US16)
+
+**Purpose**: Casso's own client, a shim and a sector server, built from
+source in the core (R16, R17, R22).
+
+- [ ] T194 [US16] Write `CassoEmuCore/AppleLink/Apple/Shim.s` in AS65 syntax:
+  - resident at `$0300`, under one page;
+  - a polled driver for the //c's port 2 6551;
+  - Ready (`$D2`) with the program version (2 bytes), the shim version (1) and the drive map (1);
+  - Load program (`$CF`): Sector data pages to `$0800`, then a jump to `$0800`.
+
+  Per FR-091 and R17.
+- [ ] T195 [US16] Write `CassoEmuCore/AppleLink/Apple/Program.s` in AS65 syntax, linked at `$0800`:
+  - **Poll loop**: Ready, Idle, then Ready again after 100 ms.
+  - **Status screen**: on the text page, with the connection, the drive, the track, the operation and the progress.
+  - **Operations**: Read sectors (`$D5`) and Write sectors (`$D6`) with a read-back, Format track (`$C8`), Set speed (`$D7`), Status (`$D4`) and Cancel (`$D1`). A write to a write-protected disk is reported with an error code.
+  - **Disk II routines**, Casso's own, written from Apple's published Disk II documentation: seek by the arm's phase sequence, read and write a 6-and-2 sector, format a track with a volume number.
+
+  Per FR-089, FR-090 and R16.
+- [ ] T196 [US16] Add `LinkProgram` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`:
+  - `Shim.s` and `Program.s` compiled in as text resources and assembled with CassoCore's assembler in the AS65 dialect;
+  - one version constant read by both sides.
+
+  Tests in `UnitTest/AppleLink/LinkProgramTests.cpp`: both assemble with no error on every build, the shim fits under one page, and the assembled version equals the core's. Per FR-096 and R22.
+- [ ] T197 [US16] Serve Casso's client in `AppleLinkHost`:
+  - distinguish it from ADTPro's by the first command (Ready, against ADTPro's set);
+  - answer Ready with Idle or the next operation;
+  - Load program when the versions differ;
+  - Set speed;
+  - the sector, track and status operations of the contract.
+
+  Tests over an `InProcessByteStream` with a scripted client. Per FR-089, FR-091 and R16.
+- [ ] T198 [US16] Add `ScenarioTests/AppleLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `AppleLinkHost` over the bridge:
+  - read and write sectors, and format a track, on a mounted DOS 3.3 image and a ProDOS image, compared byte for byte;
+  - a write-protected image reports its error;
+  - with the machine not stepped for ten seconds mid-read, as during a debugger break, the read completes and compares equal.
+
+  Per US16/AC1, US16/AC5 and SC-029.
+
+## Phase 20: Sparse disks and the session (US14)
+
+**Purpose**: catalogs and files over the line without reading whole disks
+(R20), one operation at a time (FR-098).
+
+- [ ] T199 [US14] Route every sector read and write in `Dos33Volume` and `ProDosVolume` (`CassoEmuCore/Machines/Apple2/Common/`) through one accessor, with no change in behavior. The existing `UnitTest/EmuTests/Dos33VolumeTests.cpp` and `ProDosVolumeTests.cpp` must pass untouched. Per R20.
+- [ ] T200 [US14] Add `LinkedDisk` in `CassoEmuCore/AppleLink/LinkedDisk.h/.cpp`:
+  - a 140 KB sector image with a presence bit per sector, the volume's kind, and the miss list of the last run;
+  - a read of an absent sector adds it to the miss list and returns zeros;
+  - fault-in: run, fetch the misses in one request, run again, until a run adds nothing;
+  - prefetch the VTOC and track 17 for DOS 3.3, and blocks 2 to 5 for ProDOS;
+  - cleared when the drive's map or volume changes.
+
+  Tests in `UnitTest/AppleLink/LinkedDiskTests.cpp` over a fake sector source: a catalog and a file read in a fixed number of rounds, and a write that sends only the sectors it changed. Per FR-084, FR-085 and R20.
+- [ ] T201 [US14] Add `AppleLinkSession` in `CassoEmuCore/AppleLink/AppleLinkSession.h/.cpp`, on its own thread, owning the `IByteStream`, the host engine, a `LinkedDisk` per drive and the operation queue:
+  - **States**: "Closed → Opening → Waiting for Ready → Loading program → Ready ⇄ Busy → Closed. Any state goes to Disconnected on a timeout or a closed stream; Disconnected goes to Opening on the next request."
+  - **LinkOperation** kinds: enumerate, read file, write file, delete, rename, make directory, read disk, write disk, bootstrap and save link. Each has "progress (0 to 100), result HRESULT, and a message" and moves "Queued → Running → Done | Failed | Canceled"; one runs at a time, and Cancel stops the running one.
+  - **Writes** re-read the catalog sectors first and fail if the volume name or catalog differs from the listing they started from.
+  - Progress and results are posted, never waited on.
+
+  Tests in `UnitTest/AppleLink/AppleLinkSessionTests.cpp`. Per FR-098, data-model.md and the edge cases.
+- [ ] T202 [US14] Add Read disk to image and Write image to disk to `AppleLinkSession`:
+  - **Read**: every track's standard sectors, written to an image in any format Casso writes (a `.nib` or `.woz` built from the sectors), committed by atomic replace only on success. Unreadable sectors are listed, with an option to write them blank.
+  - **Write**: every track formatted, written and read back, after the caller's confirmation. An image whose tracks do not decode to standard sectors fails before any track is written, with those tracks listed.
+
+  Tests on the in-process stream. Per FR-086 and the edge cases.
+
+## Phase 21: Casso Explorer (US14)
+
+**Purpose**: the Apple as a root in the tree, browsed and copied as an
+image is.
+
+- [ ] T203 [US14] Add the Apple link to the tree:
+  - `Location::Kind::AppleDrive` in `CassoEmuCore/CassoExplorer/Model/Location.h`;
+  - `TreeNode::Kind::AppleLink` and `AppleDrive`, with ids `link:<name>` and `link:<name>|<slot>,<drive>`, in `Model/TreeModel.h/.cpp`;
+  - address parsing and formatting in `Model/BrowserModel.cpp`.
+
+  The roots follow This PC. A drive is labeled with its slot, drive and volume; an empty drive is listed as empty; a link with no Apple replying lists its state and the reason in place of drives. Tests in `UnitTest/CassoExplorer/TreeModelTests.cpp`. Per FR-083.
+- [ ] T204 [US14] Add `links` to `CassoEmuCore/CassoExplorer/Model/CassoExplorerPrefs.h/.cpp`:
+  - `name`, unique among links;
+  - `transport`: `Serial`, `Tcp`, `WifiModem` or `Emulated`;
+  - `port`, `COM3` for serial, or empty to search;
+  - `address`, `host:port`;
+  - `baud`, default 115200;
+  - `bootstrapBaud`, default 9600;
+  - `hardwareHandshake`, default false.
+
+  Add a dialog to add and edit a link, in `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp`. Tests for load, save and defaults. Per FR-083, FR-094 and data-model.md.
+- [ ] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. Per FR-084 and US14/AC1 and AC2.
+- [ ] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
+  - `HostFileNaming` styles and the put conversion rules;
+  - a write to a write-protected disk fails with the reason.
+
+  Tests through the session's fake stream. Per FR-085 and US14/AC3 and AC4.
+- [ ] T207 [US14] Add Read disk to image and Write image to disk to an Apple drive's menu and the command bar:
+  - the write's confirmation identifies the drive and the volume;
+  - progress in the status bar;
+  - Cancel;
+  - queued operations listed.
+
+  Per FR-086, FR-098 and US14/AC5 and AC6.
+- [ ] T208 [US14] Add the COM search in `CassoEmuCore/AppleLink/AppleLinkSearch.h/.cpp`, through `IByteStreamFactory`:
+  - open each COM port no other program has open, at the default speed;
+  - only when an Apple root with no port set is opened, or Search is chosen; never in the background;
+  - stop at the first port where a link replies;
+  - close each port before the next.
+
+  Tests over a fake factory with a busy port, a silent port and a port with a link. Per FR-083a and the edge cases.
+- [ ] T209 [US14] Open a COM port or TCP port only while the user has a link started, and release it on stop. A TCP link listens on 127.0.0.1, except with the `WifiModem` transport, which listens on the network. Tests through the fake factory. Per FR-097.
+
+## Phase 22: Bootstrap, updates and hardware (US15, US14)
+
+**Purpose**: a bare //c brought up from the PC, updated from it, and the
+owner's walkthrough.
+
+- [ ] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/AppleLink/LinkBootstrap.h/.cpp`:
+  - the monitor text `CALL -151`, the shim as `0300:` lines of 8 bytes, then `300G`;
+  - sent at the bootstrap speed with 250 ms after each line.
+
+  Confirm the //c serial firmware's Ctrl-A `14B` speed command from the //c Technical Reference transcription. Tests of the generated text in `UnitTest/AppleLink/LinkBootstrapTests.cpp`. Per FR-092 and R23.
+- [ ] T211 [US15] Add Bootstrap to an Apple root's menu, then the shim's Ready at 9,600 baud, Load program, and Set speed to the link's speed.
+  - **Speed change**: both ends switch after the ACK, so speeds that differ are corrected.
+  - **Scenario test** in `ScenarioTests/AppleLinkBootstrapTests.cpp`: a //c `TestMachine` at the BASIC prompt with `IN#2` and Ctrl-A `14B` typed, bootstrapped over the bridge to the status screen.
+
+  Per US15/AC1, SC-033 and the edge cases.
+- [ ] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.
+- [ ] T213 [US14] Add the `WifiModem` transport:
+  - Save link to disk stores the PC's address on the disk;
+  - the shim sends the modem's dial command for that address before Ready;
+  - Casso Explorer accepts the connection on the network.
+
+  A scenario test drives a scripted modem on the bridge. Per FR-093.
+- [ ] T214 [US14] On the owner's //c over a null modem cable, walk quickstart.md §7b steps 5 to 7 and record SC-027, SC-028 and SC-033 in `specs/033-casso-explorer/validation.md`. If 115,200 baud fails the polled receive loop, record the fallback to 57,600. Per SC-027, SC-028, SC-033 and the plan's Risks.
+
+## Phase 23: The cards, after their merges (US16, US15)
+
+**Purpose**: the link over a Super Serial Card and an Uthernet II, and
+audio bootstrap, once Casso emulates the cards.
+
+- [ ] T215 [US16] Merge the 042 Super Serial Card feature, then:
+  - add a Super Serial Card driver to `Shim.s` (the 6551 at `$C0n8` for the card's slot);
+  - make bootstrap use `IN#n` and the card's Ctrl-A command;
+  - add a scenario test on a //e `TestMachine` with the card in a slot.
+
+  Per FR-093, FR-092 and US16/AC2.
+- [ ] T216 [US16] Merge the 043 Uthernet II feature, then:
+  - add a W5100 transport to `Shim.s` and `Program.s`, a TCP connection to the PC's address;
+  - accept it in Casso Explorer;
+  - add a scenario test on a //e `TestMachine`.
+
+  Per FR-093 and US16/AC3.
+- [ ] T217 [US15] Add audio bootstrap for a ][+ or //e: the loader sent as audio into the cassette input, with a scenario test sending it through Casso's cassette emulation (spec 037). Land it with whichever of T215 and T216 is first. Per FR-092 and US15/AC2.
+
+## Phase 24: Section H validation
+
+- [ ] T218 Walk quickstart.md §7b steps 1 to 4 on x64 Debug and Release, and record SC-029, SC-030 and SC-032 in `specs/033-casso-explorer/validation.md`. Per SC-029, SC-030 and SC-032.
+
+## Section H dependencies
+
+- **Phase 16 first.** T181 before T182 to T186.
+- **Phase 17 after T186.** Phase 18 after T188.
+- **Phase 19 after T182 and T189.**
+- **Phase 20 after T197.**
+- **Phase 21 after T201.**
+- **Phase 22 after T196 and T201;** T214 after everything before it.
+- **Phase 23 after the 042 and 043 merges.**
+- **Parallel work:**
+  - T184 and T185 alongside T182;
+  - T189 alongside T194 to T196;
+  - T199 and T200 alongside phase 19;
+  - T203 and T204 alongside T201.
