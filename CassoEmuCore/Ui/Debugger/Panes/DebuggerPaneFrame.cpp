@@ -149,32 +149,16 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
     long               y       = boundsDip.top;
     int                inset   = 0;
     int                side    = 0;
-    std::vector<int>   heights (m_parts.size(), 0);
+    bool               hasFill = false;
+    std::vector<int>   heights;
 
 
 
     SetBounds (boundsDip);
     m_scaler = scaler;
 
-    for (size_t i = 0; i < m_parts.size(); i++)
-    {
-        if (!IsPartShown (m_parts[i]))
-        {
-            continue;
-        }
-
-        shown++;
-
-        if (m_parts[i].height != nullptr)
-        {
-            inset      = scaler.ToPx (m_parts[i].insetDip);
-            side       = GetSideInsetPx (m_parts[i], scaler);
-            heights[i] = std::max (0, m_parts[i].height (width - side * 2, scaler)) + inset;
-            fixed     += heights[i];
-        }
-    }
-
-    fill = std::max (0, total - fixed - std::max (0, shown - 1) * gap);
+    fixed = MeasureFixedParts (width, scaler, heights, shown, hasFill);
+    fill  = std::max (0, total - fixed - std::max (0, shown - 1) * gap);
 
     for (size_t i = 0; i < m_parts.size(); i++)
     {
@@ -193,6 +177,82 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
         m_parts[i].control->Layout (RECT { boundsDip.left + side, y + inset, boundsDip.right - side, y + heights[i] }, scaler);
         y += heights[i] + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerPaneFrame::MeasureFixedParts
+//
+//  A fixed part's height is measured at the width it will be given, with its
+//  top inset added.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerPaneFrame::MeasureFixedParts (
+    int                     width,
+    const DxuiDpiScaler   & scaler,
+    std::vector<int>      & heights,
+    int                   & shownCount,
+    bool                  & hasFill) const
+{
+    int  fixed = 0;
+    int  inset = 0;
+    int  side  = 0;
+
+
+
+    heights.assign (m_parts.size(), 0);
+    shownCount = 0;
+    hasFill    = false;
+
+    for (size_t i = 0; i < m_parts.size(); i++)
+    {
+        if (!IsPartShown (m_parts[i]))
+        {
+            continue;
+        }
+
+        shownCount++;
+
+        if (m_parts[i].height == nullptr)
+        {
+            hasFill = true;
+            continue;
+        }
+
+        inset      = scaler.ToPx (m_parts[i].insetDip);
+        side       = GetSideInsetPx (m_parts[i], scaler);
+        heights[i] = std::max (0, m_parts[i].height (width - side * 2, scaler)) + inset;
+        fixed     += heights[i];
+    }
+
+    return fixed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerPaneFrame::GetMinimumHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerPaneFrame::GetMinimumHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
+{
+    std::vector<int>  heights;
+    int               shown   = 0;
+    bool              hasFill = false;
+    int               fixed   = MeasureFixedParts (widthPx, scaler, heights, shown, hasFill);
+
+
+
+    return fixed + std::max (0, shown - 1) * scaler.ToPx (kGapDip) + scaler.ToPx (m_bottomMarginDip) + (hasFill ? scaler.ToPx (kMinFillDip) : 0);
 }
 
 

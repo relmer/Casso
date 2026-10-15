@@ -53,13 +53,19 @@ public:
     //  changed while the frame kept its bounds.
     void  Relayout ();
 
+    //  The least height the parts fit in at a width: the visible fixed
+    //  parts, the gaps between them, the bottom margin, and kMinFillDip for a
+    //  part that fills.
+    int   GetMinimumHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
+
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     void                OnVisibilityChanged () override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Panel; }
     std::wstring        GetAccessibleName () const override { return m_name; }
 
-    static constexpr int  kGapDip = 6;
+    static constexpr int  kGapDip     = 6;
+    static constexpr int  kMinFillDip = 20;
 
 private:
     struct Part
@@ -73,6 +79,10 @@ private:
     };
 
     bool  IsPartShown (const Part & part) const;
+
+    //  The visible fixed parts' heights at a width, each part's in heights,
+    //  with the count of visible parts and whether one of them fills.
+    int   MeasureFixedParts (int width, const DxuiDpiScaler & scaler, std::vector<int> & heights, int & shownCount, bool & hasFill) const;
 
     //  How far a part is kept in from the pane's left and right.
     static int  GetSideInsetPx (const Part & part, const DxuiDpiScaler & scaler);

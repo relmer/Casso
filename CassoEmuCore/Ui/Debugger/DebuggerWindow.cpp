@@ -4912,6 +4912,39 @@ void DebuggerWindow::ClipPaneControls()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetPaneMinimum
+//
+//  A framed pane's least height: a tool window's title bar, its tab band
+//  and the lines round them, over the least height the frame's parts fit in
+//  at its width. A pane of one control has no minimum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DebuggerWindow::GetPaneMinimum (const std::wstring & pane) const
+{
+    const DebuggerPaneFrame  * frame  = dynamic_cast<const DebuggerPaneFrame *> (m_dockSite->GetPaneContent (pane));
+    RECT                       bounds = {};
+    long                       chrome = 0;
+
+
+
+    if (frame == nullptr)
+    {
+        return SIZE {};
+    }
+
+    bounds = frame->GetBounds();
+    chrome = m_scaler.ToPx (DxuiTabGroup::kTitleDip + DxuiTabGroup::kStripDip) + 2 * DxuiPaneMetrics::GetLinePx (m_scaler);
+
+    return SIZE { 0, chrome + frame->GetMinimumHeightPx ((int) (bounds.right - bounds.left), m_scaler) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ReadSavedLayout
 //
 //  The saved layout text, with the closed panes read into m_closedPanes from
@@ -5160,6 +5193,10 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
+
+    //  The site lays a pane out no shorter than its bar and bands, so a sash
+    //  dragged over it stops before its controls run past its edge.
+    m_dockSite->SetMinSizeFn  ([this] (const std::wstring & pane) { return GetPaneMinimum (pane); });
 
     //  Source and Disassembly are documents, the rest tool windows, each with
     //  a title bar whose menu is the pane's Dock To menu (FR-084).

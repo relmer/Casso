@@ -975,6 +975,7 @@ private:
     void                         DockControls      (const std::wstring & pane);
     void                         SaveLayout        ();
     std::wstring                 ReadSavedLayout   ();
+    SIZE                         GetPaneMinimum    (const std::wstring & pane) const;
     bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
     bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
     void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
