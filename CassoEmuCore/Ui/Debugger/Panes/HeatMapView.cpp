@@ -1009,7 +1009,7 @@ uint32_t HeatMapView::GetColor (
     uint32_t         hue             = (write >= read) ? palette.write : palette.read;
     Byte             level           = data;
     bool             isSelfModifying = ran > 0 && put > 0;
-    float            total           = (float) ran + (float) got + (float) put;
+    float            total           = std::max (1.0f, (float) ran + (float) got + (float) put);   // at least 1, so C4723 cannot fire; a nonzero total of whole counts is 1 or more already
     auto             mixChannel      = [&] (int shift)
     {
         float  sum = (float) ((code >> shift) & 0xFF) * ran + (float) ((palette.read >> shift) & 0xFF) * got + (float) ((palette.write >> shift) & 0xFF) * put;
