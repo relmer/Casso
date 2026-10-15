@@ -177,6 +177,7 @@ public:
     static constexpr int    kTabDip         = 52;
     static constexpr int    kGutterDip      = 44;      // the row labels' column, until a paint measures them
     static constexpr int    kInsetDip       = 8;       // right of the map and below it
+    static constexpr float  kLabelLine      = 1.4f;    // a row label's line, in its font's sizes
     static constexpr int    kScrollbarDip   = 10;
     static constexpr int    kModeCount      = 4;
 
@@ -477,6 +478,7 @@ private:
     int                        m_columns      = kMaxColumns / 4;
     long                       m_rowPx        = 0;
     int                        m_gutterPx     = 0;
+    long                       m_labelLinePx  = 0;       // a row label's line, measured with the gutter
     RECT                       m_map          = {};
     bool                       m_hasHorzBar   = false;
     bool                       m_hasVertBar   = false;

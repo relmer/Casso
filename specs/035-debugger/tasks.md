@@ -1607,3 +1607,9 @@ Owner decisions 2026-10-14, fifth review.
 - [X] T854 Retest with the owner the dotted arrow at a step and at a breakpoint, an arrow from out of view, P's flags and P's tip **Passed 2026-10-14**
 
 **Parallel**: T852 touches only the list view's paint and the registers cells.
+
+## Phase 39: Found while working on Phase 38
+
+Found 2026-10-14.
+
+- [X] T855 [P] Lay each heat map range under a header out at least a row label's line tall, so the first address label of a range of one short row (zero page, stack, I/O) ends before the next range's header (HeatMapView::PlaceBands, MeasureGutter, m_labelLinePx in CassoEmuCore/Ui/Debugger/Panes/HeatMapView.h/.cpp); checked on a capture of the debugger **Done 2026-10-14**
