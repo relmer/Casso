@@ -264,6 +264,8 @@
     <ClCompile Include="Debugger\DiskLogicalMap.cpp" />
     <ClCompile Include="Debugger\DiskCallVector.cpp" />
     <ClCompile Include="Debugger\DiskValueSymbols.cpp" />
+    <ClCompile Include="Debugger\Basic\ApplesoftProgram.cpp" />
+    <ClCompile Include="Debugger\Basic\OverlayCpu.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatterDisk.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
@@ -848,6 +850,8 @@
     <ClInclude Include="Debugger\DiskLogicalMap.h" />
     <ClInclude Include="Debugger\DiskCallVector.h" />
     <ClInclude Include="Debugger\DiskValueSymbols.h" />
+    <ClInclude Include="Debugger\Basic\ApplesoftProgram.h" />
+    <ClInclude Include="Debugger\Basic\OverlayCpu.h" />
     <ClInclude Include="Debugger\AppleWinFormatter.h" />
     <ClInclude Include="Debugger\ReplyJson.h" />
     <ClInclude Include="Debugger\IDebugNotificationSink.h" />

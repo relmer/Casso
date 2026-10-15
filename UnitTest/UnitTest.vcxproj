@@ -966,6 +966,7 @@
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDiskBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\ApplesoftProgramTests.cpp" />
     <ClCompile Include="EmuTests\ReverseNoCallerTests.cpp" />
     <ClCompile Include="EmuTests\ReverseStepOutSeekTests.cpp" />
     <ClCompile Include="EmuTests\SliceInputSampleTests.cpp" />
