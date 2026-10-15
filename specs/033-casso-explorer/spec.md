@@ -217,6 +217,21 @@ hardware.
   release updates the Apple side with no step by the user.
 - Q: Is the link usable from the command line too? → A: No. It is used
   from Casso Explorer only; there is no `casso link` command.
+- Q: Which drives on the Apple does the link use? → A: 5.25-inch floppy
+  drives, with DOS 3.3 and ProDOS disks. ProDOS block devices such as a
+  UniDisk 3.5 or a hard drive are a later feature.
+- Q: Which PC folder does an ADTPro client's image list and transfers use?
+  → A: The folder open in Casso Explorer's current tab.
+- Q: Does the link's TCP port accept connections from other machines? → A:
+  Only while the Wi-Fi modem transport is chosen; otherwise it accepts only
+  programs on the same PC.
+- Q: How does Casso Explorer connect to an Apple, and does its root stay in
+  the tree? → A: The link is set up once and listed as a root that connects
+  when opened and lists its state when no Apple replies; Casso Explorer also
+  finds a running link on any free COM port by itself.
+- Q: Does writing an image to a real disk write .nib and .woz tracks exactly?
+  → A: No. Only standard sectors are written; raw-track writes are part of
+  the protected-disk follow-on.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -916,10 +931,16 @@ to Casso over TCP.
   written over.
 - **A disk with unreadable sectors**: Read disk to image lists them and
   offers to write the image with them blank.
+- **An image with non-standard tracks**: Write image to disk fails with the
+  reason and lists the tracks that do not decode, since only standard
+  sectors are written.
 - **An empty drive or a write-protected disk**: the drive's node is listed
   as empty; a write to a protected disk fails with the reason.
 - **The COM port is in use by another program**: opening it fails with the
-  reason, and nothing else is changed.
+  reason, and nothing else is changed; a search for a running link skips it.
+- **Another device on a searched COM port**: a modem or printer on a
+  searched port receives only the link's short greeting, and the search
+  moves to the next port when no link replies.
 - **An ADTPro client against Casso**: it is served as ADTPro's host serves
   it; operations the PC starts require Casso's own Apple program, and Casso
   Explorer reports that rather than offering them.
@@ -1391,8 +1412,16 @@ to Casso over TCP.
 **Apple II link**
 
 - **FR-083**: Casso Explorer MUST list a connected Apple II as a root in the
-  tree, with a node per drive: each 5.25-inch drive and each ProDOS block
-  device the Apple has, labeled with the drive and the volume in it.
+  tree, with a node per 5.25-inch drive the Apple has, labeled with the
+  drive and the volume in it. A link MUST be set up once, with its port or
+  address and speed, and listed as a root across runs; it MUST connect when
+  opened, and with no Apple replying MUST list its state and the reason in
+  place of drives.
+- **FR-083a**: Casso Explorer MUST find a running link by itself, by opening
+  each COM port that no other program has open, only when an Apple root with
+  no port set is opened or when the user chooses to search; it MUST NOT open
+  ports in the background, and MUST stop at the first port where a link
+  replies.
 - **FR-084**: An Apple drive MUST be browsable as an image is: DOS 3.3 and
   ProDOS catalogs, ProDOS directories, previews and Properties.
 - **FR-085**: Files MUST copy from an Apple drive to the host, and from the
@@ -1400,17 +1429,25 @@ to Casso over TCP.
   host file-name styles and by the conversion rules of a get or put on an
   image. Delete, rename and new folder MUST work on an Apple drive as on an
   image of the same file system.
-- **FR-086**: Read disk to image MUST write a whole Apple disk to an image
-  file in any format Casso writes. Write image to disk MUST write every
-  track, formatting as it goes, after a confirmation that identifies the drive and the
-  volume, and MUST read the disk back to verify it.
+- **FR-086**: Read disk to image MUST read a whole Apple disk's standard
+  sectors and write them to an image file in any format Casso writes, a
+  .nib or .woz being built from those sectors. Write image to disk MUST
+  write every track's standard sectors, formatting as it goes, after a
+  confirmation that identifies the drive and the volume, and MUST read the
+  disk back to verify it. A .dsk, .do or .po is written as it is, and a .nib
+  or .woz by its standard sectors; an image with tracks that do not decode
+  to standard sectors MUST fail with the reason.
 - **FR-087**: Every packet MUST include a checksum and every page of data a
   CRC; a damaged packet MUST be sent again up to a limit. A transfer that
   cannot complete MUST fail with the reason, and MUST NOT result in a partial
   host file or a half-written image on the PC.
 - **FR-088**: Casso MUST serve ADTPro's published protocol, so that an
   unmodified ADTPro client sends and receives disks, and uses virtual
-  drives, against Casso as against ADTPro's own host.
+  drives, against Casso as against ADTPro's own host. The image files it
+  lists, sends and receives are in the host folder open in Casso Explorer's
+  current tab, or, for a tab inside a disk image, the folder the image is
+  in. With no host folder open, such as This PC, a request fails
+  with the reason.
 - **FR-089**: Casso's own Apple-side program MUST use ADTPro's framing,
   extended with operations the PC starts: list drives, read a catalog, read
   and write a file, delete, rename, make a directory, read and write a disk
@@ -1445,6 +1482,9 @@ to Casso over TCP.
   observed traffic, never from ADTPro's source.
 - **FR-097**: Casso MUST open a COM port or listen on a TCP port only while
   the user has the link started, and MUST release it when the link stops.
+  The TCP port MUST accept connections from the same PC only, except while
+  the Wi-Fi modem transport is chosen, when it MUST accept them from the
+  network.
 - **FR-098**: One operation MUST run at a time per Apple; others MUST queue,
   and the running one MUST be cancelable, leaving the Apple-side program
   ready for the next.
@@ -1480,9 +1520,8 @@ to Casso over TCP.
 - **Apple link**: a connection to one Apple II: its transport (serial port,
   TCP address, or an emulated machine), speed and handshaking, the machine
   at the other end, and its drives; its settings persisted.
-- **Apple drive**: one drive on a linked Apple: its slot and drive or unit,
-  its kind (5.25-inch or ProDOS block device), and the volume in it, with
-  its file system.
+- **Apple drive**: one 5.25-inch drive on a linked Apple: its slot and
+  drive, and the volume in it, with its file system.
 - **Link program**: the Apple-side shim and the program it loads, each with
   a version; the program's copy on the PC is the current one.
 - **Link operation**: one request from the PC to the Apple, with its
@@ -1658,6 +1697,8 @@ to Casso over TCP.
 - The Apple-side program runs on a ][+, //e or //c with 64 KB, with no DOS
   in memory, and reads DOS 3.3 and ProDOS disks itself. 13-sector DOS 3.2
   disks are out of scope.
+- The link reads and writes 5.25-inch drives. ProDOS block devices, such as a
+  UniDisk 3.5 or a hard drive, are a later feature.
 - Copy-protected disks, and capturing raw nibbles, bit streams or flux as
   WOZ images, are a follow-on feature built on this link; here a protected
   disk reads only as far as its standard sectors allow.
