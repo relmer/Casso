@@ -210,6 +210,8 @@ namespace DebugEventLogsTests
             Session  session;
             size_t   disk    = 0;
             size_t   input   = 0;
+            size_t   video   = 0;
+            size_t   sound   = 0;
 
 
 
@@ -217,11 +219,61 @@ namespace DebugEventLogsTests
             Run (session.machine, 0, 300);
             session.WaitForKeyframes();
 
-            AssertCacheIsRebuilt<Disk2Event> (session, session.logs.GetDiskCache(),  std::make_unique<DiskEventProbe>(),  disk);
-            AssertCacheIsRebuilt<InputEvent> (session, session.logs.GetInputCache(), std::make_unique<InputEventProbe>(), input);
+            AssertCacheIsRebuilt<Disk2Event> (session, session.logs.GetDiskCache(),  std::make_unique<DiskEventProbe>(),       disk);
+            AssertCacheIsRebuilt<InputEvent> (session, session.logs.GetInputCache(), std::make_unique<InputEventProbe>(),      input);
+            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetVideoCache(), std::make_unique<IoEventProbe> (true),  video);
+            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetSoundCache(), std::make_unique<IoEventProbe> (false), sound);
 
-            Assert::IsTrue (disk > 0,  L"the loop ran the disk");
-            Assert::IsTrue (input > 0, L"and polled the keyboard and paddle");
+            Assert::IsTrue   (disk > 0,  L"the loop ran the disk");
+            Assert::IsTrue   (input > 0, L"and polled the keyboard and paddle");
+            Assert::IsTrue   (sound > 0, L"and wrote the Mockingboard");
+            Assert::AreEqual ((size_t) 0, video, L"and left the video mode alone");
+        }
+
+
+        //  A listing of the sound log includes entries from before the cache,
+        //  rebuilt from history on the spot; a clear hides the entries before it.
+        TEST_METHOD (ASoundLogListingIsRebuiltFromHistoryBeforeTheCache)
+        {
+            Session       session;
+            IoLogEntries  listing;
+            uint64_t      start   = 0;
+            uint64_t      last    = 0;
+            size_t        older   = 0;
+            HRESULT       hr      = S_OK;
+
+
+
+            Run (session.machine, 0, 200);
+
+            start = session.machine.GetPosition();
+            session.logs.Start (&session.controller);
+
+            Run (session.machine, 200, 30);
+            session.WaitForKeyframes();
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries");
+
+            for (const DebugEventEntry<IoEvent> & entry : listing.entries)
+            {
+                Assert::IsTrue (entry.position >= last, L"oldest first");
+
+                last   = entry.position;
+                older += (entry.kind == DebugEventEntryKind::Event && entry.position < start) ? 1 : 0;
+            }
+
+            Assert::IsTrue (older > 0, L"entries from before the cache began, rebuilt");
+            Assert::IsTrue (listing.entries.size() > older, L"and the cache's");
+
+            session.logs.ClearIoLog (IoLogKind::Sound);
+            Run (session.machine, 230, 2);
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries after the clear");
+
+            Assert::IsTrue (listing.isComplete && listing.wasCleared, L"every entry since the clear");
+            Assert::IsTrue (!listing.entries.empty() && listing.entries.size() < older, L"only the newest two slices'");
         }
 
 

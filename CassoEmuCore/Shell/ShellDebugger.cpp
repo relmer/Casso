@@ -2194,6 +2194,8 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     SetDebugSession    (&m_debugController->GetSession());
     SetReverseStopTest (&m_debugController->GetReverseStopTest());
 
+    m_debugController->GetSession().SetIoEventSource (&m_eventLogs);
+
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
     {
         bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();

@@ -173,10 +173,11 @@ namespace DebuggerTests
                     Assert::AreEqual (replies[0].data.index(),       reply.data.index(),       Widen (line).c_str());
                 }
 
-                //  PANEL is carried out by the window, and SAVESTATE and LOADSTATE
-                //  by the emulator, so a session alone reports them not available
-                //  -- the same way in every mode.
-                expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+                //  The window runs PANEL, the emulator SAVESTATE and LOADSTATE,
+                //  and the window's shell has the video and sound logs, so a
+                //  session alone returns them as not available, the same way in
+                //  every mode.
+                expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
                 Assert::AreEqual ((int) expected, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
             }

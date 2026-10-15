@@ -20,7 +20,9 @@ DebugEventLogs::DebugEventLogs (MachineHost & machine) :
     m_machine (machine),
     m_history (machine),
     m_disk    (m_history, std::make_unique<DiskEventProbe>()),
-    m_input   (m_history, std::make_unique<InputEventProbe>())
+    m_input   (m_history, std::make_unique<InputEventProbe>()),
+    m_video   (m_history, std::make_unique<IoEventProbe> (true)),
+    m_sound   (m_history, std::make_unique<IoEventProbe> (false))
 {
 }
 
@@ -47,9 +49,9 @@ DebugEventLogs::~DebugEventLogs()
 //
 //  Start
 //
-//  Both caches start empty at the machine's position, and an open pane gets
-//  everything again. The feed goes on the History slot of the machine as
-//  built now.
+//  Every cache starts empty at the machine's position, an open pane gets
+//  everything again, and the video and sound logs' clear marks go. The feed
+//  goes on the History slot of the machine as built now.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,14 +70,25 @@ void DebugEventLogs::Start (ReverseController * controller)
 
     m_disk.cache.Reset  (position);
     m_input.cache.Reset (position);
+    m_video.cache.Reset (position);
+    m_sound.cache.Reset (position);
 
     m_disk.isResetDue  = m_disk.isOpen;
     m_input.isResetDue = m_input.isOpen;
 
+    m_videoClearedAt = 0;
+    m_soundClearedAt = 0;
+    m_isVideoCleared = false;
+    m_isSoundCleared = false;
+
     m_disk.runner.SetMachine  (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_input.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_video.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_sound.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 
-    m_feed.AttachToCaches (m_machine, m_disk.cache, m_input.cache, [this] () { return IsRecording(); });
+    m_feed.AttachToCaches (m_machine,
+                           { &m_disk.cache, &m_input.cache, &m_video.cache, &m_sound.cache },
+                           [this] () { return IsRecording(); });
     m_isStarted = true;
 
     if (controller != nullptr)
@@ -121,6 +134,8 @@ void DebugEventLogs::Stop()
 
     m_disk.replayer.OnHistoryCut  (0);
     m_input.replayer.OnHistoryCut (0);
+    m_video.replayer.OnHistoryCut (0);
+    m_sound.replayer.OnHistoryCut (0);
 
     m_disk.wantedBefore  = 0;
     m_input.wantedBefore = 0;
@@ -254,6 +269,8 @@ void DebugEventLogs::SetWorkQueue (IWorkQueue * queue)
 {
     m_disk.runner.SetWorkQueue  (queue);
     m_input.runner.SetWorkQueue (queue);
+    m_video.runner.SetWorkQueue (queue);
+    m_sound.runner.SetWorkQueue (queue);
 }
 
 
@@ -282,13 +299,20 @@ void DebugEventLogs::OnKeyframe (uint64_t position)
 //  OnLive
 //
 //  The machine became live at its position: what the caches have from there
-//  on was a future a change made in the past discarded.
+//  on was a future a change made in the past discarded. Its state may have
+//  been loaded rather than run to, so the I/O decode is seeded again, and a
+//  clear mark after the position moves back to it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugEventLogs::OnLive (uint64_t position)
 {
     EndAt (position);
+
+    m_feed.Reseed();
+
+    m_videoClearedAt = std::min (m_videoClearedAt, position);
+    m_soundClearedAt = std::min (m_soundClearedAt, position);
 }
 
 
@@ -316,11 +340,15 @@ void DebugEventLogs::EndAt (uint64_t position)
 
     CutBack (m_disk,  position);
     CutBack (m_input, position);
+    CutBack (m_video, position);
+    CutBack (m_sound, position);
 
     if (isGap)
     {
         m_disk.cache.MarkGap  (position, keyframes->GetInfo (count - 1).cycle);
         m_input.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
+        m_video.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
+        m_sound.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
     }
 }
 
@@ -351,6 +379,207 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
 
     m_disk.replayer.OnHistoryCut  (position);
     m_input.replayer.OnHistoryCut (position);
+    m_video.replayer.OnHistoryCut (position);
+    m_sound.replayer.OnHistoryCut (position);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearIoLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::ClearIoLog (IoLogKind kind)
+{
+    if (kind == IoLogKind::Video)
+    {
+        m_videoClearedAt = m_machine.GetPosition();
+        m_isVideoCleared = true;
+    }
+    else
+    {
+        m_soundClearedAt = m_machine.GetPosition();
+        m_isSoundCleared = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetIoEntries
+//
+//  The newest maxCount entries since the log was cleared: the cache's, and
+//  before where the cache is complete, history's, rebuilt here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugEventLogs::GetIoEntries (
+    IoLogKind       kind,
+    size_t          maxCount,
+    IoLogEntries  & outEntries)
+{
+    HRESULT          hr      = S_OK;
+    bool             isVideo = kind == IoLogKind::Video;
+    Log<IoEvent>   & log     = isVideo ? m_video : m_sound;
+    uint64_t         from    = isVideo ? m_videoClearedAt : m_soundClearedAt;
+    uint64_t         covered = log.cache.GetCoveredFrom();
+    size_t           excess  = 0;
+
+
+
+    outEntries            = IoLogEntries();
+    outEntries.wasCleared = isVideo ? m_isVideoCleared : m_isSoundCleared;
+    outEntries.isComplete = covered <= from;
+
+    log.cache.CopySpan (std::max (from, covered), UINT64_MAX, outEntries.entries);
+
+    if (!outEntries.isComplete && outEntries.entries.size() < maxCount)
+    {
+        hr = RebuildIoBefore (log, from, covered, maxCount - outEntries.entries.size(), outEntries);
+        CHR (hr);
+    }
+
+    if (outEntries.entries.size() > maxCount)
+    {
+        excess = outEntries.entries.size() - maxCount;
+
+        outEntries.entries.erase (outEntries.entries.begin(), outEntries.entries.begin() + (ptrdiff_t) excess);
+        outEntries.isComplete = false;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebuildIoBefore
+//
+//  The stretches of history before position before and after from are
+//  rebuilt on this thread, newest first, kListingBatch at a time, until
+//  targetCount entries are found, the oldest stretch rebuilt begins at or before
+//  from, or kListingBudgetMs pass. The
+//  entries found go ahead of those in ioEntries, oldest first. A stretch
+//  that cannot be rebuilt is one Unavailable entry; a gap in recording
+//  after a stretch, a Gap entry where recording resumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugEventLogs::RebuildIoBefore (
+    Log<IoEvent>   & log,
+    uint64_t         from,
+    uint64_t         before,
+    size_t           targetCount,
+    IoLogEntries   & ioEntries)
+{
+    using Clock = std::chrono::steady_clock;
+
+    HRESULT                                         hr      = S_OK;
+    std::vector<DebugEventBounds>                   stretches;
+    std::vector<DebugEventBounds>                   batch;
+    std::vector<DebugEventStretchResult<IoEvent>>   results;
+    std::vector<DebugEventEntry<IoEvent>>           older;
+    std::vector<DebugEventEntry<IoEvent>>           chunk;
+    DebugEventJob                                   job;
+    Clock::time_point                               began   = Clock::now();
+    size_t                                          next    = 0;
+    size_t                                          found   = 0;
+    size_t                                          k       = 0;
+    size_t                                          first   = 0;
+    size_t                                          s       = 0;
+    uint64_t                                        reached = before;
+    bool                                            isLate  = false;
+
+
+
+    m_history.GetStretches (stretches);
+
+    next = stretches.size();
+
+    while (next > 0 && stretches[next - 1].startPosition >= before)
+    {
+        next--;
+    }
+
+    log.runner.Cancel();
+    log.runner.WaitForWork();
+
+    while (next > 0 && found < targetCount && reached > from && !isLate)
+    {
+        batch.clear();
+        chunk.clear();
+
+        for (; next > 0 && batch.size() < kListingBatch && stretches[next - 1].endPosition > from; next--)
+        {
+            batch.push_back (stretches[next - 1]);
+        }
+
+        if (batch.empty())
+        {
+            break;
+        }
+
+        first = next;
+
+        hr = m_history.BuildJob (batch, job);
+        CHR (hr);
+
+        hr = log.runner.Rebuild (job, results);
+        CHR (hr);
+
+        //  The results are newest first; the chunk is built oldest first.
+        for (k = results.size(); k > 0; k--)
+        {
+            const DebugEventStretchResult<IoEvent>  & result = results[k - 1];
+
+            if (result.isUnavailable)
+            {
+                chunk.push_back ({ DebugEventEntryKind::Unavailable, std::max (result.startPosition, from), 0, IoEvent {} });
+            }
+
+            for (const DebugEventEntry<IoEvent> & entry : result.entries)
+            {
+                if (entry.position >= from && entry.position < before)
+                {
+                    chunk.push_back (entry);
+                    found++;
+                }
+            }
+
+            //  batch[k - 1] is stretches[s]; recording resumed where the next
+            //  one begins, unless the cache has that gap.
+            s = first + batch.size() - k;
+
+            if (stretches[s].hasGapAfter && s + 1 < stretches.size() && stretches[s + 1].startPosition < before)
+            {
+                chunk.push_back ({ DebugEventEntryKind::Gap, stretches[s + 1].startPosition, 0, IoEvent {} });
+            }
+
+            reached = std::min (reached, result.startPosition);
+        }
+
+        older.insert (older.begin(), chunk.begin(), chunk.end());
+
+        isLate = Clock::now() - began > std::chrono::milliseconds (kListingBudgetMs);
+    }
+
+    ioEntries.entries.insert (ioEntries.entries.begin(), older.begin(), older.end());
+    ioEntries.isComplete    = reached <= from;
+    ioEntries.isTimeLimited = isLate && !ioEntries.isComplete && found < targetCount;
+
+Error:
+    return hr;
 }
 
 

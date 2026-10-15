@@ -139,6 +139,11 @@ Byte MemoryBus::ReadByte (Word address)
         {
             value              = device->Read (address);
             m_floatingBusValue = value;
+
+            if (IsIoReported (address, false))
+            {
+                ReportIoAccess (address, value, false);
+            }
         }
         else if (address >= 0xC000 && address <= 0xCFFF)
         {
@@ -172,6 +177,11 @@ Byte MemoryBus::ReadFromDevice (Word address)
     {
         value              = device->Read (address);
         m_floatingBusValue = value;
+
+        if (IsIoReported (address, false))
+        {
+            ReportIoAccess (address, value, false);
+        }
     }
     else if (address >= 0xC000 && address <= 0xCFFF)
     {
@@ -326,6 +336,11 @@ void MemoryBus::WriteByte (Word address, Byte value)
     if (device != nullptr)
     {
         device->Write (address, value);
+
+        if (IsIoReported (address, true))
+        {
+            ReportIoAccess (address, value, true);
+        }
     }
 
     m_floatingBusValue = value;
@@ -403,6 +418,11 @@ void MemoryBus::WriteWatchedPage (Word address, Byte value)
         if (device != nullptr)
         {
             device->Write (address, value);
+
+            if (IsIoReported (address, true))
+            {
+                ReportIoAccess (address, value, true);
+            }
         }
 
         m_floatingBusValue = value;
@@ -436,6 +456,61 @@ void MemoryBus::ReportAccess (Word address, Byte value, BusAccess access, std::o
     {
         m_watchSink->OnWatchedAccess (address, value, access, previous);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportIoAccess
+//
+//  An access the union of the filters includes goes to each listener whose
+//  own filter includes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ReportIoAccess (Word address, Byte value, bool isWrite)
+{
+    size_t           index = (size_t) address - IoAccessFilter::kFirst;
+    IIoAccessSink  * sink  = nullptr;
+    size_t           slot  = 0;
+
+
+
+    for (slot = 0; slot < m_ioFilters.size(); slot++)
+    {
+        sink = m_ioSinks.Get ((ObserverSlot) slot);
+
+        if (sink != nullptr && (isWrite ? m_ioFilters[slot].writes : m_ioFilters[slot].reads).test (index))
+        {
+            sink->OnIoAccess (address, value, isWrite);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetIoAccessSink
+//
+//  The slot's listener and filter, and the union the access paths test. A
+//  slot with no listener takes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetIoAccessSink (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter)
+{
+    m_ioSinks.Set (slot, sink);
+
+    m_ioFilters[(size_t) slot] = (sink != nullptr) ? filter : IoAccessFilter();
+
+    m_ioWanted.reads  = m_ioFilters[0].reads  | m_ioFilters[1].reads;
+    m_ioWanted.writes = m_ioFilters[0].writes | m_ioFilters[1].writes;
 }
 
 

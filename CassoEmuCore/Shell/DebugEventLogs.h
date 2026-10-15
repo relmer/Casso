@@ -6,6 +6,7 @@
 #include "Debugger/Events/DebugEventHistory.h"
 #include "Debugger/Events/DebugEventReplayer.h"
 #include "Debugger/Events/DebugLogDelta.h"
+#include "Debugger/Events/IIoEventSource.h"
 #include "Debugger/Events/MachineEventFeed.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Shell/ScratchEventReplayer.h"
@@ -21,10 +22,12 @@ class ReverseController;
 //
 //  DebugEventLogs
 //
-//  The Disk II event log and the input log (FR-210 to FR-215): each an event
-//  cache the running machine's History slot feeds from the start of the
-//  session (FR-211), a rebuild of older stretches on a scratch machine
-//  (FR-212), and what was sent to its pane.
+//  The Disk II event log, the input log, and the video and sound logs: each
+//  an event cache the running machine's History slot feeds from the start of
+//  the session, a rebuild of older stretches on a scratch machine, and what
+//  was sent to its pane. The video and sound logs have no pane; VIDEOLOG and
+//  SOUNDLOG list them through IIoEventSource, with history rebuilt on the
+//  calling thread for each listing.
 //
 //  The caches take events only while the machine is live and recording, so
 //  nothing the machine does replaying its own history, or in a gap, goes in.
@@ -43,10 +46,15 @@ class ReverseController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebugEventLogs
+class DebugEventLogs : public IIoEventSource
 {
 public:
     static constexpr size_t  kCacheEvents = 65536;
+
+    //  Stretches rebuilt at a time for a listing, and how long a listing may
+    //  spend rebuilding before it stops and reports what it found.
+    static constexpr size_t    kListingBatch    = 32;
+    static constexpr uint64_t  kListingBudgetMs = 5000;
 
     explicit DebugEventLogs (MachineHost & machine);
     ~DebugEventLogs();
@@ -77,6 +85,12 @@ public:
 
     const DebugEventCache<Disk2Event>  & GetDiskCache  () const { return m_disk.cache; }
     const DebugEventCache<InputEvent>  & GetInputCache () const { return m_input.cache; }
+    const DebugEventCache<IoEvent>     & GetVideoCache () const { return m_video.cache; }
+    const DebugEventCache<IoEvent>     & GetSoundCache () const { return m_sound.cache; }
+
+    // IIoEventSource
+    void     ClearIoLog   (IoLogKind kind) override;
+    HRESULT  GetIoEntries (IoLogKind kind, size_t maxCount, IoLogEntries & outEntries) override;
 
     //  Test seam: rebuilds on the given queue in place of a pool thread.
     void  SetWorkQueue (IWorkQueue * queue);
@@ -139,11 +153,19 @@ private:
 
     size_t    FindJournalIndex (uint64_t position) const;
 
-    MachineHost          & m_machine;
-    ReverseController    * m_controller = nullptr;
-    bool                   m_isStarted  = false;
-    DebugEventHistory      m_history;
-    MachineEventFeed       m_feed;
-    Log<Disk2Event>        m_disk;
-    Log<InputEvent>        m_input;
+    HRESULT   RebuildIoBefore  (Log<IoEvent> & log, uint64_t from, uint64_t before, size_t targetCount, IoLogEntries & ioEntries);
+
+    MachineHost        & m_machine;
+    ReverseController  * m_controller     = nullptr;
+    bool                 m_isStarted      = false;
+    DebugEventHistory    m_history;
+    MachineEventFeed     m_feed;
+    Log<Disk2Event>      m_disk;
+    Log<InputEvent>      m_input;
+    Log<IoEvent>         m_video;
+    Log<IoEvent>         m_sound;
+    uint64_t             m_videoClearedAt = 0;
+    uint64_t             m_soundClearedAt = 0;
+    bool                 m_isVideoCleared = false;
+    bool                 m_isSoundCleared = false;
 };

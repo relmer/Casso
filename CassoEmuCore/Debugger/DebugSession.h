@@ -20,6 +20,7 @@ class IDebugCommandHandler;
 class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
+class IIoEventSource;
 class OpcodeTable;
 struct DebugSessionView;
 
@@ -258,6 +259,12 @@ public:
     void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
     std::wstring          ResolvePath          (const std::string & path) const;
 
+    // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
+    // window's shell and a batch run have them, and without them both
+    // commands are not available.
+    void                  SetIoEventSource     (IIoEventSource * source)          { m_ioEventSource = source; }
+    IIoEventSource      * GetIoEventSource     () const                           { return m_ioEventSource; }
+
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to.
@@ -414,6 +421,7 @@ private:
     std::vector<IDebugCommandHandler *>   m_handlers;
     IInstructionObserver                * m_instructionObserver = nullptr;
     IFileSystem                         * m_fileSystem          = nullptr;
+    IIoEventSource                      * m_ioEventSource       = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;

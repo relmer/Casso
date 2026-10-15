@@ -9,6 +9,7 @@
 #include "Debugger/ReplyJson.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Shell/DebugEventLogs.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/IRomSource.h"
 #include "Devices/Disk/MountDiagnosis.h"
@@ -119,7 +120,8 @@ Error:
 //  DebugBatchRunner::Execute
 //
 //  One session over the machine with every command family, the option's
-//  budget and its starting mode, then the lines. A command that returns
+//  budget and its starting mode, and event logs started at the first
+//  instruction for VIDEOLOG and SOUNDLOG, then the lines. A command that returns
 //  error or unknown sets status 1; a last run that ended on its budget sets
 //  3 unless 1 is already set.
 //
@@ -132,6 +134,7 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     DebugCommand              mode;
     OutputFormat              output = OutputFormat::AppleWin;
     DebugSession              session (*m_target, m_sink, RunState::Paused);
+    DebugEventLogs            logs    (*m_host);
 
 
 
@@ -139,6 +142,9 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     m_sink.SetSession (&session);
     m_handlers.Attach (session);
     session.SetFileSystem (&m_files);
+
+    logs.Start (nullptr);
+    session.SetIoEventSource (&logs);
 
     //  A batch run is the debugger attached from the first instruction.
     session.SetCallRecording (true);
@@ -170,6 +176,7 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    logs.Stop();
     m_sink.SetSession (nullptr);
 }
 

@@ -296,6 +296,21 @@ namespace DebugModeTests
             Assert::IsTrue (rig.result.output.find ("Budget at") != std::string::npos, L"the budget stop still printed");
         }
 
+        //  A batch run has the video log from its first instruction:
+        //  $0300 STA $C050 / BRK, run to the BRK, and the change is listed.
+        TEST_METHOD (TheVideoLogIsKeptInABatchRun)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.commands = { "300:8D 50 C0 00", "R PC 300", "BP 303", "G", "VIDEOLOG" };
+
+            Assert::AreEqual (0, rig.Run (""), rig.Widen (rig.result.output).c_str());
+            Assert::IsTrue   (rig.result.output.find ("1 entry:") != std::string::npos, rig.Widen (rig.result.output).c_str());
+            Assert::IsTrue   (rig.result.output.find ("$C050  TEXT off") != std::string::npos, rig.Widen (rig.result.output).c_str());
+        }
+
         //  A command that is not available in this session is not a failure.
         TEST_METHOD (NotAvailable_ExitsZero)
         {

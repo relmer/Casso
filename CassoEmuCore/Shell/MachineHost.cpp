@@ -1984,6 +1984,11 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
     {
         m_refs.gamePort->SetInputEventSink (slot, observers.input);
     }
+
+    if (m_memoryBus != nullptr)
+    {
+        m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
+    }
 }
 
 

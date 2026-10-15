@@ -3,7 +3,9 @@
 #include "Pch.h"
 #include "IFloatingBusSource.h"
 #include "IMachineState.h"
+#include "IIoAccessSink.h"
 #include "IWatchSink.h"
+#include "ObserverSlots.h"
 
 class Prng;
 class RamPages;
@@ -157,6 +159,11 @@ public:
     void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
     IWatchSink * GetTraceSink () const                  { return m_traceSink; }
     bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
+
+    // A listener on the I/O space for each observer slot: each access a
+    // device at $C000-$CFFF decodes at an address its filter includes,
+    // after the device acts on it.
+    void   SetIoAccessSink    (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
     int    GetWatchedPageCount () const;
 
     // The access heat map: while on, every page takes the watched path, so the
@@ -208,6 +215,18 @@ private:
     void StoreToPage      (Byte * page, Word address, Byte value);
     void PublishPage      (int pageIndex);
     void ReportAccess     (Word address, Byte value, BusAccess access, std::optional<Byte> previous);
+    void ReportIoAccess   (Word address, Byte value, bool isWrite);
+
+    // Whether an access at an address a device decoded goes to an I/O
+    // listener: one load when there is none.
+    bool IsIoReported (Word address, bool isWrite) const
+    {
+        size_t  index = (size_t) address - IoAccessFilter::kFirst;
+
+
+
+        return m_ioSinks.IsAny() && index < IoAccessFilter::kSize && (isWrite ? m_ioWanted.writes : m_ioWanted.reads).test (index);
+    }
 
     // Rebuild the I/O dispatch map from the current device list. Called from
     // the constructor and after any AddDevice / RemoveDevice -- the only events
@@ -263,6 +282,12 @@ private:
     IWatchSink *            m_traceSink              = nullptr;
     bool                    m_allPagesWatched        = false;
     bool                    m_traceAllPages          = false;
+
+    // The I/O listeners, their filters by slot, and the filters' union, which
+    // the access paths test.
+    ObserverSlots<IIoAccessSink>    m_ioSinks;
+    std::array<IoAccessFilter, 2>   m_ioFilters;
+    IoAccessFilter                  m_ioWanted;
 
     BankingChangedFn        m_bankingChanged;
 

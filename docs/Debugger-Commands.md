@@ -201,7 +201,7 @@ Casso commands:
     PAUSE                                                Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]       Profile where execution goes, by routine or by address
     SKIP [CLEAR|[-]name|addr[.last]]                     Show or change the routines stepping goes over
-    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log speaker toggles and Mockingboard writes with their cycles
+    SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]                List speaker toggles and Mockingboard writes with their cycles
     STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]                  Show the call stack, or choose how it is found
@@ -214,7 +214,7 @@ Casso commands:
     SRC [ON|OFF]                                         Show the source line at PC, or step by source lines
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
-    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log video mode changes with the frame and beam position
+    VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]                List video mode changes with the frame and beam position
   Session and settings
     LOADSTATE file                                       Replace the whole machine, disks included, with one a state file holds
     MODE [mode]                                          Show or set the command mode, which sets the output too
@@ -280,7 +280,7 @@ Casso commands:
     /RCC                                                   Reset the cycle counter that CYCLES PART reads
     /RTS [count]                                           Step out of the current subroutine
     /SKIP [CLEAR|[-]name|addr[.last]]                      Show or change the routines stepping goes over
-    /SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]          Log speaker toggles and Mockingboard writes with their cycles
+    /SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]                 List speaker toggles and Mockingboard writes with their cycles
     /STOPWATCH [start [stop]|OFF|RESET]                    Count the cycles between two addresses in debugger runs
     /T-                                                    Step back one instruction
     /TF [file] [V]                                         Turn tracing to a file on or off; V records the video position
@@ -427,7 +427,7 @@ Casso commands:
     /RET                                                   Move the code pane to the return address
     /V                                                     Move the code pane down one instruction
     /VIDEOINFO                                             Show the video scanner's position
-    /VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]          Log video mode changes with the frame and beam position
+    /VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]                 List video mode changes with the frame and beam position
   Session and settings
     /? [command]                                           List the commands, or describe one
     /CALC expr                                             Evaluate an expression
@@ -506,7 +506,7 @@ Casso commands:
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     RCC                                             Reset the cycle counter that CYCLES PART reads
     SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
-    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log speaker toggles and Mockingboard writes with their cycles
+    SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]           List speaker toggles and Mockingboard writes with their cycles
     STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
     TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
@@ -611,7 +611,7 @@ Casso commands:
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     VIDEOINFO                                       Show the video scanner's position
-    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log video mode changes with the frame and beam position
+    VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]           List video mode changes with the frame and beam position
   Session and settings
     CALC expr                                       Evaluate an expression
     ECHO text                                       Print text
@@ -695,7 +695,7 @@ Casso commands:
     !PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]  Profile where execution goes, by routine or by address
     !RCC                                             Reset the cycle counter that CYCLES PART reads
     !SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
-    !SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log speaker toggles and Mockingboard writes with their cycles
+    !SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]           List speaker toggles and Mockingboard writes with their cycles
     !STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
     !TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
@@ -805,7 +805,7 @@ Casso commands:
   Display and panels
     !PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     !VIDEOINFO                                       Show the video scanner's position
-    !VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]    Log video mode changes with the frame and beam position
+    !VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]           List video mode changes with the frame and beam position
   Session and settings
     !CD dir                                          Change the current directory
     !ECHO text                                       Print text
@@ -852,7 +852,7 @@ Casso commands:
     RCC                                                  Reset the cycle counter that CYCLES PART reads
     RTS [count]                                          Step out of the current subroutine
     SKIP [CLEAR|[-]name|addr[.last]]                     Show or change the routines stepping goes over
-    SOUNDLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log speaker toggles and Mockingboard writes with their cycles
+    SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]                List speaker toggles and Mockingboard writes with their cycles
     STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
     T, TL, TRACE [count]                                 Step into
     T-                                                   Step back one instruction
@@ -1012,7 +1012,7 @@ Casso commands:
     RET                                                  Move the code pane to the return address
     V                                                    Move the code pane down one instruction
     VIDEOINFO                                            Show the video scanner's position
-    VIDEOLOG [ON|OFF|CLEAR|LIST [n]|SAVE [file]]         Log video mode changes with the frame and beam position
+    VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]                List video mode changes with the frame and beam position
   Session and settings
     ? [command]                                          List the commands, or describe one
     CALC expr                                            Evaluate an expression

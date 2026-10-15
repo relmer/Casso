@@ -120,6 +120,7 @@ public:
     MockingboardVariant        GetVariant     () const { return m_variant; }
     Via6522 &                  GetVia         (int index) { return m_via[index]; }
     Ay8910 &                   GetPsg         (int index) { return m_psg[index]; }
+    Byte                       GetLastControl (int index) const { return m_lastControl[index]; }
     MockingboardAudioSource *  GetAudioSource (int index) { return &m_audioSource[index]; }
 
     // The installed voice chip, or nullptr on the sound-only variant.

@@ -965,6 +965,7 @@
     <ClCompile Include="DebuggerTests\DebugEventCacheTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugEventReplayerTests.cpp" />
     <ClCompile Include="EmuTests\DebugEventLogsTests.cpp" />
+    <ClCompile Include="EmuTests\IoEventDecoderTests.cpp" />
     <ClCompile Include="EmuTests\IoPeekTests.cpp" />
     <ClCompile Include="EmuTests\DebugEventRebuildTests.cpp" />
     <ClCompile Include="EmuTests\ObserverSlotTests.cpp" />

@@ -556,23 +556,31 @@ the second, and `CYCLES PART` gives the cycles in between.
 
 ## Video and sound logs
 
-`VIDEOLOG ON` records each change of video mode -- `TEXT`, `MIXED`, `PAGE2`,
-`HIRES`, `80COL`, `DHIRES`, `ALTCHARSET` and `80STORE` -- with the machine's
-cycle count and the scanline and cycle within the line the beam was at,
-grouped under the frame each fell in. An access that leaves the mode as it was
-records nothing. `SOUNDLOG ON` records each speaker toggle and each write to
-the Mockingboard's 6522s, with its cycle count and the cycles since the last
-entry of its kind; a port B write that clocks a value into an AY register also
-records that write, with the register and the value. Both logs follow the
-machine whether the debugger started the run or not.
+The video log has an entry for each change of video mode -- `TEXT`, `MIXED`,
+`PAGE2`, `HIRES`, `80COL`, `DHIRES`, `ALTCHARSET` and `80STORE` -- with the
+machine's cycle count and the scanline and cycle within the line the beam was
+at, grouped under the frame each fell in. An access that does not change the
+mode makes no entry. The sound log has an entry for each speaker toggle and each
+write to the Mockingboard's 6522s, with its cycle count and the cycles since
+the last entry of its kind; a port B write that clocks a value into an AY
+register also makes an entry for that write, with the register and the value.
+Entries are added to both logs all the time, from the start of the session,
+whether or not the debugger started the run.
 
-Each log takes `ON`, `OFF`, `CLEAR`, `LIST [n]` (the last `n` entries, 100
-unless given; a bare `VIDEOLOG` or `SOUNDLOG` lists) and `SAVE [file]`, which
-writes every entry the log holds (`VideoLog.txt` or `SoundLog.txt` unless
-given). A log keeps its last 100,000 entries, and the listing gives how many
-were recorded in all. The count and beam position are those at the start of
-the instruction that made the access. While both logs are off they cost
-nothing: the I/O page goes back to the bus's ordinary path.
+`VIDEOLOG` and `SOUNDLOG` take `CLEAR`, which hides the entries made so far,
+`LIST [n]` (the last `n` entries, 100 unless given; a bare `VIDEOLOG` or
+`SOUNDLOG` lists) and `SAVE [file]`, which writes every entry since the log
+was cleared (`VideoLog.txt` or `SoundLog.txt` unless given). The newest entries
+are in memory; older ones are rebuilt from history for each listing, as far
+back as history goes, and a rewind drops the entries after the position it
+rewinds to. A listing stops rebuilding after five seconds, and its first line
+then ends `older history was not searched:`. The cycle count and beam position
+are those at the access.
+
+A speaker toggle costs about fourteen nanoseconds of host time, so a program
+playing a note runs one to three percent slower at maximum speed, and a loop
+that toggles the speaker as fast as a 6502 can about a sixth slower. Other
+I/O, a keyboard poll among it, costs nothing measurable.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7

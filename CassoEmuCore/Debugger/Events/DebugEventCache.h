@@ -163,23 +163,39 @@ public:
     }
 
 private:
+    //  The slot is found without a division: an append is on the path of
+    //  every event the machine produces.
     void  Push (DebugEventEntryKind kind, uint64_t position, uint64_t cycle, const T & event, std::shared_ptr<const std::vector<Byte>> data)
     {
-        size_t  slot = (m_first + m_count) % m_entries.size();
+        size_t    size  = m_entries.size();
+        size_t    slot  = m_first + m_count;
+        Entry   * entry = nullptr;
 
 
+
+        if (slot >= size)
+        {
+            slot -= size;
+        }
+
+        entry = &m_entries[slot];
 
         //  The entry overwritten is the oldest; others at its position may
         //  remain, so the cache is complete only after it.
-        if (m_count == m_entries.size())
+        if (m_count == size)
         {
-            m_coveredFrom = std::max (m_coveredFrom, m_entries[slot].position + 1);
-            m_first       = (m_first + 1) % m_entries.size();
+            m_coveredFrom = std::max (m_coveredFrom, entry->position + 1);
+            m_first       = (m_first + 1 == size) ? 0 : m_first + 1;
             m_hasDropped  = true;
             m_count--;
         }
 
-        m_entries[slot] = Entry { kind, position, cycle, event, std::move (data) };
+        entry->kind     = kind;
+        entry->position = position;
+        entry->cycle    = cycle;
+        entry->event    = event;
+        entry->data     = std::move (data);
+
         m_count++;
         m_endSerial++;
     }

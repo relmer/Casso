@@ -33,6 +33,8 @@ class IDriveAudioSink;
 class SiriusJoyport;
 class IDisk2EventSink;
 class IInputEventSink;
+class IIoAccessSink;
+struct IoAccessFilter;
 class Prng;
 class IAciaEndpoint;
 class CharacterRomData;
@@ -56,8 +58,10 @@ class CharacterRomData;
 
 struct MachineObservers
 {
-    IDisk2EventSink  *  disk  = nullptr;
-    IInputEventSink  *  input = nullptr;
+    IDisk2EventSink         *  disk     = nullptr;
+    IInputEventSink         *  input    = nullptr;
+    IIoAccessSink           *  io       = nullptr;
+    const IoAccessFilter    *  ioFilter = nullptr;      // the I/O io takes; with none, io takes nothing
 };
 
 

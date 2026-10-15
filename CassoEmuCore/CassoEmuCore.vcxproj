@@ -204,6 +204,7 @@
     <ClCompile Include="Ui\Debugger\OpeningFocusDeferral.cpp" />
     <ClCompile Include="Ui\Debugger\StopFocus.cpp" />
     <ClCompile Include="Debugger\Events\DebugEventHistory.cpp" />
+    <ClCompile Include="Debugger\Events\IoEventDecoder.cpp" />
     <ClCompile Include="Debugger\Events\MachineEventFeed.cpp" />
     <ClCompile Include="Shell\DebugEventLogs.cpp" />
     <ClCompile Include="Ui\Debugger\DisassemblyCells.cpp" />
@@ -748,6 +749,7 @@
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
+    <ClInclude Include="Core\IIoAccessSink.h" />
     <ClInclude Include="Core\IWatchSink.h" />
     <ClInclude Include="Debugger\DebugHook.h" />
     <ClInclude Include="Debugger\CapturedDebugTarget.h" />
@@ -781,6 +783,8 @@
     <ClInclude Include="Debugger\Events\DebugEventHistory.h" />
     <ClInclude Include="Debugger\Events\DebugEventReplayer.h" />
     <ClInclude Include="Debugger\Events\DebugLogDelta.h" />
+    <ClInclude Include="Debugger\Events\IIoEventSource.h" />
+    <ClInclude Include="Debugger\Events\IoEventDecoder.h" />
     <ClInclude Include="Debugger\Events\MachineEventFeed.h" />
     <ClInclude Include="Shell\DebugEventLogs.h" />
     <ClInclude Include="Shell\ScratchEventReplayer.h" />

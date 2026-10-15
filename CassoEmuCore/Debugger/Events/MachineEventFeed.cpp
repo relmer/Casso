@@ -15,15 +15,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineEventFeed::AttachToCaches (
-    MachineHost                  & machine,
-    DebugEventCache<Disk2Event>  & disk,
-    DebugEventCache<InputEvent>  & input,
-    RecordingTest                  isRecording)
+    MachineHost    & machine,
+    const Caches   & caches,
+    RecordingTest    isRecording)
 {
-    m_diskCache   = &disk;
-    m_inputCache  = &input;
+    m_diskCache   = caches.disk;
+    m_inputCache  = caches.input;
+    m_videoCache  = caches.video;
+    m_soundCache  = caches.sound;
     m_diskOut     = nullptr;
     m_inputOut    = nullptr;
+    m_videoOut    = nullptr;
+    m_soundOut    = nullptr;
     m_isRecording = std::move (isRecording);
 
     Attach (machine);
@@ -37,19 +40,20 @@ void MachineEventFeed::AttachToCaches (
 //
 //  AttachToEntries
 //
-//  Either kind may be null, and its events are dropped.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineEventFeed::AttachToEntries (
-    MachineHost              & machine,
-    std::vector<DiskEntry>   * disk,
-    std::vector<InputEntry>  * input)
+    MachineHost    & machine,
+    const Entries  & entries)
 {
     m_diskCache   = nullptr;
     m_inputCache  = nullptr;
-    m_diskOut     = disk;
-    m_inputOut    = input;
+    m_videoCache  = nullptr;
+    m_soundCache  = nullptr;
+    m_diskOut     = entries.disk;
+    m_inputOut    = entries.input;
+    m_videoOut    = entries.video;
+    m_soundOut    = entries.sound;
     m_isRecording = nullptr;
 
     Attach (machine);
@@ -68,13 +72,18 @@ void MachineEventFeed::AttachToEntries (
 void MachineEventFeed::Attach (MachineHost & machine)
 {
     Disk2Controller  * controller = machine.GetRefs().diskController;
+    bool               isIo       = m_videoCache != nullptr || m_soundCache != nullptr || m_videoOut != nullptr || m_soundOut != nullptr;
 
 
 
-    m_machine = &machine;
-    m_drive   = (controller != nullptr) ? controller->GetActiveDrive() : 0;
+    m_machine  = &machine;
+    m_position = machine.GetPositionPtr();
+    m_drive    = (controller != nullptr) ? controller->GetActiveDrive() : 0;
 
-    machine.AttachObservers ({ this, this }, ObserverSlot::History);
+    m_decoder.Seed (machine);
+    m_decoder.GetFilter (m_ioFilter);
+
+    machine.AttachObservers ({ this, this, isIo ? this : nullptr, isIo ? &m_ioFilter : nullptr }, ObserverSlot::History);
 }
 
 
@@ -92,11 +101,34 @@ void MachineEventFeed::Detach (MachineHost & machine)
     machine.AttachObservers ({}, ObserverSlot::History);
 
     m_machine     = nullptr;
+    m_position    = nullptr;
     m_diskCache   = nullptr;
     m_inputCache  = nullptr;
+    m_videoCache  = nullptr;
+    m_soundCache  = nullptr;
     m_diskOut     = nullptr;
     m_inputOut    = nullptr;
+    m_videoOut    = nullptr;
+    m_soundOut    = nullptr;
     m_isRecording = nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reseed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::Reseed()
+{
+    if (m_machine != nullptr)
+    {
+        m_decoder.Seed (*m_machine);
+    }
 }
 
 
@@ -217,6 +249,37 @@ void MachineEventFeed::EmitInput (
     else if (IsRecording())
     {
         m_inputCache->Append (position, cycle, event);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitIo
+//
+//  A video entry goes to the video log and the rest to the sound log.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::EmitIo (const IoEvent & event)
+{
+    bool                        isVideo  = event.kind == IoEventKind::VideoMode;
+    DebugEventCache<IoEvent>  * cache    = isVideo ? m_videoCache : m_soundCache;
+    std::vector<IoEntry>      * out      = isVideo ? m_videoOut   : m_soundOut;
+    uint64_t                    position = *m_position;
+
+
+
+    if (out != nullptr)
+    {
+        out->push_back (IoEntry { DebugEventEntryKind::Event, position, event.cycle, event });
+    }
+    else if (cache != nullptr && IsRecording())
+    {
+        cache->Append (position, event.cycle, event);
     }
 }
 
@@ -706,6 +769,40 @@ void MachineEventFeed::OnHostKeyUp (Byte asciiChar)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnIoAccess
+//
+//  The decode follows every access, recording or not, so the video mode
+//  and the card's ports are current when recording resumes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnIoAccess (Word address, Byte value, bool isWrite)
+{
+    size_t  count = 0;
+    size_t  i     = 0;
+
+
+
+    if (m_machine == nullptr)
+    {
+        return;
+    }
+
+    count = m_decoder.Decode (*m_machine, address, value, isWrite, m_ioEvents);
+
+
+    for (i = 0; i < count; i++)
+    {
+        EmitIo (m_ioEvents[i]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskEventProbe::Attach
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -714,7 +811,7 @@ HRESULT DiskEventProbe::Attach (
     MachineHost                               & machine,
     std::vector<DebugEventEntry<Disk2Event>>  & entries)
 {
-    m_feed.AttachToEntries (machine, &entries, nullptr);
+    m_feed.AttachToEntries (machine, { .disk = &entries });
 
     return S_OK;
 }
@@ -748,7 +845,7 @@ HRESULT InputEventProbe::Attach (
     MachineHost                               & machine,
     std::vector<DebugEventEntry<InputEvent>>  & entries)
 {
-    m_feed.AttachToEntries (machine, nullptr, &entries);
+    m_feed.AttachToEntries (machine, { .input = &entries });
 
     return S_OK;
 }
@@ -764,6 +861,53 @@ HRESULT InputEventProbe::Attach (
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputEventProbe::Detach (MachineHost & machine)
+{
+    m_feed.Detach (machine);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventProbe::Attach
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT IoEventProbe::Attach (
+    MachineHost                            & machine,
+    std::vector<DebugEventEntry<IoEvent>>  & entries)
+{
+    MachineEventFeed::Entries  outputs;
+
+
+
+    if (m_isVideo)
+    {
+        outputs.video = &entries;
+    }
+    else
+    {
+        outputs.sound = &entries;
+    }
+
+    m_feed.AttachToEntries (machine, outputs);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventProbe::Detach
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoEventProbe::Detach (MachineHost & machine)
 {
     m_feed.Detach (machine);
 }
