@@ -40,9 +40,17 @@ How much of a network Casso has to supply depends on the mode, so the mode was r
 
 A hardware TCP or UDP socket is close to a BSD socket already, so each one maps onto a Windows socket: OPEN and CONNECT become a host connect, LISTEN a host listen, SEND a host send, and data the host receives lands in the socket's RX buffer with the datasheet's headers. The guest's IP, gateway and subnet registers have no effect on where host sockets go; the PC's own network stack routes them.
 
-The W5100 has no DHCP client. DHCP is guest software sending UDP broadcasts from port 68 to port 67.
+The W5100 has no DHCP client. DHCP is guest software sending UDP broadcasts from port 68 to port 67. Windows' own DHCP client uses port 68 on the PC.
 
 ## Clarifications
+
+### Session 2026-10-14
+
+- Q: How much MACRAW support should Casso provide? -> A: A virtual network inside Casso for socket 0's MACRAW frames: ARP, a DHCP server, ICMP echo, DNS, and UDP and TCP relayed onto host sockets (NAT). UDP alone would run shipped ADTPro and little else; most IP65 and Contiki programs (telnet, wget, IRC, the web browser) use TCP. Npcap bridging was ruled out because it requires a third-party driver and administrator rights (FR-024 to FR-024f).
+- Q: Which machines can connect to an Apple II program that listens for connections? -> A: This PC only by default; a card setting opens listening ports to the LAN, with the Windows Firewall prompt that implies (FR-019a, FR-027a).
+- Q: Can connections started from the PC or the LAN get through to a server on the Apple II behind the virtual network's NAT? -> A: Yes, through a list of port forwards in the card settings, each a protocol (TCP or UDP), a host port and a guest port; whether other machines can use them depends on the LAN access setting (FR-024g, FR-027b).
+- Q: What does the card's MAC address setting control? -> A: Nothing inside the chip. It is the card's label value, displayed in the card settings for the user to enter in guest software; SHAR (the chip's MAC address register, `$0009`-`$000E`) resets to `$00` as the datasheet specifies, and guest software writes the MAC into it (FR-027).
+- Q: What happens to DHCP requests a guest program sends through a hardware UDP socket? -> A: Casso intercepts UDP sent to port 67 from a hardware socket and replies from the virtual network's DHCP server, with the same configuration a MACRAW program receives. Windows' own DHCP client uses port 68, so relaying to the real LAN is not viable (FR-023).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -86,9 +94,9 @@ An Apple II program opens a W5100 TCP or UDP socket, connects to or listens on a
 
 A user boots ADTPro's Ethernet client on an emulated //e with the card, points it at an ADTPro server on the PC, and transfers a disk.
 
-**Why this priority**: This is the reason the feature exists. ADTPro's shipped client uses MACRAW, so whether and how this story is met depends on the open question below.
+**Why this priority**: This is the reason the feature exists. ADTPro's shipped client uses MACRAW, and so do IP65's and Contiki's other programs.
 
-**Independent Test**: [NEEDS CLARIFICATION: Which W5100 MACRAW support should Casso provide? Shipped ADTPro requires MACRAW. Options: hardware sockets only (shipped ADTPro does not run), a virtual network inside Casso limited to ARP, DHCP, ICMP echo and UDP relayed onto host sockets (covers ADTPro's UDP protocol), that plus TCP relaying (covers IP65's TCP programs too), or bridging frames onto the real LAN through Npcap.]
+**Independent Test**: A 6502 program in MACRAW mode on socket 0 obtains an address by DHCP, resolves the PC by ARP, and completes a UDP exchange and a TCP exchange with test peers on the PC, all through the virtual network, with no real network access in the unit-level version.
 
 **Acceptance Scenarios**:
 
@@ -99,11 +107,11 @@ A user boots ADTPro's Ethernet client on an emulated //e with the card, points i
 
 ### User Story 4 - Card settings (Priority: P2)
 
-A user sets the card's MAC address and the addressing the emulated network provides, and those values are in effect the next time the machine starts.
+A user sets the card's MAC address, whether the LAN can connect to the guest, and any port forwards, and those values are in effect the next time the machine starts.
 
-**Why this priority**: Guest network software is configured with a MAC address and an IP configuration during setup, which requires stable values to type in.
+**Why this priority**: Guest network software is configured with a MAC address during setup, which requires a stable value to type in, and a guest server is unusable from outside without a port forward.
 
-**Independent Test**: Change the MAC address in settings, restart, and confirm the new value appears where the settings document it appears.
+**Independent Test**: Change the MAC address and add a TCP port forward in settings, restart, and confirm the MAC value persists and a connection to the forwarded host port arrives at the guest.
 
 **Acceptance Scenarios**:
 
@@ -161,20 +169,31 @@ A user sets the card's MAC address and the addressing the emulated network provi
 - **FR-017**: Received UDP datagrams MUST be preceded in the RX buffer by an 8-byte header: peer IP (4 bytes), peer port (2 bytes), data length (2 bytes), big-endian.
 - **FR-018**: Sn_IR's CON, DISCON, RECV, TIMEOUT and SEND_OK bits MUST be set on the events the datasheet specifies and clear when written with 1.
 - **FR-019**: TCP and UDP sockets MUST map onto host sockets: CONNECT to the destination in Sn_DIPR and Sn_DPORT, LISTEN on Sn_PORT, UDP bound to Sn_PORT and sending to Sn_DIPR and Sn_DPORT.
+- **FR-019a**: Unless the card's LAN access setting is on, incoming TCP connections (a hardware LISTEN, or a virtual-network inbound port) MUST be accepted only from this PC, and incoming UDP datagrams MUST be delivered only if they come from this PC or from an address and port the socket has sent to. Outgoing traffic to any address MUST work regardless of the setting.
 - **FR-020**: All host socket access MUST go through an interface that unit tests replace with a fake, so no unit test opens a real socket.
 - **FR-021**: Host socket work MUST NOT block the emulation thread; a slow connect or a full host send buffer MUST appear to the guest as a socket state or a free-size value, never as a stalled CPU.
 - **FR-022**: Guest IP, gateway and subnet register values MUST NOT affect where hardware TCP and UDP sockets connect.
-- **FR-023**: A guest UDP broadcast MUST be delivered as a broadcast on the PC, and a DHCP request from a hardware UDP socket MUST be handled as specified in Clarifications.
+- **FR-023**: UDP that a hardware socket sends to port 67 MUST be delivered to the virtual network's DHCP server instead of the PC's network, and its replies MUST arrive in that socket's RX buffer as UDP datagrams from the DHCP server's address and port 67. Other guest UDP broadcasts MUST be sent as broadcasts on the PC.
 
 #### MACRAW
 
-- **FR-024**: Socket 0 in MACRAW mode MUST work as specified in Clarifications; OPEN in MACRAW on sockets 1-3 MUST result in SOCK_CLOSED.
+- **FR-024**: OPEN in MACRAW mode on socket 0 MUST connect it to a virtual network inside Casso; OPEN in MACRAW on sockets 1-3 MUST result in SOCK_CLOSED. Frames the guest SENDs MUST be delivered to the virtual network, and frames the virtual network produces MUST appear in socket 0's RX buffer preceded by the datasheet's 2-byte length header. With Sn_MR's MAC filter bit set, only frames addressed to SHAR or to broadcast MUST be delivered.
+- **FR-024a**: The virtual network MUST present a gateway with its own IPv4 and MAC address, and MUST send an ARP reply to each guest ARP request for the gateway, the DNS address or any off-subnet destination, in the next frame the guest receives.
+- **FR-024b**: The virtual network MUST include a DHCP server that offers the guest a fixed address, subnet mask, gateway and DNS server, so IP65's DHCP client succeeds.
+- **FR-024c**: ICMP echo requests addressed to the gateway MUST produce ICMP echo replies.
+- **FR-024d**: UDP datagrams from the guest MUST be relayed through host UDP sockets to their destination, and replies MUST be returned to the guest's source port as UDP frames from the original destination's address and port.
+- **FR-024e**: TCP connections the guest opens MUST be relayed through host TCP connections: the guest's SYN produces a host connect, the connect result produces a SYN-ACK or a reset, data flows in both directions within the guest's advertised window and its MSS, and FIN and RST map onto host shutdown and close.
+- **FR-024f**: DNS queries the guest sends to the virtual DNS address MUST be resolved through the PC's resolver, and the result MUST be returned to the guest in a DNS response frame.
+- **FR-024g**: Each configured port forward MUST accept connections (TCP) or datagrams (UDP) on its host port and relay them to the guest's DHCP-assigned address at its guest port, subject to FR-019a.
+- **FR-024h**: UDP and TCP traffic the guest sends to the gateway's address MUST be relayed to the PC's loopback address, so programs on the same PC (an ADTPro server, the Casso Explorer link) are reachable without a LAN.
 
 #### Settings and configuration
 
 - **FR-025**: The card's presence, slot and settings MUST be stored in the machine configuration and survive restarts; an existing configuration from before this feature MUST load with the card absent.
 - **FR-026**: The settings UI MUST let the user enable or disable the card and choose its slot among the free ones, following the settings sheet's Apply/Cancel model.
-- **FR-027**: The card MUST have a user-editable MAC address, defaulting to a randomly generated, locally administered unicast address generated once and stored.
+- **FR-027**: The card MUST have a user-editable MAC address, defaulting to a randomly generated, locally administered unicast address generated once and stored. It is the card's label value for entry into guest software; it MUST NOT be written into SHAR, which resets to `$00`.
+- **FR-027a**: The card MUST have a LAN access setting, off by default, that controls FR-019a.
+- **FR-027b**: The card settings MUST include an editable list of port forwards (protocol, host port, guest port), empty by default; a host port already in use MUST produce a visible error when the machine starts, not a silent failure.
 - **FR-028**: An invalid MAC address MUST produce an error in the fixed error format, and the stored value MUST stay in effect.
 
 #### Clean room
@@ -186,6 +205,8 @@ A user sets the card's MAC address and the addressing the emulated network provi
 - **Uthernet II card**: a slot device with a slot number, a MAC address setting and a W5100.
 - **W5100**: the mode byte, the address pointer, 32 KB of internal space (common registers, socket registers, TX and RX buffers), the interrupt state, and four sockets.
 - **Socket**: mode, command, status, interrupt bits, source and destination address and port, TX and RX pointers into its buffer share, and an optional host connection.
+- **Virtual network**: the gateway and DNS addresses, the DHCP lease, and a NAT table of relayed UDP flows and TCP connections, each linking a guest address and port to a host socket.
+- **Port forward**: a protocol (TCP or UDP), a host port and a guest port, stored with the card's settings.
 - **Host socket seam**: the PC-side operations a socket requires (open, bind, connect, listen, accept, send, receive, close, poll for readiness), implemented with Windows sockets in the product and faked in tests.
 
 ## Success Criteria *(mandatory)*
@@ -197,7 +218,8 @@ A user sets the card's MAC address and the addressing the emulated network provi
 - **SC-003**: SC-002 applies equally to a hardware TCP socket, in both directions, across a transfer larger than the socket's buffer share, proving wrap at the buffer boundary.
 - **SC-004**: Every register's reset value and every documented command transition in the datasheet has a unit test, run against a fake host socket layer with no real network access.
 - **SC-005**: With the card idle, emulation speed at 1x stays within 1% of the same machine without the card.
-- **SC-006**: Shipped ADTPro's Ethernet client transfers a disk image to and from an ADTPro server on the same PC, subject to the User Story 3 clarification.
+- **SC-006**: Shipped ADTPro's Ethernet client transfers a disk image to and from an ADTPro server on the same PC, through the virtual network.
+- **SC-007**: A 6502 program in MACRAW mode on an emulated //e obtains its address by DHCP and completes a TCP round trip of at least 1 KB with a test peer through the virtual network, byte for byte.
 
 ## Assumptions
 
@@ -205,8 +227,8 @@ A user sets the card's MAC address and the addressing the emulated network provi
 - The card ships disabled; when first enabled its default slot is 3, the first slot in the card manual's probe order and the slot in the card's demo code.
 - The card does not connect to the Apple II RESET line, so Ctrl-Reset has no effect on the W5100 and only a power cycle or MR's reset bit reinitializes it. The manual's instruction to reset the chip with `$80` at program start supports this.
 - The W5100's interrupt output is wired to the Apple II IRQ line, per the interrupt chapter of the card manual.
-- The MAC address setting is the address on the card's label. The chip's SHAR register resets to `$00` as the datasheet specifies; guest software writes the MAC into SHAR itself, using the value the user reads from settings.
 - Retransmission timing (RTR, RCR) has no PC equivalent; host socket failures map to TIMEOUT whatever those registers contain, and the registers read back what was written.
 - IPRAW, PPPoE, IGMP multicast and the "virtual W5100" DNS-offload extension published on the card's wiki are out of scope. The extension also contradicts the real chip's PTIMER reset value, which software reads to distinguish a real chip from the extension.
+- The virtual network uses one fixed private IPv4 subnet, chosen in planning, so the guest's DHCP address, gateway and DNS addresses are the same on every PC.
 - The original Uthernet (CS8900A) and the Apple IIgs are out of scope.
 - Clean-room sources: WIZnet W5100 datasheet v1.1.8; the Uthernet II manual (draft); the a2retrosystems/uthernet2 wiki (CC BY 3.0). ADTPro and IP65 sources were read only to determine which W5100 mode their drivers select.
