@@ -160,7 +160,7 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
     out.assign (kColumns, DxuiListView::Cell());
 
     //  The instructions to run next have only their address, bytes, label and
-    //  instruction.
+    //  instruction; the PC's, the first, has the PC's marker and row color.
     if (index >= m_total && index - m_total < m_next.size())
     {
         record = &m_next[(size_t) (index - m_total)];
@@ -172,6 +172,17 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
         out[4].text = TextEncoding::NarrowToWide (record->symbol);
         out[5].text = TextEncoding::NarrowToWide (record->instruction);
         AddColors (out, m_colors);
+
+        if (index == m_total)
+        {
+            out[0].icon = m_pcMarker;
+
+            for (DxuiListView::Cell & cell : out)
+            {
+                cell.background = m_pcRowArgb;
+            }
+        }
+
         return;
     }
 

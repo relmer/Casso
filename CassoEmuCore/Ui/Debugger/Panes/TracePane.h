@@ -22,8 +22,9 @@
 //  end of the list it asks to follow the newest instead. Until a read
 //  arrives, rows outside the window are blank.
 //
-//  While the machine is stopped, the instructions it runs next follow the
-//  last entry, with no entry number, cycles or registers.
+//  While the machine is stopped with tracing on, the instructions it runs
+//  next follow the last entry, with no entry number, cycles or registers;
+//  the first, the PC's, has the PC's marker and row color.
 //
 //  The window owns the list as a child control; the pane holds a pointer to
 //  it.
@@ -62,6 +63,7 @@ public:
 
     void  ToggleBytes    ();
     void  SetColors      (const DebuggerTextColors::Set & colors) { m_colors = colors; }
+    void  SetPcStyle     (std::shared_ptr<const DxuiIconImage> marker, uint32_t rowArgb) { m_pcMarker = std::move (marker); m_pcRowArgb = rowArgb; }
     void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
 
     //  A row's address, bytes, label and instruction in the disassembly's
@@ -86,13 +88,15 @@ private:
     //  short scroll back does not ask again.
     static constexpr uint64_t  kLeadRows = 16;
 
-    DxuiListView             * m_list      = nullptr;
-    MoveFn                     m_move;
-    uint64_t                   m_first     = 0;
-    uint64_t                   m_total     = 0;
-    std::vector<TraceRecord>   m_entries;
-    std::vector<TraceRecord>   m_next;
-    bool                       m_showBytes = true;
-    std::optional<uint64_t>    m_requested = kFollowEnd;
-    DebuggerTextColors::Set    m_colors;
+    DxuiListView                          * m_list      = nullptr;
+    MoveFn                                  m_move;
+    uint64_t                                m_first     = 0;
+    uint64_t                                m_total     = 0;
+    std::vector<TraceRecord>                m_entries;
+    std::vector<TraceRecord>                m_next;
+    bool                                    m_showBytes = true;
+    std::optional<uint64_t>                 m_requested = kFollowEnd;
+    DebuggerTextColors::Set                 m_colors;
+    std::shared_ptr<const DxuiIconImage>    m_pcMarker;
+    uint32_t                                m_pcRowArgb = 0;
 };

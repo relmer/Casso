@@ -5,6 +5,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Disassembler.h"
 
 
@@ -37,7 +38,8 @@ bool TraceHandlers::TryExecute (DebugSession & session, const DebugCommand & com
 //  TraceHandlers::Describe
 //
 //  The instruction comes from the bytes the entry recorded, not from memory
-//  now, which may have changed since the instruction ran.
+//  now, which may have changed since the instruction ran. Its operand has
+//  the symbol for the address it accesses, as the disassembly's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +49,7 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
     const Microcode          * instructionSet    = session.GetTarget().GetInstructionSet();
     bool                       hasInstructionSet = instructionSet != nullptr;
     Disassembler               disassembler      (instructionSet);
-    DisassembledInstruction    instruction;
+    DisassemblyLine            line;
     SymbolTableId              table             = SymbolTableId::Main;
     HRESULT                    hr                = S_OK;
 
@@ -61,12 +63,19 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 
         if (hasInstructionSet)
         {
-            hr = disassembler.DisassembleOne (record.pc, bytes, instruction);
+            line = DisassemblyLine();
+
+            hr = disassembler.DisassembleOne (record.pc, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            record.instruction = instruction.operand.empty() ? instruction.mnemonic
-                                                             : instruction.mnemonic + " " + instruction.operand;
-            record.length      = (Byte) instruction.bytes.size();
+            if (line.instruction.hasOperandAddress)
+            {
+                DataDirectiveHandlers::ChooseOperandSymbol (session, line);
+            }
+
+            record.instruction = line.instruction.operand.empty() ? line.instruction.mnemonic
+                                                                  : line.instruction.mnemonic + " " + line.GetShownOperand();
+            record.length      = (Byte) line.instruction.bytes.size();
         }
 
         record.symbol.clear();

@@ -7499,6 +7499,7 @@ void DebuggerWindow::ApplySnapshot()
     }
 
     m_tracePane->SetColors  (GetTextColors());
+    m_tracePane->SetPcStyle (GetPcIcon (nullptr), GetPcRowArgb());
     m_tracePane->Apply      (m_snapshot->trace);
 
     ApplyHeatMap();

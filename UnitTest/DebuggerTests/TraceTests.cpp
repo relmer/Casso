@@ -307,7 +307,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Trace on, 4 entries retained."), lines[0]);
             Assert::IsTrue   (lines[1].find ("0300  A9 05     START") != std::string::npos, Widen (lines[1]).c_str());
             Assert::IsTrue   (lines[1].find ("LDA #$05")   != std::string::npos,     Widen (lines[1]).c_str());
-            Assert::IsTrue   (lines[2].find ("STA $0400")  != std::string::npos,     Widen (lines[2]).c_str());
+            Assert::IsTrue   (lines[2].find ("STA SCREEN") != std::string::npos,     Widen (lines[2]).c_str());
             Assert::IsTrue   (lines[2].find ("W 0400=05 SCREEN") != std::string::npos, Widen (lines[2]).c_str());
 
             lines = rig.RunOk ("HISTORY").text;
