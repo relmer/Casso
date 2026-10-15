@@ -2024,6 +2024,11 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         }
     }
 
+    if (m_refs.cassettePort != nullptr)
+    {
+        providers.push_back (&m_cassetteDiagnostics);
+    }
+
     return providers;
 }
 

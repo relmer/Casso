@@ -15,6 +15,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Devices/Tape/TapeDeck.h"
+#include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/HostInputGate.h"
 #include "Shell/MachineRefs.h"
@@ -504,6 +505,7 @@ private:
     // machine's, so it outlives every rebuild; each new cassette port is
     // connected to it.
     std::unique_ptr<TapeDeck>        m_tapeDeck;
+    CassetteDiagnostics              m_cassetteDiagnostics { *this };
     std::atomic<uint32_t>            m_tapeResetCount { 0 };
 
     std::wstring  m_currentMachineName;

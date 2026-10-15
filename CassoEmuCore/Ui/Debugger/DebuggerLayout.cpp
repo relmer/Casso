@@ -18,6 +18,7 @@ static constexpr DebuggerLayout::DiagnosticsPanel  s_kDiagnosticsPanels[] =
     { "disk",         L"Disk II"      },
     { "mockingboard", L"Mockingboard" },
     { "printer",      L"Printer"      },
+    { "cassette",     L"Cassette"     },
 };
 
 static constexpr const wchar_t * s_kpszDiagnosticsPrefix = L"diag-";

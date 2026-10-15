@@ -53,6 +53,9 @@ public:
     Byte  ReadInputOverFloatingBus ();
     bool  GetOutputLevel           () const { return m_outputLevel; }
 
+    //  The output's toggles since power-up, for the Cassette panel.
+    uint64_t  GetToggleCount       () const { return m_toggleCount; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Word  kFirstOutputAddress = 0xC020;
@@ -68,4 +71,5 @@ private:
     const uint64_t   * m_cycleSource = nullptr;
     ITapeDeckPort    * m_deck        = nullptr;
     bool               m_outputLevel = false;
+    uint64_t           m_toggleCount = 0;
 };

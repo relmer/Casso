@@ -71,6 +71,7 @@ void CassettePort::Write (Word address, Byte value)
 void CassettePort::Reset()
 {
     m_outputLevel = false;
+    m_toggleCount = 0;
 }
 
 
@@ -102,6 +103,7 @@ void CassettePort::SoftReset()
 void CassettePort::ToggleOutput()
 {
     m_outputLevel = !m_outputLevel;
+    m_toggleCount++;
 
     if (m_deck != nullptr)
     {

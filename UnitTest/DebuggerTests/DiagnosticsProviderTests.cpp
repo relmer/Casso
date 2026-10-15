@@ -3,6 +3,7 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "EmuTests/TestMachine.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Core/TextEncoding.h"
@@ -496,6 +497,64 @@ namespace DebuggerTests
 
             Assert::IsFalse (Contains (plusIds, "mmu"),          L"a ][+ has no MMU");
             Assert::IsFalse (Contains (plusIds, "mockingboard"), L"nor a card in an empty slot");
+            Assert::IsTrue  (Contains (iieIds,  "cassette"),     L"the //e has cassette jacks");
+            Assert::IsTrue  (Contains (plusIds, "cassette"),     L"and the ][+");
+        }
+
+
+        //  The //c has no cassette port, so no Cassette panel.
+        TEST_METHOD (TheIIcHasNoCassettePanel)
+        {
+            TestMachine  iic ("Apple2c", TestMachine::Slots::AsShipped);
+
+
+
+            Assert::IsFalse (Contains (GetIds (iic), "cassette"));
+        }
+
+
+        //  The Cassette panel with no tape, then after the guest toggles the
+        //  output twice: the transport, the output's level and the toggles.
+        TEST_METHOD (TheCassettePanelShowsTheTransportAndTheOutput)
+        {
+            TestMachine                   machine  ("Apple2e", TestMachine::Slots::Empty);
+            const IDiagnosticsProvider  * cassette = nullptr;
+            DiagnosticsSnapshot           before;
+            DiagnosticsSnapshot           after;
+
+
+
+            machine.PowerCycle();
+
+            for (const IDiagnosticsProvider * provider : machine.GetDiagnosticsProviders())
+            {
+                cassette = (provider->GetDiagnosticsId() == "cassette") ? provider : cassette;
+            }
+
+            if (cassette == nullptr)
+            {
+                Assert::Fail (L"the //e lists a Cassette panel");
+                return;
+            }
+
+            before = Snapshot (*cassette);
+            (void) machine.GetMemoryBus().ReadByte (0xC020);
+            (void) machine.GetMemoryBus().ReadByte (0xC020);
+            after  = Snapshot (*cassette);
+
+            Assert::AreEqual (std::string ("No tape"), FindRow (before, "Transport").value);
+            Assert::AreEqual (std::string ("none"),    FindRow (before, "Last access").value);
+            Assert::AreEqual (std::string ("0"),       FindRow (before, "Output toggles").value);
+            Assert::AreEqual (std::string ("2"),       FindRow (after,  "Output toggles").value);
+            Assert::AreEqual (std::string ("off"),     FindRow (after,  "Output level").value, L"two toggles, back where it began");
+        }
+
+
+        TEST_METHOD (CassetteSecondsAreMinutesSecondsAndTenths)
+        {
+            Assert::AreEqual (std::string ("0:00.0"), CassetteDiagnostics::FormatSeconds (0.0));
+            Assert::AreEqual (std::string ("2:05.3"), CassetteDiagnostics::FormatSeconds (125.25));
+            Assert::AreEqual (std::string ("0:59.9"), CassetteDiagnostics::FormatSeconds (59.94));
         }
     };
 }

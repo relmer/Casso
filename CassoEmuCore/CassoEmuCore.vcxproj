@@ -143,6 +143,7 @@
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
     <ClCompile Include="Devices\Tape\MfTapeAudioDecoder.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\CassetteDiagnostics.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CassettePort.cpp" />
     <ClCompile Include="Devices\Tape\TapeDeck.cpp" />
     <ClCompile Include="Devices\Tape\WavCodec.cpp" />
@@ -694,6 +695,7 @@
     <ClInclude Include="Ui\Chrome\TapeDeckWidget.h" />
     <ClInclude Include="Shell\TapeManager.h" />
     <ClInclude Include="Devices\Tape\MfTapeAudioDecoder.h" />
+    <ClInclude Include="Machines\Apple2\Common\CassetteDiagnostics.h" />
     <ClInclude Include="Machines\Apple2\Common\CassettePort.h" />
     <ClInclude Include="Devices\Tape\ITapeDeckPort.h" />
     <ClInclude Include="Devices\Tape\TapeDeck.h" />
