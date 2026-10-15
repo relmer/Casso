@@ -72,6 +72,8 @@ private:
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list);
+    static bool  TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes);
     static void  SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear          (DebugSession & session, const DebugCommand & command, Reply & reply);

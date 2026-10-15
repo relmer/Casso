@@ -169,7 +169,7 @@ void BreakpointDialog::ShowFieldsForType()
     {
     case Type::Value:    m_valueLabel.SetText (L"Value (hex byte)");       break;
     case Type::Register: m_valueLabel.SetText (L"Register test (A=41)");  break;
-    case Type::Opcode:   m_valueLabel.SetText (L"Opcode (hex)");          break;
+    case Type::Opcode:   m_valueLabel.SetText (L"Opcode or mnemonic");    break;
     default:             m_valueLabel.SetText (L"Value (unused)");        break;
     }
 }

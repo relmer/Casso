@@ -595,7 +595,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         return TryParseRegisterCondition (args.tokens, command, error);
 
     case DebugVerb::BreakOnOpcode:
-        return TryParseValues (args.tokens, 0, ValueWidth::Bytes, *args.context, command, error);
+        return TryParseOpcodes (args, command, error);
 
     case DebugVerb::ClearBreakpoint:
     case DebugVerb::DisableBreakpoint:
@@ -680,6 +680,71 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
 
     hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseOpcodes
+//
+//  BRKOP [opcode | mnemonic]...: each opcode a byte, into values, and each
+//  mnemonic, upper case, into text separated by spaces, for the handler to
+//  find the opcodes of on the machine's CPU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseOpcodes (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    Tokens  bytes;
+
+
+
+    command.text.clear();
+
+    for (const std::string & token : args.tokens)
+    {
+        if (!IsMnemonicToken (token))
+        {
+            bytes.push_back (token);
+            continue;
+        }
+
+        command.text += (command.text.empty() ? "" : " ") + ToUpper (token);
+    }
+
+    return TryParseValues (bytes, 0, ValueWidth::Bytes, *args.context, command, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::IsMnemonicToken
+//
+//  Three letters, or three and a digit as the 65C02's RMB0 and BBS7 are: no
+//  byte is written that way, since a byte takes at most two hex digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsMnemonicToken (const std::string & token)
+{
+    constexpr size_t  kLetters = 3;
+    bool              isWord   = token.size() == kLetters || token.size() == kLetters + 1;
+    size_t            i        = 0;
+
+
+
+    for (i = 0; isWord && i < kLetters; i++)
+    {
+        isWord = std::isalpha ((unsigned char) token[i]) != 0;
+    }
+
+    return isWord && (token.size() == kLetters || std::isdigit ((unsigned char) token[kLetters]) != 0);
 }
 
 

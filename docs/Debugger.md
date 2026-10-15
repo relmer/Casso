@@ -368,7 +368,9 @@ other write.
 
 ## Breaking on opcodes
 
-`BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode. `BRK 1
+`BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode: a byte,
+or a mnemonic for every opcode of it on the machine's CPU (`BRKOP JSR` is
+`$20`; `BRKOP LDA` is each `LDA`). `BRKOP 00` and `BRKOP BRK` are `BRK ON`. `BRK 1
 ON`, `BRK 2 ON` and `BRK 3 ON` add an opcode breakpoint for each undocumented
 opcode of that instruction length on the machine's CPU, `BRK ALL ON` adds all
 of them plus `BRK`, and `BRK` alone reports which lengths are on. The length is

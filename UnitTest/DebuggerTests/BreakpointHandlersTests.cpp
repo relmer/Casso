@@ -220,6 +220,57 @@ namespace DebuggerTests
 
 
 
+        //  A mnemonic sets every opcode of it on this CPU: JSR one, LDA the
+        //  6502's eight. A byte sets its opcode, an opcode set twice is one
+        //  entry, and a word that is no instruction adds nothing.
+        TEST_METHOD (BRKOP_TakesMnemonics)
+        {
+            TestCpu                   cpu;
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+
+            lines = rig.RunOk ("BRKOP JSR").text;
+            Assert::AreEqual ((size_t) 1, lines.size());
+            Assert::IsTrue   (lines.at (0).ends_with ("on opcode $20, hits 0"));
+
+            lines = rig.RunOk ("BRKOP lda").text;
+            Assert::AreEqual ((size_t) 8, lines.size(), L"immediate, zero page, zero page X, absolute, absolute X and Y, and both indirect");
+
+            lines = rig.RunOk ("BRKOP 20 EA").text;
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual ((size_t) 10, List (rig).size(), L"$20 was already set, so ten entries in all");
+
+            rig.RunFails ("BRKOP FOO", "unknown mnemonic");
+            Assert::AreEqual ((size_t) 10, List (rig).size());
+        }
+
+
+        //  BRKOP 00, or BRKOP BRK, is the BRK breakpoint, so it and BRK ON are
+        //  one entry.
+        TEST_METHOD (BRKOP_OnTheBrkOpcodeIsTheBrkBreakpoint)
+        {
+            TestCpu  cpu;
+            Rig      rig;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+
+            Assert::IsTrue   (rig.RunOk ("BRKOP 00").text.at (0).ends_with ("on BRK, hits 0"));
+            Assert::IsTrue   (rig.RunOk ("BRKOP BRK").text.at (0).ends_with ("on BRK, hits 0"));
+            rig.RunOk ("BRK ON");
+
+            Assert::AreEqual ((size_t) 1, List (rig).size(), L"one entry that stops on BRK");
+            Assert::AreEqual (std::string ("No opcode breakpoints."), rig.RunOk ("BRKOP").text.at (0));
+        }
+
+
         //  BRKOP alone lists only the opcode entries, so with none it says
         //  that rather than that there are no breakpoints at all.
         TEST_METHOD (BRKOP_AloneWithNoOpcodeEntriesSaysSo)

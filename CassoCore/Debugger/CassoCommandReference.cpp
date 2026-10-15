@@ -67,7 +67,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BPX",         H::Breakpoints,        "BPX addr[,len|:last]|file:line [IF expr]",       "Set an execution breakpoint, as BP does"                                                 },
     { "BRK",         H::Breakpoints,        "BRK [0|1|2|3|ALL] [ON|OFF]",                     "Stop on BRK, or on invalid opcodes of a length"                                          },
     { "BRKINT",      H::Breakpoints,        "BRKINT [ON|OFF]",                                "Stop on an interrupt"                                                                    },
-    { "BRKOP",       H::Breakpoints,        "BRKOP [opcode ...]",                             "Stop on an opcode, or list the opcode breakpoints"                                       },
+    { "BRKOP",       H::Breakpoints,        "BRKOP [opcode | mnemonic ...]",                  "Stop on an opcode or every opcode of a mnemonic, or list them"                           },
     { "BRKUNINIT",   H::Breakpoints,        "BRKUNINIT [ON|OFF]",                             "Stop on a read of RAM nothing has written since power-on"                                },
 
     { "CALLS",       H::RegistersAndFlags,  "CALLS [MODE [RECORDED|WALK|HYBRID]]",            "Show the call stack, or choose how it is found"                                          },

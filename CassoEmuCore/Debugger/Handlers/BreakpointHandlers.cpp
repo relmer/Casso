@@ -864,27 +864,44 @@ void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
 //
 //  BreakpointHandlers::SetOpcode
 //
-//  BRKOP with opcodes adds an entry for each; alone, it lists the opcode
-//  entries, or reports that there are none.
+//  BRKOP with opcodes, or mnemonics, adds an entry for each opcode, every
+//  opcode of a mnemonic on this CPU; alone, it lists the opcode entries, or
+//  reports that there are none. An unknown mnemonic adds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    BreakpointListData  list;
-    Breakpoint          entry;
+    BreakpointListData        list;
+    std::istringstream        mnemonics (command.text);
+    std::string               mnemonic;
+    std::vector<Byte>         opcodes   = command.values;
+    std::vector<Byte>         found;
 
 
 
-    for (Byte opcode : command.values)
+    while (mnemonics >> mnemonic)
     {
-        session.GetBreakpoints().TryFind (session.GetBreakpoints().AddOpcode (opcode), entry);
-        list.breakpoints.push_back (MakeInfo (entry));
+        if (!TryFindOpcodes (session, mnemonic, found))
+        {
+            reply.SetError (CommandStatus::Error, "unknown mnemonic", std::format ("{} is no instruction of this CPU.", mnemonic));
+            return;
+        }
+
+        opcodes.insert (opcodes.end(), found.begin(), found.end());
+    }
+
+    std::ranges::sort (opcodes);
+    opcodes.erase (std::ranges::unique (opcodes).begin(), opcodes.end());
+
+    for (Byte opcode : opcodes)
+    {
+        AddOpcodeEntry (session, opcode, list);
     }
 
     session.OnStopConditionsChanged();
 
-    if (command.values.empty())
+    if (opcodes.empty())
     {
         for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
         {
@@ -902,6 +919,81 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
     }
 
     reply.data = list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::AddOpcodeEntry
+//
+//  An opcode's entry, added unless one is there; the BRK opcode is the BRK
+//  breakpoint, so BRKOP 00 and BRK ON make the same one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list)
+{
+    BreakpointTable  & table = session.GetBreakpoints();
+    Breakpoint         entry;
+    int                id    = -1;
+
+
+
+    for (const Breakpoint & existing : table.GetAll())
+    {
+        bool  isSame = (opcode == kBrkOpcode) ? existing.kind == BreakpointKind::Brk
+                                              : existing.kind == BreakpointKind::Opcode && existing.opcode == opcode;
+
+        id = (isSame && id < 0) ? existing.id : id;
+    }
+
+    if (id < 0)
+    {
+        id = (opcode == kBrkOpcode) ? table.AddBrk() : table.AddOpcode (opcode);
+    }
+
+    if (table.TryFind (id, entry))
+    {
+        list.breakpoints.push_back (MakeInfo (entry));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryFindOpcodes
+//
+//  Every opcode whose instruction is the mnemonic on the target's CPU,
+//  ignoring case; false when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes)
+{
+    const Microcode  * instructionSet = session.GetTarget().GetInstructionSet();
+    int                opcode         = 0;
+
+
+
+    opcodes.clear();
+
+    for (opcode = 0; instructionSet != nullptr && opcode < kOpcodeCount; opcode++)
+    {
+        const char  * name = instructionSet[opcode].instructionName;
+
+        if (name != nullptr && _stricmp (name, mnemonic.c_str()) == 0)
+        {
+            opcodes.push_back ((Byte) opcode);
+        }
+    }
+
+    return !opcodes.empty();
 }
 
 

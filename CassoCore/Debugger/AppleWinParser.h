@@ -98,6 +98,8 @@ private:
     static bool    TryParseFlagArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
     static bool    TryParseValueBreakpoint   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseOpcodes           (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    IsMnemonicToken           (const std::string & token);
     static bool    TryParseBeamArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseFrameArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
