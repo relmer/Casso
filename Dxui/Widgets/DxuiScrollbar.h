@@ -127,6 +127,10 @@ public:
     //  client pixels. Returns whether the point was on the bar.
     bool     ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx);
 
+    //  Opens a menu BuildContextMenu built over the window at atPx, and
+    //  repaints the window when it closes. False for an empty menu.
+    static bool  ShowMenu (HWND hwnd, POINT atPx, std::vector<DxuiPopupMenuItem> items);
+
 private:
     int    GetContentExtent() const;     // nMax - nMin
     int    GetMainTrackStart() const;    // along the scroll axis

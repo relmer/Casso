@@ -8,6 +8,8 @@
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
+static constexpr UINT_PTR  s_kMenuTimerId     = 2;      // advances a dialog's context menu
+static constexpr UINT      s_kMenuTickMs      = 16;
 
 
 
@@ -1093,6 +1095,24 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
         result = DxuiMessageResult::Handled;
     }
 
+    //  A dialog's context menu slides open, and opens its submenus, on these
+    //  ticks while it is up; the dialog's own tick is far too slow for that.
+    if (timerId == s_kMenuTimerId && m_source != nullptr)
+    {
+        DxuiPopupMenu  & menu = m_source->GetContextMenu();
+
+        menu.Tick ((int64_t) GetTickCount64());
+
+        if (!menu.IsVisible() && !menu.WantsTick())
+        {
+            HRESULT  hr = m_source->KillTimer (s_kMenuTimerId);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        result = DxuiMessageResult::Handled;
+    }
+
     return result;
 }
 
@@ -1241,7 +1261,13 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             Invalidate();
         }
 
-        if (OnMouse (ev))
+        //  A right-press on a scrollbar opens the bar's own menu, as Windows'
+        //  bars do, before the control or the window has the press.
+        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
+        {
+            result = DxuiMessageResult::Handled;
+        }
+        else if (OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every
@@ -1251,9 +1277,53 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             result = DxuiMessageResult::Handled;
             Invalidate();
         }
+
+        //  A context menu open in a dialog is ticked from here; otherwise only
+        //  an application window ticks one.
+        if (m_dialogActive && m_source != nullptr && m_source->GetContextMenu().IsVisible())
+        {
+            HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowScrollbarMenuIn
+//
+//  The control itself first, then the visible child under the point, down
+//  to the control whose bar it is on. A container that clips its children
+//  there, as a scrolled page does, is not searched below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx)
+{
+    bool    shown = control.ShowScrollbarMenu (hwnd, clientPx);
+    size_t  count = control.GetChildCount();
+
+
+
+    for (size_t i = 0; !shown && !control.IsPointClipped (clientPx) && i < count; i++)
+    {
+        IDxuiControl  * child = control.GetChild (i);
+        RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
+
+        if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
+        {
+            shown = ShowScrollbarMenuIn (*child, hwnd, clientPx);
+        }
+    }
+
+    return shown;
 }
 
 

@@ -143,6 +143,11 @@ public:
     //  The point is in client pixels, as the control's mouse events are.
     virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
 
+    //  Opens Windows' scrollbar menu over the window when the point, in
+    //  client pixels, is on one of the control's scrollbars. Returns whether
+    //  it was.
+    virtual bool  ShowScrollbarMenu (HWND hwnd, POINT clientPx)                { (void) hwnd; (void) clientPx; return false; }
+
     // True when this container hides its children at a client point, as a
     // scrolled page does past its viewport. A press there must not reach or
     // focus a child that is laid out under it but not drawn.

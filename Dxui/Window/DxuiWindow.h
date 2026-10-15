@@ -378,6 +378,8 @@ private:
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
 
+    static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
+
     //
     //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
     //  focus, seed initial focus), route a key to the focused control,

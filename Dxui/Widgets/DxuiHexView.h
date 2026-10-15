@@ -253,6 +253,7 @@ public:
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
+    bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
     bool  OnKey   (const DxuiKeyEvent   & ev) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 

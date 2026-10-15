@@ -663,17 +663,39 @@ std::vector<DxuiPopupMenuItem> DxuiScrollbar::BuildContextMenu (int xPx, int yPx
 
 bool DxuiScrollbar::ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx)
 {
+    bool  onBar = GetMetrics().visible && HitTest (xPx, yPx);
+
+
+
+    return onBar && ShowMenu (hwnd, atPx, BuildContextMenu (xPx, yPx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::ShowMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::ShowMenu (HWND hwnd, POINT atPx, std::vector<DxuiPopupMenuItem> items)
+{
     DxuiHwndSource  * host  = DxuiHwndSource::FromHwnd (hwnd);
-    bool              onBar = GetMetrics().visible && HitTest (xPx, yPx);
+    bool              shown = host != nullptr && !items.empty();
 
 
 
-    if (onBar && host != nullptr)
+    if (shown)
     {
-        DxuiContextMenu::Show (*host, atPx.x, atPx.y, BuildContextMenu (xPx, yPx));
+        DxuiContextMenu::Show (*host, atPx.x, atPx.y, std::move (items), [hwnd] (bool)
+        {
+            InvalidateRect (hwnd, nullptr, FALSE);
+        });
     }
 
-    return onBar;
+    return shown;
 }
 
 

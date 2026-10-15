@@ -194,6 +194,7 @@ protected:
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  ShowScrollbarMenu (HWND hwnd, POINT pt) override { return m_scrollable && m_scrollbar.ShowContextMenu (hwnd, pt.x, pt.y, pt); }
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     void  OnCreate () override;
     bool  OnDialogTabSwitch (bool backward) override;
