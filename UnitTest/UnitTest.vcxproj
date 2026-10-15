@@ -649,6 +649,10 @@
     <ClCompile Include="NetworkTests\VirtualNetworkTests.cpp" />
     <ClCompile Include="NetworkTests\PortForwarderTests.cpp" />
     <ClCompile Include="EmuTests\UthernetGuestTests.cpp" />
+    <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
+    <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
+    <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
+    <ClCompile Include="UiTests\NetworkPageTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />

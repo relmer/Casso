@@ -55,7 +55,7 @@ description: "Task list for the Uthernet II Ethernet card"
 
 - [X] T012 [P] [US1] Write `UthernetCard` tests: decode of `$C0n4`-`$C0n7` only, empty-slot behavior at `$C0n0`-`$C0n3`, manual probe and RTR probe (SC-001), IRQ asserted while `IR & IMR` and released when cleared, Ctrl-Reset does not alter registers, and the card re-asserts a pending IRQ on the next tick, power cycle resets the pointer to 0, pump not called while idle, in UnitTest/EmuTests/UthernetCardTests.cpp
 - [X] T013 [P] [US1] Write registry and machine-definition tests: `"uthernet2"` registered; the ][, ][+, //e and //e Enhanced definitions contain the disabled slot-3 entry; the //c definition does not, in UnitTest/EmuTests/MachineConfigTests.cpp and UnitTest/EmuTests/BackwardsCompatTests.cpp
-- [ ] T014 [P] [US1] Write settings state tests for enabling the card on a machine whose user `slots` array has no `uthernet2` entry: the entry is added at slot 3, or the lowest free slot when 3 is taken; no entry when all seven are taken; not offered without a `slots` key, in UnitTest/UiTests/NetworkSettingsTests.cpp
+- [X] T014 [P] [US1] Write settings state tests for enabling the card on a machine whose user `slots` array has no `uthernet2` entry: the entry is added at slot 3, or the lowest free slot when 3 is taken; no entry when all seven are taken; not offered without a `slots` key, in UnitTest/UiTests/NetworkSettingsTests.cpp
 
 ### Implementation for User Story 1
 
@@ -64,9 +64,9 @@ description: "Task list for the Uthernet II Ethernet card"
 - [X] T017 [US1] Add `uthernet` to CassoEmuCore/Shell/MachineRefs.h; in CassoEmuCore/Shell/MachineBuilder.cpp cache the card, attach the interrupt controller and pass `services.hostNetwork` (new `IHostNetwork *` in `MachineBuildServices`, CassoEmuCore/Shell/MachineBuilder.h); tick the card in `MachineHost::StepOne` in CassoEmuCore/Shell/MachineHost.cpp
 - [X] T018 [US1] Own a `Win32HostNetwork` in the shell and bind it into `MachineBuildServices` where the other services are bound (CassoEmuCore/Shell/EmulatorShell.cpp or its components)
 - [X] T019 [US1] Add `{ "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }` and the next version stamp to Resources/Machines/Apple2/Apple2.json, Apple2Plus/Apple2Plus.json, Apple2e/Apple2e.json and Apple2eEnhanced/Apple2eEnhanced.json; add each one's previous normalized SHA-256 to the prior-hash table in CassoEmuCore/AssetBootstrap.cpp
-- [ ] T020 [US1] Add the card's slot entry, when absent, on enable in `SettingsPanelState` (slot 3 or the lowest free slot) in CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp
+- [X] T020 [US1] Add the card's slot entry, when absent, on enable in `SettingsPanelState` (slot 3 or the lowest free slot) in CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp
 - [X] T021 [US1] Add an optional config/services customization hook to `TestMachine` (constructor overload taking `std::function<void (MachineConfig &, MachineBuildServices &)>`) in UnitTest/EmuTests/TestMachine.h/.cpp
-- [ ] T022 [US1] Add `SetHardwareSlot (index, slot)` with free-slot validation (slots 1-7, not occupied by another enabled entry) to CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp, with tests in UnitTest/UiTests/NetworkSettingsTests.cpp
+- [X] T022 [US1] Add `SetHardwareSlot (index, slot)` with free-slot validation (slots 1-7, not occupied by another enabled entry) to CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp, with tests in UnitTest/UiTests/NetworkSettingsTests.cpp
 
 **Checkpoint**: The probe finds the card in a //e `TestMachine`; old user configs gain a disabled entry.
 
@@ -132,19 +132,19 @@ description: "Task list for the Uthernet II Ethernet card"
 
 ### Tests for User Story 4
 
-- [ ] T043 [P] [US4] Write `MacAddress` tests: parse colon and hyphen forms, fail on wrong length, non-hex and multicast addresses, format, `MakeRandomLocal` sets the locally administered bit and clears the multicast bit, in UnitTest/NetworkTests/MacAddressTests.cpp
-- [ ] T044 [P] [US4] Write `NetworkCardSettings` tests: JSON read with all keys, missing keys default (no MAC, `lanAccess` false, no forwards), invalid MAC/protocol/port replaced by defaults with a warning, duplicate (protocol, hostPort) invalid, write round trip per contracts/machine-config.md, in UnitTest/NetworkTests/NetworkCardSettingsTests.cpp
-- [ ] T045 [P] [US4] Write settings state tests: enabling the card without a MAC generates one; MAC edit with invalid text produces the fixed-format error and the old value remains; LAN access and forward add/remove mark the state dirty and require a reset; Apply writes the `network` object on the slot entry; Cancel restores, in UnitTest/UiTests/NetworkSettingsTests.cpp
+- [X] T043 [P] [US4] Write `MacAddress` tests: parse colon and hyphen forms, fail on wrong length, non-hex and multicast addresses, format, `MakeRandomLocal` sets the locally administered bit and clears the multicast bit, in UnitTest/NetworkTests/MacAddressTests.cpp
+- [X] T044 [P] [US4] Write `NetworkCardSettings` tests: JSON read with all keys, missing keys default (no MAC, `lanAccess` false, no forwards), invalid MAC/protocol/port replaced by defaults with a warning, duplicate (protocol, hostPort) invalid, write round trip per contracts/machine-config.md, in UnitTest/NetworkTests/NetworkCardSettingsTests.cpp
+- [X] T045 [P] [US4] Write settings state tests: enabling the card without a MAC generates one; MAC edit with invalid text produces the fixed-format error and the old value remains; LAN access and forward add/remove mark the state dirty and require a reset; Apply writes the `network` object on the slot entry; Cancel restores, in UnitTest/UiTests/NetworkSettingsTests.cpp
 
 ### Implementation for User Story 4
 
-- [ ] T046 [P] [US4] Implement `MacAddress` in CassoEmuCore/Config/MacAddress.h/.cpp
-- [ ] T047 [US4] Implement `NetworkCardSettings` and `PortForward` (JSON read/write, validation) in CassoEmuCore/Config/NetworkCardSettings.h/.cpp
-- [ ] T048 [US4] Add `NetworkCardSettings network` to `SlotConfig` and parse it in the loader in CassoEmuCore/Core/MachineConfig.h/.cpp; pass it to the card in CassoEmuCore/Shell/MachineBuilder.cpp (LAN access to bridge and NAT, forwards to `PortForwarder`)
-- [ ] T049 [US4] Report port-forward bind failures at machine start through the shell's infobar path (FR-027b) from CassoEmuCore/Shell/MachineBuilder.cpp and the shell component that displays build warnings
-- [ ] T050 [US4] Add card settings to the `SettingsPanelState` snapshot with `SetNetworkCardMac`, `SetNetworkLanAccess`, `AddPortForward`, `RemovePortForward`, MAC generation on enable, and `BuildJson` output, in CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp
-- [ ] T051 [US4] Implement `NetworkPage` (enable toggle, slot combo of free slots, MAC text input with error label, "Allow connections from other computers" checkbox, port forward list view with protocol combo, host and guest port inputs, Add and Remove buttons; sentence case) in CassoEmuCore/Ui/Settings/NetworkPage.h/.cpp
-- [ ] T052 [US4] Register the Network page in the settings sheet, present for machines with slots, in CassoEmuCore/Ui/Settings/SettingsSheet.h/.cpp
+- [X] T046 [P] [US4] Implement `MacAddress` in CassoEmuCore/Config/MacAddress.h/.cpp
+- [X] T047 [US4] Implement `NetworkCardSettings` and `PortForward` (JSON read/write, validation) in CassoEmuCore/Config/NetworkCardSettings.h/.cpp
+- [X] T048 [US4] Add `NetworkCardSettings network` to `SlotConfig` and parse it in the loader in CassoEmuCore/Core/MachineConfig.h/.cpp; pass it to the card in CassoEmuCore/Shell/MachineBuilder.cpp (LAN access to bridge and NAT, forwards to `PortForwarder`)
+- [X] T049 [US4] Report port-forward bind failures at machine start through the shell's infobar path (FR-027b) from CassoEmuCore/Shell/MachineBuilder.cpp and the shell component that displays build warnings
+- [X] T050 [US4] Add card settings to the `SettingsPanelState` snapshot with `SetNetworkCardMac`, `SetNetworkLanAccess`, `AddPortForward`, `RemovePortForward`, MAC generation on enable, and `BuildJson` output, in CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp
+- [X] T051 [US4] Implement `NetworkPage` (enable toggle, slot combo of free slots, MAC text input with error label, "Allow connections from other computers" checkbox, port forward list view with protocol combo, host and guest port inputs, Add and Remove buttons; sentence case) in CassoEmuCore/Ui/Settings/NetworkPage.h/.cpp
+- [X] T052 [US4] Register the Network page in the settings sheet, present for machines with slots, in CassoEmuCore/Ui/Settings/SettingsSheet.h/.cpp
 
 **Checkpoint**: Settings round-trip through the user config and are passed to the card at the next build.
 

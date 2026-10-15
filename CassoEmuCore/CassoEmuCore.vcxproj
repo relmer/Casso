@@ -534,6 +534,7 @@
     <ClCompile Include="Devices\Network\VirtualNetwork.cpp" />
     <ClCompile Include="Devices\Network\W5100SocketBridge.cpp" />
     <ClCompile Include="Machines\Apple2\Common\UthernetCard.cpp" />
+    <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -963,6 +964,7 @@
     <ClInclude Include="Devices\Network\VirtualNetwork.h" />
     <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
+    <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

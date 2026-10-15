@@ -614,7 +614,9 @@ bool SettingsPanelState::RequiresReset() const
 
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled
+               || m_original.hardware[i].slot    != m_current.hardware[i].slot
+               || !(m_original.hardware[i].network == m_current.hardware[i].network);
     }
 
     return changed;
@@ -1583,6 +1585,13 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     outInfo.supportsGamePortAdapter = MachineDefinitions::Find (machineId) != nullptr &&
                                       MachineDefinitions::Find (machineId)->hasAnnunciators;
 
+    // A card can be added only where the document has a slot list.
+    {
+        const JsonValue  * slotList = nullptr;
+
+        outInfo.supportsSlots = mergedJson.HasArray ("slots", slotList);
+    }
+
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
@@ -1749,6 +1758,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "smartport",               "SmartPort" },
         { "mockingboard",            "Mockingboard A (sound)" },
         { "mockingboard-c",          "Mockingboard C (sound + speech)" },
+        { kpszNetworkCardDevice,     kpszNetworkCardName },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
         { "parallel",                "Parallel printer" },
@@ -1876,6 +1886,18 @@ HRESULT SettingsPanelState::ExtractHardware (
                                             ? port.GetString()
                                             : GetStringOpt (port, kpszPortDeviceKey, ""));
                     }
+                }
+            }
+
+            if (dev == kpszNetworkCardDevice)
+            {
+                const JsonValue           * network = nullptr;
+                std::vector<std::string>    ignored;
+
+                if (entry.HasObject (NetworkCardSettings::kpszJsonKey, network))
+                {
+                    HRESULT  hrNetwork = NetworkCardSettings::FromJson (*network, hw.network, ignored);
+                    IGNORE_RETURN_VALUE (hrNetwork, S_OK);
                 }
             }
 
@@ -2019,6 +2041,8 @@ JsonValue SettingsPanelState::BuildJson (
                 const JsonValue                                 & src         = slotSrc->GetArrayElement (i);
                 const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              enabledFlag = false;
+                bool                                              hadNetwork  = false;
+                const JsonValue                                 * network     = nullptr;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
                 size_t                                            j           = 0;
                 if (src.GetType() != JsonType::Object)
@@ -2028,6 +2052,7 @@ JsonValue SettingsPanelState::BuildJson (
                 }
 
                 enabledFlag = true;
+                hadNetwork  = src.HasObject (NetworkCardSettings::kpszJsonKey, network);
 
                 {
                     const HardwareEntry *  staged = nullptr;
@@ -2050,6 +2075,18 @@ JsonValue SettingsPanelState::BuildJson (
                             continue;
                         }
 
+                        // The slot number is staged; a moved card writes its new one.
+                        if (srcEntry.first == "slot" && staged != nullptr)
+                        {
+                            rebuilt.emplace_back ("slot", JsonValue ((double) staged->slot));
+                            continue;
+                        }
+
+                        if (srcEntry.first == NetworkCardSettings::kpszJsonKey && staged != nullptr)
+                        {
+                            continue;
+                        }
+
                         // A staged port list replaces the source's. An EMPTY
                         // staged list means the card never declared ports, so
                         // the source key (if any) passes through untouched --
@@ -2066,6 +2103,15 @@ JsonValue SettingsPanelState::BuildJson (
 
                     rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
 
+                    // Default settings are not written, so looking at the card
+                    // does not put a `network` object into the user's file.
+                    if (staged != nullptr
+                        && staged->type == kpszNetworkCardDevice
+                        && (hadNetwork || !(staged->network == NetworkCardSettings {})))
+                    {
+                        rebuilt.emplace_back (NetworkCardSettings::kpszJsonKey, staged->network.ToJson());
+                    }
+
                     if (staged != nullptr && !staged->ports.empty())
                     {
                         std::vector<JsonValue>  portArr;
@@ -2080,6 +2126,16 @@ JsonValue SettingsPanelState::BuildJson (
                 }
 
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
+            }
+
+            // Entries the panel added, such as a network card on a machine
+            // whose saved slot list predates it.
+            for (const HardwareEntry & hwEntry : hw)
+            {
+                if (hwEntry.kind == HardwareEntryKind::Slot && hwEntry.jsonIndex < 0)
+                {
+                    slotArr.push_back (MakeAddedSlotJson (hwEntry));
+                }
             }
         }
     }
@@ -2295,8 +2351,480 @@ bool SettingsPanelState::AreHardwareEqual (
              && a[i].type       == b[i].type
              && a[i].capability == b[i].capability
              && a[i].enabled    == b[i].enabled
-             && a[i].ports      == b[i].ports;
+             && a[i].ports      == b[i].ports
+             && a[i].network    == b[i].network;
     }
 
     return equal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSlotTaken
+//
+//  Another enabled slot entry already has `slot`. Disabled entries do not
+//  count: the machine builder installs nothing for them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::IsSlotTaken (
+    int     slot,
+    size_t  exceptIndex) const
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < m_current.hardware.size(); ++i)
+    {
+        const HardwareEntry  & entry = m_current.hardware[i];
+
+        if (i != exceptIndex && entry.kind == HardwareEntryKind::Slot && entry.enabled && entry.slot == slot)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFreeSlots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> SettingsPanelState::GetFreeSlots (size_t index) const
+{
+    std::vector<int>  slots;
+    int               slot  = 0;
+
+
+
+    for (slot = kMinSlot; slot <= kMaxSlot; ++slot)
+    {
+        if (!IsSlotTaken (slot, index))
+        {
+            slots.push_back (slot);
+        }
+    }
+
+    return slots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHardwareSlot
+//
+//  User input, so a taken or out-of-range slot fails without asserting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetHardwareSlot (
+    size_t  index,
+    int     slot)
+{
+    HRESULT          hr            = S_OK;
+    size_t           hardwareCount = m_current.hardware.size();
+    bool             inRange       = slot >= kMinSlot && slot <= kMaxSlot;
+    bool             taken         = false;
+    HardwareEntry  * entry         = nullptr;
+    size_t           separator     = 0;
+
+
+
+    CBREx (index < hardwareCount, E_INVALIDARG);
+
+    entry = &m_current.hardware[index];
+    CBREx (entry->kind == HardwareEntryKind::Slot, E_INVALIDARG);
+    CBREx (inRange, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    taken = IsSlotTaken (slot, index);
+    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    entry->slot = slot;
+    separator   = entry->displayName.find (": ");
+
+    if (separator != std::string::npos)
+    {
+        entry->displayName = std::format ("Slot {}{}", slot, entry->displayName.substr (separator));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindNetworkCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::FindNetworkCard() const
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < m_current.hardware.size(); ++i)
+    {
+        if (m_current.hardware[i].kind == HardwareEntryKind::Slot && m_current.hardware[i].type == kpszNetworkCardDevice)
+        {
+            return (int) i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNetworkCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const HardwareEntry * SettingsPanelState::GetNetworkCard() const
+{
+    int  index = FindNetworkCard();
+
+
+
+    return (index < 0) ? nullptr : &m_current.hardware[(size_t) index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChooseNetworkCardSlot
+//
+//  Slot 3, the card's usual slot and the first in its manual's probe order,
+//  when it is free; otherwise the lowest free slot; 0 when none is free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::ChooseNetworkCardSlot() const
+{
+    int     index  = FindNetworkCard();
+    size_t  except = (index < 0) ? SIZE_MAX : (size_t) index;
+    int     slot   = 0;
+
+
+
+    if (!IsSlotTaken (kNetworkCardSlot, except))
+    {
+        return kNetworkCardSlot;
+    }
+
+    for (slot = kMinSlot; slot <= kMaxSlot; ++slot)
+    {
+        if (!IsSlotTaken (slot, except))
+        {
+            return slot;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkCardEnabled
+//
+//  Enabling adds the card's slot entry when the machine's slot list has
+//  none, moves it when another card has since taken its slot, and assigns
+//  it a MAC address when it has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetNetworkCardEnabled (bool enabled)
+{
+    HRESULT          hr    = S_OK;
+    int              index = FindNetworkCard();
+    int              slot  = 0;
+    HardwareEntry  * card  = nullptr;
+    HardwareEntry    added;
+
+
+
+    BAIL_OUT_IF (index < 0 && !enabled, S_OK);
+
+    if (index < 0)
+    {
+        CBR (m_machineInfo.supportsSlots);
+
+        slot = ChooseNetworkCardSlot();
+        CBR (slot != 0);
+
+        added.kind        = HardwareEntryKind::Slot;
+        added.jsonIndex   = -1;
+        added.slot        = slot;
+        added.type        = kpszNetworkCardDevice;
+        added.displayName = std::format ("Slot {}: {}", slot, kpszNetworkCardName);
+        added.capability  = CapabilityFlag::Optional;
+        added.enabled     = false;
+
+        m_current.hardware.push_back (std::move (added));
+        index = (int) m_current.hardware.size() - 1;
+    }
+
+    card = &m_current.hardware[(size_t) index];
+
+    if (enabled && IsSlotTaken (card->slot, (size_t) index))
+    {
+        slot = ChooseNetworkCardSlot();
+        CBR (slot != 0);
+
+        hr = SetHardwareSlot ((size_t) index, slot);
+        CHR (hr);
+    }
+
+    card->enabled = enabled;
+
+    if (enabled && !card->network.mac.IsSet())
+    {
+        card->network.mac = MakeRandomMac();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkCardSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetNetworkCardSlot (int slot)
+{
+    HRESULT  hr    = S_OK;
+    int      index = FindNetworkCard();
+
+
+
+    CBR (index >= 0);
+
+    hr = SetHardwareSlot ((size_t) index, slot);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkCardMac
+//
+//  On bad text, `outError` gets the error in the fixed two-part format and
+//  the stored address stays in effect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetNetworkCardMac (
+    const std::string  & text,
+    std::string        & outError)
+{
+    HRESULT     hr     = S_OK;
+    int         index  = FindNetworkCard();
+    MacAddress  parsed;
+    bool        valid  = false;
+
+
+
+    outError.clear();
+
+    CBR (index >= 0);
+
+    valid = MacAddress::TryParse (text, parsed) && parsed.IsUnicast();
+
+    CBRFEx (valid,
+            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+            outError = "Error: invalid MAC address\n"
+                       "A MAC address is six pairs of hexadecimal digits separated by colons or "
+                       "hyphens, such as 02:CA:55:12:34:56, and cannot be a multicast address.");
+
+    m_current.hardware[(size_t) index].network.mac = parsed;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkLanAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetNetworkLanAccess (bool lanAccess)
+{
+    int  index = FindNetworkCard();
+
+
+
+    if (index >= 0)
+    {
+        m_current.hardware[(size_t) index].network.lanAccess = lanAccess;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddPortForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::AddPortForward (
+    const PortForward  & forward,
+    std::string        & outError)
+{
+    HRESULT        hr      = S_OK;
+    int            index   = FindNetworkCard();
+    std::string    problem;
+    bool           valid   = false;
+
+
+
+    outError.clear();
+
+    CBR (index >= 0);
+
+    problem = NetworkCardSettings::ValidatePortForward (forward, m_current.hardware[(size_t) index].network.portForwards);
+    valid   = problem.empty();
+
+    CBRFEx (valid,
+            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+            outError = "Error: invalid port forward\n" + problem);
+
+    m_current.hardware[(size_t) index].network.portForwards.push_back (forward);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemovePortForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::RemovePortForward (size_t forwardIndex)
+{
+    HRESULT                     hr       = S_OK;
+    int                         index    = FindNetworkCard();
+    std::vector<PortForward>  * forwards = nullptr;
+    size_t                      count    = 0;
+
+
+
+    CBR (index >= 0);
+
+    forwards = &m_current.hardware[(size_t) index].network.portForwards;
+    count    = forwards->size();
+    CBR (forwardIndex < count);
+
+    forwards->erase (forwards->begin() + (ptrdiff_t) forwardIndex);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeRandomMac
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MacAddress SettingsPanelState::MakeRandomMac()
+{
+    std::random_device   source;
+    MacAddress::Octets   octets = {};
+
+
+
+    for (Byte & octet : octets)
+    {
+        octet = (Byte) (source() & 0xFF);
+    }
+
+    return MacAddress::MakeRandomLocal (octets);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeAddedSlotJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue SettingsPanelState::MakeAddedSlotJson (const HardwareEntry & entry)
+{
+    std::vector<std::pair<std::string, JsonValue>>  object;
+
+
+
+    object.emplace_back ("slot",           JsonValue ((double) entry.slot));
+    object.emplace_back ("device",         JsonValue (entry.type));
+    object.emplace_back ("capabilityFlag", JsonValue (std::string ("optional")));
+    object.emplace_back ("enabled",        JsonValue (entry.enabled));
+
+    if (!(entry.network == NetworkCardSettings {}))
+    {
+        object.emplace_back (NetworkCardSettings::kpszJsonKey, entry.network.ToJson());
+    }
+
+    return JsonValue (std::move (object));
 }

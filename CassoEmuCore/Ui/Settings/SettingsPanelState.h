@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -140,6 +141,9 @@ struct HardwareEntry
     // attached" -- BuildJson leaves the key alone in that case so a card that
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
+
+    // The network card's settings; defaults for every other device.
+    NetworkCardSettings  network;
 };
 
 
@@ -184,6 +188,9 @@ struct SettingsMachineInfo
     // Annunciator outputs on the game socket, so the Controllers page offers
     // the Joyport. False on the //c.
     bool                                 supportsGamePortAdapter = false;
+    // The document has a `slots` array, so a card can be added; false on the
+    // //c, whose peripherals are built in.
+    bool                                 supportsSlots = false;
 };
 
 
@@ -343,6 +350,25 @@ public:
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
+    // Moves a slot entry to `slot`, which must be 1-7 and not taken by another
+    // enabled slot entry.
+    HRESULT          SetHardwareSlot (size_t index, int slot);
+    std::vector<int> GetFreeSlots    (size_t index) const;
+
+    // The Uthernet II. Enabling it on a machine whose slot list has no entry
+    // for it adds one, at slot 3 or the lowest free slot, and an enabled card
+    // with no MAC address gets a random locally administered one.
+    static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
+    static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
+
+    const HardwareEntry *  GetNetworkCard        () const;
+    HRESULT                SetNetworkCardEnabled (bool enabled);
+    HRESULT                SetNetworkCardSlot    (int slot);
+    HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
+    void                   SetNetworkLanAccess   (bool lanAccess);
+    HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
+    HRESULT                RemovePortForward     (size_t index);
+
     // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
@@ -454,6 +480,17 @@ private:
     // A machine with no definition is left untouched -- its document is the
     // only description of it there is.
     static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
+
+    static constexpr int  kMinSlot          = 1;
+    static constexpr int  kMaxSlot          = 7;
+    static constexpr int  kNetworkCardSlot  = 3;
+
+    int   FindNetworkCard      () const;
+    bool  IsSlotTaken          (int slot, size_t exceptIndex) const;
+    int   ChooseNetworkCardSlot() const;
+
+    static MacAddress  MakeRandomMac ();
+    static JsonValue   MakeAddedSlotJson (const HardwareEntry & entry);
 
 
     std::string          m_machineName;

@@ -97,6 +97,7 @@ void SettingsSheet::OnBuildPages()
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
+    m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
@@ -289,6 +290,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_hardwarePage->SetState (&m_state);
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
+    m_networkPage->SetState  (&m_state);
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
@@ -494,6 +496,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
+    m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
 
@@ -656,6 +659,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
     m_displayPage->Rebuild();
+    m_networkPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
@@ -969,6 +973,13 @@ void SettingsSheet::OnDialogTick()
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
     UpdateTickInterval();
+
+    // The Machine tab's tree, a machine switch and Cancel all change the
+    // staged card behind the Network page.
+    if (m_networkPage != nullptr)
+    {
+        m_networkPage->Sync();
+    }
 
 
     // Controllers that came or went while the sheet is open, then the

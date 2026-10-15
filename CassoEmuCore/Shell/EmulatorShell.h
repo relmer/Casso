@@ -305,6 +305,7 @@ private:
     void    PrimeChromeThemeEarly           ();
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
+    void    QueueUthernetNotices            ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -693,6 +694,9 @@ private:
     //  Winsock for the Uthernet II. Declared ahead of the machine so it is
     //  destroyed after it: the card's host sockets close before WSACleanup.
     Win32HostNetwork        m_hostNetwork;
+
+    //  Notices raised before the window exists, displayed once it does.
+    std::vector<std::wstring>  m_pendingNotices;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything

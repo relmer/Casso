@@ -18,6 +18,7 @@
 #include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
+#include "NetworkPage.h"
 #include "PrintingPage.h"
 #include "ScreenshotsPage.h"
 
@@ -259,6 +260,7 @@ private:
     ThemePage        * m_themePage       = nullptr;
     DisplayPage      * m_displayPage     = nullptr;
     PrintingPage     * m_printingPage    = nullptr;
+    NetworkPage      * m_networkPage     = nullptr;
     ScreenshotsPage  * m_shotsPage       = nullptr;
     ControllersPage  * m_controllersPage = nullptr;
 
