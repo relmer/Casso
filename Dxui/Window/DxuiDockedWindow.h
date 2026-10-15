@@ -99,6 +99,11 @@ public:
     //  alpha rather than darken it.
     static void  PaintHeaderFade (IDxuiPainter & painter, const RECT & rowPx);
 
+    //  The row the header fade covers, in the site's pixels: the first
+    //  group's title bar, or its tab strip while a pane is carried. False
+    //  when the site has no group.
+    static bool  TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & outRowPx);
+
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
