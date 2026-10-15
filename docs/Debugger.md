@@ -380,6 +380,38 @@ in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
 survives `BPEDIT`. `BPSAVE` writes no name, so its script is one AppleWin
 reads.
 
+## Debug projects
+
+Breakpoints and the name of each, watches, zero-page pointers, bookmarks,
+data directives, step filters and loaded symbol files are saved as a debug
+project, one for each program, with the window's layout, the heat map's range
+sets, the disassembly options and the open views. The program is the most
+specific of these:
+
+1. the debug or symbol file `SYM LOAD` last loaded, by its content rather
+   than its path, so moving the file loses nothing;
+2. the binary `BLOAD` last loaded, by its content and address;
+3. the machine with the disk drive 1 had at its last power-on, by the disk's
+   path;
+4. the machine.
+
+Projects are saved in `%LOCALAPPDATA%\Casso\DebugProjects` two seconds after a
+change and when the debugger is closed. Loading a more specific program that
+has a project replaces the debugger's items with that project's; answer Yes to
+the prompt that follows to add the items set before as well. A program with no
+project yet starts from the items set so far.
+
+File > Save project as... writes the project to a file of your choosing, and
+that file is the program's project from then on; File > Open project... opens
+one. `PROJECT` lists the open project and its file, `PROJECT SAVEAS file` and
+`PROJECT OPEN file` match the two menu items, and `PROJECT MERGE` adds the
+items of the project open before the last switch.
+
+File > Project settings... lists the startup commands, each with its command
+mode, which run in order each time the project opens. A project file that
+cannot be read is copied to the same name with `.unreadable-` and the date
+appended, and an empty project opens in its place.
+
 ## Breaking on opcodes
 
 `BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode: a byte,

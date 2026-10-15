@@ -272,6 +272,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "OUTPUT",      V::ShowOutputFormat,         F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SAVESTATE",   V::SaveState,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "LOADSTATE",   V::LoadState,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "PROJECT",     V::Project,                  F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICSTEP",   V::BasicStep,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICLINE",   V::BasicStepLine,            F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICOUT",    V::BasicStepOut,             F::Engine,      A::Headless,     nullptr,     nullptr },

@@ -96,6 +96,7 @@ enum class DebugVerb
     GoLive,
     SaveState,
     LoadState,
+    Project,
 
     // Breakpoints and watchpoints
     SetBreakpoint,

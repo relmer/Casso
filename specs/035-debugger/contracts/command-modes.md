@@ -289,6 +289,7 @@ command do.
 | `PROJECT` | every mode | Shows the open project: its scope, file and whether it is automatic or named. |
 | `PROJECT SAVEAS file` | every mode | Writes a copy of the open project to `file` and makes it the open one. |
 | `PROJECT OPEN file` | every mode | Switches to the project in `file`. |
+| `PROJECT MERGE` | every mode | Adds the breakpoints, watches, zero-page pointers, bookmarks, step filters and data directives of the project open before the last switch to the open one. |
 
 `BPSAVE`, AppleWin's `SAVE` and `LOAD` are unchanged and never carry names.
 

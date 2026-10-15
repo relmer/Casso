@@ -1995,6 +1995,14 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // A more specific debug project opened, with the last one's items on offer.
+    if (msg == WM_APP_CONFIRM_PROJECT_MERGE)
+    {
+        m_debugger->OnConfirmProjectMerge();
+
+        return DxuiMessageResult::Handled;
+    }
+
     // The players' slots changed, or a controller came or went. Saying so and
     // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)

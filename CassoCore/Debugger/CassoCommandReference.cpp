@@ -231,6 +231,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "PWD",         H::SessionAndSettings, "PWD",                                            "Show the current directory"                                                              },
     { "RUN",         H::SessionAndSettings, "RUN file",                                       "Run a script of commands"                                                                },
     { "SAVE",        H::SessionAndSettings, "SAVE file",                                      "Save breakpoints, watches, pointers and bookmarks"                                       },
+    { "PROJECT",     H::SessionAndSettings, "PROJECT [SAVEAS file|OPEN file|MERGE]",          "List the debug project; save it as or open a file; add the last one's breakpoints"       },
     { "SAVESTATE",   H::SessionAndSettings, "SAVESTATE file",                                 "Save the whole machine, disks included, to a state file"                                 },
     { "STARTUP",     H::SessionAndSettings, "STARTUP",                                        "Run the startup script, DebuggerAutoRun.txt"                                             },
     { "VERSION",     H::SessionAndSettings, "VERSION",                                        "Show Casso's version"                                                                    },

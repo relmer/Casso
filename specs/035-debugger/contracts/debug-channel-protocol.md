@@ -258,5 +258,6 @@ change it.
   and a FOR frame's variable, limit and step).
 - `breakpointSet` and `breakpointList` entries gain `name` (string, empty for
   the default).
-- A `project` object (`scope`, `key`, `file`, `isAutomatic`) answers
-  `PROJECT`.
+- A `project` data kind (`scope`, `key`, `label`, `file`, `isAutomatic`)
+  answers `PROJECT`; `scope` is `debugFile`, `binary`, `machineBoot` or
+  `machine`.

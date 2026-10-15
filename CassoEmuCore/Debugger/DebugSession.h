@@ -344,6 +344,13 @@ public:
     void                       SetStateFileRequester (StateFileRequester requester) { m_stateFileRequester = std::move (requester); }
     const StateFileRequester & GetStateFileRequester () const                       { return m_stateFileRequester; }
 
+    // PROJECT: the host's debug projects, given the words after PROJECT and
+    // the reply to fill. Empty where there is no host, and PROJECT is then
+    // not available.
+    using ProjectRequester = std::function<void (const std::string &, Reply &)>;
+
+    void                       SetProjectRequester   (ProjectRequester requester)   { m_projectRequester = std::move (requester); }
+
     // Behind live, an edit of registers or memory discards recorded history,
     // so the guard is asked first with the line the edit came from, and the
     // edit is made only when it returns true. Empty where nothing is recorded.
@@ -522,6 +529,7 @@ private:
     ScriptLineRunner              m_scriptLineRunner;
     ReverseRequester              m_reverseRequester;
     StateFileRequester            m_stateFileRequester;
+    ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;
     std::string                   m_guardLine;   // the outermost line being run, for the guard
     CommandMode                   m_guardMode          = CommandMode::AppleWin;

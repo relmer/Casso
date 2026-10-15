@@ -1535,6 +1535,13 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseMemoryArguments (args, command, error);
     }
 
+    //  PROJECT's subcommand and file name, the name's case as typed.
+    if (command.verb == DebugVerb::Project)
+    {
+        command.text = args.rest;
+        return true;
+    }
+
     //  A file name keeps its case.
     if (command.verb == DebugVerb::SaveState || command.verb == DebugVerb::LoadState)
     {

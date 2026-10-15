@@ -4,6 +4,7 @@
 #include "Debugger/Events/DebugLogDelta.h"
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
+#include "Debugger/Project/DebugProject.h"
 #include "Seams/IHostDialogs.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -240,6 +241,13 @@ public:
     //  kept the same way.
     virtual std::string  GetDebuggerOpenViews ()                           = 0;
     virtual void         SetDebuggerOpenViews (const std::string & text)   = 0;
+
+    //  The debug project open, a copy; false with none. Its startup commands
+    //  replaced. And whether a project opened since the last call, its
+    //  window strings now the ones above, for the window to read again.
+    virtual bool  TryGetDebuggerProject      (DebugProject & project)                                   { (void) project; return false; }
+    virtual void  SetDebuggerStartupCommands (const std::vector<DebugProject::StartupCommand> & commands) { (void) commands; }
+    virtual bool  TakeDebuggerProjectState   ()                                                          { return false; }
 
     //  Where the user last put the debugger window, for this monitor
     //  arrangement. False when there is nothing to restore.
@@ -963,6 +971,14 @@ private:
     bool     RouteTraceKey      (const DxuiKeyEvent & ev);
     void     SaveTrace          ();
     void     ApplySavedPlacement ();
+
+    //  Debug projects (FR-170, FR-171): File's Save project as..., Open
+    //  project... and Project settings..., and the layout, options and views
+    //  read again when another project opens.
+    void     SaveProjectAs        ();
+    void     OpenProject          ();
+    void     EditProjectSettings  ();
+    void     ReloadProjectState   ();
 
     //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
     //  its controls moved there whole. The window's routing serves every

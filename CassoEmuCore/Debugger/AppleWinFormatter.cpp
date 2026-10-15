@@ -355,6 +355,11 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack      (*v, lines); }
     else if (auto * v = std::get_if<BasicVariablesData> (&data)) { FormatBasicVariables (*v, lines); }
     else if (auto * v = std::get_if<BasicStackData>     (&data)) { FormatBasicStack     (*v, lines); }
+    else if (auto * v = std::get_if<ProjectData>        (&data))
+    {
+        lines.push_back (std::format ("Debug project for {}, {}", v->label, v->isAutomatic ? "saved automatically" : "saved where it was chosen"));
+        lines.push_back ("File: " + v->file);
+    }
     else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }

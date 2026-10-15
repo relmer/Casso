@@ -221,6 +221,8 @@
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBasic.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowProject.cpp" />
+    <ClCompile Include="Ui\Debugger\ProjectSettingsDialog.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMap.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMapRanges.cpp" />
@@ -311,6 +313,7 @@
     <ClCompile Include="Debugger\Reverse\HistoryStatus.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\ShellDebuggerReverse.cpp" />
+    <ClCompile Include="Shell\ShellDebuggerProject.cpp" />
     <ClCompile Include="Shell\EmulatorShellState.cpp" />
     <ClCompile Include="Shell\HeldHostInputs.cpp" />
     <ClCompile Include="Shell\HostInputGate.cpp" />
@@ -845,7 +848,7 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryMapBar.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />
     <ClInclude Include="Ui\Debugger\Panes\MeterBar.h" />
-    <ClInclude Include="Ui\Debugger\DebuggerLayout.h" /><ClInclude Include="Ui\Debugger\DebuggerCommands.h" /><ClInclude Include="Ui\Debugger\MemoryBarCommands.h" /><ClInclude Include="Ui\Debugger\HeatMapBarCommands.h" /><ClInclude Include="Ui\Debugger\MemoryAddressEntry.h" /><ClInclude Include="Ui\Debugger\FlagsDialog.h" /><ClInclude Include="Ui\Debugger\BreakpointDialog.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerLayout.h" /><ClInclude Include="Ui\Debugger\DebuggerCommands.h" /><ClInclude Include="Ui\Debugger\MemoryBarCommands.h" /><ClInclude Include="Ui\Debugger\HeatMapBarCommands.h" /><ClInclude Include="Ui\Debugger\MemoryAddressEntry.h" /><ClInclude Include="Ui\Debugger\FlagsDialog.h" /><ClInclude Include="Ui\Debugger\BreakpointDialog.h" /><ClInclude Include="Ui\Debugger\ProjectSettingsDialog.h" />
     <ClInclude Include="Ui\Debugger\DisassemblyOptions.h" /><ClInclude Include="Ui\Debugger\ToolbarCheckEntry.h" /><ClInclude Include="Ui\Debugger\ToolbarLabelEntry.h" /><ClInclude Include="Ui\Debugger\KeyHintLine.h" /><ClInclude Include="Ui\Debugger\HistoryBand.h" /><ClInclude Include="Ui\Debugger\DebuggerStatusText.h" /><ClInclude Include="Ui\Debugger\ColorLegend.h" /><ClInclude Include="Ui\Debugger\ColorKeyButton.h" /><ClInclude Include="Ui\Debugger\GutterGlyph.h" /><ClInclude Include="Ui\Debugger\ColorKeyPopup.h" /><ClInclude Include="Ui\Debugger\ReverseBudget.h" /><ClInclude Include="Ui\Debugger\HistoryOptionsPage.h" /><ClInclude Include="Ui\Debugger\DisassemblyOptionsPage.h" /><ClInclude Include="Ui\Debugger\DebuggerOptionsSheet.h" /><ClInclude Include="Ui\Debugger\WholeWordButton.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
     <ClInclude Include="Debugger\SynchronousRunDriver.h" />

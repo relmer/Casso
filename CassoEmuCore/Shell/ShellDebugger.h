@@ -6,6 +6,7 @@
 #include "Core/ParallelWorkPool.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/DebugSessionView.h"
+#include "Debugger/Project/DebugProjectStore.h"
 #include "Debugger/Reverse/DivergenceGate.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
@@ -130,6 +131,10 @@ public:
     void  DivergeHistory        () override;
     bool  GuardHistoryEdit      (const std::string & line, CommandMode mode);
     void  OnConfirmDiverge      ();
+
+    // UI thread: the prompt to add the last project's items to a more
+    // specific project just opened.
+    void  OnConfirmProjectMerge ();
     bool  IsBehindLiveForUi     ();
 
     // Behind live, input the guest reads -- keys, a paste, the game port, the
@@ -299,6 +304,9 @@ public:
     void         SetDebuggerHeatMapRanges  (const std::string & text) override;
     std::string  GetDebuggerOpenViews () override;
     void         SetDebuggerOpenViews (const std::string & text) override;
+    bool         TakeDebuggerProjectState () override;
+    bool         TryGetDebuggerProject    (DebugProject & project) override;
+    void         SetDebuggerStartupCommands (const std::vector<DebugProject::StartupCommand> & commands) override;
     std::string  GetDebuggerPlacementKey () const;
     bool         TryGetDebuggerPlacement (RECT & rectPx) override;
     void         SetDebuggerPlacement    (const RECT & rectPx) override;
@@ -340,6 +348,9 @@ public:
     ScratchCallReplayer   & GetCallReplayer     ()             { return m_callReplayer; }
     void                    PrepareFramebuffers ();
     void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
+    void                    SetProjectStore     (std::unique_ptr<DebugProjectStore> store) { m_projectStore = std::move (store); }
+    void                    ServiceProject      ();
+    void                    SaveProject         ();
 
 private:
 
@@ -404,6 +415,41 @@ private:
     // the session on the History slot. Declared after the history it reads,
     // so it lets go of it first.
     DebugEventLogs                m_eventLogs             { m_machine };
+
+    // Debug projects (FR-166 to FR-171), the CPU thread's: the store, the
+    // project open and its file's text as last written, and the disk drive 1
+    // had at the last power cycle. A project change is made on the service
+    // tick, outside any command. The window strings of a project just opened
+    // and the merge prompt's text are passed to the UI thread under the mutex.
+    std::unique_ptr<DebugProjectStore>                        m_projectStore;
+    DebugProject                                              m_project;
+    bool                                                      m_hasProject           = false;
+    bool                                                      m_isMergeOwed          = false;
+    std::optional<DebugProject>                               m_projectToOpen;
+    std::string                                               m_projectSaved;
+    std::wstring                                              m_bootDisk;
+    bool                                                      m_isBootDiskNoted      = false;
+    ULONGLONG                                                 m_projectCheckedAt     = 0;
+    std::mutex                                                m_projectMutex;
+    std::optional<DebugProject>                               m_projectWindowPending;
+    std::optional<DebugProject>                               m_projectCopy;   // a copy of the open project, for the window
+    std::optional<std::vector<DebugProject::StartupCommand>>  m_startupPending;
+    std::vector<std::string>                                  m_mergeLines;
+    std::string                                               m_mergeFrom;
+    std::string                                               m_mergeInto;
+
+    void            OpenProjectStore    ();
+    ProjectScope    GetProjectScope     ();
+    void            NoteBootDisk        ();
+    void            SyncProject         ();
+    void            ApplyProject        (const DebugProject & project);
+    void            RunStartupCommands  ();
+    void            OfferProjectMerge   (const DebugProject & old);
+    void            RunMergeLines       ();
+    void            RunProjectRequest   (const std::string & text, Reply & reply);
+    void            CaptureProject      (DebugProject & project);
+    void            AddConsoleLines     (const std::vector<std::string> & lines);
+    void            PublishProject      ();
 
     bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);

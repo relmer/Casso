@@ -230,6 +230,7 @@ Casso commands:
     LOADSTATE file                                       Replace the whole machine, disks included, with one a state file holds
     MODE [mode]                                          Show or set the command mode, which sets the output too
     OUTPUT [format]                                      Show or set the format replies are written in
+    PROJECT [SAVEAS file|OPEN file|MERGE]                List the debug project; save it as or open a file; add the last one's breakpoints
     SAVESTATE file                                       Save the whole machine, disks included, to a state file
 ```
 
@@ -464,6 +465,7 @@ Casso commands:
     /OUTPUT [format]                                       Show or set the format replies are written in
     /PRINT item[,item ...]                                 Print strings, and expressions in hex
     /PRINTF "format"[,expr ...]                            Print expressions through a format
+    /PROJECT [SAVEAS file|OPEN file|MERGE]                 List the debug project; save it as or open a file; add the last one's breakpoints
     /PWD                                                   Show the current directory
     /RUN file                                              Run a script of commands
     /SAVE file                                             Save breakpoints, watches, pointers and bookmarks
@@ -655,6 +657,7 @@ Casso commands:
     OUTPUT [format]                                 Show or set the format replies are written in
     PRINT item[,item ...]                           Print strings, and expressions in hex
     PRINTF "format"[,expr ...]                      Print expressions through a format
+    PROJECT [SAVEAS file|OPEN file|MERGE]           List the debug project; save it as or open a file; add the last one's breakpoints
     PWD                                             Show the current directory
     RUN file                                        Run a script of commands
     SAVESTATE file                                  Save the whole machine, disks included, to a state file
@@ -861,6 +864,7 @@ Casso commands:
     !OUTPUT [format]                                 Show or set the format replies are written in
     !PRINT item[,item ...]                           Print strings, and expressions in hex
     !PRINTF "format"[,expr ...]                      Print expressions through a format
+    !PROJECT [SAVEAS file|OPEN file|MERGE]           List the debug project; save it as or open a file; add the last one's breakpoints
     !PWD                                             Show the current directory
     !RUN file                                        Run a script of commands
     !SAVE file                                       Save breakpoints, watches, pointers and bookmarks
@@ -1082,6 +1086,7 @@ Casso commands:
     OUTPUT [format]                                      Show or set the format replies are written in
     PRINT item[,item ...]                                Print strings, and expressions in hex
     PRINTF "format"[,expr ...]                           Print expressions through a format
+    PROJECT [SAVEAS file|OPEN file|MERGE]                List the debug project; save it as or open a file; add the last one's breakpoints
     PWD                                                  Show the current directory
     RUN file                                             Run a script of commands
     SAVE file                                            Save breakpoints, watches, pointers and bookmarks

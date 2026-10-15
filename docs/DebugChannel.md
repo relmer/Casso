@@ -198,6 +198,7 @@ already arrived.
 | `fileIo` | `path`, `requested`, `transferred`, `mismatch` |
 | `basicVariables` | `variables`: `{name, type, address, value}`, and `arrays`: `{name, type, address, sizes, values}`, where `type` is `real`, `integer` or `string`, each value is the text `PRINT` writes, `sizes` has each subscript's count, first subscript first, and `values` runs the first subscript fastest |
 | `basicStack` | `frames`, newest first: `{kind, address, line}`, `kind` being `gosub` or `for`, and a `for` frame's `variable`, `limit` and `step` as `PRINT` writes them |
+| `project` | `scope` (`debugFile`, `binary`, `machineBoot` or `machine`), `key`, `label`, `file` and `isAutomatic`, false for a project saved in a file of the user's choosing |
 | `message` | nothing beyond `text` |
 
 More kinds may be added. For a kind you do not recognize, show `text`.

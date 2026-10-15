@@ -6641,6 +6641,11 @@ void DebuggerWindow::RenderFrame()
         return;
     }
 
+    if (m_host->TakeDebuggerProjectState())
+    {
+        ReloadProjectState();
+    }
+
     if (m_host->TakeDebuggerUpdate (snapshot, console))
     {
         hasUpdate = true;

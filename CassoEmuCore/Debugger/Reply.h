@@ -496,6 +496,17 @@ struct TraceData
     std::vector<TraceRecord>  entries;
 };
 
+// PROJECT: the debug project open: what it is for, its file, and whether
+// that is its scope's automatic file.
+struct ProjectData
+{
+    std::string   scope;
+    std::string   key;
+    std::string   label;
+    std::string   file;
+    bool          isAutomatic = true;
+};
+
 // BASICVARS: the Applesoft program's simple variables and arrays.
 struct BasicVariablesData
 {
@@ -534,7 +545,8 @@ using ReplyData = std::variant<MessageData,
                                CallStackModeData,
                                TraceData,
                                BasicVariablesData,
-                               BasicStackData>;
+                               BasicStackData,
+                               ProjectData>;
 
 
 

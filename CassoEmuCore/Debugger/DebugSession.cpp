@@ -2610,6 +2610,16 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
         ExecuteBasicStep (command, reply);
         return true;
 
+    case DebugVerb::Project:
+        if (!m_projectRequester)
+        {
+            SetError (reply, CommandStatus::NotAvailable, "no debug projects", "Only the emulator's debugger has debug projects.");
+            return true;
+        }
+
+        m_projectRequester (command.text, reply);
+        return true;
+
     default:
         break;
     }

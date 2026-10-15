@@ -621,6 +621,16 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
     if (auto * v = std::get_if<BasicVariablesData> (&data)) { return MakeBasicVariables (*v); }
     if (auto * v = std::get_if<BasicStackData>    (&data)) { return MakeBasicStack (*v); }
 
+    if (auto * v = std::get_if<ProjectData> (&data))
+    {
+        return JsonValue (Members { { "kind",        MakeString ("project") },
+                                    { "scope",       MakeString (v->scope) },
+                                    { "key",         MakeString (v->key) },
+                                    { "label",       MakeString (v->label) },
+                                    { "file",        MakeString (v->file) },
+                                    { "isAutomatic", JsonValue (v->isAutomatic) } });
+    }
+
     if (auto * v = std::get_if<VideoInfoData> (&data))
     {
         return JsonValue (Members { { "kind",        MakeString ("videoInfo") },

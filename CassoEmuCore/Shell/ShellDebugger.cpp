@@ -398,7 +398,14 @@ void ShellDebugger::SetDebuggerLayout (const std::string & text)
         return;
     }
 
-    m_settings.layout = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.layout = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -614,7 +621,14 @@ void ShellDebugger::SetDebuggerDisassemblyOptions (const std::string & text)
         return;
     }
 
-    m_settings.disassemblyOptions = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.disassemblyOptions = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -725,7 +739,14 @@ void ShellDebugger::SetDebuggerHeatMapRanges (const std::string & text)
         return;
     }
 
-    m_settings.heatMapRanges = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.heatMapRanges = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -761,7 +782,14 @@ void ShellDebugger::SetDebuggerOpenViews (const std::string & text)
         return;
     }
 
-    m_settings.openViews = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.openViews = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -1308,6 +1336,7 @@ void ShellDebugger::OpenDebugChannel()
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+    OpenProjectStore();
 
     if (m_debugController == nullptr)
     {
@@ -1386,6 +1415,7 @@ void ShellDebugger::CloseDebugChannel (bool isDetach)
         m_debugController->GetSession().OnUserResumed();
     }
 
+    SaveProject();
     m_debugController->Close();
 }
 
@@ -2040,6 +2070,11 @@ void ShellDebugger::NotifyDebugReset (bool isPowerCycle)
     {
         m_debugSession->OnReset (isPowerCycle);
     }
+
+    if (isPowerCycle)
+    {
+        NoteBootDisk();
+    }
 }
 
 
@@ -2065,6 +2100,8 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
     {
         m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
     }
+
+    NoteBootDisk();
 }
 
 
@@ -2151,6 +2188,10 @@ Error:
 
 void ShellDebugger::CloseDebugger()
 {
+    //  The project is saved and closed; the next debugger opens it again.
+    SaveProject();
+    m_hasProject = false;
+
     SyncHeatHistory (false);
 
     SetDebugRunDriver  (nullptr);
@@ -2192,6 +2233,7 @@ void ShellDebugger::ServiceDebugger()
     if (m_debugController != nullptr)
     {
         m_debugController->Pump();
+        ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();
         PublishDebuggerView();
@@ -2253,6 +2295,11 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     {
         m_host.PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
         return true;
+    });
+
+    m_debugController->GetSession().SetProjectRequester ([this] (const std::string & text, Reply & reply)
+    {
+        RunProjectRequest (text, reply);
     });
 }
 

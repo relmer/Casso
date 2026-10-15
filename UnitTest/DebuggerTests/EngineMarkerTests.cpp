@@ -167,7 +167,7 @@ namespace DebuggerTests
             {
                 std::string    line       = GetSampleLine (name);
                 Reply          replies[4];
-                CommandStatus  expected   = CommandStatus::Ok;
+                CommandStatus  status     = CommandStatus::Ok;
                 int            i          = 0;
 
 
@@ -200,14 +200,14 @@ namespace DebuggerTests
                 //  session alone returns them as not available, the same way in
                 //  every mode. The mock target's memory has no Applesoft, so
                 //  the BASIC commands fail, the same way in every mode.
-                expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+                status = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG" || name == "PROJECT") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
                 if (name.starts_with ("BASIC"))
                 {
-                    expected = CommandStatus::Error;
+                    status = CommandStatus::Error;
                 }
 
-                Assert::AreEqual ((int) expected, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
+                Assert::AreEqual ((int) status, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
             }
         }
 

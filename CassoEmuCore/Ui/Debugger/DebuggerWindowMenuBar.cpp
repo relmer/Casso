@@ -243,6 +243,10 @@ void DebuggerWindow::SetWindowMenus()
     add (file, row);
     add (file, MakeMenuCommand (L"Save trace...", false, [this] { SaveTrace(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (file, MakeMenuCommand (L"Open project...", false, [this] { OpenProject(); }));
+    add (file, MakeMenuCommand (L"Save project as...", false, [this] { SaveProjectAs(); }));
+    add (file, MakeMenuCommand (L"Project settings...", false, [this] { EditProjectSettings(); }));
+    file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, MakeMenuCommand (L"Close", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
 
     //  Edit: the focused control's own commands, then find in the console.
