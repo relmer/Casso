@@ -19,7 +19,8 @@ void DebugViewCapture::Take (
     size_t                traceCount,
     DebugViewCapture    & out)
 {
-    Word  branchFrom = 0;
+    Word            branchFrom = 0;
+    DebugDiskState  disk;
 
 
 
@@ -32,6 +33,7 @@ void DebugViewCapture::Take (
     out.instructionSet = target.GetInstructionSet();
     out.machineInfo    = target.GetMachineInfo();
     out.isKeyPending   = target.IsKeyPending();
+    out.diskState      = target.TryGetDiskState (disk) ? std::optional<DebugDiskState> (disk) : std::nullopt;
 
     out.softSwitches.clear();
     target.GetSoftSwitches (out.softSwitches);

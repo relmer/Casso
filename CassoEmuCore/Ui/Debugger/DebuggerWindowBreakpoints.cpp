@@ -78,6 +78,7 @@ void DebuggerWindow::SetBreakpointBarMenus()
         { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite, false },
         { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite, false },
         { L"I/O range...",             BreakpointKind::Memory,   WatchAccess::ReadWrite, true  },
+        { L"Disk event...",            BreakpointKind::Disk,     WatchAccess::ReadWrite, false },
     };
     std::vector<DxuiPopupMenuItem>  kinds;
 
@@ -249,7 +250,7 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
     case BreakpointBarCommands::kUndo:       return m_snapshot != nullptr && m_snapshot->canUndoBreakpoints;
     case BreakpointBarCommands::kRedo:       return m_snapshot != nullptr && m_snapshot->canRedoBreakpoints;
     case BreakpointBarCommands::kGoToSource: return one && BreakpointColumns::TryGetSourcePlace (*m_snapshot, selected[0], fileId, line);
-    case BreakpointBarCommands::kGoToCode:   return one && BreakpointColumns::HasAddress (selected[0].info);
+    case BreakpointBarCommands::kGoToCode:   return one && (BreakpointColumns::HasAddress (selected[0].info) || BreakpointColumns::HasRoutine (selected[0].info));
     default:                                 return true;
     }
 }

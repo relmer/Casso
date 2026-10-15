@@ -36,10 +36,10 @@ private:
 //
 //  BreakpointDialog
 //
-//  Edits a breakpoint's type and the fields that type takes, and gives back
+//  Edits a breakpoint's type and the fields that type takes, and returns
 //  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV, BPR or BRKOP with
-//  its arguments, a watchpoint's BEFORE and any IF condition, or BRK ON or
-//  BRKINT ON.
+//  its arguments, a watchpoint's BEFORE and any IF condition, BRK ON or
+//  BRKINT ON, or BPDISK with its drive, event, arguments and condition.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,9 +47,11 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt };
+    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk };
 
-    //  What the dialog's controls hold.
+    //  The values of the dialog's controls. A disk breakpoint's event is an
+    //  index into DiskBreakSpecText::GetEventWords, its drive 0 for either,
+    //  and its arguments what BPDISK takes after the event word.
     struct Fields
     {
         Type         type      = Type::Execute;
@@ -57,6 +59,9 @@ public:
         std::string  address;
         std::string  value;
         std::string  condition;
+        int          event     = 0;
+        int          drive     = 0;
+        std::string  arguments;
     };
 
     //  The definition for a type and its fields, as BPEDIT takes it.
@@ -77,6 +82,8 @@ protected:
 private:
     void  ShowFieldsForType ();
 
+    static Fields  GetDiskFields (const BreakpointInfo & info, Fields fields);
+
     const IDxuiTheme            * m_theme          = nullptr;
     BreakpointInfo                m_info;
     std::optional<std::string>    m_definition;
@@ -85,8 +92,12 @@ private:
     DxuiLabel                     m_addressLabel;
     DxuiLabel                     m_valueLabel;
     DxuiLabel                     m_conditionLabel;
+    DxuiLabel                     m_eventLabel;
+    DxuiLabel                     m_driveLabel;
     DxuiComboBox                  m_type;
     DxuiComboBox                  m_mode;
+    DxuiComboBox                  m_event;
+    DxuiComboBox                  m_drive;
     DxuiTextInput                 m_address;
     DxuiTextInput                 m_value;
     DxuiTextInput                 m_condition;

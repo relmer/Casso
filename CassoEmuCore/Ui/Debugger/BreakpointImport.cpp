@@ -22,7 +22,9 @@
 //  to one, so GSSquared's `bpd 400 r` is a read breakpoint rather than
 //  AppleWin's disable of breakpoint 400. Each definition line's new
 //  breakpoints are found as the ids that were not there before it, in order,
-//  so the script's numbers map onto them.
+//  so the script's numbers map onto them. The Monitor's only breakpoint
+//  command is a Casso command after its slash (/bpdisk), read without the
+//  slash.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +57,7 @@ int BreakpointImport::Run (DebugSession & session, const std::string & script, c
         }
 
         line = line.substr (first, last - first + 1);
+        line = line.starts_with ("/") ? line.substr (1) : line;
 
         if (TryReadMode (line, mode))
         {
@@ -125,6 +128,7 @@ bool BreakpointImport::IsDefinition (DebugVerb verb)
     case DebugVerb::BreakOnBrk:
     case DebugVerb::BreakOnOpcode:
     case DebugVerb::BreakOnInterrupt:
+    case DebugVerb::SetDiskBreakpoint:
         return true;
 
     default:

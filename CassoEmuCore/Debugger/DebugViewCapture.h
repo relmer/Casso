@@ -34,6 +34,8 @@ struct DebugViewCapture
     std::vector<SoftSwitch>   softSwitches;
     DebugMemoryImage          memory;
 
+    std::optional<DebugDiskState>  diskState;     // absent with no Disk II controller
+
     bool                      isTraceOn      = false;
     size_t                    traceSize      = 0;
     size_t                    traceFirst     = 0;

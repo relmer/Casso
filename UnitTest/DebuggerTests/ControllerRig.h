@@ -40,8 +40,8 @@ public:
 
 
 
-    explicit ControllerRig (const std::string & machineName = "Apple2e") :
-        machine         (machineName, TestMachine::Slots::Empty),
+    explicit ControllerRig (const std::string & machineName = "Apple2e", TestMachine::Slots slots = TestMachine::Slots::Empty) :
+        machine         (machineName, slots),
         controllerOwner (std::make_unique<DebuggerController> (machine, Paused (cpuManager), transport, files, nullptr, 1)),
         controller      (*controllerOwner)
     {

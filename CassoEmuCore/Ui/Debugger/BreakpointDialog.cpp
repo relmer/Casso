@@ -1,7 +1,18 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/BreakpointDialog.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/Source/SourcePathList.h"
+
+
+
+static constexpr const wchar_t *  s_kDiskEventNames[] =
+{
+    L"Sector read", L"Address field", L"Head position", L"Write", L"DOS 3.3 sector", L"ProDOS block",
+    L"RWTS call",   L"ProDOS driver call", L"Motor", L"Drive select", L"Disk inserted", L"Disk ejected",
+};
+
+static constexpr const char *  s_kDrivePrefixes[] = { "", "D1 ", "D2 " };
 
 
 
@@ -76,6 +87,9 @@ std::string BreakpointDialog::MakeDefinition (const Fields & fields)
     case Type::Opcode:    return "BRKOP " + fields.value;
     case Type::Brk:       return "BRK ON";
     case Type::Interrupt: return "BRKINT ON";
+    case Type::Disk:      return std::format ("BPDISK {}{}{}{}", s_kDrivePrefixes[std::clamp (fields.drive, 0, 2)],
+                                              DiskBreakSpecText::GetEventWords()[std::clamp<size_t> (fields.event, 0, DiskBreakSpecText::GetEventWords().size() - 1)].word,
+                                              fields.arguments.empty() ? std::string() : " " + fields.arguments, clause);
     default:              return "BP " + fields.address + clause;
     }
 }
@@ -110,9 +124,47 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     case Type::Value:    fields.value = std::format ("{:02X}", info.value.value_or (0)); break;
     case Type::Opcode:   fields.value = std::format ("{:02X}", info.opcode);             break;
     case Type::Register: fields.value = info.condition; fields.condition.clear();        break;
+    case Type::Disk:     fields = GetDiskFields (info, fields);                          break;
     default:                                                                             break;
     }
 
+    return fields;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetDiskFields
+//
+//  The event, the drive, and BPDISK's arguments with the drive and the
+//  event word taken off the front, or none for a new breakpoint, so the
+//  field's placeholder has the event's syntax. A written prologue and a
+//  blocked write are the Write event, with arguments that differ.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDialog::Fields BreakpointDialog::GetDiskFields (const BreakpointInfo & info, Fields fields)
+{
+    DiskBreakSpec                                  spec   = info.disk.value_or (DiskBreakSpec {});
+    std::span<const DiskBreakSpecText::EventWord>  words  = DiskBreakSpecText::GetEventWords();
+    DiskEvent                                      event  = (spec.event == DiskEvent::WritePrologue || spec.event == DiskEvent::WriteBlocked) ? DiskEvent::WriteMode : spec.event;
+    std::string                                    text   = DiskBreakSpecText::FormatArguments (spec);
+    size_t                                         prefix = 0;
+
+
+
+    for (size_t index = 0; index < words.size(); index++)
+    {
+        fields.event = (words[index].event == event) ? (int) index : fields.event;
+    }
+
+    fields.drive = (spec.drive == DiskDriveFilter::Drive1) ? 1 : (spec.drive == DiskDriveFilter::Drive2) ? 2 : 0;
+    prefix       = strlen (s_kDrivePrefixes[fields.drive]) + strlen (words[fields.event].word);
+
+    fields.arguments = (info.disk.has_value() && text.size() > prefix) ? text.substr (prefix + 1) : std::string();
     return fields;
 }
 
@@ -135,6 +187,7 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
     case BreakpointKind::MemoryValue: return Type::Value;
     case BreakpointKind::Brk:         return Type::Brk;
     case BreakpointKind::Interrupt:   return Type::Interrupt;
+    case BreakpointKind::Disk:        return Type::Disk;
     case BreakpointKind::Memory:
         return (info.access == WatchAccess::Read)  ? Type::Read
              : (info.access == WatchAccess::Write) ? Type::Write
@@ -152,18 +205,27 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
 //  BreakpointDialog::ShowFieldsForType
 //
 //  The value field means what the type needs it to, and only a watchpoint
-//  can stop before its access.
+//  can stop before its access. A disk breakpoint takes an event, a drive
+//  and the event's arguments in the address field, whose placeholder is
+//  the event's syntax line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointDialog::ShowFieldsForType()
 {
-    Type  type      = (Type) m_type.GetSelectedIndex();
-    bool  isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
+    Type    type      = (Type) m_type.GetSelectedIndex();
+    bool    isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
+    bool    isDisk    = type == Type::Disk;
+    size_t  event     = std::clamp<size_t> (m_event.GetSelectedIndex(), 0, DiskBreakSpecText::GetEventWords().size() - 1);
 
 
 
-    m_mode.SetEnabled (isWatched);
+    m_mode.SetEnabled  (isWatched);
+    m_event.SetEnabled (isDisk);
+    m_drive.SetEnabled (isDisk);
+    m_value.SetEnabled (!isDisk);
+    m_addressLabel.SetText   (isDisk ? L"Arguments" : L"Address or range");
+    m_address.SetPlaceholder (isDisk ? SourcePathList::Utf8ToWide (DiskBreakSpecText::GetEventWords()[event].syntax) : std::wstring());
 
     switch (type)
     {
@@ -191,18 +253,20 @@ void BreakpointDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_typeLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
+    for (DxuiLabel * label : { &m_typeLabel, &m_eventLabel, &m_driveLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
     m_typeLabel.SetText      (L"Type");
+    m_eventLabel.SetText     (L"Disk event");
+    m_driveLabel.SetText     (L"Drive");
     m_modeLabel.SetText      (L"Stops");
     m_addressLabel.SetText   (L"Address or range");
     m_conditionLabel.SetText (L"Condition (A == 41)");
 
-    m_type.SetItems    ({ L"Execute", L"Read", L"Write", L"Read or write", L"Memory value", L"Register", L"Opcode", L"BRK", L"BRK on interrupt" });
+    m_type.SetItems    ({ L"Execute", L"Read", L"Write", L"Read or write", L"Memory value", L"Register", L"Opcode", L"BRK", L"BRK on interrupt", L"Disk event" });
     m_type.SetSelected ((int) fields.type);
     m_type.SetSelect   ([this] (int) { ShowFieldsForType(); Invalidate(); });
     m_type.SetPopupHost (GetPopupHost());
@@ -211,6 +275,15 @@ void BreakpointDialog::OnCreate()
     m_mode.SetSelected  ((int) fields.mode);
     m_mode.SetPopupHost (GetPopupHost());
 
+    m_event.SetItems     (std::vector<std::wstring> (std::begin (s_kDiskEventNames), std::end (s_kDiskEventNames)));
+    m_event.SetSelected  (fields.event);
+    m_event.SetSelect    ([this] (int) { ShowFieldsForType(); Invalidate(); });
+    m_event.SetPopupHost (GetPopupHost());
+
+    m_drive.SetItems     ({ L"Either drive", L"Drive 1", L"Drive 2" });
+    m_drive.SetSelected  (fields.drive);
+    m_drive.SetPopupHost (GetPopupHost());
+
     for (DxuiTextInput * box : { &m_address, &m_value, &m_condition })
     {
         box->SetTheme        (m_theme);
@@ -218,13 +291,15 @@ void BreakpointDialog::OnCreate()
         box->SetTextRenderer (GetTextRenderer());
     }
 
-    m_address.SetText   (SourcePathList::Utf8ToWide (fields.address));
+    m_address.SetText   (SourcePathList::Utf8ToWide ((fields.type == Type::Disk) ? fields.arguments : fields.address));
     m_value.SetText     (SourcePathList::Utf8ToWide (fields.value));
     m_condition.SetText (SourcePathList::Utf8ToWide (fields.condition));
     ShowFieldsForType();
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
     m_body->Add (m_typeLabel,      m_type);
+    m_body->Add (m_eventLabel,     m_event);
+    m_body->Add (m_driveLabel,     m_drive);
     m_body->Add (m_modeLabel,      m_mode);
     m_body->Add (m_addressLabel,   m_address);
     m_body->Add (m_valueLabel,     m_value);
@@ -244,6 +319,9 @@ void BreakpointDialog::OnCreate()
         edited.address   = SourcePathList::WideToUtf8 (m_address.GetText());
         edited.value     = SourcePathList::WideToUtf8 (m_value.GetText());
         edited.condition = SourcePathList::WideToUtf8 (m_condition.GetText());
+        edited.event     = m_event.GetSelectedIndex();
+        edited.drive     = m_drive.GetSelectedIndex();
+        edited.arguments = edited.address;
         m_definition     = MakeDefinition (edited);
         EndDialog (IDOK);
     });
@@ -275,8 +353,8 @@ std::optional<std::string> BreakpointDialog::Ask (HWND owner, const IDxuiTheme *
     params.title                    = std::format (L"Breakpoint #{}", info.id);
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 460, 320 };
-    params.minSizeDip               = { 400, 320 };
+    params.initialSizeDip           = { 460, 396 };
+    params.minSizeDip               = { 400, 396 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

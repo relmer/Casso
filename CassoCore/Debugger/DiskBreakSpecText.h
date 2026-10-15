@@ -20,6 +20,19 @@
 class DiskBreakSpecText
 {
 public:
+    //  An event word BPDISK takes, the event it sets and its syntax line.
+    //  WRITE sets write mode, and the parser turns it into a written
+    //  prologue or a blocked write by its arguments.
+    struct EventWord
+    {
+        const char  * word;
+        DiskEvent     event;
+        const char  * syntax;
+    };
+
+    //  The event words in FR-163's order, the breakpoint dialog's.
+    static std::span<const EventWord>  GetEventWords();
+
     //  "D1 READ 11 0 PASSED", without the command word.
     static std::string   FormatArguments (const DiskBreakSpec & spec);
 

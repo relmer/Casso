@@ -114,6 +114,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
     const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
     BreakpointListData            breakpoints;
+    DebugDiskState                diskState;
     InlineParallelRunner          inlineRunner;
     IParallelRunner             & run            = (runner != nullptr) ? *runner : inlineRunner;
     const IParallelRunner::Job    jobs[]         = { [this, &session, &snapshot] { BuildCodeViews   (session, snapshot); },
@@ -157,17 +158,24 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     BreakpointHandlers::ListAll (session, breakpoints);
 
+    //  An RWTS or driver breakpoint is listed at the routine it resolved to.
     for (const BreakpointInfo & info : breakpoints.breakpoints)
     {
-        SymbolTableId  table = SymbolTableId::Main;
+        SymbolTableId  table   = SymbolTableId::Main;
+        Word           address = info.resolved.value_or (info.address);
 
 
 
-        snapshot.breakpoints.push_back ({ info.id, info.address,
-                                          std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
+        snapshot.breakpoints.push_back ({ info.id, address,
+                                          std::format ("#{} ${:04X}{}", info.id, address, info.enabled ? "" : " (off)"),
                                           info.enabled, info });
 
-        session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
+        session.GetSymbols().TryFindName (address, snapshot.breakpoints.back().label, table);
+    }
+
+    if (session.GetTarget().TryGetDiskState (diskState))
+    {
+        snapshot.diskSlot = diskState.slot;
     }
 
     //  Before the code views, which mark the line a step just ran.
@@ -1680,6 +1688,25 @@ bool DebuggerViewState::IsCodeBreakpointAt (const DebuggerViewSnapshot::Breakpoi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::IsDiskRoutineAt
+//
+//  An RWTS or driver breakpoint resolved to the routine at the address: the
+//  gutter marks it, and toggling the line adds an execution breakpoint
+//  beside it rather than clearing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsDiskRoutineAt (const DebuggerViewSnapshot::BreakpointLine & bp, Word address)
+{
+    return bp.info.resolved.has_value() && *bp.info.resolved == address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetPokeLine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3012,7 +3039,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
         for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
         {
-            if (IsCodeBreakpointAt (bp, row.address))
+            if (IsCodeBreakpointAt (bp, row.address) || IsDiskRoutineAt (bp, row.address))
             {
                 row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
                 row.hasBreakpoint = true;

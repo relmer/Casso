@@ -58,6 +58,7 @@ public:
 
     void                InjectKey         (Byte) override {}
     bool                IsKeyPending      () const override { return m_capture->isKeyPending; }
+    bool                TryGetDiskState   (DebugDiskState & state) const override { state = m_capture->diskState.value_or (state); return m_capture->diskState.has_value(); }
 
     void                SetTraceOn        (bool) override {}
     bool                IsTraceOn         () const override { return m_capture->isTraceOn; }

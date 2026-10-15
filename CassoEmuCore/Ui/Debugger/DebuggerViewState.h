@@ -257,6 +257,10 @@ struct DebuggerViewSnapshot
     CallStackData                         callStack;
     std::vector<BreakpointLine>           breakpoints;
 
+    //  The Disk II controller's slot, which a disk breakpoint's Data column
+    //  has; absent on a machine with none.
+    std::optional<int>                    diskSlot;
+
     //  Whether the breakpoints pane has a step to undo or redo (FR-120).
     bool                                  canUndoBreakpoints = false;
     bool                                  canRedoBreakpoints = false;
@@ -532,6 +536,7 @@ public:
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);
     static std::string  GetPokeLine             (Word address, Byte value);
     static bool         IsCodeBreakpointAt      (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
+    static bool         IsDiskRoutineAt         (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
 
     //  The actions a finished watch edit takes (FR-096), echoed in `mode`.
     //  `watchId` picks a manual watch and `autoIndex` an automatic one;

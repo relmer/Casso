@@ -60,11 +60,11 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
-    cells[(size_t) Column::Symbol]    = !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
+    cells[(size_t) Column::Symbol]    = HasRoutine (info) ? bp.label : !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
     cells[(size_t) Column::WhenHit]   = GetWhenHit (info);
-    cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address) ? bp.label : std::string();
-    cells[(size_t) Column::Address]   = HasAddress (info) ? GetRange (info) : std::string();
-    cells[(size_t) Column::Data]      = GetData (info);
+    cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address || HasRoutine (info)) ? bp.label : std::string();
+    cells[(size_t) Column::Address]   = HasAddress (info) ? GetRange (info) : GetDiskAddress (info);
+    cells[(size_t) Column::Data]      = (info.kind == BreakpointKind::Disk) ? GetDiskData (snapshot, info) : GetData (info);
 
     return cells;
 }
@@ -80,13 +80,20 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 //  A data breakpoint's kind is its access. Every execution breakpoint is
 //  Execution: a symbol at the address does not make it a function
 //  breakpoint, since the symbol may label a loop or data as well as a
-//  routine, and the engine keeps the address, not how it was given.
+//  routine, and the engine has the address, not how it was given. A disk
+//  breakpoint's kind is its event, the three write events one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo & info)
 {
     static constexpr RowKind  kDataKinds[] = { RowKind::DataRead, RowKind::DataWrite, RowKind::DataReadOrWrite };
+    static constexpr RowKind  kDiskKinds[] =
+    {
+        RowKind::DiskSectorRead, RowKind::DiskAddressField, RowKind::DiskHead,      RowKind::DiskWrite,  RowKind::DiskWrite,
+        RowKind::DiskWrite,      RowKind::DiskDosSector,    RowKind::DiskBlock,     RowKind::DiskRwts,   RowKind::DiskDriver,
+        RowKind::DiskMotor,      RowKind::DiskSelect,       RowKind::DiskInsert,    RowKind::DiskEject,
+    };
 
 
 
@@ -98,8 +105,8 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::Brk:         return RowKind::Brk;
     case BreakpointKind::Interrupt:   return RowKind::Interrupt;
     case BreakpointKind::MemoryValue: return RowKind::DataValue;
+    case BreakpointKind::Disk:        return kDiskKinds[(size_t) info.disk.value_or (DiskBreakSpec {}).event];
     case BreakpointKind::Address:     break;
-    case BreakpointKind::Disk:        break;
     }
 
     return RowKind::Execution;
@@ -121,7 +128,9 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
 std::string BreakpointColumns::GetKindText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Breakpoint", "Memory", "Memory", "Memory", "Memory",
-                                                "Register", "Opcode", "BRK", "Interrupt" };
+                                                "Register", "Opcode", "BRK", "Interrupt",
+                                                "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
+                                                "Disk", "Disk", "Disk", "Disk", "Disk", "Disk" };
 
 
 
@@ -147,7 +156,9 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
 std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Execute", "Read", "Write", "Read or write", "Value",
-                                                "Condition", "Execute", "Execute", "IRQ or NMI" };
+                                                "Condition", "Execute", "Execute", "IRQ or NMI",
+                                                "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
+                                                "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject" };
 
 
 
@@ -541,10 +552,32 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::Interrupt:   return "Interrupt";
     case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", named, info.value.value_or (0));
     case BreakpointKind::Memory:      return named;
-    case BreakpointKind::Disk:        return "Disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
+    case BreakpointKind::Disk:        return GetDiskName (info);
     }
 
     return named;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::GetDiskName
+//
+//  "Disk" and the description, which for an insert or an eject begins with
+//  "disk" already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointColumns::GetDiskName (const BreakpointInfo & info)
+{
+    std::string  description = DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
+
+
+
+    return description.starts_with ("disk ") ? "Disk " + description.substr (5) : "Disk " + description;
 }
 
 
@@ -571,6 +604,56 @@ std::string BreakpointColumns::GetData (const BreakpointInfo & info)
     case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", GetRange (info), info.value.value_or (0));
     default:                          return std::string();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::GetDiskData
+//
+//  The controller's slot and the drive the breakpoint is for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointColumns::GetDiskData (const DebuggerViewSnapshot & snapshot, const BreakpointInfo & info)
+{
+    DiskDriveFilter  drive = info.disk.value_or (DiskBreakSpec {}).drive;
+    std::string      slot  = snapshot.diskSlot.has_value() ? std::format ("Slot {}, ", *snapshot.diskSlot) : std::string();
+
+
+
+    return slot + ((drive == DiskDriveFilter::Drive1) ? "drive 1" : (drive == DiskDriveFilter::Drive2) ? "drive 2" : "either drive");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::GetDiskAddress
+//
+//  An RWTS or driver breakpoint's routine, or that its vector has none yet;
+//  nothing for the other disk events, which stop anywhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointColumns::GetDiskAddress (const BreakpointInfo & info)
+{
+    DiskEvent  event  = info.disk.value_or (DiskBreakSpec {}).event;
+    bool       isCall = info.kind == BreakpointKind::Disk && (event == DiskEvent::RwtsCall || event == DiskEvent::DriverCall);
+
+
+
+    if (!isCall)
+    {
+        return std::string();
+    }
+
+    return info.resolved.has_value() ? std::format ("${:04X}", *info.resolved) : std::string ("unresolved");
 }
 
 
@@ -625,6 +708,21 @@ bool BreakpointColumns::HasAddress (const BreakpointInfo & info)
 {
     return info.kind == BreakpointKind::Address || info.kind == BreakpointKind::Memory ||
            info.kind == BreakpointKind::MemoryValue;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointColumns::HasRoutine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointColumns::HasRoutine (const BreakpointInfo & info)
+{
+    return info.kind == BreakpointKind::Disk && info.resolved.has_value();
 }
 
 

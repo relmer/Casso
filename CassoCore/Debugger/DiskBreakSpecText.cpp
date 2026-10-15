@@ -8,6 +8,37 @@
 
 static constexpr int  kQuartersPerTrack = 4;
 
+static constexpr DiskBreakSpecText::EventWord  s_kEventWords[] =
+{
+    { "READ",    DiskEvent::SectorRead,   "BPDISK [D1|D2] READ track sector [PASSED] [ADDR p p p] [DATA p p p] [SECTORS 13|16] [IF expr]" },
+    { "ADDRESS", DiskEvent::AddressField, "BPDISK [D1|D2] ADDRESS [track [sector [volume]]] [BADSUM] [WRONGTRACK] [ADDR p p p] [SECTORS 13|16] [IF expr]" },
+    { "HEAD",    DiskEvent::Head,         "BPDISK [D1|D2] HEAD [QT first[:last]|T first[:last]|HALF] [BUMP] [IF expr]" },
+    { "WRITE",   DiskEvent::WriteMode,    "BPDISK [D1|D2] WRITE [QT first[:last]|T first[:last]|track sector [DATA p p p] [ADDR p p p]|BLOCKED] [IF expr]" },
+    { "DOS",     DiskEvent::DosSector,    "BPDISK [D1|D2] DOS track sector [PASSED] [IF expr]" },
+    { "BLOCK",   DiskEvent::ProDosBlock,  "BPDISK [D1|D2] BLOCK n [PASSED] [IF expr]" },
+    { "RWTS",    DiskEvent::RwtsCall,     "BPDISK [D1|D2] RWTS [track [sector]] [READ|WRITE|SEEK|FORMAT] [IF expr]" },
+    { "DRIVER",  DiskEvent::DriverCall,   "BPDISK [D1|D2] DRIVER [BLOCK n] [READ|WRITE|STATUS|FORMAT] [IF expr]" },
+    { "MOTOR",   DiskEvent::Motor,        "BPDISK [D1|D2] MOTOR [ON|OFF|STOPPED] [IF expr]" },
+    { "SELECT",  DiskEvent::DriveSelect,  "BPDISK [D1|D2] SELECT [EVERY] [IF expr]" },
+    { "INSERT",  DiskEvent::Inserted,     "BPDISK [D1|D2] INSERT [IF expr]" },
+    { "EJECT",   DiskEvent::Ejected,      "BPDISK [D1|D2] EJECT [IF expr]" },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskBreakSpecText::GetEventWords
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const DiskBreakSpecText::EventWord> DiskBreakSpecText::GetEventWords()
+{
+    return s_kEventWords;
+}
+
 
 
 

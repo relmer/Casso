@@ -61,6 +61,18 @@ public:
         Opcode,
         Brk,
         Interrupt,
+        DiskSectorRead,
+        DiskAddressField,
+        DiskHead,
+        DiskWrite,
+        DiskDosSector,
+        DiskBlock,
+        DiskRwts,
+        DiskDriver,
+        DiskMotor,
+        DiskSelect,
+        DiskInsert,
+        DiskEject,
         Count,
     };
 
@@ -97,6 +109,10 @@ public:
     //  condition, BRK and an interrupt stop anywhere.
     static bool  HasAddress        (const BreakpointInfo & info);
 
+    //  An RWTS or driver breakpoint whose vector has a routine: the
+    //  breakpoint has that address, as Go to disassembly uses it.
+    static bool  HasRoutine        (const BreakpointInfo & info);
+
 private:
     //  Not "bpcols" or "bpcols2": their bits followed the columns' earlier
     //  orders. "bpcols" had Labels between Condition and Hit count and
@@ -108,6 +124,9 @@ private:
 
     static std::string  GetName          (const DebuggerViewSnapshot::BreakpointLine & bp, const std::string & sourceLine);
     static std::string  GetData          (const BreakpointInfo & info);
+    static std::string  GetDiskData      (const DebuggerViewSnapshot & snapshot, const BreakpointInfo & info);
+    static std::string  GetDiskName      (const BreakpointInfo & info);
+    static std::string  GetDiskAddress   (const BreakpointInfo & info);
     static std::string  GetRange         (const BreakpointInfo & info);
     static std::string  GetWhenHit       (const BreakpointInfo & info);
     static bool         TryGetSourceLine (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
