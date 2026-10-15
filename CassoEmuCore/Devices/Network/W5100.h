@@ -109,7 +109,7 @@ private:
     Word      GetRxReceivedSize    (int socket) const;
     Byte      ReadLatchedWord      (int socket, Word offset, Word value);
 
-    std::array<Byte, kMemorySize>               m_mem     = {};
+    std::vector<Byte>                           m_mem     = std::vector<Byte> (kMemorySize);
     std::array<SocketState, kSocketCount>       m_sockets = {};
     Word                                        m_pointer = 0;
     IW5100Backend                             * m_backend = nullptr;

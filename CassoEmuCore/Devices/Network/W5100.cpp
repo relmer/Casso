@@ -216,7 +216,7 @@ void W5100::ResetRegisters()
 
 
 
-    m_mem.fill (0);
+    std::fill (m_mem.begin(), m_mem.end(), (Byte) 0);
 
     SetWord (R::kRtr, R::kRtrReset);
     m_mem[R::kRcr]    = R::kRcrReset;
