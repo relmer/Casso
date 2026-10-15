@@ -100,7 +100,7 @@ public:
     static void  PaintHeaderFade (IDxuiPainter & painter, const RECT & rowPx);
 
     //  The row the header fade covers, in the site's pixels: the first
-    //  group's title bar, or its tab strip while a pane is carried. False
+    //  group's title bar, or its tab strip while a pane is dragged. False
     //  when the site has no group.
     static bool  TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & outRowPx);
 
