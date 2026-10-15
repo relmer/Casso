@@ -118,20 +118,23 @@ void DiskBreakpointMonitor::Prime()
 //  DiskBreakpointMonitor::Poll
 //
 //  The events the last instruction made, the blocked writes and the fields
-//  the record completed, each tested against every enabled disk entry.
+//  the record completed, each tested against every enabled disk entry. An
+//  instruction that made no event and added no nibble costs two tests: most
+//  instructions are such.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskBreakpointMonitor::Poll (const IDebugExpressionContext & context)
 {
-    const Disk2NibbleRecord      * record = m_target.GetDiskRecord();
+    const Disk2NibbleRecord      * record  = m_target.GetDiskRecord();
     std::vector<Candidate>         candidates;
     std::vector<DiskFieldEvent>    fields;
     DebugDiskState                 state;
-    int                            hitId  = -1;
+    int                            hitId   = -1;
     std::optional<int32_t>         value;
-    uint64_t                       cycle  = m_target.GetCycleCount();
-    bool                           isJump = cycle < m_lastCycle || cycle - m_lastCycle > kMaxStepCycles;
+    uint64_t                       cycle   = m_target.GetCycleCount();
+    bool                           isJump  = cycle < m_lastCycle || cycle - m_lastCycle > kMaxStepCycles;
+    bool                           isQuiet = m_events.empty() && (record == nullptr || record->GetCount() == m_recordSeen);
 
 
 
@@ -146,6 +149,12 @@ bool DiskBreakpointMonitor::Poll (const IDebugExpressionContext & context)
     }
 
     m_lastCycle = cycle;
+
+    if (isQuiet && !isJump)
+    {
+        return m_report.has_value();
+    }
+
     m_target.TryGetDiskState (state);
 
     if (record != nullptr)

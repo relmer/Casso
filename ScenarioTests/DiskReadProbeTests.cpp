@@ -4,6 +4,11 @@
 #include "TestMachine.h"
 #include "Core/IIoAccessSink.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/IDebugNotificationSink.h"
+#include "Debugger/MachineDebugTarget.h"
+#include "Debugger/SynchronousRunDriver.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
@@ -453,9 +458,222 @@ namespace DiskReadProbeTests
             Assert::AreEqual ((size_t) 0, results.requestsUnread,  L"every sector requested is counted as read");
         }
 
+
+        //  T731 (SC-037, SC-042, SC-044): a count-only sector read breakpoint
+        //  on every sector the boot's nibbles pass counts each time the probe
+        //  found that sector read in full and never a time it was passed
+        //  over; an RWTS breakpoint counts every entry to the routine $03D9
+        //  leads to, DOS's own calls through $B7B5 included; and the Disk ][
+        //  window's listener receives the same events with the breakpoints
+        //  armed as without.
+        TEST_METHOD (DiskBreakpointsCountEachReadOnADos33Boot)
+        {
+            Results  results;
+            size_t   vectorEntries = 0;
+            Armed    plain;
+            Armed    armed;
+
+
+
+            Boot (GuestSession::RequireDos33Master(), false, results, [&] (const Probe & probe) { vectorEntries = probe.vectorEntries; });
+
+            BootArmed (GuestSession::RequireDos33Master(), {}, plain);
+            BootArmed (GuestSession::RequireDos33Master(), MakeSectorSpecs (results, ::DiskEvent::RwtsCall), armed);
+
+            AssertSectorHits (results, armed);
+            Assert::IsTrue   (vectorEntries > 0);
+            Assert::AreEqual ((uint32_t) vectorEntries, armed.callHits, L"every RWTS entry, DOS's own calls included");
+            Assert::IsTrue   (plain.events == armed.events, L"the window's listener receives the same events");
+        }
+
+        //  The same on a ProDOS boot, where a driver breakpoint takes its
+        //  routine from slot 6's device vector once ProDOS is in.
+        TEST_METHOD (DiskBreakpointsCountEachReadOnAProDosBoot)
+        {
+            Results  results;
+            Armed    plain;
+            Armed    armed;
+
+
+
+            Boot (GuestSession::RequireProDosUsersDisk(), true, results, [] (const Probe &) {});
+
+            BootArmed (GuestSession::RequireProDosUsersDisk(), {}, plain);
+            BootArmed (GuestSession::RequireProDosUsersDisk(), MakeSectorSpecs (results, ::DiskEvent::DriverCall), armed);
+
+            AssertSectorHits (results, armed);
+            Assert::IsTrue   (armed.routine.has_value(), L"the driver breakpoint has its routine");
+            Assert::AreEqual (armed.vector, *armed.routine);
+            Assert::IsTrue   (armed.callHits > 0, L"and counted the driver's calls");
+            Assert::IsTrue   (plain.events == armed.events, L"the window's listener receives the same events");
+        }
+
+        //  BPDISK READ 0 0 stops on the boot ROM's read of track 0 sector 0
+        //  after a power cycle with the System Master in the drive.
+        TEST_METHOD (TheBootRomsReadOfTheBootSectorStops)
+        {
+            static constexpr uint64_t  kBudget  = 6'000'000;
+            TestMachine                machine (kpszMachine);
+            MachineDebugTarget         target  (machine);
+            SynchronousRunDriver       driver  (machine, target.GetRunHook());
+            StopRecorder               sink;
+            DebugSession               session (target, sink, RunState::Paused);
+            BreakpointHandlers         handlers;
+
+
+
+            machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            target.SetRunDriver (&driver);
+            session.AddHandler  (&handlers);
+            session.SetBudget   (kBudget);
+            GuestSession::Mount (machine, GuestSession::RequireDos33Master());
+            machine.PowerCycle();
+
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) session.ExecuteLine ("BPDISK READ 0 0").status);
+            session.ExecuteLine ("G");
+
+            Assert::IsTrue   (sink.stop.has_value() && sink.stop->reason == StopReason::Disk, L"a disk stop");
+            Assert::IsTrue   (sink.stop->disk->field.has_value());
+            Assert::AreEqual ((Byte) 0, sink.stop->disk->field->track);
+            Assert::AreEqual ((Byte) 0, sink.stop->disk->field->sector);
+            Assert::IsTrue   ((sink.stop->disk->instruction & 0xFF00) == 0xC600, L"read by the boot ROM");
+        }
+
     private:
 
         static constexpr const char * kpszMachine = "Apple2eEnhanced";
+
+        //  The Disk ][ window's listener as a list of its events, and what a
+        //  boot with disk breakpoints armed counted.
+        class EventLog : public IDisk2EventSink
+        {
+        public:
+            std::vector<std::string>  events;
+
+            void  OnMotorCommandOn() override                                  { events.push_back ("motor on"); }
+            void  OnMotorEngaged() override                                    { events.push_back ("engaged"); }
+            void  OnMotorCommandOff() override                                 { events.push_back ("motor off"); }
+            void  OnMotorDisengaged() override                                 { events.push_back ("disengaged"); }
+            void  OnHeadStep        (int prevQt, int newQt) override           { events.push_back (std::format ("step {} {}", prevQt, newQt)); }
+            void  OnHeadBump        (int atQt) override                        { events.push_back (std::format ("bump {}", atQt)); }
+            void  OnAddressMark     (int t, int s, int v) override             { events.push_back (std::format ("address {} {} {}", t, s, v)); }
+            void  OnDataMarkRead    (int t, int s, int v, std::span<const Byte> bytes) override  { events.push_back (std::format ("read {} {} {} {}", t, s, v, bytes.size())); }
+            void  OnDataMarkWrite   (int t, int s, int v, std::span<const Byte> bytes) override  { events.push_back (std::format ("write {} {} {} {}", t, s, v, bytes.size())); }
+            void  OnDriveSelect     (int drive) override                       { events.push_back (std::format ("select {}", drive)); }
+            void  OnDiskInserted    (int drive) override                       { events.push_back (std::format ("insert {}", drive)); }
+            void  OnDiskEjected     (int drive) override                       { events.push_back (std::format ("eject {}", drive)); }
+        };
+
+        class StopRecorder : public NullDebugNotificationSink
+        {
+        public:
+            std::optional<StopEvent>  stop;
+
+            void  OnStopped (const StopEvent & event) override { stop = event; }
+        };
+
+        struct Armed
+        {
+            std::map<std::pair<int, int>, uint32_t>  sectorHits;
+            uint32_t                                 callHits = 0;
+            std::optional<Word>                      routine;
+            Word                                     vector   = 0;
+            std::vector<std::string>                 events;
+        };
+
+        //  A count-only sector read breakpoint for each track and sector the
+        //  boot's fields have, read or passed over, and one of the call event.
+        static std::vector<DiskBreakSpec> MakeSectorSpecs (const Results & results, ::DiskEvent call)
+        {
+            std::set<std::pair<int, int>>  places;
+            std::vector<DiskBreakSpec>     specs;
+            DiskBreakSpec                  spec;
+
+
+
+            for (const Field & field : results.fields)
+            {
+                places.insert ({ field.track, field.sector });
+            }
+
+            for (const auto & [track, sector] : places)
+            {
+                spec        = DiskBreakSpec();
+                spec.track  = (Byte) track;
+                spec.sector = (Byte) sector;
+                specs.push_back (spec);
+            }
+
+            spec       = DiskBreakSpec();
+            spec.event = call;
+            specs.push_back (spec);
+            return specs;
+        }
+
+        //  Boots the image with a debug session and the specs armed, count
+        //  only, and the event log in the window's listener slot.
+        static void BootArmed (const std::vector<Byte> & image, const std::vector<DiskBreakSpec> & specs, Armed & armed)
+        {
+            TestMachine                machine (kpszMachine);
+            MachineDebugTarget         target  (machine);
+            NullDebugNotificationSink  sink;
+            DebugSession               session (target, sink, RunState::FreeRunning);
+            EventLog                   log;
+            Byte                       low     = 0;
+            Byte                       high    = 0;
+
+
+
+            machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            machine.AttachObservers ({ &log, nullptr, nullptr, nullptr }, ObserverSlot::Panel);
+
+            for (const DiskBreakSpec & spec : specs)
+            {
+                session.GetBreakpoints().TrySetFlags (session.GetBreakpoints().AddDisk (spec), false, false);
+            }
+
+            session.OnStopConditionsChanged();
+            GuestSession::MountAndBoot (machine, image);
+            machine.AttachObservers ({}, ObserverSlot::Panel);
+
+            for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
+            {
+                if (entry.IsDiskCall())
+                {
+                    armed.callHits = entry.hits;
+                    armed.routine  = entry.resolved;
+                }
+                else
+                {
+                    armed.sectorHits[{ *entry.disk->track, *entry.disk->sector }] = entry.hits;
+                }
+            }
+
+            target.TryPeek (kDriverVector,     low);
+            target.TryPeek (kDriverVector + 1, high);
+            armed.vector = (Word) (low | (high << 8));
+            armed.events = std::move (log.events);
+        }
+
+        //  Each place's hits are the fields there the probe found read.
+        static void AssertSectorHits (const Results & results, const Armed & armed)
+        {
+            std::map<std::pair<int, int>, uint32_t>  reads;
+
+
+
+            for (const Field & field : results.fields)
+            {
+                reads[{ field.track, field.sector }] += field.IsRead() ? 1 : 0;
+            }
+
+            Assert::IsFalse (reads.empty());
+
+            for (const auto & [place, count] : reads)
+            {
+                Assert::AreEqual (count, armed.sectorHits.at (place), std::format (L"track {} sector {}", place.first, place.second).c_str());
+            }
+        }
 
         static void Boot (const std::vector<Byte> & image, bool isProDos, Results & results, const std::function<void (const Probe &)> & check)
         {

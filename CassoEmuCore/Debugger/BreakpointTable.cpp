@@ -577,7 +577,8 @@ bool BreakpointTable::HasEnabledStopCondition() const
 //  BreakpointTable::TryMatchBeforeInstruction
 //
 //  Two passes keep the order of precedence: address entries first, through
-//  the bitmap, then every other kind.
+//  the bitmap, then every other kind. A disk entry other than a call stops
+//  only after an event, so it is passed over here without a test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -598,10 +599,11 @@ bool BreakpointTable::TryMatchBeforeInstruction (
         for (Breakpoint & entry : m_entries)
         {
             bool  isAddressKind = entry.kind == BreakpointKind::Address;
+            bool  isDiskEvent   = entry.kind == BreakpointKind::Disk && !entry.IsDiskCall();
 
 
 
-            if (!entry.enabled || isAddressKind != (pass == 0))
+            if (!entry.enabled || isAddressKind != (pass == 0) || isDiskEvent)
             {
                 continue;
             }
@@ -736,14 +738,15 @@ bool BreakpointTable::IsStopBefore (
 
     for (const Breakpoint & entry : m_entries)
     {
-        auto                 found   = (routines != nullptr) ? routines->find (entry.id) : std::map<int, Word>::const_iterator();
-        std::optional<Word>  routine = (routines == nullptr) ? entry.resolved
-                                     : (found != routines->end()) ? std::optional<Word> (found->second)
-                                     :                              std::nullopt;
+        auto                 found       = (routines != nullptr) ? routines->find (entry.id) : std::map<int, Word>::const_iterator();
+        std::optional<Word>  routine     = (routines == nullptr) ? entry.resolved
+                                         : (found != routines->end()) ? std::optional<Word> (found->second)
+                                         :                              std::nullopt;
+        bool                 isDiskEvent = entry.kind == BreakpointKind::Disk && !entry.IsDiskCall();
 
 
 
-        if (entry.enabled && entry.stops && TryMatchEntry (entry, routine, pc, opcode, context, conditionValue))
+        if (entry.enabled && entry.stops && !isDiskEvent && TryMatchEntry (entry, routine, pc, opcode, context, conditionValue))
         {
             return true;
         }
