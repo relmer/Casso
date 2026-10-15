@@ -56,7 +56,7 @@ The W5100 has no DHCP client. DHCP is guest software sending UDP broadcasts from
 
 ### User Story 1 - Install the card (Priority: P1)
 
-A user opens the settings for an Apple ][+, //e or enhanced //e, turns on the Uthernet II, picks its slot and restarts the machine. Apple II software that probes for the card finds it in that slot.
+A user opens the settings for an Apple ][, ][+, //e or enhanced //e, turns on the Uthernet II, picks its slot and restarts the machine. Apple II software that probes for the card finds it in that slot.
 
 **Why this priority**: Nothing else in the feature is reachable until the card is on the bus.
 
@@ -144,7 +144,7 @@ A user sets the card's MAC address, whether the LAN can connect to the guest, an
 
 #### Card and bus
 
-- **FR-001**: The Uthernet II MUST be available on the Apple ][+, the //e and the enhanced //e, in any slot from 1 to 7 not already occupied, and MUST NOT be offered on the //c.
+- **FR-001**: The Uthernet II MUST be available on the Apple ][, the ][+, the //e and the enhanced //e, in any slot from 1 to 7 not already occupied, and MUST NOT be offered on the //c.
 - **FR-002**: The card MUST respond at `$C0n4`-`$C0n7` as MR, IDM_AR0, IDM_AR1 and IDM_DR; `$C0n0`-`$C0n3` and the slot's `$Cn00` ROM space MUST remain undecoded.
 - **FR-003**: Reads of IDM_AR0 and IDM_AR1 MUST return the current address pointer; reads of MR MUST return the mode byte.
 - **FR-004**: With MR's AI bit set, each IDM_DR read or write MUST advance the address pointer by one, except that advancing from an address whose bit 14 is set and whose low 13 bits are all 1 MUST return to the start of that 8 KB region (`$5FFF` to `$4000`, `$7FFF` to `$6000`, `$FFFF` to `$E000`).
@@ -183,7 +183,7 @@ A user sets the card's MAC address, whether the LAN can connect to the guest, an
 - **FR-024c**: ICMP echo requests addressed to the gateway MUST produce ICMP echo replies.
 - **FR-024d**: UDP datagrams from the guest MUST be relayed through host UDP sockets to their destination, and replies MUST be returned to the guest's source port as UDP frames from the original destination's address and port.
 - **FR-024e**: TCP connections the guest opens MUST be relayed through host TCP connections: the guest's SYN produces a host connect, the connect result produces a SYN-ACK or a reset, data flows in both directions within the guest's advertised window and its MSS, and FIN and RST map onto host shutdown and close.
-- **FR-024f**: DNS queries the guest sends to the virtual DNS address MUST be resolved through the PC's resolver, and the result MUST be returned to the guest in a DNS response frame.
+- **FR-024f**: DNS queries the guest sends to the virtual DNS address MUST be relayed to the PC's configured IPv4 DNS server, and the server's response MUST be returned to the guest as if it came from the virtual DNS address.
 - **FR-024g**: Each configured port forward MUST accept connections (TCP) or datagrams (UDP) on its host port and relay them to the guest's DHCP-assigned address at its guest port, subject to FR-019a.
 - **FR-024h**: UDP and TCP traffic the guest sends to the gateway's address MUST be relayed to the PC's loopback address, so programs on the same PC (an ADTPro server, the Casso Explorer link) are reachable without a LAN.
 
@@ -223,7 +223,7 @@ A user sets the card's MAC address, whether the LAN can connect to the guest, an
 
 ## Assumptions
 
-- The Apple ][ (original) is left out because the request specified the ][+ and //e; its slots are the same, so adding it later is a configuration change only.
+- The original Apple ][ is included alongside the requested ][+ and //e: its slots are identical, and the card manual reports its probe tested on an Integer BASIC Apple II.
 - The card ships disabled; when first enabled its default slot is 3, the first slot in the card manual's probe order and the slot in the card's demo code.
 - The card does not connect to the Apple II RESET line, so Ctrl-Reset has no effect on the W5100 and only a power cycle or MR's reset bit reinitializes it. The manual's instruction to reset the chip with `$80` at program start supports this.
 - The W5100's interrupt output is wired to the Apple II IRQ line, per the interrupt chapter of the card manual.
