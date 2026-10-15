@@ -7,6 +7,9 @@
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleLoResMode.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
+#include "Machines/Apple2/Common/SlotRomPage.h"
+#include "FakeExpansionRomCard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -594,6 +597,98 @@ public:
             L"INTCXROM=1 must shadow the slot-4 I/O device with internal ROM");
         Assert::AreEqual (static_cast<Word> (0), io.m_lastReadAddr,
             L"A shadowed device must not observe the read");
+    }
+
+    // A //e with an expansion-ROM card in slot 2: its $C200 page through the
+    // router and the shared expansion bus, as MachineBuilder wires them.
+    struct ExpansionFixture
+    {
+        MmuFixture            f;
+        ExpansionRomBus       expansion;
+        FakeExpansionRomCard  card;
+        SlotRomPage           page;
+
+        ExpansionFixture()
+            : expansion (f.bus),
+              card      (0x22),
+              page      (2, card)
+        {
+            CxxxRomRouter *  router = f.mmu.GetCxxxRouter();
+
+            f.mmu.AttachInternalCxxxRom (vector<Byte> (0x0F00, 0xEE));
+            expansion.AddCard (&card);
+            router->SetSlotIoDevice    (2, &page);
+            router->SetExpansionRomBus (&expansion);
+            f.mmu.SetIntCxRom (false);
+            f.mmu.ResetIntC8Rom();
+        }
+    };
+
+    TEST_METHOD (ExpansionCard_SelectedByPageAndReadAtC800)
+    {
+        ExpansionFixture  x;
+
+        Assert::AreEqual (static_cast<Byte> (0x99), x.f.bus.ReadByte (0xC200));
+        Assert::AreEqual (static_cast<Byte> (0x22), x.f.bus.ReadByte (0xC800),
+            L"a selected card drives $C800 while INTCXROM and INTC8ROM are reset");
+
+        (void) x.f.bus.ReadByte (0xCFFF);
+        Assert::IsFalse (x.card.m_selected, L"$CFFF deselects the card");
+    }
+
+    TEST_METHOD (ExpansionCard_IntCxRomHidesPageAndExpansion)
+    {
+        ExpansionFixture  x;
+
+        x.f.mmu.SetIntCxRom (true);
+
+        Assert::AreEqual (static_cast<Byte> (0xEE), x.f.bus.ReadByte (0xC200));
+        Assert::IsFalse (x.card.m_selected, L"a hidden page access does not select the card");
+
+        x.card.m_selected = true;
+        Assert::AreEqual (static_cast<Byte> (0xEE), x.f.bus.ReadByte (0xC800));
+        Assert::AreEqual (static_cast<Word> (0), x.card.m_lastRomAddress,
+            L"no I/O STROBE while INTCXROM is set");
+    }
+
+    TEST_METHOD (ExpansionCard_IntC8RomHidesExpansionAndKeepsTheCardSelected)
+    {
+        ExpansionFixture  x;
+
+        (void) x.f.bus.ReadByte (0xC200);
+        x.f.mmu.SetIntC8Rom (true);
+
+        Assert::AreEqual (static_cast<Byte> (0xEE), x.f.bus.ReadByte (0xC800),
+            L"INTC8ROM maps the expansion space to internal ROM");
+
+        (void) x.f.bus.ReadByte (0xCFFF);
+        Assert::IsFalse (x.f.mmu.GetIntC8Rom(), L"$CFFF clears INTC8ROM");
+        Assert::IsTrue (x.card.m_selected,
+            L"the card does not see a $CFFF access made while INTC8ROM was set");
+        Assert::AreEqual (static_cast<Byte> (0x22), x.f.bus.ReadByte (0xC800));
+    }
+
+    TEST_METHOD (ExpansionCard_Slot3RequiresSlotC3Rom)
+    {
+        MmuFixture            f;
+        ExpansionRomBus       expansion (f.bus);
+        FakeExpansionRomCard  card (0x33);
+        SlotRomPage           page (3, card);
+        CxxxRomRouter       * router = f.mmu.GetCxxxRouter();
+
+        f.mmu.AttachInternalCxxxRom (vector<Byte> (0x0F00, 0xEE));
+        expansion.AddCard (&card);
+        router->SetSlotIoDevice    (3, &page);
+        router->SetExpansionRomBus (&expansion);
+        f.mmu.SetIntCxRom  (false);
+        f.mmu.SetSlotC3Rom (false);
+
+        (void) f.bus.ReadByte (0xC300);
+        Assert::IsFalse (card.m_selected, L"with SLOTC3ROM reset, $C300 is internal ROM");
+
+        f.mmu.SetSlotC3Rom (true);
+        (void) f.bus.ReadByte (0xC300);
+        Assert::IsTrue (card.m_selected);
     }
 
     TEST_METHOD (NoSlotsFastMap_YieldsToRegisteredSlotIoDevice)

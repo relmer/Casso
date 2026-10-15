@@ -257,6 +257,7 @@
     <ClCompile Include="Machines\Apple2\Common\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Devices\SerialByteQueue.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -358,6 +359,8 @@
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eKeyboard.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eMmu.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CxxxRomRouter.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ExpansionRomBus.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SlotRomPage.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2c\Apple2cRomBank.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleTextMode.cpp" />
@@ -728,6 +731,7 @@
     <ClInclude Include="Machines\Apple2\Common\MockingboardAudioSource.h" />
     <ClInclude Include="Machines\Apple2\Common\MockingboardCard.h" />
     <ClInclude Include="Devices\IAciaEndpoint.h" />
+    <ClInclude Include="Devices\SerialByteQueue.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Controller.h" />
     <ClInclude Include="Machines\Apple2\Common\IDisk2EventSink.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Event.h" />
@@ -739,6 +743,9 @@
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eKeyboard.h" />
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eMmu.h" />
     <ClInclude Include="Machines\Apple2\Common\CxxxRomRouter.h" />
+    <ClInclude Include="Machines\Apple2\Common\ExpansionRomBus.h" />
+    <ClInclude Include="Machines\Apple2\Common\IExpansionRomCard.h" />
+    <ClInclude Include="Machines\Apple2\Common\SlotRomPage.h" />
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2cRomBank.h" />
     <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.h" />

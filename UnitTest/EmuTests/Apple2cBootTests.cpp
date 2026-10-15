@@ -316,28 +316,51 @@ public:
 
 
     // The //c ships two built-in 6551 ACIA serial ports at the
-    // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). v1 wires each
-    // to a loopback endpoint, so a guest write to the data register echoes
-    // straight back into the receiver: RxFull latches and the byte reads back.
-    // Proves both ACIAs are mapped at the right addresses and transmit/receive
-    // end to end. (The printer-endpoint bridge is downstream.)
+    // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). Each has a
+    // loopback plug attached, so a byte written to the data register comes
+    // back into the receiver: one character time to shift out, one to shift
+    // back in. Proves both ACIAs are mapped at the right addresses, are ticked
+    // with the machine, and transmit and receive end to end.
     TEST_METHOD (SerialPortsLoopBackViaBuiltInAcia)
     {
-        TestMachine   machine ("Apple2c");
-        const Word     dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
+        constexpr Byte  kCmdPolled  = 0x0B;      // DTR, receiver IRQ off, RTS on
+        constexpr Byte  kCtrl19200  = 0x1F;      // 19,200 baud, 8N1
+        constexpr int   kCharTimes  = 3;         // out, back in, and margin
+        TestMachine     machine ("Apple2c");
+        const Word      dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
 
 
         machine.PowerCycle();
+        Assert::AreEqual<size_t> (2, machine.GetRefs().serialChips.size(), L"both ports are ticked");
 
         for (Word data : dataAddrs)
         {
-            Word  status = static_cast<Word> (data + Acia6551::kRegStatus);
+            Word      status   = static_cast<Word> (data + Acia6551::kRegStatus);
+            Word      command  = static_cast<Word> (data + Acia6551::kRegCommand);
+            Word      control  = static_cast<Word> (data + Acia6551::kRegControl);
+            uint32_t  charTime = 0;
 
             Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) == 0,
                 L"receiver must start empty");
 
+            machine.GetMemoryBus().WriteByte (control, kCtrl19200);
+            machine.GetMemoryBus().WriteByte (command, kCmdPolled);
+            charTime = static_cast<uint32_t> (ceil (machine.GetRefs().serialChips.front()->GetTransmitCharacterCycles()));
+
+            for (Acia6551 * acia : machine.GetRefs().serialChips)
+            {
+                acia->Tick (1);     // CTS follows RTS through the plug
+            }
+
             machine.GetMemoryBus().WriteByte (data, 0x5A);            // transmit -> loopback
+
+            for (Acia6551 * acia : machine.GetRefs().serialChips)
+            {
+                acia->Tick (charTime);
+                acia->Tick (charTime * (kCharTimes - 1));
+            }
+
             Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0,
                 L"loopback must latch RxFull after transmit");
             Assert::AreEqual<Byte> (0x5A, machine.GetMemoryBus().ReadByte (data),

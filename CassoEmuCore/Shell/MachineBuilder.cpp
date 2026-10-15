@@ -589,9 +589,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. v1 endpoints are loopback (comms self-test); the serial
-        // printer-endpoint bridge + Hardware-tab endpoint selector are
-        // downstream work.
+        // controller. Each has a loopback plug attached (comms self-test); the
+        // serial printer-endpoint bridge and an endpoint selector for the //c
+        // are downstream work. Both are ticked with the CPU so their character
+        // timing follows its clock.
         for (int slot = 1; slot <= 2; ++slot)
         {
             HRESULT                                hrIc     = S_OK;
@@ -606,9 +607,12 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             hrIc = acia->AttachInterruptController (&m_host.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
+            acia->SetCpuClockHz (m_host.GetConfig().clockSpeed);
+
             loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());
 
+            m_host.GetRefs().serialChips.push_back (acia.get());
             m_host.GetMemoryBus().AddDevice (acia.get());
             m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
             m_host.GetOwnedDevices().push_back (std::move (acia));
