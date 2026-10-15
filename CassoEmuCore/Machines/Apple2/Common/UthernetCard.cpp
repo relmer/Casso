@@ -98,6 +98,7 @@ void UthernetCard::Write (
     Byte  value)
 {
     m_chip.WriteIndirect (address - m_ioStart, value);
+    UpdateIrq();
 }
 
 
@@ -125,8 +126,8 @@ void UthernetCard::Reset()
 //  UthernetCard::SoftReset
 //
 //  Ctrl-Reset has no effect on the chip. The machine clears every interrupt
-//  source after resetting the bus, so the next Tick asserts the line again
-//  while the chip has an unmasked interrupt pending.
+//  source after resetting the bus, so the next pump interval asserts the line
+//  again while the chip has an unmasked interrupt pending.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,23 +212,18 @@ void UthernetCard::AttachNetwork (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UthernetCard::Tick
+//  UthernetCard::OnPumpInterval
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UthernetCard::Tick (uint32_t cycles)
+void UthernetCard::OnPumpInterval()
 {
-    m_cycles          += cycles;
-    m_cyclesSincePump += cycles;
+    m_cycles          += m_cyclesSincePump;
+    m_cyclesSincePump  = 0;
 
-    if (m_cyclesSincePump >= kPumpCycles)
+    if (m_bridge.IsActive())
     {
-        m_cyclesSincePump = 0;
-
-        if (m_bridge.IsActive())
-        {
-            m_bridge.Pump (m_cycles);
-        }
+        m_bridge.Pump (m_cycles);
     }
 
     UpdateIrq();

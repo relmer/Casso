@@ -158,15 +158,14 @@ namespace UthernetCardTests
             card.Write (kSlot3Data, 0x01);
 
             card.GetChip().RaiseSocketInterrupt (0, R::kSnIrReceive);
-            card.Tick (1);
+            card.Tick (UthernetCard::kPumpCycles);
             Assert::IsTrue (ic.IsAnyAsserted(), L"S0_INT unmasked");
 
             // Clear S0_IR's RECV bit by writing 1.
             card.Write (kSlot3High, 0x04);
             card.Write (kSlot3Low,  (Byte) R::kSnIr);
             card.Write (kSlot3Data, R::kSnIrReceive);
-            card.Tick (1);
-            Assert::IsFalse (ic.IsAnyAsserted());
+            Assert::IsFalse (ic.IsAnyAsserted(), L"the write itself releases the line");
         }
 
 
@@ -182,14 +181,14 @@ namespace UthernetCardTests
             card.Write (kSlot3Low,  (Byte) R::kImr);
             card.Write (kSlot3Data, 0x01);
             card.GetChip().RaiseSocketInterrupt (0, R::kSnIrReceive);
-            card.Tick (1);
+            card.Tick (UthernetCard::kPumpCycles);
 
             card.SoftReset();
             ic.SoftReset();
             Assert::IsFalse (ic.IsAnyAsserted(), L"the machine's reset clears the controller");
 
-            card.Tick (1);
-            Assert::IsTrue (ic.IsAnyAsserted(), L"the chip still has S0_INT pending");
+            card.Tick (UthernetCard::kPumpCycles);
+            Assert::IsTrue (ic.IsAnyAsserted(), L"the chip has S0_INT pending");
             Assert::AreEqual ((Byte) 0x03, card.Read (kSlot3Mode), L"MR survives Ctrl-Reset");
         }
 

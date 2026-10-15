@@ -32,4 +32,4 @@ Requires ADTPro's server and its Ethernet client disk, supplied by the owner; th
 
 ## Performance (SC-005)
 
-With the card enabled and idle, run the //e at Authentic speed and compare the frame timing in the performance overlay against the same machine with the card disabled: the difference is under 1%.
+At Authentic speed the emulator is throttled to 1.023 MHz with or without an idle card. Unthrottled, measured 2026-10-14 in Release on a //e `TestMachine` running a `JMP *` loop for 50 million cycles per run, 16 runs alternating the order (card first, then card second): 3558.5 ms without the card, 3619.8 ms with it, a cost of about 1.7% of maximum emulation speed. Each run pair is order-sensitive by roughly 10%, so single-order comparisons are not meaningful.

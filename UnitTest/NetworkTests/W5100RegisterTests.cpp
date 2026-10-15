@@ -347,6 +347,9 @@ namespace W5100RegisterTests
             chip.RaiseSocketInterrupt (0, R::kSnIrReceive);
             Assert::IsFalse (chip.IsInterruptPending(), L"masked by IMR = 0");
 
+            bus.Poke (R::kImr, 0x02);
+            Assert::IsFalse (chip.IsInterruptPending(), L"IMR unmasks socket 1, not socket 0");
+
             bus.Poke (R::kImr, 0x01);
             Assert::IsTrue (chip.IsInterruptPending());
 

@@ -26,8 +26,10 @@ struct DeviceConfig;
 //  $C0n4-$C0n7 (n = slot + 8), with no ROM. $C0n0-$C0n3 are not decoded.
 //
 //  Host networking runs on the emulation thread: `Tick` counts CPU cycles
-//  and, once every kPumpCycles while any socket or flow is open, polls the
-//  host sockets. With nothing open, a tick costs an add and a compare.
+//  and, once every kPumpCycles, polls the host sockets if any socket or flow
+//  is open and updates the interrupt line. Between those a tick is an add
+//  and a compare. A register write updates the interrupt line at once, so a
+//  handler that clears the chip's interrupt does not see it again.
 //
 //  The card is not connected to the Apple II RESET line, so Ctrl-Reset has no
 //  effect on the chip; power-on resets it.
@@ -64,7 +66,15 @@ public:
     // Port forwards whose host port could not be bound, as sentences.
     const std::vector<std::string> & GetNetworkErrors () const { return m_network.GetErrors(); }
 
-    void  Tick (uint32_t cycles);
+    void  Tick (uint32_t cycles)
+    {
+        m_cyclesSincePump += cycles;
+
+        if (m_cyclesSincePump >= kPumpCycles)
+        {
+            OnPumpInterval();
+        }
+    }
 
     int                  GetSlot   () const { return m_slot; }
     W5100              & GetChip   ()       { return m_chip; }
@@ -74,7 +84,8 @@ public:
 
 private:
 
-    void  UpdateIrq ();
+    void  OnPumpInterval ();
+    void  UpdateIrq      ();
 
     int                      m_slot            = 0;
     Word                     m_ioStart         = 0;

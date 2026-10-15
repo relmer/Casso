@@ -152,9 +152,9 @@ description: "Task list for the Uthernet II Ethernet card"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T053 [P] Write a real-Winsock loopback test: `Win32HostNetwork` TCP and UDP round trips through the bridge against a peer socket in the test, `127.0.0.1` only, in ScenarioTests/UthernetLoopbackTests.cpp
-- [ ] T054 [P] Measure SC-005: idle card overhead on a //e `TestMachine` (cycles per wall second with and without the card) and record the result in specs/043-uthernet-ii/quickstart.md
-- [ ] T055 Verify each new test fails without its code (stub or revert the covered function, confirm red, restore and touch the file)
+- [X] T053 [P] Write a real-Winsock loopback test: `Win32HostNetwork` TCP and UDP round trips through the bridge against a peer socket in the test, `127.0.0.1` only, in ScenarioTests/UthernetLoopbackTests.cpp
+- [X] T054 [P] Measure SC-005: idle card overhead on a //e `TestMachine` (cycles per wall second with and without the card) and record the result in specs/043-uthernet-ii/quickstart.md
+- [X] T055 Verify each new test fails without its code (stub or revert the covered function, confirm red, restore and touch the file)
 - [ ] T056 Validate the Network page on screen: launch the build in the background with `--title`, open Settings > Network, capture it, check layout and sentence case
 - [ ] T057 [P] Add a CHANGELOG.md `[Unreleased]` entry and a README.md feature and test-count update, after the owner has tested
 - [ ] T058 Run the merge gate: `scripts/RunTests.ps1 -Build` (Debug and Release), `scripts/RunTests.ps1 -Build -Scenario`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`
