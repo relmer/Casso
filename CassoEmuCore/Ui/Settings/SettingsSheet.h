@@ -28,6 +28,7 @@ class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
 class DxuiLabel;
+class SerialCardPage;
 
 
 
@@ -259,6 +260,7 @@ private:
     ThemePage        * m_themePage       = nullptr;
     DisplayPage      * m_displayPage     = nullptr;
     PrintingPage     * m_printingPage    = nullptr;
+    SerialCardPage   * m_serialPage      = nullptr;
     ScreenshotsPage  * m_shotsPage       = nullptr;
     ControllersPage  * m_controllersPage = nullptr;
 
@@ -277,6 +279,16 @@ private:
 
     // Refresh the Disk tab's presence from the staged hardware config.
     void  UpdateDiskTabVisibility ();
+
+    // The Serial card tab, present while the staged hardware has the Super
+    // Serial Card turned on. Turning the card on while its firmware is
+    // missing selects the tab, whose banner offers the download.
+    int            m_serialPageIndex  = -1;
+    bool           m_serialTabVisible = true;
+
+    void           UpdateSerialTabVisibility ();
+    bool           IsSerialFirmwareMissing   () const;
+    std::wstring   GetSerialFirmwareStatus   () const;
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.

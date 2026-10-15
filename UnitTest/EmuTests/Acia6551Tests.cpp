@@ -367,6 +367,34 @@ namespace Acia6551TestNs
         }
 
 
+        TEST_METHOD (PacingIsTheSameForAnyTickSize)
+        {
+            // The same bytes, ticked one cycle at a time and in 97-cycle
+            // chunks (no common factor with a character time), arrive with
+            // the same spacing: delivery follows emulated time, not tick
+            // size, so maximum speed and normal speed produce the same timing.
+            const Byte  bytes[]   = { 1, 2, 3, 4, 5 };
+            uint64_t    fine[5]   = {};
+            uint64_t    coarse[5] = {};
+
+
+
+            TickAndStamp (bytes, size (bytes), 1,  fine);
+            TickAndStamp (bytes, size (bytes), 97, coarse);
+
+            // The first byte's countdown starts on the first tick, which is up
+            // to one chunk later; after that the spacing must match to within
+            // a chunk.
+            for (size_t i = 1; i < size (bytes); ++i)
+            {
+                int64_t  fineGap   = static_cast<int64_t> (fine[i]   - fine[0]);
+                int64_t  coarseGap = static_cast<int64_t> (coarse[i] - coarse[0]);
+
+                Assert::IsTrue (llabs (coarseGap - fineGap) < 97,
+                                format (L"byte {} arrives at the same spacing", i).c_str());
+            }
+        }
+
         TEST_METHOD (UnreadByteIsOverrun)
         {
             const Byte  bytes[] = { 0x11, 0x22 };
@@ -722,5 +750,35 @@ namespace Acia6551TestNs
             Assert::AreEqual<Word> (0xC098, device->GetStart());
             Assert::AreEqual<Word> (0xC09B, device->GetEnd());
         }
-    };
+
+    private:
+        //  Ticks a fresh 9,600-baud ACIA in `step`-cycle chunks and stores the
+        //  cycle count at which each byte is read.
+        static void TickAndStamp (const Byte * bytes, size_t count, uint32_t step, uint64_t * outStamps)
+        {
+            Acia6551  acia (kBase);
+            uint64_t  now  = 0;
+            size_t    got  = 0;
+
+
+
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            acia.EnqueueReceivedBytes (bytes, count);
+
+            while (got < count && now < 1000000)
+            {
+                acia.Tick (step);
+                now += step;
+
+                if (acia.GetStatus() & Acia6551::kStatusRxFull)
+                {
+                    (void) acia.Read (kAddrData);
+                    outStamps[got] = now;
+                    ++got;
+                }
+            }
+
+            Assert::AreEqual (count, got, L"every byte arrived");
+        }    };
 }

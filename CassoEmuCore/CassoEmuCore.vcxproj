@@ -455,6 +455,8 @@
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\PrintingPage.cpp" />
+    <ClCompile Include="Ui\Settings\SerialCardPage.cpp" />
+    <ClCompile Include="Ui\Settings\SscSettingsModel.cpp" />
     <ClCompile Include="Ui\Settings\ScreenshotsPage.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
@@ -512,6 +514,8 @@
     <ClCompile Include="Shell\Components\ShellAudio.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
+    <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
+    <ClCompile Include="Shell\SerialCardNotice.cpp" />
     <ClCompile Include="Shell\Components\ShellSettings.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
@@ -883,6 +887,8 @@
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\PrintingPage.h" />
+    <ClInclude Include="Ui\Settings\SerialCardPage.h" />
+    <ClInclude Include="Ui\Settings\SscSettingsModel.h" />
     <ClInclude Include="Ui\Settings\ScreenshotsPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
@@ -924,6 +930,8 @@
     <ClInclude Include="Shell\Components\ShellDeskScene.h" />
     <ClInclude Include="Shell\Components\ShellDisks.h" />
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
+    <ClInclude Include="Shell\Components\ShellSerialCard.h" />
+    <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />

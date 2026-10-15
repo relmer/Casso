@@ -18,6 +18,7 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
@@ -135,6 +136,7 @@ EmulatorShell::EmulatorShell()
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
+    m_serialCard    = std::make_unique<ShellSerialCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
     m_chrome        = std::make_unique<ShellChrome> (*this);
     m_renderer      = std::make_unique<ShellRenderer> (*this);
@@ -997,7 +999,22 @@ Error:
 
 HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 {
-    return m_machineBuilder->Build (config);
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_machineBuilder->Build (config);
+    CHR (hr);
+
+    // The Super Serial Card's infobar reads the card's state from the build
+    // just finished; the UI thread displays it on its next frame.
+    if (m_serialCard != nullptr)
+    {
+        m_serialCard->NoteMachineBuilt();
+    }
+
+Error:
+    return hr;
 }
 
 

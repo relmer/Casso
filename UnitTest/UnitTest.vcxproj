@@ -539,6 +539,8 @@
     <ClCompile Include="UiTests\MainMenuDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
+    <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
+    <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />

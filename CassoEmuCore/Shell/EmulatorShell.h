@@ -38,6 +38,7 @@ class ShellDeskScene;
 class ShellDisks;
 class ShellPrinter;
 class ShellSettings;
+class ShellSerialCard;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
@@ -148,6 +149,7 @@ public:
 
     // The printer drain, print preview, status light and print dialog.
     ShellPrinter &  GetPrinter();
+    ShellSerialCard &  GetSerialCard() { return *m_serialCard; }
 
     // The Disk II drives: the DiskManager, the drive widgets and their state,
     // the recent-disks list, salvage and the external-change notice.
@@ -275,6 +277,7 @@ private:
     void     StepInstruction           () override;
     void     SaveTrace                 () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
+    void     SetSerialCardSwitches     (const std::string & sw1, const std::string & sw2) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on
     // the UI thread where the key state is valid. The strip, the toolbar and
@@ -671,6 +674,7 @@ private:
     friend class ShellDisks;
     friend class ShellPrinter;
     friend class ShellSettings;
+    friend class ShellSerialCard;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
@@ -904,6 +908,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
+    std::unique_ptr<ShellSerialCard>          m_serialCard;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

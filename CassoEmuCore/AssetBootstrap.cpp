@@ -130,6 +130,14 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
+    // Apple's Super Serial Card firmware, 341-0065-A, from the same mirror as
+    // the //c ROM. No machine config lists it under `rom`, so the startup
+    // dialog never offers it; Settings and the missing-firmware infobar
+    // download it on request through DownloadOptionalRom.
+    { "",                 "SSC.rom",               "",                           "Devices/SuperSerialCard",    2048, "Super Serial Card firmware (341-0065-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin",
+      "apple2.org.za" },
 };
 
 
@@ -1989,6 +1997,78 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
 
 
     return DownloadStockBootDisk (spec, GetDiskDirectory(), outDiskPath, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DownloadOptionalRom
+//
+//  Downloads a catalog ROM that no machine config requires (the Super Serial
+//  Card's firmware) into its device folder under the asset base, replacing
+//  any file already there. Blocking, with no UI of its own: the caller owns
+//  the user's consent and the reporting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::DownloadOptionalRom (
+    string_view   cassoName,
+    fs::path    & outPath,
+    string      & outError)
+{
+    HRESULT          hr        = S_OK;
+    const RomSpec  * spec      = FindRomSpec ("", cassoName);
+    HINTERNET        hSession  = nullptr;
+    bool             hasSource = (spec != nullptr) && !spec->altHost.empty();
+    vector<Byte>     payload;
+    error_code       ec;
+    wstring          host;
+    wstring          urlPath;
+
+
+
+    outPath.clear();
+
+    CBRF (hasSource,
+          outError = format ("Casso has no download source for {}.", cassoName));
+
+    host    = AsciiToWide (spec->altHost);
+    urlPath = AsciiToWide (spec->altUrlPath);
+
+    hSession = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+    CBRF (hSession != nullptr,
+          outError = "Cannot initialize WinHTTP session");
+
+    hr = DownloadHttp (hSession,
+                       host.c_str(),
+                       urlPath.c_str(),
+                       spec->expectedSize,
+                       spec->cassoName,
+                       payload,
+                       outError);
+    CHR (hr);
+
+    outPath = GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName);
+    fs::create_directories (outPath.parent_path(), ec);
+
+    hr = WriteFileBytes (outPath, payload);
+    CHRF (hr,
+          outError = format ("Cannot write {}", outPath.string()));
+
+Error:
+    if (hSession != nullptr)
+    {
+        WinHttpCloseHandle (hSession);
+    }
+
+    return hr;
 }
 
 
