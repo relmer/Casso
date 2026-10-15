@@ -2538,6 +2538,46 @@ sets (eight and five rounds, guest speed by the wall clock alone) have the same 
 harness measures the prompt only: a boot is over before the channel opens,
 so "during a disk boot" was not measured.
 
+**Block diagram (T772, drawn 2026-10-15, after the move)**. `EmulatorShell`
+has `ShellDebugger` by `unique_ptr`; there is no `IShellDebugger`, since the
+class's public methods are the interface the shell uses. `ShellDebugger`
+accesses the shell only through `IDebuggerHost`, an adapter private to
+`EmulatorShell.cpp`, and the machine through `MachineHost` and `CpuManager`.
+
+```text
+EmulatorShell ──unique_ptr──► ShellDebugger
+                                ├─ DebuggerController, while the debugger is open
+                                │    └─ DebugSession ─► MachineDebugTarget ─► MachineHost
+                                ├─ DebuggerWindow, DebuggerViewState, DebugViewPublisher, build pool (UI thread)
+                                ├─ ReverseHost: ReverseController, Replayer, keyframes (history)
+                                ├─ HistoryThumbnails, ScratchHeatReplayer (2), ScratchCallReplayer
+                                ├─ DebugEventLogs: the Disk II and input event caches
+                                ├─ DivergenceGate, HeldInputWatch: input behind live
+                                └─ Win32PipeTransport: the debug channel
+ShellDebugger ──calls──► IDebuggerHost (EmulatorShell::DebuggerHost)
+```
+
+The shell's calls into `ShellDebugger`, by how often they come:
+
+| Rate | Calls |
+|---|---|
+| Per frame | `RecordHistoryFrame` (the CPU thread's frame), `RenderWindowFrame` and `IsBeamMarkShown` (the renderer), `GetReplayCaption` (the caption) |
+| Per slice | `GetSliceHooks` (the run driver, the `HeldInputWatch` and whether the machine is behind live), `StopForHeldInputRead` |
+| Per service tick, paused or not | `ServiceDebugger`, `ServiceHistoryThumbnails`, `AllowCommand` (each posted command) |
+| Per debugger step | `StepSession` |
+| Per UI message | `IsDebuggerMessage` |
+| Per event | `OpenDebugger`, `CloseDebugger`, `LoadReverseSettings`, `StartReverseRecording`, `StopReverseRecording` (CPU thread start and stop, machine switch, state load); `NotifyDebugReset`, `NotifyDebugMachineChanged`, `MarkViewDirty`; `OpenDebuggerWindow`, `OpenDebuggerLog` (menus); `IsBehindLiveForUi`, `HoldInputBehindLive`, `PublishHeldInput`, `ApplyHeldInputs`, `OnHeldInputRead`, `TakeJoyportSyncOwed`, `ToggleEightyColumnSwitch` (input behind live); `DestroyWindow` (shutdown) |
+
+`IDebuggerHost`'s services, which `ShellDebugger` calls:
+
+| Group | Methods |
+|---|---|
+| Window | `GetMainWindow`, `GetInstance`, `GetChromeTheme`, `GetTitlePrefix`, `ApplyAppIcon`, `UpdateWindowTitle`, `GetWindowPlacements` |
+| Frames | `PresentUiFrame`, `DrawFrame`, `RedrawStoppedFrame`, `PrepareFramebuffers` |
+| Timers and commands | `SetUiTimer`, `KillUiTimer`, `PostCommand` |
+| Files and dialogs | `GetUiFileSystem`, `GetHostDialogs` |
+| Settings | `SaveSettings`, `PersistSwitchState` |
+| Input and devices | `GetHeldHostInputs`, `TruncatePaste`, `GetTapeControl` |
 **Alternatives considered**: the concrete class behind a pimpl with no
 interface (equally light in the header; kept open for the owner's review of
 the block diagram, since the shell would then call `ShellDebugger` directly);
