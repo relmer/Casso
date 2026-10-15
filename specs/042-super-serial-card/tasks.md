@@ -67,7 +67,7 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 - [X] T025 [US1] Wire the card in `CassoEmuCore/Shell/MachineBuilder.cpp`: create `ExpansionRomBus` once per slot machine (bus device on ][/][+, `CxxxRomRouter::SetExpansionRomBus` on the //e); for an enabled `super-serial-card` slot, read the firmware file (2,048 bytes, else WrongSize) into the card, apply the slot entry's switches, register the card's `SlotRomPage` (bus device on ][/][+, `SetSlotIoDevice` on the //e) and the card with the expansion bus, attach the ACIA to the interrupt controller, set its clock and add it to the tick list (T011); store a `superSerialCard` ref for the shell
 - [X] T026 [US1] Add `{ "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": false }` to `Resources/Machines/Apple2/Apple2.json`, `Apple2Plus/Apple2Plus.json`, `Apple2e/Apple2e.json` and `Apple2eEnhanced/Apple2eEnhanced.json`; bump each `$cassoMachineVersion`; add the previous files' normalized hashes to the prior-hash table in `CassoEmuCore/AssetBootstrap.cpp`
 - [X] T027 [US1] Slot-2 migration in `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp` beside the slot-1 printer migration: add the entry to a user config with no slot-2 entry; "The migration MUST NOT replace a card already in slot 2"; never on a config with no slots (the //c); tests in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp` and `BackwardsCompatTests.cpp`
-- [ ] T028 [US1] Display name "Super Serial Card" for `super-serial-card` in `SettingsPanelState::ExtractHardware`, `CassoEmuCore/Ui/Settings/SettingsPanelState.cpp`, so the Hardware tab lists the slot-2 row with its checkbox
+- [X] T028 [US1] Display name "Super Serial Card" for `super-serial-card` in `SettingsPanelState::ExtractHardware`, `CassoEmuCore/Ui/Settings/SettingsPanelState.cpp`, so the Hardware tab lists the slot-2 row with its checkbox
 - [X] T029 [US1] Whole-machine tests in `UnitTest/EmuTests/SuperSerialCardMachineTests.cpp` using `TestMachine` with a synthetic firmware: //e and ][+ ID bytes, select and deselect from guest code, a ][+ with the Disk II slot ROM in slot 6 unaffected, //e INTCXROM hiding the card, card off leaving slot 2 empty
 
 **Checkpoint**: US1 passes its independent test.
@@ -92,9 +92,9 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 
 **Independent Test**: a loopback test program at 19,200 baud with no firmware; the infobar appears on start.
 
-- [ ] T033 [P] [US3] Catalog row and on-demand download in `CassoEmuCore/AssetBootstrap.h/.cpp`: row `{ "", "SSC.rom", "", "Devices/SuperSerialCard", 2048, "Super Serial Card firmware (341-0065-A)", "mirrors.apple2.org.za", "/Apple%20II%20Documentation%20Project/Interface%20Cards/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin", "apple2.org.za" }`; public `DownloadOptionalRom (string_view cassoName, fs::path & outPath, string & outError)` built on `DownloadHttp`, size-checked
-- [ ] T034 [US3] Firmware infobar in `CassoEmuCore/Shell/Components/ShellSerialCard.h/.cpp`, hosted like the disk-change banner in `ShellDisks.cpp`: on machine start with an enabled card whose status is Missing or WrongSize, a `DxuiActionBanner` with the message and a Download button; a successful download replaces it with a Reset button; a failed one reports the error in the banner
-- [ ] T035 [US3] Message text in a core function (testable, sentence case) in `CassoEmuCore/Shell/Components/ShellSerialCard.cpp` or a small model class, with tests: missing and wrong-size wording including the path searched
+- [X] T033 [P] [US3] Catalog row and on-demand download in `CassoEmuCore/AssetBootstrap.h/.cpp`: row `{ "", "SSC.rom", "", "Devices/SuperSerialCard", 2048, "Super Serial Card firmware (341-0065-A)", "mirrors.apple2.org.za", "/Apple%20II%20Documentation%20Project/Interface%20Cards/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin", "apple2.org.za" }`; public `DownloadOptionalRom (string_view cassoName, fs::path & outPath, string & outError)` built on `DownloadHttp`, size-checked
+- [X] T034 [US3] Firmware infobar in `CassoEmuCore/Shell/Components/ShellSerialCard.h/.cpp`, hosted like the disk-change banner in `ShellDisks.cpp`: on machine start with an enabled card whose status is Missing or WrongSize, a `DxuiActionBanner` with the message and a Download button; a successful download replaces it with a Reset button; a failed one reports the error in the banner
+- [X] T035 [US3] Message text in a core function (testable, sentence case) in `CassoEmuCore/Shell/Components/ShellSerialCard.cpp` or a small model class, with tests: missing and wrong-size wording including the path searched
 - [X] T036 [US3] Whole-machine test in `UnitTest/EmuTests/SuperSerialCardMachineTests.cpp`: no firmware, guest code programs 19,200 baud 8N1 through `$C0AB`/`$C0AA`, sends bytes over loopback and reads them back; baud code 0 runs at 115,200 (SC-005, US3 scenario 4)
 
 ---
@@ -105,12 +105,12 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 
 **Independent Test**: printer mode at 1,200 baud from the page; `$C0A1` reads the new positions with no reset.
 
-- [ ] T037 [P] [US4] Create `SscSettingsModel` in `CassoEmuCore/Ui/Settings/SscSettingsModel.h/.cpp` per data-model.md's table: settings per mode with choices and the switches each writes; SIC P8/P8A list the printer settings; "Custom" for a combination no choice produces; the readout text of SW1 and SW2; printer line width and video choices from the reference card
-- [ ] T038 [P] [US4] Tests in `UnitTest/UiTests/SscSettingsModelTests.cpp`: each setting writes exactly its switches, mode change swaps the setting list, Custom, readout text
-- [ ] T039 [US4] Stage the slot entry's `switches` and `ports` in `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`; dirty without requiring a reset; written back into the slot entry by `BuildJson`; tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp`
-- [ ] T040 [US4] Create `SerialCardPage` in `CassoEmuCore/Ui/Settings/SerialCardPage.h/.cpp` following `PrintingPage`/`DiskPage`: drop-downs from the model, the readout, the firmware status with Download; added to the sheet in `SettingsSheet.cpp` only while the staged hardware has the SSC enabled
-- [ ] T041 [US4] Live apply: a switch change is applied to the running card through `ISettingsApplySink` (`ApplySerialCardSwitches`) and `SuperSerialCard::SetSwitches`; tests with the recording sink
-- [ ] T042 [US4] Turning the card on in the Hardware tab with no firmware offers the download at once (`HardwarePage.cpp` or the apply controller), using `DownloadOptionalRom`
+- [X] T037 [P] [US4] Create `SscSettingsModel` in `CassoEmuCore/Ui/Settings/SscSettingsModel.h/.cpp` per data-model.md's table: settings per mode with choices and the switches each writes; SIC P8/P8A list the printer settings; "Custom" for a combination no choice produces; the readout text of SW1 and SW2; printer line width and video choices from the reference card
+- [X] T038 [P] [US4] Tests in `UnitTest/UiTests/SscSettingsModelTests.cpp`: each setting writes exactly its switches, mode change swaps the setting list, Custom, readout text
+- [X] T039 [US4] Stage the slot entry's `switches` and `ports` in `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`; dirty without requiring a reset; written back into the slot entry by `BuildJson`; tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp`
+- [X] T040 [US4] Create `SerialCardPage` in `CassoEmuCore/Ui/Settings/SerialCardPage.h/.cpp` following `PrintingPage`/`DiskPage`: drop-downs from the model, the readout, the firmware status with Download; added to the sheet in `SettingsSheet.cpp` only while the staged hardware has the SSC enabled
+- [X] T041 [US4] Live apply: a switch change is applied to the running card through `ISettingsApplySink` (`ApplySerialCardSwitches`) and `SuperSerialCard::SetSwitches`; tests with the recording sink
+- [X] T042 [US4] Turning the card on in the Hardware tab with no firmware offers the download at once (`HardwarePage.cpp` or the apply controller), using `DownloadOptionalRom`
 
 ---
 
@@ -121,7 +121,7 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 **Independent Test**: 64 KB at 19,200 baud through a guest read loop without overruns.
 
 - [X] T043 [US5] Whole-machine test in `UnitTest/EmuTests/SuperSerialCardMachineTests.cpp`: a guest loop that polls RDRF and stores bytes receives 64 KB enqueued at once with no overrun bit set and successive arrivals one character time apart (SC-003); a deliberately slow loop reports overrun on the first missed byte; DTR off pauses delivery; IRQ-driven receive with SW2-6 ON raises the CPU IRQ and with it OFF does not
-- [ ] T044 [US5] Test that emulated pacing is independent of speed mode: running the same receive under the host's maximum-speed path yields the same cycle stamps
+- [X] T044 [US5] Test that emulated pacing is independent of speed mode: running the same receive under the host's maximum-speed path yields the same cycle stamps
 
 ---
 
@@ -133,15 +133,15 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 
 - [X] T045 [P] [US6] Create `AciaByteSourceEndpoint` in `CassoEmuCore/Devices/AciaByteSourceEndpoint.h/.cpp`: given a byte vector, enqueues it when attached; transmitted bytes discarded; tests in `UnitTest/EmuTests/AciaEndpointsTests.cpp`
 - [X] T046 [US6] Build `serial-file-in` in `CassoEmuCore/Shell/MachineBuilder.cpp`: read the file at `path` through the existing file seam and attach an `AciaByteSourceEndpoint`
-- [ ] T047 [US6] Attachment drop-down and path (browse button) on `SerialCardPage`; changing it rebuilds only the attachment (plan design note 5)
+- [X] T047 [US6] Attachment drop-down and path (browse button) on `SerialCardPage`; changing it rebuilds only the attachment (plan design note 5)
 
 ---
 
 ## Phase 9: Polish and cross-cutting
 
 - [ ] T048 `CHANGELOG.md` `[Unreleased]` entries (Added: Super Serial Card; Changed: //c serial ports paced at their baud rate) and `README.md` feature list, drafted and approved by the owner before commit
-- [ ] T049 Run `scripts/RunTests.ps1 -Build` in Debug and Release x64, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, ARM64 build, and `git add -A` + `scripts/CheckStyle.ps1 -Mode Tree`
-- [ ] T050 Prose check on every new comment block and commit message (`Check-Prose.ps1`); the empty-paren and American-English greps from the instructions
+- [X] T049 Run `scripts/RunTests.ps1 -Build` in Debug and Release x64, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, ARM64 build, and `git add -A` + `scripts/CheckStyle.ps1 -Mode Tree`
+- [X] T050 Prose check on every new comment block and commit message (`Check-Prose.ps1`); the empty-paren and American-English greps from the instructions
 - [ ] T051 Launch the build for the owner with `--title`, validate the manual steps 1-6 in quickstart.md, capture screenshots of the Serial card page and the infobar
 
 ---

@@ -31,6 +31,8 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
     //  it walk a list the build is entitled to rewrite as it goes.
     MachineConfig  config;
 
+
+
     LoadConfig (machineId, config);
 
     if (slots == Slots::Empty)
