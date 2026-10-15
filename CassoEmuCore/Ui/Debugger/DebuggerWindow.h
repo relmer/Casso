@@ -603,7 +603,7 @@ protected:
     DxuiToolbar *                                      GetBreakpointBar       () const { return m_breakpointBar; }
     bool                                               IsBreakpointBarEnabled (int id) const;
     void                                               RunBreakpointBarEntry  (int id);
-    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access);
+    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access, bool isIoPage);
     void                                               RunBreakpointStep      (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
 

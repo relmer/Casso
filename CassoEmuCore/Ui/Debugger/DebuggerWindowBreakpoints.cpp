@@ -67,16 +67,17 @@ void DebuggerWindow::SetBreakpointBarMenus()
         const wchar_t   * label;
         BreakpointKind    kind;
         WatchAccess       access;
+        bool              isIoPage;
     };
 
     static constexpr Kind           kKinds[] =
     {
-        { L"Breakpoint at address...", BreakpointKind::Address,  WatchAccess::ReadWrite },
-        { L"Function breakpoint...",   BreakpointKind::Address,  WatchAccess::ReadWrite },
-        { L"Data breakpoint...",       BreakpointKind::Memory,   WatchAccess::Write     },
-        { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite },
-        { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite },
-        { L"I/O range...",             BreakpointKind::Io,       WatchAccess::ReadWrite },
+        { L"Breakpoint at address...", BreakpointKind::Address,  WatchAccess::ReadWrite, false },
+        { L"Function breakpoint...",   BreakpointKind::Address,  WatchAccess::ReadWrite, false },
+        { L"Data breakpoint...",       BreakpointKind::Memory,   WatchAccess::Write,     false },
+        { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite, false },
+        { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite, false },
+        { L"I/O range...",             BreakpointKind::Memory,   WatchAccess::ReadWrite, true  },
     };
     std::vector<DxuiPopupMenuItem>  kinds;
 
@@ -84,10 +85,11 @@ void DebuggerWindow::SetBreakpointBarMenus()
 
     for (const Kind & each : kKinds)
     {
-        BreakpointKind  kind   = each.kind;
-        WatchAccess     access = each.access;
+        BreakpointKind  kind     = each.kind;
+        WatchAccess     access   = each.access;
+        bool            isIoPage = each.isIoPage;
 
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access] { NewBreakpoint (kind, access); })));
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
     }
 
     m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew, std::move (kinds));
@@ -327,13 +329,16 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
 //
 //  DebuggerWindow::NewBreakpoint
 //
-//  The breakpoint dialog, set to the kind chosen and at the PC, asks for what
-//  that kind needs; its definition is the line a person could have typed.
+//  The breakpoint dialog, set to the kind chosen at the PC, or over the I/O
+//  page for an I/O range; its definition is the line a person could have
+//  typed. An I/O range is a memory watchpoint, as AppleWin's BPIO is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access)
+void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, bool isIoPage)
 {
+    constexpr Word              kIoFirst   = 0xC000;
+    constexpr Word              kIoLast    = 0xC0FF;
     BreakpointInfo              info;
     std::optional<std::string>  definition;
 
@@ -341,8 +346,8 @@ void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access)
 
     info.kind    = kind;
     info.access  = access;
-    info.address = (m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0;
-    info.last    = info.address;
+    info.address = isIoPage ? kIoFirst : ((m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0);
+    info.last    = isIoPage ? kIoLast  : info.address;
 
     definition = BreakpointDialog::Ask (GetHwnd(), m_theme, info);
 

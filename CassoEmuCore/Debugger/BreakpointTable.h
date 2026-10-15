@@ -62,7 +62,6 @@ public:
     int   AddMemoryValue   (Word address, Byte value, const Expression & condition = {});
     int   AddOpcode        (Byte opcode);
     int   AddCondition     (const Expression & condition);
-    int   AddIo            (Word first, Word last);
     int   AddBrk           ();
     int   AddInterrupt     ();
 

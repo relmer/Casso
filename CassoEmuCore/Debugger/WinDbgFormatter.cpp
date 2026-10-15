@@ -425,7 +425,7 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
 
 
 
-        if (breakpoint.kind == BreakpointKind::Memory || breakpoint.kind == BreakpointKind::Io)
+        if (breakpoint.kind == BreakpointKind::Memory)
         {
             kind = std::format ("{}{} ",
                                 breakpoint.access == WatchAccess::Read  ? "r"

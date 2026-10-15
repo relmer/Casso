@@ -118,32 +118,6 @@ int BreakpointTable::AddCondition (const Expression & condition)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointTable::AddIo
-//
-//  Stored for listing and for the session's watch mask. An I/O access is
-//  reported by the bus, not seen before an instruction, so this entry never
-//  matches in TryMatchBeforeInstruction.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int BreakpointTable::AddIo (Word first, Word last)
-{
-    Breakpoint  entry;
-
-
-
-    entry.kind  = BreakpointKind::Io;
-    entry.first = first;
-    entry.last  = last;
-    return Add (entry);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BreakpointTable::AddBrk
 //
 ////////////////////////////////////////////////////////////////////////////////

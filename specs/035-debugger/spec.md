@@ -920,7 +920,7 @@ confirm it disables without being removed.
     same enabled states, conditions and When hit settings.
 15. **Given** a write watchpoint, a breakpoint on a line of the loaded source
     and one at `COUT`, **When** the pane opens, **Then** their Kind cells are
-    "Memory", "Execution" and "Execution", and their Trigger cells "Write",
+    "Memory", "Breakpoint" and "Breakpoint", and their Trigger cells "Write",
     "Execute" and "Execute" (a symbol at the address does not make a
     function breakpoint); **and when** the user clicks the Kind
     heading, **Then** the rows group by kind in FR-117's order, each kind's
@@ -2043,13 +2043,15 @@ run something, switch back to the //e: it is where it was left.
   count), Function (the symbol an execution breakpoint stops at), File (the
   source file and line, where one is known), Address (the address or range)
   and Data (what a data breakpoint watches). Kind and Trigger MUST be one of
-  these pairs, in sentence case: "Execution" and "Execute" for an execution
-  breakpoint, whether or not a line of the loaded source produced the code
+  these pairs, in sentence case: "Breakpoint" and "Execute" for an execution
+  breakpoint (amended 2026-10-14), whether or not a line of the loaded source produced the code
   at its address (File shows the line); "Memory" and "Read", "Write" or
   "Read or write" for a data breakpoint; "Memory" and "Value" for a value
   breakpoint (FR-062); "Register" and "Condition"; "Opcode" and "Execute";
-  "I/O" and "Read or write"; "BRK" and "Execute"; "Interrupt" and "IRQ or
-  NMI"; or "Disk" and a disk event (FR-163). A symbol at an execution
+  "BRK" and "Execute"; "Interrupt" and "IRQ or NMI"; or "Disk" and a disk
+  event (FR-163). There is no I/O kind: the New drop-down's I/O range is a
+  memory watchpoint over $C000-$C0FF, as AppleWin's `BPIO` is (amended
+  2026-10-14). A symbol at an execution
   breakpoint's address MUST NOT make its Kind "Function": the engine keeps
   the address, not how it was given, and the symbol may label a loop or data
   as well as a routine. Clicking a column's heading MUST sort by it; Kind

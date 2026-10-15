@@ -217,7 +217,7 @@ namespace BreakpointVsLayoutTests
             cells = BreakpointColumns::GetCells (snapshot, code);
             Assert::AreEqual (std::string ("RESET"),     cells[(size_t) Column::Function]);
             Assert::AreEqual (std::string ("RESET"),     cells[(size_t) Column::Symbol]);
-            Assert::AreEqual (std::string ("Execution"), cells[(size_t) Column::Kind], L"the symbol may label a loop or data as well as a routine");
+            Assert::AreEqual (std::string ("Breakpoint"), cells[(size_t) Column::Kind], L"the symbol may label a loop or data as well as a routine");
             Assert::AreEqual (std::string (""),          cells[(size_t) Column::Data]);
 
             cells = BreakpointColumns::GetCells (snapshot, data);

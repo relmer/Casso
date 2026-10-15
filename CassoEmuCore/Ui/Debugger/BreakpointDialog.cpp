@@ -136,7 +136,6 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
     case BreakpointKind::Brk:         return Type::Brk;
     case BreakpointKind::Interrupt:   return Type::Interrupt;
     case BreakpointKind::Memory:
-    case BreakpointKind::Io:
         return (info.access == WatchAccess::Read)  ? Type::Read
              : (info.access == WatchAccess::Write) ? Type::Write
                                                    : Type::ReadWrite;

@@ -93,7 +93,6 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::Opcode:      return RowKind::Opcode;
     case BreakpointKind::Register:    return RowKind::Register;
     case BreakpointKind::Memory:      return kDataKinds[(size_t) info.access];
-    case BreakpointKind::Io:          return RowKind::Io;
     case BreakpointKind::Brk:         return RowKind::Brk;
     case BreakpointKind::Interrupt:   return RowKind::Interrupt;
     case BreakpointKind::MemoryValue: return RowKind::DataValue;
@@ -118,8 +117,8 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
 
 std::string BreakpointColumns::GetKindText (RowKind kind)
 {
-    static constexpr const char *  kTexts[] = { "Execution", "Memory", "Memory", "Memory", "Memory",
-                                                "Register", "Opcode", "I/O", "BRK", "Interrupt" };
+    static constexpr const char *  kTexts[] = { "Breakpoint", "Memory", "Memory", "Memory", "Memory",
+                                                "Register", "Opcode", "BRK", "Interrupt" };
 
 
 
@@ -137,15 +136,15 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
 //  BreakpointColumns::GetTriggerText
 //
 //  What the Trigger column shows, in sentence case: what about the watched
-//  thing stops the machine. An I/O breakpoint stops on any access, and the
-//  interrupt breakpoint on either an IRQ or an NMI.
+//  thing stops the machine. The interrupt breakpoint stops on either an IRQ
+//  or an NMI.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Execute", "Read", "Write", "Read or write", "Value",
-                                                "Condition", "Execute", "Read or write", "Execute", "IRQ or NMI" };
+                                                "Condition", "Execute", "Execute", "IRQ or NMI" };
 
 
 
@@ -534,7 +533,6 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::Address:     return sourceLine.empty() ? named : sourceLine;
     case BreakpointKind::Opcode:      return std::format ("Opcode ${:02X}", info.opcode);
     case BreakpointKind::Register:    return info.condition;
-    case BreakpointKind::Io:          return "I/O " + range;
     case BreakpointKind::Brk:         return "BRK";
     case BreakpointKind::Interrupt:   return "Interrupt";
     case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", named, info.value.value_or (0));
@@ -566,7 +564,6 @@ std::string BreakpointColumns::GetData (const BreakpointInfo & info)
     {
     case BreakpointKind::Memory:      return std::format ("{} {}", kAccess[(size_t) info.access], GetRange (info));
     case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", GetRange (info), info.value.value_or (0));
-    case BreakpointKind::Io:          return "I/O " + GetRange (info);
     default:                          return std::string();
     }
 }
@@ -622,7 +619,7 @@ std::string BreakpointColumns::GetWhenHit (const BreakpointInfo & info)
 bool BreakpointColumns::HasAddress (const BreakpointInfo & info)
 {
     return info.kind == BreakpointKind::Address || info.kind == BreakpointKind::Memory ||
-           info.kind == BreakpointKind::Io      || info.kind == BreakpointKind::MemoryValue;
+           info.kind == BreakpointKind::MemoryValue;
 }
 
 

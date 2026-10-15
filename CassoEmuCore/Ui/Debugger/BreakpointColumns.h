@@ -59,7 +59,6 @@ public:
         DataValue,
         Register,
         Opcode,
-        Io,
         Brk,
         Interrupt,
         Count,

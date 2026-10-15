@@ -1344,7 +1344,6 @@ std::optional<HeatMapView::BreakKind> HeatMapView::GetBreakKind (const Breakpoin
         return BreakKind::Execute;
 
     case BreakpointKind::Memory:
-    case BreakpointKind::Io:
         switch (info.access)
         {
         case WatchAccess::Read:  return BreakKind::Read;

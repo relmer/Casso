@@ -239,10 +239,6 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
             text = std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]);
             break;
 
-        case BreakpointKind::Io:
-            text = std::format ("[{}] io {} rw", breakpoint.id, place);
-            break;
-
         default:
             text = std::format ("[{}] {}", breakpoint.id, AppleWinFormatter::DescribeBreakpoint (breakpoint));
             isDescribed = true;

@@ -298,7 +298,7 @@ const char * ReplyJson::GetRegionName (MemoryRegion region)
 
 const char * ReplyJson::GetBreakpointKindName (BreakpointKind kind)
 {
-    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "io", "brk", "interrupt", "memoryValue" };
+    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue" };
 
 
 
@@ -978,7 +978,7 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
 {
     Members  members;
     bool     hasRange = breakpoint.kind == BreakpointKind::Address || breakpoint.kind == BreakpointKind::Memory ||
-                        breakpoint.kind == BreakpointKind::Io      || breakpoint.kind == BreakpointKind::MemoryValue;
+                        breakpoint.kind == BreakpointKind::MemoryValue;
 
 
 

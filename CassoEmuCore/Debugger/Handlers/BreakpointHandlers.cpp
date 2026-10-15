@@ -214,7 +214,6 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
     case BreakpointKind::Address:     return "exec " + range;
     case BreakpointKind::Register:    return "when " + info.condition;
     case BreakpointKind::Opcode:      return std::format ("opcode {:02X}", info.opcode);
-    case BreakpointKind::Io:          return "I/O " + range;
     case BreakpointKind::Brk:         return "BRK";
     case BreakpointKind::Interrupt:   return "interrupt";
     case BreakpointKind::MemoryValue: return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));

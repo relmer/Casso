@@ -1499,13 +1499,11 @@ namespace DebuggerViewStateTests
                 { BreakpointKind::MemoryValue, "BPMV 0400 41 IF A == 1"           },
             };
 
-            //  I/O is the one kind left out: no command makes one, and it is
-            //  written back as the memory watchpoint it behaves as.
             for (int kind = 0; kind <= (int) BreakpointKind::MemoryValue; ++kind)
             {
                 bool  isCovered = std::any_of (std::begin (setters), std::end (setters), [kind] (const auto & each) { return (int) each.first == kind; });
 
-                Assert::IsTrue (isCovered || kind == (int) BreakpointKind::Io, std::format (L"kind {} has no case", kind).c_str());
+                Assert::IsTrue (isCovered, std::format (L"kind {} has no case", kind).c_str());
             }
 
             for (const auto & [kind, setter] : setters)

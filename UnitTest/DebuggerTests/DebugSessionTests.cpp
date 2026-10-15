@@ -272,7 +272,6 @@ namespace DebuggerTests
             {
                 [] (DebugSession & s) { return s.GetBreakpoints().AddAddress (0x0300, 0x0300); },
                 [] (DebugSession & s) { return s.GetBreakpoints().AddOpcode (0xA9); },
-                [] (DebugSession & s) { return s.GetBreakpoints().AddIo (0xC000, 0xC000); },
                 [] (DebugSession & s) { return s.GetBreakpoints().AddBrk(); },
                 [] (DebugSession & s) { return s.GetBreakpoints().AddInterrupt(); },
                 [] (DebugSession & s) { Expression e; std::string err; DebugExpressionEvaluator::Parse ("A=0", e, err); return s.GetBreakpoints().AddCondition (e); },

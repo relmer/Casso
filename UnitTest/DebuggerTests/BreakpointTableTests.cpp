@@ -174,7 +174,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (IoAndInterrupt_NeverMatchBeforeInstruction)
+        TEST_METHOD (Interrupt_NeverMatchesBeforeInstruction)
         {
             int                    nextId = 0;
             BreakpointTable        table (nextId);
@@ -183,12 +183,11 @@ namespace DebuggerTests
 
 
 
-            table.AddIo (0xC000, 0xC0FF);
             table.AddInterrupt();
 
-            Assert::IsTrue  (table.HasEnabledStopCondition());
-            Assert::IsFalse (table.TryMatchBeforeInstruction (0xC000, kNop, context, hitId));
-            Assert::AreEqual ((size_t) 2, table.GetAll().size());
+            Assert::IsTrue   (table.HasEnabledStopCondition());
+            Assert::IsFalse  (table.TryMatchBeforeInstruction (0xC000, kNop, context, hitId));
+            Assert::AreEqual ((size_t) 1, table.GetAll().size());
         }
 
 

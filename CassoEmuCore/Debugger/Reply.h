@@ -46,7 +46,6 @@ enum class BreakpointKind
     Opcode,
     Register,
     Memory,
-    Io,
     Brk,
     Interrupt,
     MemoryValue,

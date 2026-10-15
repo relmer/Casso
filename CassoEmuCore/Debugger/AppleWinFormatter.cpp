@@ -1007,7 +1007,6 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Register:  text = "when " + breakpoint.condition;                                                       break;
     case BreakpointKind::Memory:    text = std::format ("on {} of {}{}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint),
                                                         breakpoint.mode == WatchMode::Before ? ", before the access" : "");     break;
-    case BreakpointKind::Io:        text = "on I/O at " + FormatAddress (breakpoint);                                             break;
     case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
     case BreakpointKind::MemoryValue:

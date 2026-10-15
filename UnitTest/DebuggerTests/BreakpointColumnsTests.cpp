@@ -82,7 +82,7 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::Data));
             Assert::AreEqual (std::string ("$FA62"),       Cell (snapshot, 0, Column::Address));
             Assert::AreEqual (std::string ("RESET"),       Cell (snapshot, 0, Column::Symbol));
-            Assert::AreEqual (std::string ("Execution"),   Cell (snapshot, 0, Column::Kind), L"a symbol at the address makes no function breakpoint");
+            Assert::AreEqual (std::string ("Breakpoint"),  Cell (snapshot, 0, Column::Kind), L"a symbol at the address makes no function breakpoint");
             Assert::AreEqual (std::string ("Execute"),     Cell (snapshot, 0, Column::Trigger));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::File));
             Assert::AreEqual (std::string ("Break"),       Cell (snapshot, 0, Column::WhenHit));
@@ -107,7 +107,7 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::Name));
             Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::File), L"written as Name writes it");
             Assert::AreEqual (std::string ("$0803"),               Cell (snapshot, 0, Column::Address));
-            Assert::AreEqual (std::string ("Execution"),           Cell (snapshot, 0, Column::Kind), L"the File column shows the line, so it is no kind of its own");
+            Assert::AreEqual (std::string ("Breakpoint"),          Cell (snapshot, 0, Column::Kind), L"the line is in the File column, so it is no kind of its own");
         }
 
 
@@ -120,9 +120,8 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Memory, 0x0300, 0x03FF));
             snapshot.breakpoints.push_back (MakeLine (2, BreakpointKind::Opcode, 0));
             snapshot.breakpoints.push_back (MakeLine (3, BreakpointKind::Register, 0));
-            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Io, 0xC030));
-            snapshot.breakpoints.push_back (MakeLine (5, BreakpointKind::Brk, 0));
-            snapshot.breakpoints.push_back (MakeLine (6, BreakpointKind::Interrupt, 0));
+            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Brk, 0));
+            snapshot.breakpoints.push_back (MakeLine (5, BreakpointKind::Interrupt, 0));
             snapshot.breakpoints[0].info.access    = WatchAccess::Write;
             snapshot.breakpoints[1].info.opcode    = 0xEA;
             snapshot.breakpoints[2].info.condition = "X=00";
@@ -133,9 +132,8 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string (""),            Cell (snapshot, 1, Column::Address), L"an opcode stops anywhere");
             Assert::AreEqual (std::string ("X=00"),        Cell (snapshot, 2, Column::Name));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 2, Column::Condition), L"the condition is the name");
-            Assert::AreEqual (std::string ("I/O $C030"),   Cell (snapshot, 3, Column::Name));
-            Assert::AreEqual (std::string ("BRK"),         Cell (snapshot, 4, Column::Name));
-            Assert::AreEqual (std::string ("Interrupt"),   Cell (snapshot, 5, Column::Name));
+            Assert::AreEqual (std::string ("BRK"),         Cell (snapshot, 3, Column::Name));
+            Assert::AreEqual (std::string ("Interrupt"),   Cell (snapshot, 4, Column::Name));
         }
 
 
@@ -146,13 +144,13 @@ namespace BreakpointColumnsTests
             DebugSourceFile                    file;
             std::vector<std::string>           kinds    =
             {
-                "Execution", "Execution", "Execution", "Execution", "Memory", "Memory", "Memory",
-                "Memory", "Register", "Opcode", "I/O", "BRK", "Interrupt",
+                "Breakpoint", "Breakpoint", "Breakpoint", "Breakpoint", "Memory", "Memory", "Memory",
+                "Memory", "Register", "Opcode", "BRK", "Interrupt",
             };
             std::vector<std::string>           triggers =
             {
                 "Execute", "Execute", "Execute", "Execute", "Read", "Write", "Read or write",
-                "Value", "Condition", "Execute", "Read or write", "Execute", "IRQ or NMI",
+                "Value", "Condition", "Execute", "Execute", "IRQ or NMI",
             };
 
 
@@ -173,9 +171,8 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (8,  BreakpointKind::MemoryValue, 0x0400));
             snapshot.breakpoints.push_back (MakeLine (9,  BreakpointKind::Register,    0));
             snapshot.breakpoints.push_back (MakeLine (10, BreakpointKind::Opcode,      0));
-            snapshot.breakpoints.push_back (MakeLine (11, BreakpointKind::Io,          0xC030));
-            snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Brk,         0));
-            snapshot.breakpoints.push_back (MakeLine (13, BreakpointKind::Interrupt,   0));
+            snapshot.breakpoints.push_back (MakeLine (11, BreakpointKind::Brk,         0));
+            snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Interrupt,   0));
 
             //  A symbol at the address makes no execution breakpoint a
             //  function, whether at one address or at a range's start, and a
