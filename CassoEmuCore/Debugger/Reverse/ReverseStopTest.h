@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/IWatchSink.h"
+#include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 
@@ -31,6 +32,11 @@ class DebugSession;
 //  which the cycle count jumping marks, and again after a write to a
 //  vector's bytes.
 //
+//  Applesoft's breakpoints are matched by a monitor of its own as well, its
+//  variable entries' values taken from the snapshot a replay starts from. A
+//  change made before that snapshot by a statement that ends after it is
+//  not seen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ReverseStopTest : public IReverseStopTest,
@@ -59,6 +65,7 @@ private:
     std::optional<Word>    m_storeTarget;
 
     DiskBreakpointMonitor    m_disk;
+    BasicStopMonitor         m_basic;
     std::map<int, Word>      m_routines;
     std::vector<Word>        m_vectorBytes;
     std::optional<uint64_t>  m_lastCycle;

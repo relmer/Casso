@@ -69,6 +69,9 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BRKINT",      V::BreakOnInterrupt,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKUNINIT",   V::BreakOnUnwrittenRead,     F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPDISK",      V::SetDiskBreakpoint,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPBASIC",     V::SetBasicLineBreakpoint,   F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPBASICVAR",  V::SetBasicVariableBreakpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
+    { "BRKBASIC",    V::BreakOnBasicError,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BP",          V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPA",         V::SetBreakpointAndWatchpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
     { "BPR",         V::SetRegisterBreakpoint,    F::Breakpoints, A::Headless,     nullptr,     nullptr },
@@ -268,6 +271,11 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "OUTPUT",      V::ShowOutputFormat,         F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SAVESTATE",   V::SaveState,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "LOADSTATE",   V::LoadState,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICSTEP",   V::BasicStep,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICLINE",   V::BasicStepLine,            F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICOUT",    V::BasicStepOut,             F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICVARS",   V::ShowBasicVariables,       F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICSTACK",  V::ShowBasicStack,           F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },

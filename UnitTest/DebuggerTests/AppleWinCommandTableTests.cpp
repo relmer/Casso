@@ -32,7 +32,7 @@ namespace DebuggerTests
             "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "SOUNDLOG", "STOPWATCH", "VIDEOLOG", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
             "T-", "P-", "GU-", "G-", "LIVE",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
-            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
+            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BPBASIC", "BPBASICVAR", "BRKBASIC", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
             "BENCHMARK", "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",
@@ -52,7 +52,7 @@ namespace DebuggerTests
             "MODE", "PAUSE", "BUDGET", "SWITCHES", "MAP", "STACK", "PATCH", "SRC", "SKIP", "CALLS", "HISTORY", "PANEL",
             "OUTPUT",
             "SAVESTATE",
-            "LOADSTATE",
+            "LOADSTATE", "BASICSTEP", "BASICLINE", "BASICOUT", "BASICVARS", "BASICSTACK",
         };
 
         static constexpr const char * kWindowOnlyNames[] =

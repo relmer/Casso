@@ -79,6 +79,9 @@ void DebuggerWindow::SetBreakpointBarMenus()
         { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite, false },
         { L"I/O range...",             BreakpointKind::Memory,   WatchAccess::ReadWrite, true  },
         { L"Disk event...",            BreakpointKind::Disk,     WatchAccess::ReadWrite, false },
+        { L"BASIC line...",            BreakpointKind::BasicLine,     WatchAccess::ReadWrite, false },
+        { L"BASIC variable change...", BreakpointKind::BasicVariable, WatchAccess::ReadWrite, false },
+        { L"BASIC error...",           BreakpointKind::BasicError,    WatchAccess::ReadWrite, false },
     };
     std::vector<DxuiPopupMenuItem>  kinds;
 
@@ -342,12 +345,14 @@ void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, boo
     constexpr Word              kIoLast    = 0xC0FF;
     BreakpointInfo              info;
     std::optional<std::string>  definition;
+    bool                        isBasic    = kind == BreakpointKind::BasicLine || kind == BreakpointKind::BasicVariable || kind == BreakpointKind::BasicError;
 
 
 
+    //  A new BASIC line breakpoint's field starts empty, not at the PC.
     info.kind    = kind;
     info.access  = access;
-    info.address = isIoPage ? kIoFirst : ((m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0);
+    info.address = isIoPage ? kIoFirst : (isBasic || m_snapshot == nullptr) ? (Word) 0 : m_snapshot->pc;
     info.last    = isIoPage ? kIoLast  : info.address;
 
     definition = BreakpointDialog::Ask (GetHwnd(), m_theme, info);

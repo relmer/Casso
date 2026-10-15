@@ -265,12 +265,15 @@
     <ClCompile Include="Debugger\DiskCallVector.cpp" />
     <ClCompile Include="Debugger\DiskValueSymbols.cpp" />
     <ClCompile Include="Debugger\Basic\ApplesoftProgram.cpp" />
+    <ClCompile Include="Debugger\Basic\BasicStopMonitor.cpp" />
     <ClCompile Include="Debugger\Basic\OverlayCpu.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatterDisk.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
+    <ClCompile Include="Debugger\ReplyJsonBasic.cpp" />
     <ClCompile Include="Debugger\ReplyJsonDisk.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\BasicHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\StateFileHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BreakpointHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\MemoryHandlers.cpp" />
@@ -851,6 +854,7 @@
     <ClInclude Include="Debugger\DiskCallVector.h" />
     <ClInclude Include="Debugger\DiskValueSymbols.h" />
     <ClInclude Include="Debugger\Basic\ApplesoftProgram.h" />
+    <ClInclude Include="Debugger\Basic\BasicStopMonitor.h" />
     <ClInclude Include="Debugger\Basic\OverlayCpu.h" />
     <ClInclude Include="Debugger\AppleWinFormatter.h" />
     <ClInclude Include="Debugger\ReplyJson.h" />
@@ -858,6 +862,7 @@
     <ClInclude Include="Debugger\IDebugCommandHandler.h" />
     <ClInclude Include="Debugger\IInstructionObserver.h" />
     <ClInclude Include="Debugger\Handlers\RegisterHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\BasicHandlers.h" />
     <ClInclude Include="Debugger\Handlers\StateFileHandlers.h" />
     <ClInclude Include="Debugger\Handlers\BreakpointHandlers.h" />
     <ClInclude Include="Debugger\Handlers\MemoryHandlers.h" />

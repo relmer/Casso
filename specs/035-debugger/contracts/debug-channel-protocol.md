@@ -245,9 +245,17 @@ change it.
 
 ## Applesoft stops and debug projects (User Stories 21 and 22)
 
-- New stop reasons: `basicStep` (a BASIC step ended) and `basicError` (with
-  `code` and `line`); BASIC breakpoints stop with `breakpoint`, the entry's
-  `kind` being `basicLine` or `basicVariable`.
+- New stop reasons: `basicStep` (a BASIC step ended) and `basicError`; BASIC
+  breakpoints stop with `breakpoint`, the entry's `kind` being `basicLine` or
+  `basicVariable`, and `BRKBASIC ON`'s entry has kind `basicError`. Each
+  Applesoft stop has a `basic` object: `line` (`null` in direct mode); for a
+  variable, `variable`, `changeLine`, `previous` and `value`; for an error,
+  `code`, `error` (the message) and `handled` (ONERR on).
+- Breakpoint entries gain `line` (kind `basicLine`) and `variable` (kind
+  `basicVariable`).
+- New data kinds: `basicVariables` (`variables` and `arrays`, each value as
+  PRINT writes it) and `basicStack` (`frames`: `gosub` or `for`, its line,
+  and a FOR frame's variable, limit and step).
 - `breakpointSet` and `breakpointList` entries gain `name` (string, empty for
   the default).
 - A `project` object (`scope`, `key`, `file`, `isAutomatic`) answers

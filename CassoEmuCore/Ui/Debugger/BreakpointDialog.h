@@ -39,7 +39,8 @@ private:
 //  Edits a breakpoint's type and the fields that type takes, and returns
 //  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV, BPR or BRKOP with
 //  its arguments, a watchpoint's BEFORE and any IF condition, BRK ON or
-//  BRKINT ON, or BPDISK with its drive, event, arguments and condition.
+//  BRKINT ON, BPDISK with its drive, event, arguments and condition, or
+//  BPBASIC, BPBASICVAR or BRKBASIC ON.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +48,7 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk };
+    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError };
 
     //  The values of the dialog's controls. A disk breakpoint's event is an
     //  index into DiskBreakSpecText::GetEventWords, its drive 0 for either,

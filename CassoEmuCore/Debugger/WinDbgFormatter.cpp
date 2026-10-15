@@ -477,12 +477,15 @@ std::string WinDbgFormatter::DescribeTarget (const BreakpointInfo & breakpoint)
 {
     switch (breakpoint.kind)
     {
-    case BreakpointKind::Opcode:    return std::format ("opcode {:02x}", breakpoint.opcode);
-    case BreakpointKind::Register:  return "register " + breakpoint.condition;
-    case BreakpointKind::Brk:       return "brk";
-    case BreakpointKind::Interrupt: return "interrupt";
-    case BreakpointKind::Disk:      return "disk";
-    default:                        return std::format ("{:04x}", breakpoint.address);
+    case BreakpointKind::Opcode:        return std::format ("opcode {:02x}", breakpoint.opcode);
+    case BreakpointKind::Register:      return "register " + breakpoint.condition;
+    case BreakpointKind::Brk:           return "brk";
+    case BreakpointKind::Interrupt:     return "interrupt";
+    case BreakpointKind::Disk:          return "disk";
+    case BreakpointKind::BasicLine:     return std::format ("basic line {}", breakpoint.address);
+    case BreakpointKind::BasicVariable: return "basic variable " + breakpoint.basicName;
+    case BreakpointKind::BasicError:    return "basic error";
+    default:                            return std::format ("{:04x}", breakpoint.address);
     }
 }
 

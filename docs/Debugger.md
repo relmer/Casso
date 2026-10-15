@@ -485,6 +485,56 @@ snapshot the replay starts from. Replays count no hits.
   constant taken from AppleWin's model, while real cards vary up to about three
   times as long, so the breakpoint would stop on an approximation.
 
+## Applesoft
+
+The debugger stops an Applesoft program where the interpreter itself passes:
+as a line begins, after a statement changes a variable, and on an error. The
+commands are Casso's own: `/bpbasic` in Monitor mode, `bpbasic` in GSSquared
+mode and `!bpbasic` in WinDbg mode.
+
+| Command | Effect |
+|---|---|
+| `BPBASIC 100` | stops as line 100 begins, before its first statement runs |
+| `BPBASICVAR A`, `BPBASICVAR N$`, `BPBASICVAR X(2,3)` | stops after the statement that changes the variable or array element |
+| `BRKBASIC ON` | stops on an error, whether `ONERR` handles it or not; `BRKBASIC OFF` removes the stop |
+| `BASICSTEP` | runs to the start of the next statement, into a subroutine a `GOSUB` calls |
+| `BASICLINE` | runs to the start of the next line |
+| `BASICOUT` | runs to the statement after the newest `GOSUB` returns |
+| `BASICVARS` | lists the simple variables and the arrays, each value as `PRINT` writes it |
+| `BASICSTACK` | lists the active `GOSUB` returns and `FOR` loops, newest first |
+
+```text
+Breakpoint #0 at BASIC line 100
+Breakpoint #1: A changed from 0 to 1 in line 10, stopped at line 20
+BASIC step to line 30
+BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
+```
+
+- A variable is matched as Applesoft matches it, by the first two characters
+  of its name and its type, so `BPBASICVAR COUNT` watches `CO`. A variable
+  that does not exist yet reads as 0 or the empty string, so a breakpoint set
+  before the program runs stops the first time the program sets another
+  value.
+- A variable's value at each statement's start is compared with its value at
+  the start of the statement before. A value typed at the prompt, and the
+  variables `RUN` clears, stop nothing.
+- A line breakpoint may be set before the line is in the program.
+- After a line, variable or step stop the PC is $D81D, where the interpreter
+  starts each statement; after an error stop it is $D412, before the message
+  is printed or `ONERR`'s handler runs.
+- The steps and the two lists work only with Applesoft in the $D000 bank. On
+  a machine with other code there, they report that Applesoft is not in
+  memory.
+- `BPL`, `BPC`, `BPD`, `BPE`, `BPCHANGE`, `BPEDIT` and `BPSAVE` treat these
+  breakpoints as any other. In the Breakpoints pane their Kind is "BASIC" and
+  their Trigger "Line", "Variable change" or "Error", and its New menu has
+  "BASIC line...", "BASIC variable change..." and "BASIC error...".
+- Reverse continue stops on them where a forward run does. A change made
+  before the snapshot a replay starts from, by a statement that ends after
+  it, is not found. The BASIC steps run forward only.
+- With none set, nothing is tested: the interpreter's pages are watched only
+  while a BASIC breakpoint or step is active.
+
 ## Source-level debugging
 
 A debug file maps addresses to source lines. Casso reads cc65's debug format

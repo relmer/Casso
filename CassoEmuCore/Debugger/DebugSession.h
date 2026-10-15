@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Cpu.h"
+#include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
@@ -134,6 +135,10 @@ public:
     //  for a machine whose memory changed other than by the CPU: a move
     //  through history or a keyframe loaded under it.
     void   ResolveDiskCalls      ();
+
+    //  Takes the values the Applesoft variable breakpoints compare against
+    //  from memory as it is now, for a machine that moved through history.
+    void   TakeBasicValues       () { m_basicMonitor.TakeValues (*this); }
     void   OnUserPaused          ();
     void   OnUserResumed         ();
 
@@ -423,6 +428,8 @@ private:
     uint32_t  GetBeamCycle       () const;
     void   AttachDiskReport      (StopEvent & event);
     void   AttachDiskCallReport  (StopEvent & event);
+    void   AttachBasicReport     (StopEvent & event);
+    void   ExecuteBasicStep      (const DebugCommand & command, Reply & reply);
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 
@@ -443,6 +450,7 @@ private:
     BreakpointTable                       m_breakpoints   { m_nextId };
     WatchpointTable                       m_watchpoints   { m_nextId };
     DiskBreakpointMonitor                 m_diskMonitor   { m_breakpoints, m_target };
+    BasicStopMonitor                      m_basicMonitor  { m_breakpoints };
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
@@ -498,6 +506,7 @@ private:
     std::optional<Word>                   m_monitorReturn;
     bool                                  m_monitorReturned = false;
     bool                                  m_isDiskStop      = false;     // ShouldStopBefore stopped for a disk breakpoint
+    bool                                  m_isBasicStop     = false;     // and for an Applesoft breakpoint, step or error
 
     //  A counted step over, step out or source step runs as that many single
     //  steps: the one to start after each step completes, how many are left,

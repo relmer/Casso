@@ -111,6 +111,9 @@ enum class DebugVerb
     BreakOnInterrupt,
     BreakOnUnwrittenRead,
     SetDiskBreakpoint,
+    SetBasicLineBreakpoint,
+    SetBasicVariableBreakpoint,
+    BreakOnBasicError,
     ClearBreakpoint,
     DisableBreakpoint,
     EnableBreakpoint,
@@ -237,6 +240,13 @@ enum class DebugVerb
     ClearStepFilter,
     ShowCallStack,
     SetCallStackMode,
+
+    // Applesoft
+    BasicStep,
+    BasicStepLine,
+    BasicStepOut,
+    ShowBasicVariables,
+    ShowBasicStack,
     ShowHistory,
     SetHistory,
     SaveHistory,

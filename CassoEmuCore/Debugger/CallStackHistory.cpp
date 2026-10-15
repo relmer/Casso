@@ -169,6 +169,7 @@ void CallStackHistory::OnMoved (bool isInterim)
 
     m_restoresSeen = GetRestoreCount();
     m_session.ResolveDiskCalls();
+    m_session.TakeBasicValues();
 
     if (!isStill)
     {
@@ -841,6 +842,7 @@ void CallStackHistory::CheckLoads()
     m_restoresSeen = restores;
 
     m_session.ResolveDiskCalls();
+    m_session.TakeBasicValues();
     m_session.RestartCallRecording();
 }
 

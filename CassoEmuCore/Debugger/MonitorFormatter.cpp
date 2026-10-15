@@ -235,6 +235,11 @@ std::string MonitorFormatter::FormatStop (const StopEvent & stop)
 
 
 
+    if (stop.basic.has_value() && stop.basic->isBasicStop)
+    {
+        lines.push_back (AppleWinFormatter::DescribeBasicStop (stop));
+    }
+
     if (stop.disk.has_value())
     {
         AppleWinFormatter::FormatDiskReport (*stop.disk, lines);

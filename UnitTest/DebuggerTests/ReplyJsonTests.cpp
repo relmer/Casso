@@ -367,7 +367,7 @@ namespace DebuggerTests
                 WatchListData(), SearchHitsData(), StackData(), SoftSwitchData(), SymbolData(), CyclesData(), ModeData(), FileIoData(),
                 CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
                 CallStackData(), CallStackModeData(),
-                TraceData(),
+                TraceData(), BasicVariablesData(), BasicStackData(),
             };
 
             std::set<std::string>  names;

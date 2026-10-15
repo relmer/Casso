@@ -32,6 +32,8 @@ AppleWin commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint
+    BPBASIC line                                         Stop as an Applesoft line begins
+    BPBASICVAR name                                      Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                                Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -49,6 +51,7 @@ AppleWin commands:
     BPV line[,len|:last]                                 Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]             Set an execution breakpoint, as BP does
     BRK [0|1|2|3|ALL] [ON|OFF]                           Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF]                                    Stop on an Applesoft error, whether ONERR handles it or not
     BRKINT [ON|OFF]                                      Stop on an interrupt
     BRKOP [opcode | mnemonic ...]                        Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                                   Stop on a read of RAM nothing has written since power-on
@@ -198,6 +201,9 @@ AppleWin commands:
 
 Casso commands:
   Running and stepping
+    BASICLINE                                            Run to the start of the next Applesoft line
+    BASICOUT                                             Run to the Applesoft statement after the active GOSUB returns
+    BASICSTEP                                            Run to the start of the next Applesoft statement
     BUDGET cycles                                        Stop each run after a number of cycles, in decimal; 0 removes the limit
     HISTORY [ON|OFF|SAVE file|first [n]]                 Show the instruction trace, turn it on or off, or save it
     PAUSE                                                Stop the running machine
@@ -213,6 +219,8 @@ Casso commands:
     PATCH addr value ...                                 Store values at addr, ROM included
     SWITCHES                                             Show the soft switches
   Symbols and source
+    BASICSTACK                                           List the Applesoft program's active GOSUB returns and FOR loops
+    BASICVARS                                            List the Applesoft program's variables and arrays with their values
     SRC [ON|OFF]                                         Show the source line at PC, or step by source lines
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]          List the device panels, or open or close one
@@ -264,6 +272,9 @@ Monitor commands:
 Casso commands:
   Running and stepping
     /= addr                                                Set the program counter
+    /BASICLINE                                             Run to the start of the next Applesoft line
+    /BASICOUT                                              Run to the Applesoft statement after the active GOSUB returns
+    /BASICSTEP                                             Run to the start of the next Applesoft statement
     /BUDGET cycles                                         Stop each run after a number of cycles, in decimal; 0 removes the limit
     /CYCLES [ABS|REL|PART]                                 Show the cycles in total, in the last run, or since RCC
     /FRAME [count]                                         Run one video frame, or count of them
@@ -289,6 +300,8 @@ Casso commands:
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]               Set an execution breakpoint, or one on PC with < > = !
     /BPA addr[,len|:last]                                  Set an execution breakpoint and a memory watchpoint
+    /BPBASIC line                                          Stop as an Applesoft line begins
+    /BPBASICVAR name                                       Stop after the Applesoft statement that changes a variable or array element
     /BPBEAM line cycle|VBL                                 Stop when the beam reaches a scanline and cycle, or vertical blank
     /BPC #|*                                               Clear a breakpoint, or all of them
     /BPCHANGE # flags                                      Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -306,6 +319,7 @@ Casso commands:
     /BPV line[,len|:last]                                  Stop at a video scanline
     /BPX addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, as BP does
     /BRK [0|1|2|3|ALL] [ON|OFF]                            Stop on BRK, or on invalid opcodes of a length
+    /BRKBASIC [ON|OFF]                                     Stop on an Applesoft error, whether ONERR handles it or not
     /BRKINT [ON|OFF]                                       Stop on an interrupt
     /BRKOP [opcode | mnemonic ...]                         Stop on an opcode or every opcode of a mnemonic, or list them
     /BRKUNINIT [ON|OFF]                                    Stop on a read of RAM nothing has written since power-on
@@ -386,6 +400,8 @@ Casso commands:
     /DW4 [name [=]] [addr[,len|:last]]                     Mark memory as words, 4 a line
     /X addr[,len|:last]                                    Make a data block code again
   Symbols and source
+    /BASICSTACK                                            List the Applesoft program's active GOSUB returns and FOR loops
+    /BASICVARS                                             List the Applesoft program's variables and arrays with their values
     /SRC [ON|OFF]                                          Show the source line at PC, or step by source lines
     /SYM [name|addr|name=addr|cmd]                         Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
     /SYMASM [name|addr|name=addr|cmd]                      Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
@@ -497,6 +513,9 @@ GSSquared commands:
 Casso commands:
   Running and stepping
     = addr                                          Set the program counter
+    BASICLINE                                       Run to the start of the next Applesoft line
+    BASICOUT                                        Run to the Applesoft statement after the active GOSUB returns
+    BASICSTEP                                       Run to the start of the next Applesoft statement
     BUDGET cycles                                   Stop each run after a number of cycles, in decimal; 0 removes the limit
     CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
     FRAME [count]                                   Run one video frame, or count of them
@@ -515,6 +534,8 @@ Casso commands:
     TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
+    BPBASIC line                                    Stop as an Applesoft line begins
+    BPBASICVAR name                                 Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
     BPDISK [D1|D2] event [arguments] [IF expr]      Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
@@ -526,6 +547,7 @@ Casso commands:
     BPSAVE file                                     Save the breakpoints as a script
     BPV line[,len|:last]                            Stop at a video scanline
     BRK [0|1|2|3|ALL] [ON|OFF]                      Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF]                               Stop on an Applesoft error, whether ONERR handles it or not
     BRKINT [ON|OFF]                                 Stop on an interrupt
     BRKOP [opcode | mnemonic ...]                   Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                              Stop on a read of RAM nothing has written since power-on
@@ -599,6 +621,8 @@ Casso commands:
     DW4 [name [=]] [addr[,len|:last]]               Mark memory as words, 4 a line
     Z [name [=]] [addr[,len|:last]]                 Mark memory as bytes, or list the data blocks
   Symbols and source
+    BASICSTACK                                      List the Applesoft program's active GOSUB returns and FOR loops
+    BASICVARS                                       List the Applesoft program's variables and arrays with their values
     SRC [ON|OFF]                                    Show the source line at PC, or step by source lines
     SYMASM [name|addr|name=addr|cmd]                Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
     SYMBASIC [name|addr|name=addr|cmd]              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
@@ -688,6 +712,9 @@ WinDbg commands:
 Casso commands:
   Running and stepping
     != addr                                          Set the program counter
+    !BASICLINE                                       Run to the start of the next Applesoft line
+    !BASICOUT                                        Run to the Applesoft statement after the active GOSUB returns
+    !BASICSTEP                                       Run to the start of the next Applesoft statement
     !BUDGET cycles                                   Stop each run after a number of cycles, in decimal; 0 removes the limit
     !CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
     !FRAME [count]                                   Run one video frame, or count of them
@@ -706,6 +733,8 @@ Casso commands:
     !TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
   Breakpoints
     !BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
+    !BPBASIC line                                    Stop as an Applesoft line begins
+    !BPBASICVAR name                                 Stop after the Applesoft statement that changes a variable or array element
     !BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     !BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
     !BPDISK [D1|D2] event [arguments] [IF expr]      Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
@@ -715,6 +744,7 @@ Casso commands:
     !BPSAVE file                                     Save the breakpoints as a script
     !BPV line[,len|:last]                            Stop at a video scanline
     !BRK [0|1|2|3|ALL] [ON|OFF]                      Stop on BRK, or on invalid opcodes of a length
+    !BRKBASIC [ON|OFF]                               Stop on an Applesoft error, whether ONERR handles it or not
     !BRKINT [ON|OFF]                                 Stop on an interrupt
     !BRKOP [opcode | mnemonic ...]                   Stop on an opcode or every opcode of a mnemonic, or list them
     !BRKUNINIT [ON|OFF]                              Stop on a read of RAM nothing has written since power-on
@@ -796,6 +826,8 @@ Casso commands:
     !DW4 [name [=]] [addr[,len|:last]]               Mark memory as words, 4 a line
     !X addr[,len|:last]                              Make a data block code again
   Symbols and source
+    !BASICSTACK                                      List the Applesoft program's active GOSUB returns and FOR loops
+    !BASICVARS                                       List the Applesoft program's variables and arrays with their values
     !SYMASM [name|addr|name=addr|cmd]                Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
     !SYMBASIC [name|addr|name=addr|cmd]              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
     !SYMDOS33, !SYMDOS [name|addr|name=addr|cmd]     Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
@@ -841,6 +873,9 @@ A bare number is hex; $ also marks hex, and # or 0n marks decimal, as in 0n192.
 Casso commands:
   Running and stepping
     = addr                                               Set the program counter
+    BASICLINE                                            Run to the start of the next Applesoft line
+    BASICOUT                                             Run to the Applesoft statement after the active GOSUB returns
+    BASICSTEP                                            Run to the start of the next Applesoft statement
     BUDGET cycles                                        Stop each run after a number of cycles, in decimal; 0 removes the limit
     CYCLES [ABS|REL|PART]                                Show the cycles in total, in the last run, or since RCC
     FRAME [count]                                        Run one video frame, or count of them
@@ -868,6 +903,8 @@ Casso commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint
+    BPBASIC line                                         Stop as an Applesoft line begins
+    BPBASICVAR name                                      Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                                Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -885,6 +922,7 @@ Casso commands:
     BPV line[,len|:last]                                 Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]             Set an execution breakpoint, as BP does
     BRK [0|1|2|3|ALL] [ON|OFF]                           Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF]                                    Stop on an Applesoft error, whether ONERR handles it or not
     BRKINT [ON|OFF]                                      Stop on an interrupt
     BRKOP [opcode | mnemonic ...]                        Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                                   Stop on a read of RAM nothing has written since power-on
@@ -977,6 +1015,8 @@ Casso commands:
     U [addr[,len|:last]]                                 Disassemble, or continue the last listing
     X addr[,len|:last]                                   Make a data block code again
   Symbols and source
+    BASICSTACK                                           List the Applesoft program's active GOSUB returns and FOR loops
+    BASICVARS                                            List the Applesoft program's variables and arrays with their values
     SRC [ON|OFF]                                         Show the source line at PC, or step by source lines
     SYM [name|addr|name=addr|cmd]                        Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
     SYMASM [name|addr|name=addr|cmd]                     Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !

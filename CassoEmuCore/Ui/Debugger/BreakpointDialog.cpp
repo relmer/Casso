@@ -90,6 +90,12 @@ std::string BreakpointDialog::MakeDefinition (const Fields & fields)
     case Type::Disk:      return std::format ("BPDISK {}{}{}{}", s_kDrivePrefixes[std::clamp (fields.drive, 0, 2)],
                                               DiskBreakSpecText::GetEventWords()[std::clamp<size_t> (fields.event, 0, DiskBreakSpecText::GetEventWords().size() - 1)].word,
                                               fields.arguments.empty() ? std::string() : " " + fields.arguments, clause);
+    case Type::BasicLine:
+        return "BPBASIC " + fields.address;
+    case Type::BasicVariable:
+        return "BPBASICVAR " + fields.address;
+    case Type::BasicError:
+        return "BRKBASIC ON";
     default:              return "BP " + fields.address + clause;
     }
 }
@@ -125,6 +131,12 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     case Type::Opcode:   fields.value = std::format ("{:02X}", info.opcode);             break;
     case Type::Register: fields.value = info.condition; fields.condition.clear();        break;
     case Type::Disk:     fields = GetDiskFields (info, fields);                          break;
+    case Type::BasicLine:
+        fields.address = (info.address == 0) ? std::string() : std::to_string (info.address);
+        break;
+    case Type::BasicVariable:
+        fields.address = info.basicName;
+        break;
     default:                                                                             break;
     }
 
@@ -182,17 +194,20 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
 {
     switch (info.kind)
     {
-    case BreakpointKind::Register:    return Type::Register;
-    case BreakpointKind::Opcode:      return Type::Opcode;
-    case BreakpointKind::MemoryValue: return Type::Value;
-    case BreakpointKind::Brk:         return Type::Brk;
-    case BreakpointKind::Interrupt:   return Type::Interrupt;
-    case BreakpointKind::Disk:        return Type::Disk;
+    case BreakpointKind::Register:      return Type::Register;
+    case BreakpointKind::Opcode:        return Type::Opcode;
+    case BreakpointKind::MemoryValue:   return Type::Value;
+    case BreakpointKind::Brk:           return Type::Brk;
+    case BreakpointKind::Interrupt:     return Type::Interrupt;
+    case BreakpointKind::Disk:          return Type::Disk;
+    case BreakpointKind::BasicLine:     return Type::BasicLine;
+    case BreakpointKind::BasicVariable: return Type::BasicVariable;
+    case BreakpointKind::BasicError:    return Type::BasicError;
     case BreakpointKind::Memory:
         return (info.access == WatchAccess::Read)  ? Type::Read
              : (info.access == WatchAccess::Write) ? Type::Write
                                                    : Type::ReadWrite;
-    default:                          return Type::Execute;
+    default:                            return Type::Execute;
     }
 }
 
@@ -216,16 +231,26 @@ void BreakpointDialog::ShowFieldsForType()
     Type    type      = (Type) m_type.GetSelectedIndex();
     bool    isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
     bool    isDisk    = type == Type::Disk;
+    bool    isBasic   = type == Type::BasicLine || type == Type::BasicVariable || type == Type::BasicError;
     size_t  event     = std::clamp<size_t> (m_event.GetSelectedIndex(), 0, DiskBreakSpecText::GetEventWords().size() - 1);
 
 
 
-    m_mode.SetEnabled  (isWatched);
-    m_event.SetEnabled (isDisk);
-    m_drive.SetEnabled (isDisk);
-    m_value.SetEnabled (!isDisk);
-    m_addressLabel.SetText   (isDisk ? L"Arguments" : L"Address or range");
+    m_mode.SetEnabled      (isWatched);
+    m_event.SetEnabled     (isDisk);
+    m_drive.SetEnabled     (isDisk);
+    m_value.SetEnabled     (!isDisk && !isBasic);
+    m_address.SetEnabled   (type != Type::BasicError);
+    m_condition.SetEnabled (!isBasic);
     m_address.SetPlaceholder (isDisk ? SourcePathList::Utf8ToWide (DiskBreakSpecText::GetEventWords()[event].syntax) : std::wstring());
+
+    switch (type)
+    {
+    case Type::Disk:          m_addressLabel.SetText (L"Arguments");                 break;
+    case Type::BasicLine:     m_addressLabel.SetText (L"Line number");               break;
+    case Type::BasicVariable: m_addressLabel.SetText (L"Variable (A, B%, C$, D(3))"); break;
+    default:                  m_addressLabel.SetText (L"Address or range");          break;
+    }
 
     switch (type)
     {
@@ -266,7 +291,8 @@ void BreakpointDialog::OnCreate()
     m_addressLabel.SetText   (L"Address or range");
     m_conditionLabel.SetText (L"Condition (A == 41)");
 
-    m_type.SetItems    ({ L"Execute", L"Read", L"Write", L"Read or write", L"Memory value", L"Register", L"Opcode", L"BRK", L"BRK on interrupt", L"Disk event" });
+    m_type.SetItems    ({ L"Execute", L"Read", L"Write", L"Read or write", L"Memory value", L"Register", L"Opcode", L"BRK", L"BRK on interrupt", L"Disk event",
+                         L"BASIC line", L"BASIC variable change", L"BASIC error" });
     m_type.SetSelected ((int) fields.type);
     m_type.SetSelect   ([this] (int) { ShowFieldsForType(); Invalidate(); });
     m_type.SetPopupHost (GetPopupHost());

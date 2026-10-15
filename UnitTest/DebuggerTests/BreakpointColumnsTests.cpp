@@ -229,7 +229,7 @@ namespace BreakpointColumnsTests
             }
 
             Assert::AreEqual ((size_t) BreakpointColumns::RowKind::Count, pairs.size(), L"no two kinds share a Kind and a Trigger");
-            Assert::IsTrue   (longest <= 13, L"short enough not to be cut in a narrow pane");
+            Assert::IsTrue   (longest <= 15, L"short enough not to be cut in a narrow pane: \"Variable change\", the longest, is FR-175's");
         }
 
 

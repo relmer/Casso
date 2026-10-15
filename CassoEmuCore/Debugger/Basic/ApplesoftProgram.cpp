@@ -236,6 +236,8 @@ void ApplesoftProgram::GetFrames (std::vector<BasicFrame> & frames) const
 
 
 
+        frame.address = at;
+
         if (token == kGosubToken)
         {
             frame.kind = BasicFrameKind::Gosub;
@@ -266,6 +268,236 @@ void ApplesoftProgram::GetFrames (std::vector<BasicFrame> & frames) const
 
         frames.push_back (frame);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftProgram::TryParseReference
+//
+//  A letter, more letters or digits, a % or $, and subscripts in
+//  parentheses, spaces anywhere, as Applesoft reads a name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftProgram::TryParseReference (const std::string & text, BasicReference & reference)
+{
+    static constexpr int  kMaxSubscript = 32767;
+    std::string           compact;
+    size_t                at            = 0;
+    bool                  isOk          = true;
+
+
+
+    std::ranges::copy_if (text, std::back_inserter (compact), [] (char ch) { return ch != ' '; });
+    std::ranges::transform (compact, compact.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
+
+    reference = BasicReference();
+
+    if (compact.empty() || !std::isupper ((unsigned char) compact[0]))
+    {
+        return false;
+    }
+
+    while (at < compact.size() && std::isalnum ((unsigned char) compact[at]))
+    {
+        if (at < 2)
+        {
+            reference.name += compact[at];
+        }
+
+        at++;
+    }
+
+    if (at < compact.size() && (compact[at] == '%' || compact[at] == '$'))
+    {
+        reference.type  = (compact[at] == '%') ? BasicType::Integer : BasicType::String;
+        reference.name += compact[at];
+        at++;
+    }
+
+    if (at < compact.size() && compact[at] == '(')
+    {
+        do
+        {
+            size_t  digits = 0;
+            int     value  = 0;
+
+
+
+            for (at++; at < compact.size() && std::isdigit ((unsigned char) compact[at]) && value <= kMaxSubscript; at++, digits++)
+            {
+                value = value * 10 + (compact[at] - '0');
+            }
+
+            isOk = digits > 0 && value <= kMaxSubscript;
+            reference.subscripts.push_back (value);
+        }
+        while (isOk && at < compact.size() && compact[at] == ',');
+
+        isOk = isOk && at < compact.size() && compact[at] == ')';
+        at++;
+    }
+
+    return isOk && at == compact.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftProgram::GetValueBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> ApplesoftProgram::GetValueBytes (const BasicReference & reference) const
+{
+    std::optional<Word>  address = FindValue (reference);
+    std::vector<Byte>    bytes;
+    Word                 chars   = 0;
+    int                  length  = 0;
+
+
+
+    if (!address.has_value())
+    {
+        return bytes;
+    }
+
+    switch (reference.type)
+    {
+    case BasicType::Integer:
+        bytes = { PeekByte (*address), PeekByte ((Word) (*address + 1)) };
+        bytes = (bytes[0] == 0 && bytes[1] == 0) ? std::vector<Byte>() : bytes;
+        break;
+
+    case BasicType::String:
+        length = PeekByte (*address);
+        chars  = PeekWord ((Word) (*address + 1));
+
+        for (int i = 0; i < length; i++)
+        {
+            bytes.push_back (PeekByte ((Word) (chars + i)));
+        }
+
+        break;
+
+    default:
+        //  A zero exponent is zero, whatever the mantissa.
+        for (int i = 0; i < 5 && PeekByte (*address) != 0; i++)
+        {
+            bytes.push_back (PeekByte ((Word) (*address + i)));
+        }
+
+        break;
+    }
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftProgram::GetValueText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ApplesoftProgram::GetValueText (const BasicReference & reference) const
+{
+    std::optional<Word>  address = FindValue (reference);
+
+
+
+    if (!address.has_value())
+    {
+        return (reference.type == BasicType::String) ? std::string() : std::string ("0");
+    }
+
+    return FormatValue (*address, reference.type);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftProgram::FindValue
+//
+//  The name's two bytes have the type's high bits, as GetType reads them. An
+//  element's place counts the first subscript fastest; one outside the
+//  array's sizes, or a count of subscripts the array was not given, has no
+//  value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> ApplesoftProgram::FindValue (const BasicReference & reference) const
+{
+    Byte    first  = (Byte) (reference.name[0] | ((reference.type == BasicType::Integer) ? kTypeBit : 0));
+    Byte    second = (Byte) (((reference.name.size() > 1 && std::isalnum ((unsigned char) reference.name[1])) ? reference.name[1] : 0) |
+                             ((reference.type != BasicType::Real) ? kTypeBit : 0));
+    Word    end    = reference.subscripts.empty() ? PeekWord (kAryTab) : PeekWord (kStrEnd);
+    Word    at     = reference.subscripts.empty() ? PeekWord (kVarTab) : PeekWord (kAryTab);
+    int     width  = (reference.type == BasicType::Real) ? 5 : (reference.type == BasicType::Integer) ? 2 : 3;
+
+
+
+    while (reference.subscripts.empty() && at + kVariableBytes <= end && at < kProgramCeiling)
+    {
+        if (PeekByte (at) == first && PeekByte ((Word) (at + 1)) == second)
+        {
+            return (Word) (at + 2);
+        }
+
+        at = (Word) (at + kVariableBytes);
+    }
+
+    while (!reference.subscripts.empty() && at + 5 <= end && at < kProgramCeiling)
+    {
+        Word    next   = PeekWord ((Word) (at + 2));
+        size_t  count  = PeekByte ((Word) (at + 4));
+        size_t  index  = 0;
+        size_t  stride = 1;
+        bool    isIn   = count == reference.subscripts.size();
+
+
+
+        if (next == 0)
+        {
+            break;
+        }
+
+        if (PeekByte (at) != first || PeekByte ((Word) (at + 1)) != second)
+        {
+            at = (Word) (at + next);
+            continue;
+        }
+
+        //  The sizes are stored last subscript first.
+        for (size_t dim = 0; dim < count && isIn; dim++)
+        {
+            Word  sizeAt = (Word) (at + 5 + 2 * (count - 1 - dim));
+            int   size   = (PeekByte (sizeAt) << 8) | PeekByte ((Word) (sizeAt + 1));
+
+
+
+            isIn    = reference.subscripts[dim] < size;
+            index  += (size_t) reference.subscripts[dim] * stride;
+            stride *= (size_t) size;
+        }
+
+        return isIn ? std::optional<Word> ((Word) (at + 5 + 2 * count + index * width)) : std::nullopt;
+    }
+
+    return std::nullopt;
 }
 
 

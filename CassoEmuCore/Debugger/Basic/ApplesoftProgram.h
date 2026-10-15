@@ -54,9 +54,20 @@ enum class BasicFrameKind
     For,
 };
 
+//  A simple variable or an array element as a program writes it: A, B%, C$,
+//  X(2,3). Applesoft compares only the first two characters of a variable's
+//  name, so the field has those and the type's sign.
+struct BasicReference
+{
+    std::string       name;
+    BasicType         type = BasicType::Real;
+    std::vector<int>  subscripts;
+};
+
 struct BasicFrame
 {
     BasicFrameKind  kind     = BasicFrameKind::Gosub;
+    Word            address  = 0;     // the frame's first byte on the stack
     Word            line     = 0;     // the line the GOSUB or FOR is on
     std::string     variable;         // FOR only
     std::string     limit;
@@ -112,6 +123,18 @@ public:
     void                 GetArrays     (std::vector<BasicArray> & arrays) const;
     void                 GetFrames     (std::vector<BasicFrame> & frames) const;
 
+    //  A variable or array element written as a program writes it; false for
+    //  text that is not one.
+    static bool          TryParseReference (const std::string & text, BasicReference & reference);
+
+    //  The value's bytes, a string's being its characters, with the value
+    //  Applesoft reads for a variable that does not exist yet, 0 or "", as
+    //  none: so two reads compare equal exactly when the value is the same.
+    std::vector<Byte>    GetValueBytes (const BasicReference & reference) const;
+
+    //  The value as PRINT prints it, 0 or empty for one that does not exist.
+    std::string          GetValueText  (const BasicReference & reference) const;
+
     //  A real as PRINT prints it, from its five bytes as Applesoft stores a
     //  variable: the exponent, then the mantissa with the sign in its top bit.
     //  FormatReal approximates PRINT in host arithmetic; a reader with the
@@ -130,13 +153,17 @@ private:
     static constexpr Byte  kForToken      = 0x81;
     static constexpr Word  kStackBottom   = 0x01F8;
 
-    Byte          PeekByte    (Word address) const { return m_peek (address); }
-    Word          PeekWord    (Word address) const;
-    std::string   FormatValue (Word address, BasicType type) const;
-    std::string   FormatPacked (Word address) const;
+    Byte                 PeekByte     (Word address) const { return m_peek (address); }
+    Word                 PeekWord     (Word address) const;
+    std::string          FormatValue  (Word address, BasicType type) const;
+    std::string          FormatPacked (Word address) const;
 
-    static std::string  GetName (Byte first, Byte second, BasicType type);
-    static BasicType    GetType (Byte first, Byte second);
+    //  Where the value of a variable or array element is, none while it does
+    //  not exist.
+    std::optional<Word>  FindValue    (const BasicReference & reference) const;
+
+    static std::string  GetName    (Byte first, Byte second, BasicType type);
+    static BasicType    GetType    (Byte first, Byte second);
     static bool         IsFunction (Byte first, Byte second);
 
     Peek  m_peek;

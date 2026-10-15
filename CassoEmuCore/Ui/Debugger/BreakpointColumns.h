@@ -73,6 +73,9 @@ public:
         DiskSelect,
         DiskInsert,
         DiskEject,
+        BasicLine,
+        BasicVariable,
+        BasicError,
         Count,
     };
 

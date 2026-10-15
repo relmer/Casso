@@ -99,14 +99,17 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
 
     switch (info.kind)
     {
-    case BreakpointKind::Opcode:      return RowKind::Opcode;
-    case BreakpointKind::Register:    return RowKind::Register;
-    case BreakpointKind::Memory:      return kDataKinds[(size_t) info.access];
-    case BreakpointKind::Brk:         return RowKind::Brk;
-    case BreakpointKind::Interrupt:   return RowKind::Interrupt;
-    case BreakpointKind::MemoryValue: return RowKind::DataValue;
-    case BreakpointKind::Disk:        return kDiskKinds[(size_t) info.disk.value_or (DiskBreakSpec {}).event];
-    case BreakpointKind::Address:     break;
+    case BreakpointKind::Opcode:        return RowKind::Opcode;
+    case BreakpointKind::Register:      return RowKind::Register;
+    case BreakpointKind::Memory:        return kDataKinds[(size_t) info.access];
+    case BreakpointKind::Brk:           return RowKind::Brk;
+    case BreakpointKind::Interrupt:     return RowKind::Interrupt;
+    case BreakpointKind::MemoryValue:   return RowKind::DataValue;
+    case BreakpointKind::Disk:          return kDiskKinds[(size_t) info.disk.value_or (DiskBreakSpec {}).event];
+    case BreakpointKind::BasicLine:     return RowKind::BasicLine;
+    case BreakpointKind::BasicVariable: return RowKind::BasicVariable;
+    case BreakpointKind::BasicError:    return RowKind::BasicError;
+    case BreakpointKind::Address:       break;
     }
 
     return RowKind::Execution;
@@ -130,7 +133,8 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
     static constexpr const char *  kTexts[] = { "Breakpoint", "Memory", "Memory", "Memory", "Memory",
                                                 "Register", "Opcode", "BRK", "Interrupt",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
-                                                "Disk", "Disk", "Disk", "Disk", "Disk", "Disk" };
+                                                "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
+                                                "BASIC", "BASIC", "BASIC" };
 
 
 
@@ -158,7 +162,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
     static constexpr const char *  kTexts[] = { "Execute", "Read", "Write", "Read or write", "Value",
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
                                                 "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
-                                                "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject" };
+                                                "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
+                                                "Line", "Variable change", "Error" };
 
 
 
@@ -545,14 +550,17 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return sourceLine.empty() ? named : sourceLine;
-    case BreakpointKind::Opcode:      return std::format ("Opcode ${:02X}", info.opcode);
-    case BreakpointKind::Register:    return info.condition;
-    case BreakpointKind::Brk:         return "BRK";
-    case BreakpointKind::Interrupt:   return "Interrupt";
-    case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", named, info.value.value_or (0));
-    case BreakpointKind::Memory:      return named;
-    case BreakpointKind::Disk:        return GetDiskName (info);
+    case BreakpointKind::Address:       return sourceLine.empty() ? named : sourceLine;
+    case BreakpointKind::Opcode:        return std::format ("Opcode ${:02X}", info.opcode);
+    case BreakpointKind::Register:      return info.condition;
+    case BreakpointKind::Brk:           return "BRK";
+    case BreakpointKind::Interrupt:     return "Interrupt";
+    case BreakpointKind::MemoryValue:   return std::format ("{} = ${:02X}", named, info.value.value_or (0));
+    case BreakpointKind::Memory:        return named;
+    case BreakpointKind::Disk:          return GetDiskName (info);
+    case BreakpointKind::BasicLine:     return std::format ("Line {}", info.address);
+    case BreakpointKind::BasicVariable: return info.basicName;
+    case BreakpointKind::BasicError:    return "Any error";
     }
 
     return named;

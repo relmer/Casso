@@ -17,9 +17,11 @@
 
 ReverseStopTest::ReverseStopTest (DebugSession & session) :
     m_session (session),
-    m_disk    (session.GetBreakpoints(), session.GetTarget())
+    m_disk    (session.GetBreakpoints(), session.GetTarget()),
+    m_basic   (session.GetBreakpoints())
 {
     m_disk.SetReplay();
+    m_basic.SetReplay();
 }
 
 
@@ -51,7 +53,8 @@ IDisk2EventSink * ReverseStopTest::GetDiskSink()
 //  ReverseStopTest::ShouldStopBefore
 //
 //  Breakpoints first, then the disk events the last instruction made, then
-//  before-mode watchpoints against what the instruction would touch. The
+//  Applesoft's entries, then before-mode watchpoints against what the
+//  instruction would touch. The
 //  instruction's own reads are noted first, so the accesses it makes when it
 //  runs are judged as a forward run judges them.
 //
@@ -61,16 +64,17 @@ bool ReverseStopTest::ShouldStopBefore (
     MachineHost  & machine,
     Word           pc)
 {
-    IDebugTarget      & target     = m_session.GetTarget();
-    WatchpointTable   & watches    = m_session.GetWatchpoints();
-    Word                length     = 0;
-    Byte                opcode     = 0;
-    bool                isPeeked   = false;
+    IDebugTarget      & target      = m_session.GetTarget();
+    WatchpointTable   & watches     = m_session.GetWatchpoints();
+    Word                length      = 0;
+    Byte                opcode      = 0;
+    bool                isPeeked    = false;
     AccessPrediction    prediction;
-    HRESULT             hr         = S_OK;
-    uint64_t            cycle      = target.GetCycleCount();
-    bool                isJump     = !m_lastCycle.has_value() || cycle < *m_lastCycle || cycle - *m_lastCycle > DiskBreakpointMonitor::kMaxStepCycles;
-    bool                isDiskStop = false;
+    HRESULT             hr          = S_OK;
+    uint64_t            cycle       = target.GetCycleCount();
+    bool                isJump      = !m_lastCycle.has_value() || cycle < *m_lastCycle || cycle - *m_lastCycle > DiskBreakpointMonitor::kMaxStepCycles;
+    bool                isDiskStop  = false;
+    bool                isBasicStop = false;
 
 
 
@@ -79,6 +83,7 @@ bool ReverseStopTest::ShouldStopBefore (
     if (isJump)
     {
         ResolveRoutines();
+        m_basic.TakeValues (m_session);
     }
 
     m_lastCycle = cycle;
@@ -88,7 +93,8 @@ bool ReverseStopTest::ShouldStopBefore (
     m_fetchesLeft = (Byte) ((1u << length) - 1);
 
     isPeeked   = target.TryPeek (pc, opcode);
-    isDiskStop = m_disk.Poll (m_session);
+    isDiskStop  = m_disk.Poll (m_session);
+    isBasicStop = m_basic.Poll (pc, m_session);
     m_disk.ClearStop();
 
     if (m_session.GetBreakpoints().IsStopBefore (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, m_session, &m_routines))
@@ -96,7 +102,7 @@ bool ReverseStopTest::ShouldStopBefore (
         return true;
     }
 
-    if (isDiskStop)
+    if (isDiskStop || isBasicStop)
     {
         return true;
     }

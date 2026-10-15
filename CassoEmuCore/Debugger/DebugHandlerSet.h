@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/Handlers/BasicHandlers.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/CallStackHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
@@ -50,4 +51,5 @@ private:
     TraceHandlers          m_trace;
     LogHandlers            m_logs;
     StateFileHandlers      m_stateFiles;
+    BasicHandlers          m_basic;
 };

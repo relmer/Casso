@@ -389,6 +389,122 @@ int BreakpointTable::AddDisk (const DiskBreakSpec & spec, const Expression & con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::AddBasicLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicLine (Word line)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind  = BreakpointKind::BasicLine;
+    entry.first = line;
+    entry.last  = line;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddBasicVariable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicVariable (const std::string & name)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind      = BreakpointKind::BasicVariable;
+    entry.basicName = name;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddBasicError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicError()
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind = BreakpointKind::BasicError;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMatchBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId)
+{
+    bool  isHit = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (!entry.enabled || !entry.IsBasic() || !isMatch (entry))
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops || isHit)
+        {
+            continue;
+        }
+
+        hitId = entry.id;
+        isHit = true;
+        m_lastConditionValue.reset();
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsBasicStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsBasicStop (const std::function<bool (const Breakpoint &)> & isMatch) const
+{
+    return std::ranges::any_of (m_entries, [&] (const Breakpoint & entry) { return entry.enabled && entry.stops && entry.IsBasic() && isMatch (entry); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TrySetResolved
 //
 //  An RWTS or driver breakpoint's routine: the address its vector has now.

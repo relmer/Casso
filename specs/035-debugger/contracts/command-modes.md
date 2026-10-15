@@ -301,3 +301,50 @@ command do.
 | `BASICSTEP` / `BASICLINE` / `BASICOUT` | every mode | Steps a statement, a line, or out of the active GOSUB. |
 | `BASICVARS`, `BASICSTACK` | every mode | Lists the variables or the GOSUB and FOR stack. |
 | `BRKBASIC ON|OFF` | every mode | Breaks on a BASIC error, handled by ONERR or not. |
+
+`BPBASIC` takes a line number from 0 to 63999 in decimal. `BPBASICVAR` takes a
+name as a program writes it; Applesoft compares the first two characters and
+the type, and a variable that does not exist yet reads as 0 or "". The value
+is compared at each statement's start with the value at the start of the one
+before, both in the program, so the stop comes as the next statement begins.
+A line, variable or step stop is at $D81D, NEWSTT's call of CHRGET; an error
+stop is at ERROR, $D412, with the code in X. `BRKBASIC` alone reports the
+setting. `BPL` lists them as other breakpoints, `on BASIC line 100`,
+`on BASIC variable A changing` and `on BASIC error`, and `BPSAVE` writes the
+commands that set them.
+
+**Output** (AppleWin layout):
+
+```text
+Breakpoint #0 at BASIC line 100
+Breakpoint #1: A changed from 0 to 1 in line 10, stopped at line 20
+BASIC step to line 30
+BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
+
+> BASICVARS
+A = 1
+N$ = "HI"
+X(2,3) = 0, .25, .5, 10, 10.25, 10.5, 20, 20.25, 20.5, 30, 30.25, 30.5
+
+> BASICSTACK
+FOR I TO 3 STEP 1 in line 100
+GOSUB in line 20
+```
+
+An array lists its first 16 values and then how many more there are.
+
+**Errors**:
+
+```text
+Error: cannot step
+       Applesoft is not in memory: the $D000 bank has other code.
+
+Error: cannot step
+       No GOSUB is active, so there is nothing to step out of.
+
+Error: no Applesoft
+       Applesoft is not in memory: the $D000 bank has other code.
+
+Error: invalid arguments
+       BPBASIC takes a line number, 0 to 63999.
+```

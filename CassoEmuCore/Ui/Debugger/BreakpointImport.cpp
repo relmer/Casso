@@ -129,6 +129,9 @@ bool BreakpointImport::IsDefinition (DebugVerb verb)
     case DebugVerb::BreakOnOpcode:
     case DebugVerb::BreakOnInterrupt:
     case DebugVerb::SetDiskBreakpoint:
+    case DebugVerb::SetBasicLineBreakpoint:
+    case DebugVerb::SetBasicVariableBreakpoint:
+    case DebugVerb::BreakOnBasicError:
         return true;
 
     default:

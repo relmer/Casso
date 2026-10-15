@@ -46,6 +46,10 @@ public:
     // A disk stop's report, as every mode's stop text has it.
     static void         FormatDiskReport (const DiskReport & report, std::vector<std::string> & lines);
 
+    // An Applesoft stop in words: the breakpoint and its line or variable,
+    // the step's line, or the error as Applesoft prints it.
+    static std::string  DescribeBasicStop (const StopEvent & stop);
+
 private:
     using Lines = std::vector<std::string>;
 
@@ -68,6 +72,8 @@ private:
     static void  FormatCalc         (const CalcData           & data, Lines & lines);
     static void  FormatStepFilter   (const StepFilterData     & data, Lines & lines);
     static void  FormatCallStack    (const CallStackData      & data, Lines & lines);
+    static void  FormatBasicVariables (const BasicVariablesData & data, Lines & lines);
+    static void  FormatBasicStack   (const BasicStackData     & data, Lines & lines);
 
     static std::string  FormatCallFrame (const CallStackFrame & frame);
     static void  FormatTrace        (const TraceData          & data, Lines & lines);

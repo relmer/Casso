@@ -41,6 +41,12 @@ struct Breakpoint
     std::optional<DiskBreakSpec>  disk;
     std::optional<Word>           resolved;
 
+    // Kind BasicVariable: the variable or array element. Kind BasicLine has
+    // its line number in first.
+    std::string                   basicName;
+
+    bool  IsBasic() const { return kind == BreakpointKind::BasicLine || kind == BreakpointKind::BasicVariable || kind == BreakpointKind::BasicError; }
+
     // An RWTS or driver breakpoint, which stops before its routine rather
     // than after the instruction that made a disk event.
     bool  IsDiskCall() const { return disk.has_value() && (disk->event == DiskEvent::RwtsCall || disk->event == DiskEvent::DriverCall); }
@@ -75,6 +81,9 @@ public:
     int   AddBrk           ();
     int   AddInterrupt     ();
     int   AddDisk          (const DiskBreakSpec & spec, const Expression & condition = {});
+    int   AddBasicLine     (Word line);
+    int   AddBasicVariable (const std::string & name);
+    int   AddBasicError    ();
 
     //  Adds a copy of an entry under a new id, its hit count started afresh,
     //  for an undo that brings back a deleted breakpoint as it was.
@@ -145,6 +154,12 @@ public:
                             const std::map<int, Word> * routines = nullptr) const;
     bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
     bool  IsDiskStop       (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
+
+    //  True when an enabled Applesoft entry that isMatch accepts stops. Every
+    //  such entry counts the hit; hitId receives the lowest id of the ones
+    //  that stop. IsBasicStop is the same for a replay, counting nothing.
+    bool  TryMatchBasic    (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId);
+    bool  IsBasicStop      (const std::function<bool (const Breakpoint &)> & isMatch) const;
 
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.

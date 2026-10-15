@@ -1,6 +1,7 @@
 #pragma once
 
 #include "I6502DebugInfo.h"
+#include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/DebugCommand.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 #include "Disassembler.h"
@@ -50,6 +51,9 @@ enum class BreakpointKind
     Interrupt,
     MemoryValue,
     Disk,
+    BasicLine,
+    BasicVariable,
+    BasicError,
 };
 
 enum class WatchAccess
@@ -160,6 +164,10 @@ struct BreakpointInfo
     // breakpoint stops at now, absent while its vector has no target.
     std::optional<DiskBreakSpec>  disk;
     std::optional<Word>           resolved;
+
+    // Kind BasicVariable: the variable or array element, as BPBASICVAR was
+    // given it. Kind BasicLine has its line number in address.
+    std::string                   basicName;
 };
 
 struct BreakpointSetData
@@ -487,6 +495,19 @@ struct TraceData
     std::vector<TraceRecord>  entries;
 };
 
+// BASICVARS: the Applesoft program's simple variables and arrays.
+struct BasicVariablesData
+{
+    std::vector<BasicVariable>  variables;
+    std::vector<BasicArray>     arrays;
+};
+
+// BASICSTACK: its GOSUB and FOR frames, newest first.
+struct BasicStackData
+{
+    std::vector<BasicFrame>  frames;
+};
+
 using ReplyData = std::variant<MessageData,
                                RegistersData,
                                MemoryData,
@@ -510,7 +531,9 @@ using ReplyData = std::variant<MessageData,
                                StepFilterData,
                                CallStackData,
                                CallStackModeData,
-                               TraceData>;
+                               TraceData,
+                               BasicVariablesData,
+                               BasicStackData>;
 
 
 
@@ -583,6 +606,8 @@ enum class StopReason
     InvalidOpcode,
     Reset,
     Disk,
+    BasicStep,
+    BasicError,
 };
 
 
@@ -717,6 +742,23 @@ struct WatchHit
     bool                    isUnwritten = false;  // a read of RAM nothing had written, BRKUNINIT's stop
 };
 
+//  An Applesoft stop's report: the line being run, none in direct
+//  mode; for a variable breakpoint the variable, the line of the statement
+//  that changed it and its value before and after; for an error stop the
+//  error's code and message, and whether ONERR was on to handle it.
+struct BasicStopReport
+{
+    std::optional<Word>  line;
+    std::string          variable;
+    std::optional<Word>  changeLine;
+    std::string          previous;
+    std::string          value;
+    std::optional<Byte>  errorCode;
+    std::string          error;
+    bool                 isHandled   = false;
+    bool                 isBasicStop = false;     // the Applesoft entry or step made the stop, not another beside it
+};
+
 struct StopEvent
 {
     StopReason               reason    = StopReason::Pause;
@@ -743,6 +785,9 @@ struct StopEvent
     //  Breakpoint or Watchpoint when an entry of another kind matched at the
     //  same stop.
     std::optional<DiskReport>      disk;
+
+    //  Present for an Applesoft breakpoint, step or error stop.
+    std::optional<BasicStopReport> basic;
 };
 
 

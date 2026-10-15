@@ -23,6 +23,9 @@ using H = HelpCategory;
 static constexpr CassoCommandReference::Entry  s_kEntries[] =
 {
     { "=",           H::RunningAndStepping, "= addr",                                         "Set the program counter"                                                                 },
+    { "BASICLINE",   H::RunningAndStepping, "BASICLINE",                                      "Run to the start of the next Applesoft line"                                             },
+    { "BASICOUT",    H::RunningAndStepping, "BASICOUT",                                       "Run to the Applesoft statement after the active GOSUB returns"                           },
+    { "BASICSTEP",   H::RunningAndStepping, "BASICSTEP",                                      "Run to the start of the next Applesoft statement"                                        },
     { "BUDGET",      H::RunningAndStepping, "BUDGET cycles",                                  "Stop each run after a number of cycles, in decimal; 0 removes the limit"                 },
     { "CYCLES",      H::RunningAndStepping, "CYCLES [ABS|REL|PART]",                          "Show the cycles in total, in the last run, or since RCC"                                 },
     { "FRAME",       H::RunningAndStepping, "FRAME [count]",                                  "Run one video frame, or count of them"                                                   },
@@ -50,6 +53,8 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
 
     { "BP",          H::Breakpoints,        "BP addr[,len|:last]|file:line [IF expr]",        "Set an execution breakpoint, or one on PC with < > = !"                                  },
     { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a memory watchpoint"                                     },
+    { "BPBASIC",     H::Breakpoints,        "BPBASIC line",                                   "Stop as an Applesoft line begins"                                                        },
+    { "BPBASICVAR",  H::Breakpoints,        "BPBASICVAR name",                                "Stop after the Applesoft statement that changes a variable or array element"             },
     { "BPBEAM",      H::Breakpoints,        "BPBEAM line cycle|VBL",                          "Stop when the beam reaches a scanline and cycle, or vertical blank"                      },
     { "BPDISK",      H::Breakpoints,        "BPDISK [D1|D2] event [arguments] [IF expr]",     "Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor"   },
     { "BPC",         H::Breakpoints,        "BPC #|*",                                        "Clear a breakpoint, or all of them"                                                      },
@@ -67,6 +72,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BPV",         H::Breakpoints,        "BPV line[,len|:last]",                           "Stop at a video scanline"                                                                },
     { "BPX",         H::Breakpoints,        "BPX addr[,len|:last]|file:line [IF expr]",       "Set an execution breakpoint, as BP does"                                                 },
     { "BRK",         H::Breakpoints,        "BRK [0|1|2|3|ALL] [ON|OFF]",                     "Stop on BRK, or on invalid opcodes of a length"                                          },
+    { "BRKBASIC",    H::Breakpoints,        "BRKBASIC [ON|OFF]",                              "Stop on an Applesoft error, whether ONERR handles it or not"                             },
     { "BRKINT",      H::Breakpoints,        "BRKINT [ON|OFF]",                                "Stop on an interrupt"                                                                    },
     { "BRKOP",       H::Breakpoints,        "BRKOP [opcode | mnemonic ...]",                  "Stop on an opcode or every opcode of a mnemonic, or list them"                           },
     { "BRKUNINIT",   H::Breakpoints,        "BRKUNINIT [ON|OFF]",                             "Stop on a read of RAM nothing has written since power-on"                                },
@@ -159,6 +165,8 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "U",           H::DisassemblyAndData, "U [addr[,len|:last]]",                           "Disassemble, or continue the last listing"                                               },
     { "X",           H::DisassemblyAndData, "X addr[,len|:last]",                             "Make a data block code again"                                                            },
 
+    { "BASICSTACK",  H::SymbolsAndSource,   "BASICSTACK",                                     "List the Applesoft program's active GOSUB returns and FOR loops"                         },
+    { "BASICVARS",   H::SymbolsAndSource,   "BASICVARS",                                      "List the Applesoft program's variables and arrays with their values"                     },
     { "SRC",         H::SymbolsAndSource,   "SRC [ON|OFF]",                                   "Show the source line at PC, or step by source lines"                                     },
     { "SYM",         H::SymbolsAndSource,   "SYM [name|addr|name=addr|cmd]",                  "Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !"               },
     { "SYMASM",      H::SymbolsAndSource,   "SYMASM [name|addr|name=addr|cmd]",               "Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !"     },

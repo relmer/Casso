@@ -198,8 +198,14 @@ namespace DebuggerTests
                 //  The window runs PANEL, the emulator SAVESTATE and LOADSTATE,
                 //  and the window's shell has the video and sound logs, so a
                 //  session alone returns them as not available, the same way in
-                //  every mode.
+                //  every mode. The mock target's memory has no Applesoft, so
+                //  the BASIC commands fail, the same way in every mode.
                 expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+
+                if (name.starts_with ("BASIC"))
+                {
+                    expected = CommandStatus::Error;
+                }
 
                 Assert::AreEqual ((int) expected, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
             }

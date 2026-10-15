@@ -9,6 +9,7 @@
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/DiskBreakSpecText.h"
+#include "Debugger/Handlers/BasicHandlers.h"
 #include "Microcode.h"
 #include "OpcodeTable.h"
 
@@ -121,6 +122,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.symbol    = entry.symbol;
     info.disk      = entry.disk;
     info.resolved  = entry.resolved;
+    info.basicName = entry.basicName;
     return info;
 }
 
@@ -182,14 +184,17 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
-    case BreakpointKind::Register:    return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
-    case BreakpointKind::Opcode:      return std::format ("BRKOP {:02X}", info.opcode);
-    case BreakpointKind::Brk:         return "BRK ON";
-    case BreakpointKind::Interrupt:   return "BRKINT ON";
-    case BreakpointKind::MemoryValue: return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
-    case BreakpointKind::Disk:        return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
-    default:                          return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
+    case BreakpointKind::Address:       return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
+    case BreakpointKind::Register:      return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
+    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode);
+    case BreakpointKind::Brk:           return "BRK ON";
+    case BreakpointKind::Interrupt:     return "BRKINT ON";
+    case BreakpointKind::MemoryValue:   return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    case BreakpointKind::Disk:          return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
+    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address);
+    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName;
+    case BreakpointKind::BasicError:    return "BRKBASIC ON";
+    default:                            return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
     }
 }
 
@@ -268,14 +273,17 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "exec " + range;
-    case BreakpointKind::Register:    return "when " + info.condition;
-    case BreakpointKind::Opcode:      return std::format ("opcode {:02X}", info.opcode);
-    case BreakpointKind::Brk:         return "BRK";
-    case BreakpointKind::Interrupt:   return "interrupt";
-    case BreakpointKind::MemoryValue: return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
-    case BreakpointKind::Disk:        return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
-    default:                          return std::string (kAccessWords[(int) info.access]) + " " + range;
+    case BreakpointKind::Address:       return "exec " + range;
+    case BreakpointKind::Register:      return "when " + info.condition;
+    case BreakpointKind::Opcode:        return std::format ("opcode {:02X}", info.opcode);
+    case BreakpointKind::Brk:           return "BRK";
+    case BreakpointKind::Interrupt:     return "interrupt";
+    case BreakpointKind::MemoryValue:   return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    case BreakpointKind::Disk:          return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
+    case BreakpointKind::BasicLine:     return std::format ("BASIC line {}", info.address);
+    case BreakpointKind::BasicVariable: return "BASIC variable " + info.basicName;
+    case BreakpointKind::BasicError:    return "BASIC error";
+    default:                            return std::string (kAccessWords[(int) info.access]) + " " + range;
     }
 }
 
@@ -1381,7 +1389,8 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would take it, or BRK ON or BRKINT ON.");
+                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV, BPDISK, BPBASIC, BPBASICVAR or BRKOP would take it, "
+                        "or BRK ON, BRKINT ON or BRKBASIC ON.");
         return;
     }
 
@@ -1429,7 +1438,9 @@ bool BreakpointHandlers::TryMakeEntry (
     Watchpoint            & watchpoint,
     bool                  & isWatchpoint)
 {
-    Word  last = definition.hasA2 ? definition.a2 : definition.a1;
+    Word            last    = definition.hasA2 ? definition.a2 : definition.a1;
+    bool            isValid = false;
+    BasicReference  reference;
 
 
 
@@ -1489,6 +1500,21 @@ bool BreakpointHandlers::TryMakeEntry (
         breakpoint.disk      = definition.disk;
         breakpoint.condition = definition.expression;
         return definition.disk.has_value();
+
+    case DebugVerb::SetBasicLineBreakpoint:
+        breakpoint.kind = BreakpointKind::BasicLine;
+        isValid         = BasicHandlers::TryParseLine (definition.text, breakpoint.first);
+        breakpoint.last = breakpoint.first;
+        return isValid;
+
+    case DebugVerb::SetBasicVariableBreakpoint:
+        breakpoint.kind      = BreakpointKind::BasicVariable;
+        breakpoint.basicName = definition.text;
+        return ApplesoftProgram::TryParseReference (definition.text, reference);
+
+    case DebugVerb::BreakOnBasicError:
+        breakpoint.kind = BreakpointKind::BasicError;
+        return definition.text == "ON";
 
     case DebugVerb::SetMemoryWatchpoint: watchpoint.access = WatchAccess::ReadWrite; isWatchpoint = true; return true;
     case DebugVerb::SetReadWatchpoint:   watchpoint.access = WatchAccess::Read;      isWatchpoint = true; return true;

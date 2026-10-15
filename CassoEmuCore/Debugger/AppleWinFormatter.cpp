@@ -49,7 +49,8 @@ void AppleWinFormatter::Format (Reply & reply)
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint" };
+    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
+                                                 "BASIC step", "BASIC error" };
     std::string                   text;
 
 
@@ -89,6 +90,11 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
         return text + FormatCondition (stop) + JoinDiskReport (stop);
     }
 
+    if (stop.basic.has_value() && stop.basic->isBasicStop)
+    {
+        return DescribeBasicStop (stop) + JoinDiskReport (stop);
+    }
+
     if (stop.reason == StopReason::Disk && stop.disk.has_value())
     {
         Lines  lines;
@@ -120,7 +126,61 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
         text += std::format (", {} line {}", stop.sourceFile, stop.sourceLine);
     }
 
+    if (stop.basic.has_value() && stop.basic->line.has_value())
+    {
+        text += std::format (", BASIC line {}", *stop.basic->line);
+    }
+
     return text + JoinDiskReport (stop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::DescribeBasicStop
+//
+//  An error reads as Applesoft prints it, ?SYNTAX ERROR IN 20, with its code
+//  and whether ONERR was on to take it. A string variable's values are in
+//  quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::DescribeBasicStop (const StopEvent & stop)
+{
+    const BasicStopReport  & report  = *stop.basic;
+    std::string              at      = report.line.has_value() ? std::format ("line {}", *report.line) : std::string ("direct mode");
+    bool                     isText  = report.variable.ends_with ('$');
+    std::string              quote   = isText ? "\"" : "";
+
+
+
+    if (stop.reason == StopReason::BasicStep)
+    {
+        return "BASIC step to " + at;
+    }
+
+    if (stop.reason == StopReason::BasicError)
+    {
+        return std::format ("BASIC error: ?{} ERROR{} (code ${:02X}{})",
+                            report.error,
+                            report.line.has_value() ? std::format (" IN {}", *report.line) : std::string(),
+                            report.errorCode.value_or (0),
+                            report.isHandled ? ", ONERR on" : "");
+    }
+
+    if (!report.variable.empty())
+    {
+        return std::format ("Breakpoint #{}: {} changed from {}{}{} to {}{}{}{}, stopped at {}",
+                            stop.breakpointId.value_or (0), report.variable,
+                            quote, report.previous, quote, quote, report.value, quote,
+                            report.changeLine.has_value() ? std::format (" in line {}", *report.changeLine) : std::string(),
+                            at);
+    }
+
+    return std::format ("Breakpoint #{} at BASIC {}", stop.breakpointId.value_or (0), at);
 }
 
 
@@ -293,6 +353,8 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
     else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack      (*v, lines); }
+    else if (auto * v = std::get_if<BasicVariablesData> (&data)) { FormatBasicVariables (*v, lines); }
+    else if (auto * v = std::get_if<BasicStackData>     (&data)) { FormatBasicStack     (*v, lines); }
     else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
@@ -923,6 +985,92 @@ std::string AppleWinFormatter::FormatCallFrame (const CallStackFrame & frame)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::FormatBasicVariables
+//
+//  A variable a line, as a program would assign it. An array is its name
+//  with its DIM subscripts, then its first elements, the first
+//  subscript varying fastest, and how many more there are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatBasicVariables (const BasicVariablesData & data, Lines & lines)
+{
+    static constexpr size_t  kShown = 16;
+
+
+
+    if (data.variables.empty() && data.arrays.empty())
+    {
+        lines.push_back ("No BASIC variables.");
+        return;
+    }
+
+    for (const BasicVariable & variable : data.variables)
+    {
+        lines.push_back (std::format ("{} = {}", variable.name, (variable.type == BasicType::String) ? "\"" + variable.value + "\"" : variable.value));
+    }
+
+    for (const BasicArray & array : data.arrays)
+    {
+        std::string  dims;
+        std::string  values;
+
+
+
+        for (int size : array.sizes)
+        {
+            dims += std::format ("{}{}", dims.empty() ? "" : ",", size - 1);
+        }
+
+        for (size_t i = 0; i < array.values.size() && i < kShown; i++)
+        {
+            values += (i == 0 ? "" : ", ") + ((array.type == BasicType::String) ? "\"" + array.values[i] + "\"" : array.values[i]);
+        }
+
+        if (array.values.size() > kShown)
+        {
+            values += std::format (", and {} more", array.values.size() - kShown);
+        }
+
+        lines.push_back (std::format ("{}({}) = {}", array.name, dims, values));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatBasicStack
+//
+//  Newest first: a GOSUB with the line it was made on, a FOR loop with its
+//  variable, limit, step and line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatBasicStack (const BasicStackData & data, Lines & lines)
+{
+    if (data.frames.empty())
+    {
+        lines.push_back ("No GOSUB or FOR is active.");
+        return;
+    }
+
+    for (const BasicFrame & frame : data.frames)
+    {
+        lines.push_back ((frame.kind == BasicFrameKind::Gosub)
+                         ? std::format ("GOSUB in line {}", frame.line)
+                         : std::format ("FOR {} TO {} STEP {} in line {}", frame.variable, frame.limit, frame.step, frame.line));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::FormatProfile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1081,6 +1229,15 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
         break;
     case BreakpointKind::Disk:
         text = "on disk " + DescribeDisk (breakpoint);
+        break;
+    case BreakpointKind::BasicLine:
+        text = std::format ("on BASIC line {}", breakpoint.address);
+        break;
+    case BreakpointKind::BasicVariable:
+        text = "on BASIC variable " + breakpoint.basicName + " changing";
+        break;
+    case BreakpointKind::BasicError:
+        text = "on BASIC error";
         break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }

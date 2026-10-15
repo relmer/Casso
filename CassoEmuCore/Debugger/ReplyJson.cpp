@@ -149,6 +149,11 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         members.emplace_back ("disk", MakeDiskReport (*stop.disk));
     }
 
+    if (stop.basic.has_value())
+    {
+        members.emplace_back ("basic", MakeBasicReport (*stop.basic));
+    }
+
     if (!stop.condition.empty())
     {
         members.emplace_back ("condition", MakeString (stop.condition));
@@ -303,7 +308,8 @@ const char * ReplyJson::GetRegionName (MemoryRegion region)
 
 const char * ReplyJson::GetBreakpointKindName (BreakpointKind kind)
 {
-    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue", "disk" };
+    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue", "disk",
+                                               "basicLine", "basicVariable", "basicError" };
 
 
 
@@ -341,7 +347,8 @@ const char * ReplyJson::GetAccessName (WatchAccess access)
 
 const char * ReplyJson::GetStopReasonName (StopReason reason)
 {
-    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset", "disk" };
+    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset", "disk",
+                                               "basicStep", "basicError" };
 
 
 
@@ -611,6 +618,8 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
 
     if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
     if (auto * v = std::get_if<TraceData>         (&data)) { return MakeTrace      (*v); }
+    if (auto * v = std::get_if<BasicVariablesData> (&data)) { return MakeBasicVariables (*v); }
+    if (auto * v = std::get_if<BasicStackData>    (&data)) { return MakeBasicStack (*v); }
 
     if (auto * v = std::get_if<VideoInfoData> (&data))
     {
@@ -1025,6 +1034,16 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
     if (breakpoint.resolved.has_value())
     {
         members.emplace_back ("resolved", MakeNumber (*breakpoint.resolved));
+    }
+
+    if (breakpoint.kind == BreakpointKind::BasicLine)
+    {
+        members.emplace_back ("line", MakeNumber (breakpoint.address));
+    }
+
+    if (breakpoint.kind == BreakpointKind::BasicVariable)
+    {
+        members.emplace_back ("variable", MakeString (breakpoint.basicName));
     }
 
     members.emplace_back ("enabled",   JsonValue (breakpoint.enabled));

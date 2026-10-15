@@ -265,6 +265,7 @@ Reply DebugSession::Execute (const DebugCommand & command)
             if (IsMachineWrite (command.verb))
             {
                 ResolveDiskCalls();
+                m_basicMonitor.TakeValues (*this);
             }
 
             return reply;
@@ -344,6 +345,9 @@ bool DebugSession::IsStepVerb (DebugVerb verb)
     case DebugVerb::StepOver:
     case DebugVerb::StepOut:
     case DebugVerb::RunFrame:
+    case DebugVerb::BasicStep:
+    case DebugVerb::BasicStepLine:
+    case DebugVerb::BasicStepOut:
         return true;
 
     default:
@@ -1327,6 +1331,10 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_stepCycles    = 0;
     m_isStepPending = false;
     m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
+    m_basicMonitor.EndStep();
+    m_basicMonitor.ClearStop();
+    m_basicMonitor.Rebase();
+    m_isBasicStop   = false;
     m_target.ClearTrace();
     m_target.ClearHeatMap();
     m_isStepOutOnRecord = false;
@@ -1374,6 +1382,7 @@ void DebugSession::OnReset (bool isPowerCycle)
 
     m_monitorReturn.reset();
     m_monitorReturned = false;
+    m_basicMonitor.Rebase();
     UpdateHookInstalled();
 
     if (m_callRecorder.IsActive())
@@ -1482,11 +1491,12 @@ void DebugSession::SetAttached (bool isAttached)
 
 bool DebugSession::ShouldStopBefore (Word pc)
 {
-    Byte  opcode    = 0;
-    int   hitId     = -1;
-    bool  isHit     = false;
-    bool  isDiskHit = false;
-    bool  isPeeked  = false;
+    Byte  opcode     = 0;
+    int   hitId      = -1;
+    bool  isHit      = false;
+    bool  isDiskHit  = false;
+    bool  isBasicHit = false;
+    bool  isPeeked   = false;
 
 
 
@@ -1495,9 +1505,12 @@ bool DebugSession::ShouldStopBefore (Word pc)
 
     //  A disk event the last instruction made stops here, after it, as a
     //  watchpoint hit does; with an address breakpoint here as well, the stop
-    //  has the breakpoint's reason and the disk report beside it.
-    isDiskHit = m_diskMonitor.Poll (*this);
-    isHit     = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
+    //  has the breakpoint's reason and the disk report beside it. Applesoft's
+    //  boundary is polled here too, so its variable entries take every
+    //  boundary's values.
+    isDiskHit  = m_diskMonitor.Poll (*this);
+    isBasicHit = m_basicMonitor.Poll (pc, *this);
+    isHit      = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
 
     if (isHit)
     {
@@ -1508,6 +1521,12 @@ bool DebugSession::ShouldStopBefore (Word pc)
     if (isDiskHit)
     {
         m_isDiskStop = true;
+        return true;
+    }
+
+    if (isBasicHit)
+    {
+        m_isBasicStop = true;
         return true;
     }
 
@@ -2038,6 +2057,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
         }
     }
 
+    AttachBasicReport (event);
     AttachDiskCallReport (event);
     AttachDiskReport (event);
     AttachCondition (event);
@@ -2079,6 +2099,83 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_sink.OnStopped (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachBasicReport
+//
+//  An Applesoft stop's report: a stop of its own when its breakpoint, step
+//  or error stop made it, beside another stop at the same boundary
+//  otherwise. Any stop ends a BASIC step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachBasicReport (StopEvent & event)
+{
+    if (m_basicMonitor.HasStop())
+    {
+        event.basic = m_basicMonitor.GetStop().report;
+
+        if (m_isBasicStop)
+        {
+            event.basic->isBasicStop = true;
+            event.reason             = m_basicMonitor.GetStop().reason;
+            event.breakpointId       = m_basicMonitor.GetStop().breakpointId;
+        }
+    }
+
+    m_basicMonitor.ClearStop();
+    m_basicMonitor.EndStep();
+    m_isBasicStop = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteBasicStep
+//
+//  BASICSTEP, BASICLINE and BASICOUT run as G does, the step armed, and stop
+//  where it ends unless something else stops the run first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ExecuteBasicStep (const DebugCommand & command, Reply & reply)
+{
+    DebugCommand   run   = command;
+    BasicStepKind  kind  = (command.verb == DebugVerb::BasicStepLine) ? BasicStepKind::Line
+                         : (command.verb == DebugVerb::BasicStepOut)  ? BasicStepKind::Out
+                         :                                              BasicStepKind::Statement;
+    std::string    error;
+
+
+
+    run.verb  = DebugVerb::Go;
+    run.hasA1 = false;
+    run.hasA2 = false;
+    run.hasA3 = false;
+    run.count = 0;
+
+    //  During a run, G's error is returned, with how to stop the run.
+    if (m_state != RunState::DebugRun && m_state != RunState::Stepping && !m_basicMonitor.TryBeginStep (kind, *this, error))
+    {
+        SetError (reply, CommandStatus::Error, "cannot step", error);
+        return;
+    }
+
+    ExecuteRun (run, reply);
+
+    if (reply.status != CommandStatus::Ok)
+    {
+        m_basicMonitor.EndStep();
+    }
 }
 
 
@@ -2458,6 +2555,12 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
     case DebugVerb::RemoveStepFilter:
     case DebugVerb::ClearStepFilter:
         ExecuteStepFilter (command, reply);
+        return true;
+
+    case DebugVerb::BasicStep:
+    case DebugVerb::BasicStepLine:
+    case DebugVerb::BasicStepOut:
+        ExecuteBasicStep (command, reply);
         return true;
 
     default:
@@ -3379,6 +3482,13 @@ void DebugSession::RefreshHookFilter()
             m_hookFilter.pages[entry.resolved.value_or (0) >> 8] = m_hookFilter.pages[entry.resolved.value_or (0) >> 8] || entry.resolved.has_value();
             break;
 
+        //  Applesoft's entries are tested where the interpreter passes, on
+        //  the pages the monitor marks below.
+        case BreakpointKind::BasicLine:
+        case BreakpointKind::BasicVariable:
+        case BreakpointKind::BasicError:
+            break;
+
         default:
             isEvery = true;
             break;
@@ -3389,6 +3499,8 @@ void DebugSession::RefreshHookFilter()
     {
         m_hookFilter.pages[*m_monitorReturn >> 8] = true;
     }
+
+    m_basicMonitor.MarkPages (m_hookFilter.pages);
 
     //  With only opcode breakpoints armed, the host asks about an instruction
     //  only when its opcode is one of theirs. An address breakpoint beside

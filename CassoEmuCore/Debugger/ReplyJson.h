@@ -74,4 +74,7 @@ private:
     static JsonValue    MakeDiskReport      (const DiskReport & report);
     static JsonValue    MakeDiskField       (const DiskFieldEvent & field);
     static JsonValue    MakeDiskRequest     (const DiskCallRequest & request);
+    static JsonValue    MakeBasicReport     (const BasicStopReport & report);
+    static JsonValue    MakeBasicVariables  (const BasicVariablesData & data);
+    static JsonValue    MakeBasicStack      (const BasicStackData & data);
 };

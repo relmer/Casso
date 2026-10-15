@@ -187,7 +187,7 @@ already arrived.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, and `flags` with `n`, `v`, `b`, `d`, `i`, `z`, `c` as booleans |
 | `memory` | `rows`: `{address, bytes, region}`, where `region` is `mainRam`, `auxRam`, `lcBank1`, `lcBank2`, `rom`, `slotRom` or `io`. An I/O byte that cannot be read without side effects is `null` |
 | `disassembly` | `lines`: `{address, bytes, mnemonic, operand, operandAddress, operandSymbol, target, label, documented}`. `operand` is always numeric; `operandSymbol` is the name of `operandAddress` and `label` the name of `address`, each `null` when none is loaded. |
-| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, disk, resolved, enabled, hits}`, with absent fields left out. Kind `disk` has a `disk` object, the breakpoint's definition (see "Disk breakpoints" below), and an RWTS or driver breakpoint has `resolved`, the routine it stops at now, absent while its vector has no target |
+| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, disk, resolved, line, variable, enabled, hits}`, with absent fields left out. Kind `disk` has a `disk` object, the breakpoint's definition (see "Disk breakpoints" below), and an RWTS or driver breakpoint has `resolved`, the routine it stops at now, absent while its vector has no target. Kind `basicLine` has `line`, kind `basicVariable` has `variable` as it was typed, and kind `basicError` has neither |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `{id, address, enabled, value}` |
 | `searchHits` | `addresses` |
 | `stack` | `sp`, and `entries`: `{address, value}` |
@@ -196,6 +196,8 @@ already arrived.
 | `cycles` | `count` |
 | `mode` | `mode` |
 | `fileIo` | `path`, `requested`, `transferred`, `mismatch` |
+| `basicVariables` | `variables`: `{name, type, address, value}`, and `arrays`: `{name, type, address, sizes, values}`, where `type` is `real`, `integer` or `string`, each value is the text `PRINT` writes, `sizes` has each subscript's count, first subscript first, and `values` runs the first subscript fastest |
+| `basicStack` | `frames`, newest first: `{kind, address, line}`, `kind` being `gosub` or `for`, and a `for` frame's `variable`, `limit` and `step` as `PRINT` writes them |
 | `message` | nothing beyond `text` |
 
 More kinds may be added. For a kind you do not recognize, show `text`.
@@ -223,7 +225,14 @@ Notifications have no `id` and go to every connected client.
 | `pause` | a `pause` request, or someone paused Casso itself |
 | `brk`, `invalidOpcode` | a `BRK` or an invalid opcode, when those stops are on |
 | `disk` | a disk breakpoint (`BPDISK`) fired. `breakpointId` is the lowest id that matched, and `disk` is the report (below). `pc` is the next instruction, or for an RWTS or driver call the routine's first instruction, not yet run. When a breakpoint or watchpoint matches at the same stop, the reason is theirs and the stop has the `disk` object as well |
+| `basicStep` | `BASICSTEP`, `BASICLINE` or `BASICOUT` ended; `basic` has the line |
+| `basicError` | an Applesoft error, with `BRKBASIC ON`; `breakpointId` is its entry, and `basic` has the error's `code`, its message and the line |
 
+- An Applesoft stop, a `basicLine` or `basicVariable` breakpoint's among
+  them, has `basic`: `line`, `null` in direct mode; for a variable, its
+  `variable`, `changeLine` (the line of the statement that changed it),
+  `previous` and `value`; for an error, `code`, `error` (the message, as
+  `DIVISION BY ZERO`) and `handled`, true while `ONERR` is on.
 - `causeId` is present only when a command's run ended. A breakpoint hit while
   the machine was simply running, or a pause from the Casso window, carries
   none.
