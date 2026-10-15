@@ -258,6 +258,10 @@ public:
 
 private:
 
+    //  The memory bus's floating-bus source: the byte the video scanner is
+    //  reading in the current cycle.
+    Byte  ReadFloatingBus();
+
     //  Power-on bytes the fill must not decide: the power-up byte and the
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();

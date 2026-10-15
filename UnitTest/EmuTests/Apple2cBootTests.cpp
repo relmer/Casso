@@ -318,6 +318,32 @@ public:
     }
 
 
+    // A probe of the empty slot 4 reads the floating bus: the byte the video
+    // scanner is fetching, here a space on the text screen. Reading the 0 it
+    // had just written instead hung ProDOS 2.4.2 on ADTPro's client disk.
+    TEST_METHOD (AnEmptySlotReadsTheVideoScannersByte)
+    {
+        TestMachine  machine ("Apple2c");
+        Byte         value = 0;
+
+
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.PowerCycle();
+
+        for (Word address = 0x0400; address < 0x0800; address++)
+        {
+            machine.GetMemoryBus().WriteByte (address, 0xA0);
+        }
+
+        machine.GetMemoryBus().WriteByte (0xC0C0, 0x00);
+        machine.GetMemoryBus().WriteByte (0xC0C3, 0x00);
+        value = machine.GetMemoryBus().ReadByte (0xC0C1);
+
+        Assert::AreEqual<Byte> (0xA0, value);
+    }
+
+
     // The //c ships two built-in 6551 ACIA serial ports at the
     // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). v1 wires each
     // to a loopback endpoint, so a guest write to the data register echoes
