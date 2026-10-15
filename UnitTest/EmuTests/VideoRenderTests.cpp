@@ -1133,12 +1133,13 @@ public:
 
     TEST_METHOD (IIeRom_Apple80ColTextMode_InverseSpace_RendersSolidBlock)
     {
-        CharacterRomData  rom;
-        MemoryBus         bus;
-        constexpr int     kCellW  = 7;
-        constexpr int     kCellH  = 16;
-        constexpr int     kRow    = 16;
-        constexpr int     kCol    = 7;
+        CharacterRomData              rom;
+        std::unique_ptr<MemoryBus>    busOwner = std::make_unique<MemoryBus>();
+        MemoryBus                   & bus      = *busOwner;
+        constexpr int                 kCellW   = 7;
+        constexpr int                 kCellH   = 16;
+        constexpr int                 kRow     = 16;
+        constexpr int                 kCol     = 7;
 
         LoadIIeCharRom (rom);
 

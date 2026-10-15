@@ -198,9 +198,9 @@ namespace DebuggerTests
 
             b.Sector (DiskFieldKind::Sixteen, 3, 5, s_kRead);
 
-            auto  events  = FeedAll (tracker, b);
-            auto  address = Last (events, DiskFieldEventKind::AddressField);
-            auto  data    = Last (events, DiskFieldEventKind::DataChecksum);
+            auto          events  = FeedAll (tracker, b);
+            const auto  & address = Last (events, DiskFieldEventKind::AddressField);
+            const auto  & data    = Last (events, DiskFieldEventKind::DataChecksum);
 
             Assert::AreEqual ((Byte) 3,       address.track);
             Assert::AreEqual ((Byte) 5,       address.sector);
@@ -223,8 +223,8 @@ namespace DebuggerTests
 
             b.Sector (DiskFieldKind::Thirteen, 7, 12, s_kRead);
 
-            auto  events = FeedAll (tracker, b);
-            auto  data   = Last (events, DiskFieldEventKind::DataChecksum);
+            auto          events = FeedAll (tracker, b);
+            const auto  & data   = Last (events, DiskFieldEventKind::DataChecksum);
 
             Assert::IsTrue   (DiskFieldKind::Thirteen == data.format);
             Assert::AreEqual ((Byte) 7,  data.track);

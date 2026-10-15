@@ -284,9 +284,10 @@ private:
     bool                    m_traceAllPages          = false;
 
     // The I/O listeners, their filters by slot, and the filters' union, which
-    // the access paths test.
+    // the access paths test. The filters by slot are on the heap: a kilobyte
+    // each, and a bus is often on a test's stack.
     ObserverSlots<IIoAccessSink>                    m_ioSinks;
-    std::array<IoAccessFilter, kObserverSlotCount>  m_ioFilters;
+    std::vector<IoAccessFilter>                     m_ioFilters = std::vector<IoAccessFilter> (kObserverSlotCount);
     IoAccessFilter                                  m_ioWanted;
 
     BankingChangedFn        m_bankingChanged;

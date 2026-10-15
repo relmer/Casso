@@ -105,11 +105,12 @@ namespace DebuggerTests
         //  $0300: STA $C050 / STA $C057 / STA $C054 / LDA $C051 / NOP
         TEST_METHOD (VIDEOLOG_ListsEachModeChangeWithItsBeamPosition)
         {
-            LoggedRig                  logged;
-            LogRig                   & rig     = logged.rig;
-            MemoryBus                & bus     = rig.machine.GetMemoryBus();
-            std::vector<std::string>   lines;
-            size_t                     i       = 0;
+            std::unique_ptr<LoggedRig>    owner  = std::make_unique<LoggedRig>();
+            LoggedRig                   & logged = *owner;
+            LogRig                      & rig    = logged.rig;
+            MemoryBus                   & bus    = rig.machine.GetMemoryBus();
+            std::vector<std::string>      lines;
+            size_t                        i      = 0;
 
 
 
@@ -158,9 +159,10 @@ namespace DebuggerTests
         //  $0310: ORA = $07 / ORB = $07 (latch) / ORA = $38 / ORB = $06 (write) / NOP
         TEST_METHOD (SOUNDLOG_ListsSpeakerTogglesAndMockingboardWrites)
         {
-            LoggedRig                  logged (TestMachine::Slots::AsShipped);
-            LogRig                   & rig    = logged.rig;
-            std::vector<std::string>   lines;
+            std::unique_ptr<LoggedRig>    owner  = std::make_unique<LoggedRig> (TestMachine::Slots::AsShipped);
+            LoggedRig                   & logged = *owner;
+            LogRig                      & rig    = logged.rig;
+            std::vector<std::string>      lines;
 
 
 

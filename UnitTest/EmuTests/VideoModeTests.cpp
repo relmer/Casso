@@ -1105,7 +1105,8 @@ public:
         // Build a synthetic 4KB ROM where normal set lights every pixel
         // (0x7F) and alt set lights none (0x00). Toggling ALTCHARSET on a
         // normal char ($C1 'A') must change the pixel pattern.
-        MemoryBus bus;
+        std::unique_ptr<MemoryBus>  busOwner = std::make_unique<MemoryBus>();
+        MemoryBus                 & bus      = *busOwner;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
 
@@ -1163,7 +1164,8 @@ public:
         // same char with two different m_flashOn states and assert the
         // framebuffer differs. (When ALTCHARSET=1, no flash — covered by
         // the alt-set test above which sets the same flash state implicitly.)
-        MemoryBus bus;
+        std::unique_ptr<MemoryBus>  busOwner = std::make_unique<MemoryBus>();
+        MemoryBus                 & bus      = *busOwner;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
 

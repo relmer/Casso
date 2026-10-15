@@ -170,9 +170,9 @@ namespace DiskBreakpointPaneTests
 
         TEST_METHOD (TheCapturedViewHasTheSlotAndAnInsertsName)
         {
-            PaneRig               rig;
-            DebugViewCapture      capture;
-            DebuggerViewSnapshot  snapshot;
+            PaneRig                            rig;
+            std::unique_ptr<DebugViewCapture>  owner   = std::make_unique<DebugViewCapture>();
+            DebugViewCapture                 & capture = *owner;
 
 
 
