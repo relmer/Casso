@@ -937,6 +937,7 @@
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
     <ClInclude Include="Debugger\IDebugTarget.h" />
+    <ClInclude Include="Debugger\ITapeControl.h" />
     <ClInclude Include="Debugger\IRunObserver.h" />
     <ClInclude Include="Debugger\IRunDriver.h" />
     <ClInclude Include="Core\EmuCpu.h" />

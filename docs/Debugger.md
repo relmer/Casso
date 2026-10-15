@@ -332,6 +332,10 @@ STACK
 - Every run carries the `--max-cycles` budget (default 100,000,000), so a
   script that never reaches its breakpoint still ends.
 - Guest disk writes go to an in-memory copy unless `--write-disks` is given.
+- `--tape file` puts a WAV, AIFF or FLAC recording in the cassette recorder,
+  stopped at its start. `TAPE PLAY`, `TAPE STOP`, `TAPE REWIND` and `TAPE EJECT`
+  work the transport, `TAPE INSERT file` loads another tape, and `TAPE` reports
+  the transport, the place and the length. The //c has no cassette jacks.
 - `--json` prints one JSON record per reply and stop, in the format the debug
   channel uses.
 
@@ -339,7 +343,7 @@ STACK
 |---|---|
 | 0 | every command returned ok or not available |
 | 1 | at least one command returned error or unknown |
-| 2 | usage error, or the machine or a disk could not be loaded |
+| 2 | usage error, or the machine, a disk or a tape could not be loaded |
 | 3 | the last run ended on its cycle budget |
 
 `CassoCli debug --attach <pid>` runs the same kind of script against a running
@@ -1070,7 +1074,7 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 **Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
-printer card and the clock. Each opens as a pane showing its registers and
+printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same

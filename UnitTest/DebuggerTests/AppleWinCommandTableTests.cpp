@@ -36,7 +36,7 @@ namespace DebuggerTests
             "BENCHMARK", "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",
-            "DISK",
+            "DISK", "TAPE",
             "CL", "CLC", "CLZ", "CLI", "CLD", "CLB", "CLR", "CLV", "CLN", "SE", "SEC", "SEZ", "SEI", "SED", "SEB", "SER", "SEV", "SEN",
             "?", "HELP", "VERSION", "MOTD",
             "MC", "ME", "MEB", "MEW", "BLOAD", "M", "BSAVE", "S", "@", "SH", "F", "TSAVE",

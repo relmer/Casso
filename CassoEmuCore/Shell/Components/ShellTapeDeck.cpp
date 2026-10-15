@@ -778,6 +778,48 @@ void ShellTapeDeck::ControlTape (TapeCommand command)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellTapeDeck::InsertTapeFile
+//
+//  TAPE INSERT's file, decoded in the background as a picked file is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::InsertTapeFile (const std::wstring & path)
+{
+    if (m_tapeManager != nullptr)
+    {
+        m_tapeManager->Insert (std::filesystem::path (path).string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellTapeDeck::EjectTape
+//
+//  The manager clears the saved file and cancels a load in flight; the tape
+//  is then ejected at once rather than when the posted eject runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellTapeDeck::EjectTape()
+{
+    if (m_tapeManager != nullptr)
+    {
+        m_tapeManager->Eject();
+        ControlTape (TapeCommand::Eject);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellTapeDeck::ApplyMachinePrefs
 //
 ////////////////////////////////////////////////////////////////////////////////

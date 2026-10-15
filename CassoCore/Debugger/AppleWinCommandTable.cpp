@@ -119,6 +119,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
 
     // Disk
     { "DISK",        V::DiskCommand,              F::Disk,        A::Headless,     nullptr,     nullptr },
+    { "TAPE",        V::TapeCommand,              F::Disk,        A::Headless,     nullptr,     nullptr },
 
     // Flags
     { "CL",          V::ClearFlag,                F::Flags,       A::Headless,     nullptr,     nullptr },

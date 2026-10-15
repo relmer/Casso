@@ -15,6 +15,7 @@ class IRunObserver;
 class IWatchSink;
 class KeyframeStore;
 class Microcode;
+class TapeDeck;
 
 
 
@@ -131,6 +132,11 @@ public:
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;
+
+    // The cassette deck and the bus cycle its transport runs by; null on a
+    // target with no deck.
+    virtual TapeDeck          * GetTapeDeck       ()           { return nullptr; }
+    virtual uint64_t            GetBusCycle       () const     { return GetCycleCount(); }
 
     // The keyboard: a key is pending until the guest clears the strobe.
     virtual void                InjectKey         (Byte key) = 0;

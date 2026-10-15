@@ -13,6 +13,9 @@
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/IRomSource.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Tape/ITapeAudioDecoder.h"
+#include "Devices/Tape/TapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Debugger/SynchronousRunDriver.h"
 
@@ -104,6 +107,12 @@ HRESULT DebugBatchRunner::Prepare (const CommandLineOptions::DebugOptions & opti
     if (!options.disk2.empty())
     {
         hr = MountDisk (options.disk2, 1, result);
+        CHR (hr);
+    }
+
+    if (!options.tape.empty())
+    {
+        hr = InsertTape (options.tape, result);
         CHR (hr);
     }
 
@@ -336,6 +345,50 @@ HRESULT DebugBatchRunner::MountDisk (const std::string & path, int drive, DebugB
         }
 
         result.exitStatus = kNothingStarted;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugBatchRunner::InsertTape
+//
+//  The tape is inserted stopped, at its start. An MP3 cannot be inserted
+//  here: its decoder is the emulator's, and a batch run has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugBatchRunner::InsertTape (const std::string & path, DebugBatchResult & result)
+{
+    HRESULT               hr       = S_OK;
+    NullTapeAudioDecoder  mp3;
+    TapeImage             image;
+    std::string           content;
+    std::string           error;
+    bool                  hasJacks = m_host->GetRefs().cassettePort != nullptr;
+
+
+
+    CBRFEx (hasJacks, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), error = "This machine has no cassette jacks.");
+
+    hr = m_files.ReadAllText (TextEncoding::NarrowToWide (path), content);
+    CHRF (hr, error = std::format ("{} could not be read.", path));
+
+    hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), path, true, mp3, image, error);
+    CHR (hr);
+
+    m_host->GetTapeDeck().Insert (std::move (image));
+
+Error:
+    if (FAILED (hr))
+    {
+        result.diagnostics += std::format ("Error: {}\n", error);
+        result.exitStatus   = kNothingStarted;
     }
 
     return hr;

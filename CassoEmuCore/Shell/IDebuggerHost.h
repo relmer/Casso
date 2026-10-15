@@ -5,6 +5,7 @@
 class HeldHostInputs;
 class IFileSystem;
 class IHostDialogs;
+class ITapeControl;
 class WindowPlacementProfile;
 struct CassoTheme;
 
@@ -75,4 +76,7 @@ public:
     //  paste cut back to where it stood before the held part.
     virtual HeldHostInputs        & GetHeldHostInputs   ()                       = 0;
     virtual void                    TruncatePaste       (size_t length)          = 0;
+
+    //  The cassette deck's keys, for TAPE. CPU thread.
+    virtual ITapeControl          & GetTapeControl      ()                       = 0;
 };

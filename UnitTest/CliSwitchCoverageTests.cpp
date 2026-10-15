@@ -460,6 +460,10 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.debug.disk2 == "b.dsk"; },
               "--disk2 puts an image in drive 2" },
 
+            { "debug", "tape", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--tape", "t.wav" },
+              [] (const CommandLineOptions & o) { return o.debug.tape == "t.wav"; },
+              "--tape puts a recording in the cassette recorder" },
+
             { "debug", "script", { "CassoCli", "debug", "--machine", "Apple2e", "--script", "s.txt" },
               [] (const CommandLineOptions & o) { return o.debug.scriptPath == "s.txt"; },
               "--script names the file of command lines" },

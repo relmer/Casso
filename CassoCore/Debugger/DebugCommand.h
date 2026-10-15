@@ -195,6 +195,7 @@ enum class DebugVerb
     RunStartup,
     RunScript,
     DiskCommand,
+    TapeCommand,
     Log,
     Echo,
     Print,

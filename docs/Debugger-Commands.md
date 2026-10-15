@@ -149,6 +149,7 @@ AppleWin commands:
     SYMUSER2 [name|addr|name=addr|cmd]                   Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
     DISK [INFO|SLOT]                                     Show the drives and their disks, or the disk slot
+    TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]       Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     ->                                                   Move the code pane to the operand's address
     .                                                    Make the code pane follow PC again
@@ -398,6 +399,7 @@ Casso commands:
     /SYMUSER2 [name|addr|name=addr|cmd]                    Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
     /DISK [INFO|SLOT]                                      Show the drives and their disks, or the disk slot
+    /TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]        Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     /->                                                    Move the code pane to the operand's address
     /.                                                     Make the code pane follow PC again
@@ -608,6 +610,7 @@ Casso commands:
     SYMUSER2 [name|addr|name=addr|cmd]              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
     DISK [INFO|SLOT]                                Show the drives and their disks, or the disk slot
+    TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]  Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     VIDEOINFO                                       Show the video scanner's position
@@ -802,6 +805,7 @@ Casso commands:
     !SYMUSER2 [name|addr|name=addr|cmd]              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
     !DISK [INFO|SLOT]                                Show the drives and their disks, or the disk slot
+    !TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]  Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     !PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]     List the device panels, or open or close one
     !VIDEOINFO                                       Show the video scanner's position
@@ -983,6 +987,7 @@ Casso commands:
     SYMUSER2 [name|addr|name=addr|cmd]                   Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
     DISK [INFO|SLOT]                                     Show the drives and their disks, or the disk slot
+    TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]       Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     ->                                                   Move the code pane to the operand's address
     .                                                    Make the code pane follow PC again

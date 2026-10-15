@@ -8,6 +8,7 @@
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellWindow.h"
 
 
@@ -317,3 +318,14 @@ void EmulatorShell::DebuggerHost::TruncatePaste (size_t length)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::GetTapeControl
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ITapeControl & EmulatorShell::DebuggerHost::GetTapeControl()
+{
+    return *m_shell.m_tapeDeck;
+}

@@ -68,6 +68,8 @@ public:
     void                SetTraceOn        (bool on) override;
     bool                IsTraceOn         () const override { return m_trace.IsOn(); }
     void                ClearTrace        () override       { m_trace.Clear(); }
+    TapeDeck          * GetTapeDeck       () override;
+    uint64_t            GetBusCycle       () const override;
     size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
     void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
 

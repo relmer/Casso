@@ -21,6 +21,7 @@ class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
 class IIoEventSource;
+class ITapeControl;
 class OpcodeTable;
 struct DebugSessionView;
 
@@ -265,6 +266,11 @@ public:
     void                  SetIoEventSource     (IIoEventSource * source)          { m_ioEventSource = source; }
     IIoEventSource      * GetIoEventSource     () const                           { return m_ioEventSource; }
 
+    // The cassette deck's keys in the emulator (ITapeControl); null in a batch
+    // run, where TAPE calls the deck directly.
+    void                  SetTapeControl       (ITapeControl * control)           { m_tapeControl = control; }
+    ITapeControl        * GetTapeControl       () const                           { return m_tapeControl; }
+
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to.
@@ -422,6 +428,7 @@ private:
     IInstructionObserver                * m_instructionObserver = nullptr;
     IFileSystem                         * m_fileSystem          = nullptr;
     IIoEventSource                      * m_ioEventSource       = nullptr;
+    ITapeControl                        * m_tapeControl         = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;

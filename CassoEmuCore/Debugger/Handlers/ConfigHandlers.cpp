@@ -11,9 +11,14 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/ITapeControl.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/WinDbgParser.h"
+#include "Devices/Tape/ITapeAudioDecoder.h"
+#include "Devices/Tape/TapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
+#include "Machines/Apple2/Common/CassetteDiagnostics.h"
 
 
 
@@ -36,6 +41,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::RunStartup:           RunFile         (session, kStartupScript, std::nullopt, reply);      return true;
     case DebugVerb::SaveConfig:           SaveAll         (session, command, reply); return true;
     case DebugVerb::DiskCommand:          Disk            (session, command, reply); return true;
+    case DebugVerb::TapeCommand:          Tape            (session, command, reply); return true;
     case DebugVerb::Log:                  Log             (session, command, reply); return true;
     case DebugVerb::Echo:                 Echo            (command, reply);          return true;
     case DebugVerb::Print:                Print           (session, command, reply); return true;
@@ -400,6 +406,170 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "DISK takes INFO, SLOT, EJECT, INSERT or PROTECT.");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::Tape
+//
+//  TAPE and TAPE INFO report the deck; INSERT file loads a tape from a host
+//  file (a WAV, AIFF or FLAC recording, or in the emulator an MP3 too); PLAY,
+//  STOP, REWIND and EJECT press the deck's keys. In the emulator the keys and
+//  the insert go through the session's tape control, as the recorder's own
+//  buttons do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::Tape (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    TapeDeck            * deck   = session.GetTarget().GetTapeDeck();
+    ITapeControl        * keys   = session.GetTapeControl();
+    uint64_t              now    = session.GetTarget().GetBusCycle();
+    std::istringstream    stream (command.text);
+    std::string           verb;
+    std::string           rest;
+
+
+
+    stream >> verb;
+    std::getline (stream >> std::ws, rest);
+    verb = ToUpper (verb);
+
+    if (deck == nullptr)
+    {
+        reply.SetError (CommandStatus::NotAvailable, "command not available", "This machine has no cassette jacks.");
+        return;
+    }
+
+    if (verb.empty() || verb == "INFO")
+    {
+        reply.data = MessageData { { DescribeTape (*deck, now) } };
+    }
+    else if (verb == "INSERT")
+    {
+        InsertTape (session, *deck, rest, reply);
+    }
+    else if (verb == "PLAY" || verb == "STOP" || verb == "REWIND" || verb == "EJECT")
+    {
+        if (keys != nullptr)
+        {
+            if      (verb == "PLAY")   { keys->PlayTape();   }
+            else if (verb == "STOP")   { keys->StopTape();   }
+            else if (verb == "REWIND") { keys->RewindTape(); }
+            else                       { keys->EjectTape();  }
+        }
+        else
+        {
+            if      (verb == "PLAY")   { deck->Play   (now); }
+            else if (verb == "STOP")   { deck->Stop   (now); }
+            else if (verb == "REWIND") { deck->Rewind (now); }
+            else                       { deck->Eject  (now); }
+        }
+
+        reply.data = MessageData { { DescribeTape (*deck, now) } };
+    }
+    else
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "TAPE takes INFO, INSERT file, PLAY, STOP, REWIND or EJECT.");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::InsertTape
+//
+//  In the emulator the tape manager reads and decodes the file in the
+//  background, so the reply comes before the tape is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const std::string & name, Reply & reply)
+{
+    IFileSystem           * files = session.GetFileSystem();
+    ITapeControl          * keys  = session.GetTapeControl();
+    NullTapeAudioDecoder    mp3;
+    TapeImage               image;
+    std::string             content;
+    std::string             error;
+    HRESULT                 hr    = S_OK;
+
+
+
+    if (name.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "TAPE INSERT takes a file name.");
+        return;
+    }
+
+    if (keys != nullptr)
+    {
+        keys->InsertTapeFile (session.ResolvePath (name));
+        reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from")) } };
+        return;
+    }
+
+    if (files == nullptr)
+    {
+        reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
+        return;
+    }
+
+    hr = files->ReadAllText (session.ResolvePath (name), content);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        return;
+    }
+
+    hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), name, true, mp3, image, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "not a tape", error);
+        return;
+    }
+
+    deck.Insert (std::move (image));
+
+    reply.data = MessageData { { std::format ("Inserted the tape{}.", session.GetPathEcho (name, "from")) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::DescribeTape
+//
+//  "Tape: Playing, 0:12.4 of 2:05.3", or "Tape: none".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConfigHandlers::DescribeTape (const TapeDeck & deck, uint64_t now)
+{
+    TapeDeck::Snapshot  state = deck.GetSnapshot();
+    double              rate  = (state.sampleRate != 0) ? (double) state.sampleRate : 1.0;
+
+
+
+    if (state.transport == TapeTransport::Empty)
+    {
+        return "Tape: none";
+    }
+
+    return std::format ("Tape: {}, {} of {}", CassetteDiagnostics::GetTransportText (state.transport),
+                        CassetteDiagnostics::FormatSeconds (deck.GetPositionSamples (now) / rate),
+                        CassetteDiagnostics::FormatSeconds ((double) state.lengthSamples / rate));
 }
 
 

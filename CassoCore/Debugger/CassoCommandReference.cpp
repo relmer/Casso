@@ -173,6 +173,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "SYMUSER2",    H::SymbolsAndSource,   "SYMUSER2 [name|addr|name=addr|cmd]",             "Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !"   },
 
     { "DISK",        H::Disks,              "DISK [INFO|SLOT]",                               "Show the drives and their disks, or the disk slot"                                       },
+    { "TAPE",        H::Disks,              "TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]", "Report the cassette deck, or insert, start, stop, rewind or eject a tape"                 },
 
     { "->",          H::DisplayAndPanels,   "->",                                             "Move the code pane to the operand's address"                                             },
     { ".",           H::DisplayAndPanels,   ".",                                              "Make the code pane follow PC again"                                                      },

@@ -83,6 +83,7 @@ private:
     void     RouteDiskIo  (bool writeThrough);
     void     FollowBays   ();
     HRESULT  MountDisk    (const std::string & path, int drive, DebugBatchResult & result);
+    HRESULT  InsertTape   (const std::string & path, DebugBatchResult & result);
     void     RunLines     (const CommandLineOptions::DebugOptions & options, const std::vector<std::string> & lines, DebugSession & session, DebugBatchResult & result);
 
     static void         SplitLines (const std::string & text, std::vector<std::string> & lines);

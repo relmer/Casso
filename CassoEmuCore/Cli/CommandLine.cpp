@@ -43,6 +43,7 @@ static const char *  s_kDebugOptionLines[] =
 {
     "  {0}machine <name>{1}       The machine to build: Apple2, Apple2Plus, Apple2e, Apple2eEnhanced or Apple2c",
     "  {0}disk1 <image>{1}        A disk image for drive 1; {0}disk2 for drive 2",
+    "  {0}tape <file>{1}          A WAV, AIFF or FLAC recording in the cassette recorder, stopped at its start",
     "  {0}script <path>{1}        A file of command lines, one per line; - reads standard input",
     "  {0}command <line>{1}       One command line; repeatable, run after the script",
     "  {0}mode <mode>{1}          The starting command mode: applewin (default), monitor, or gssquared",

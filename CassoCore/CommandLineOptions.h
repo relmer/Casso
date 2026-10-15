@@ -432,6 +432,7 @@ struct CommandLineOptions
         std::string               machine;                       // --machine <name>
         std::string               disk1;                         // --disk1 <image>
         std::string               disk2;                         // --disk2 <image>
+        std::string               tape;                          // --tape <file>
         std::string               scriptPath;                    // --script <path>, or - for standard input
         std::vector<std::string>  commands;                      // --command <line>, repeatable
         std::string               mode          = "applewin";    // --mode applewin|monitor|gssquared|windbg

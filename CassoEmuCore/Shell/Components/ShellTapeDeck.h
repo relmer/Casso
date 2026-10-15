@@ -4,6 +4,7 @@
 
 #include "Devices/Tape/MfTapeAudioDecoder.h"
 #include "Devices/Tape/TapeDeck.h"
+#include "Debugger/ITapeControl.h"
 #include "Shell/CpuCommandTargets.h"
 #include "Ui/Chrome/TapeDeckWidget.h"
 
@@ -33,7 +34,8 @@ class UserConfigStore;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ShellTapeDeck : public ICpuTapeCommands
+class ShellTapeDeck : public ICpuTapeCommands,
+                      public ITapeControl
 {
 public:
     explicit ShellTapeDeck (EmulatorShell & shell);
@@ -51,6 +53,15 @@ public:
     // ICpuTapeCommands: one tape-deck command, against the recorder the
     // machine host owns, timed at the current bus cycle. CPU thread.
     void  ControlTape (TapeCommand command) override;
+
+    // ITapeControl: TAPE's keys, on the CPU thread, as ControlTape runs the
+    // recorder's; an insert or an eject goes through the manager, which
+    // tracks the tape's file.
+    void  InsertTapeFile (const std::wstring & path) override;
+    void  PlayTape       () override { ControlTape (TapeCommand::Play);   }
+    void  StopTape       () override { ControlTape (TapeCommand::Stop);   }
+    void  RewindTape     () override { ControlTape (TapeCommand::Rewind); }
+    void  EjectTape      () override;
 
     // Shown when the machine has a cassette port and the recorder is
     // connected. The flag is per machine, saved in $cassoUiPrefs.

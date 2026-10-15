@@ -428,6 +428,7 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "tape",
     "script",
     "command",
     "mode",
@@ -1143,7 +1144,7 @@ bool CommandLineParser::IsRunOptionNeedingValue (const std::string & arg)
 
 bool CommandLineParser::IsDebugOptionNeedingValue (const std::string & arg)
 {
-    return arg == "--machine" || arg == "--disk1"      || arg == "--disk2" ||
+    return arg == "--machine" || arg == "--disk1"      || arg == "--disk2" || arg == "--tape" ||
            arg == "--script"  || arg == "--command"    || arg == "--mode"  || arg == "--output" ||
            arg == "--max-cycles" || arg == "--seed"    || arg == "--attach" ||
            arg == "--timeout";
@@ -4147,6 +4148,10 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
         else if (IsLongOption (arg, "--disk2", options) && hasValue)
         {
             debug.disk2 = argv[++argIndex];
+        }
+        else if (IsLongOption (arg, "--tape", options) && hasValue)
+        {
+            debug.tape = argv[++argIndex];
         }
         else if (IsLongOption (arg, "--script", options) && hasValue)
         {

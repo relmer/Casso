@@ -44,6 +44,7 @@ public:
     void                    PersistSwitchState  (const char * key, bool value) override;
     HeldHostInputs        & GetHeldHostInputs   () override;
     void                    TruncatePaste       (size_t length) override;
+    ITapeControl          & GetTapeControl      () override;
 
 private:
     EmulatorShell  & m_shell;

@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
@@ -800,6 +801,38 @@ VideoPosition MachineDebugTarget::GetVideoPosition() const
     }
 
     return position;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetTapeDeck
+//
+//  A machine with no cassette jacks, the //c, has no deck to drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TapeDeck * MachineDebugTarget::GetTapeDeck()
+{
+    return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTapeDeck() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetBusCycle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t MachineDebugTarget::GetBusCycle() const
+{
+    return *m_host.GetCpu()->GetBusCyclePtr();
 }
 
 

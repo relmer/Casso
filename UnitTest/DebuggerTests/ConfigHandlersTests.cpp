@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
+#include "Debugger/ITapeControl.h"
 #include "HandlerTestRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -60,6 +61,43 @@ namespace DebuggerTests
             rig.session.SetCurrentDirectory (L"");
 
             Assert::AreEqual (TextEncoding::WideToNarrow (std::filesystem::current_path (code).wstring()), rig.RunOk ("PWD").text.at (0));
+        }
+
+
+
+
+        //  With a tape control set, as in the emulator, TAPE calls the control's
+        //  keys and its insert, and the deck is not touched.
+        TEST_METHOD (Tape_GoesThroughTheSessionsTapeControl)
+        {
+            class Keys : public ITapeControl
+            {
+            public:
+                std::vector<std::string>  pressed;
+
+                void  InsertTapeFile (const std::wstring & path) override { pressed.push_back ("insert " + TextEncoding::WideToNarrow (path)); }
+                void  PlayTape       () override                          { pressed.push_back ("play");   }
+                void  StopTape       () override                          { pressed.push_back ("stop");   }
+                void  RewindTape     () override                          { pressed.push_back ("rewind"); }
+                void  EjectTape      () override                          { pressed.push_back ("eject");  }
+            };
+
+            MachineHandlerRig<ConfigHandlers>  rig;
+            Keys                               keys;
+            std::vector<std::string>           expected = { "insert C:\\Work\\side1.wav", "play", "stop", "rewind", "eject" };
+
+
+
+            rig.session.SetTapeControl (&keys);
+
+            Assert::AreEqual (std::string ("Loading the tape from C:\\Work\\side1.wav."), rig.RunOk ("TAPE INSERT side1.wav").text.at (0));
+            Assert::AreEqual (std::string ("Tape: none"),                               rig.RunOk ("TAPE PLAY").text.at (0), L"TAPE PLAY does not touch the deck");
+
+            rig.RunOk ("TAPE STOP");
+            rig.RunOk ("TAPE REWIND");
+            rig.RunOk ("TAPE EJECT");
+
+            Assert::IsTrue (expected == keys.pressed);
         }
 
 

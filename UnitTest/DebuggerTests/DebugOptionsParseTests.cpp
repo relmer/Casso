@@ -219,6 +219,15 @@ namespace DebugOptionsParseTests
             Assert::AreEqual (std::string ("b.woz"), options.debug.disk2);
         }
 
+        TEST_METHOD (Tape_TakesTheRecorder)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--tape", "side1.wav" });
+
+
+
+            Assert::AreEqual (std::string ("side1.wav"), options.debug.tape);
+        }
+
         TEST_METHOD (Mode_IsFoldedToLowerCase_AndAnotherWordIsRefused)
         {
             CommandLineOptions  monitor = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--mode", "Monitor" });
