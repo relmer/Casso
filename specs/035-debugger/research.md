@@ -2405,6 +2405,19 @@ zero; variables are seven bytes (a two-byte name whose high bits give the
 type, five value bytes); reals are five-byte floating point; GOSUB and FOR
 frames on the 6502 stack are marked by their tokens.
 
+**Confirmed 2026-10-15 (T757)** in the ROMs of the ][+, //e, enhanced //e
+and //c, by the debugger's disassembly of each, byte for byte the same on all
+four:
+
+| Address | What | Where the ROM's own code uses it |
+|---|---|---|
+| $67-$68 TXTTAB | program start | $D698 `LDA TXTTAB` before setting TXTPTR to it less one |
+| $69-$6A VARTAB, $6B-$6C ARYTAB, $6D-$6E STREND | simple variables, arrays, end of arrays | CLEAR at $D674-$D67E copies VARTAB into ARYTAB and STREND |
+| $75-$76 CURLIN | line being run | NEWSTT stores it at $D7F5; $D7DC-$D7DF takes high byte $FF as direct mode |
+| $B8-$B9 TXTPTR | the interpreter's place in the program | NEWSTT reads `(TXTPTR),Y` at $D7E7 |
+| $D7D2 NEWSTT | statement entry | `TSX`, `STX $F8`, `JSR $D858` (the Ctrl-C test) |
+| $D412 ERROR | error handler entry | `BIT $D8`, `BPL`, `JMP $F2E9` (ONERR's handler) |
+| $D8 ERRFLG | ONERR's flag, bit 7 set while ONERR is on | ERROR's `BIT $D8` |
 **Rationale**: everything is read-only and side-effect free, and the hooks
 are armed only while a BASIC stop is set, so ordinary runs pay nothing.
 
