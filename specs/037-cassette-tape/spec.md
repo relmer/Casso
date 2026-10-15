@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Draft
+**Status**: Shipped in 1.31.0 (2026-10-06)
 
 **Input**: GH #160, "Support for Apple II cassette tape interface"
 (https://github.com/relmer/Casso/issues/160). A user asked to load cassette

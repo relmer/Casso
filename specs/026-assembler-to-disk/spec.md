@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-29
 
-**Status**: Clarified
+**Status**: Shipped in 1.23.0 (2026-09-06)
 
 **Input**: Let the assembler write its object directly into a disk image instead of only to host files, closing the Merlin `TYP`/`DSK`/`SAV` gap and collapsing the assemble-then-place build loop into one step.
 

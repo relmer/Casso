@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-06
 
-**Status**: Draft
+**Status**: Shipped in 1.32.0 (2026-10-07)
 
 **Input**: User description: "Update notification and self-update for Casso. Casso checks for a new release two ways: a throttled background check at startup (at most once a day, can be turned off in Settings) and a manual "Check for updates" command. When a newer release exists, an indicator appears in the title bar; clicking it opens a dialog with the new version, its release notes, and actions: update now, skip this version (stays quiet until a newer release), or remind me later. "Update now" downloads and installs the new build, then restarts Casso, with recovery if a download or install fails. Casso is distributed from more than one source: GitHub Releases today and winget soon. The update path must respect how this copy was installed: a winget install updates through winget, and a copy from the GitHub release zip updates from GitHub Releases. The version check must never block or slow emulation, and a network failure is silent for the startup check and reported for the manual check."
 

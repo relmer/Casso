@@ -2,7 +2,7 @@
 
 **Feature Branch**: `011-native-dialogs-completion`
 **Created**: 2026-05-27
-**Status**: Draft
+**Status**: Shipped in 1.5.1395 (2026-05-30)
 **Input**: User description: Complete the native DX UI overhaul started in spec 007 by converting the remaining Win32 UI surfaces (asset-bootstrap modals, help/about/machine-info MessageBoxes, the SettingsPanel stray MessageBox, the legacy GetOpenFileName path, the drive widget label, the DebugConsole EDIT control, and the DiskIIDebugDialog) into themed DX overlays that match the rest of the native chrome.
 
 ## User Scenarios & Testing *(mandatory)*

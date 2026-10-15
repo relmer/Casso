@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-apple-iie-fidelity`
 **Created**: 2026-05-05
-**Status**: Draft
+**Status**: Shipped in 1.3.509 (2026-05-09)
 **Input**: User description: "Deliver a fully correct, architecturally sound emulation of the Apple //e (non-Enhanced) such that the Casso emulator can boot the //e ROM, drive all internal devices and ROMs correctly, run real //e software (including disk-based software with copy protection), and pass a comprehensive automated test suite."
 
 **Authoritative Requirements Input**: [`iie-audit.md`](iie-audit.md), full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.

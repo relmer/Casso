@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-assembler`  
 **Created**: 2026-04-23  
-**Status**: Draft  
+**Status**: Shipped in 0.9.32 (2026-04-28)
 **Input**: User description: "A two-pass 6502 assembler class that converts assembly language source text into machine code bytes"
 
 ## User Scenarios & Testing

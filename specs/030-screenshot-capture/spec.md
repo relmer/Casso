@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-05
 
-**Status**: Draft
+**Status**: Shipped in 1.23.0 (2026-09-06)
 
 **Input**: Design settled in conversation before this spec was written. Closes GH #132
 (*Copy screenshot captures the raw framebuffer, not the CRT-processed picture*).

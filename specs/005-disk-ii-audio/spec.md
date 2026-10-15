@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/005-disk-ii-audio`
 **Created**: 2026-03-19
-**Status**: Draft
+**Status**: Shipped in 1.3.670-1.3.684 (2026-05-15 to 2026-05-16)
 **Input**: User description: "Emit realistic mechanical sounds during Disk II activity in the Casso //e emulator: motor hum (continuous while motor is on), head-step click (per quarter-track phase change), track-0 bump/thunk (head pinned at travel stop while stepper still energized), and door open/close (disk insert/eject). Mix into the existing WASAPI audio pipeline alongside the //e speaker output, with stereo placement reflecting physical drive position (Drive 1 left, Drive 2 right). Must not regress speaker audio. Options dialog toggle to enable/disable drive audio independently (defaults to on). Real-hardware sample recordings are preferred when permissively licensed; procedural synthesis is acceptable fallback. The plumbing must be sufficiently abstracted that other drive types (//c internal 5.25, DuoDisk, Apple /// drive, ProFile hard disk) can be wired in trivially in future features, and that the same Disk II audio works in any machine profile that hosts a Disk II controller (][, ][+, //e)."
 
 **Reference research**: [`research.md`](./research.md), source-verified survey of disk-audio implementations in OpenEmulator/libemulation, MAME, and AppleWin, plus the Casso-specific architectural sketch this spec is grounded in.
