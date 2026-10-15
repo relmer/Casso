@@ -398,7 +398,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 # Section H: the Apple II link
 
 **Input**: spec.md section H (User Stories 14 to 16, FR-083 to FR-098 with
-FR-083a, SC-027 to SC-033), plan.md phases 10 to 17, research.md R15 to
+FR-083a, SC-027 to SC-033), plan.md's section H phases 16 to 24, research.md R15 to
 R23, [contracts/apple-link.md](contracts/apple-link.md), data-model.md's
 Apple II link section, quickstart.md §7b.
 
@@ -451,17 +451,19 @@ in-process and over TCP, at real line timing.
 - [ ] T184 [P] [US16] Add `Win32TcpStream` in `CassoEmuCore/Seams/Win32TcpStream.h/.cpp`:
   - Winsock listen and connect, one connection at a time;
   - bound to 127.0.0.1 unless the caller selects the network;
-  - the port released on close.
+  - the port released on close;
+  - the bind address chosen by `ByteStreamSettings::GetBindAddress` in `CassoEmuCore/Seams/ByteStreamSettings.h/.cpp`, a pure function from the transport, so the choice is tested without a socket.
 
-  Per FR-097 and R19.
+  Tests of `GetBindAddress` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 127.0.0.1 for every transport but `WifiModem`, and the network for `WifiModem`. Per FR-097, R19 and constitution II.
 - [ ] T185 [P] [US16] Add `Win32ComPort` in `CassoEmuCore/Seams/Win32ComPort.h/.cpp`:
   - `CreateFile` on `\\.\COMn`, opened exclusively;
   - `SetCommState` for speed, data format and hardware handshake;
   - `SetCommTimeouts` for the read timeout;
-  - `GetCommPorts` for the port list, through `IByteStreamFactory`.
+  - `GetCommPorts` for the port list, through `IByteStreamFactory`;
+  - the port's settings built by `ByteStreamSettings::ToComSettings`, a pure function from the speed, data format and handshake, so they are tested without a port.
 
-  Per FR-093, FR-094 and R19.
-- [ ] T186 [US16] Offer each emulated serial port's endpoint (loopback or a TCP listen port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
+  Tests of `ToComSettings` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
+- [ ] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
 
 ## Phase 17: ADTPro captures (US16)
 
@@ -473,7 +475,7 @@ own host and client, never from its source (FR-096).
   - a Directory and a Size query;
   - virtual-drive block reads, timestamped reads and writes.
 
-  Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. Per R15.
+  Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. The owner runs this once, manually, on a machine which has ADTPro's Java host; the captures are checked in and CI only reads them. Per R15.
 - [ ] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/apple-link.md` marked *captured*, replacing the mark:
   - the length field's byte order;
   - the CRC's polynomial, initial value and bit order;
@@ -555,6 +557,7 @@ source in the core (R16, R17, R22).
 - [ ] T198 [US16] Add `ScenarioTests/AppleLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `AppleLinkHost` over the bridge:
   - read and write sectors, and format a track, on a mounted DOS 3.3 image and a ProDOS image, compared byte for byte;
   - a write-protected image reports its error;
+  - during a read, the text page contains the connection, the drive, the track, the operation and the progress (FR-090, US14/AC6);
   - with the machine not stepped for ten seconds mid-read, as during a debugger break, the read completes and compares equal.
 
   Per US16/AC1, US16/AC5 and SC-029.
@@ -585,6 +588,7 @@ source in the core (R16, R17, R22).
   - **Write**: every track formatted, written and read back, after the caller's confirmation. An image whose tracks do not decode to standard sectors fails before any track is written, with those tracks listed.
 
   Tests on the in-process stream. Per FR-086 and the edge cases.
+- [ ] T202a [US14] Add `ScenarioTests/AppleLinkSessionTests.cpp`: `AppleLinkSession` against a //c `TestMachine` running the shim and program over the in-process bridge, with a DOS 3.3 image in drive 1 and a ProDOS image in drive 2. List both catalogs, copy a file out of each and one onto each, read each disk to an image and write an image back, comparing every file and image byte for byte with its source. Per SC-029 and US14/AC1 to AC5.
 
 ## Phase 21: Casso Explorer (US14)
 
@@ -607,7 +611,7 @@ image is.
   - `hardwareHandshake`, default false.
 
   Add a dialog to add and edit a link, in `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp`. Tests for load, save and defaults. Per FR-083, FR-094 and data-model.md.
-- [ ] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. Per FR-084 and US14/AC1 and AC2.
+- [ ] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
 - [ ] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
   - `HostFileNaming` styles and the put conversion rules;
   - a write to a write-protected disk fails with the reason.

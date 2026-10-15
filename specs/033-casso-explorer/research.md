@@ -536,11 +536,12 @@ baud rate. The //c's ports are wired to `AciaLoopbackEndpoint` in
   is correct under the debugger's pauses and at any emulation speed.
 - **What the bridge talks to.** The bridge's other side is an
   `IByteStream`, with three implementations:
-  - in-process, a pair of queues, used by Casso Explorer when it hosts the
-    emulated machine's link and by every test;
-  - TCP, listening on a port for ADTPro's serial-over-IP transport or a
-    second Casso (FR-097: this PC only, except for the Wi-Fi modem
-    transport);
+  - in-process, a pair of queues, used when the emulated machine and the
+    link run in one process, as in every test;
+  - TCP, listening on a port for Casso Explorer's link, ADTPro's
+    serial-over-IP transport or a second Casso (FR-097: this PC only, except
+    for the Wi-Fi modem transport). Casso and Casso Explorer are separate
+    processes, so they always join this way, on 127.0.0.1;
   - a COM port, joining an emulated machine to real hardware.
 - **Settings.** The endpoint for each port is a machine setting in
   `MachineBuilder`; loopback stays the default.
@@ -560,6 +561,13 @@ implementations above:
 - `Win32TcpStream` uses Winsock. It binds to loopback unless the Wi-Fi
   modem transport is chosen (FR-097).
 - The in-process pair is a pair of queues.
+
+`IByteStreamFactory` lists COM ports and opens each kind of stream, so the
+COM search runs against a fake factory in tests. The decisions the Win32
+streams make are pure functions in `ByteStreamSettings`, tested without a
+port or a socket (constitution II): a speed, data format and handshake to
+the COM port's settings, and the transport to the address a TCP port binds
+to.
 
 All three are in `CassoEmuCore/Seams/`. The protocol engine uses only
 `IByteStream`, so unit tests drive it with an in-memory pair and touch no

@@ -202,7 +202,7 @@ hardware.
   A follow-on feature, built on this link, reads raw nibbles or bit streams
   and writes WOZ images.
 - Q: Which machines and transports does the link cover? → A: The //c's
-  built-in serial ports; Casso's emulated machines, in-process and over TCP;
+  built-in serial ports; Casso's emulated machines, over TCP on the same PC;
   a serial Wi-Fi modem on a //c, connected over TCP; and, for a ][+ or //e, a
   Super Serial Card, an Uthernet II and audio bootstrap. Casso's emulation
   of the two cards, which the owner lacks, is two features of their own that
@@ -809,7 +809,7 @@ it on real hardware alone is slow and cannot be tested automatically, and
 the owner has neither card.
 
 **Independent Test**: Boot the link disk in an emulated //c and connect
-Casso Explorer to it in-process; copy files both ways, and read and write
+Casso Explorer to it over TCP on the same PC; copy files both ways, and read and write
 whole disks. Repeat on an emulated //e with a Super Serial Card and with an
 Uthernet II. Boot ADTPro's own client disk in an emulated //c and send a disk
 to Casso over TCP.
@@ -1438,7 +1438,7 @@ to Casso over TCP.
   or .woz by its standard sectors; an image with tracks that do not decode
   to standard sectors MUST fail with the reason.
 - **FR-087**: Every packet MUST include a checksum and every page of data a
-  CRC; a damaged packet MUST be sent again up to a limit. A transfer that
+  CRC; a damaged packet MUST be sent again, up to five times. A transfer that
   cannot complete MUST fail with the reason, and MUST NOT result in a partial
   host file or a half-written image on the PC.
 - **FR-088**: Casso MUST serve ADTPro's published protocol, so that an
@@ -1467,17 +1467,20 @@ to Casso over TCP.
 - **FR-093**: The link MUST run over a //c's built-in serial ports to a PC
   COM port or USB-serial adapter; over a Super Serial Card; over an
   Uthernet II; over a serial Wi-Fi modem connected over TCP; and between
-  Casso's emulated machines and Casso Explorer, in-process and over TCP.
+  Casso's emulated machines and Casso Explorer over TCP on the same PC.
+  Within one process, as in the automated tests, the emulated machine and
+  the link MUST also connect directly, with no port.
 - **FR-094**: Serial speed and handshaking MUST be settable, defaulting to
   ADTPro's: 115,200 baud, no hardware handshake, and 9,600 baud for
   bootstrap.
 - **FR-095**: An emulated serial port, the //c's or a Super Serial Card's,
-  MUST be connectable to Casso Explorer's link in-process, to a TCP port, or
-  to a PC COM port. Bytes MUST arrive at the emulated machine no faster than
+  MUST be connectable to a TCP port, which Casso Explorer's link or another
+  program connects to, or to a PC COM port. Bytes MUST arrive at the emulated machine no faster than
   the speed set in its serial chip, so a program that runs at the speed of
   real hardware drops none.
-- **FR-096**: The Apple-side program MUST be built from source in the
-  repository by Casso's own assembler as part of Casso's build. The protocol
+- **FR-096**: The Apple-side program MUST be assembled from source in the
+  repository by Casso's own assembler, and a test MUST assemble it on every
+  build, failing the build on any error. The protocol
   MUST be implemented from ADTPro's published protocol document and from
   observed traffic, never from ADTPro's source.
 - **FR-097**: Casso MUST open a COM port or listen on a TCP port only while

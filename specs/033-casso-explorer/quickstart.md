@@ -165,8 +165,10 @@ claim, so the preview is its bytes.
 Contract: [contracts/apple-link.md](contracts/apple-link.md). Steps 1 to 4
 run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
 
-1. **Emulated //c, in-process.** Start Casso on a //c with the link disk
-   from Save link to disk, and add an `Emulated` link in Casso Explorer.
+1. **Emulated //c, over TCP.** Start Casso on a //c with the link disk
+   from Save link to disk, set its port 2 to a TCP port on the Hardware
+   settings page, and add an `Emulated` link in Casso Explorer at
+   `127.0.0.1` and that port.
    Result: an Apple root with two drives, each labeled with its volume.
    Copy a 10 KB file out and back, and read a disk to `.dsk`. Result: the
    file and the image compare equal to their sources with `fc /b`.

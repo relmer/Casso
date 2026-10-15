@@ -26,7 +26,8 @@ replies with Acknowledgement ($CB): ACK $06, or NAK $15 to have it sent
 again.
 
 A side that receives a damaged envelope or packet sends NAK. The sender
-resends up to the retry limit (*captured*, default 5). When no byte arrives
+resends up to five times (FR-087); with an ADTPro client, the client's own
+retry count applies (*captured*). When no byte arrives
 within the timeout (*captured*, default 3 s), the link closes and the
 operation fails (FR-087).
 

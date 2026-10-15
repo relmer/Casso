@@ -184,16 +184,21 @@ CassoEmuCore/AppleLink/                # section H
 ├── LinkedDisk.h/.cpp                  # sparse sector image, fault-in (R20)
 ├── LinkProgram.h/.cpp                 # assembles the shim and program (R22)
 ├── LinkBootstrap.h/.cpp               # monitor lines for IN#2 (R23)
+├── AppleLinkSearch.h/.cpp             # the COM search (FR-083a)
 └── Apple/                             # AS65 source, compiled in as text
     ├── Shim.s
     └── Program.s
 CassoEmuCore/Devices/AciaEndpoints.h/.cpp   # AciaBridgeEndpoint, paced (R18)
 CassoEmuCore/Seams/
 ├── IByteStream.h                      # NEW
+├── IByteStreamFactory.h               # NEW: lists COM ports, opens each kind of stream
+├── ByteStreamSettings.h/.cpp          # NEW: COM settings and TCP bind address, pure
 ├── InProcessByteStream.h/.cpp         # NEW
 ├── Win32ComPort.h/.cpp                 # NEW
 └── Win32TcpStream.h/.cpp              # NEW
 CassoEmuCore/Machines/Apple2/Common/   # Dos33Volume, ProDosVolume read sectors through one accessor
+CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp   # add and edit a link
+CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp   # each serial port's endpoint
 
 UnitTest/
 ├── CassoExplorer/                           # NEW folder, one test file per model class
@@ -326,30 +331,32 @@ the command bar's Monitor drop-down was removed (FR-068).
 ### Apple II link
 
 Section H, research R15 to R23, contract
-[contracts/apple-link.md](contracts/apple-link.md). Phases, after phase 9's
-work on sections A to G:
+[contracts/apple-link.md](contracts/apple-link.md). Phases, numbered as in
+tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
-10. **Bridge and streams**: `IByteStream` with the in-process pair,
+16. **Bridge and streams**: `IByteStream` with the in-process pair,
     `AciaBridgeEndpoint` with cycle-counted pacing, the TCP stream, and the
     endpoint as a machine setting. An emulated //c's port is reachable over
     TCP.
-11. **Recordings**: ADTPro 2.1.0's host joined to its own client in an
+17. **Recordings**: ADTPro 2.1.0's host joined to its own client in an
     emulated //c over the TCP bridge; disk send, receive and a virtual
     drive captured as fixtures; the contract's *captured* values filled in.
-12. **Codec and ADTPro host**: `AppleLinkCodec` and `AppleLinkHost`
+18. **Codec and ADTPro host**: `AppleLinkCodec` and `AppleLinkHost`
     serving ADTPro's clients, tested against the recordings, then against
     ADTPro's client in an emulated //c (SC-032).
-13. **Apple program**: the shim and program in AS65, `LinkProgram`, and a
+19. **Apple program**: the shim and program in AS65, `LinkProgram`, and a
     scenario test reading and writing sectors on an emulated //c.
-14. **Sparse disks**: the volume classes' sector accessor, `LinkedDisk`'s
+20. **Sparse disks**: the volume classes' sector accessor, `LinkedDisk`'s
     fault-in, and the session's operations, all on the in-process stream.
-15. **Casso Explorer**: the link roots, settings, the COM search,
+21. **Casso Explorer**: the link roots, settings, the COM search,
     copy in and out, Read disk to image and Write image to disk.
-16. **Hardware**: `Win32ComPort`, bootstrap over `IN#2`, and the owner's
+22. **Hardware**: `Win32ComPort`, bootstrap over `IN#2`, and the owner's
     //c walkthrough (SC-027, SC-028, SC-033).
-17. **Cards, after their merges**: the Super Serial Card driver in the shim
+23. **Cards, after their merges**: the Super Serial Card driver in the shim
     with the 042 merge, Uthernet II with the 043 merge, and audio bootstrap
     for a ][+ or //e with whichever lands first.
+24. **Validation**: quickstart §7b's emulated steps on Debug and Release,
+    with SC-029, SC-030 and SC-032 written to validation.md.
 
 ## Risks
 
@@ -370,9 +377,9 @@ work on sections A to G:
   owner's //c; 57,600 baud is the fallback, and SC-027 is met at it with a
   smaller margin.
 - **ADTPro's undocumented details**: the CRC, RLE and timeouts come from
-  recordings (R15). A recording that does not settle one blocks phase 12,
+  recordings (R15). A recording that does not settle one blocks phase 18,
   not the link: Casso's own client uses neither ADTPro's RLE nor its CRC.
-- **Card features slipping**: phase 17 waits on 042 and 043; everything
+- **Card features slipping**: phase 23 waits on 042 and 043; everything
   before it runs on the //c.
 
 ## Phase 2 Preview

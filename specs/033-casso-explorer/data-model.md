@@ -154,7 +154,7 @@ Preview-pane visibility is window-wide, in `CassoExplorerPrefs`, not here.
 | name | string | The root's label, unique among links |
 | transport | string | `Serial`, `Tcp`, `WifiModem` or `Emulated` |
 | port | string | `COM3` for serial; empty to search (FR-083a) |
-| address | string | `host:port` for TCP and the Wi-Fi modem; listen port for `Emulated` |
+| address | string | `host:port` for TCP and the Wi-Fi modem; for `Emulated`, `127.0.0.1:port`, the TCP port Casso offers the emulated serial port on |
 | baud | int | Default 115200 (FR-094) |
 | bootstrapBaud | int | Default 9600 |
 | hardwareHandshake | bool | Default false |
