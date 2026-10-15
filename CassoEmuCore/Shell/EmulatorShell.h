@@ -136,6 +136,10 @@ public:
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
     class IByteStreamFactory * GetStreamFactory () const { return m_streamFactory.get(); }
 
+    // --serial-log: every byte on a bridged serial port is written to the file,
+    // for protocol captures. Called before Initialize builds the machine.
+    HRESULT OpenSerialLog (const std::filesystem::path & path);
+
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
     ShellUpdater &  GetUpdater();
@@ -700,6 +704,7 @@ private:
     uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     std::unique_ptr<class IByteStreamFactory>  m_streamFactory;   // opens the stream for each serial port's device
+    std::unique_ptr<class SerialTrafficLog>    m_serialLog;       // --serial-log; null without it
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
 

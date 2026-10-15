@@ -314,9 +314,11 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
     //  flag, and the help is generated from tables this one does not feed.
-    //  `title` is here on the same terms -- see CommandLineOptions.
+    //  `title` and `serial-log` are here on the same terms -- see
+    //  CommandLineOptions.
     "no-image-watch",
     "title",
+    "serial-log",
 
     //  Also undocumented: what a relaunch after a self-update passes.
     "updated",
@@ -330,7 +332,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //
 //  The machine, the disks and the tape are saved in the preferences already,
 //  so repeating them would undo a change made during the session. A seed is
-//  for reproducing one startup, not every startup after it.
+//  for reproducing one startup, not every startup after it. A serial log
+//  repeated would truncate the capture it was opened for.
 static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
 {
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -341,7 +344,8 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
     { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
-    { "updated",        CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
+    { "serial-log",     CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "updated",       CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
     { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
 
@@ -4395,6 +4399,10 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.titlePrefix = argv[++i];
         }
+        else if (arg == "--serial-log" && hasValue)
+        {
+            parsed.serialLog = argv[++i];
+        }
         else if (arg == "--updated")
         {
             parsed.wasUpdated = true;
@@ -4493,7 +4501,7 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
-          || canonical == "--cleanup-old")
+          || canonical == "--cleanup-old" || canonical == "--serial-log")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }

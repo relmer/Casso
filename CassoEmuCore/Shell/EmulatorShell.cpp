@@ -76,6 +76,7 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32ByteStreamFactory.h"
+#include "Devices/SerialTrafficLog.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -170,6 +171,7 @@ EmulatorShell::EmulatorShell()
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.streamFactory          = m_streamFactory.get();
+    services.serialLog              = &m_serialLog;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
 
     m_machineBuilder = std::make_unique<MachineBuilder> (m_machine, services);
@@ -459,6 +461,39 @@ void EmulatorShell::SetStartupShowCommand (int nCmdShow)
 void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
 {
     m_window->SetWindowTitlePrefix (prefix);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenSerialLog
+//
+//  Each piece is flushed as it is written, so a capture that ends in a crash
+//  or a killed process has every byte up to that point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::OpenSerialLog (const std::filesystem::path & path)
+{
+    HRESULT                         hr     = S_OK;
+    std::shared_ptr<std::ofstream>  file   = std::make_shared<std::ofstream> (path, std::ios::binary | std::ios::trunc);
+    bool                            opened = file->is_open();
+
+
+
+    CBREx (opened, HRESULT_FROM_WIN32 (ERROR_OPEN_FAILED));
+
+    m_serialLog = std::make_unique<SerialTrafficLog> ([file] (std::string_view text)
+    {
+        file->write (text.data(), (std::streamsize) text.size());
+        file->flush();
+    });
+
+Error:
+    return hr;
 }
 
 

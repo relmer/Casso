@@ -169,12 +169,13 @@ public:
     }
 
 
-    TEST_METHOD (TheByteLogMarksEachByteWithItsDirection)
+    TEST_METHOD (TheByteLogMarksEachByteWithItsDirectionAndCycle)
     {
         Line                                  line (kControl115200);
         std::vector<std::pair<bool, Byte>>    log;
+        std::vector<uint64_t>                 cycles;
 
-        line.bridge->SetByteLog ([&log] (bool fromGuest, Byte value) { log.emplace_back (fromGuest, value); });
+        line.bridge->SetByteLog ([&log, &cycles] (bool fromGuest, Byte value, uint64_t cycle) { log.emplace_back (fromGuest, value); cycles.push_back (cycle); });
 
         line.SendFromPc ({ 0x55 });
         line.bridge->Tick (1);
@@ -184,6 +185,10 @@ public:
         Assert::AreEqual<size_t> (2, log.size());
         Assert::IsTrue (log[0] == std::make_pair (false, (Byte) 0x55));
         Assert::IsTrue (log[1] == std::make_pair (true,  (Byte) 0xAA));
+
+        //  Received on the first cycle; sent once the 89-cycle character has
+        //  shifted out after it.
+        Assert::IsTrue (cycles == std::vector<uint64_t> ({ 1, 90 }));
     }
 
 

@@ -394,6 +394,14 @@ struct CommandLineOptions
         //  caption would buy identity at the cost of all of it.
         std::string  titlePrefix;                       // --title <text>
 
+        //  A file that every byte on a bridged serial port is written to, with
+        //  its port, direction and machine cycle, for protocol captures.
+        //
+        //  UNDOCUMENTED AND NOT IN THE HELP, for the same reason as
+        //  --no-image-watch: it serves work on the serial link's protocol, not
+        //  anyone running the emulator.
+        std::string  serialLog;                         // --serial-log <file>
+
         //  Set by Casso itself when it relaunches after replacing its own
         //  files from a release zip: `--updated` marks the launch, and
         //  `--cleanup-old` gives the id of the process that ran the old files,

@@ -3229,6 +3229,27 @@ namespace CommandLineTests
                 L"an invocation that names no label carries none");
         }
 
+        //  The serial capture file is undocumented, and parsed through the
+        //  same table, so the slash form works and a missing path stops startup.
+        TEST_METHOD (Emulator_TakesAnUndocumentedSerialLog)
+        {
+            ArgVector  dashed  = { "--serial-log", "C:\\captures\\adtpro send.txt", "--machine", "Apple2c" };
+            ArgVector  slashed = { "/serial-log", "log.txt" };
+            ArgVector  missing = { "--serial-log" };
+
+            CommandLineOptions::EmulatorOptions  withLog =
+                CommandLineParser::ParseEmulator (dashed.Count(), dashed.Data());
+            CommandLineOptions::EmulatorOptions  withSlash =
+                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data());
+            CommandLineOptions::EmulatorOptions  withoutPath =
+                CommandLineParser::ParseEmulator (missing.Count(), missing.Data());
+
+            Assert::AreEqual (std::string ("C:\\captures\\adtpro send.txt"), withLog.serialLog);
+            Assert::AreEqual (std::string ("Apple2c"), withLog.machine);
+            Assert::AreEqual (std::string ("log.txt"), withSlash.serialLog);
+            Assert::AreEqual (std::string ("Error: missing value for --serial-log"), withoutPath.refusalMessage);
+        }
+
         //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they
         //  are undocumented; a process id that is not one stops startup rather
         //  than leaving the old files to a guess.
@@ -3614,6 +3635,9 @@ namespace CommandLineTests
 
             Assert::IsTrue (parsed.erase ("updated") == 1 && parsed.erase ("cleanup-old") == 1,
                 L"the self-update relaunch flags are parsed and deliberately not described");
+
+            Assert::IsTrue (parsed.erase ("serial-log") == 1,
+                L"the serial capture file is parsed and deliberately left out of the help");
 
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");

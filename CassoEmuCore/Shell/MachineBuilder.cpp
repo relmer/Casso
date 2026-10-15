@@ -13,6 +13,7 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
 #include "Devices/SerialPortDevice.h"
+#include "Devices/SerialTrafficLog.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/RamDevice.h"
@@ -1670,6 +1671,7 @@ void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
 {
     static constexpr const char *  kpszPortNames[] = { "serial1", "serial2" };
     IByteStreamFactory           * factory         = m_services.streamFactory;
+    SerialTrafficLog             * log             = (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr;
 
 
 
@@ -1677,6 +1679,7 @@ void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
     {
         SerialPortDevice              device;
         std::unique_ptr<IByteStream>  stream;
+        AciaBridgeEndpoint          * bridge = nullptr;
         HRESULT                       hr     = S_OK;
         int                           number = 0;
 
@@ -1698,8 +1701,16 @@ void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
 
         if (SUCCEEDED (hr) && stream != nullptr)
         {
-            hr = m_host.AttachSerialStream (number, std::shared_ptr<IByteStream> (std::move (stream)));
+            hr = m_host.AttachSerialStream (number, std::shared_ptr<IByteStream> (std::move (stream)), &bridge);
             IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (bridge != nullptr && log != nullptr)
+        {
+            bridge->SetByteLog ([log, number] (bool fromGuest, Byte value, uint64_t cycle)
+            {
+                log->Append (number, fromGuest, value, cycle);
+            });
         }
     }
 }

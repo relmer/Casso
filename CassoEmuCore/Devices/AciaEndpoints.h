@@ -87,7 +87,7 @@ private:
 class AciaBridgeEndpoint : public IAciaEndpoint
 {
 public:
-    using ByteLogFn = std::function<void (bool fromGuest, Byte value)>;
+    using ByteLogFn = std::function<void (bool fromGuest, Byte value, uint64_t cycle)>;
 
     //  An NTSC Apple II's CPU clock.
     static constexpr uint32_t  kCpuHz = 1020484;
@@ -100,7 +100,8 @@ public:
     //  Advance the line by the cycles the CPU has run.
     void        Tick              (uint32_t cpuCycles);
 
-    //  Every byte that crosses the line, in either direction, for captures.
+    //  Every byte that crosses the line, in either direction, with the count of
+    //  cycles the line has run when it crossed, for captures.
     void        SetByteLog        (ByteLogFn log)   { m_log = std::move (log); }
 
     IByteStream *  GetStream      () const          { return m_stream.get(); }
@@ -127,6 +128,7 @@ private:
     Acia6551                     * m_acia      = nullptr;
     std::shared_ptr<IByteStream>   m_stream;
     ByteLogFn                      m_log;
+    uint64_t                       m_cycle     = 0;
     int64_t                        m_rxWait    = 0;
     int64_t                        m_txWait    = 0;
     bool                           m_shifting  = false;

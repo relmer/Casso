@@ -63,6 +63,9 @@ struct MachineBuildServices
     //  port). Without one, every serial port loops back on itself.
     class IByteStreamFactory  *  streamFactory = nullptr;
 
+    //  Writes the bytes on every bridged serial port, for --serial-log.
+    const std::unique_ptr<class SerialTrafficLog> *  serialLog = nullptr;
+
     //  Command-line options that reach machine construction: the CPU trace
     //  ring size (0 = off) and whether mounted images are watched for
     //  changes on disk.

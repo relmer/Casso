@@ -737,6 +737,14 @@ extern "C" int WINAPI wCassoMain (
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
 
+    // --serial-log: opened before the machine is built, so the bridges built
+    // with it write to the file from the first byte.
+    if (!parsed.serialLog.empty())
+    {
+        hr = shell->OpenSerialLog (fs::path (TextEncoding::NarrowToWide (parsed.serialLog)));
+        CHRN (hr, L"Could not open the serial log file");
+    }
+
     // --updated / --cleanup-old: a relaunch by a finished zip update, which
     // removes the old files once the process that ran them has exited.
     shell->GetUpdater().SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);

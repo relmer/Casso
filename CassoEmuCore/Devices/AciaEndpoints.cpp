@@ -129,6 +129,8 @@ void AciaBridgeEndpoint::OnByteTransmitted (Byte value)
 
 void AciaBridgeEndpoint::Tick (uint32_t cpuCycles)
 {
+    m_cycle += cpuCycles;
+
     if (m_shifting)
     {
         m_txWait -= cpuCycles;
@@ -222,7 +224,7 @@ void AciaBridgeEndpoint::DeliverReceived()
 
     if (m_log)
     {
-        m_log (false, value);
+        m_log (false, value, m_cycle);
     }
 
 Error:
@@ -256,7 +258,7 @@ void AciaBridgeEndpoint::FinishShifting()
 
     if (m_log)
     {
-        m_log (true, m_shiftByte);
+        m_log (true, m_shiftByte, m_cycle);
     }
 
     m_shifting = false;

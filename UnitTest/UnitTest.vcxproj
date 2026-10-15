@@ -338,6 +338,7 @@
     <ClCompile Include="AppleLink\ByteStreamSettingsTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
+    <ClCompile Include="EmuTests\SerialTrafficLogTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerMetricsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDropTests.cpp" />
