@@ -95,6 +95,24 @@ namespace DebuggerTests
             Assert::AreEqual (1u, Entry (*rig).hits);
         }
 
+        //  The boot ROM's read of track 0 sector 0 is DOS 3.3's logical sector
+        //  0, which is physical sector 0.
+        TEST_METHOD (ADosSectorStopsOnItsPhysicalSector)
+        {
+            auto       rig = MakeRig();
+            StopEvent  stop;
+
+
+
+            rig->RunOk ("BPDISK DOS 0 0");
+            stop = Go (*rig);
+
+            Assert::IsTrue   (stop.reason == StopReason::Disk);
+            Assert::AreEqual ((Byte) 0, stop.disk->logicalSector.value_or (0xFF));
+            Assert::IsTrue   (stop.disk->physicalSectors == std::vector<Byte> { 0 });
+            Assert::IsTrue   (stop.disk->order == DiskSectorOrder::Dos33);
+        }
+
         TEST_METHOD (AnAddressFieldStopsAfterItsChecksum)
         {
             auto       rig = MakeRig();

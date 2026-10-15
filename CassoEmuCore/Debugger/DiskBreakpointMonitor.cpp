@@ -2,6 +2,7 @@
 
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/DiskBreakpointMonitor.h"
+#include "Debugger/DiskLogicalMap.h"
 
 
 
@@ -163,8 +164,13 @@ bool DiskBreakpointMonitor::Poll (const IDebugExpressionContext & context)
 
         for (DiskFieldEvent & field : fields)
         {
-            field.isWrongTrack = field.kind == DiskFieldEventKind::AddressField && field.track != state.quarterTrack[field.drive] / kQuartersPerTrack;
-            candidates.push_back ({ std::nullopt, field, set });
+            Candidate  candidate { std::nullopt, field, set };
+
+
+
+            candidate.field->isWrongTrack = field.kind == DiskFieldEventKind::AddressField && field.track != state.quarterTrack[field.drive] / kQuartersPerTrack;
+            NoteVisit (candidate);
+            candidates.push_back (candidate);
         }
     }
 
@@ -242,7 +248,7 @@ bool DiskBreakpointMonitor::IsMatch (const Breakpoint & entry, const Candidate &
 
 
 
-    return isEventEntry && (candidate.field.has_value() ? IsFieldMatch (*entry.disk, *candidate.field, candidate.markSet)
+    return isEventEntry && (candidate.field.has_value() ? IsFieldMatch (*entry.disk, candidate)
                                                         : IsEventMatch (*entry.disk, *candidate.event));
 }
 
@@ -260,12 +266,17 @@ bool DiskBreakpointMonitor::IsMatch (const Breakpoint & entry, const Candidate &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskBreakpointMonitor::IsFieldMatch (const DiskBreakSpec & spec, const DiskFieldEvent & field, size_t markSet) const
+bool DiskBreakpointMonitor::IsFieldMatch (const DiskBreakSpec & spec, const Candidate & candidate) const
 {
-    bool  isSet    = FindMarkSet (spec) == markSet && IsDrive (spec, field.drive);
-    bool  isPlace  = (!spec.track.has_value() || *spec.track == field.track) && (!spec.sector.has_value() || *spec.sector == field.sector);
-    bool  isVolume = !spec.volume.has_value() || *spec.volume == field.volume;
-    bool  isBadSum = field.storedChecksum != field.expectedChecksum;
+    const DiskFieldEvent  & field    = *candidate.field;
+    int                     track    = 0;
+    int                     first    = -1;
+    int                     second   = -1;
+    bool                    isData   = field.kind == DiskFieldEventKind::DataChecksum && (spec.isPassed || !field.isPassed);
+    bool                    isSet    = FindMarkSet (spec) == candidate.markSet && IsDrive (spec, field.drive);
+    bool                    isPlace  = (!spec.track.has_value() || *spec.track == field.track) && (!spec.sector.has_value() || *spec.sector == field.sector);
+    bool                    isVolume = !spec.volume.has_value() || *spec.volume == field.volume;
+    bool                    isBadSum = field.storedChecksum != field.expectedChecksum;
 
 
 
@@ -281,9 +292,52 @@ bool DiskBreakpointMonitor::IsFieldMatch (const DiskBreakSpec & spec, const Disk
     case DiskEvent::WritePrologue:
         return isSet && isPlace && field.kind == DiskFieldEventKind::WritePrologue;
 
+    case DiskEvent::DosSector:
+        return isSet && isData && (!spec.track.has_value() || *spec.track == field.track) &&
+               spec.sector.has_value() && field.sector == DiskLogicalMap::GetDosPhysical (*spec.sector);
+
+    //  A block stops once both its sectors are read during one visit to its
+    //  track, on the second of them.
+    case DiskEvent::ProDosBlock:
+        DiskLogicalMap::GetBlockPhysical (spec.block.value_or (0), track, first, second);
+
+        return isSet && isData && field.track == track && (field.sector == first || field.sector == second) &&
+               ((spec.isPassed ? candidate.anyMask : candidate.readMask) & ((1 << first) | (1 << second))) == ((1 << first) | (1 << second));
+
     default:
         return false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskBreakpointMonitor::NoteVisit
+//
+//  A data field on another track than the drive's visit starts a new visit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskBreakpointMonitor::NoteVisit (Candidate & candidate)
+{
+    const DiskFieldEvent  & field = *candidate.field;
+    Visit                 & visit = m_visits[field.drive];
+    uint16_t                bit   = static_cast<uint16_t> (1 << (field.sector & 0x0F));
+
+
+
+    if (field.kind == DiskFieldEventKind::DataChecksum)
+    {
+        visit          = (visit.track == field.track) ? visit : Visit { field.track, 0, 0 };
+        visit.anyMask  = static_cast<uint16_t> (visit.anyMask | bit);
+        visit.readMask = static_cast<uint16_t> (visit.readMask | (field.isPassed ? 0 : bit));
+    }
+
+    candidate.readMask = visit.readMask;
+    candidate.anyMask  = visit.anyMask;
 }
 
 
@@ -365,6 +419,27 @@ void DiskBreakpointMonitor::MakeReport (int id, const Candidate & candidate, con
     {
         report.field       = candidate.field;
         report.instruction = candidate.field->lastInstruction;
+    }
+
+    if (report.event == DiskEvent::DosSector && entry.disk->sector.has_value())
+    {
+        report.logicalSector   = entry.disk->sector;
+        report.physicalSectors = { (Byte) DiskLogicalMap::GetDosPhysical (*entry.disk->sector) };
+        report.order           = DiskSectorOrder::Dos33;
+    }
+
+    if (report.event == DiskEvent::ProDosBlock && entry.disk->block.has_value())
+    {
+        int  track  = 0;
+        int  first  = 0;
+        int  second = 0;
+
+
+
+        DiskLogicalMap::GetBlockPhysical (*entry.disk->block, track, first, second);
+        report.block           = entry.disk->block;
+        report.physicalSectors = { (Byte) first, (Byte) second };
+        report.order           = DiskSectorOrder::ProDos;
     }
 
     if (report.event == DiskEvent::SectorRead && m_target.PeekDiskNibbles (report.drive, kEpilogueNibbles, epilogue, isRandom))

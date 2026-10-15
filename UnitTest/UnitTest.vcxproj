@@ -231,6 +231,7 @@
     <ClCompile Include="DebuggerTests\DiskBreakSpecTextTests.cpp" />
     <ClCompile Include="DebuggerTests\DiskBreakpointParserTests.cpp" />
     <ClCompile Include="DebuggerTests\DiskBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskLogicalMapTests.cpp" />
     <ClCompile Include="DebuggerTests\DiskFieldTrackerTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinParserTests.cpp" />
