@@ -262,6 +262,7 @@
     <ClCompile Include="Debugger\DiskBreakpointMonitor.cpp" />
     <ClCompile Include="Debugger\DiskFieldTracker.cpp" />
     <ClCompile Include="Debugger\DiskLogicalMap.cpp" />
+    <ClCompile Include="Debugger\DiskCallVector.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
@@ -842,6 +843,7 @@
     <ClInclude Include="Debugger\DiskBreakpointMonitor.h" />
     <ClInclude Include="Debugger\DiskFieldTracker.h" />
     <ClInclude Include="Debugger\DiskLogicalMap.h" />
+    <ClInclude Include="Debugger\DiskCallVector.h" />
     <ClInclude Include="Debugger\AppleWinFormatter.h" />
     <ClInclude Include="Debugger\ReplyJson.h" />
     <ClInclude Include="Debugger\IDebugNotificationSink.h" />

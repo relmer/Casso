@@ -19,6 +19,7 @@
 #include "Debugger/GSSquaredParser.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/CommandSuggestion.h"
+#include "Debugger/DiskCallVector.h"
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
@@ -56,6 +57,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
     m_diskMonitor.SetNotice           ([this] (const std::string & line) { m_sink.OnDiskNotice (line); });
+    m_watchpoints.SetVectorWriteSink  ([this] { ResolveDiskCalls(); });
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
     m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
@@ -259,6 +261,11 @@ Reply DebugSession::Execute (const DebugCommand & command)
     {
         if (handler->TryExecute (*this, command, reply))
         {
+            if (IsMachineWrite (command.verb))
+            {
+                ResolveDiskCalls();
+            }
+
             return reply;
         }
     }
@@ -2004,13 +2011,15 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
         event.breakpointId = m_lastBreakpointId;
 
-        //  BRK ON and BRKOP stops keep their breakpoint's id and say which
-        //  kind of stop they are. A stop at the Monitor's own return, with no
-        //  breakpoint behind it, is the program coming back: a run to there.
+        //  A BRK ON or BRKOP stop has its breakpoint's id and a reason of its
+        //  own, as an RWTS or driver call's stop does. A stop
+        //  at the Monitor's own return, with no breakpoint behind it, is the
+        //  program coming back: a run to there.
         if (m_lastBreakpointId.has_value() && m_breakpoints.TryFind (*m_lastBreakpointId, breakpoint))
         {
             event.reason = (breakpoint.kind == BreakpointKind::Brk)    ? StopReason::Brk
                          : (breakpoint.kind == BreakpointKind::Opcode) ? StopReason::InvalidOpcode
+                         : (breakpoint.IsDiskCall())                   ? StopReason::Disk
                          :                                                StopReason::Breakpoint;
         }
         else if (!m_lastBreakpointId.has_value() && m_monitorReturned)
@@ -2028,6 +2037,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
         }
     }
 
+    AttachDiskCallReport (event);
     AttachDiskReport (event);
     AttachCondition (event);
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
@@ -2093,7 +2103,7 @@ void DebugSession::AttachDiskReport (StopEvent & event)
 
     m_diskMonitor.Poll (*this);
 
-    if (m_diskMonitor.HasStop())
+    if (m_diskMonitor.HasStop() && !event.disk.has_value())
     {
         isDiskReason       = m_isDiskStop || event.reason == StopReason::Step || event.reason == StopReason::Pause;
         event.disk         = m_diskMonitor.GetReport();
@@ -2103,6 +2113,105 @@ void DebugSession::AttachDiskReport (StopEvent & event)
 
     m_diskMonitor.ClearStop();
     m_isDiskStop = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachDiskCallReport
+//
+//  The request of the RWTS or driver call the PC is at: the stop of that
+//  breakpoint, or of an address breakpoint on the same routine, whose stop
+//  has its own reason and the report of the lowest RWTS or driver id whose
+//  request matches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachDiskCallReport (StopEvent & event)
+{
+    DebugDiskState  state;
+    DiskReport      report;
+    Breakpoint      entry;
+    bool            isStopped = event.breakpointId.has_value() && m_breakpoints.TryFind (*event.breakpointId, entry);
+    auto            found     = std::ranges::find_if (m_breakpoints.GetAll(), [&] (const Breakpoint & candidate)
+    {
+        return candidate.enabled && candidate.IsDiskCall() && candidate.resolved == event.pc && DiskCallVector::IsRequestMatch (*candidate.disk, *this);
+    });
+
+
+
+    if (!isStopped || (!entry.IsDiskCall() && found == m_breakpoints.GetAll().end()))
+    {
+        return;
+    }
+
+    entry = entry.IsDiskCall() ? entry : *found;
+    m_target.TryGetDiskState (state);
+
+    report.breakpointId = entry.id;
+    report.event        = entry.disk->event;
+    report.request      = DiskCallVector::ReadRequest (*entry.disk, *this);
+    report.vector       = DiskCallVector::GetVectorAddress (*entry.disk, state.slot);
+    report.slot         = state.slot;
+    report.drive        = std::clamp (report.request->drive - 1, 0, 1);
+    report.quarterTrack = state.quarterTrack[report.drive];
+    report.isMotorOn    = state.isMotorOn;
+    report.isProtected  = state.isProtected[report.drive];
+    report.phases       = state.phases;
+    report.imageName    = state.imageName[report.drive];
+    report.instruction  = event.pc;
+    event.disk          = report;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ResolveDiskCalls
+//
+//  A machine with no Disk II controller resolves a driver breakpoint as
+//  slot 6's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ResolveDiskCalls()
+{
+    static constexpr int  kDefaultSlot = 6;
+    DebugDiskState        state;
+    std::vector<Word>     bytes;
+    std::vector<int>      ids;
+    int                   slot         = m_target.TryGetDiskState (state) ? state.slot : kDefaultSlot;
+
+
+
+    for (const Breakpoint & entry : m_breakpoints.GetAll())
+    {
+        if (entry.IsDiskCall())
+        {
+            ids.push_back (entry.id);
+            DiskCallVector::AddVectorBytes (*entry.disk, slot, bytes);
+        }
+    }
+
+    for (int id : ids)
+    {
+        Breakpoint  entry;
+
+
+
+        m_breakpoints.TryFind (id, entry);
+        m_breakpoints.TrySetResolved (id, DiskCallVector::TryResolve (*entry.disk, slot, *this));
+    }
+
+    std::ranges::sort (bytes);
+    bytes.erase (std::unique (bytes.begin(), bytes.end()), bytes.end());
+    m_watchpoints.SetVectorBytes (bytes);
+    RefreshHookFilter();
 }
 
 
@@ -3194,7 +3303,7 @@ void DebugSession::UpdateHookInstalled()
 
     m_diskMonitor.Refresh();
     m_diskMonitor.SetPaused (m_state == RunState::Paused);
-    RefreshHookFilter();
+    ResolveDiskCalls();
 
     if (shouldInstall != m_hookInstalled)
     {

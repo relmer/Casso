@@ -168,6 +168,7 @@ void CallStackHistory::OnMoved (bool isInterim)
     m_moveMark.reset();
 
     m_restoresSeen = GetRestoreCount();
+    m_session.ResolveDiskCalls();
 
     if (!isStill)
     {
@@ -839,6 +840,7 @@ void CallStackHistory::CheckLoads()
 
     m_restoresSeen = restores;
 
+    m_session.ResolveDiskCalls();
     m_session.RestartCallRecording();
 }
 

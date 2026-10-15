@@ -72,6 +72,9 @@ using StackWriteSink = std::function<void (Word, Byte, std::optional<Byte>)>;
 //  whether it was a read or a write.
 using IoLogSink = std::function<void (Word, Byte, BusAccess)>;
 
+//  A CPU write to one of the disk call vectors' bytes.
+using VectorWriteSink = std::function<void()>;
+
 
 
 
@@ -97,6 +100,12 @@ public:
     //  offered here first, a read or a write, whether or not a watchpoint
     //  covers it. Empty to stop.
     void   SetIoLogSink     (IoLogSink sink, const WatchedPages & pages);
+
+    //  The sink is offered every write to the bytes given, and their pages
+    //  are watched while there are any. A watch of these bytes is not a
+    //  watchpoint: it has no id and no hit count.
+    void   SetVectorWriteSink (VectorWriteSink sink) { m_vectorWriteSink = std::move (sink); }
+    void   SetVectorBytes   (const std::vector<Word> & bytes);
 
     int    Add              (WatchAccess access, Word first, Word last, WatchMode mode = WatchMode::After, const Expression & condition = {});
     bool   TryClear         (int id);
@@ -179,6 +188,8 @@ private:
     StackWriteSink                     m_stackWriteSink;
     IoLogSink                          m_ioLogSink;
     WatchedPages                       m_ioLogPages       = {};
+    VectorWriteSink                    m_vectorWriteSink;
+    std::vector<Word>                  m_vectorBytes;
     Word                               m_fetchPc          = 0;
     Byte                               m_fetchesLeft      = 0;       // bit n: the byte at m_fetchPc + n
     std::optional<Word>                m_storeTarget;

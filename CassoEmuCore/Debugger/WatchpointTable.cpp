@@ -503,7 +503,8 @@ bool WatchpointTable::IsTouchMatch (WatchAccess watched, PredictedAccess predict
 //
 //  Every page an enabled after-mode watchpoint's range touches, and the page
 //  of every enabled value breakpoint, the stack page while the stack write
-//  sink is set and the I/O log's pages while its sink is, and no other.
+//  sink is set, the I/O log's pages while its sink is, and the disk call
+//  vectors' pages, and no other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -518,6 +519,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
     for (size_t page = 0; m_ioLogSink != nullptr && page < pages.size(); ++page)
     {
         pages[page] = pages[page] || m_ioLogPages[page];
+    }
+
+    for (Word address : m_vectorBytes)
+    {
+        pages[address >> kPageShift] = true;
     }
 
     for (const Watchpoint & entry : m_entries)
@@ -587,6 +593,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     if (m_ioLogSink != nullptr && m_ioLogPages[address >> kPageShift])
     {
         m_ioLogSink (address, value, access);
+    }
+
+    if (m_vectorWriteSink != nullptr && access == BusAccess::Write && std::ranges::find (m_vectorBytes, address) != m_vectorBytes.end())
+    {
+        m_vectorWriteSink();
     }
 
     if (access == BusAccess::Read && TryConsumeCpuOwnRead (address))
@@ -799,6 +810,28 @@ void WatchpointTable::SetIoLogSink (IoLogSink sink, const WatchedPages & pages)
     m_ioLogSink  = std::move (sink);
     m_ioLogPages = pages;
     Publish();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SetVectorBytes
+//
+//  The pages are published again only when the bytes change, since the
+//  session sets them at every stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetVectorBytes (const std::vector<Word> & bytes)
+{
+    if (bytes != m_vectorBytes)
+    {
+        m_vectorBytes = bytes;
+        Publish();
+    }
 }
 
 

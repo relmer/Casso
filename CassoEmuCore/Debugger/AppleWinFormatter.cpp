@@ -1027,8 +1027,16 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::MemoryValue:
         text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
         break;
+    //  An RWTS or driver breakpoint lists its routine, or that its vector
+    //  has none yet.
     case BreakpointKind::Disk:
         text = "on disk " + DiskBreakSpecText::GetDescription (breakpoint.disk.value_or (DiskBreakSpec {}));
+
+        if (breakpoint.disk.has_value() && (breakpoint.disk->event == DiskEvent::RwtsCall || breakpoint.disk->event == DiskEvent::DriverCall))
+        {
+            text += breakpoint.resolved.has_value() ? std::format (" at ${:04X}", *breakpoint.resolved) : std::string (", unresolved");
+        }
+
         break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }

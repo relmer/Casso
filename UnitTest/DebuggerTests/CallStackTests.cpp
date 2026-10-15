@@ -833,19 +833,21 @@ namespace DebuggerTests
             const DebugHookFilter  & filter = rig.session.GetFilter();
             DiskBreakSpec            call;
             DiskBreakSpec            read;
-            int                      id     = 0;
 
 
 
             call.event = DiskEvent::RwtsCall;
             read.event = DiskEvent::SectorRead;
 
-            id = rig.session.GetBreakpoints().AddDisk (call);
+            rig.target.TryPoke (0x03D9, 0x00);
+            rig.session.GetBreakpoints().AddDisk (call);
             rig.session.OnStopConditionsChanged();
             Assert::IsFalse (filter.everyInstruction, L"an RWTS breakpoint stops before its routine");
             Assert::IsFalse (filter.pages[0xBD], L"not before it is resolved");
 
-            rig.session.GetBreakpoints().TrySetResolved (id, (Word) 0xBD00);
+            rig.target.TryPoke (0x03D9, 0x4C);
+            rig.target.TryPoke (0x03DA, 0x00);
+            rig.target.TryPoke (0x03DB, 0xBD);
             rig.session.OnStopConditionsChanged();
             Assert::IsTrue  (filter.pages[0xBD], L"its routine's page");
             Assert::IsFalse (filter.pages[0xBE]);

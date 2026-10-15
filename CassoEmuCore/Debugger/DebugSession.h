@@ -129,6 +129,11 @@ public:
     // Machine events the host reports.
     void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
     void   OnReset               (bool isPowerCycle);
+
+    //  Takes each RWTS and driver breakpoint's routine from its vector again,
+    //  for a machine whose memory changed other than by the CPU: a move
+    //  through history or a keyframe loaded under it.
+    void   ResolveDiskCalls      ();
     void   OnUserPaused          ();
     void   OnUserResumed         ();
 
@@ -417,6 +422,7 @@ private:
     bool   HasReachedBeamBreak   ();
     uint32_t  GetBeamCycle       () const;
     void   AttachDiskReport      (StopEvent & event);
+    void   AttachDiskCallReport  (StopEvent & event);
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 

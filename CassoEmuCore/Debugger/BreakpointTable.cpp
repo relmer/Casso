@@ -3,6 +3,7 @@
 #include "Debugger/BreakpointTable.h"
 
 #include "Debugger/ConditionContext.h"
+#include "Debugger/DiskCallVector.h"
 #include "Debugger/IDebugExpressionContext.h"
 
 
@@ -786,7 +787,9 @@ bool BreakpointTable::IsStopOnWrite (
 //  BreakpointTable::TryMatchEntry
 //
 //  An address entry's IF expression is evaluated only once PC is in its
-//  range, so a false one costs nothing elsewhere.
+//  range, so a false one costs nothing elsewhere. An RWTS or driver entry
+//  matches at its routine when the call's request equals its spec's, and
+//  only then is its IF expression evaluated.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -818,6 +821,10 @@ bool BreakpointTable::TryMatchEntry (
     case BreakpointKind::Register:
         hr = DebugExpressionEvaluator::Evaluate (entry.condition, context, value, error);
         return SUCCEEDED (hr) && value != 0;
+
+    case BreakpointKind::Disk:
+        return entry.IsDiskCall() && entry.resolved == pc && DiskCallVector::IsRequestMatch (*entry.disk, context) &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, conditionValue);
 
     default:
         return false;
