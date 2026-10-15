@@ -159,6 +159,23 @@ namespace DebuggerTests
             Assert::IsTrue   (lines.at (3).ends_with ("; routine at $2000"), Wide (lines.at (3)).c_str());
         }
 
+        //  A DOS sector's and a block's report includes the sector order assumed.
+        TEST_METHOD (ALogicalStopGivesTheOrderAssumed)
+        {
+            StopEvent  stop = MakeSectorReadStop();
+
+
+
+            stop.disk->event         = DiskEvent::DosSector;
+            stop.disk->logicalSector = 5;
+            Assert::IsTrue (AppleWinFormatter::FormatStop (stop).find ("drive 1, DOS 3.3 order assumed") != std::string::npos);
+
+            stop.disk->event           = DiskEvent::ProDosBlock;
+            stop.disk->block           = 2;
+            stop.disk->physicalSectors = { 8, 10 };
+            Assert::IsTrue (Lines (AppleWinFormatter::FormatStop (stop)).at (0).ends_with ("physical sectors $08 and $0A, drive 1, ProDOS order assumed"));
+        }
+
         TEST_METHOD (TheMonitorsStopIsItsRegistersThenTheReport)
         {
             std::vector<std::string>  lines = Lines (MonitorFormatter::FormatStop (MakeSectorReadStop()));

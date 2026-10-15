@@ -107,7 +107,7 @@ std::string AppleWinFormatter::DescribeDiskEvent (const DiskReport & report)
         break;
 
     case DiskEvent::DosSector:
-        text += std::format (", track ${:02X} ({}) sector ${:02X} (physical ${:02X}) volume ${:02X}, drive {}",
+        text += std::format (", track ${:02X} ({}) sector ${:02X} (physical ${:02X}) volume ${:02X}, drive {}, DOS 3.3 order assumed",
                              field.track, field.track, report.logicalSector.value_or (0), field.sector, field.volume, drive);
         break;
 
@@ -116,6 +116,7 @@ std::string AppleWinFormatter::DescribeDiskEvent (const DiskReport & report)
                              report.block.value_or (0), field.track, field.track,
                              report.physicalSectors.empty() ? 0 : report.physicalSectors.front(),
                              report.physicalSectors.empty() ? 0 : report.physicalSectors.back(), drive);
+        text += ", ProDOS order assumed";
         break;
 
     case DiskEvent::Head:
