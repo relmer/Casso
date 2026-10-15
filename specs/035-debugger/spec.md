@@ -1498,9 +1498,9 @@ run something, switch back to the //e: it is where it was left.
 - **Motor off**: no nibble passes the head, so the field kinds cannot stop;
   a program reading the latch with the motor off reads the same byte again,
   which is not a new nibble. A head breakpoint stops whenever Casso's model
-  moves the head, and its report gives the motor's state; whether a real
-  drive's stepper moves while the drive is not enabled is unchecked
-  (Assumptions), and this spec requires neither behavior.
+  moves the head, and its report includes the motor's state; a real drive's
+  stepper does not move while the drive is not enabled (Assumptions, GH #176),
+  and this spec requires neither behavior.
 - **A head between two phases**: Casso's stepper moves the head in half-track
   steps, so the head reaches whole- and half-track positions only, apart from
   the outer stop at quarter track 139 and the steps back from it; there is no
@@ -3548,16 +3548,17 @@ debug channel.
   scenario 9 and the "A relocated DOS" edge case change with the owner if a
   call reaches RWTS's routines by another entry.
 - **The stepper with the motor off**: Casso's `Disk2Controller::HandlePhase`
-  moves the head whatever the motor's state. Whether a real drive's stepper
-  moves while its drive is not enabled has not been checked against Sather's
-  *Understanding the Apple IIe*, chapter 9; this spec requires neither
-  behavior, and T714 checks the book and files a GitHub issue if the model
-  differs from it.
+  moves the selected drive's head whatever the motor's state. A real drive's
+  stepper does not: per Sather's *Understanding the Apple IIe*, chapter 9
+  ("The Drive ENABLE' Input"), head positioning is enabled only at the drive
+  whose ENABLE' is low, which is while its motor runs. GH #176 tracks the
+  difference; this spec requires neither behavior.
 - **The Disk ][ debug window's rows** belong to spec 006 and are not changed
-  here. Its "Data read" event fires after the full DE AA EB epilogue, which a
-  DOS read may never reach, so its rows may show sectors passed over rather
-  than sectors read; the story's first task checks this on a DOS 3.3 boot and
-  files a GitHub issue if so.
+  here. Its "Data read" event fires after DE AA, which the boot ROM and
+  ProDOS never read for a sector they read, so its rows are mostly sectors
+  passed over: measured by T712 (research R-041) and tracked as GH #175, which
+  applies as well to the Disk II log's "Sector read" rows that replaced the
+  window.
 
 - **Exit**: closing the main window by any route (its close button, Alt+F4,
   File > Exit, or the restart that applies an update) counts as exit for

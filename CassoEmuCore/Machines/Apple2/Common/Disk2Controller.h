@@ -182,8 +182,11 @@ public:
     bool   IsMotorOn() const { return m_motorOn; }
     bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
     uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
-    int    GetQuarterTrack() const { return m_quarterTrack; }
-    int    GetCurrentTrack() const { return m_quarterTrack / 4; }
+    // The selected drive's head, or a given drive's: each drive has a
+    // stepper of its own.
+    int    GetQuarterTrack() const          { return m_quarterTrack[m_activeDrive]; }
+    int    GetQuarterTrack (int drive) const { return m_quarterTrack[drive]; }
+    int    GetCurrentTrack() const          { return GetQuarterTrack() / 4; }
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
     uint8_t  GetPhases() const { return m_phases; }
@@ -207,9 +210,10 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag            = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion        = 2;
-    static constexpr uint16_t  kWatcherStateVersion = 2;   // the first with the watcher's section
+    static constexpr uint32_t  kStateTag                 = IMachineState::MakeTag ('D', 'S', 'K', '2');
+    static constexpr uint16_t  kStateVersion             = 3;
+    static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
+    static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
 
 private:
     void   HandleSwitch (int offset);
@@ -227,9 +231,9 @@ protected:
     Word                 m_ioStart;
     Word                 m_ioEnd;
 
-    uint8_t              m_phases       = 0;
-    int                  m_phase        = 0;
-    int                  m_quarterTrack = 0;
+    uint8_t              m_phases                    = 0;
+    int                  m_phase                     = 0;
+    int                  m_quarterTrack[kDriveCount] = { 0, 0 };
 
     bool                 m_motorOn      = false;
 

@@ -449,9 +449,10 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 //  HandlePhase
 //
-//  Update the phase mask, move the head to where the energized phases pull
-//  it, clamp to the legal range, then push the resulting quarter-track index
-//  into the active drive's engine.
+//  Update the phase mask, move the selected drive's head to where the
+//  energized phases pull it, clamp to the legal range, then push the
+//  resulting quarter-track index into that drive's engine. The other
+//  drive's head stays where it is.
 //
 //  THE HEAD FOLLOWS THE MAGNETS THAT ARE ON. Phase p's magnets sit at the
 //  quarter tracks where qt mod 8 is 2p, so each energized phase pulls the
@@ -474,9 +475,10 @@ Byte Disk2Controller::HandleReadDispatch()
 
 void Disk2Controller::HandlePhase (int phase, bool on)
 {
-    int   prevQt  = m_quarterTrack;
-    int   target  = prevQt;
-    bool  bumped  = false;
+    int   & head    = m_quarterTrack[m_activeDrive];
+    int     prevQt  = head;
+    int     target  = prevQt;
+    bool    bumped  = false;
 
 
 
@@ -490,18 +492,18 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    target          = prevQt + GetPull (m_phases, prevQt);
-    bumped          = target < 0 || target > kMaxQuarterTrack;
-    m_quarterTrack  = std::clamp (target, 0, kMaxQuarterTrack);
+    target  = prevQt + GetPull (m_phases, prevQt);
+    bumped  = target < 0 || target > kMaxQuarterTrack;
+    head    = std::clamp (target, 0, kMaxQuarterTrack);
 
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+    m_engine[m_activeDrive].SetCurrentTrack (head);
 
     if (target == prevQt)
     {
         return;
     }
 
-    m_addrMarkWatcher.NoteHeadMoved (m_quarterTrack);
+    m_addrMarkWatcher.NoteHeadMoved (head);
 
     // Audio sink (FR-003 / FR-004). Distinguish a normal step from a
     // track-0 / max-track bump by checking the *unclamped* target
@@ -515,9 +517,9 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         {
             m_audioSink->OnHeadBump();
         }
-        else if (m_quarterTrack % kQuarterTracksPerHalfTrack == 0)
+        else if (head % kQuarterTracksPerHalfTrack == 0)
         {
-            m_audioSink->OnHeadStep (m_quarterTrack);
+            m_audioSink->OnHeadStep (head);
         }
     }
 
@@ -528,11 +530,11 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     {
         if (bumped)
         {
-            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadBump (m_quarterTrack); });
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadBump (head); });
         }
         else
         {
-            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, m_quarterTrack); });
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, head); });
         }
     }
 }
@@ -597,8 +599,9 @@ int Disk2Controller::GetPull (uint8_t phases, int quarterTrack)
 //  UpdateEngineSelection
 //
 //  Drive select changes which engine sees motor-on. The non-selected
-//  engine freezes; the selected engine inherits the controller's motor
-//  state and the current track.
+//  engine freezes; the selected engine takes the controller's motor state.
+//  Each engine's track is its own drive's head, which only that drive's
+//  steps move.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -610,7 +613,6 @@ void Disk2Controller::UpdateEngineSelection()
 
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
     UpdateEngineWriteMode();
 }
@@ -1039,7 +1041,6 @@ void Disk2Controller::Reset()
 
     m_phases       = 0;
     m_phase        = 0;
-    m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;
     m_motorSpinupRemaining = 0;
@@ -1049,6 +1050,7 @@ void Disk2Controller::Reset()
 
     for (i = 0; i < kDriveCount; i++)
     {
+        m_quarterTrack[i] = 0;
         m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
@@ -1194,8 +1196,9 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     drive.rows.push_back (MakeTextRow ("Spin-down left", std::format ("{} cycles", m_motorSpindownCycles)));
     drive.rows.push_back (MakeFlagRow ("Disk in drive",  m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsLoaded()));
 
-    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", m_quarterTrack)));
-    head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", m_quarterTrack / kQuarters, (m_quarterTrack % kQuarters) * kHundredth)));
+    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", GetQuarterTrack())));
+    head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", GetQuarterTrack() / kQuarters, (GetQuarterTrack() % kQuarters) * kHundredth)));
+    head.rows.push_back (MakeTextRow ("Other drive",   std::format ("quarter track {}", m_quarterTrack[m_activeDrive ^ 1])));
     head.rows.push_back (MakeByteRow ("Phases",        m_phases, { "", "", "", "", "PH3", "PH2", "PH1", "PH0" }));
     head.rows.push_back (MakeTextRow ("Last address field", std::format ("{} {} {}", field ('T', m_addrMarkWatcher.GetCachedTrack()),
                                                                                     field ('S', m_addrMarkWatcher.GetCachedSector()),
@@ -1212,7 +1215,7 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     snapshot.groups.push_back (std::move (drive));
     snapshot.groups.push_back (std::move (head));
     snapshot.groups.push_back (std::move (sequencer));
-    snapshot.visual = DiagnosticsDiskHead { m_quarterTrack, kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
+    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
 }
 
 
@@ -1236,7 +1239,8 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
 
     writer.WriteByte   (m_phases);
     writer.WriteByte   (static_cast<Byte> (m_phase));
-    writer.WriteByte   (static_cast<Byte> (m_quarterTrack));
+    writer.WriteByte   (static_cast<Byte> (m_quarterTrack[0]));
+    writer.WriteByte   (static_cast<Byte> (m_quarterTrack[1]));
     writer.WriteBool   (m_motorOn);
     writer.WriteUInt32 (m_motorSpindownCycles);
     writer.WriteUInt32 (m_motorSpinupRemaining);
@@ -1274,9 +1278,10 @@ Error:
 //  LoadState
 //
 //  The engines load inside this section and check their own fields; this
-//  checks the phase mask, phase, head position and drive select, and that the
-//  saved machine had the same IWM wiring. The address-mark watcher's section
-//  is read inside it too, from version 2 on. Nothing goes through Reset or
+//  checks the phase mask, phase, head positions and drive select, and that
+//  the saved machine had the same IWM wiring. The address-mark watcher's
+//  section is read inside it too, from version 2 on. Before version 3 there
+//  was one head position for both drives, which each drive takes. Nothing goes through Reset or
 //  the switch handlers, so no sink hears a motor or drive change and the
 //  motor-off flush does not run.
 //
@@ -1293,7 +1298,8 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     int       drive                   = 0;
     Byte      phases                  = 0;
     Byte      phase                   = 0;
-    Byte      quarterTrack            = 0;
+    Byte      quarterTrack            = 0;     // drive 1's head, or both drives' before version 3
+    Byte      quarterTrack2           = 0;
     bool      motorOn                 = false;
     uint32_t  motorSpindownCycles     = 0;
     uint32_t  motorSpinupRemaining    = 0;
@@ -1314,6 +1320,16 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     reader.ReadByte   (phases);
     reader.ReadByte   (phase);
     reader.ReadByte   (quarterTrack);
+
+    if (version >= kPerDriveHeadStateVersion)
+    {
+        reader.ReadByte (quarterTrack2);
+    }
+    else
+    {
+        quarterTrack2 = quarterTrack;
+    }
+
     reader.ReadBool   (motorOn);
     reader.ReadUInt32 (motorSpindownCycles);
     reader.ReadUInt32 (motorSpinupRemaining);
@@ -1347,15 +1363,17 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     hr = reader.EndSection();
     CHR (hr);
 
-    CBREx (phases       <  kPhaseMaskLimit,  HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (phase        <  kPhaseCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (quarterTrack <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (activeDrive  <  kDriveCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (iwmMode      == m_iwmMode,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (phases        <  kPhaseMaskLimit,  HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (phase         <  kPhaseCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (quarterTrack  <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (quarterTrack2 <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (activeDrive   <  kDriveCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (iwmMode       == m_iwmMode,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_phases                  = phases;
     m_phase                   = phase;
-    m_quarterTrack            = quarterTrack;
+    m_quarterTrack[0]         = quarterTrack;
+    m_quarterTrack[1]         = quarterTrack2;
     m_motorOn                 = motorOn;
     m_motorSpindownCycles     = motorSpindownCycles;
     m_motorSpinupRemaining    = motorSpinupRemaining;
@@ -1366,6 +1384,14 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     m_cyclesSinceIdleCallback = cyclesSinceIdleCallback;
     m_busySinceIdleCallback   = busySinceIdleCallback;
     m_lastCpuSync             = lastCpuSync;
+
+    // The drive not selected when an older state was saved had its engine on
+    // whatever track it was last selected on; both heads are at the one saved
+    // position now.
+    if (version < kPerDriveHeadStateVersion)
+    {
+        m_engine[m_activeDrive ^ 1].SetCurrentTrack (quarterTrack);
+    }
 
 Error:
     return hr;

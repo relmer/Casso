@@ -73,11 +73,6 @@ struct DriveWidgetState
     // Disk2Controller::GetCurrentTrack next door returns whole ones. See
     // GH #136, which renames them.
     //
-    // Sampled per drive rather than from the controller's own quarter-track,
-    // which is a single member for the whole card and so follows whichever
-    // drive is selected. Drive 1's head drawn under drive 2's name would be a
-    // worse fault than a coarse readout. GH #135 covers the underlying defect.
-    //
     // -1 means the position is not known, which is every drive on a machine
     // with no Disk ][ controller. A reader must not render that as track 0.
     std::atomic<int>  headQuarterTrack     { -1 };
