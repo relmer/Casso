@@ -600,9 +600,9 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff the hardware-enable bits or a
-//  serial port's device changed. Speed / color / sound / mechanism /
-//  write-protect are all live-applicable.
+//  Per FR-010: a reset is required iff the hardware-enable bits
+//  changed. Speed / color / sound / mechanism / write-protect and the
+//  serial ports' devices are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -618,7 +618,7 @@ bool SettingsPanelState::RequiresReset() const
         changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
     }
 
-    return changed || AreSerialPortsChanged();
+    return changed;
 }
 
 
@@ -629,8 +629,8 @@ bool SettingsPanelState::RequiresReset() const
 //
 //  AreSerialPortsChanged
 //
-//  The device behind a serial port is attached when the machine is built, so
-//  a change makes the state dirty and requires a machine rebuild.
+//  A serial port's device is a staged edit like any other: a change makes
+//  the state dirty, and Apply connects the new device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1312,6 +1312,16 @@ HRESULT SettingsPanelState::Apply (
 
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
+
+    // A serial port is reconnected only when its device changed, since
+    // reconnecting drops whatever is connected to it.
+    for (int port = 1; port <= (int) std::size (kpszSerialPortNames); ++port)
+    {
+        if (GetSerialPortDevice (port) != GetPortDevice (m_original.machinePorts, kpszSerialPortNames[port - 1]))
+        {
+            sink.ApplySerialPortDevice (port, GetSerialPortDevice (port));
+        }
+    }
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the

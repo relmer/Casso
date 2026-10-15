@@ -237,6 +237,24 @@ void EmulatorShell::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConnectSerialPort
+//
+//  A machine without the port, anything but a //c, returns an error the
+//  dispatcher ignores.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device)
+{
+    return m_machine.ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestReset
 //
 //  UI thread. The keys are read here because GetKeyState answers for the

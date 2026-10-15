@@ -219,6 +219,7 @@ public:
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
+    virtual void ApplySerialPortDevice       (int port, const std::string & device) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -240,8 +241,8 @@ public:
 //
 //  IsDirty and RequiresReset are separate questions. Dirty indicates whether
 //  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
-//  change or a serial port's device requires a machine rebuild -- and it
-//  relabels OK to warn about the reboot.
+//  change requires a machine rebuild -- and it relabels OK to warn about the
+//  reboot.
 //
 //  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
 //  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
@@ -281,7 +282,7 @@ public:
     JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
 
     bool IsDirty       () const;
-    bool RequiresReset () const;          // true iff a hardware enable or a serial device changed
+    bool RequiresReset () const;          // true iff any hardware enable changed
 
     // Live (current) accessors / mutators
 

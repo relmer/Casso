@@ -46,6 +46,10 @@
 // Start the disk browser beside this executable.
 #define IDM_DISK_OPEN_CASSO_EXPLORER       40089
 
+// Connect a //c serial port to its device while the machine runs. Payload:
+// "<port>:<device>", such as "2:tcp:6502"; an empty device loops back.
+#define IDM_SERIAL_CONNECT                 40090
+
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
 //  owns disk writes, so it travels as a command like every other mount-path

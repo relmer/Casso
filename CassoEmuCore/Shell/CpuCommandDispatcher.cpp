@@ -147,6 +147,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             targets.tape.ControlTape (TapeCommand::FastForward);
             break;
 
+        case IDM_SERIAL_CONNECT:
+            DispatchSerialConnect (cmd.payload, targets.machine);
+            break;
+
         default:
             break;
     }
@@ -272,5 +276,32 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuD
     if (sscanf_s (payload.c_str(), "%d,%d", &drive, &kind) == 2)
     {
         driveAudio.PlayDriveTestSound (drive, kind);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchSerialConnect
+//
+//  "port:device", the device as the machine's configuration has it, which
+//  may itself contain colons ("2:tcp:6502"). Only port 1 or 2 is passed on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSerialConnect (const std::string & payload, ICpuMachineCommands & machine)
+{
+    HRESULT  hr    = S_OK;
+    bool     valid = payload.size() >= 2 && (payload[0] == '1' || payload[0] == '2') && payload[1] == ':';
+
+
+
+    if (valid)
+    {
+        hr = machine.ConnectSerialPort (payload[0] - '0', payload.substr (2));
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }

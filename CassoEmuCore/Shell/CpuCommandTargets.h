@@ -38,8 +38,8 @@ enum class TapeCommand
 //  ICpuMachineCommands
 //
 //  What a command from the UI thread can ask of the machine as a whole: a
-//  switch, a reset, a power cycle, one instruction, the trace. The shell
-//  implements it.
+//  switch, a reset, a power cycle, one instruction, the trace, a serial
+//  port's device. The shell implements it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +55,7 @@ public:
     virtual void     PowerCycle                ()                                  = 0;
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
+    virtual HRESULT  ConnectSerialPort         (int port, const std::string & device) = 0;
 };
 
 

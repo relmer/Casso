@@ -291,3 +291,21 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplySerialPortDevice
+//
+//  CPU-thread routed: the bridge on the port runs with every instruction,
+//  so it is replaced between instructions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplySerialPortDevice (int port, const std::string & device)
+{
+    m_shell.PostCommand (IDM_SERIAL_CONNECT, format ("{}:{}", port, device));
+}
+
+
+
+
+

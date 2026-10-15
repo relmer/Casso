@@ -44,25 +44,26 @@ public:
     class RecordingSink : public ISettingsApplySink
     {
     public:
-        SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
-        SettingsColorMode  lastColor                  = SettingsColorMode::Color;
-        bool               lastFloppySound            = true;
-        bool               lastFastTapeLoading        = true;
-        float              lastTapeVolume             = 1.0f;
-        bool               lastTapeAutoStop           = true;
-        bool               lastTapeIdleStop           = true;
-        bool               lastTapeEightBit           = false;
-        std::string        lastMechanism;
-        bool               lastWriteProtect[2]        = { false, false };
-        float              lastDriveMotor             = -1.0f;
-        float              lastDriveHead              = -1.0f;
-        float              lastDriveDoor              = -1.0f;
-        float              lastDriveOnePan            = 0.0f;
-        float              lastDriveTwoPan            = 0.0f;
-        bool               lastExternalDriveConnected = false;
-        bool               lastMouseConnected         = true;
-        int                queuedResetCount           = 0;
-        int                applyCount                 = 0;
+        SettingsSpeedMode         lastSpeed                  = SettingsSpeedMode::Authentic;
+        SettingsColorMode         lastColor                  = SettingsColorMode::Color;
+        bool                      lastFloppySound            = true;
+        bool                      lastFastTapeLoading        = true;
+        float                     lastTapeVolume             = 1.0f;
+        bool                      lastTapeAutoStop           = true;
+        bool                      lastTapeIdleStop           = true;
+        bool                      lastTapeEightBit           = false;
+        std::string               lastMechanism;
+        bool                      lastWriteProtect[2]        = { false, false };
+        float                     lastDriveMotor             = -1.0f;
+        float                     lastDriveHead              = -1.0f;
+        float                     lastDriveDoor              = -1.0f;
+        float                     lastDriveOnePan            = 0.0f;
+        float                     lastDriveTwoPan            = 0.0f;
+        bool                      lastExternalDriveConnected = false;
+        bool                      lastMouseConnected         = true;
+        int                       queuedResetCount           = 0;
+        std::vector<std::string>  serialConnects;
+        int                       applyCount                 = 0;
 
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
@@ -104,6 +105,11 @@ public:
         {
             lastMouseConnected = connected;
             ++applyCount;
+        }
+
+        void ApplySerialPortDevice (int port, const std::string & device) override
+        {
+            serialConnects.push_back (std::format ("{} {}", port, device));
         }
 
         void QueueMachineReset() override { ++queuedResetCount; }
@@ -938,9 +944,10 @@ public:
 
 
     // A //c's serial ports are back-panel ports, staged with the rest of the
-    // list. A change is written with the whole list and requires the machine
-    // to be rebuilt, since the device behind a port is attached at build.
-    TEST_METHOD (SerialPorts_ChangeIsWrittenAndRequiresAReset)
+    // list. A change is written with the whole list and connected live, as a
+    // cable is plugged in, with no reset; only the port whose device differs
+    // is reconnected.
+    TEST_METHOD (SerialPorts_ChangeIsWrittenAndConnectedWithoutAReset)
     {
         SettingsPanelState  st;
         RecordingSink       sink;
@@ -964,9 +971,11 @@ public:
 
         Assert::AreEqual (std::string ("tcp:6502"), st.GetSerialPortDevice (2));
         Assert::IsTrue  (st.IsDirty());
-        Assert::IsTrue  (st.RequiresReset(), L"a serial device is attached when the machine is built");
+        Assert::IsFalse (st.RequiresReset(), L"a serial device is connected while the machine runs");
 
         AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 tcp:6502" }));
+        Assert::AreEqual (0, sink.queuedResetCount);
         text = WriteCompactOrFail (outJson);
 
         Assert::IsTrue (text.find ("\"serial2\",\"device\":\"tcp:6502\"") != std::string::npos, L"the device is written");

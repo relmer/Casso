@@ -5,6 +5,9 @@
 #include "Core/Prng.h"
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/SerialPortDevice.h"
+#include "Devices/SerialTrafficLog.h"
+#include "Seams/IByteStreamFactory.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -232,7 +235,10 @@ Byte MachineHost::StepOne()
 
     for (AciaBridgeEndpoint * bridge : m_serialBridges)
     {
-        bridge->Tick (cycles);
+        if (bridge != nullptr)
+        {
+            bridge->Tick (cycles);
+        }
     }
 
     return (cycles);
@@ -262,38 +268,55 @@ void MachineHost::SetSerialPort (int port, Acia6551 * acia)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineHost::AttachSerialStream
+//  MachineHost::ConnectSerialPort
 //
-//  The bridge is owned with the port's other endpoints and replaces the one
-//  the port had; that one stays owned, unused, until the machine goes.
+//  The port loops back before the new device is opened, so after a device
+//  that fails to open, the port is a //c's with nothing plugged in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineHost::AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge)
+HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IByteStreamFactory * factory, SerialTrafficLog * log)
 {
-    HRESULT                              hr     = S_OK;
-    Acia6551                           * acia   = nullptr;
-    std::unique_ptr<AciaBridgeEndpoint>  bridge;
+    HRESULT                       hr     = S_OK;
+    bool                          known  = port >= 1 && port <= s_kSerialPortCount;
+    Acia6551                    * acia   = known ? m_serialPorts[(size_t) port] : nullptr;
+    SerialPortDevice              parsed;
+    std::unique_ptr<IByteStream>  stream;
+    AciaBridgeEndpoint          * bridge = nullptr;
 
 
 
-    CBRAEx (port >= 1 && port <= s_kSerialPortCount, E_INVALIDARG);
-    CBRAEx (stream != nullptr, E_INVALIDARG);
-
-    acia = m_serialPorts[(size_t) port];
+    CBRAEx (known, E_INVALIDARG);
     CBREx (acia != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
 
-    bridge = std::make_unique<AciaBridgeEndpoint> (acia, std::move (stream));
-    acia->SetEndpoint (bridge.get());
+    InstallSerialEndpoint (port, std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
 
-    m_serialBridges.push_back (bridge.get());
+    hr = SerialPortDevice::Parse (device, parsed);
+    CHR (hr);
+    BAIL_OUT_IF (parsed.kind == SerialPortDevice::Kind::Loopback, S_OK);
+    CBREx (factory != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-    if (outBridge != nullptr)
+    if (parsed.kind == SerialPortDevice::Kind::Tcp)
     {
-        *outBridge = bridge.get();
+        hr = factory->ListenTcp (parsed.tcpPort, LinkTransport::Emulated, stream);
+    }
+    else
+    {
+        hr = factory->OpenComPort (parsed.comPort, ComSettings { parsed.baud }, stream);
     }
 
-    m_ownedAciaEndpoints.push_back (std::move (bridge));
+    CHR (hr);
+
+    hr = AttachSerialStream (port, std::shared_ptr<IByteStream> (std::move (stream)), &bridge);
+    CHR (hr);
+
+    if (log != nullptr)
+    {
+        bridge->SetByteLog ([log, port] (bool fromGuest, Byte value, uint64_t cycle)
+        {
+            log->Append (port, fromGuest, value, cycle);
+        });
+    }
 
 Error:
     return hr;
@@ -305,25 +328,100 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::AttachSerialStream
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge)
+{
+    HRESULT                              hr     = S_OK;
+    Acia6551                           * acia   = nullptr;
+    std::unique_ptr<AciaBridgeEndpoint>  bridge;
+    AciaBridgeEndpoint                 * raw    = nullptr;
+
+
+
+    CBRAEx (port >= 1 && port <= s_kSerialPortCount, E_INVALIDARG);
+    CBRAEx (stream != nullptr, E_INVALIDARG);
+
+    acia = m_serialPorts[(size_t) port];
+    CBREx (acia != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
+
+    bridge = std::make_unique<AciaBridgeEndpoint> (acia, std::move (stream));
+    raw    = bridge.get();
+
+    InstallSerialEndpoint (port, std::move (bridge), raw);
+
+    if (outBridge != nullptr)
+    {
+        *outBridge = raw;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::InstallSerialEndpoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint> endpoint, AciaBridgeEndpoint * bridge)
+{
+    AciaBridgeEndpoint  * old = m_serialBridges[(size_t) port];
+
+
+
+    if (old != nullptr && old->GetStream() != nullptr)
+    {
+        old->GetStream()->Close();
+    }
+
+    m_serialPorts[(size_t) port]->SetEndpoint (endpoint.get());
+
+    m_serialBridges[(size_t) port]   = bridge;
+    m_serialEndpoints[(size_t) port] = std::move (endpoint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::DetachSerialPorts
 //
 //  Before the devices go, so no bridge is ticked against a port that no
-//  longer exists.
+//  longer exists. Each stream is closed, which releases its TCP or COM port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::DetachSerialPorts()
 {
-    for (Acia6551 * acia : m_serialPorts)
+    for (int port = 1; port <= s_kSerialPortCount; port++)
     {
+        AciaBridgeEndpoint  * bridge = m_serialBridges[(size_t) port];
+        Acia6551            * acia   = m_serialPorts[(size_t) port];
+
+        if (bridge != nullptr && bridge->GetStream() != nullptr)
+        {
+            bridge->GetStream()->Close();
+        }
+
         if (acia != nullptr)
         {
             acia->SetEndpoint (nullptr);
         }
     }
 
-    m_serialPorts = {};
-    m_serialBridges.clear();
+    m_serialPorts     = {};
+    m_serialBridges   = {};
+    m_serialEndpoints = {};
     m_ownedAciaEndpoints.clear();
 }
 

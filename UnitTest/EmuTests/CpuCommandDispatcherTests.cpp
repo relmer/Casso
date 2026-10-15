@@ -54,6 +54,23 @@ public:
     }
 
 
+    //  The device after the port is passed whole, colons and all, and a
+    //  payload with no port 1 or 2 in front connects nothing.
+    TEST_METHOD (SerialConnectPassesThePortAndTheWholeDevice)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_SERIAL_CONNECT, "2:tcp:6502", target);
+        Dispatch (IDM_SERIAL_CONNECT, "1:", target);
+        Dispatch (IDM_SERIAL_CONNECT, "3:tcp:6503", target);
+        Dispatch (IDM_SERIAL_CONNECT, "tcp:6502", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("ConnectSerialPort 2 tcp:6502"), target.calls[0]);
+        Assert::AreEqual (std::string ("ConnectSerialPort 1 "), target.calls[1]);
+    }
+
+
     TEST_METHOD (ResetRemountsBeforeItResets_AndPowerCycleRemountsAfter)
     {
         Notebook  target;
@@ -276,6 +293,13 @@ private:
         void     PowerCycle() override      { calls.push_back ("PowerCycle"); }
         void     StepInstruction() override { calls.push_back ("StepInstruction"); }
         void     SaveTrace() override       { calls.push_back ("SaveTrace"); }
+
+        HRESULT  ConnectSerialPort (int port, const std::string & device) override
+        {
+            calls.push_back (std::format ("ConnectSerialPort {} {}", port, device));
+            return S_OK;
+        }
+
         void     RemountDisks() override    { calls.push_back ("RemountDisks"); }
 
         HRESULT  MountDisk (int drive, const std::string & path) override

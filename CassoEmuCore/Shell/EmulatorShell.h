@@ -284,6 +284,7 @@ private:
     void     StepInstruction           () override;
     void     SaveTrace                 () override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
+    HRESULT  ConnectSerialPort         (int port, const std::string & device) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on
     // the UI thread where the key state is valid. The strip, the toolbar and

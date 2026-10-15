@@ -463,7 +463,7 @@ in-process and over TCP, at real line timing.
   - the port's settings built by `ByteStreamSettings::ToDcb`, a pure function from the speed, data format and handshake, so they are tested without a port.
 
   Tests of `ToDcb` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
-- [X] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
+- [X] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings and connected while the machine runs, with no reset, as a cable is plugged in. A port is opened only while the machine runs and is released when it stops or its device changes. Per FR-095 and FR-097.
 
 ## Phase 17: ADTPro captures (US16)
 

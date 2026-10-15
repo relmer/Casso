@@ -167,7 +167,13 @@ public:
     //  A //c's built-in serial ports, by port number, 1 or 2. A stream
     //  attached to one replaces the port's endpoint with a bridge that runs
     //  at the line's speed, ticked after every instruction.
+    //
+    //  ConnectSerialPort plugs a port's device in while the machine runs, as
+    //  a cable is: the old device's stream is closed first, so a TCP port can
+    //  be opened again at once, and the port loops back when the new device
+    //  is empty or cannot be opened. Called on the CPU thread.
     void     SetSerialPort      (int port, Acia6551 * acia);
+    HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
     HRESULT  AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
     void     DetachSerialPorts  ();
 
@@ -256,6 +262,10 @@ private:
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();
 
+    //  Puts `endpoint` on the port in place of whatever was there, closing
+    //  the old bridge's stream. `bridge` is the endpoint when it is one.
+    void  InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint> endpoint, AciaBridgeEndpoint * bridge);
+
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;
 
@@ -270,8 +280,9 @@ private:
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
 
     static constexpr int                 s_kSerialPortCount = 2;
-    std::array<Acia6551 *, s_kSerialPortCount + 1>  m_serialPorts   = {};
-    std::vector<AciaBridgeEndpoint *>    m_serialBridges;
+    std::array<Acia6551 *, s_kSerialPortCount + 1>                        m_serialPorts     = {};
+    std::array<std::unique_ptr<IAciaEndpoint>, s_kSerialPortCount + 1>   m_serialEndpoints;
+    std::array<AciaBridgeEndpoint *, s_kSerialPortCount + 1>              m_serialBridges   = {};
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;

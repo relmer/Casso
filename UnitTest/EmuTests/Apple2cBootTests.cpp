@@ -391,6 +391,53 @@ public:
         Assert::AreEqual<Byte> (fromPc, machine.GetMemoryBus().ReadByte (data));
     }
 
+
+    // A port's device changes while the machine runs, as a cable is unplugged
+    // and another plugged in: the old stream is closed, an empty device loops
+    // the port back, and a new stream takes its place, all without a reset.
+    TEST_METHOD (SerialPortDeviceChangesWhileTheMachineRuns)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  firstMachineEnd;
+        std::shared_ptr<InProcessByteStream>  firstPcEnd;
+        std::shared_ptr<InProcessByteStream>  secondMachineEnd;
+        std::shared_ptr<InProcessByteStream>  secondPcEnd;
+        HRESULT                               hr      = S_OK;
+        const Word                            data    = 0xC0A8;
+        const Word                            status  = static_cast<Word> (data + Acia6551::kRegStatus);
+        Byte                                  got[4]  = {};
+        size_t                                count   = 0;
+
+
+
+        machine.PowerCycle();
+        machine.RunCycles (20000);
+
+        InProcessByteStream::CreatePair (firstMachineEnd, firstPcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, firstMachineEnd));
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", nullptr, nullptr));
+        Assert::IsTrue (firstPcEnd->IsClosed(), L"the old device's stream is closed");
+
+        machine.GetMemoryBus().WriteByte (data, 0x3C);
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"an empty device loops back");
+        Assert::AreEqual<Byte> (0x3C, machine.GetMemoryBus().ReadByte (data));
+
+        InProcessByteStream::CreatePair (secondMachineEnd, secondPcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, secondMachineEnd));
+
+        machine.GetMemoryBus().WriteByte (data, 0x7E);
+        machine.RunCycles (20000);
+        Assert::AreEqual (S_OK, secondPcEnd->Read (got, std::size (got), 0, count));
+        Assert::AreEqual<size_t> (1, count);
+        Assert::AreEqual<Byte> (0x7E, got[0]);
+
+        hr = machine.ConnectSerialPort (2, "tcp:6502", nullptr, nullptr);
+        Assert::IsTrue (FAILED (hr), L"no stream factory, no TCP port");
+        machine.GetMemoryBus().WriteByte (data, 0x11);
+        Assert::AreEqual<Byte> (0x11, machine.GetMemoryBus().ReadByte (data), L"a device that fails to open is replaced by loopback");
+    }
+
     // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7
     // of $C060 (RD80SW); a booting disk (PR#3) or an app reads it to pick the
     // width. The bare no-disk ROM screen never consults it, so "Check Disk

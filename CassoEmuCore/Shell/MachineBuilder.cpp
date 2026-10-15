@@ -592,13 +592,13 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. Each starts on loopback (comms self-test); the device on
-        // its back-panel port, a TCP port or a COM port, replaces that below.
+        // controller. AttachSerialDevices connects each to the device on its
+        // back-panel port, a TCP port or a COM port, or loops it back
+        // (comms self-test) when there is none.
         for (int slot = 1; slot <= 2; ++slot)
         {
-            HRESULT                                hrIc     = S_OK;
-            std::unique_ptr<Acia6551>              acia;
-            std::unique_ptr<AciaLoopbackEndpoint>  loopback;
+            HRESULT                    hrIc = S_OK;
+            std::unique_ptr<Acia6551>  acia;
 
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
@@ -608,12 +608,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             hrIc = acia->AttachInterruptController (&m_host.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
-            acia->SetEndpoint (loopback.get());
-
             m_host.GetMemoryBus().AddDevice (acia.get());
             m_host.SetSerialPort (slot, acia.get());
-            m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
             m_host.GetOwnedDevices().push_back (std::move (acia));
         }
 
@@ -1661,57 +1657,33 @@ Error:
 //
 //  MachineBuilder::AttachSerialDevices
 //
-//  A port whose device cannot be read or opened -- a COM port open in another
-//  program, a TCP port already in use -- is left on loopback, so the machine
-//  starts; the device is opened again at the next build.
+//  Both ports are connected, so a port with no device in the configuration
+//  loops back. A port whose device cannot be read or opened -- a COM port
+//  open in another program, a TCP port already in use -- is left on
+//  loopback, so the machine starts; the device is opened again at the next
+//  build or when the setting is applied.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
 {
     static constexpr const char *  kpszPortNames[] = { "serial1", "serial2" };
-    IByteStreamFactory           * factory         = m_services.streamFactory;
     SerialTrafficLog             * log             = (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr;
 
 
 
-    for (const PortConfig & port : config.ports)
+    for (int number = 1; number <= (int) std::size (kpszPortNames); number++)
     {
-        SerialPortDevice              device;
-        std::unique_ptr<IByteStream>  stream;
-        AciaBridgeEndpoint          * bridge = nullptr;
-        HRESULT                       hr     = S_OK;
-        int                           number = 0;
+        std::string  device;
+        HRESULT      hr = S_OK;
 
-        for (int i = 0; i < (int) std::size (kpszPortNames); i++)
+        for (const PortConfig & port : config.ports)
         {
-            number = (port.name == kpszPortNames[i]) ? i + 1 : number;
+            device = (port.name == kpszPortNames[number - 1]) ? port.device : device;
         }
 
-        hr = (number != 0 && factory != nullptr) ? SerialPortDevice::Parse (port.device, device) : S_FALSE;
-
-        if (hr == S_OK && device.kind == SerialPortDevice::Kind::Tcp)
-        {
-            hr = factory->ListenTcp (device.tcpPort, LinkTransport::Emulated, stream);
-        }
-        else if (hr == S_OK && device.kind == SerialPortDevice::Kind::Com)
-        {
-            hr = factory->OpenComPort (device.comPort, ComSettings { device.baud }, stream);
-        }
-
-        if (SUCCEEDED (hr) && stream != nullptr)
-        {
-            hr = m_host.AttachSerialStream (number, std::shared_ptr<IByteStream> (std::move (stream)), &bridge);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-
-        if (bridge != nullptr && log != nullptr)
-        {
-            bridge->SetByteLog ([log, number] (bool fromGuest, Byte value, uint64_t cycle)
-            {
-                log->Append (number, fromGuest, value, cycle);
-            });
-        }
+        hr = m_host.ConnectSerialPort (number, device, m_services.streamFactory, log);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
