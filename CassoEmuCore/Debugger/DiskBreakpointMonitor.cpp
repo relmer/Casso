@@ -64,7 +64,11 @@ void DiskBreakpointMonitor::Refresh()
         }
     }
 
-    m_target.SetDiskEventSink (isArmed ? this : nullptr);
+    if (!m_isReplay)
+    {
+        m_target.SetDiskEventSink (isArmed ? this : nullptr);
+    }
+
     m_selectedDrive = m_target.TryGetDiskState (state) ? state.selectedDrive : 0;
 
     if (isArmed && (!m_isArmed || sets != current))
@@ -176,9 +180,15 @@ bool DiskBreakpointMonitor::Poll (const IDebugExpressionContext & context)
 
     for (const Candidate & candidate : candidates)
     {
-        bool  isStop = m_table.TryMatchDisk ([&] (const Breakpoint & entry) { return IsMatch (entry, candidate); }, context, hitId, value);
+        auto  isMatch = [&] (const Breakpoint & entry) { return IsMatch (entry, candidate); };
+        bool  isStop  = m_isReplay ? m_table.IsDiskStop (isMatch, context) : m_table.TryMatchDisk (isMatch, context, hitId, value);
 
 
+
+        if (isStop && !m_report.has_value() && m_isReplay)
+        {
+            m_report = DiskReport();
+        }
 
         if (isStop && !m_report.has_value())
         {

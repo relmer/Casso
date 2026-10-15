@@ -119,6 +119,7 @@ public:
     // address-mark / data-mark events through the same sink.
     void          SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
     void          SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
+    IDisk2EventSink * GetEventSink (ObserverSlot slot) const noexcept { return m_eventSinks.Get (slot); }
 
     // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
     // Machine, not a Disk II card, so it adds a write-only MODE register and a

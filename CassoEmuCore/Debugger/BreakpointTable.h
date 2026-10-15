@@ -137,8 +137,12 @@ public:
 
     //  The same tests as TryMatchBeforeInstruction and TryMatchWrite, for a
     //  replay of history: true when an enabled entry that stops matches. No
-    //  hit is counted and nothing is remembered.
-    bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context) const;
+    //  hit is counted and no state changes. With routines, an RWTS or
+    //  driver entry stops at the routine the map has for its id, which a
+    //  replay takes from the vector as it was then, and at none when the map
+    //  has none.
+    bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context,
+                            const std::map<int, Word> * routines = nullptr) const;
     bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
     bool  IsDiskStop       (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
 
@@ -152,7 +156,8 @@ private:
 
     int   Add              (Breakpoint entry);
     void  RebuildAddressBits ();
-    bool  TryMatchEntry    (const Breakpoint & entry, Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
+    bool  TryMatchEntry    (const Breakpoint & entry, std::optional<Word> routine, Word pc, std::optional<Byte> opcode,
+                            const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;

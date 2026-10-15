@@ -10,6 +10,8 @@
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Shell/MachineHost.h"
 
 
@@ -132,13 +134,15 @@ HRESULT Replayer::RunTo (
     std::vector<ReplayStep>  * steps,
     std::vector<Byte>        * stackPointers)
 {
-    HRESULT       hr        = S_OK;
-    DebugHook   * hook      = m_machine.GetDebugHook();
-    IWatchSink  * watchSink = m_machine.GetMemoryBus().GetWatchSink();
-    EmuCpu      * cpu       = m_machine.GetCpu();
-    uint64_t      position  = 0;
-    uint64_t      cycle     = 0;
-    bool          isDone    = false;
+    HRESULT             hr         = S_OK;
+    DebugHook         * hook       = m_machine.GetDebugHook();
+    IWatchSink        * watchSink  = m_machine.GetMemoryBus().GetWatchSink();
+    Disk2Controller   * controller = m_machine.GetRefs().diskController;
+    IDisk2EventSink   * diskSink   = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+    EmuCpu            * cpu        = m_machine.GetCpu();
+    uint64_t            position   = 0;
+    uint64_t            cycle      = 0;
+    bool                isDone     = false;
 
 
 
@@ -156,6 +160,13 @@ HRESULT Replayer::RunTo (
     // The debugger's watchpoints would log and count what the replay
     // touches; only the stop test's checker sees it.
     m_machine.GetMemoryBus().SetWatchSink ((stopTest != nullptr) ? stopTest->GetWatchSink() : nullptr);
+
+    // The same for the disk: the debugger's disk breakpoints would count
+    // what the replay reads.
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (ObserverSlot::Breakpoints, (stopTest != nullptr) ? stopTest->GetDiskSink() : nullptr);
+    }
 
     m_machine.SetDebugHook (nullptr);
     m_machine.SetInputJournalOn (false);
@@ -201,6 +212,11 @@ Error:
 
     m_machine.SetDebugHook (hook);
     m_machine.GetMemoryBus().SetWatchSink (watchSink);
+
+    if (controller != nullptr)
+    {
+        controller->SetEventSink (ObserverSlot::Breakpoints, diskSink);
+    }
 
     return hr;
 }
@@ -455,8 +471,11 @@ Error:
 //  the Prng, and leaves the drives on the disks in their bays. A drive's
 //  write-protect switch is set on its disk. A mount, an eject or a change to
 //  an image's write protection is not redone from the file: the boundary
-//  keyframe taken just after it holds the disks as they were, and
-//  LoadBoundaryIfDue loads it.
+//  keyframe taken just after it has the disks as they were, and
+//  LoadBoundaryIfDue loads it. A mount or an eject is reported to the disk
+//  breakpoint listener in the controller's slot, the stop test's during a
+//  replay and the debugger's when running forward from history, as the
+//  controller reports one live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -472,6 +491,8 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     DiskImage  * image        = nullptr;
 
 
+
+    ReportMedia (record);
 
     BAIL_OUT_IF (isApplied || isMedia, S_OK);
 
@@ -507,6 +528,34 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportMedia
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Replayer::ReportMedia (const InputRecord & record)
+{
+    Disk2Controller  * controller = m_machine.GetRefs().diskController;
+    IDisk2EventSink  * sink       = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+
+
+
+    if (sink != nullptr && record.kind == InputKind::DiskMount)
+    {
+        sink->OnDiskInserted ((int) record.value);
+    }
+
+    if (sink != nullptr && record.kind == InputKind::DiskEject)
+    {
+        sink->OnDiskEjected ((int) record.value);
+    }
 }
 
 

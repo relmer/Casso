@@ -1,5 +1,6 @@
 #pragma once
 
+class IDisk2EventSink;
 class IWatchSink;
 class MachineHost;
 
@@ -20,9 +21,10 @@ class MachineHost;
 //  pc. TakePendingStop is a watchpoint: true if the instruction just run
 //  raised a stop for the next boundary, and the pending stop is cleared.
 //  GetWatchSink is where the bus reports watched accesses during the
-//  replay, in place of the debugger's own sink, or null for none. None of
-//  them may log, count a hit or stop anything itself; the reverse command
-//  decides which hit it lands on.
+//  replay, in place of the debugger's own sink, or null for none, and
+//  GetDiskSink the Disk II controller's events, in place of the debugger's
+//  disk breakpoint listener. None of them may log, count a hit or stop
+//  anything itself; the reverse command selects the hit to land on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,4 +36,5 @@ public:
     virtual bool          ShouldStopBefore (MachineHost & machine, Word pc) = 0;
     virtual bool          TakePendingStop  ()                               = 0;
     virtual IWatchSink  * GetWatchSink     ()                               { return nullptr; }
+    virtual IDisk2EventSink * GetDiskSink  ()                               { return nullptr; }
 };

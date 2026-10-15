@@ -606,7 +606,7 @@ bool BreakpointTable::TryMatchBeforeInstruction (
                 continue;
             }
 
-            if (TryMatchEntry (entry, pc, opcode, context, conditionValue))
+            if (TryMatchEntry (entry, entry.resolved, pc, opcode, context, conditionValue))
             {
                 ++entry.hits;
 
@@ -727,7 +727,8 @@ bool BreakpointTable::TryMatchWrite (
 bool BreakpointTable::IsStopBefore (
     Word                            pc,
     std::optional<Byte>             opcode,
-    const IDebugExpressionContext & context) const
+    const IDebugExpressionContext & context,
+    const std::map<int, Word>     * routines) const
 {
     std::optional<int32_t>  conditionValue;
 
@@ -735,7 +736,14 @@ bool BreakpointTable::IsStopBefore (
 
     for (const Breakpoint & entry : m_entries)
     {
-        if (entry.enabled && entry.stops && TryMatchEntry (entry, pc, opcode, context, conditionValue))
+        auto                 found   = (routines != nullptr) ? routines->find (entry.id) : std::map<int, Word>::const_iterator();
+        std::optional<Word>  routine = (routines == nullptr) ? entry.resolved
+                                     : (found != routines->end()) ? std::optional<Word> (found->second)
+                                     :                              std::nullopt;
+
+
+
+        if (entry.enabled && entry.stops && TryMatchEntry (entry, routine, pc, opcode, context, conditionValue))
         {
             return true;
         }
@@ -795,6 +803,7 @@ bool BreakpointTable::IsStopOnWrite (
 
 bool BreakpointTable::TryMatchEntry (
     const Breakpoint              & entry,
+    std::optional<Word>             routine,
     Word                            pc,
     std::optional<Byte>             opcode,
     const IDebugExpressionContext & context,
@@ -823,7 +832,7 @@ bool BreakpointTable::TryMatchEntry (
         return SUCCEEDED (hr) && value != 0;
 
     case BreakpointKind::Disk:
-        return entry.IsDiskCall() && entry.resolved == pc && DiskCallVector::IsRequestMatch (*entry.disk, context) &&
+        return entry.IsDiskCall() && routine == pc && DiskCallVector::IsRequestMatch (*entry.disk, context) &&
                ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, conditionValue);
 
     default:

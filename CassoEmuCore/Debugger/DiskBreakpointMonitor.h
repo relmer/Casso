@@ -61,6 +61,11 @@ public:
 
     bool  IsArmed() const { return m_isArmed; }
 
+    //  For a replay's stop test: the listener is never attached by Refresh,
+    //  since the replayer puts it in the controller's slot, and Poll counts
+    //  no hit and makes no report beyond whether an entry stops.
+    void  SetReplay() { m_isReplay = true; }
+
     //  IDisk2EventSink
     void  OnMotorCommandOn  () override;
     void  OnMotorEngaged    () override                                      {}
@@ -137,4 +142,5 @@ private:
     bool                                          m_isBlockReported   = false;
     bool                                          m_isArmed           = false;
     bool                                          m_isPaused          = false;
+    bool                                          m_isReplay          = false;
 };
