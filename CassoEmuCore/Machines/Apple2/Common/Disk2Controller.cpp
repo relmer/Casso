@@ -225,10 +225,16 @@ void Disk2Controller::Write (Word address, Byte value)
 
 void Disk2Controller::OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped)
 {
-    UNREFERENCED_PARAMETER (drive);
-    UNREFERENCED_PARAMETER (nibble);
+    Byte  flags = static_cast<Byte> (Disk2NibbleRecord::kWritten | (isDropped ? Disk2NibbleRecord::kDropped : 0));
+
+
+
     UNREFERENCED_PARAMETER (quarterTrack);
-    UNREFERENCED_PARAMETER (isDropped);
+
+    if (m_activeDisk[drive]->IsLoaded())
+    {
+        m_nibbleRecord.Add (drive, nibble, flags, GetInstructionAddress());
+    }
 }
 
 
@@ -403,10 +409,11 @@ void Disk2Controller::HandleSwitch (int offset)
 
 Byte Disk2Controller::HandleReadDispatch()
 {
-    Byte     nibble = 0;
-    Byte     sense  = 0;
-    Byte     result = 0;      // Q7=1 (both shift-load and write mode) reads 0
-    uint8_t  fresh  = 0;
+    Byte     nibble  = 0;
+    Byte     sense   = 0;
+    Byte     result  = 0;     // Q7=1 (both shift-load and write mode) reads 0
+    uint8_t  fresh   = 0;
+    bool     isFresh = false;
 
 
 
@@ -433,9 +440,18 @@ Byte Disk2Controller::HandleReadDispatch()
         // own rising-edge marker so each assembled nibble reaches
         // the watcher exactly once, in order. Byte-identical for
         // the CPU-visible read path.
-        if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
+        isFresh = m_engine[m_activeDrive].ConsumeFreshNibble (fresh);
+
+        if (isFresh)
         {
             m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0);
+        }
+
+        // The recent nibbles: each one the CPU takes, with the instruction
+        // that took it, flagged while the motor spins up and the CPU reads $80.
+        if (isFresh && m_activeDisk[m_activeDrive]->IsLoaded())
+        {
+            m_nibbleRecord.Add (m_activeDrive, fresh, (m_motorSpinupRemaining > 0) ? Disk2NibbleRecord::kSpinUp : 0, GetInstructionAddress());
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
@@ -897,6 +913,7 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+    m_nibbleRecord.NoteDiskChange (drive);
 
     // Spec-006 FR-006: disk-insert event fires after the mount
     // succeeds. Place before the Error label so we don't fire on a
@@ -930,6 +947,7 @@ void Disk2Controller::EjectDisk (int drive)
     m_disks[drive].Eject();
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+    m_nibbleRecord.NoteDiskChange (drive);
 
     // Spec-006 FR-006: disk-eject event fires after the slot has
     // been physically detached and the engine repointed.
@@ -979,6 +997,7 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
     {
         m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+        m_nibbleRecord.NoteDiskChange (drive);
     }
 }
 
@@ -1128,6 +1147,7 @@ void Disk2Controller::PowerCycle (Prng & prng)
     UNREFERENCED_PARAMETER (prng);
 
     Reset();
+    m_nibbleRecord.Clear();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
@@ -1290,6 +1310,9 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
     hr = m_addrMarkWatcher.SaveState (writer);
     CHR (hr);
 
+    hr = m_nibbleRecord.SaveState (writer);
+    CHR (hr);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -1386,6 +1409,17 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     {
         m_addrMarkWatcher.ResetState();
         m_addrMarkWatcher.NoteHeadMoved (quarterTrack);
+    }
+
+    // Before version 3 the state had no recent nibbles.
+    if (version >= kNibbleRecordStateVersion)
+    {
+        hr = m_nibbleRecord.LoadState (reader);
+        CHR (hr);
+    }
+    else
+    {
+        m_nibbleRecord.Clear();
     }
 
     hr = reader.EndSection();

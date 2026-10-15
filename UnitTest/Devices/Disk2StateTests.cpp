@@ -71,6 +71,20 @@ namespace Disk2State
     }
 
 
+    static std::vector<Byte> SaveRecord (const Disk2NibbleRecord & record)
+    {
+        StateWriter  writer;
+        HRESULT      hr = S_OK;
+
+
+
+        hr = record.SaveState (writer);
+        Assert::AreEqual (S_OK, hr);
+
+        return writer.GetBytes();
+    }
+
+
     // Loads a blob into a part; on success the part must have consumed it all.
     static HRESULT LoadFrom (IMachineState & target, const std::vector<Byte> & bytes)
     {
@@ -236,6 +250,23 @@ namespace Disk2State
             }
 
             FillWatcher (seed);
+            FillRecord (seed);
+        }
+
+        // Adds the seed's count of entries, each with fields from the seed, and
+        // marks a disk change on one drive.
+        void FillRecord (Byte seed)
+        {
+            int  i = 0;
+
+
+
+            for (i = 0; i < seed + 3; i++)
+            {
+                m_nibbleRecord.Add (i & 1, static_cast<Byte> (seed + i), static_cast<Byte> (i & 0x0E), static_cast<Word> (seed * 0x100 + i));
+            }
+
+            m_nibbleRecord.NoteDiskChange (seed & 1);
         }
 
         // Steps the watcher to the seed's quarter track, counts the seed's
@@ -294,6 +325,7 @@ namespace Disk2State
             }
 
             Assert::IsTrue (SaveWatcher (m_addrMarkWatcher) == SaveWatcher (other.m_addrMarkWatcher), L"watcher state");
+            Assert::IsTrue (SaveRecord  (m_nibbleRecord)    == SaveRecord  (other.m_nibbleRecord),    L"the recent nibbles");
         }
     };
 
@@ -580,6 +612,7 @@ namespace Disk2State
                     Assert::AreEqual ((int) kQuarterTrack, target->GetQuarterTrack (0), L"drive 1's head");
                     Assert::AreEqual ((int) kQuarterTrack, target->GetQuarterTrack (1), L"drive 2's head");
                     Assert::AreEqual ((int) kQuarterTrack, target->GetEngine (activeDrive ^ 1).GetCurrentTrack(), L"the other drive's engine");
+                    Assert::AreEqual ((uint64_t) 0,        target->GetNibbleRecord().GetCount(), L"no recent nibbles");
                 }
             }
         }

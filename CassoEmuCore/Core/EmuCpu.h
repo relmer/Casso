@@ -116,6 +116,10 @@ public:
     Byte             GetY       () const  { return m_cpu6502->GetY (); }
     Byte             GetSP      () const  { return m_cpu6502->GetSP (); }
 
+    // The address of the instruction executing, for a device that reports
+    // which instruction touched it (Cpu::GetInstructionStartPtr).
+    const Word *     GetInstructionStartPtr () const { return m_cpu6502->GetInstructionStartPtr(); }
+
     // 6502 memory surface
     Byte             PeekByte   (Word address) const            { return m_cpu6502->PeekByte (address); }
     void             PokeByte   (Word address, Byte value)      { m_cpu6502->PokeByte (address, value); m_memoryBus.MarkPointerWritten (m_cpu6502->GetMemory() + address); }

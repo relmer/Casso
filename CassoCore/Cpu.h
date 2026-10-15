@@ -104,6 +104,11 @@ public:
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
     Byte GetLastPenalties         () const                   { return m_lastPenalties; }
     bool TryGetLastBranch         (Word & from) const        { from = m_lastBranchFrom; return m_hasLastBranch; }
+
+    // The address of the instruction StepOne is executing, or last executed,
+    // for a device that reports which instruction touched it.
+    const Word * GetInstructionStartPtr () const             { return &m_instructionStart; }
+
     Byte PeekByte              (Word address) const       { return memory[address]; }
     void PokeByte                 (Word address, Byte value) { memory[address] = value; }
     Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
@@ -246,6 +251,8 @@ protected:
     // the next instruction: a taken branch, a jump, a call, a return or BRK.
     Word                  m_lastBranchFrom = 0;
     bool                  m_hasLastBranch  = false;
+
+    Word                  m_instructionStart = 0;
 
 public:
     // The penalty kinds the last instruction paid, one bit each, each worth one

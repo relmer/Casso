@@ -576,6 +576,8 @@ void Cpu::StepOne()
 
 
 
+    m_instructionStart = start;
+
     if (m_isFetchObserved)
     {
         ObserveFetch (opcode);

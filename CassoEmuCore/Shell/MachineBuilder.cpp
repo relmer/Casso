@@ -1599,6 +1599,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+        m_host.GetRefs().diskController->SetInstructionAddressSource (m_host.GetCpu()->GetInstructionStartPtr());
 
         // Motor-idle auto-flush: when the drive spins down (operation done),
         // persist dirty images so writes survive a crash / kill before the

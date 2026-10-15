@@ -392,6 +392,7 @@
     <ClCompile Include="Devices\Disk\Inspector\TrackCopy.cpp" />
     <ClCompile Include="Devices\Disk\DamagedMountReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2NibbleEngine.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Disk2NibbleRecord.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibblizationLayer.cpp" />
@@ -981,6 +982,7 @@
     <ClInclude Include="Devices\Disk\Inspector\TrackCopy.h" />
     <ClInclude Include="Devices\Disk\DamagedMountReport.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2NibbleEngine.h" />
+    <ClInclude Include="Machines\Apple2\Common\Disk2NibbleRecord.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\NibblizationLayer.h" />

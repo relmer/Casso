@@ -9,6 +9,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/Disk2NibbleRecord.h"
 
 
 class IDriveAudioSink;
@@ -177,6 +178,14 @@ public:
     // without a real CPU.
     void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
 
+    // The address of the instruction the CPU is executing, for the recent
+    // nibbles; with none, as in tests that drive the controller without a
+    // CPU, each entry has address 0. Wiring, not saved.
+    void   SetInstructionAddressSource (const Word * source) noexcept { m_instructionAddressSource = source; }
+
+    // The nibbles the CPU most recently took from the drives or wrote to them.
+    const Disk2NibbleRecord &  GetNibbleRecord() const { return m_nibbleRecord; }
+
     // Inspectors used by Phase 9 tests.
     int    GetActiveDrive() const { return m_activeDrive; }
     bool   IsMotorOn() const { return m_motorOn; }
@@ -214,6 +223,7 @@ public:
     static constexpr uint16_t  kStateVersion             = 3;
     static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
     static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
+    static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
 
 private:
     void   HandleSwitch (int offset);
@@ -279,6 +289,7 @@ protected:
 
     ObserverSlots<IDisk2EventSink>  m_eventSinks;
     Disk2AddressMarkWatcher         m_addrMarkWatcher;
+    Disk2NibbleRecord               m_nibbleRecord;
 
     // Fired on the CPU thread when the motor finishes spinning down; the
     // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
@@ -299,6 +310,9 @@ protected:
     // a turn in the middle of the operation it was meant to avoid.
     bool                      m_busySinceIdleCallback   = false;
 
-    const uint64_t *          m_cpuCycleSource = nullptr;
-    uint64_t                  m_lastCpuSync    = 0;
+    const uint64_t *          m_cpuCycleSource           = nullptr;
+    uint64_t                  m_lastCpuSync              = 0;
+    const Word *              m_instructionAddressSource = nullptr;
+
+    Word  GetInstructionAddress() const { return (m_instructionAddressSource != nullptr) ? *m_instructionAddressSource : 0; }
 };
