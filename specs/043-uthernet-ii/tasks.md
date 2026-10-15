@@ -157,7 +157,7 @@ description: "Task list for the Uthernet II Ethernet card"
 - [X] T055 Verify each new test fails without its code (stub or revert the covered function, confirm red, restore and touch the file)
 - [ ] T056 Validate the Network page on screen: launch the build in the background with `--title`, open Settings > Network, capture it, check layout and sentence case
 - [ ] T057 [P] Add a CHANGELOG.md `[Unreleased]` entry and a README.md feature and test-count update, after the owner has tested
-- [ ] T058 Run the merge gate: `scripts/RunTests.ps1 -Build` (Debug and Release), `scripts/RunTests.ps1 -Build -Scenario`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`
+- [X] T058 Run the merge gate: `scripts/RunTests.ps1 -Build` (Debug and Release), `scripts/RunTests.ps1 -Build -Scenario`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`
 
 ---
 
