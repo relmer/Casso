@@ -30,7 +30,7 @@ What they cover:
 | Config | the `firmware`, `switches` and `ports.path` keys; missing firmware not failing the load; the slot-2 migration |
 | //c | its ports' existing tests, updated for paced transmit (SC-006) |
 
-## By hand
+## Manual checks
 
 Launch with `--title` per the workspace rules.
 
