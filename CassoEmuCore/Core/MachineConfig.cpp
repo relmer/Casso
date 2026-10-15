@@ -705,7 +705,7 @@ void MachineConfigLoader::ResolveSlotFirmware (
     slot.firmwareStatus = SlotFirmwareStatus::None;
     BAIL_OUT_IF (!hasFirmware, S_OK);
 
-    relPath  = fs::path (kpszSuperSerialFirmwareDir) / slot.firmware;
+    relPath  = (fs::path (kpszSuperSerialFirmwareDir) / slot.firmware).make_preferred();
     found    = resolver (searchPaths, relPath);
     wasFound = !found.empty();
 

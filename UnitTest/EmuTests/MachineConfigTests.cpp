@@ -967,7 +967,7 @@ public:
 
         AssertSucceeded (hr, L"a missing firmware file must not fail the load");
         Assert::IsTrue (config.slots[0].firmwareStatus == SlotFirmwareStatus::Missing);
-        Assert::IsTrue (config.slots[0].firmwarePath.find ("SuperSerialCard") != std::string::npos,
+        Assert::AreEqual (std::string ("Devices\\SuperSerialCard\\SSC.rom"), config.slots[0].firmwarePath,
             L"the path searched for is stored for the report");
     }
 
