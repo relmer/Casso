@@ -623,8 +623,9 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 //  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
 //  hover" gives the cell under the mouse, and the words HeatAccessJump makes
 //  ask about a cell's last access; "heatmap ignore" gives the spans whose
-//  reads before written are left out. "beam" asks for
-//  the stopped picture to be drawn again with the beam mark turned on or off.
+//  reads before written are left out. "basic on" and "basic off" turn the
+//  reading of the Applesoft program for the BASIC panes on and off. "beam"
+//  is a request for the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
@@ -648,7 +649,11 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
 
 
-    if (view == "heatmap")
+    if (view == "basic" && TryGetHeatMapShown (where, isShown))
+    {
+        target.SetDebugBasicShown (isShown);
+    }
+    else if (view == "heatmap")
     {
         if (TryGetHeatMapShown (where, isShown))
         {

@@ -352,6 +352,27 @@ struct DebuggerViewSnapshot
     };
 
     std::optional<GoTo>  goTo;
+
+    //  The Applesoft program while a BASIC pane is open: whether Applesoft
+    //  is in the $D000 bank, its lines when the chain from TXTTAB ends as it
+    //  should, the line being run (none in direct mode or at the ] prompt)
+    //  and the byte after TXTPTR, which is the start of a statement about to
+    //  run or a byte of the one running. The variables and frames are read
+    //  only while the machine is paused, and hasValues is true then.
+    struct BasicState
+    {
+        bool                         isApplesoft = false;
+        bool                         hasProgram  = false;
+        std::vector<BasicLine>       lines;
+        std::optional<Word>          line;
+        Word                         textPointer = 0;
+        bool                         hasValues   = false;
+        std::vector<BasicVariable>   variables;
+        std::vector<BasicArray>      arrays;
+        std::vector<BasicFrame>      frames;
+    };
+
+    std::optional<BasicState>  basic;
 };
 
 
@@ -479,6 +500,15 @@ public:
     static constexpr size_t  kHistoryTraceRows = 1000;
 
     static void         ApplyHistoryTrace   (DebugSession & session, std::vector<TraceRecord> entries, DebuggerViewSnapshot & snapshot);
+
+    //  The BASIC panes: while one is visible each snapshot includes the
+    //  Applesoft program; with none visible the program is not read.
+    void                 SetBasicShown   (bool isVisible) { m_isBasicShown = isVisible; }
+    bool                 IsBasicShown    () const     { return m_isBasicShown; }
+
+    //  The Applesoft program and, while paused, its values, for the BASIC
+    //  panes.
+    static DebuggerViewSnapshot::BasicState  ReadBasic (DebugSession & session, bool isPaused);
 
     //  The heat map pane: while it is shown the machine's accesses are
     //  counted and each snapshot carries their levels; hidden, the machine
@@ -823,6 +853,7 @@ private:
     Word                                           m_memoryAddress          = 0x0000;
     std::optional<uint64_t>                        m_traceTop;
     bool                                           m_isHeatMapShown         = false;
+    bool                                           m_isBasicShown           = false;
     HeatMapOptions                                 m_heatMapOptions;
     mutable std::shared_ptr<const HeatMapSymbols>  m_heatMapSymbols;
     mutable uint64_t                               m_heatMapSymbolsRevision = 0;

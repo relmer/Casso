@@ -1199,6 +1199,21 @@ void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerBasicShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerBasicShown (bool isVisible)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, isVisible ? std::string ("basic on") : std::string ("basic off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetBeamOverlayOn
 //
 //  UI thread. The CPU thread is asked to draw the picture again, since a
@@ -1589,6 +1604,22 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 void ShellDebugger::SetDebugHeatMapShown (bool shown)
 {
     m_debugViewState.SetHeatMapShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugBasicShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugBasicShown (bool isVisible)
+{
+    m_debugViewState.SetBasicShown (isVisible);
     m_isDebugViewDirty = true;
 }
 

@@ -21,6 +21,7 @@
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/DebuggerCommands.h"
@@ -303,6 +304,8 @@ void DebuggerWindow::OnCreate()
         [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
         [this] (Word address)             { ShowCode (address); });
 
+    CreateBasicPanes();
+
     //  Every device panel the window can place; each shows while its device
     //  is present and its panel open.
     for (const DebuggerLayout::DiagnosticsPanel & panel : DebuggerLayout::GetDiagnosticsPanels())
@@ -384,6 +387,7 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureBreakpointBar();
     ConfigureUndoBars();
     ConfigureEventLogs();
+    ConfigureBasicPanes();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -1065,7 +1069,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list };
+                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList, m_basicVariableList, m_basicStackList };
 
 
 
@@ -1094,7 +1098,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
     std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
-                                           m_heatRangeList, m_diskLog.list, m_inputLog.list };
+                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList, m_basicVariableList, m_basicStackList };
 
 
 
@@ -2882,7 +2886,8 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         active.code = GetCodeLines (m_activeCode);
     }
 
-    taken = DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
+    taken = GetBasicStep (action);
+    taken = taken.has_value() ? taken : DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
 
     if (taken.has_value())
     {
@@ -5170,6 +5175,8 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kDiskLog,  L"Disk II log", m_diskLog.frame.get());
     m_dockSite->AddPane (DebuggerLayout::kInputLog, L"Input log",   m_inputLog.frame.get());
 
+    AddBasicPanes();
+
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
     //  pane, are put in the bar of the one they act on (PlaceMemoryBar).
@@ -5271,6 +5278,11 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (pane == DebuggerLayout::kHeatRanges)
     {
         return m_isHeatRangesOpened;
+    }
+
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        return m_basicOpened.contains (pane);
     }
 
     if (GetEventLogOf (pane) != nullptr)
@@ -5685,6 +5697,9 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     panes.push_back (DebuggerLayout::kHeatRanges);
     panes.push_back (DebuggerLayout::kDiskLog);
     panes.push_back (DebuggerLayout::kInputLog);
+    panes.push_back (DebuggerLayout::kBasicProgram);
+    panes.push_back (DebuggerLayout::kBasicVariables);
+    panes.push_back (DebuggerLayout::kBasicStack);
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)
@@ -5732,6 +5747,12 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     {
         m_isHeatRangesOpened = true;
         SaveHeatRanges();
+    }
+
+    //  A BASIC pane is added to the open views the same way.
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        m_basicOpened.insert (pane);
     }
 
     //  The event logs the same, with their options.
@@ -6630,6 +6651,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     SyncHeatMapRecording();
+    SyncBasicReading();
 
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
@@ -7619,6 +7641,8 @@ void DebuggerWindow::ApplySnapshot()
     m_callStackPane->SetColors (GetTextColors());
     m_callStackPane->Apply     (m_snapshot->callStack);
 
+    ApplyBasicPanes();
+
     ApplyMemoryWindows();
     ApplySource();
     ApplyDiagnostics();
@@ -8071,6 +8095,7 @@ void DebuggerWindow::KeepOpenViews()
     text += m_documents.Format (nameOf);
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
     text += BreakpointColumns::FormatShown (m_breakpointShown);
+    text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -8085,6 +8110,7 @@ void DebuggerWindow::KeepOpenViews()
         views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
         m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
+        m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
 
         SetBreakpointColumns();
 
@@ -11903,6 +11929,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kDiskLog)     { return { m_diskLog.slot.get(), m_diskLogError, m_diskLog.list, m_diskLog.bar, m_diskTrackBox, m_diskSectorBox }; }
     if (pane == DebuggerLayout::kInputLog)    { return { m_inputLog.slot.get(), m_inputLog.list, m_inputLog.bar }; }
 
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        return { GetBasicList (pane) };
+    }
+
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
         if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
@@ -11978,6 +12009,11 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return GetEventLogOf (pane)->frame.get();
     }
 
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        return GetBasicFrame (pane);
+    }
+
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -12036,6 +12072,9 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kHeatRanges)  { return L"Heat map ranges"; }
     if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
     if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
+    if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
+    if (pane == DebuggerLayout::kBasicVariables) { return L"BASIC variables"; }
+    if (pane == DebuggerLayout::kBasicStack)     { return L"BASIC stack";     }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {

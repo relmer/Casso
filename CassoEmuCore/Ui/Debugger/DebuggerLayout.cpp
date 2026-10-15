@@ -143,7 +143,8 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
+                                       kBasicProgram, kBasicVariables, kBasicStack };
 
 
 
@@ -347,7 +348,99 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kConsole;
     }
 
+    if (pane == kBasicProgram && layout.Contains (kCode))
+    {
+        return kCode;
+    }
+
+    if (pane == kBasicVariables && layout.Contains (kWatches))
+    {
+        return kWatches;
+    }
+
+    if (pane == kBasicStack && layout.Contains (kCallStack))
+    {
+        return kCallStack;
+    }
+
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::IsBasicPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
+{
+    return pane == kBasicProgram || pane == kBasicVariables || pane == kBasicStack;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::FormatBasicOpened
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerLayout::FormatBasicOpened (const std::set<std::wstring> & opened)
+{
+    std::string  text;
+
+
+
+    for (const std::wstring & pane : opened)
+    {
+        if (IsBasicPane (pane))
+        {
+            text += " open=" + TextEncoding::WideToNarrow (pane);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::ParseBasicOpened
+//
+//  Any other token is passed over, as ParseOpenViews passes over this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::wstring> DebuggerLayout::ParseBasicOpened (const std::string & text)
+{
+    std::set<std::wstring>  opened;
+    std::istringstream      in (text);
+    std::string             token;
+
+
+
+    while (in >> token)
+    {
+        std::wstring  pane = token.starts_with ("open=") ? TextEncoding::NarrowToWide (token.substr (5)) : std::wstring();
+
+
+
+        if (IsBasicPane (pane))
+        {
+            opened.insert (pane);
+        }
+    }
+
+    return opened;
 }
 
 
@@ -407,6 +500,12 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kTrace,    kConsole);
     layout.Add (kDiskLog,  kConsole);
     layout.Add (kInputLog, kConsole);
+
+    //  The BASIC program is a tab of the disassembly, its variables of the
+    //  watches and its stack of the call stack.
+    layout.Add (kBasicProgram,   kCode);
+    layout.Add (kBasicVariables, kWatches);
+    layout.Add (kBasicStack,     kCallStack);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

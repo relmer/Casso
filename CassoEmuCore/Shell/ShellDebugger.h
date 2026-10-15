@@ -220,6 +220,7 @@ public:
 
     // Whether the heat map pane is shown, and so recording.
     void    SetDebugHeatMapShown   (bool shown) override;
+    void    SetDebugBasicShown     (bool isVisible) override;
     void    SetDebugHeatMapOptions (const std::string & text) override;
     void    ResetDebugHeatMap      () override;
     void    SetDebugHeatMapHover   (std::optional<Word> address) override;
@@ -256,6 +257,7 @@ public:
     std::string  GetDebuggerEventLogOptions (DebugLogKind kind) override;
     void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override;
     void    SetDebuggerHeatMapShown  (bool shown) override;
+    void    SetDebuggerBasicShown    (bool isVisible) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
     void    OnDebuggerWindowClosed   () override;

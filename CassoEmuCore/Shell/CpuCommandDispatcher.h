@@ -63,6 +63,10 @@ public:
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
 
+    //  Whether a BASIC pane is open and visible, which is when each
+    //  snapshot includes the Applesoft program.
+    virtual void     SetDebugBasicShown       (bool isVisible)                                  { (void) isVisible; }
+
     //  The heat map pane's options, in HeatMapOptions' text, and its Reset,
     //  which zeroes what the map has counted.
     virtual void     SetDebugHeatMapOptions   (const std::string & text)                        { (void) text; }

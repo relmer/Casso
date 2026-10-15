@@ -52,6 +52,9 @@ class ColorKeyButton;
 class ToolbarCheckEntry;
 class ToolbarLabelEntry;
 class HistoryBand;
+class BasicProgramPane;
+class BasicStackPane;
+class BasicVariablesPane;
 class CallStackPane;
 class DiagnosticsPane;
 class MemoryPane;
@@ -115,6 +118,10 @@ public:
     //  Whether the heat map pane is shown; the machine records its accesses
     //  only while it is. A host with no machine, as a test's is, records none.
     virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
+
+    //  Whether a BASIC pane is visible; the Applesoft program is read for
+    //  the snapshots only while one is.
+    virtual void  SetDebuggerBasicShown   (bool isVisible)                 { (void) isVisible; }
 
     //  A memory window's Go to text, resolved on the CPU thread; the window
     //  acts on it when a snapshot carries the answer.
@@ -520,6 +527,11 @@ protected:
     DxuiToolbar              * GetHeatViewBar       () const { return m_heatViewBar; }
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
+
+    //  The BASIC panes: whether the last request to the host turned the
+    //  reading of the program on, and the step that updates it.
+    bool                       IsBasicReading       () const { return m_isBasicReading; }
+    void                       SyncBasicReading     ();
     void                       ApplyHeatMap         ();
     bool                       RouteHeatMapMouse    (const DxuiMouseEvent & ev);
     bool                       RouteHeatMapBarMouse (const DxuiMouseEvent & ev);
@@ -1408,6 +1420,32 @@ private:
     DxuiTextInput                              * m_diskSectorBox    = nullptr;
     std::unique_ptr<ToolbarBoxEntry>             m_diskTrackEntry;
     std::unique_ptr<ToolbarBoxEntry>             m_diskSectorEntry;
+
+    //  The BASIC panes (DebuggerWindowBasic.cpp): the program, its variables
+    //  and its stack, which are opened, and the line the program pane last
+    //  scrolled to.
+    DxuiListView                         * m_basicProgramList    = nullptr;
+    DxuiListView                         * m_basicVariableList   = nullptr;
+    DxuiListView                         * m_basicStackList      = nullptr;
+    std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
+    std::unique_ptr<BasicVariablesPane>    m_basicVariablesPane;
+    std::unique_ptr<BasicStackPane>        m_basicStackPane;
+    std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
+    std::unique_ptr<DebuggerPaneFrame>     m_basicVariablesFrame;
+    std::unique_ptr<DebuggerPaneFrame>     m_basicStackFrame;
+    std::set<std::wstring>                 m_basicOpened;
+    std::optional<Word>                    m_basicShownLine;
+    bool                                   m_isBasicReading      = false;
+
+    void                           CreateBasicPanes      ();
+    void                           ConfigureBasicPanes   ();
+    void                           AddBasicPanes         ();
+    void                           ApplyBasicPanes       ();
+    void                           ToggleBasicBreakpoint (Word line);
+    void                           ShowBasicLine         (Word line);
+    std::optional<DebuggerAction>  GetBasicStep          (DebuggerKeySchemes::Action action) const;
+    DebuggerPaneFrame            * GetBasicFrame         (const std::wstring & pane) const;
+    DxuiListView                 * GetBasicList          (const std::wstring & pane) const;
 
     void                     CreateEventLogs          ();
     void                     ConfigureEventLogs       ();

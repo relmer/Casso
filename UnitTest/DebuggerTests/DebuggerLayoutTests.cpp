@@ -171,7 +171,7 @@ namespace DebuggerLayoutTests
 
 
             Assert::IsFalse  (restored.Contains (L"gone"), L"a pane this build lacks is dropped");
-            Assert::AreEqual ((size_t) 4, restored.GetGroup (DebuggerLayout::kCode).size(), L"the code view and the three more that open beside it");
+            Assert::AreEqual ((size_t) 5, restored.GetGroup (DebuggerLayout::kCode).size(), L"the code view, the three more that open beside it and the BASIC program");
 
             for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
             {

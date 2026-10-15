@@ -213,7 +213,60 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     BuildSource (session, snapshot);
 
+    if (m_isBasicShown)
+    {
+        snapshot.basic = ReadBasic (session, isPaused);
+    }
+
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadBasic
+//
+//  Every read is a peek. A real is written by the ROM's own FOUT, run on an
+//  overlay, which costs a few hundred instructions a value, so the values
+//  wait for the machine to stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & session, bool isPaused)
+{
+    DebuggerViewSnapshot::BasicState  state;
+    ApplesoftProgram                  program ([&session] (Word address) { Byte value = 0; session.TryPeek (address, value); return value; });
+    Byte                              low     = 0;
+    Byte                              high    = 0;
+
+
+
+    state.isApplesoft = BasicStopMonitor::IsApplesoftVisible (session);
+
+    if (!state.isApplesoft)
+    {
+        return state;
+    }
+
+    session.TryPeek (ApplesoftProgram::kTxtPtr,              low);
+    session.TryPeek ((Word) (ApplesoftProgram::kTxtPtr + 1), high);
+
+    state.hasProgram  = program.TryGetListing (state.lines);
+    state.line        = program.IsAtPrompt (session.GetTarget().GetRegisters().sp) ? std::nullopt : program.GetCurrentLine();
+    state.textPointer = (Word) ((low | (high << 8)) + 1);
+    state.hasValues   = isPaused;
+
+    if (isPaused)
+    {
+        program.GetVariables (state.variables);
+        program.GetArrays    (state.arrays);
+        program.GetFrames    (state.frames);
+    }
+
+    return state;
 }
 
 

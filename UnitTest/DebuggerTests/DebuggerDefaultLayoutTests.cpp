@@ -64,7 +64,7 @@ namespace DebuggerDefaultLayoutTests
                 Assert::IsTrue (IsInGroup (layout, DebuggerLayout::kConsole, DebuggerLayout::GetDiagnosticsPaneId (panel.id)));
             }
 
-            Assert::AreEqual ((size_t) 1, layout.GetGroup (DebuggerLayout::kCallStack).size(), L"the call stack is a group of its own");
+            Assert::AreEqual ((size_t) 2, layout.GetGroup (DebuggerLayout::kCallStack).size(), L"the call stack is a group of its own, with the BASIC stack");
             Assert::AreEqual ((size_t) 1, layout.GetGroup (DebuggerLayout::kStack).size(),     L"so is the stack");
         }
 

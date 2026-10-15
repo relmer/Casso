@@ -102,6 +102,32 @@ std::optional<Word> ApplesoftProgram::GetCurrentLine() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftProgram::IsAtPrompt
+//
+//  The return address anywhere in the stack in use: GETLN calls the
+//  keyboard routines below it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftProgram::IsAtPrompt (Byte stackPointer) const
+{
+    for (Word at = (Word) (0x0100 + stackPointer + 1); at < 0x01FF; at++)
+    {
+        if (PeekWord (at) == kPromptReturn)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftProgram::GetVariables
 //
 //  Seven bytes each: the name, whose high bits indicate the type, and five bytes

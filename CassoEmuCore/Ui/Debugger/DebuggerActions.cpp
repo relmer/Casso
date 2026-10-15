@@ -485,6 +485,27 @@ DebuggerAction DebuggerActions::GetSourceBreakpoint (const std::string & fileNam
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetBasicStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetBasicStep (DebugVerb verb, CommandMode mode)
+{
+    const char  * name = (verb == DebugVerb::BasicStepLine) ? "BASICLINE"
+                       : (verb == DebugVerb::BasicStepOut)  ? "BASICOUT"
+                       :                                      "BASICSTEP";
+
+
+
+    return Make (verb, name, mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetCallStackMode
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -535,6 +535,24 @@ BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
 - With none set, nothing is tested: the interpreter's pages are watched only
   while a BASIC breakpoint or step is active.
 
+**In the window.** View > BASIC program, BASIC variables and BASIC stack open
+three panes, which stay open across restarts until closed:
+
+- **BASIC program**, a tab beside the disassembly, lists the program as LIST
+  prints it, colored, read from memory as the program changes. The line being
+  run has the PC's row color and arrow; its statement is in full color and the
+  line's other statements are muted. Enter or a double-click on a row sets a
+  line breakpoint there, or clears the one there. With the keys in this pane,
+  Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
+- **BASIC variables**, a tab beside the watches, lists every simple variable
+  and every array element, each value as `PRINT` writes it.
+- **BASIC stack**, a tab beside the call stack, lists the active `GOSUB`
+  returns and `FOR` loops, newest first; Enter or a double-click brings the
+  line into view in the program pane.
+
+The values are read while the machine is paused; while it runs, the two value
+panes have a note to pause it. At the `]` prompt no line is marked.
+
 ## Source-level debugging
 
 A debug file maps addresses to source lines. Casso reads cc65's debug format

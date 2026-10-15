@@ -91,6 +91,9 @@ public:
     static DebuggerAction  GetStepOver         (CommandMode mode);
     static DebuggerAction  GetStepOut          (CommandMode mode);
 
+    //  BASICSTEP, BASICLINE or BASICOUT, by its verb.
+    static DebuggerAction  GetBasicStep        (DebugVerb verb, CommandMode mode);
+
     //  T-, P-, GU-, G- or LIVE: the verb is one of the reverse verbs.
     static DebuggerAction  GetReverse          (DebugVerb verb, CommandMode mode);
 

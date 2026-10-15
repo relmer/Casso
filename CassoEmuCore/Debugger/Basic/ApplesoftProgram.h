@@ -119,6 +119,12 @@ public:
     //  inside memory: no program, or one being edited.
     bool                 TryGetListing (std::vector<BasicLine> & lines) const;
     std::optional<Word>  GetCurrentLine() const;
+
+    //  Whether the interpreter is waiting at its ] prompt for a line, with
+    //  the stack pointer given: RESTART's call of GETLN, whose return address
+    //  is then on the stack. CURLIN has the last line run until a line is
+    //  typed, for CONT.
+    bool                 IsAtPrompt (Byte stackPointer) const;
     void                 GetVariables  (std::vector<BasicVariable> & variables) const;
     void                 GetArrays     (std::vector<BasicArray> & arrays) const;
     void                 GetFrames     (std::vector<BasicFrame> & frames) const;
@@ -152,6 +158,7 @@ private:
     static constexpr Byte  kGosubToken    = 0xB0;
     static constexpr Byte  kForToken      = 0x81;
     static constexpr Word  kStackBottom   = 0x01F8;
+    static constexpr Word  kPromptReturn  = 0xD443;   // RESTART's JSR GETLN at $D441, as it is pushed
 
     Byte                 PeekByte     (Word address) const { return m_peek (address); }
     Word                 PeekWord     (Word address) const;

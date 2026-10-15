@@ -220,6 +220,7 @@
     <ClCompile Include="Ui\Debugger\WatchHistory.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowBasic.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMap.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMapRanges.cpp" />
@@ -241,6 +242,7 @@
     <ClCompile Include="Ui\Debugger\Panes\MemoryPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourceDocuments.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\BasicPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapZoomWidget.cpp" />
@@ -829,6 +831,7 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourceDocuments.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\BasicPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapZoomWidget.h" />
