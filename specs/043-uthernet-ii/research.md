@@ -109,16 +109,16 @@ Bind failure for LISTEN (port in use): SOCK_CLOSED + TIMEOUT (spec edge case). S
 
 ## R12. Configuration
 
-**Decision**: Device token `uthernet2`. Each shipped ][, ][+, //e and //e Enhanced definition gains `{ "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }`, and `$cassoMachineVersion` goes from 12 to 13, with the version-12 hashes added to the prior-hash table. The card's settings are a `network` object on that slot entry:
+**Decision**: Device token `uthernet2`. Each shipped ][, ][+, //e and //e Enhanced definition gains `{ "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }`, and each takes its next `$cassoMachineVersion`, with the previous hashes added to the prior-hash table. The card's settings are a `network` object on that slot entry:
 
 ```json
 "network": { "mac": "02:xx:xx:xx:xx:xx", "lanAccess": false,
              "portForwards": [ { "protocol": "tcp", "hostPort": 6502, "guestPort": 6502 } ] }
 ```
 
-`MachineConfigUpgrade::MigrateUserConfig` injects the disabled entry into a user `slots` array that lacks one, alongside the existing printer injection, picking slot 3 or the lowest free slot.
+A user array replaces the default's wholesale, so a user who saved hardware settings before this feature has no card entry. Enabling the card on the Network page adds one (slot 3 or the lowest free slot) rather than a migration doing it at load.
 
-**Rationale**: A user array replaces the default's wholesale, so without the injection a user who ever saved hardware settings could never enable the card.
+**Rationale**: A migration would rewrite every existing user configuration that has a `slots` array, including ones with nothing else to migrate, for a card that ships disabled. The settings page is the only place an entry is needed.
 
 ## R13. Settings UI
 

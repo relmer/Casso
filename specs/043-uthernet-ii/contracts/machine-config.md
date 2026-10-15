@@ -8,7 +8,7 @@
 { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }
 ```
 
-`$cassoMachineVersion` becomes 13 in those four definitions, and each one's version-12 normalized SHA-256 is added to the prior-hash table. The //c definition does not change.
+Each of those four definitions takes the next `$cassoMachineVersion` (Apple2 11, Apple2Plus 14, Apple2e 13, Apple2eEnhanced 8), and each one's previous normalized SHA-256 is added to the prior-hash table. The //c definition does not change.
 
 ## Card settings
 
@@ -28,11 +28,11 @@ On the card's slot entry, all keys optional:
 Loading rules:
 
 - A missing `network` object, or missing keys, take the defaults: no MAC, `lanAccess` false, no forwards.
-- An invalid `mac`, `protocol` or port is replaced by its default and produces a load warning; the machine loads.
+- An invalid `mac`, `protocol` or port is replaced by its default; the machine loads.
 
-## User configuration upgrade
+## Existing user configurations
 
-`MachineConfigUpgrade::MigrateUserConfig` adds the disabled card entry to a user `slots` array that has no `uthernet2` entry, at slot 3 when slot 3 is free and otherwise at the lowest free slot from 1 to 7, and makes no change when every slot is taken. It runs only on a user array that already contains a `slots` key, so the //c, which has none, is unaffected. The operation is idempotent.
+A user `slots` array replaces the shipped one wholesale, so a user who saved hardware settings before this feature has no `uthernet2` entry. No migration adds one: enabling the card on the Network page adds the entry to the user array, at slot 3 when it is free and otherwise at the lowest free slot from 1 to 7. A machine with no `slots` key (the //c) does not offer the card.
 
 ## Device registry
 

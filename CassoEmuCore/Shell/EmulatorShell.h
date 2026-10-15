@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32HostNetwork.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -688,6 +689,10 @@ private:
     // m_host->Create() returns. The chrome-band dock scales its band
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
+
+    //  Winsock for the Uthernet II. Declared ahead of the machine so it is
+    //  destroyed after it: the card's host sockets close before WSACleanup.
+    Win32HostNetwork        m_hostNetwork;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything

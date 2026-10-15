@@ -34,6 +34,7 @@ struct MachineRefs
     class MockingboardCard *      mockingboard     = nullptr;
     class VideoOutput *           activeVideoMode  = nullptr;
     class PrinterCard *           printerCard      = nullptr;
+    class UthernetCard *          uthernet         = nullptr;
 
     // The $D000 bank split every Apple II has. Resolved once by
     // WireLanguageCard, which is the only code that knows which owned device

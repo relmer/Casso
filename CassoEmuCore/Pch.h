@@ -39,6 +39,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <cmath>

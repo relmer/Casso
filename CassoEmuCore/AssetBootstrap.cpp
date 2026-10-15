@@ -335,6 +335,14 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2e",         "1c355cafb7a8f301b9d34e9f718697c6208b2e93b3c21a109387a9f7c1fa6b89" },
     { "Apple2eEnhanced", "89355968f0683869a22fe7d2a564cb62b4783b7a675886420df9371a5bc4ca92" },
     { "Apple2c",         "ad85c6350233e5d5312c6ba9b4dc97e225583ad0de0c2b113f68d99b0be8bfd0" },
+
+    // The four slotted machines before the disabled Uthernet II
+    // entry in slot 3: Apple2 v10, Apple2Plus v13, Apple2e v12,
+    // Apple2eEnhanced v7.
+    { "Apple2",          "32b2d21a67494e91d9b232bc9d4e1777831fa2d0a99749f15c38842a99f6d49d" },
+    { "Apple2Plus",      "9dda6064ecd6cd9af46091da47ada410bcc08a57fb49e8600e60f0c9620152a7" },
+    { "Apple2e",         "08ef86bc0a3ecd79ea6475331a2a05d94873eafd72621ee3f646f6dee048d761" },
+    { "Apple2eEnhanced", "0ee887a4b0b42660de16caf3b329cc4aea4effa5efcf7ced9d63cdf22132eec4" },
 };
 
 

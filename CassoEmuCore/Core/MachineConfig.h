@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "JsonParser.h"
 #include "PathResolver.h"
+#include "Config/NetworkCardSettings.h"
 
 
 
@@ -201,6 +202,10 @@ struct SlotConfig
     // empty vector) means this machine's own default, which is what every
     // config written before the key existed relies on.
     vector<PortConfig>  ports;
+
+    // The Uthernet II's settings, from the slot entry's `network` object;
+    // defaults for any other device.
+    NetworkCardSettings  network;
 };
 
 

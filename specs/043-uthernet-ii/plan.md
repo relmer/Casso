@@ -86,7 +86,6 @@ CassoEmuCore/
 │   └── NetworkCardSettings.h/.cpp         # settings struct, JSON read/write, validation
 ├── Core/
 │   ├── MachineConfig.h/.cpp               # SlotConfig::network, loader
-│   ├── MachineConfigUpgrade.h/.cpp        # inject the disabled card entry
 │   └── ComponentRegistry.cpp              # register "uthernet2"
 ├── Machines/Apple2/Common/
 │   └── UthernetCard.h/.cpp                # MemoryDevice, Tick, IRQ
@@ -100,7 +99,7 @@ CassoEmuCore/
     ├── NetworkPage.h/.cpp                 # Settings > Network
     └── SettingsSheet.cpp                  # add the page
 
-Resources/Machines/{Apple2,Apple2Plus,Apple2e,Apple2eEnhanced}/*.json   # slot 3 entry, version 13
+Resources/Machines/{Apple2,Apple2Plus,Apple2e,Apple2eEnhanced}/*.json   # slot 3 entry, next version stamp
 (AssetBootstrap prior-hash table)                                      # version-12 hashes
 
 UnitTest/
@@ -136,7 +135,7 @@ ScenarioTests/
 3. Card on the bus: `UthernetCard`, registry, machine definitions, builder and host wiring, IRQ; probe test on a `TestMachine`.
 4. Hardware sockets: `W5100SocketBridge` for TCP and UDP; bridge tests; guest UDP and TCP programs.
 5. Virtual network: `PacketCodec`, `DhcpServer`, `UdpNat`, `TcpNat`, `VirtualNetwork`, `PortForwarder`; tests for each; MACRAW guest program.
-6. Configuration: `MacAddress`, `NetworkCardSettings`, `SlotConfig::network`, loader, upgrade injection, version 13 and prior hashes.
+6. Configuration: `MacAddress`, `NetworkCardSettings`, `SlotConfig::network`, loader, version stamps and prior hashes.
 7. Settings UI: `SettingsPanelState` additions, `NetworkPage`, sheet registration, port-forward error reporting.
 8. Scenario test on real Winsock; CHANGELOG and README; full gate.
 

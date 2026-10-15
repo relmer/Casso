@@ -303,7 +303,18 @@ void W5100::LayOutBuffers()
 
 bool W5100::IsInterruptPending() const
 {
-    return (ReadCommon (R::kIr) & m_mem[R::kImr]) != 0;
+    Byte  mask = m_mem[R::kImr];
+
+
+
+    // The card checks this after every instruction; with every source
+    // masked, which is how most software runs, IR is not computed at all.
+    if (mask == 0)
+    {
+        return false;
+    }
+
+    return (ReadCommon (R::kIr) & mask) != 0;
 }
 
 

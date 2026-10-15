@@ -37,6 +37,7 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
 #include "Machines/Apple2/Common/ParallelFirmware.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
@@ -795,6 +796,66 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 m_host.GetRefs().mockingboard);
         }
     }
+
+    hr = WireUthernet (config);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineBuilder::WireUthernet
+//
+//  Finds the Uthernet II the slot loop installed, if any, and connects its
+//  interrupt line, the PC's network and the settings from its slot entry.
+//  The card has no ROM, so the //e's Cxxx router has no slot device to add.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineBuilder::WireUthernet (const MachineConfig & config)
+{
+    HRESULT                      hr       = S_OK;
+    UthernetCard               * card     = nullptr;
+    const NetworkCardSettings  * settings = nullptr;
+    NetworkCardSettings          defaults;
+
+
+
+    m_host.GetRefs().uthernet = nullptr;
+
+    for (auto & dev : m_host.GetOwnedDevices())
+    {
+        card = dynamic_cast<UthernetCard *> (dev.get());
+
+        if (card != nullptr)
+        {
+            break;
+        }
+    }
+
+    BAIL_OUT_IF (card == nullptr, S_OK);
+
+    settings = &defaults;
+
+    for (const SlotConfig & slot : config.slots)
+    {
+        if (slot.enabled && slot.slot == card->GetSlot())
+        {
+            settings = &slot.network;
+        }
+    }
+
+    hr = card->AttachInterruptController (&m_host.GetInterruptController());
+    CHR (hr);
+
+    card->AttachNetwork (m_services.hostNetwork, *settings);
+    m_host.GetRefs().uthernet = card;
 
 Error:
     return hr;

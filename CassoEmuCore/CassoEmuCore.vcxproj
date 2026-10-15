@@ -523,6 +523,17 @@
     <ClCompile Include="Seams\Win32HostSocket.cpp" />
     <ClCompile Include="Seams\Win32HostNetwork.cpp" />
     <ClCompile Include="Devices\Network\W5100.cpp" />
+    <ClCompile Include="Config\MacAddress.cpp" />
+    <ClCompile Include="Config\NetworkCardSettings.cpp" />
+    <ClCompile Include="Devices\Network\PacketCodec.cpp" />
+    <ClCompile Include="Devices\Network\DhcpServer.cpp" />
+    <ClCompile Include="Devices\Network\UdpNat.cpp" />
+    <ClCompile Include="Devices\Network\TcpNatConnection.cpp" />
+    <ClCompile Include="Devices\Network\TcpNat.cpp" />
+    <ClCompile Include="Devices\Network\PortForwarder.cpp" />
+    <ClCompile Include="Devices\Network\VirtualNetwork.cpp" />
+    <ClCompile Include="Devices\Network\W5100SocketBridge.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\UthernetCard.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -939,6 +950,19 @@
     <ClInclude Include="Devices\Network\W5100.h" />
     <ClInclude Include="Devices\Network\W5100Registers.h" />
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
+    <ClInclude Include="Config\MacAddress.h" />
+    <ClInclude Include="Config\NetworkCardSettings.h" />
+    <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
+    <ClInclude Include="Devices\Network\VirtualSubnet.h" />
+    <ClInclude Include="Devices\Network\PacketCodec.h" />
+    <ClInclude Include="Devices\Network\DhcpServer.h" />
+    <ClInclude Include="Devices\Network\UdpNat.h" />
+    <ClInclude Include="Devices\Network\TcpNatConnection.h" />
+    <ClInclude Include="Devices\Network\TcpNat.h" />
+    <ClInclude Include="Devices\Network\PortForwarder.h" />
+    <ClInclude Include="Devices\Network\VirtualNetwork.h" />
+    <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
+    <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

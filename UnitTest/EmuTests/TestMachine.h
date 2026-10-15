@@ -84,6 +84,13 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  Edits the loaded configuration and the build services before the
+    //  build, for a test that enables a card the shipped machine has disabled
+    //  or puts a fake behind one of the services.
+    using Customize = std::function<void (MachineConfig &, MachineBuildServices &)>;
+
+    TestMachine (const std::string & machineId, Slots slots, const Customize & customize);
+
     //  The builder that built this machine, for the accessors the shell reads
     //  through it.
     MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
@@ -91,6 +98,10 @@ public:
 private:
 
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
+
+    static MachineBuildServices  MakeServices (const std::string & machineId, const Customize & customize);
+
+    void  Construct (const std::string & machineId, Slots slots, const Customize & customize);
 
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;

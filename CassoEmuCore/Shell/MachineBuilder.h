@@ -6,6 +6,7 @@
 
 
 class DriveAudioMixer;
+class IHostNetwork;
 class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
@@ -52,6 +53,10 @@ struct MachineBuildServices
     WasapiAudio                                     *  wasapiAudio            = nullptr;
 
     PrinterWorker  *  printerWorker           = nullptr;
+
+    //  The PC's network stack, for the Uthernet II. With null, the card has no
+    //  PC connectivity.
+    IHostNetwork   *  hostNetwork             = nullptr;
     uint64_t       *  printerAutoOpenActivity = nullptr;
 
     const float  *  drivePan          = nullptr;    // two entries
@@ -124,6 +129,7 @@ public:
     HRESULT  CreateCpu            (const MachineConfig & config);
     void     WireJoyport          ();
     void     WireCassettePort     ();
+    HRESULT  WireUthernet         (const MachineConfig & config);
 
     Byte *   GetAuxRamBuffer      ();
     Byte *   GetMainRamBuffer     ();

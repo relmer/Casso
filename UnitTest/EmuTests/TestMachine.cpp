@@ -26,8 +26,78 @@ namespace fs = std::filesystem;
 TestMachine::TestMachine (const std::string & machineId, Slots slots)
     : m_builder (*this, m_nothingListening)
 {
-    std::wstring  wide = TextEncoding::NarrowToWide (machineId);
-    HRESULT       hr   = S_OK;
+    Construct (machineId, slots, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (customized)
+//
+//  The builder copies its services when it is constructed, so they are
+//  customized up front through a first, throwaway config load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string  & machineId,
+    Slots                slots,
+    const Customize    & customize)
+    : m_nothingListening (MakeServices (machineId, customize)),
+      m_builder          (*this, m_nothingListening)
+{
+    Construct (machineId, slots, customize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::MakeServices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineBuildServices TestMachine::MakeServices (
+    const std::string  & machineId,
+    const Customize    & customize)
+{
+    MachineConfig         config;
+    MachineBuildServices  services;
+
+
+
+    if (customize)
+    {
+        LoadConfig (machineId, config);
+        customize (config, services);
+    }
+
+    return services;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::Construct
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMachine::Construct (
+    const std::string  & machineId,
+    Slots                slots,
+    const Customize    & customize)
+{
+    std::wstring          wide = TextEncoding::NarrowToWide (machineId);
+    HRESULT               hr   = S_OK;
+    MachineBuildServices  unused;
 
 
 
@@ -48,6 +118,11 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
                        [] (const SlotConfig & slot) { return slot.slot != 6; });
     }
 
+    if (customize)
+    {
+        customize (config, unused);
+    }
+
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);
     GetConfig() = config;
@@ -56,7 +131,6 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
 
     AssertSucceeded (hr, std::format (L"{} must build", wide).c_str());
 }
-
 
 
 

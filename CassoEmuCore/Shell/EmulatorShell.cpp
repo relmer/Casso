@@ -164,6 +164,7 @@ EmulatorShell::EmulatorShell()
 
     m_printer->BindBuildServices (services);
 
+    services.hostNetwork            = &m_hostNetwork;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
