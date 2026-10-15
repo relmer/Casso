@@ -8,6 +8,7 @@
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Microcode.h"
 #include "OpcodeTable.h"
 
@@ -184,6 +185,7 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
     case BreakpointKind::Brk:         return "BRK ON";
     case BreakpointKind::Interrupt:   return "BRKINT ON";
     case BreakpointKind::MemoryValue: return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    case BreakpointKind::Disk:        return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
     default:                          return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
     }
 }
@@ -269,6 +271,7 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
     case BreakpointKind::Brk:         return "BRK";
     case BreakpointKind::Interrupt:   return "interrupt";
     case BreakpointKind::MemoryValue: return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    case BreakpointKind::Disk:        return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
     default:                          return std::string (kAccessWords[(int) info.access]) + " " + range;
     }
 }

@@ -49,6 +49,7 @@ enum class BreakpointKind
     Brk,
     Interrupt,
     MemoryValue,
+    Disk,
 };
 
 enum class WatchAccess
@@ -154,6 +155,11 @@ struct BreakpointInfo
     bool                 stops     = true;          // false: counts hits only
     uint32_t             hits      = 0;
     std::string          symbol;                    // the symbol an address breakpoint was set by
+
+    // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
+    // breakpoint stops at now, absent while its vector has no target.
+    std::optional<DiskBreakSpec>  disk;
+    std::optional<Word>           resolved;
 };
 
 struct BreakpointSetData
@@ -576,6 +582,125 @@ enum class StopReason
     Brk,
     InvalidOpcode,
     Reset,
+    Disk,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskFieldEvent
+//
+//  A field the disk breakpoints' tracker followed to its last nibble: an
+//  address field to its checksum, a data field to its checksum nibble, or a
+//  data prologue written after an address field was read. The instructions
+//  are those that read the address prologue's first nibble, the data
+//  prologue's first nibble and the event's last nibble; isPassed is the read
+//  test's answer, the first and the last being one instruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DiskFieldEventKind
+{
+    AddressField,
+    DataChecksum,
+    WritePrologue,
+};
+
+struct DiskFieldEvent
+{
+    DiskFieldEventKind  kind                 = DiskFieldEventKind::AddressField;
+    DiskFieldKind       format               = DiskFieldKind::Sixteen;
+    Byte                track                = 0;
+    Byte                sector               = 0;
+    Byte                volume               = 0;
+    Byte                storedChecksum       = 0;
+    Byte                expectedChecksum     = 0;
+    Byte                storedDataChecksum   = 0;
+    Byte                expectedDataChecksum = 0;
+    bool                isDataChecksumGood   = false;
+    bool                isWrongTrack         = false;
+    Word                addressInstruction   = 0;
+    Word                dataInstruction      = 0;
+    Word                lastInstruction      = 0;
+    bool                isPassed             = false;
+    int                 drive                = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCallRequest
+//
+//  The request of an RWTS or driver call, read at the routine's entry: the
+//  IOB for RWTS, $42-$47 for ProDOS's driver.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DiskCallRequest
+{
+    bool  isDriver = false;
+    int   slot     = 0;
+    int   drive    = 0;
+    Byte  volume   = 0;
+    Byte  track    = 0;
+    Byte  sector   = 0;
+    Byte  command  = 0;
+    Byte  unit     = 0;
+    Word  buffer   = 0;
+    Word  block    = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskReport
+//
+//  The stop of a disk breakpoint: the lowest disk id that matched, the
+//  event, the controller's state at it, the instruction responsible and what
+//  the event has of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DiskSectorOrder
+{
+    Dos33,
+    ProDos,
+};
+
+struct DiskReport
+{
+    int                             breakpointId         = 0;
+    DiskEvent                       event                = DiskEvent::SectorRead;
+    int                             slot                 = 0;
+    int                             drive                = 0;
+    int                             quarterTrack         = 0;
+    int                             previousQuarterTrack = 0;
+    bool                            isMotorOn            = false;
+    bool                            isProtected          = false;
+    bool                            isBump               = false;
+    std::optional<DiskMotorEvent>   motorEvent;
+    Byte                            phases               = 0;
+    Word                            instruction          = 0;
+    std::optional<DiskFieldEvent>   field;
+    std::array<Byte, 3>             epilogue             = {};
+    bool                            isEpilogueRandom     = false;
+    std::optional<Byte>             logicalSector;
+    std::optional<Word>             block;
+    std::vector<Byte>               physicalSectors;
+    DiskSectorOrder                 order                = DiskSectorOrder::Dos33;
+    std::optional<DiskCallRequest>  request;
+    Word                            vector               = 0;
+    int                             previousDrive        = 0;
+    std::string                     imageName;
 };
 
 struct WatchHit
@@ -613,6 +738,10 @@ struct StopEvent
     //  Present when a reverse execution command moved the machine through its
     //  history: how the command ended. The reason is Step.
     std::optional<ReverseOutcome>  history;
+    //  A disk breakpoint's report: present with the reason Disk, and with
+    //  Breakpoint or Watchpoint when an entry of another kind matched at the
+    //  same stop.
+    std::optional<DiskReport>      disk;
 };
 
 

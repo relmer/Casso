@@ -475,6 +475,7 @@ std::string WinDbgFormatter::DescribeTarget (const BreakpointInfo & breakpoint)
     case BreakpointKind::Register:  return "register " + breakpoint.condition;
     case BreakpointKind::Brk:       return "brk";
     case BreakpointKind::Interrupt: return "interrupt";
+    case BreakpointKind::Disk:      return "disk";
     default:                        return std::format ("{:04x}", breakpoint.address);
     }
 }

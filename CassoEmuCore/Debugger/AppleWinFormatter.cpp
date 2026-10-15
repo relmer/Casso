@@ -4,6 +4,7 @@
 
 #include "Debugger/CallStack.h"
 #include "Debugger/CommandModeNames.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -46,7 +47,7 @@ void AppleWinFormatter::Format (Reply & reply)
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset" };
+    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint" };
     std::string                   text;
 
 
@@ -1011,6 +1012,9 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
     case BreakpointKind::MemoryValue:
         text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
+        break;
+    case BreakpointKind::Disk:
+        text = "on disk " + DiskBreakSpecText::GetDescription (breakpoint.disk.value_or (DiskBreakSpec {}));
         break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }

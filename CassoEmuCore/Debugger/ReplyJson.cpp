@@ -298,7 +298,7 @@ const char * ReplyJson::GetRegionName (MemoryRegion region)
 
 const char * ReplyJson::GetBreakpointKindName (BreakpointKind kind)
 {
-    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue" };
+    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue", "disk" };
 
 
 
@@ -336,7 +336,7 @@ const char * ReplyJson::GetAccessName (WatchAccess access)
 
 const char * ReplyJson::GetStopReasonName (StopReason reason)
 {
-    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset" };
+    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset", "disk" };
 
 
 

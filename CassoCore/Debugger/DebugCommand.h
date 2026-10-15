@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DebugExpressionEvaluator.h"
+#include "Debugger/DiskBreakSpec.h"
 
 
 
@@ -109,6 +110,7 @@ enum class DebugVerb
     BreakOnOpcode,
     BreakOnInterrupt,
     BreakOnUnwrittenRead,
+    SetDiskBreakpoint,
     ClearBreakpoint,
     DisableBreakpoint,
     EnableBreakpoint,
@@ -287,4 +289,6 @@ struct DebugCommand
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry
     CommandMode              mode     = CommandMode::AppleWin;
     OutputFormat             output   = OutputFormat::AppleWin;
+
+    std::optional<DiskBreakSpec>  disk;    // BPDISK
 };

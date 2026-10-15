@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/BreakpointColumns.h"
 
+#include "Debugger/DiskBreakSpecText.h"
+
 
 
 
@@ -97,6 +99,7 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::Interrupt:   return RowKind::Interrupt;
     case BreakpointKind::MemoryValue: return RowKind::DataValue;
     case BreakpointKind::Address:     break;
+    case BreakpointKind::Disk:        break;
     }
 
     return RowKind::Execution;
@@ -538,6 +541,7 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::Interrupt:   return "Interrupt";
     case BreakpointKind::MemoryValue: return std::format ("{} = ${:02X}", named, info.value.value_or (0));
     case BreakpointKind::Memory:      return named;
+    case BreakpointKind::Disk:        return "Disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
     }
 
     return named;
