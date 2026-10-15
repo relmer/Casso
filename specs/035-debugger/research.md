@@ -2518,6 +2518,26 @@ recording on, and host processor time of the Casso process over 60 s at 1x
 with history recording on, each idle at a DOS 3.3 prompt and during a DOS 3.3
 boot. The baseline is taken after master is merged and before the move.
 
+**Measured (2026-10-10, written up 2026-10-15)**: the real Casso in Release x64
+on the portrait monitor, `--debugger`, the //e at the DOS 3.3 prompt with
+history recording on, six alternated rounds per build: A, the master merge
+before the move (`766055549`); S, the move's first stage; B, its second. Idle
+is the Casso process's processor time over 60 s at 1x, in cores; guest speed
+is a `GG` of 10^9 cycles through the channel at Maximum speed, in emulated
+MHz, by the wall clock and by the CPU thread's own processor time.
+
+| Build | Idle (cores) | Guest MHz | CPU-thread MHz |
+|---|---|---|---|
+| A | 0.157 (0.142-0.166) | 26.95 (26.10-27.10) | 27.06 (26.19-27.23) |
+| S | 0.153 (0.145-0.158) | 26.70 (25.20-27.00) | 26.80 (25.30-27.11) |
+| B | 0.149 (0.140-0.170) | 26.60 (25.60-26.70) | 26.71 (25.66-26.83) |
+
+Medians, with each build's range across its rounds. B is 1.3% slower than A
+at Maximum speed, inside A's own spread of 4%, and no busier idle; two earlier
+sets (eight and five rounds, guest speed by the wall clock alone) have the same result. The
+harness measures the prompt only: a boot is over before the channel opens,
+so "during a disk boot" was not measured.
+
 **Alternatives considered**: the concrete class behind a pimpl with no
 interface (equally light in the header; kept open for the owner's review of
 the block diagram, since the shell would then call `ShellDebugger` directly);
