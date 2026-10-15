@@ -575,7 +575,17 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
             return true;
         }
 
-        return TryParseRange (args.tokens[0], *args.context, command, error) && isLive();
+        if (!TryParseRange (args.tokens[0], *args.context, command, error))
+        {
+            return false;
+        }
+
+        if (command.verb == DebugVerb::SetBreakpoint)
+        {
+            NoteSymbol (args.tokens[0], *args.context, command);
+        }
+
+        return isLive();
 
     case DebugVerb::BreakOnBeam:
         return TryParseBeamArguments (args, command, error);
@@ -680,6 +690,33 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
 
     hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::NoteSymbol
+//
+//  An address given as a symbol, one address and no range, is noted with
+//  the address, so the breakpoint can follow the symbol to where a rebuilt
+//  program puts it. A number written like a symbol's name is a number: the
+//  symbol must resolve to the address the text evaluated to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinParser::NoteSymbol (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command)
+{
+    Word  address = 0;
+
+
+
+    if (!command.hasA2 && context.TryResolveSymbol (text, address) && address == command.a1)
+    {
+        command.symbol = text;
+    }
 }
 
 

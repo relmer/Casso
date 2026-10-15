@@ -89,6 +89,25 @@ namespace BreakpointColumnsTests
         }
 
 
+        //  A breakpoint set by a symbol has that symbol in Name and Symbol,
+        //  whichever of the address's symbols the view's label is; its Kind
+        //  is Breakpoint.
+        TEST_METHOD (ASymbolABreakpointWasSetByIsItsName)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Address, 0xFDED));
+            snapshot.breakpoints[0].label       = "PRINTCHAR";
+            snapshot.breakpoints[0].info.symbol = "COUT";
+
+            Assert::AreEqual (std::string ("COUT $FDED"), Cell (snapshot, 0, Column::Name));
+            Assert::AreEqual (std::string ("COUT"),       Cell (snapshot, 0, Column::Symbol));
+            Assert::AreEqual (std::string ("Breakpoint"), Cell (snapshot, 0, Column::Kind));
+        }
+
+
         TEST_METHOD (ASourceBreakpointShowsItsFileAndLine)
         {
             DebuggerViewSnapshot               snapshot;

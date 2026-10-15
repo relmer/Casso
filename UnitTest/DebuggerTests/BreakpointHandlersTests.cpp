@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
 
@@ -218,6 +219,45 @@ namespace DebuggerTests
             rig.RunFails ("BRKINT maybe", "invalid arguments");
         }
 
+
+
+        //  A breakpoint set by a symbol has it: BPSAVE writes the symbol, and
+        //  when the symbols are loaded again with the routine moved, the
+        //  breakpoint moves with it, with a line in the reply. A breakpoint
+        //  set by a number has no symbol.
+        TEST_METHOD (BP_BySymbol_FollowsTheSymbolWhenSymbolsReload)
+        {
+            Rig                       rig;
+            SymbolHandlers            symbols;
+            std::vector<std::string>  lines;
+            std::string               all;
+
+
+
+            rig.session.AddHandler (&symbols);
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0900 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            rig.RunOk ("BP PRINTIT");
+            rig.RunOk ("BP 300");
+            rig.RunOk ("BPSAVE bp.txt");
+
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\bp.txt").find ("BP PRINTIT") != std::string::npos, L"the symbol is saved, not its address");
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\bp.txt").find ("BP 0300") != std::string::npos, L"a number is saved as one");
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0940 PRINTIT\n");
+            lines = rig.RunOk ("SYMUSER LOAD prog.sym").text;
+
+            for (const std::string & line : lines)
+            {
+                all += line + "\n";
+            }
+
+            Assert::IsTrue  (all.find ("Breakpoint #0 moved from $0900 to $0940, the address of PRINTIT.") != std::string::npos, TextEncoding::NarrowToWide (all).c_str());
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0940), L"it stops at the symbol's new address");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0900), L"and not at the old one");
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0300), L"the one set by number is where it was");
+        }
 
 
         //  A mnemonic sets every opcode of it on this CPU: JSR one, LDA the

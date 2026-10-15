@@ -303,6 +303,66 @@ bool BreakpointTable::TrySetFlags (int id, bool temporary, bool stops)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TrySetSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetSymbol (int id, const std::string & symbol)
+{
+    bool  isFound = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.symbol = symbol;
+            isFound      = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMove
+//
+//  The entry starts at first, its range the same length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMove (int id, Word first)
+{
+    bool  isFound = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.last  = (Word) (first + (entry.last - entry.first));
+            entry.first = first;
+            isFound     = true;
+        }
+    }
+
+    RebuildAddressBits();
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::AddCopy
 //
 ////////////////////////////////////////////////////////////////////////////////

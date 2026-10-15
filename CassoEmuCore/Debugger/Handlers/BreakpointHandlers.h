@@ -40,6 +40,11 @@ public:
     static std::string     MakeScript     (DebugSession & session);
     static std::string     Describe       (const BreakpointInfo & info);
 
+    //  Moves each breakpoint set by a symbol to where the symbols put it
+    //  now, after symbols are loaded, with a line for each one moved or
+    //  whose symbol is no longer defined.
+    static void            FollowSymbols  (DebugSession & session, std::vector<std::string> & lines);
+
     // One entry of either table as it stands, kept so an undo can add it
     // back exactly as it was, with no definition built or parsed.
     struct SavedEntry

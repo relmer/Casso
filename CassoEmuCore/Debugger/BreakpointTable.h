@@ -34,6 +34,7 @@ struct Breakpoint
     bool                 temporary = false;       // cleared once it fires
     bool                 stops     = true;        // false: counts hits only
     uint32_t             hits      = 0;
+    std::string          symbol;                  // the symbol an address breakpoint was set by
 };
 
 
@@ -74,6 +75,8 @@ public:
     void  ClearKind        (BreakpointKind kind);
     bool  TrySetEnabled    (int id, bool enabled);
     bool  TrySetFlags      (int id, bool temporary, bool stops);
+    bool  TrySetSymbol     (int id, const std::string & symbol);
+    bool  TryMove          (int id, Word first);
     bool  HasBrk           () const;
     bool  HasOpcode        (Byte opcode) const;
 

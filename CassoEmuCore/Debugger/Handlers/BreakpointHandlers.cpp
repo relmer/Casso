@@ -116,6 +116,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.temporary = entry.temporary;
     info.stops     = entry.stops;
     info.hits      = entry.hits;
+    info.symbol    = entry.symbol;
     return info;
 }
 
@@ -177,13 +178,64 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "BP " + range + clause;
+    case BreakpointKind::Address:     return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
     case BreakpointKind::Register:    return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
     case BreakpointKind::Opcode:      return std::format ("BRKOP {:02X}", info.opcode);
     case BreakpointKind::Brk:         return "BRK ON";
     case BreakpointKind::Interrupt:   return "BRKINT ON";
     case BreakpointKind::MemoryValue: return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
     default:                          return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::FollowSymbols
+//
+//  A rebuilt program can put a routine somewhere else; a breakpoint set by
+//  its symbol moves with it, and one whose symbol is gone is left where it
+//  is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::FollowSymbols (DebugSession & session, std::vector<std::string> & lines)
+{
+    std::vector<Breakpoint>  entries = session.GetBreakpoints().GetAll();
+    Word                     address = 0;
+    bool                     isMoved = false;
+
+
+
+    for (const Breakpoint & entry : entries)
+    {
+        if (entry.kind != BreakpointKind::Address || entry.symbol.empty())
+        {
+            continue;
+        }
+
+        if (!session.TryResolveSymbol (entry.symbol, address))
+        {
+            lines.push_back (std::format ("Breakpoint #{} is at ${:04X}: {} is no longer a symbol.", entry.id, entry.first, entry.symbol));
+            continue;
+        }
+
+        if (address == entry.first)
+        {
+            continue;
+        }
+
+        session.GetBreakpoints().TryMove (entry.id, address);
+        lines.push_back (std::format ("Breakpoint #{} moved from ${:04X} to ${:04X}, the address of {}.", entry.id, entry.first, address, entry.symbol));
+        isMoved = true;
+    }
+
+    if (isMoved)
+    {
+        session.OnStopConditionsChanged();
     }
 }
 
@@ -244,6 +296,7 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
     }
 
     id = session.GetBreakpoints().AddAddress (command.a1, last, command.expression);
+    session.GetBreakpoints().TrySetSymbol (id, command.symbol);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };

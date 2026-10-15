@@ -153,6 +153,7 @@ struct BreakpointInfo
     bool                 temporary = false;         // cleared when it fires
     bool                 stops     = true;          // false: counts hits only
     uint32_t             hits      = 0;
+    std::string          symbol;                    // the symbol an address breakpoint was set by
 };
 
 struct BreakpointSetData

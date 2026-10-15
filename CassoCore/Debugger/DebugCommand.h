@@ -280,6 +280,7 @@ struct DebugCommand
     Expression               expression;
     std::string              text;
     std::string              symbolTable;
+    std::string              symbol;       // BP: the symbol its address was given as
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
     std::optional<uint64_t>  first;        // HISTORY: the window's first entry

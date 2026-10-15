@@ -58,7 +58,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
     cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
-    cells[(size_t) Column::Symbol]    = HasAddress (info) ? bp.label : std::string();
+    cells[(size_t) Column::Symbol]    = !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
     cells[(size_t) Column::WhenHit]   = GetWhenHit (info);
     cells[(size_t) Column::Function]  = (info.kind == BreakpointKind::Address) ? bp.label : std::string();
     cells[(size_t) Column::Address]   = HasAddress (info) ? GetRange (info) : std::string();
@@ -524,7 +524,8 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
 {
     const BreakpointInfo  & info  = bp.info;
     std::string             range = GetRange (info);
-    std::string             named = bp.label.empty() ? range : bp.label + " " + range;
+    std::string             label = info.symbol.empty() ? bp.label : info.symbol;
+    std::string             named = label.empty() ? range : label + " " + range;
 
 
 

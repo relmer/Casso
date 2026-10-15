@@ -6,6 +6,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
 #include "Sha1.h"
 
@@ -277,14 +278,15 @@ void SymbolHandlers::List (DebugSession & session, const DebugCommand & command,
 
 void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem   * files  = session.GetFileSystem();
-    SymbolTableId   table  = SymbolTableId::User;
-    std::string     name;
-    std::string     content;
-    std::string     error;
-    int             offset = 0;
-    size_t          loaded = 0;
-    HRESULT         hr     = S_OK;
+    IFileSystem               * files  = session.GetFileSystem();
+    SymbolTableId               table  = SymbolTableId::User;
+    std::string                 name;
+    std::string                 content;
+    std::string                 error;
+    int                         offset = 0;
+    size_t                      loaded = 0;
+    HRESULT                     hr     = S_OK;
+    std::vector<std::string>    lines;
 
 
 
@@ -334,7 +336,10 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")) } };
+    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
+    BreakpointHandlers::FollowSymbols (session, lines);
+
+    reply.data = MessageData { lines };
 }
 
 
@@ -355,10 +360,11 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                     const std::string & content, int offset, bool isListing, Reply & reply)
 {
-    DebugFile    file;
-    std::string  error;
-    size_t       loaded = 0;
-    size_t       lines  = 0;
+    DebugFile                 file;
+    std::string               error;
+    size_t                    loaded = 0;
+    size_t                    lines  = 0;
+    std::vector<std::string>  message;
     size_t       slash  = name.find_last_of ("/\\");
     std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
     HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
@@ -407,8 +413,11 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
         session.GetSymbols().AddOrigin (table, base);
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines{}.",
-                                              loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")) } };
+    message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
+                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
+    BreakpointHandlers::FollowSymbols (session, message);
+
+    reply.data = MessageData { message };
 }
 
 
