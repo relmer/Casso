@@ -62,6 +62,8 @@ public:
         bool               lastExternalDriveConnected = false;
         bool               lastMouseConnected         = true;
         int                queuedResetCount           = 0;
+        std::string        lastSerialSw1;
+        std::string        lastSerialSw2;
         int                applyCount                 = 0;
 
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
@@ -103,6 +105,13 @@ public:
         void ApplyMouseConnected (bool connected) override
         {
             lastMouseConnected = connected;
+            ++applyCount;
+        }
+
+        void ApplySerialCardSwitches (const std::string & sw1, const std::string & sw2) override
+        {
+            lastSerialSw1 = sw1;
+            lastSerialSw2 = sw2;
             ++applyCount;
         }
 
@@ -1430,6 +1439,85 @@ public:
                         L"The variant must survive the settings round trip verbatim");
     }
 
+
+    //
+    //  The Super Serial Card's switches and file attachment live in its slot
+    //  entry. Switches apply without a reset; an attachment is opened when the
+    //  machine is built, so changing it takes one.
+    //
+    static constexpr const char *  kSerialCardJson = R"JSON({
+        "$cassoMachineVersion": 1,
+        "name": "TestMachine",
+        "internalDevices": [ { "type": "keyboard" } ],
+        "slots": [
+            { "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": true,
+              "switches": { "sw1": "off off off on on on on", "sw2": "on on off on off off off" },
+              "ports": [ { "device": "serial-file-out", "path": "C:\\out.txt" } ] }
+        ]
+    })JSON";
+
+
+    TEST_METHOD (SerialCard_SwitchesAndPathAreReadAndWrittenBack)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           v       = ParseOrFail (kSerialCardJson);
+        JsonValue           outJson;
+        std::string         text;
+        int                 index   = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+
+        index = st.FindSerialCard();
+        Assert::IsTrue (index >= 0);
+        Assert::IsTrue (st.HasEnabledSerialCard());
+        Assert::AreEqual (std::string ("off off off on on on on"), st.GetHardware()[index].switchesSw1);
+        Assert::AreEqual (std::string ("C:\\out.txt"),             st.GetHardware()[index].portPath);
+
+        AssertSucceeded (st.SetSerialCardSwitches ("on on on on on on on", "off off off off off off off"));
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"switches apply without a reset");
+
+        st.Apply (sink, outJson);
+        Assert::AreEqual (std::string ("on on on on on on on"), sink.lastSerialSw1, L"pushed to the running card");
+
+        text = WriteCompactOrFail (outJson);
+        Assert::IsTrue (text.find ("\"on on on on on on on\"") != std::string::npos, L"switches saved");
+        Assert::IsTrue (text.find ("C:\\\\out.txt") != std::string::npos,            L"the file path is saved");
+    }
+
+
+    TEST_METHOD (SerialCard_AttachmentChangeRequiresAReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kSerialCardJson);
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+        AssertSucceeded (st.SetSerialCardAttachment ("serial-loopback", ""));
+
+        Assert::IsTrue (st.RequiresReset(), L"the attachment is opened when the machine is built");
+    }
+
+
+    TEST_METHOD (SerialCard_NoCardMeansNoSerialPage)
+    {
+        SettingsPanelState  st;
+        JsonValue           v  = ParseOrFail (kFixtureJson);
+        HRESULT             hr = S_OK;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("TestMachine", v, v));
+
+        Assert::AreEqual (-1, st.FindSerialCard());
+        Assert::IsFalse (st.HasEnabledSerialCard());
+        hr = st.SetSerialCardSwitches ("on", "off");
+        Assert::IsTrue (FAILED (hr), L"nothing to stage");
+    }
 
     // FR-041: opening / closing the panel must not pause emulation.
     // The applied-sink interface deliberately lacks any pause hook so

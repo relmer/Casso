@@ -266,4 +266,10 @@ public:
     static HRESULT   EnsureStockBootDisk   (StockBootDisk disk,
                                             wstring     & outDiskPath,
                                             string      & outError);
-};
+
+    // A catalog ROM no machine config requires (the Super Serial Card's
+    // firmware), downloaded on request into its device folder. Blocking, no
+    // UI; `outPath` is the file written.
+    static HRESULT   DownloadOptionalRom   (string_view   cassoName,
+                                            fs::path    & outPath,
+                                            string      & outError);};

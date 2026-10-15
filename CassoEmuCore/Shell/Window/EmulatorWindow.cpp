@@ -9,6 +9,7 @@
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -454,6 +455,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_toolbar);
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
+    m_host->GetRoot().Adopt (m_serialCard->GetBanner());
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.

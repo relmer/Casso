@@ -140,6 +140,13 @@ struct HardwareEntry
     // attached" -- BuildJson leaves the key alone in that case so a card that
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
+
+    // A Super Serial Card's DIP switches as "on off ..." text, and the host
+    // file its first connector's attachment uses. Empty for every other card,
+    // and BuildJson does not write the slot's keys while they are empty.
+    std::string  switchesSw1;
+    std::string  switchesSw2;
+    std::string  portPath;
 };
 
 
@@ -219,6 +226,7 @@ public:
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
+    virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -281,7 +289,7 @@ public:
     JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
 
     bool IsDirty       () const;
-    bool RequiresReset () const;          // true iff any hardware enable changed
+    bool RequiresReset () const;          // a hardware enable or a serial attachment changed
 
     // Live (current) accessors / mutators
 
@@ -342,6 +350,18 @@ public:
     void    SetMouseConnected         (bool connected);
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
+
+    // The staged Super Serial Card: its index in GetHardware(), or -1 when
+    // the machine lists none. HasEnabledSerialCard drives the Serial card
+    // page's presence, as HasDiskIIController drives the Storage page's.
+    int     FindSerialCard        () const;
+    bool    HasEnabledSerialCard  () const;
+
+    // Stage the card's switches, or what is attached to its connector
+    // ("" for nothing, or one of the serial attachment devices) with the
+    // host file the file attachments use.
+    HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
+    HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
 
     // Apply
 
@@ -408,6 +428,10 @@ private:
     static constexpr const char *  kpszPortsKey     = "ports";
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
+    static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszSwitchesKey   = "switches";
+    static constexpr const char *  kpszSw1Key        = "sw1";
+    static constexpr const char *  kpszSw2Key        = "sw2";
     static constexpr const char *  kpszDiskPortName = "disk";
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszDiskIiDevice = "disk-ii";

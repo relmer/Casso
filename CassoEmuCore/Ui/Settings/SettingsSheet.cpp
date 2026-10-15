@@ -11,6 +11,10 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellSerialCard.h"
+#include "Ui/Settings/SerialCardPage.h"
+#include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
 #include "GeneralPageModel.h"
@@ -97,6 +101,7 @@ void SettingsSheet::OnBuildPages()
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
+    m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
@@ -268,7 +273,8 @@ HRESULT SettingsSheet::OpenModeless (
 
     // The Disk tab is dynamic (#84): it exists only while the staged config has
     // an enabled Disk ][ controller. Remember its page index for the toggle.
-    m_diskPageIndex = IndexOfPage (m_diskPage);
+    m_diskPageIndex   = IndexOfPage (m_diskPage);
+    m_serialPageIndex = IndexOfPage (m_serialPage);
 
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
@@ -494,6 +500,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
+    m_serialPage->SetPopupHost   (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
 
@@ -615,6 +622,42 @@ HRESULT SettingsSheet::OpenModeless (
     m_printingPage->SetPrefs (&prefs);
     m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
 
+    // Serial card page: the staged slot entry, the firmware's status in the
+    // running machine's config, the shell's download, and the file pickers.
+    m_serialPage->SetState          (&m_state);
+    m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+    m_serialPage->SetOnDownload ([this] ()
+    {
+        m_emuShell->GetSerialCard().StartFirmwareDownload();
+        m_serialPage->SetFirmwareStatus (L"Downloading Apple's firmware. The main window reports when the download "
+                                         L"finishes.", false);
+    });
+    m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
+    {
+        FileDialogSpec  spec;
+        fs::path        picked;
+        bool            isPicked = false;
+        HRESULT         hr       = S_OK;
+
+        spec.filters = { { L"All files", L"*.*" } };
+
+        if (!inOutPath.empty())
+        {
+            spec.initialFolder   = fs::path (inOutPath).parent_path();
+            spec.defaultFileName = fs::path (inOutPath).filename().wstring();
+        }
+
+        hr = forOutput ? m_emuShell->GetHostDialogs().PickFileToSave (GetHwnd(), spec, picked, isPicked)
+                       : m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+        if (SUCCEEDED (hr) && isPicked)
+        {
+            inOutPath = picked.string();
+        }
+
+        return SUCCEEDED (hr) && isPicked;
+    });
+
     m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_shotsPage->SetPrefs (&prefs);
 
@@ -646,6 +689,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Seed the Disk tab's presence from the loaded config before the first
     // Layout so the tab strip is correct on the very first paint.
     UpdateDiskTabVisibility();
+    UpdateSerialTabVisibility();
 
     // Show the window BEFORE the final Rebuild: the first valid layout only
     // happens once the window is shown (WM_SIZE against the real client size),
@@ -655,6 +699,7 @@ HRESULT SettingsSheet::OpenModeless (
     Show();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
+    m_serialPage->Rebuild();
     m_displayPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
@@ -968,6 +1013,7 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateSerialTabVisibility();
     UpdateTickInterval();
 
 
@@ -1469,6 +1515,107 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
     m_diskTabVisible = want;
     SetPageVisible (m_diskPageIndex, want);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateSerialTabVisibility
+//
+//  The Serial card tab follows the staged Super Serial Card the way the Disk
+//  tab follows the controller. When the user turns the card on and its
+//  firmware is missing, the tab is selected, so the download it offers is
+//  in front of the user at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSerialTabVisibility()
+{
+    HRESULT  hr       = S_OK;
+    bool     want     = m_state.HasEnabledSerialCard();
+    bool     turnedOn = want && !m_serialTabVisible;
+    bool     settled  = m_serialPageIndex < 0 || want == m_serialTabVisible;
+    bool     missing  = false;
+
+
+
+    BAIL_OUT_IF (settled, S_OK);
+
+    m_serialTabVisible = want;
+    SetPageVisible (m_serialPageIndex, want);
+
+    missing = IsSerialFirmwareMissing();
+
+    if (turnedOn && missing)
+    {
+        m_serialPage->Rebuild();
+        SetActivePage (m_serialPageIndex);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSerialFirmwareMissing
+//
+//  From the running machine's config, which resolved the firmware file when
+//  it loaded, whether or not the card was turned on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsSerialFirmwareMissing() const
+{
+    bool  missing = false;
+
+
+
+    for (const SlotConfig & slot : m_emuShell->GetMachine().GetConfig().slots)
+    {
+        if (slot.device == kpszSuperSerialCardDevice)
+        {
+            missing = slot.firmwareStatus != SlotFirmwareStatus::Present;
+        }
+    }
+
+    return missing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialFirmwareStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SettingsSheet::GetSerialFirmwareStatus() const
+{
+    std::wstring  text = L"Apple's Super Serial Card firmware is installed.";
+
+
+
+    for (const SlotConfig & slot : m_emuShell->GetMachine().GetConfig().slots)
+    {
+        if (slot.device == kpszSuperSerialCardDevice && slot.firmwareStatus != SlotFirmwareStatus::Present)
+        {
+            text = L"Apple's Super Serial Card firmware is not installed. Programs that drive the card's 6551 "
+                   L"work without it; PR# and IN# do not. Casso looked for "
+                   + TextEncoding::NarrowToWide (slot.firmwarePath) + L".";
+        }
+    }
+
+    return text;
 }
 
 
