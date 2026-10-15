@@ -5,6 +5,15 @@
 #include <windows.h>
 #include <aclapi.h>
 
+//
+//  Host networking for the Uthernet II. With WIN32_LEAN_AND_MEAN, windows.h
+//  does not include winsock.h, so winsock2.h can follow it here without the
+//  two colliding.
+//
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+
 // <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
 // is the 6502 BIT instruction. CassoCore/Pch.h is where that actually bites --
 // it compiles the definition, and its Byte typedef means every consumer of a

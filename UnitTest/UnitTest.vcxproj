@@ -632,6 +632,11 @@
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="NetworkTests\W5100RegisterTests.cpp" />
+    <ClCompile Include="NetworkTests\W5100BufferTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -677,6 +682,9 @@
     <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
     <ClInclude Include="EmuTests\WarpRenderHarness.h" />
+    <ClInclude Include="NetworkTests\FakeHostSocket.h" />
+    <ClInclude Include="NetworkTests\FakeHostNetwork.h" />
+    <ClInclude Include="NetworkTests\W5100Driver.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

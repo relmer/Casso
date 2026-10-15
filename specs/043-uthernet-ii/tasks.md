@@ -22,8 +22,8 @@ description: "Task list for the Uthernet II Ethernet card"
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `#include <winsock2.h>`, `<ws2tcpip.h>` and `<iphlpapi.h>` after `<windows.h>` in CassoEmuCore/Pch.h and confirm the solution builds x64 Debug
-- [ ] T002 [P] Create folders CassoEmuCore/Devices/Network/ and UnitTest/NetworkTests/, and add their filters to CassoEmuCore/CassoEmuCore.vcxproj(.filters) and UnitTest/UnitTest.vcxproj(.filters) as files are added
+- [X] T001 Add `#include <winsock2.h>`, `<ws2tcpip.h>` and `<iphlpapi.h>` after `<windows.h>` in CassoEmuCore/Pch.h and confirm the solution builds x64 Debug
+- [X] T002 [P] Create folders CassoEmuCore/Devices/Network/ and UnitTest/NetworkTests/, and add their filters to CassoEmuCore/CassoEmuCore.vcxproj(.filters) and UnitTest/UnitTest.vcxproj(.filters) as files are added
 
 ---
 
@@ -31,15 +31,15 @@ description: "Task list for the Uthernet II Ethernet card"
 
 **Purpose**: The host network seam, its fake, and the bare W5100 chip. Every story depends on these.
 
-- [ ] T003 Define `HostEndpoint`, `HostSocketKind`, `HostSocketReadiness`, `IHostSocket` and `IHostNetwork` per contracts/host-network-seam.md in CassoEmuCore/Seams/IHostNetwork.h
-- [ ] T004 [P] Implement `FakeHostNetwork` and `FakeHostSocket` (test-side peer: complete or fail connects, offer inbound connections, push bytes and datagrams, set EOF, capture sent bytes, cap `Send`) in UnitTest/NetworkTests/FakeHostNetwork.h/.cpp
-- [ ] T005 [P] Implement `Win32HostSocket` (non-blocking via `FIONBIO`, `WSAPoll` with zero timeout, `WSAEWOULDBLOCK` reported through out-parameters, `WSAEADDRINUSE` as `HRESULT_FROM_WIN32`) in CassoEmuCore/Seams/Win32HostSocket.h/.cpp
-- [ ] T006 Implement `Win32HostNetwork` (`WSAStartup` 2.2 in the constructor, `WSACleanup` in the destructor, `GetNetworkParams` for the first IPv4 DNS server, `E_NOT_SET` when none, `#pragma comment (lib, "ws2_32.lib")` and `"iphlpapi.lib"`) in CassoEmuCore/Seams/Win32HostNetwork.h/.cpp
-- [ ] T007 [P] Add W5100 address, bit and value constants from contracts/w5100-guest-interface.md in CassoEmuCore/Devices/Network/W5100Registers.h
-- [ ] T008 [P] Define `IW5100Backend` (`OnCommand (int socket, Byte command)`, `OnSoftwareReset()`) and `NullW5100Backend` in CassoEmuCore/Devices/Network/IW5100Backend.h
-- [ ] T009 Write W5100 register tests: every common and socket register's reset value (MR `$00`, RTR `$07D0`, RCR `$08`, RMSR/TMSR `$55`, PTIMER `$28`, Sn_DHAR `$FF` x6, Sn_TTL `$80`, Sn_TX_FSR = buffer size), reserved locations read `$00` and ignore writes, read-only registers ignore writes, MR bit 7 software reset does not alter the pointer, IND clear maps `$C0n4`-`$C0n7` to internal 0-3, in UnitTest/NetworkTests/W5100RegisterTests.cpp
-- [ ] T010 Write W5100 buffer tests: pointer high/low read-back, AI advance, wrap `$5FFF`->`$4000`, `$7FFF`->`$6000`, `$FFFF`->`$E000`, `$8000` accessing `$0000`, RMSR/TMSR allocation including `$06`, `$0A`, `$AA` (sockets 2-3 without buffers) and `$FF`, Sn_TX_FSR and Sn_RX_RSR math across the socket buffer end, in UnitTest/NetworkTests/W5100BufferTests.cpp
-- [ ] T011 Implement `W5100` per data-model.md (internal memory, pointer and R2 wrap, register side-effect table, `HardwareReset`, `SoftwareReset`, buffer placement from RMSR/TMSR, Sn_IR and IR clear-on-write-1, IR socket bits tracking Sn_IR != 0, `IsInterruptPending` = `IR & IMR`, backend-facing API) in CassoEmuCore/Devices/Network/W5100.h/.cpp until T009 and T010 pass
+- [X] T003 Define `HostEndpoint`, `HostSocketKind`, `HostSocketReadiness`, `IHostSocket` and `IHostNetwork` per contracts/host-network-seam.md in CassoEmuCore/Seams/IHostNetwork.h
+- [X] T004 [P] Implement `FakeHostNetwork` and `FakeHostSocket` (test-side peer: complete or fail connects, offer inbound connections, push bytes and datagrams, set EOF, capture sent bytes, cap `Send`) in UnitTest/NetworkTests/FakeHostNetwork.h/.cpp
+- [X] T005 [P] Implement `Win32HostSocket` (non-blocking via `FIONBIO`, `WSAPoll` with zero timeout, `WSAEWOULDBLOCK` reported through out-parameters, `WSAEADDRINUSE` as `HRESULT_FROM_WIN32`) in CassoEmuCore/Seams/Win32HostSocket.h/.cpp
+- [X] T006 Implement `Win32HostNetwork` (`WSAStartup` 2.2 in the constructor, `WSACleanup` in the destructor, `GetNetworkParams` for the first IPv4 DNS server, `E_NOT_SET` when none, `#pragma comment (lib, "ws2_32.lib")` and `"iphlpapi.lib"`) in CassoEmuCore/Seams/Win32HostNetwork.h/.cpp
+- [X] T007 [P] Add W5100 address, bit and value constants from contracts/w5100-guest-interface.md in CassoEmuCore/Devices/Network/W5100Registers.h
+- [X] T008 [P] Define `IW5100Backend` (`OnCommand (int socket, Byte command)`, `OnSoftwareReset()`) and `NullW5100Backend` in CassoEmuCore/Devices/Network/IW5100Backend.h
+- [X] T009 Write W5100 register tests: every common and socket register's reset value (MR `$00`, RTR `$07D0`, RCR `$08`, RMSR/TMSR `$55`, PTIMER `$28`, Sn_DHAR `$FF` x6, Sn_TTL `$80`, Sn_TX_FSR = buffer size), reserved locations read `$00` and ignore writes, read-only registers ignore writes, MR bit 7 software reset does not alter the pointer, IND clear maps `$C0n4`-`$C0n7` to internal 0-3, in UnitTest/NetworkTests/W5100RegisterTests.cpp
+- [X] T010 Write W5100 buffer tests: pointer high/low read-back, AI advance, wrap `$5FFF`->`$4000`, `$7FFF`->`$6000`, `$FFFF`->`$E000`, `$8000` accessing `$0000`, RMSR/TMSR allocation including `$06`, `$0A`, `$AA` (sockets 2-3 without buffers) and `$FF`, Sn_TX_FSR and Sn_RX_RSR math across the socket buffer end, in UnitTest/NetworkTests/W5100BufferTests.cpp
+- [X] T011 Implement `W5100` per data-model.md (internal memory, pointer and R2 wrap, register side-effect table, `HardwareReset`, `SoftwareReset`, buffer placement from RMSR/TMSR, Sn_IR and IR clear-on-write-1, IR socket bits tracking Sn_IR != 0, `IsInterruptPending` = `IR & IMR`, backend-facing API) in CassoEmuCore/Devices/Network/W5100.h/.cpp until T009 and T010 pass
 
 **Checkpoint**: The chip passes its datasheet tests with a null backend.
 
