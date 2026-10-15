@@ -461,21 +461,25 @@ InputLogPane::ColumnSpecs InputLogPane::GetColumnSpecs() const
 //
 //  PrepareView
 //
-//  Walks the rows newest first, noting whether the next paddle row is a
-//  read, so each PTRIG strobe is marked when a reported read follows it.
+//  Walks the rows from `from` on newest first, noting whether the next
+//  paddle row is a read, so each PTRIG strobe is marked when a reported read
+//  follows it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputLogPane::PrepareView (const std::vector<Row> & rows)
+void InputLogPane::PrepareView (
+    const std::vector<Row>  & rows,
+    size_t                    from)
 {
     bool    isReadNext = false;
     size_t  i          = 0;
 
 
 
-    m_isTriggerRead.assign (rows.size(), false);
+    m_isTriggerRead.resize (rows.size(), false);
+    std::fill (m_isTriggerRead.begin() + (ptrdiff_t) std::min (from, rows.size()), m_isTriggerRead.end(), false);
 
-    for (i = rows.size(); i > 0; i--)
+    for (i = rows.size(); i > from; i--)
     {
         if (rows[i - 1].kind != DebugLogRowKind::Event)
         {
@@ -492,6 +496,48 @@ void InputLogPane::PrepareView (const std::vector<Row> & rows)
             isReadNext             = false;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSettledCount
+//
+//  A PTRIG strobe is listed when a read follows it, so the last paddle row,
+//  when it is a strobe, waits on the rows after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t InputLogPane::GetSettledCount (
+    const std::vector<Row>  & rows,
+    size_t                    count) const
+{
+    size_t  i = 0;
+
+
+
+    for (i = count; i > 0; i--)
+    {
+        if (rows[i - 1].kind != DebugLogRowKind::Event)
+        {
+            continue;
+        }
+
+        if (rows[i - 1].event.type == InputEventType::PaddleRead)
+        {
+            return count;
+        }
+
+        if (rows[i - 1].event.type == InputEventType::PaddleTrigger)
+        {
+            return i - 1;
+        }
+    }
+
+    return count;
 }
 
 

@@ -692,6 +692,111 @@ namespace EventLogPaneTests
         }
 
 
+        //  A strobe at the end of one delta is listed once the read in the
+        //  next delta follows it, as a full build lists it.
+        TEST_METHOD (AStrobeIsListedWhenTheNextDeltasReadFollowsIt)
+        {
+            DxuiListView               list;
+            InputLogPane               pane (&list, [] (const std::string &) {});
+            InputLogDelta              delta;
+            std::vector<std::wstring>  cycles;
+
+
+
+            pane.Configure();
+
+            delta.isReset = true;
+            delta.newer   = { MakeInputRow (10, InputEventType::PaddleRead,    0xC064, 0x80),
+                              MakeInputRow (20, InputEventType::PaddleTrigger, 0xC070, 0) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::IsTrue (GetColumn (pane, InputLogPane::kCycle) == std::vector<std::wstring> { L"", L"100" }, L"no read follows the strobe yet");
+
+            delta       = InputLogDelta();
+            delta.newer = { MakeInputRow (30, InputEventType::PaddleRead, 0xC064, 0x80) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            cycles = GetColumn (pane, InputLogPane::kCycle);
+
+            Assert::IsTrue (cycles == std::vector<std::wstring> { L"", L"100", L"200", L"300" }, L"the strobe, then the read after it");
+            Assert::AreEqual (4, list.GetRowCount());
+        }
+
+
+        //  Newer rows extend the list with the selection on the same rows.
+        TEST_METHOD (NewerRowsLeaveTheSelectionOnItsRows)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogDelta   delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset = true;
+            delta.newer   = { MakeDiskRow (10, Disk2EventType::MotorCommandOn), MakeDiskRow (20, Disk2EventType::MotorEngaged) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            list.SetSelectedRows ({ 1 }, 1);
+
+            delta       = DiskLogDelta();
+            delta.newer = { MakeDiskRow (30, Disk2EventType::DriveSelect), MakeDiskRow (40, Disk2EventType::MotorCommandOff) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 5, pane.GetView().size());
+            Assert::IsTrue   (list.GetSelectedRows() == std::vector<int> { 1 });
+            Assert::AreEqual (std::wstring (L"Motor command on"), GetColumn (pane, DiskLogPane::kEvent)[1]);
+        }
+
+
+        //  Past the most rows a pane has, the oldest are dropped, the machine's
+        //  thread is sent where the rows start now, and the selected row stays
+        //  selected.
+        TEST_METHOD (TheOldestRowsAreDroppedPastTheMost)
+        {
+            DxuiListView               list;
+            std::vector<std::string>   requests;
+            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogDelta               delta;
+            size_t                     i        = 0;
+            size_t                     past     = DiskLogPane::kMaxRows + 1;
+            uint64_t                   oldest   = (past - DiskLogPane::kRetainedRows + 1) * 10;
+
+
+
+            pane.Configure();
+
+            delta.isReset = true;
+
+            for (i = 1; i < past; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (i * 10, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            list.SetSelectedRows ({ (int) past - 1 }, (int) past - 1);
+
+            delta       = DiskLogDelta();
+            delta.newer = { MakeDiskRow (past * 10, Disk2EventType::MotorCommandOn) };
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (DiskLogPane::kRetainedRows, pane.GetRows().GetRows().size(), L"down to the rows retained");
+            Assert::AreEqual (oldest, pane.GetRows().GetRows().front().position);
+            Assert::IsFalse  (pane.GetRows().IsAtStart(), L"the start row offers to rebuild the rows dropped");
+            Assert::IsTrue   (std::ranges::find (requests, std::format ("from {}", oldest)) != requests.end(), L"the machine's thread is sent the new oldest row");
+            Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size());
+            Assert::AreEqual (std::wstring (EventLogText::FormatCycle ((past - 1) * 100)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetSelectedRows()[0]], L"the same row selected");
+        }
+
+
         //  The time is in the locale's format, its clock, markers and
         //  separators, with the milliseconds after the seconds.
         TEST_METHOD (TheTimeFollowsTheLocaleWithMilliseconds)

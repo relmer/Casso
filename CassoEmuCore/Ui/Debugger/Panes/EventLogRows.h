@@ -65,6 +65,28 @@ public:
         return prepended;
     }
 
+    //  The oldest rows dropped down to the newest `retained`; the oldest row
+    //  left is where the rows start now. The count of rows dropped.
+    size_t  TrimFront (size_t retained)
+    {
+        size_t  dropped = (m_rows.size() > retained) ? m_rows.size() - retained : 0;
+
+
+
+        if (dropped == 0)
+        {
+            return 0;
+        }
+
+        m_rows.erase (m_rows.begin(), m_rows.begin() + (ptrdiff_t) dropped);
+
+        m_heldFrom  = m_rows.front().position;
+        m_isAtStart = false;
+        m_revision++;
+
+        return dropped;
+    }
+
     const std::vector<Row> &  GetRows       () const { return m_rows; }
     uint64_t                  GetHeldFrom   () const { return m_heldFrom; }
     bool                      IsAtStart     () const { return m_isAtStart; }

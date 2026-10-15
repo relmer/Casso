@@ -74,6 +74,7 @@ public:
 
     void  SetOpen        (DebugLogKind kind, bool isOpen);
     void  RequestEarlier (DebugLogKind kind);
+    void  DropBefore     (DebugLogKind kind, uint64_t position);
     bool  IsOpen         (DebugLogKind kind) const;
 
     //  What changed for an open pane since the last call; an empty delta

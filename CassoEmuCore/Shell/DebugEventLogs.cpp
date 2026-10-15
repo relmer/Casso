@@ -216,6 +216,34 @@ void DebugEventLogs::RequestEarlier (DebugLogKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DropBefore
+//
+//  The pane dropped its rows before position: they are rebuilt when it
+//  scrolls back to them, as rows before its oldest are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::DropBefore (
+    DebugLogKind  kind,
+    uint64_t      position)
+{
+    uint64_t &  heldFrom     = (kind == DebugLogKind::Disk) ? m_disk.heldFrom     : m_input.heldFrom;
+    uint64_t    wantedBefore = (kind == DebugLogKind::Disk) ? m_disk.wantedBefore : m_input.wantedBefore;
+
+
+
+    if (wantedBefore == 0)
+    {
+        heldFrom = std::max (heldFrom, position);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsOpen
 //
 ////////////////////////////////////////////////////////////////////////////////

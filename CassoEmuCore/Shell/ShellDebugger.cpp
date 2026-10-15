@@ -2423,6 +2423,10 @@ void ShellDebugger::SetDebugEventLog (
     {
         m_eventLogs.RequestEarlier (kind);
     }
+    else if (request.starts_with ("from "))
+    {
+        m_eventLogs.DropBefore (kind, std::strtoull (request.c_str() + 5, nullptr, 10));
+    }
 }
 
 

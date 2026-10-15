@@ -86,7 +86,8 @@ public:
 
 protected:
     ColumnSpecs  GetColumnSpecs () const override;
-    void         PrepareView    (const std::vector<Row> & rows) override;
+    void         PrepareView     (const std::vector<Row> & rows, size_t from) override;
+    size_t       GetSettledCount (const std::vector<Row> & rows, size_t count) const override;
     bool         Matches        (const Row & row, size_t index) const override;
     void         MakeCells      (const Row & row, Cells & out) const override;
     size_t       GetLabelColumn () const override { return kSource; }
