@@ -84,6 +84,11 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  As above, with the loaded config passed to `configure` before the build,
+    //  for a test that turns on a card the shipped config lists as off.
+    TestMachine (const std::string                         & machineId,
+                 const std::function<void (MachineConfig &)> & configure);
+
     //  The builder that built this machine, for the accessors the shell reads
     //  through it.
     MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
@@ -91,6 +96,7 @@ public:
 private:
 
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
+    void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
 
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;

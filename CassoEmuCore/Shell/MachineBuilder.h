@@ -5,12 +5,16 @@
 #include "Shell/MachineHost.h"
 
 
+class Acia6551;
 class DriveAudioMixer;
 class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
 class PrinterWorker;
+class SuperSerialCard;
 class WasapiAudio;
+
+struct SlotConfig;
 
 
 
@@ -131,6 +135,9 @@ public:
     void     SelectVideoMode      ();
 
 private:
+
+    void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
+    void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;

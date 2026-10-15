@@ -162,6 +162,10 @@ private:
     static constexpr const char *  kpszDeviceKey          = "device";
     static constexpr const char *  kpszPrinterDevice      = "parallel-printer";
     static constexpr int           kPrinterDefaultSlot    = 1;
+    static constexpr const char *  kpszFirmwareKey        = "firmware";
+    static constexpr const char *  kpszEnabledKey         = "enabled";
+    static constexpr const char *  kpszSerialCardFirmware = "SSC.rom";
+    static constexpr int           kSerialCardDefaultSlot = 2;
     static constexpr const char *  kpszPortsKey           = "ports";
     static constexpr const char *  kpszPortNameKey        = "name";
     static constexpr const char *  kpszUiPrefsKey         = "$cassoUiPrefs";
@@ -182,6 +186,12 @@ private:
         const char  * defaultFlag);
 
     static bool  TryInjectPrinterSlot (JsonValue & arr);
+
+    static bool  TryInjectSerialCardSlot (JsonValue & arr);
+
+    static bool  TryInjectSlotEntry (JsonValue                        & arr,
+                                     int                                slotNumber,
+                                     vector<pair<string, JsonValue>>    entry);
 
     static bool  TryInjectDiskPorts (JsonValue & arr);
 
