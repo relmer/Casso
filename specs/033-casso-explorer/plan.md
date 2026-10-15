@@ -17,6 +17,14 @@ and keeps its own preferences in another. Every decision is a pure model
 class under test; the window is thin. Research and corrections to the
 spec's assumptions are in [research.md](research.md).
 
+Section H adds the Apple II link: a protocol engine that serves ADTPro's
+clients and Casso's own polling client (R15, R16), a 6502 shim and program
+assembled from source in the core (R17, R22), a paced bridge from an
+emulated 6551 to the PC (R18), COM and TCP streams behind one seam (R19),
+sparse sector images the volume classes fault in over the line (R20), and
+an Apple root in Casso Explorer's tree (R21). The wire contract is
+[contracts/apple-link.md](contracts/apple-link.md).
+
 ## Technical Context
 
 **Language/Version**: C++ under stdcpplatest, MSVC v145+
@@ -50,6 +58,13 @@ about ten model classes and a shell, two new CassoCore codecs, six Dxui
 additions, two intent-channel intents plus a reply, one process seam, two
 prefs files, and their tests
 
+**Section H additions**: Winsock and the Win32 COM-port API (Windows SDK,
+no new dependency); CassoCore's assembler at run time; `Acia6551`,
+`IVolume`, `NibblizationLayer`, `DirectBootBuilder`; ADTPro 2.1.0's own
+host and client as a captured reference, never its source. Throughput:
+115,200 baud is about 11.5 KB/s, so a 140 KB disk in under 30 s (SC-027)
+allows about half the time for framing and retries.
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
@@ -65,6 +80,13 @@ prefs files, and their tests
 
 Post-design re-check: unchanged. No Complexity Tracking entries.
 
+Section H re-check: II, every transport sits behind `IByteStream` and the
+COM-port list behind the same seam, so no unit test opens a port or a
+socket; scenario tests run the Apple program in a `TestMachine` against
+the in-process stream. V, the Apple side stays a shim and a sector server,
+and file systems stay in `IVolume` (R16, R20). VI, the link lives in
+`CassoEmuCore/AppleLink/`; no executable changes. PASS.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -78,7 +100,8 @@ specs/033-cassque/
 ├── contracts/
 │   ├── intent-channel.md
 │   ├── host-file-names.md
-│   └── dxui-additions.md
+│   ├── dxui-additions.md
+│   └── apple-link.md        # section H wire contract and session interface
 ├── tasks.md              # /speckit-tasks output
 └── validation.md         # quickstart outcomes, written during the last phase
 ```
@@ -153,6 +176,24 @@ CassoEmuCore/
 │   └── DialogBodyContent.cpp          # paints it
 └── resource.h                         # Casso Explorer icon and PNG ids
 CassoCore/ExternalChangeIntent.h       # two intents
+
+CassoEmuCore/AppleLink/                # section H
+├── AppleLinkCodec.h/.cpp              # framing, EOR, CRC, RLE (ADTPro's, R15)
+├── AppleLinkHost.h/.cpp               # serves ADTPro's clients and Casso's (R16)
+├── AppleLinkSession.h/.cpp            # thread, queue, LinkedDisks, states
+├── LinkedDisk.h/.cpp                  # sparse sector image, fault-in (R20)
+├── LinkProgram.h/.cpp                 # assembles the shim and program (R22)
+├── LinkBootstrap.h/.cpp               # monitor lines for IN#2 (R23)
+└── Apple/                             # AS65 source, compiled in as text
+    ├── Shim.s
+    └── Program.s
+CassoEmuCore/Devices/AciaEndpoints.h/.cpp   # AciaBridgeEndpoint, paced (R18)
+CassoEmuCore/Seams/
+├── IByteStream.h                      # NEW
+├── InProcessByteStream.h/.cpp         # NEW
+├── Win32ComPort.h/.cpp                 # NEW
+└── Win32TcpStream.h/.cpp              # NEW
+CassoEmuCore/Machines/Apple2/Common/   # Dos33Volume, ProDosVolume read sectors through one accessor
 
 UnitTest/
 ├── CassoExplorer/                           # NEW folder, one test file per model class
@@ -282,6 +323,34 @@ run time from the video ROM. Neither's code remains.
 The monitor for pictures is chosen on the options dialog's Display page;
 the command bar's Monitor drop-down was removed (FR-068).
 
+### Apple II link
+
+Section H, research R15 to R23, contract
+[contracts/apple-link.md](contracts/apple-link.md). Phases, after phase 9's
+work on sections A to G:
+
+10. **Bridge and streams**: `IByteStream` with the in-process pair,
+    `AciaBridgeEndpoint` with cycle-counted pacing, the TCP stream, and the
+    endpoint as a machine setting. An emulated //c's port is reachable over
+    TCP.
+11. **Recordings**: ADTPro 2.1.0's host joined to its own client in an
+    emulated //c over the TCP bridge; disk send, receive and a virtual
+    drive captured as fixtures; the contract's *captured* values filled in.
+12. **Codec and ADTPro host**: `AppleLinkCodec` and `AppleLinkHost`
+    serving ADTPro's clients, tested against the recordings, then against
+    ADTPro's client in an emulated //c (SC-032).
+13. **Apple program**: the shim and program in AS65, `LinkProgram`, and a
+    scenario test reading and writing sectors on an emulated //c.
+14. **Sparse disks**: the volume classes' sector accessor, `LinkedDisk`'s
+    fault-in, and the session's operations, all on the in-process stream.
+15. **Casso Explorer**: the link roots, settings, the COM search,
+    copy in and out, Read disk to image and Write image to disk.
+16. **Hardware**: `Win32ComPort`, bootstrap over `IN#2`, and the owner's
+    //c walkthrough (SC-027, SC-028, SC-033).
+17. **Cards, after their merges**: the Super Serial Card driver in the shim
+    with the 042 merge, Uthernet II with the 043 merge, and audio bootstrap
+    for a ][+ or //e with whichever lands first.
+
 ## Risks
 
 - **032 timing**: phase 6 is the only gate; everything before it merges
@@ -296,6 +365,15 @@ the command bar's Monitor drop-down was removed (FR-068).
   bus is never read when `videoRam` is non-null; a test asserts that with
   a bus that fails on read.
 - **Master renames mid-branch**: merge master after each phase.
+- **Polled serial at 115,200 baud on a //c**: about 89 cycles per byte. The
+  receive loop is cycle-counted in the emulator before it runs on the
+  owner's //c; 57,600 baud is the fallback, and SC-027 is met at it with a
+  smaller margin.
+- **ADTPro's undocumented details**: the CRC, RLE and timeouts come from
+  recordings (R15). A recording that does not settle one blocks phase 12,
+  not the link: Casso's own client uses neither ADTPro's RLE nor its CRC.
+- **Card features slipping**: phase 17 waits on 042 and 043; everything
+  before it runs on the //c.
 
 ## Phase 2 Preview
 

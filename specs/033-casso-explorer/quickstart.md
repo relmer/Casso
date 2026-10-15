@@ -160,6 +160,36 @@ claim, so the preview is its bytes.
   far end, and no Monitor drop-down. Open the options dialog's Display
   page and pick amber. Result: a picture preview redrawn on amber.
 
+## 7b. The Apple II link (stories 14 to 16, FR-083 to FR-098)
+
+Contract: [contracts/apple-link.md](contracts/apple-link.md). Steps 1 to 4
+run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
+
+1. **Emulated //c, in-process.** Start Casso on a //c with the link disk
+   from Save link to disk, and add an `Emulated` link in Casso Explorer.
+   Result: an Apple root with two drives, each labeled with its volume.
+   Copy a 10 KB file out and back, and read a disk to `.dsk`. Result: the
+   file and the image compare equal to their sources with `fc /b`.
+2. **The debugger.** During a disk read, break into Casso's debugger for 10
+   seconds and resume. Result: the read completes and its image compares
+   equal.
+3. **ADTPro's client.** Boot ADTPro 2.1.0's client disk in an emulated //c,
+   join it to Casso over the TCP bridge, and send and receive a disk.
+   Result: images equal to those ADTPro's own host makes (SC-032).
+4. **Failures.** Close the TCP connection mid-read. Result: a message with
+   the reason, no image file left behind, and the next read succeeds with
+   neither end restarted (SC-030).
+5. **Bootstrap.** On the //c at the BASIC prompt, type `IN#2` and Ctrl-A
+   `14B`, and choose Bootstrap. Result: the status screen within 60
+   seconds (SC-033). Save link to disk, boot it, and confirm it loads the
+   current program.
+6. **Speed.** Read a 140 KB disk at 115,200 baud. Result: under 30 seconds,
+   and equal to ADTPro's image of the same disk (SC-027). Copy a 10 KB file
+   each way. Result: under 5 seconds each (SC-028).
+7. **Write image to disk.** Write a `.dsk` to a blank disk in drive 2 and
+   boot it. Result: it boots; a `.woz` with a non-standard track fails with
+   the track listed.
+
 ## 8. Headless tests
 
 ```powershell

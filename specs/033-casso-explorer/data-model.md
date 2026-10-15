@@ -144,3 +144,47 @@ Preview-pane visibility is window-wide, in `CassoExplorerPrefs`, not here.
 | MachineDescription | Casso to Casso Explorer | reply id, drive count byte, display name UTF-8 |
 | InsertDone, InsertRefused | Casso to Casso Explorer | reply id, reason UTF-8 on refusal |
 | ReloadDone, ReloadConflict, ReloadRefused | Casso to Casso Explorer | reply id, description or reason UTF-8 |
+
+## Apple II link (section H)
+
+### Persisted: `links` in CassoExplorerPrefs.json
+
+| Field | Type | Meaning |
+|---|---|---|
+| name | string | The root's label, unique among links |
+| transport | string | `Serial`, `Tcp`, `WifiModem` or `Emulated` |
+| port | string | `COM3` for serial; empty to search (FR-083a) |
+| address | string | `host:port` for TCP and the Wi-Fi modem; listen port for `Emulated` |
+| baud | int | Default 115200 (FR-094) |
+| bootstrapBaud | int | Default 9600 |
+| hardwareHandshake | bool | Default false |
+
+### In memory
+
+- **AppleLinkSession**: one per open link. It owns the `IByteStream`, the
+  protocol engine, a `LinkedDisk` per drive and the operation queue, and
+  runs on its own thread.
+  - **States**: Closed → Opening → Waiting for Ready → Loading program →
+    Ready ⇄ Busy → Closed. Any state goes to Disconnected on a timeout or
+    a closed stream; Disconnected goes to Opening on the next request.
+- **LinkedDisk**: a 140 KB sector image with a presence bit per sector, the
+  volume's kind, and the miss list of the last run (R20). It is cleared
+  when the drive's Ready map or volume changes.
+- **LinkOperation**:
+  - **Fields**: kind (enumerate, read file, write file, delete, rename,
+    make directory, read disk, write disk, bootstrap, save link), drive,
+    paths, progress (0 to 100), result HRESULT, and a message.
+  - **States**: Queued → Running → Done | Failed | Canceled. One runs at a
+    time (FR-098).
+- **LinkProgram**: the assembled shim and program bytes, their load
+  addresses and the version constant, assembled once per session (R22).
+
+### Validation
+
+- A write to a `LinkedDisk` re-reads the catalog sectors first, and fails
+  if the volume name or catalog differs from the listing it started from.
+- A Write image to disk on an image whose tracks do not decode to standard
+  sectors fails before any track is written (FR-086).
+- A host file from a failed Read disk to image or a failed copy is never
+  committed; the atomic replace of `IDiskFileIo` only runs on success
+  (FR-087).

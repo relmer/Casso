@@ -402,3 +402,281 @@ owner's request:
 
 A face built from the built-in table was dropped in the 2026-09 pass, since
 the table is a partial copy of Apple's ROM.
+
+## R15. ADTPro's protocol, from its published document
+
+**Finding**: adtpro.com/protocol.html, version 2.1.0, defines:
+
+- **The envelope**: `'A'` ($C1), a two-byte payload length, a command byte,
+  and an EOR of those four bytes; then the payload and, when the payload is
+  not empty, an EOR of the payload.
+- **The command bytes**: CD $C3, Directory $C4, Get $C7, Put $D0, Batch
+  $C2, Nibble $CD, Multiple $CC, Size $DA, Send Image Data $D3,
+  Acknowledgement $CB, Summary $D9, Home $D8, Send File $C6.
+- **Virtual drives**: their own `'E'` ($C5) header, with mode, block number
+  and EOR, over 512-byte blocks.
+- **Acknowledgements**: ACK $06, NAK $15 (with a block number in Get), and
+  CAN $18 and ENQ $05 for nibble analysis.
+
+Every exchange starts at the client.
+
+**Not in the document**:
+
+- the byte order of the envelope's length field (the Summary example
+  implies LSB first);
+- the CRC's polynomial, initial value and bit order;
+- the RLE encoding of image pages;
+- the scope of the virtual drive's block EOR;
+- timeouts and retry counts;
+- the Nibble packet layout.
+
+**Decision**: implement from the document, and settle each gap by recording
+traffic between ADTPro 2.1.0's own host and its own client, both
+unmodified:
+
+- the host from the owner's install (`Downloads\ADTPro-2.1.0`);
+- the client from its distribution disk, booted in an emulated //c;
+- the two joined by Casso's TCP bridge (R18), ADTPro's serial-over-IP
+  transport being the client end for emulators.
+
+The recordings become test fixtures. ADTPro's GPL source is never read
+(FR-096); its documentation and its observable behavior are fair inputs.
+
+**Alternatives considered**: reading ADTPro's source to fill the gaps,
+which the clean-room rule forbids; guessing the CRC from common 16-bit
+variants, which a recording settles in minutes and without risk.
+
+## R16. The PC drives inside a framing where the client speaks first
+
+**Finding**: every ADTPro exchange begins at the Apple, and the host only
+replies. In a PC-driven link the PC chooses the next operation, and must do so without
+breaking that rule, so that ADTPro's clients and Casso's client share one
+host.
+
+**Decision**: Casso's Apple program polls. It sends a new command, Ready
+(`'R'`, $D2, outside ADTPro's set), with its version and the drives it has.
+The host's reply is the next operation, or Idle; on Idle the client sends
+Ready again after a short pause. The operations are new commands in the
+same envelope, also outside ADTPro's set:
+
+- list drives;
+- read sectors and write sectors (a track and a list of sectors);
+- read and write a whole track (formatting it);
+- report status;
+- load program.
+
+Data moves in a Sector data packet of Casso's own: 256 bytes unencoded and a
+CRC-16/XMODEM, acknowledged with ADTPro's ACK and NAK. Casso's client so
+depends on none of ADTPro's undocumented details. The
+Apple program does no file-system work: catalogs, files, deletes and
+renames are all sector reads and writes the PC computes (R20).
+
+The host distinguishes the two kinds of client by the first command:
+
+- Ready means Casso's client;
+- anything in ADTPro's set means ADTPro's client, served as ADTPro's host
+  serves it.
+
+The contract is in [contracts/apple-link.md](contracts/apple-link.md).
+
+**Alternatives considered**:
+
+- **A new protocol with the PC speaking first.** It breaks ADTPro
+  compatibility, which the owner chose.
+- **File-system commands on the Apple.** They require DOS 3.3 and ProDOS code
+  in 6502, against the owner's choice of a thin Apple side. They also duplicate `IVolume`,
+  which Casso already has.
+
+## R17. The Apple side: shim, program and disk access
+
+**Decision**:
+
+- **Two pieces.** A shim of under one page, resident at $0300, contains the
+  6551 driver and a loader for `load program`. The program it loads,
+  linked at $0800, contains:
+  - the poll loop;
+  - the status screen on the text page;
+  - Casso's own 5.25-inch disk routines: read and write a 6-and-2 sector,
+    format a track, seek with the arm's phase sequence. They are written
+    from Apple's published Disk II documentation and the 6-and-2 encoding
+    `NibblizationLayer` already implements on the PC side.
+- **No DOS or ProDOS in memory**, so all 64 KB but the shim and the text
+  page is free for track buffers.
+- **Updates.** The shim sends Ready with the program's version; the host
+  replies `load program` when it differs (FR-091). Save link to disk writes
+  a boot disk: a boot sector that loads the shim and calls it, so even the
+  disk copy fetches the program from the PC.
+- **Speed.** The //c's 6551 is polled, not run on interrupts. At 115,200
+  baud a byte arrives every 87 microseconds, about 89 cycles at 1.023 MHz.
+  That is enough for a tight polled loop that stores to a buffer, which
+  ADTPro's client demonstrates on this machine.
+
+**Alternatives considered**: the program resident in full, with no shim,
+which requires a disk update on every Casso release; a ProDOS SYS program,
+which brings ProDOS into memory and a ProDOS disk to start from.
+
+## R18. Joining an emulated serial port to the PC
+
+**Finding**: `Acia6551` delivers a received byte through `ReceiveByte` with
+no FIFO. A second byte before the guest reads the first sets Overrun.
+Transmit calls `IAciaEndpoint::OnByteTransmitted` at once, ignoring the
+baud rate. The //c's ports are wired to `AciaLoopbackEndpoint` in
+`MachineBuilder.cpp`. There is no host serial or socket code in the tree.
+
+**Decision**:
+
+- **A bridge endpoint.** A new `AciaBridgeEndpoint` implements
+  `IAciaEndpoint` and owns a pacer. It passes the 6551 one byte at a time,
+  never sooner than one character time at the baud rate set in the chip after
+  the last, and never while RxFull is set. That models a real line feeding
+  a guest that reads each byte in time (FR-095).
+- **Paced transmit.** Bytes the guest transmits go out at the same rate, so
+  the transmit-empty flag clears and sets at real timing for the guest.
+- **Clock.** The pacer counts machine cycles, not wall time, so its timing
+  is correct under the debugger's pauses and at any emulation speed.
+- **What the bridge talks to.** The bridge's other side is an
+  `IByteStream`, with three implementations:
+  - in-process, a pair of queues, used by Casso Explorer when it hosts the
+    emulated machine's link and by every test;
+  - TCP, listening on a port for ADTPro's serial-over-IP transport or a
+    second Casso (FR-097: this PC only, except for the Wi-Fi modem
+    transport);
+  - a COM port, joining an emulated machine to real hardware.
+- **Settings.** The endpoint for each port is a machine setting in
+  `MachineBuilder`; loopback stays the default.
+
+**Alternatives considered**: a receive FIFO in `Acia6551`. The real chip
+has none, and with a FIFO a guest that falls behind gets no overrun,
+hiding bugs that appear on a real //c.
+
+## R19. Host transports
+
+**Decision**: one seam, `IByteStream` (open, close, write, read with a
+timeout, readable count, a "closed" signal), with the three
+implementations above:
+
+- `Win32ComPort` uses `CreateFile` on `\\.\COMn`, `SetCommState` for speed
+  and handshaking, and `SetCommTimeouts`.
+- `Win32TcpStream` uses Winsock. It binds to loopback unless the Wi-Fi
+  modem transport is chosen (FR-097).
+- The in-process pair is a pair of queues.
+
+All three are in `CassoEmuCore/Seams/`. The protocol engine uses only
+`IByteStream`, so unit tests drive it with an in-memory pair and touch no
+port or socket (constitution II).
+
+The COM search (FR-083a) lists ports with `GetCommPorts` behind the same
+seam. It opens only ports that open exclusively, sends the Ready probe's
+reply-request at the default speed, and closes each port it has opened
+before trying the next.
+
+**Alternatives considered**: a third-party serial library, which the
+dependency rules rule out; overlapped I/O with completion ports, which is
+more than one link at a time requires.
+
+## R20. Browsing an Apple disk without reading all of it
+
+**Finding**: `Dos33Volume` and `ProDosVolume` work on a whole image in
+memory, and a whole 140 KB disk takes about 12 seconds at 115,200 baud.
+That is too long before a catalog appears.
+
+**Decision**:
+
+- **A sparse disk.** `LinkedDisk` is a 140 KB image in memory with a map of
+  which sectors are present.
+- **Reads fault in.** The volume classes read sectors through an accessor.
+  For a `LinkedDisk`, a read of an absent sector adds it to a miss list and
+  returns zeros. The operation (enumerate, read a file, write a file) runs;
+  if the miss list is not empty, the PC fetches those sectors in one request
+  and runs it again. It is done when a run adds nothing to the list.
+- **Prefetch.** A catalog is the VTOC and track 17 for DOS 3.3, or blocks 2
+  to 5 and the directory chain for ProDOS. Each is fetched in one or two
+  rounds; a file is its T/S list or index blocks, then its data.
+- **Writes.** A write runs the volume's own write on the sparse image,
+  fetches what it read first, and sends only the sectors it changed. The
+  catalog is read again before every write, so a disk changed since it was
+  listed is reported, not written over (edge cases).
+
+This changes the volume classes in one place: sector access goes through
+one accessor instead of indexing the buffer, a behavior-preserving
+refactor the existing volume tests cover.
+
+**Alternatives considered**: reading the whole disk on first open, which is
+too slow (SC-028); file-system code on the Apple (R16); a separate
+file-system walker on the PC, which duplicates `IVolume`.
+
+## R21. Casso Explorer integration
+
+**Decision**:
+
+- **Tree and locations.** A new `Location::Kind::AppleDrive` and
+  `TreeNode::Kind::AppleLink` / `AppleDrive`, with ids `link:<name>` and
+  `link:<name>|<slot>,<drive>`. The links are listed under This PC's
+  siblings, as a root per link (FR-083).
+- **Settings.** Links are stored in `CassoExplorerPrefs.json` (name,
+  transport, port or address, speed, handshaking).
+- **Background work.** An `AppleLinkSession` per open link runs on its own
+  thread, and owns the `IByteStream`, the protocol engine and the
+  operation queue (FR-098). It posts progress and results to the window,
+  as the shell listings do. The window never waits on the line.
+- **Copies.** Copying out and in reuses `DragPayload`, `HostFileNaming` and
+  the put rules, over a `LinkedDisk` instead of an image. Read
+  disk to image and Write image to disk are verbs on an Apple drive's node
+  and its menu.
+
+**Alternatives considered**: an Apple drive presented as a disk image in a temp
+folder, which hides the live connection and its errors; a separate
+transfer window, which the owner's File Explorer model rules out.
+
+## R22. Building the Apple-side program
+
+**Finding**: CassoCore's assembler is linked into CassoEmuCore, and
+`ImageArtifactSink` and `DirectBootBuilder` write assembled code onto a
+disk image. A build step running `CassoCli` to assemble the program cannot
+feed CassoEmuCore, since `CassoCli` itself links CassoEmuCore.
+
+**Decision**:
+
+- **Source in the tree.** The shim and the program are AS65 source under
+  `CassoEmuCore/AppleLink/Apple/`, compiled into the core as text
+  resources. The core assembles them with CassoCore's assembler when a link
+  starts.
+- **The build check.** A unit test assembles both on every build and fails
+  on any error, and checks that the program's version matches the core's.
+  That makes the build the check FR-096 requires, with no build-order
+  cycle.
+- **Versions and boot disks.** The version is a constant both sides read,
+  so a Casso release bumps it once. Save link to disk uses
+  `DirectBootBuilder` for the boot sector and shim.
+
+**Alternatives considered**: checking in assembled binaries, which drift
+from their source; a prebuild step with a separately built assembler,
+which adds a project and a build order for no gain.
+
+## R23. Bootstrap over serial
+
+**Finding**: ADTPro bootstraps a //c this way. The user types `IN#2` and
+then Ctrl-A `14B`, which sets 9,600 baud (on a //c, with no Return).
+The host then sends text at 9,600 baud, pausing 250 ms after each line.
+ADTPro's page does not document the text.
+
+**Decision**: Casso types into the Apple's monitor:
+
+1. `CALL -151`;
+2. the shim as hex lines (`300:` followed by 8 bytes per line);
+3. `300G`.
+
+After 250 ms per line, the shim runs, sends Ready at 9,600 baud, receives
+the program at 9,600 baud, and the program switches both ends to the
+chosen speed with a speed-change operation the host acknowledges. The
+//c's serial firmware commands come from the //c Technical Reference
+(already transcribed under the session's reference texts) and are
+confirmed on an emulated //c running its own firmware before the real
+one.
+
+Audio bootstrap for a ][+ or //e waits for the Super Serial Card or
+Uthernet II feature to merge, since a ][+ or //e has no link without one.
+Tests send the loader through Casso's cassette emulation (spec 037, on master).
+
+**Alternatives considered**: typing an Applesoft loader with POKEs, which
+is several times longer than hex at 9,600 baud.
