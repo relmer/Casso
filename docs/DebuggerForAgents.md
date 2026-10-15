@@ -131,3 +131,16 @@ CassoCli debug --attach 20044 --mode windbg --json ^
 
 The last line clears the breakpoint again, so the user's machine is left as it
 was apart from where it stopped.
+
+To stop when the disk in drive 1 has track $11 sector 0 read, in the default
+mode, and see what the drive did:
+
+```text
+CassoCli debug --attach 20044 --json ^
+    --command "BPDISK D1 READ 11 0" --command "g" --command "bpc 0"
+```
+
+The `stopped` record has the reason `disk` and a `disk` object with the field's
+track, sector, volume and checksums and the instructions that read it;
+[DebugChannel.md](DebugChannel.md) lists its fields, and
+[Debugger.md](Debugger.md) the other disk events `BPDISK` takes.

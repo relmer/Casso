@@ -244,9 +244,9 @@ are unknown symbols, an `invalid condition` error when set in an `IF`.
 BPDISK D1 READ 11 0
 Set disk breakpoint #3 (sector read, track $11 sector $00, drive 1)
 BPL
-#3  E  on disk sector read, track $11 sector $00, drive 1
+#3 enabled  on disk sector read, track $11 sector $00, drive 1, hits 0
 BPDISK RWTS 11 0 READ
-Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), unresolved: $03D9 holds no JMP yet
+Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), unresolved: $03D9 has no JMP yet
 ```
 
 A stop:
@@ -266,7 +266,7 @@ In GSSquared's `bp` listing a disk breakpoint shows `disk` as its kind and the
 event where the address goes; in WinDbg's `bl`, `disk` stands where the
 address does, then the hit counts, then the event. Every listing gives the
 same event text, and shows `unresolved` for an RWTS or driver breakpoint
-whose vector holds no target.
+whose vector has no target.
 
 **Errors**:
 

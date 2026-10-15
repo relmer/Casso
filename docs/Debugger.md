@@ -387,6 +387,104 @@ the one the CPU executes:
 - **65C02**: every opcode is defined, and the undocumented ones are `NOP`s: 32
   one-byte, eleven two-byte and three three-byte (`$5C`, `$DC`, `$FC`).
 
+## Disk breakpoints
+
+`BPDISK` stops on what the Disk II controller does: a sector read, an address
+field, a head move, a write, a DOS 3.3 sector, a ProDOS block, a call to RWTS
+or to ProDOS's disk driver, the motor, a drive select, and a disk going in or
+out. It is a Casso command, `/bpdisk` in Monitor mode, `bpdisk` in GSSquared
+mode and `!bpdisk` in WinDbg mode. `D1` or `D2` before the event limits it to
+one drive; numbers are hex, and `*` matches any.
+
+| Example | Stops |
+|---|---|
+| `BPDISK READ 11 0` | after the instruction that reads the checksum nibble of track $11's physical sector 0 |
+| `BPDISK READ 11 0 PASSED` | the same, and also on a data field the program's search passed over |
+| `BPDISK ADDRESS 11 * FE BADSUM` | after an address field of track $11, volume $FE, whose checksum is wrong (`WRONGTRACK`: one whose track is not the head's) |
+| `BPDISK HEAD T 11` | when the head arrives on track $11 (`QT 44` in quarter tracks, `HALF` on any half track, `BUMP` on a step against the end stop) |
+| `BPDISK WRITE`, `BPDISK WRITE 11 0`, `BPDISK WRITE BLOCKED` | on entering write mode, on a data prologue written after track $11 sector 0's address field, and on a write a write-protected disk drops |
+| `BPDISK DOS 11 5` | when DOS 3.3's logical sector 5 of track $11 is read, through the physical sector it is stored in |
+| `BPDISK BLOCK 7` | when both halves of ProDOS block 7 are read on one visit to its track |
+| `BPDISK RWTS 11 5 READ` | before RWTS's first instruction, when its IOB's request is that track, sector and command |
+| `BPDISK DRIVER BLOCK 2 WRITE` | before the ProDOS driver's first instruction, for that block and command |
+| `BPDISK MOTOR ON` | when the motor starts (`OFF` when it is switched off, `STOPPED` when it stops a second later) |
+| `BPDISK SELECT` | when the drive selected changes (`EVERY` on each selection) |
+| `BPDISK D2 INSERT`, `BPDISK EJECT` | when a disk goes into drive 2, or out of either |
+
+Custom marks follow the event: `ADDR D5 AA ?? DATA D5 AA AD` matches fields with
+those prologues in place of the standard ones, and `SECTORS 13` reads a 5-and-3
+data field after custom address marks. `IF` adds a condition, as on any
+breakpoint. `BPL`, `BPC`, `BPD`, `BPE`, `BPCHANGE`, `BPEDIT` and `BPSAVE` treat
+a disk breakpoint as they treat any other, and the Breakpoints pane has "Disk
+event..." on its New menu.
+
+**The stop.** A disk breakpoint stops at the instruction boundary after the event,
+as a watchpoint does; an RWTS or driver breakpoint stops before the routine
+runs. The report has the event, the track, sector and volume of the field, the
+address and data checksums as stored and as computed, the three nibbles after
+the data field, the head's position, the motor, and the addresses of the
+instructions that found the address prologue, the data prologue and the
+checksum nibble:
+
+```text
+Disk breakpoint #3: sector read, track $11 (17) sector $00 volume $FE, drive 1, 16-sector
+  address checksum $EF, expected $EF; data checksum $2C, expected $2C; epilogue DE AA EB
+  head on track 17 (quarter track $44), motor on; read by $B925, address field found by $B94F, data field by $B8E1
+```
+
+A breakpoint or watchpoint that stops at the same boundary has its own reason,
+with the disk report after its line.
+
+**Which reads count.** RWTS and the boot ROM search for a sector by reading every
+field that passes, so most data fields go by unread. A data field counts as
+read when the instruction that read its checksum nibble is not the one that
+found its address field: the search loop that passes a field over reads both
+in one place, and the read routine reads the data in another. `PASSED` counts
+the fields passed over as well.
+
+**Disk values.** Any expression (an `IF`, `CALC`, an address) can read
+`DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`, `DISK.QTRACK2`, `DISK.MOTOR`,
+`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ATRACK`,
+`DISK.ASECTOR` and `DISK.AVOLUME`, the selected drive's last address field
+with a good checksum ($FFFF while there is none). They come from the
+controller, never through the bus, so reading them changes nothing, and they
+take precedence over a program symbol of the same name. On a machine with no
+Disk II they are unknown.
+
+```text
+BPDISK MOTOR ON IF DISK.QTRACK == 0
+CALC DISK.ATRACK
+```
+
+**RWTS and driver breakpoints follow their vectors.** DOS 3.3 can be loaded at
+other addresses, and a program can patch RWTS or install its own, so
+`BPDISK RWTS` stops at the routine the `JMP` at $03D9 leads to, and
+`BPDISK DRIVER` at the routine slot 6's device vector has ($BF1C for drive 1,
+$BF2C for drive 2) once ProDOS's global page begins with its `JMP`. The
+routine is taken again whenever a vector's bytes change. Until the vector
+has a target the breakpoint is unresolved, which `BPL` and the pane's Address
+column indicate, and it stops on nothing. A call that does not go through the
+vector, as DOS's own calls through $B7B5 do, stops at the routine too.
+
+**The head.** Casso's stepper moves the head in half-track steps, so a head
+breakpoint matches whole and half tracks only; a `QT` range matches whatever
+positions in it the head arrives at.
+
+**Reverse continue** stops on disk breakpoints of every kind, at the boundary a
+forward run stops at, including a sector whose reading began before the
+snapshot the replay starts from. Replays count no hits.
+
+**Not yet.** Three kinds wait for the disk inspector's preservation work:
+
+- **A nibble sequence with `??` wildcards.** What a protection check reads
+  depends on where the latch frames the bits, which the inspector displays and
+  searches; built here, it would be a second matcher that ignores framing.
+- **A field passing under the head with no CPU read.** It depends on where each
+  field lies on the track, which the inspector's analyzer finds.
+- **A latch read during the motor's spin-up.** The spin-up window is a
+  constant taken from AppleWin's model, while real cards vary up to about three
+  times as long, so the breakpoint would stop on an approximation.
+
 ## Source-level debugging
 
 A debug file maps addresses to source lines. Casso reads cc65's debug format
