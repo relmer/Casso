@@ -528,8 +528,9 @@ baud rate. The //c's ports are wired to `AciaLoopbackEndpoint` in
 - **A bridge endpoint.** A new `AciaBridgeEndpoint` implements
   `IAciaEndpoint` and owns a pacer. It passes the 6551 one byte at a time,
   never sooner than one character time at the baud rate set in the chip after
-  the last, and never while RxFull is set. That models a real line feeding
-  a guest that reads each byte in time (FR-095).
+  the last. A byte the guest has not read when the next arrives is overrun,
+  so a guest that reads each byte in time receives every byte and one that
+  falls behind overruns, as on a real //c (FR-095).
 - **Paced transmit.** Bytes the guest transmits go out at the same rate, so
   the transmit-empty flag clears and sets at real timing for the guest.
 - **Clock.** The pacer counts machine cycles, not wall time, so its timing

@@ -16,7 +16,10 @@
 #include "Video/VideoOutput.h"
 
 
+class Acia6551;
+class AciaBridgeEndpoint;
 class Apple2cRomBank;
+class IByteStream;
 class Apple2eMmu;
 class AppleMouse;
 class SiriusJoyport;
@@ -161,6 +164,13 @@ public:
     const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
+    //  A //c's built-in serial ports, by port number, 1 or 2. A stream
+    //  attached to one replaces the port's endpoint with a bridge that runs
+    //  at the line's speed, ticked after every instruction.
+    void     SetSerialPort      (int port, Acia6551 * acia);
+    HRESULT  AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
+    void     DetachSerialPorts  ();
+
     CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return *m_config; }
@@ -258,6 +268,10 @@ private:
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
+
+    static constexpr int                 s_kSerialPortCount = 2;
+    std::array<Acia6551 *, s_kSerialPortCount + 1>  m_serialPorts   = {};
+    std::vector<AciaBridgeEndpoint *>    m_serialBridges;
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;

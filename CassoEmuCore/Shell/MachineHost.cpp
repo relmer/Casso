@@ -3,6 +3,8 @@
 #include "Shell/MachineHost.h"
 
 #include "Core/Prng.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -228,7 +230,101 @@ Byte MachineHost::StepOne()
         m_refs.mockingboard->Tick (cycles);
     }
 
+    for (AciaBridgeEndpoint * bridge : m_serialBridges)
+    {
+        bridge->Tick (cycles);
+    }
+
     return (cycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetSerialPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetSerialPort (int port, Acia6551 * acia)
+{
+    if (port >= 1 && port <= s_kSerialPortCount)
+    {
+        m_serialPorts[(size_t) port] = acia;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachSerialStream
+//
+//  The bridge is owned with the port's other endpoints and replaces the one
+//  the port had; that one stays owned, unused, until the machine goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge)
+{
+    HRESULT                              hr     = S_OK;
+    Acia6551                           * acia   = nullptr;
+    std::unique_ptr<AciaBridgeEndpoint>  bridge;
+
+
+
+    CBRAEx (port >= 1 && port <= s_kSerialPortCount, E_INVALIDARG);
+    CBRAEx (stream != nullptr, E_INVALIDARG);
+
+    acia = m_serialPorts[(size_t) port];
+    CBREx (acia != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
+
+    bridge = std::make_unique<AciaBridgeEndpoint> (acia, std::move (stream));
+    acia->SetEndpoint (bridge.get());
+
+    m_serialBridges.push_back (bridge.get());
+
+    if (outBridge != nullptr)
+    {
+        *outBridge = bridge.get();
+    }
+
+    m_ownedAciaEndpoints.push_back (std::move (bridge));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::DetachSerialPorts
+//
+//  Before the devices go, so no bridge is ticked against a port that no
+//  longer exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::DetachSerialPorts()
+{
+    for (Acia6551 * acia : m_serialPorts)
+    {
+        if (acia != nullptr)
+        {
+            acia->SetEndpoint (nullptr);
+        }
+    }
+
+    m_serialPorts = {};
+    m_serialBridges.clear();
+    m_ownedAciaEndpoints.clear();
 }
 
 

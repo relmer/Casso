@@ -426,44 +426,44 @@ run the Apple program in a `TestMachine` over the in-process stream.
 **Purpose**: an emulated //c's serial port reachable from the PC side,
 in-process and over TCP, at real line timing.
 
-- [ ] T180 Add `UnitTest/AppleLink/` to `UnitTest/UnitTest.vcxproj`, and `ScenarioTests/AppleLink*.cpp` to `ScenarioTests/ScenarioTests.vcxproj`, each with a placeholder test that builds and runs; add `CassoEmuCore/AppleLink/` to `CassoEmuCore/CassoEmuCore.vcxproj`
-- [ ] T181 [US16] Add the stream seam:
+- [X] T180 Add `UnitTest/AppleLink/` to `UnitTest/UnitTest.vcxproj`. `ScenarioTests/AppleLink*.cpp` and `CassoEmuCore/AppleLink/` enter their projects with their first files, so neither has a placeholder
+- [X] T181 [US16] Add the stream seam:
   - `IByteStream` in `CassoEmuCore/Seams/IByteStream.h`: open, close, write, read with a timeout in milliseconds, readable count, closed;
   - `IByteStreamFactory` in `CassoEmuCore/Seams/IByteStreamFactory.h`: list COM ports, open a COM port, listen on or connect to a TCP port;
   - `InProcessByteStream` in `CassoEmuCore/Seams/InProcessByteStream.h/.cpp`: two thread-safe linked ends over queues;
   - tests in `UnitTest/AppleLink/InProcessByteStreamTests.cpp`.
 
   Per R19 and FR-093.
-- [ ] T182 [US16] Add `AciaBridgeEndpoint` to `CassoEmuCore/Devices/AciaEndpoints.h/.cpp`, over an `IByteStream`:
-  - **Receive**: pass `Acia6551::ReceiveByte` one byte at a time, never sooner than one character time at the baud rate and word length set in the 6551 after the last, and never while RxFull is set.
-  - **Transmit**: send the guest's bytes out at the same rate, with the transmit-empty flag clearing and setting at that timing.
+- [X] T182 [US16] Add `AciaBridgeEndpoint` to `CassoEmuCore/Devices/AciaEndpoints.h/.cpp`, over an `IByteStream`:
+  - **Receive**: pass `Acia6551::ReceiveByte` one byte at a time, never sooner than one character time at the baud rate and word length set in the 6551 after the last. A byte the guest has not read when the next arrives is overrun, as on a real line.
+  - **Transmit**: send the guest's bytes out at the same rate, through a shift register and the data register, with the transmit-empty flag clearing and setting at that timing.
   - **Clock**: count machine cycles, not wall time.
   - **Byte log**: optional, with a direction mark on each byte, for captures.
-  - **Acia6551**: add only what it lacks, an RxFull read and a cycle count from the machine.
-  - **Tests** in `UnitTest/EmuTests/AciaBridgeEndpointTests.cpp`: pacing at 9,600 and 115,200 baud, no delivery while RxFull is set, no overrun for a guest that reads each byte in time, an overrun for one that does not, and transmit pacing.
+  - **Acia6551**: add only what it lacks, a paced transmit-empty flag for an endpoint that paces; `MachineHost` ticks the bridge with the machine's cycles.
+  - **Tests** in `UnitTest/EmuTests/AciaBridgeEndpointTests.cpp`: pacing at 9,600 and 115,200 baud, no overrun for a guest that reads each byte in time, an overrun for one that does not, and transmit pacing.
 
   Per FR-095 and R18.
-- [ ] T183 [US16] Make each //c serial port's endpoint a machine setting in `CassoEmuCore/Shell/MachineBuilder.cpp` and `CassoEmuCore/Shell/MachineHost.h`:
+- [X] T183 [US16] Make each //c serial port's endpoint a machine setting in `CassoEmuCore/Shell/MachineBuilder.cpp` and `CassoEmuCore/Shell/MachineHost.h`:
   - loopback by default;
   - a bridge to an in-process stream, a TCP listen port, or a COM port.
 
   Extend `UnitTest/EmuTests/Apple2cBootTests.cpp` with a //c whose port 2 bridges to an `InProcessByteStream` end and exchanges bytes with the test through the guest's own 6551 code. Per FR-095.
-- [ ] T184 [P] [US16] Add `Win32TcpStream` in `CassoEmuCore/Seams/Win32TcpStream.h/.cpp`:
+- [X] T184 [P] [US16] Add `Win32TcpStream` in `CassoEmuCore/Seams/Win32TcpStream.h/.cpp`:
   - Winsock listen and connect, one connection at a time;
   - bound to 127.0.0.1 unless the caller selects the network;
   - the port released on close;
   - the bind address chosen by `ByteStreamSettings::GetBindAddress` in `CassoEmuCore/Seams/ByteStreamSettings.h/.cpp`, a pure function from the transport, so the choice is tested without a socket.
 
   Tests of `GetBindAddress` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 127.0.0.1 for every transport but `WifiModem`, and the network for `WifiModem`. Per FR-097, R19 and constitution II.
-- [ ] T185 [P] [US16] Add `Win32ComPort` in `CassoEmuCore/Seams/Win32ComPort.h/.cpp`:
+- [X] T185 [P] [US16] Add `Win32ComPort` in `CassoEmuCore/Seams/Win32ComPort.h/.cpp`:
   - `CreateFile` on `\\.\COMn`, opened exclusively;
   - `SetCommState` for speed, data format and hardware handshake;
   - `SetCommTimeouts` for the read timeout;
-  - `GetCommPorts` for the port list, through `IByteStreamFactory`;
-  - the port's settings built by `ByteStreamSettings::ToComSettings`, a pure function from the speed, data format and handshake, so they are tested without a port.
+  - the port list from `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`, through `IByteStreamFactory`;
+  - the port's settings built by `ByteStreamSettings::ToDcb`, a pure function from the speed, data format and handshake, so they are tested without a port.
 
-  Tests of `ToComSettings` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
-- [ ] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
+  Tests of `ToDcb` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
+- [X] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings. A port is opened only while the machine runs and is released when it stops. Per FR-095 and FR-097.
 
 ## Phase 17: ADTPro captures (US16)
 

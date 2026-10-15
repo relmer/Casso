@@ -27,8 +27,10 @@ struct DeviceConfig;
 //      +2  Command  DTR, receiver-IRQ enable, transmitter-IRQ control, parity
 //      +3  Control  baud rate, word length, stop bits
 //
-//  Transmit is modeled as instantaneous: a byte written to the data register
-//  is handed to the attached endpoint immediately and TDRE stays set. The IRQ
+//  Transmit is instantaneous unless the endpoint paces it: a byte written to
+//  the data register goes to the endpoint at once, and TDRE stays set, or,
+//  with a pacing endpoint, clears until the endpoint reports the byte gone.
+//  The IRQ
 //  status bit (bit 7) is an event latch — set when a byte is received or the
 //  transmitter empties (subject to the command-register enables) and cleared
 //  by reading the status register.
@@ -70,6 +72,7 @@ public:
     static constexpr Byte    kCommandTicTxIrqOn    = 0x04;
     static constexpr Byte    kCommandEcho          = 0x10;
     static constexpr Byte    kCommandParityMask    = 0xE0;
+    static constexpr Byte    kCommandParityEnable  = 0x20;
 
     // Control register bits.
     static constexpr Byte    kControlBaudMask     = 0x0F;
@@ -97,6 +100,10 @@ public:
 
     // Push one received byte into the ACIA (called by an endpoint).
     void    ReceiveByte (Byte value);
+
+    // The transmit data register is empty again (called by an endpoint that
+    // paces transmit).
+    void    SetTransmitterEmpty ();
 
     // Inspectors for tests / firmware wiring.
     Byte    GetStatus  () const { return m_status; }

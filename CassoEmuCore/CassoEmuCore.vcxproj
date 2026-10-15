@@ -206,6 +206,12 @@
     <ClCompile Include="Machines\Apple2\Common\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Seams\InProcessByteStream.cpp" />
+    <ClCompile Include="Seams\ByteStreamSettings.cpp" />
+    <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32ComPort.cpp" />
+    <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
+    <ClCompile Include="Devices\SerialPortDevice.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -773,6 +779,14 @@
     <ClInclude Include="Machines\Apple2\Common\LanguageCard.h" />
     <ClInclude Include="Devices\Acia6551.h" />
     <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Seams\IByteStream.h" />
+    <ClInclude Include="Seams\IByteStreamFactory.h" />
+    <ClInclude Include="Seams\InProcessByteStream.h" />
+    <ClInclude Include="Seams\ByteStreamSettings.h" />
+    <ClInclude Include="Seams\Win32TcpStream.h" />
+    <ClInclude Include="Seams\Win32ComPort.h" />
+    <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
+    <ClInclude Include="Devices\SerialPortDevice.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />
     <ClInclude Include="Devices\Ay8910.h" />

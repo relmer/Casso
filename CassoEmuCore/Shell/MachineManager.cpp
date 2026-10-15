@@ -474,6 +474,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
         m_shell.m_machine.SetApple2cRomBank (nullptr);
+        m_shell.m_machine.DetachSerialPorts();
         m_shell.m_machine.GetOwnedDevices().clear();
         m_shell.m_machine.GetVideoModes().clear();
         m_shell.m_machine.GetMemoryBus() = MemoryBus();

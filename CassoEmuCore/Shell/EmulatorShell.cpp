@@ -75,6 +75,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Seams/Win32ByteStreamFactory.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -160,12 +161,15 @@ EmulatorShell::EmulatorShell()
 
     MachineBuildServices  services;
 
+    m_streamFactory = std::make_unique<Win32ByteStreamFactory>();
+
     m_audio->BindBuildServices (services);
 
     m_printer->BindBuildServices (services);
 
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
+    services.streamFactory          = m_streamFactory.get();
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
 
     m_machineBuilder = std::make_unique<MachineBuilder> (m_machine, services);

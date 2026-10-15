@@ -134,6 +134,7 @@ public:
     // --no-image-watch and read by the two places that install notification.
     void SetImageWatchDisabled (bool disabled) { m_imageWatchDisabled = disabled; }
     bool IsImageWatchDisabled  () const        { return m_imageWatchDisabled; }
+    class IByteStreamFactory * GetStreamFactory () const { return m_streamFactory.get(); }
 
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
@@ -698,6 +699,7 @@ private:
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     uint64_t               m_prngSeed      = 0;       // power-on DRAM seed; --seed overrides
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
+    std::unique_ptr<class IByteStreamFactory>  m_streamFactory;   // opens the stream for each serial port's device
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
 

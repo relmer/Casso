@@ -238,10 +238,10 @@ public:
 //  means restoring the baseline rather than simply discarding a pending edit;
 //  without a saved copy there would be nothing to restore.
 //
-//  IsDirty and RequiresReset are separate questions. Dirty decides whether
+//  IsDirty and RequiresReset are separate questions. Dirty indicates whether
 //  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
-//  change needs a machine rebuild -- and it is what relabels OK to warn about
-//  the reboot.
+//  change or a serial port's device requires a machine rebuild -- and it
+//  relabels OK to warn about the reboot.
 //
 //  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
 //  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
@@ -281,7 +281,7 @@ public:
     JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
 
     bool IsDirty       () const;
-    bool RequiresReset () const;          // true iff any hardware enable changed
+    bool RequiresReset () const;          // true iff a hardware enable or a serial device changed
 
     // Live (current) accessors / mutators
 
@@ -341,6 +341,13 @@ public:
     void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
 
+    // What a //c serial port, 1 or 2, connects to: its back-panel port's
+    // device (see SerialPortDevice). A change takes effect when the machine
+    // is rebuilt, so it requires a reset.
+    bool         HasSerialPorts      () const;
+    std::string  GetSerialPortDevice (int port) const;
+    void         SetSerialPortDevice (int port, const std::string & device);
+
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // Apply
@@ -361,6 +368,8 @@ public:
     // The machine's own connectors, read from the root `ports` array. Absent
     // leaves the list empty, which BuildJson takes as "this machine never had
     // a back panel to write back".
+    bool                AreSerialPortsChanged () const;
+    static std::string  GetPortDevice (const std::vector<SettingsMachinePort> & ports, const char * name);
     static HRESULT ExtractMachinePorts (const JsonValue                       & mergedJson,
                                         std::vector<SettingsMachinePort>      & outPorts);
 
@@ -409,6 +418,7 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszDiskIiDevice = "disk-ii";
     static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";

@@ -4,6 +4,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Core/TextEncoding.h"
+#include "Devices/SerialPortDevice.h"
 
 
 
@@ -129,6 +130,12 @@ HardwarePage::HardwarePage(std::wstring title)
     }
 
     Adopt (m_tree);
+
+    for (i = 0; i < (size_t) kSerialPortCount; ++i)
+    {
+        Adopt (m_serialLabels[i]);
+        Adopt (m_serialDropdowns[i]);
+    }
 }
 
 
@@ -245,6 +252,23 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
                         std::wstring (L"Maximum (full afterburner ") + s_kpszRocket + L")" });
     y += rowHeight + sectionGap;
 
+    // A //c's two serial ports, below the speed, on a machine that has them.
+    for (i = 0; i < (size_t) kSerialPortCount; ++i)
+    {
+        m_serialLabels[i].SetText    (std::format (L"Serial port {}:", i + 1));
+        m_serialLabels[i].SetVisible (m_showSerial);
+        m_serialDropdowns[i].SetVisible (m_showSerial);
+        m_serialLabels[i].SetDpi     (dpi);
+        m_serialDropdowns[i].SetDpi  (dpi);
+
+        if (m_showSerial)
+        {
+            m_serialLabels[i].SetRect    (MakeRect (x, y, labelWidth, rowHeight));
+            m_serialDropdowns[i].SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
+            y += rowHeight + sectionGap;
+        }
+    }
+
     // Hardware spec block starts below the selectors.
     m_infoTop = y;
 
@@ -343,6 +367,11 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 {
     m_machineDropdown.SetPopupHost (host);
     m_speed.SetPopupHost           (host);
+
+    for (DxuiComboBox & dropdown : m_serialDropdowns)
+    {
+        dropdown.SetPopupHost (host);
+    }
 }
 
 
@@ -394,6 +423,8 @@ void HardwarePage::Rebuild()
 
         info    = &state->GetMachineInfo();
         entries = state->GetHardware();
+
+        RebuildSerialPorts (*state);
 
         // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format with
         // the "L" locale-aware flag requires a locale; build the grouped
@@ -597,3 +628,135 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     return out;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::RebuildSerialPorts
+//
+//  A change in whether the machine has serial ports moves every row below
+//  them, so the page is laid out again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::RebuildSerialPorts (SettingsPanelState & state)
+{
+    bool  show = state.HasSerialPorts();
+
+
+
+    for (int port = 1; port <= kSerialPortCount; port++)
+    {
+        std::vector<std::wstring>  labels;
+        int                        selected = 0;
+        size_t                     index    = (size_t) (port - 1);
+
+        BuildSerialChoices (port, m_comPorts, state.GetSerialPortDevice (port), labels, m_serialDevices[index], selected);
+
+        m_serialDropdowns[index].SetItems    (labels);
+        m_serialDropdowns[index].SetSelected (selected);
+        m_serialDropdowns[index].SetSelect ([this, statePtr = &state, port, index] (int choice)
+        {
+            if (choice >= 0 && choice < (int) m_serialDevices[index].size())
+            {
+                statePtr->SetSerialPortDevice (port, m_serialDevices[index][(size_t) choice]);
+            }
+        });
+    }
+
+    if (show != m_showSerial)
+    {
+        m_showSerial = show;
+        SetRect (m_baseRect, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::BuildSerialChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::BuildSerialChoices (int port, const std::vector<std::wstring> & comPorts, const std::string & current,
+                                       std::vector<std::wstring> & outLabels, std::vector<std::string> & outDevices, int & outSelected)
+{
+    SerialPortDevice  tcp;
+
+
+
+    outLabels.clear();
+    outDevices.clear();
+
+    tcp.kind    = SerialPortDevice::Kind::Tcp;
+    tcp.tcpPort = (uint16_t) (kSerialTcpBasePort + port);
+
+    outDevices.push_back (std::string());
+    outDevices.push_back (SerialPortDevice::Format (tcp));
+
+    for (const std::wstring & comPort : comPorts)
+    {
+        SerialPortDevice  com;
+
+        com.kind    = SerialPortDevice::Kind::Com;
+        com.comPort = comPort;
+        outDevices.push_back (SerialPortDevice::Format (com));
+    }
+
+    if (std::find (outDevices.begin(), outDevices.end(), current) == outDevices.end())
+    {
+        outDevices.push_back (current);
+    }
+
+    for (const std::string & device : outDevices)
+    {
+        outLabels.push_back (DescribeSerialDevice (device));
+    }
+
+    outSelected = (int) (std::find (outDevices.begin(), outDevices.end(), current) - outDevices.begin());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::DescribeSerialDevice
+//
+//  A device that does not parse is displayed verbatim.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::DescribeSerialDevice (const std::string & device)
+{
+    SerialPortDevice  parsed;
+    HRESULT           hr    = SerialPortDevice::Parse (device, parsed);
+    std::wstring      label = Widen (device);
+
+
+
+    if (SUCCEEDED (hr) && parsed.kind == SerialPortDevice::Kind::Loopback)
+    {
+        label = L"Not connected";
+    }
+    else if (SUCCEEDED (hr) && parsed.kind == SerialPortDevice::Kind::Tcp)
+    {
+        label = std::format (L"TCP port {} on this PC", parsed.tcpPort);
+    }
+    else if (SUCCEEDED (hr) && parsed.baud != SerialPortDevice::kDefaultBaud)
+    {
+        label = std::format (L"{} at {} baud", parsed.comPort, parsed.baud);
+    }
+    else if (SUCCEEDED (hr))
+    {
+        label = parsed.comPort;
+    }
+
+    return label;
+}

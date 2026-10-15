@@ -2,7 +2,10 @@
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "FixtureProvider.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Seams/InProcessByteStream.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -347,6 +350,46 @@ public:
         }
     }
 
+
+    // A stream attached to port 2 replaces its loopback with a line that runs
+    // on the machine's clock: what the guest writes arrives at the other end of
+    // the stream once the CPU has run a character time, and what that end
+    // sends arrives at the guest's receiver the same way.
+    TEST_METHOD (SerialPortBridgedToAStreamExchangesBytesAtLineSpeed)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        AciaBridgeEndpoint                  * bridge  = nullptr;
+        const Word                            data    = 0xC0A8;
+        const Word                            status  = static_cast<Word> (data + Acia6551::kRegStatus);
+        const Byte                            fromPc  = 0xA5;
+        Byte                                  got[4]  = {};
+        size_t                                count   = 0;
+
+
+
+        machine.PowerCycle();
+        machine.RunCycles (20000);
+
+        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd, &bridge));
+        Assert::IsNotNull (bridge);
+
+        machine.GetMemoryBus().WriteByte (data, 0x5A);
+        Assert::AreEqual<size_t> (0, pcEnd->GetReadableCount(), L"nothing is sent before a character time");
+
+        machine.RunCycles (20000);
+        Assert::AreEqual (S_OK, pcEnd->Read (got, std::size (got), 0, count));
+        Assert::AreEqual<size_t> (1, count);
+        Assert::AreEqual<Byte> (0x5A, got[0]);
+
+        Assert::AreEqual (S_OK, pcEnd->Write (&fromPc, 1));
+        machine.RunCycles (20000);
+
+        Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"the byte arrived at the receiver");
+        Assert::AreEqual<Byte> (fromPc, machine.GetMemoryBus().ReadByte (data));
+    }
 
     // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7
     // of $C060 (RD80SW); a booting disk (PR#3) or an app reads it to pick the

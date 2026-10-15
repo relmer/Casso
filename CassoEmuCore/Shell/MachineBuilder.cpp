@@ -12,6 +12,8 @@
 #include "Core/Prng.h"
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/SerialPortDevice.h"
+#include "Seams/IByteStreamFactory.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -589,9 +591,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. v1 endpoints are loopback (comms self-test); the serial
-        // printer-endpoint bridge + Hardware-tab endpoint selector are
-        // downstream work.
+        // controller. Each starts on loopback (comms self-test); the device on
+        // its back-panel port, a TCP port or a COM port, replaces that below.
         for (int slot = 1; slot <= 2; ++slot)
         {
             HRESULT                                hrIc     = S_OK;
@@ -610,9 +611,12 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             acia->SetEndpoint (loopback.get());
 
             m_host.GetMemoryBus().AddDevice (acia.get());
+            m_host.SetSerialPort (slot, acia.get());
             m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
             m_host.GetOwnedDevices().push_back (std::move (acia));
         }
+
+        AttachSerialDevices (config);
     }
 
     // Cache Disk2Controller pointer for the status-bar drive activity
@@ -1646,6 +1650,58 @@ void MachineBuilder::WireJoyport()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineBuilder::AttachSerialDevices
+//
+//  A port whose device cannot be read or opened -- a COM port open in another
+//  program, a TCP port already in use -- is left on loopback, so the machine
+//  starts; the device is opened again at the next build.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
+{
+    static constexpr const char *  kpszPortNames[] = { "serial1", "serial2" };
+    IByteStreamFactory           * factory         = m_services.streamFactory;
+
+
+
+    for (const PortConfig & port : config.ports)
+    {
+        SerialPortDevice              device;
+        std::unique_ptr<IByteStream>  stream;
+        HRESULT                       hr     = S_OK;
+        int                           number = 0;
+
+        for (int i = 0; i < (int) std::size (kpszPortNames); i++)
+        {
+            number = (port.name == kpszPortNames[i]) ? i + 1 : number;
+        }
+
+        hr = (number != 0 && factory != nullptr) ? SerialPortDevice::Parse (port.device, device) : S_FALSE;
+
+        if (hr == S_OK && device.kind == SerialPortDevice::Kind::Tcp)
+        {
+            hr = factory->ListenTcp (device.tcpPort, LinkTransport::Emulated, stream);
+        }
+        else if (hr == S_OK && device.kind == SerialPortDevice::Kind::Com)
+        {
+            hr = factory->OpenComPort (device.comPort, ComSettings { device.baud }, stream);
+        }
+
+        if (SUCCEEDED (hr) && stream != nullptr)
+        {
+            hr = m_host.AttachSerialStream (number, std::shared_ptr<IByteStream> (std::move (stream)));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
 }
 
 

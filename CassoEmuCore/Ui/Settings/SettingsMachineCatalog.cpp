@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SettingsMachineCatalog.h"
+#include "Seams/IByteStreamFactory.h"
 
 #include "HardwarePage.h"
 #include "ThemePage.h"
@@ -195,6 +196,7 @@ void SettingsMachineCatalog::PopulateMachineList()
     std::vector<MachineInfo>            machinesInfo;
     std::vector<std::string>            machineIds;
     std::vector<std::wstring>           displayNames;
+    std::vector<std::wstring>           comPorts;
     std::string                         activeMachine;
     int                                 activeIndex = -1;
     int                                 i           = 0;
@@ -236,6 +238,16 @@ void SettingsMachineCatalog::PopulateMachineList()
     }
 
     m_machinePage->SetMachineList (std::move (machineIds), std::move (displayNames), activeIndex);
+
+    // The COM ports a //c serial port can connect to, as the PC has them now.
+    if (m_emuShell->GetStreamFactory() != nullptr)
+    {
+        HRESULT  hr = m_emuShell->GetStreamFactory()->ListComPorts (comPorts);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    m_machinePage->SetComPorts (std::move (comPorts));
 }
 
 

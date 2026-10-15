@@ -344,19 +344,47 @@ Byte Acia6551::ReadStatus()
 //
 //  WriteData
 //
-//  Transmit is instantaneous: the byte is handed to the endpoint and the
+//  Transmit is instantaneous: the byte goes to the endpoint and the
 //  transmitter is immediately empty again, re-firing the TX interrupt if
-//  enabled.
+//  enabled. A pacing endpoint instead takes the byte with TDRE clear, and
+//  sets it through SetTransmitterEmpty when the line is ready for another.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Acia6551::WriteData (Byte value)
 {
+    bool  paced = (m_endpoint != nullptr) && m_endpoint->PacesTransmit();
+
+
+
+    if (paced)
+    {
+        m_status &= ~kStatusTxEmpty;
+    }
+
     if (m_endpoint != nullptr)
     {
         m_endpoint->OnByteTransmitted (value);
     }
 
+    if (!paced)
+    {
+        SetTransmitterEmpty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTransmitterEmpty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetTransmitterEmpty()
+{
     m_status |= kStatusTxEmpty;
 
     if (IsTxIrqEnabled())

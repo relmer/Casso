@@ -30,4 +30,10 @@ public:
 
     // The ACIA finished transmitting one byte.
     virtual void OnByteTransmitted (Byte value) = 0;
+
+    // An endpoint that shifts each byte out at the line's speed clears the
+    // transmitter-empty flag itself, and calls
+    // Acia6551::SetTransmitterEmpty once the byte has left. Every other
+    // endpoint takes a byte at once and the flag never clears.
+    virtual bool PacesTransmit () const { return false; }
 };

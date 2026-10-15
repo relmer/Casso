@@ -3,6 +3,8 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <aclapi.h>
 
 // <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
@@ -31,6 +33,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <cmath>

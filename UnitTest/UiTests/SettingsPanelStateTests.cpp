@@ -937,6 +937,56 @@ public:
     }
 
 
+    // A //c's serial ports are back-panel ports, staged with the rest of the
+    // list. A change is written with the whole list and requires the machine
+    // to be rebuilt, since the device behind a port is attached at build.
+    TEST_METHOD (SerialPorts_ChangeIsWrittenAndRequiresAReset)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.HasSerialPorts());
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (2));
+        Assert::IsFalse (st.RequiresReset());
+
+        st.SetSerialPortDevice (2, "tcp:6502");
+
+        Assert::AreEqual (std::string ("tcp:6502"), st.GetSerialPortDevice (2));
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsTrue  (st.RequiresReset(), L"a serial device is attached when the machine is built");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"serial2\",\"device\":\"tcp:6502\"") != std::string::npos, L"the device is written");
+        Assert::IsTrue (text.find ("\"disk\"") != std::string::npos, L"and the other ports with it");
+    }
+
+
+    TEST_METHOD (SerialPorts_AMachineWithoutThemHasNoneToSet)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSerialPortDevice (1, "tcp:6501");
+
+        Assert::IsFalse (st.HasSerialPorts());
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (1));
+        Assert::IsFalse (st.RequiresReset());
+    }
+
     // Detaching must write BOTH connectors. A one-element list would take
     // drive 1 away as a side effect of removing drive 2.
     TEST_METHOD (SecondDrive_DetachingWritesBothConnectors)

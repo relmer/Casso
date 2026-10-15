@@ -588,7 +588,8 @@ void SettingsPanelState::Cancel()
 bool SettingsPanelState::IsDirty() const
 {
     return !ArePrefsEqual    (m_original.prefs,    m_current.prefs)
-        || !AreHardwareEqual (m_original.hardware, m_current.hardware);
+        || !AreHardwareEqual (m_original.hardware, m_current.hardware)
+        || AreSerialPortsChanged();
 }
 
 
@@ -599,9 +600,9 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff the hardware-enable bits
-//  changed. Speed / color / sound / mechanism / write-protect are
-//  all live-applicable.
+//  Per FR-010: a reset is required iff the hardware-enable bits or a
+//  serial port's device changed. Speed / color / sound / mechanism /
+//  write-protect are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -615,6 +616,33 @@ bool SettingsPanelState::RequiresReset() const
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
         changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+    }
+
+    return changed || AreSerialPortsChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AreSerialPortsChanged
+//
+//  The device behind a serial port is attached when the machine is built, so
+//  a change makes the state dirty and requires a machine rebuild.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::AreSerialPortsChanged() const
+{
+    bool  changed = false;
+
+
+
+    for (int port = 1; !changed && port <= (int) std::size (kpszSerialPortNames); ++port)
+    {
+        changed = GetSerialPortDevice (port) != GetPortDevice (m_original.machinePorts, kpszSerialPortNames[port - 1]);
     }
 
     return changed;
@@ -884,6 +912,101 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
             break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSerialPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasSerialPorts() const
+{
+    for (const SettingsMachinePort & entry : m_current.machinePorts)
+    {
+        if (entry.name == kpszSerialPortNames[0])
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialPortDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SettingsPanelState::GetSerialPortDevice (int port) const
+{
+    bool  valid = port >= 1 && port <= (int) std::size (kpszSerialPortNames);
+
+
+
+    return valid ? GetPortDevice (m_current.machinePorts, kpszSerialPortNames[port - 1]) : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialPortDevice
+//
+//  Only a machine with that back-panel port has one to set; the port list is
+//  never extended, as the disk port's is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetSerialPortDevice (int port, const std::string & device)
+{
+    if (port < 1 || port > (int) std::size (kpszSerialPortNames))
+    {
+        return;
+    }
+
+    for (SettingsMachinePort & entry : m_current.machinePorts)
+    {
+        if (entry.name == kpszSerialPortNames[port - 1])
+        {
+            entry.device = device;
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPortDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SettingsPanelState::GetPortDevice (const std::vector<SettingsMachinePort> & ports, const char * name)
+{
+    for (const SettingsMachinePort & entry : ports)
+    {
+        if (entry.name == name)
+        {
+            return entry.device;
+        }
+    }
+
+    return std::string();
 }
 
 

@@ -59,6 +59,10 @@ struct MachineBuildServices
     const float  *  driveHeadVolume   = nullptr;
     const float  *  driveDoorVolume   = nullptr;
 
+    //  Opens the stream for a serial port's device (a TCP port, a COM
+    //  port). Without one, every serial port loops back on itself.
+    class IByteStreamFactory  *  streamFactory = nullptr;
+
     //  Command-line options that reach machine construction: the CPU trace
     //  ring size (0 = off) and whether mounted images are watched for
     //  changes on disk.
@@ -124,6 +128,7 @@ public:
     HRESULT  CreateCpu            (const MachineConfig & config);
     void     WireJoyport          ();
     void     WireCassettePort     ();
+    void     AttachSerialDevices  (const MachineConfig & config);
 
     Byte *   GetAuxRamBuffer      ();
     Byte *   GetMainRamBuffer     ();
