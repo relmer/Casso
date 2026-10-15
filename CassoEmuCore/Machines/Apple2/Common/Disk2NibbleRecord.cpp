@@ -19,6 +19,7 @@ void Disk2NibbleRecord::Clear()
     m_entries        = {};
     m_count          = 0;
     m_pendingNewDisk = 0;
+    m_lastAssembled  = {};
 }
 
 
@@ -29,8 +30,9 @@ void Disk2NibbleRecord::Clear()
 //
 //  Disk2NibbleRecord::SaveState
 //
-//  The count, the drives whose disk changed since their last entry, then
-//  the entries in the ring, oldest first.
+//  The count, the drives whose disk changed since their last entry, each
+//  drive's count of assembled nibbles at its last read, then the entries in
+//  the ring, oldest first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +47,8 @@ HRESULT Disk2NibbleRecord::SaveState (StateWriter & writer) const
 
     writer.WriteUInt64 (m_count);
     writer.WriteByte   (m_pendingNewDisk);
+    writer.WriteUInt64 (m_lastAssembled[0]);
+    writer.WriteUInt64 (m_lastAssembled[1]);
 
     for (index = m_count - GetSize(); index < m_count; index++)
     {
@@ -89,6 +93,8 @@ HRESULT Disk2NibbleRecord::LoadState (StateReader & reader)
 
     reader.ReadUInt64 (loaded.m_count);
     reader.ReadByte   (loaded.m_pendingNewDisk);
+    reader.ReadUInt64 (loaded.m_lastAssembled[0]);
+    reader.ReadUInt64 (loaded.m_lastAssembled[1]);
 
     for (index = loaded.m_count - loaded.GetSize(); index < loaded.m_count; index++)
     {

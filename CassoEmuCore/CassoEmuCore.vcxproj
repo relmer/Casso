@@ -259,6 +259,7 @@
     <ClCompile Include="Debugger\WatchTable.cpp" />
     <ClCompile Include="Debugger\WinDbgFormatter.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
+    <ClCompile Include="Debugger\DiskFieldTracker.cpp" />
     <ClCompile Include="Debugger\AppleWinFormatter.cpp" />
     <ClCompile Include="Debugger\ReplyJson.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
@@ -836,6 +837,7 @@
     <ClInclude Include="Debugger\WatchTable.h" />
     <ClInclude Include="Debugger\WinDbgFormatter.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
+    <ClInclude Include="Debugger\DiskFieldTracker.h" />
     <ClInclude Include="Debugger\AppleWinFormatter.h" />
     <ClInclude Include="Debugger\ReplyJson.h" />
     <ClInclude Include="Debugger\IDebugNotificationSink.h" />

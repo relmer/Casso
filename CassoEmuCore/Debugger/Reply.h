@@ -618,6 +618,7 @@ struct DiskFieldEvent
     Byte                volume               = 0;
     Byte                storedChecksum       = 0;
     Byte                expectedChecksum     = 0;
+    bool                isChecksumRead       = true;      // both of the address checksum's nibbles were read
     Byte                storedDataChecksum   = 0;
     Byte                expectedDataChecksum = 0;
     bool                isDataChecksumGood   = false;

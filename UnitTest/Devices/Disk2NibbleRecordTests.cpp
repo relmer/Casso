@@ -153,6 +153,35 @@ namespace Disk2NibbleRecordTests
                               L"no spin-up flag once the motor is at speed");
         }
 
+        //  With the latch read once every two nibbles' time, some nibbles the
+        //  drive assembled go untaken: each entry after one is flagged.
+        TEST_METHOD (ANibbleAfterAMissedOneIsFlagged)
+        {
+            constexpr uint32_t  kTwoNibbles = Disk2NibbleEngine::kCyclesPerBit * 8 * 2 + 4;
+            Rig                 rig;
+            size_t              added       = 0;
+            size_t              flagged     = 0;
+            uint64_t            before      = 0;
+
+
+
+            rig.StartReading (true);
+            rig.ctrl->Read (kQ6Off);
+
+            for (int i = 0; i < kReadLoops / 10; i++)
+            {
+                rig.ctrl->Tick (kTwoNibbles);
+                before = rig.GetRecord().GetCount();
+                rig.ctrl->Read (kQ6Off);
+
+                added   += (size_t) (rig.GetRecord().GetCount() - before);
+                flagged += (rig.GetRecord().GetCount() != before && (rig.GetRecord().GetEntry (rig.GetRecord().GetCount() - 1).flags & Disk2NibbleRecord::kAfterGap) != 0) ? 1 : 0;
+            }
+
+            Assert::IsTrue   (added > 100, L"nibbles were taken");
+            Assert::AreEqual (added, flagged, L"every one of them after a missed one");
+        }
+
         TEST_METHOD (ANibbleDuringTheSpinUpIsFlagged)
         {
             Rig       rig;

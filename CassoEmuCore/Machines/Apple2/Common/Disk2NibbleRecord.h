@@ -38,6 +38,7 @@ public:
     static constexpr Byte  kSpinUp   = 0x04;      // read during the motor's spin-up
     static constexpr Byte  kDropped  = 0x08;      // a load write protection dropped
     static constexpr Byte  kNewDisk  = 0x10;      // the first entry since the drive's disk changed
+    static constexpr Byte  kAfterGap = 0x20;      // the drive assembled a nibble the CPU did not take before this one
 
     struct Entry
     {
@@ -59,6 +60,18 @@ public:
         entry.address    = address;
         m_pendingNewDisk = static_cast<Byte> (m_pendingNewDisk & ~driveBit);
         m_count++;
+    }
+
+    //  A nibble the CPU took, with the drive's count of nibbles assembled: a
+    //  count more than one past the last read's means the CPU missed some.
+    void      AddRead        (int drive, Byte nibble, Byte flags, Word address, uint64_t assembled)
+    {
+        Byte  gap = (assembled - m_lastAssembled[drive] > 1) ? kAfterGap : 0;
+
+
+
+        m_lastAssembled[drive] = assembled;
+        Add (drive, nibble, static_cast<Byte> (flags | gap), address);
     }
 
     void      NoteDiskChange (int drive)         { m_pendingNewDisk = static_cast<Byte> (m_pendingNewDisk | (1 << drive)); }
@@ -84,4 +97,5 @@ private:
     std::array<Entry, kCapacity>  m_entries        = {};
     uint64_t                      m_count          = 0;
     Byte                          m_pendingNewDisk = 0;      // a bit per drive
+    std::array<uint64_t, 2>       m_lastAssembled  = {};     // each drive's count of assembled nibbles at its last read
 };

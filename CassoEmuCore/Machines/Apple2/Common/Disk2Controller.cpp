@@ -461,7 +461,8 @@ Byte Disk2Controller::HandleReadDispatch()
         // that took it, flagged while the motor spins up and the CPU reads $80.
         if (isFresh && m_activeDisk[m_activeDrive]->IsLoaded())
         {
-            m_nibbleRecord.Add (m_activeDrive, fresh, (m_motorSpinupRemaining > 0) ? Disk2NibbleRecord::kSpinUp : 0, GetInstructionAddress());
+            m_nibbleRecord.AddRead (m_activeDrive, fresh, (m_motorSpinupRemaining > 0) ? Disk2NibbleRecord::kSpinUp : 0, GetInstructionAddress(),
+                                    m_engine[m_activeDrive].GetReadNibbles());
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
