@@ -30,6 +30,7 @@ struct Watchpoint
     bool         temporary = false;               // cleared once it fires
     bool         stops     = true;                // false: counts hits only
     uint32_t     hits      = 0;
+    std::string  name;                            // BPNAME's; empty for the default
 };
 
 
@@ -112,6 +113,7 @@ public:
     void   ClearAll         ();
     bool   TrySetEnabled    (int id, bool enabled);
     bool   TrySetFlags      (int id, bool temporary, bool stops);
+    bool   TrySetName       (int id, const std::string & name);
     bool   TryAdopt         (const Watchpoint & entry);
     bool   TryFind          (int id, Watchpoint & entry) const;
 

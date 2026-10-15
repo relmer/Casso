@@ -550,10 +550,11 @@ void AppleWinFormatter::FormatBreakpointList (const BreakpointListData & data, L
 
     for (const BreakpointInfo & breakpoint : data.breakpoints)
     {
-        lines.push_back (std::format ("#{} {} {}, hits {}",
+        lines.push_back (std::format ("#{} {} {}{}, hits {}",
                                       breakpoint.id,
                                       breakpoint.enabled ? "enabled " : "disabled",
                                       DescribeBreakpoint (breakpoint),
+                                      breakpoint.name.empty() ? std::string() : std::format (", \"{}\"", breakpoint.name),
                                       breakpoint.hits));
     }
 

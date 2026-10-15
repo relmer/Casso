@@ -799,6 +799,28 @@ DebuggerAction DebuggerActions::GetDefineBreakpoint (const std::string & definit
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetNameBreakpoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetNameBreakpoint (int id, const std::string & name, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetBreakpointName,
+                                   name.empty() ? std::format ("BPNAME {}", id) : std::format ("BPNAME {} \"{}\"", id, name), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    action.command.text  = name;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetForKey
 //
 ////////////////////////////////////////////////////////////////////////////////

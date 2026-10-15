@@ -129,6 +129,10 @@ public:
     static DebuggerAction  GetChangeBreakpoint     (int id, bool enabled, bool temporary, bool stops, CommandMode mode);
     static DebuggerAction  GetDefineBreakpoint     (const std::string & definition, CommandMode mode);
 
+    //  BPNAME # "text"; an empty text returns the breakpoint to its default
+    //  name.
+    static DebuggerAction  GetNameBreakpoint       (int id, const std::string & name, CommandMode mode);
+
     //  The watches pane's edits. A string value is what the user typed, which
     //  the session evaluates in its mode when the action runs.
     static DebuggerAction  GetAddWatch             (const std::string & expression, CommandMode mode);

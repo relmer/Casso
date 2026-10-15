@@ -51,6 +51,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::EditBreakpoint:             Edit          (session, command, reply);                         return true;
     case DebugVerb::ChangeBreakpoint:           Change        (session, command, reply);                         return true;
     case DebugVerb::SaveBreakpoints:            Save          (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -120,6 +121,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.stops     = entry.stops;
     info.hits      = entry.hits;
     info.symbol    = entry.symbol;
+    info.name      = entry.name;
     info.disk      = entry.disk;
     info.resolved  = entry.resolved;
     info.basicName = entry.basicName;
@@ -153,6 +155,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.temporary = entry.temporary;
     info.stops     = entry.stops;
     info.hits      = entry.hits;
+    info.name      = entry.name;
     return info;
 }
 
@@ -1448,10 +1451,12 @@ bool BreakpointHandlers::TryMakeEntry (
     breakpoint.enabled   = old.enabled;
     breakpoint.temporary = old.temporary;
     breakpoint.stops     = old.stops;
+    breakpoint.name      = old.name;
     watchpoint.id        = id;
     watchpoint.enabled   = old.enabled;
     watchpoint.temporary = old.temporary;
     watchpoint.stops     = old.stops;
+    watchpoint.name      = old.name;
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
@@ -1553,6 +1558,35 @@ bool BreakpointHandlers::IsBrkOn (const std::string & text)
     }
 
     return selector == kBrkSelector && isOn == true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetName
+//
+//  BPNAME # "text", for a breakpoint or a watchpoint; no text returns it to
+//  the default name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetName (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int  id = (int) command.count;
+
+
+
+    if (!session.GetBreakpoints().TrySetName (id, command.text) && !session.GetWatchpoints().TrySetName (id, command.text))
+    {
+        SetNoSuch (session, reply, id);
+        return;
+    }
+
+    reply.data = MessageData { { command.text.empty() ? std::format ("Breakpoint #{}: name cleared.", id)
+                                                       : std::format ("Breakpoint #{}: name set to \"{}\".", id, command.text) } };
 }
 
 
@@ -1803,8 +1837,8 @@ void BreakpointHandlers::Replace (DebugSession & session, int id, const SavedEnt
 //
 //  BreakpointHandlers::SetState
 //
-//  Gives breakpoint `id` the enabled state and When hit setting of `info`,
-//  keeping its definition and hit count.
+//  Sets breakpoint `id`'s enabled state, When hit setting and name to
+//  those of `info`; its definition and hit count are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1813,10 +1847,12 @@ void BreakpointHandlers::SetState (DebugSession & session, int id, const Breakpo
     if (session.GetBreakpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
+        session.GetBreakpoints().TrySetName  (id, info.name);
     }
     else if (session.GetWatchpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetWatchpoints().TrySetFlags (id, info.temporary, info.stops);
+        session.GetWatchpoints().TrySetName  (id, info.name);
     }
 
     session.OnStopConditionsChanged();

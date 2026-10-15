@@ -642,6 +642,10 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
         return true;
 
+    // BPNAME # "text": the id, then the name as typed, its quotes taken off.
+    case DebugVerb::SetBreakpointName:
+        return TryParseNameArguments (args, command, error);
+
     // A file name keeps its case; BRK's and BRKINT's keywords do not.
     case DebugVerb::SaveBreakpoints:
         command.text = args.rest;
@@ -651,6 +655,53 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         command.text = ToUpper (args.rest);
         return true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseNameArguments
+//
+//  The name is the rest of the line after the id, with the spaces inside
+//  it; in quotes, the quotes are taken off. Nothing after the id clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseNameArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    std::string  rest  = args.rest;
+    size_t       start = rest.find_first_not_of (" \t");
+    size_t       end   = (start == std::string::npos) ? std::string::npos : rest.find_first_of (" \t", start);
+    Tokens       id;
+
+
+
+    if (start == std::string::npos || rest[start] == '*')
+    {
+        error = "BPNAME takes a breakpoint's id, then its name in quotes.";
+        return false;
+    }
+
+    id.push_back (rest.substr (start, end - start));
+
+    if (!TryParseIdOrAll (id, command, error, args.context->GetNumberSyntax()))
+    {
+        return false;
+    }
+
+    command.text = (end == std::string::npos) ? std::string() : rest.substr (end);
+    command.text.erase (0, std::min (command.text.size(), command.text.find_first_not_of (" \t")));
+    command.text.erase (command.text.find_last_not_of (" \t") + 1);
+
+    if (command.text.size() >= 2 && command.text.front() == '"' && command.text.back() == '"')
+    {
+        command.text = command.text.substr (1, command.text.size() - 2);
+    }
+
+    return true;
 }
 
 

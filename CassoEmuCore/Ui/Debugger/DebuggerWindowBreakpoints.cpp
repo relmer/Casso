@@ -369,6 +369,90 @@ void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::BeginNameEdit
+//
+//  A box over the Name cell with the name the row has, all of it selected
+//  so typing replaces it, as Visual Studio's rename opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginNameEdit (int row)
+{
+    const DebuggerViewSnapshot::BreakpointLine  * bp   = GetBreakpointOfRow (row);
+    RECT                                          cell = {};
+    RECT                                          list = m_breakpointList->GetBounds();
+    std::wstring                                  text;
+
+
+
+    if (bp == nullptr || !m_breakpointList->GetCellTextRectPx (row, 0, cell))
+    {
+        return;
+    }
+
+    text = TextEncoding::NarrowToWide (BreakpointColumns::GetCells (*m_snapshot, *bp)[(size_t) BreakpointColumns::Column::Name]);
+
+    OffsetRect (&cell, list.left, list.top);
+
+    m_nameEdit = NameEdit { row, bp->id, text };
+
+    m_nameEditor->SetTextRenderer (GetTextRenderer());
+    m_nameEditor->SetFont         (DxuiTheme::kMonoFace, m_breakpointList->GetFontSizeDip());
+    m_nameEditor->SetText         (text);
+    m_nameEditor->Layout          (cell, m_scaler);
+    m_nameEditor->SetVisible      (true);
+    SetFocusedControl             (m_nameEditor);
+    m_nameEditor->SelectAll();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndNameEdit
+//
+//  Enter or a click away commits what was typed, as one step the pane can
+//  undo; Escape, or the name left as it opened, changes nothing. An emptied
+//  box returns the breakpoint to its default name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndNameEdit (bool commit)
+{
+    std::string  typed = TextEncoding::WideToNarrow (m_nameEditor->GetText());
+    int          id    = m_nameEdit.id;
+    bool         isNew = commit && m_nameEditor->GetText() != m_nameEdit.opened;
+
+
+
+    if (m_nameEdit.row < 0)
+    {
+        return;
+    }
+
+    typed.erase (0, std::min (typed.size(), typed.find_first_not_of (" \t")));
+    typed.erase (typed.find_last_not_of (" \t") + 1);
+
+    m_nameEdit = NameEdit {};
+    m_nameEditor->SetVisible (false);
+    SetFocusedControl        (m_breakpointList);
+    Invalidate();
+
+    if (isNew)
+    {
+        RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetNameBreakpoint (id, typed, GetMode()) }, {} });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RunBreakpointStep
 //
 ////////////////////////////////////////////////////////////////////////////////

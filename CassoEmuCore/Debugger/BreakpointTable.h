@@ -35,6 +35,7 @@ struct Breakpoint
     bool                 stops     = true;        // false: counts hits only
     uint32_t             hits      = 0;
     std::string          symbol;                  // the symbol an address breakpoint was set by
+    std::string          name;                    // BPNAME's; empty for the default
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.
@@ -95,6 +96,7 @@ public:
     bool  TrySetEnabled    (int id, bool enabled);
     bool  TrySetFlags      (int id, bool temporary, bool stops);
     bool  TrySetSymbol     (int id, const std::string & symbol);
+    bool  TrySetName       (int id, const std::string & name);
     bool  TryMove          (int id, Word first);
     bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;

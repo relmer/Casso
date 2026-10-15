@@ -370,6 +370,16 @@ first hit.
 `BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
 other write.
 
+## Breakpoint name
+
+After `BPNAME 3 "Loop top"`, breakpoint or watchpoint #3 has that name, and
+`BPL`, the Breakpoints pane's Name column and the channel use it in place of
+the default; `BPNAME 3` with no name returns it to the default. In the pane,
+F2, a double-click on the Name cell or Rename on the row's menu edits the name
+in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
+survives `BPEDIT`. `BPSAVE` writes no name, so its script is one AppleWin
+reads.
+
 ## Breaking on opcodes
 
 `BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode: a byte,

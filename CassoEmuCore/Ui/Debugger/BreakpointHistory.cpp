@@ -422,7 +422,7 @@ bool BreakpointHistory::IsSame (const BreakpointInfo & left, const BreakpointInf
 
 bool BreakpointHistory::HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right)
 {
-    return left.enabled == right.enabled && left.temporary == right.temporary && left.stops == right.stops;
+    return left.enabled == right.enabled && left.temporary == right.temporary && left.stops == right.stops && left.name == right.name;
 }
 
 

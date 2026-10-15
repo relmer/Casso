@@ -46,6 +46,7 @@ AppleWin commands:
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]       Stop on a read of memory
     BPMV addr byte [IF expr]                             Stop when a write leaves addr holding byte
     BPMW addr[,len|:last] [BEFORE|AFTER] [IF expr]       Stop on a write to memory
+    BPNAME # ["text"]                                    Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                                   Stop when a register meets a condition
     BPSAVE file                                          Save the breakpoints as a script
     BPV line[,len|:last]                                 Stop at a video scanline
@@ -314,6 +315,7 @@ Casso commands:
     /BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]        Stop on a read of memory
     /BPMV addr byte [IF expr]                              Stop when a write leaves addr holding byte
     /BPMW addr[,len|:last] [BEFORE|AFTER] [IF expr]        Stop on a write to memory
+    /BPNAME # ["text"]                                     Set a breakpoint's name, or with none return it to the default
     /BPR reg [op] value                                    Stop when a register meets a condition
     /BPSAVE file                                           Save the breakpoints as a script
     /BPV line[,len|:last]                                  Stop at a video scanline
@@ -543,6 +545,7 @@ Casso commands:
     BPEDIT # definition                             Replace a breakpoint with a new definition
     BPL                                             List the breakpoints
     BPMV addr byte [IF expr]                        Stop when a write leaves addr holding byte
+    BPNAME # ["text"]                               Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                              Stop when a register meets a condition
     BPSAVE file                                     Save the breakpoints as a script
     BPV line[,len|:last]                            Stop at a video scanline
@@ -740,6 +743,7 @@ Casso commands:
     !BPDISK [D1|D2] event [arguments] [IF expr]      Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition                             Replace a breakpoint with a new definition
     !BPMV addr byte [IF expr]                        Stop when a write leaves addr holding byte
+    !BPNAME # ["text"]                               Set a breakpoint's name, or with none return it to the default
     !BPR reg [op] value                              Stop when a register meets a condition
     !BPSAVE file                                     Save the breakpoints as a script
     !BPV line[,len|:last]                            Stop at a video scanline
@@ -917,6 +921,7 @@ Casso commands:
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]       Stop on a read of memory
     BPMV addr byte [IF expr]                             Stop when a write leaves addr holding byte
     BPMW addr[,len|:last] [BEFORE|AFTER] [IF expr]       Stop on a write to memory
+    BPNAME # ["text"]                                    Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                                   Stop when a register meets a condition
     BPSAVE file                                          Save the breakpoints as a script
     BPV line[,len|:last]                                 Stop at a video scanline

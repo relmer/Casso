@@ -308,6 +308,30 @@ bool BreakpointTable::TrySetFlags (int id, bool temporary, bool stops)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool BreakpointTable::TrySetName (int id, const std::string & name)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->name = name;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TrySetSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool BreakpointTable::TrySetSymbol (int id, const std::string & symbol)
 {
     bool  isFound = false;

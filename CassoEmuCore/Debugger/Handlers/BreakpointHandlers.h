@@ -18,7 +18,8 @@ struct DebugFile;
 //
 //  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, BRK, BRKOP,
 //  BRKINT, BRKUNINIT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
-//  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE. Saving: BPSAVE.
+//  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE, BPNAME. Saving: BPSAVE,
+//  whose script has no name in it, as AppleWin's SAVE has none.
 //
 //  Breakpoints and watchpoints share one numbering, so every command that
 //  takes an id looks in both tables.
@@ -86,6 +87,7 @@ private:
     static void  Enable         (DebugSession & session, const DebugCommand & command, bool enabled, Reply & reply);
     static void  Edit           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Change         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetName        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Save           (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);

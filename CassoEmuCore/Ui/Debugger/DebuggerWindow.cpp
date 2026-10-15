@@ -332,6 +332,12 @@ void DebuggerWindow::OnCreate()
     m_watchEditor->SetHwnd         (GetHwnd());
     m_watchEditor->SetMaxLength    (64);
 
+    m_nameEditor = CreateChild<DxuiTextInput>();
+    m_nameEditor->SetVisible       (false);
+    m_nameEditor->SetOverText      (true);
+    m_nameEditor->SetHwnd          (GetHwnd());
+    m_nameEditor->SetMaxLength     (64);
+
     //  The stack's and the registers' value boxes, drawn over their rows the
     //  same way.
     m_stackEditor    = CreateChild<DxuiTextInput>();
@@ -480,13 +486,22 @@ void DebuggerWindow::ConfigureWidgets()
     m_consoleView->SetLineSpacing   (kConsoleLineSpacing);
     m_consoleView->SetPaneTextInset (true);
 
-    //  Activating a breakpoint shows its address; its checkbox turns it on
-    //  and off, as Visual Studio's Breakpoints window does.
+    //  Activating a breakpoint brings its address into view, or on its Name
+    //  opens the rename box; its checkbox turns it on and off, as in Visual
+    //  Studio's Breakpoints window.
     m_breakpointList->SetOnActivateRow ([this] (int row)
     {
-        const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
+        const DebuggerViewSnapshot::BreakpointLine  * bp   = GetBreakpointOfRow (row);
+        RECT                                          name = {};
+        RECT                                          list = m_breakpointList->GetBounds();
+        bool                                          isOn = m_breakpointList->GetCellTextRectPx (row, 0, name) && m_lastPressPx.x - list.left >= name.left &&
+                                                             m_lastPressPx.x - list.left < name.right;
 
-        if (bp != nullptr)
+        if (bp != nullptr && isOn)
+        {
+            BeginNameEdit (row);
+        }
+        else if (bp != nullptr)
         {
             ShowCode (bp->address);
         }
@@ -6476,6 +6491,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         }
 
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode()) }, {} }); } });
+        items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
         items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearBreakpoint (bp.id, GetMode()) }, {} }); } });
 
         //  Its type and the fields that type needs, in a dialog; the result is
@@ -11493,6 +11509,24 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    //  So does a breakpoint being renamed.
+    if (m_nameEdit.row >= 0)
+    {
+        RECT  box = m_nameEditor->GetBounds();
+
+        if (DxuiDockSite::Contains (box, POINT { x, y }))
+        {
+            m_nameEditor->OnMouse (ev);
+            Invalidate();
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+        {
+            EndNameEdit (true);
+        }
+    }
+
     if (m_valueEdit.row >= 0)
     {
         DxuiTextInput  * editor = (m_valueEdit.list == m_stackList) ? m_stackEditor : m_registerEditor;
@@ -11919,7 +11953,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_undoBars[kRegisterUndoBar].slot.get(), m_registerList, m_registerEditor, m_undoBars[kRegisterUndoBar].bar }; }
-    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
+    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar, m_nameEditor }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
@@ -13786,6 +13820,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  So does a breakpoint being renamed.
+    if (m_nameEdit.row >= 0)
+    {
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+        {
+            EndNameEdit (ev.vk == VK_RETURN);
+        }
+        else
+        {
+            m_nameEditor->OnKey (ev);
+        }
+
+        Invalidate();
+        return true;
+    }
+
     //  So does a stack byte or a register being edited.
     if (m_valueEdit.row >= 0)
     {
@@ -13812,6 +13862,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && ev.shift && !ev.ctrl && !ev.alt && ClosePaneOfFocus())
     {
+        return true;
+    }
+
+    //  F2 renames the selected breakpoint, as in Visual Studio.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_breakpointList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    {
+        BeginNameEdit (m_breakpointList->GetSelectedRow());
         return true;
     }
 

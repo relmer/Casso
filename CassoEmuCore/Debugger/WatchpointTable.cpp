@@ -179,6 +179,30 @@ bool WatchpointTable::TrySetEnabled (int id, bool enabled)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool WatchpointTable::TrySetName (int id, const std::string & name)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Watchpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->name = name;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TrySetFlags
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
 {
     bool  isFound = false;

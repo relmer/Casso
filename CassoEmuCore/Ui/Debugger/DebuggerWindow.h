@@ -476,6 +476,11 @@ protected:
     //  the keys go.
     void            BeginWatchEdit (int row, int column);
     void            EndWatchEdit   (bool commit);
+
+    //  Renaming a breakpoint in place (FR-172), as F2, a double-click on its
+    //  Name or Rename does; protected so a test can do the same.
+    void            BeginNameEdit  (int row);
+    void            EndNameEdit    (bool commit);
     IDxuiControl  * GetFocused     () const;
     DxuiListView  * GetWatchList   () const { return m_watchList; }
 
@@ -1168,6 +1173,18 @@ private:
 
     DxuiTextInput                         * m_watchEditor        = nullptr;
     WatchEdit                               m_watchEdit;
+
+    //  Renaming a breakpoint in place: the row and the breakpoint, and the
+    //  name the box opened with; Enter on that same name renames nothing.
+    struct NameEdit
+    {
+        int           row  = -1;
+        int           id   = -1;
+        std::wstring  opened;
+    };
+
+    DxuiTextInput                         * m_nameEditor         = nullptr;
+    NameEdit                                m_nameEdit;
 
     //  Editing a stack byte or a register's value in place: a box laid over
     //  the value cell. Each pane has its own box, so the box goes with the

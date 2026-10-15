@@ -121,6 +121,7 @@ enum class DebugVerb
     EditBreakpoint,
     ChangeBreakpoint,
     SaveBreakpoints,
+    SetBreakpointName,
 
     // Registers and stack
     ShowRegisters,

@@ -105,6 +105,7 @@ private:
 
     // BPDISK (AppleWinParserDisk.cpp).
     static bool    TryParseDiskArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseNameArguments      (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDiskEventArguments (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec);
     static bool    TryParseDiskNumber         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue);
     static bool    TryParseDiskFields         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count);

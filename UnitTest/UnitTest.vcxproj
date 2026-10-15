@@ -970,6 +970,7 @@
     <ClCompile Include="DebuggerTests\ApplesoftProgramTests.cpp" />
     <ClCompile Include="DebuggerTests\BasicPanesTests.cpp" />
     <ClCompile Include="DebuggerTests\BasicStopTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointNameTests.cpp" />
     <ClCompile Include="EmuTests\ReverseNoCallerTests.cpp" />
     <ClCompile Include="EmuTests\ReverseStepOutSeekTests.cpp" />
     <ClCompile Include="EmuTests\SliceInputSampleTests.cpp" />
