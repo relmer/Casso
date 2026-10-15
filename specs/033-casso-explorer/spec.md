@@ -34,6 +34,16 @@ The command surfaces it is built on, one command model, one dropdown, one
 toolbar, are delivered by the preceding feature. This one adds the widgets
 the browser layout needs and the browser itself.
 
+Casso Explorer began with moving files between a real Apple //c and the PC
+with ADTPro over a null modem cable. In ADTPro the Apple starts every
+exchange and the PC only replies; only whole disks or raw blocks move,
+never single files; and neither end's interface is pleasant to use. The
+Apple II link turns that around: a connected Apple's drives are a root in
+Casso Explorer's tree, and files and whole disks move either way, started
+from the PC. The same link joins Casso's emulated machines to the PC, so
+the Apple side is written, debugged and tested in Casso before it runs on
+hardware.
+
 ## Clarifications
 
 ### Session 2026-09-10
@@ -185,6 +195,28 @@ the browser layout needs and the browser itself.
   `.Integer BASIC.txt` or `.Text.txt`, even when it is plain ASCII.
 - Q: Where is the picture monitor chosen? → A: On the options dialog's
   Display page alone; the command bar has no monitor drop-down.
+
+### Session 2026-10-14
+
+- Q: Is capturing copy-protected disks part of the Apple II link? → A: No.
+  A follow-on feature, built on this link, reads raw nibbles or bit streams
+  and writes WOZ images.
+- Q: Which machines and transports does the link cover? → A: The //c's
+  built-in serial ports; Casso's emulated machines, in-process and over TCP;
+  a serial Wi-Fi modem on a //c, connected over TCP; and, for a ][+ or //e, a
+  Super Serial Card, an Uthernet II and audio bootstrap. Casso's emulation
+  of the two cards, which the owner lacks, is two features of their own that
+  land in Casso first and are merged here. The //c has no slots and no cassette
+  port, so on a //c the link is serial only.
+- Q: ADTPro's protocol or a new one? → A: ADTPro's, so an existing ADTPro
+  setup works against Casso, extended for file and disk operations the PC
+  starts.
+- Q: How much does the Apple side do on its own? → A: It is a server with a
+  status screen; an Apple-side menu is a later feature. It is a thin shim
+  that loads the current program from the PC at every launch, so a Casso
+  release updates the Apple side with no step by the user.
+- Q: Is the link usable from the command line too? → A: No. It is used
+  from Casso Explorer only; there is no `casso link` command.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -671,6 +703,120 @@ words at each, and drop on each.
    Explorer's does.
 
 ---
+
+### User Story 14 - Files and disks to and from a real Apple II (Priority: P2)
+
+A user connects an Apple II to the PC with a null modem cable, starts the
+link on both ends, and finds the Apple's drives as a root in Casso
+Explorer's tree. From the PC they browse a disk's catalog, preview a file,
+copy files from the Apple to the PC and from the PC onto the Apple's disk,
+read a whole disk into an image file, and write an image back onto a disk.
+
+**Why this priority**: Moving files and disks off a real Apple II is why
+Casso Explorer exists. Doing it a whole disk at a time, started from the
+Apple, is the workflow this feature replaces.
+
+**Independent Test**: With a //c on a null modem cable, list a DOS 3.3 disk
+and a ProDOS disk in its drives; copy one file each way; read a disk into a
+.dsk and compare it with one ADTPro reads from the same disk; write an image
+onto a blank disk and boot it.
+
+**Acceptance Scenarios**:
+
+1. **Given** the link is running on the Apple, **When** Casso Explorer
+   connects, **Then** a root for the Apple appears in the tree with one node
+   per drive, labeled with the drive and the volume in it.
+2. **Given** a drive has a DOS 3.3 or ProDOS disk in it, **When** its node is
+   selected, **Then** its catalog is listed as an image's is, and selecting a
+   file previews it.
+3. **Given** files on the Apple are selected, **When** they are copied or
+   dragged to a host folder, **Then** they arrive in the chosen host file-name
+   style, as files copied out of an image do.
+4. **Given** host files are pasted or dropped onto an Apple drive or a
+   directory on one, **When** the copy runs, **Then** they are written onto
+   the Apple's disk by the conversion rules of a put into an image.
+5. **Given** a drive is selected, **When** Read disk to image is chosen,
+   **Then** the whole disk is written to an image file in the chosen format;
+   **When** Write image to disk is chosen and confirmed, **Then** every track
+   is written, formatting as it goes, and read back to verify.
+6. **Given** a transfer is under way, **When** either end is looked at,
+   **Then** the PC displays its progress, and the Apple's status screen
+   displays the drive, the track or block, the operation and the progress.
+7. **Given** an unmodified ADTPro client on the Apple, **When** it sends or
+   receives a disk or uses a virtual drive, **Then** Casso serves it as
+   ADTPro's own host does.
+
+---
+
+### User Story 15 - Start from a bare Apple and stay current (Priority: P2)
+
+A user with an Apple II and no copy of the link program on any disk starts
+it from the PC. Once it is running, each launch loads the current program
+from Casso, so a new Casso release updates the Apple side without the user
+copying anything.
+
+**Why this priority**: A program that has to be copied to the Apple on a
+disk first is a program most users never get running; one that drifts out of
+date behind the PC side breaks the link.
+
+**Independent Test**: On a //c with no disk in either drive, bootstrap the
+link over serial; save it to a blank disk; boot that disk. Raise the link
+program's version in Casso, boot the disk again, and confirm the newer
+program runs.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Apple at the BASIC prompt, taking input from its serial port,
+   **When** the user chooses Bootstrap in Casso Explorer, **Then** the PC
+   types a loader into the Apple and the link program starts.
+2. **Given** a ][+ or //e with its cassette input connected to the PC's
+   audio output, **When** the user chooses audio bootstrap, **Then** the PC
+   sends a loader into the Apple as audio and the link program starts.
+3. **Given** the link starts from a disk, **When** it connects, **Then** its
+   version is compared with Casso's and, when they differ, the current
+   program is loaded from the PC before any transfer.
+4. **Given** the link is running, **When** the user chooses Save link to
+   disk, **Then** the shim and the current program are written onto the disk
+   in a chosen drive, which then boots into the link.
+
+---
+
+### User Story 16 - The link inside Casso (Priority: P2)
+
+A developer runs the Apple side of the link in Casso's emulated machines,
+joined to Casso Explorer on the same PC, steps through it in Casso's
+debugger, and runs every transfer with no hardware: on an emulated //c's
+serial port, and on a ][+ or //e with a Super Serial Card or an Uthernet II
+in a slot.
+
+**Why this priority**: The Apple side is new 6502 code. Writing and fixing
+it on real hardware alone is slow and cannot be tested automatically, and
+the owner has neither card.
+
+**Independent Test**: Boot the link disk in an emulated //c and connect
+Casso Explorer to it in-process; copy files both ways, and read and write
+whole disks. Repeat on an emulated //e with a Super Serial Card and with an
+Uthernet II. Boot ADTPro's own client disk in an emulated //c and send a disk
+to Casso over TCP.
+
+**Acceptance Scenarios**:
+
+1. **Given** an emulated //c running the link, **When** Casso Explorer
+   connects to it, **Then** every scenario of story 14 works as with a real
+   //c.
+2. **Given** an emulated ][+ or //e with a Super Serial Card, **When** the
+   link runs over the card, **Then** transfers work.
+3. **Given** an emulated ][+ or //e with an Uthernet II, **When** the link
+   runs over the network, **Then** transfers work, and Casso Explorer
+   connects to it at its address.
+4. **Given** an emulated serial port offered over TCP, **When** another
+   program connects to it, such as ADTPro's host or a second Casso, **Then**
+   the serial traffic passes both ways.
+5. **Given** a transfer is under way, **When** the developer breaks into
+   the debugger and resumes, **Then** the transfer completes, any packets
+   dropped during the pause being sent again.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -758,6 +904,29 @@ words at each, and drop on each.
   is reported with the reason in the preview and the list, rather than as
   an empty folder.
 - **Drop onto a read-only target**: the pointer over it is the no-drop one.
+
+- **The cable is pulled or the Apple reset mid-transfer**: the transfer
+  fails with the reason; no partial host file and no half-written image is
+  left on the PC. A disk being written on the Apple is left partly written,
+  and the message reports the last track written.
+- **A packet arrives damaged**: it is sent again, up to a limit, after which
+  the transfer fails with the reason.
+- **The disk is changed after its catalog was listed**: the catalog is read
+  again before any write, and a different volume is reported rather than
+  written over.
+- **A disk with unreadable sectors**: Read disk to image lists them and
+  offers to write the image with them blank.
+- **An empty drive or a write-protected disk**: the drive's node is listed
+  as empty; a write to a protected disk fails with the reason.
+- **The COM port is in use by another program**: opening it fails with the
+  reason, and nothing else is changed.
+- **An ADTPro client against Casso**: it is served as ADTPro's host serves
+  it; operations the PC starts require Casso's own Apple program, and Casso
+  Explorer reports that rather than offering them.
+- **Speeds differ at the two ends**: bootstrap runs at the slower bootstrap
+  speed, and the link then moves both ends to the chosen speed.
+- **Two operations at once**: one runs at a time per Apple; others queue,
+  and when the running one is canceled the Apple is ready for the next.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -1218,6 +1387,67 @@ words at each, and drop on each.
   previewed as lines of text in the theme's monospaced face, selectable
   and copyable as other text previews are, the exported file even when it
   is plain ASCII.
+
+**Apple II link**
+
+- **FR-083**: Casso Explorer MUST list a connected Apple II as a root in the
+  tree, with a node per drive: each 5.25-inch drive and each ProDOS block
+  device the Apple has, labeled with the drive and the volume in it.
+- **FR-084**: An Apple drive MUST be browsable as an image is: DOS 3.3 and
+  ProDOS catalogs, ProDOS directories, previews and Properties.
+- **FR-085**: Files MUST copy from an Apple drive to the host, and from the
+  host onto an Apple drive, by copy and paste and by drag and drop, in the
+  host file-name styles and by the conversion rules of a get or put on an
+  image. Delete, rename and new folder MUST work on an Apple drive as on an
+  image of the same file system.
+- **FR-086**: Read disk to image MUST write a whole Apple disk to an image
+  file in any format Casso writes. Write image to disk MUST write every
+  track, formatting as it goes, after a confirmation that identifies the drive and the
+  volume, and MUST read the disk back to verify it.
+- **FR-087**: Every packet MUST include a checksum and every page of data a
+  CRC; a damaged packet MUST be sent again up to a limit. A transfer that
+  cannot complete MUST fail with the reason, and MUST NOT result in a partial
+  host file or a half-written image on the PC.
+- **FR-088**: Casso MUST serve ADTPro's published protocol, so that an
+  unmodified ADTPro client sends and receives disks, and uses virtual
+  drives, against Casso as against ADTPro's own host.
+- **FR-089**: Casso's own Apple-side program MUST use ADTPro's framing,
+  extended with operations the PC starts: list drives, read a catalog, read
+  and write a file, delete, rename, make a directory, read and write a disk
+  by track and sector or by block, and report status. Since the Apple starts
+  every exchange in that framing, the Apple-side program MUST poll the PC for
+  the next operation.
+- **FR-090**: The Apple-side program MUST display a status screen with the
+  connection, the drive, the track or block, the operation and its progress.
+- **FR-091**: The Apple-side program MUST be a resident shim that, at each
+  launch, compares its version with Casso's and loads the current program
+  from the PC when they differ. Casso MUST offer to write the current shim
+  and program onto a disk in an Apple drive, which then boots into the link.
+- **FR-092**: Casso MUST start the link on an Apple with no copy of it: over
+  serial, by typing a loader into the Apple's serial input, on a //c and on
+  a ][+ or //e with a Super Serial Card; and on a ][+ or //e, by playing a
+  loader into the cassette input.
+- **FR-093**: The link MUST run over a //c's built-in serial ports to a PC
+  COM port or USB-serial adapter; over a Super Serial Card; over an
+  Uthernet II; over a serial Wi-Fi modem connected over TCP; and between
+  Casso's emulated machines and Casso Explorer, in-process and over TCP.
+- **FR-094**: Serial speed and handshaking MUST be settable, defaulting to
+  ADTPro's: 115,200 baud, no hardware handshake, and 9,600 baud for
+  bootstrap.
+- **FR-095**: An emulated serial port, the //c's or a Super Serial Card's,
+  MUST be connectable to Casso Explorer's link in-process, to a TCP port, or
+  to a PC COM port. Bytes MUST arrive at the emulated machine no faster than
+  the speed set in its serial chip, so a program that runs at the speed of
+  real hardware drops none.
+- **FR-096**: The Apple-side program MUST be built from source in the
+  repository by Casso's own assembler as part of Casso's build. The protocol
+  MUST be implemented from ADTPro's published protocol document and from
+  observed traffic, never from ADTPro's source.
+- **FR-097**: Casso MUST open a COM port or listen on a TCP port only while
+  the user has the link started, and MUST release it when the link stops.
+- **FR-098**: One operation MUST run at a time per Apple; others MUST queue,
+  and the running one MUST be cancelable, leaving the Apple-side program
+  ready for the next.
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -1247,6 +1477,16 @@ words at each, and drop on each.
 - **Navigation pane option**: one of the pane's five options, either
   following File Explorer's setting or holding Casso Explorer's own value;
   persisted.
+- **Apple link**: a connection to one Apple II: its transport (serial port,
+  TCP address, or an emulated machine), speed and handshaking, the machine
+  at the other end, and its drives; its settings persisted.
+- **Apple drive**: one drive on a linked Apple: its slot and drive or unit,
+  its kind (5.25-inch or ProDOS block device), and the volume in it, with
+  its file system.
+- **Link program**: the Apple-side shim and the program it loads, each with
+  a version; the program's copy on the PC is the current one.
+- **Link operation**: one request from the PC to the Apple, with its
+  progress; queued, running, done, failed or canceled.
 
 ## Success Criteria *(mandatory)*
 
@@ -1327,6 +1567,24 @@ words at each, and drop on each.
   words under the pointer match File Explorer's for the same drag.
 - **SC-026**: An Applesoft program exported to the host previews as the
   same lines of text as the program inside its disk image.
+- **SC-027**: A 140 KB disk in a real //c reads into an image over serial at
+  115,200 baud in under 30 seconds, and the image matches one ADTPro reads
+  from the same disk byte for byte.
+- **SC-028**: A 10 KB file copies from a real //c's disk to the host, or
+  from the host onto the disk, in under 5 seconds from the drop.
+- **SC-029**: Every acceptance scenario in stories 14 and 15 that does not
+  name real hardware runs against an emulated //c in the automated test
+  suite, and every file and image it moves compares byte for byte.
+- **SC-030**: With the cable pulled mid-transfer, nothing on the PC is left
+  half-written, and the first transfer after reconnecting succeeds with
+  neither end restarted.
+- **SC-031**: After a Casso release with a newer link program, the Apple
+  side is the new program at its next launch, with no step by the user.
+- **SC-032**: ADTPro 2.1.0's own client sends a disk to Casso and receives
+  one from it, and each image matches the one ADTPro's own host makes
+  byte for byte.
+- **SC-033**: From a //c at the BASIC prompt with no disk, the link is
+  running within 60 seconds of choosing Bootstrap.
 ## Assumptions
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and
@@ -1394,3 +1652,23 @@ words at each, and drop on each.
   Casso Explorer, so the two programs share one list.
 - Search inside disk images matches by entry name only; the files' contents
   are not indexed.
+
+- ADTPro compatibility means its published protocol as of release 2.1.0,
+  the version on the owner's machine.
+- The Apple-side program runs on a ][+, //e or //c with 64 KB, with no DOS
+  in memory, and reads DOS 3.3 and ProDOS disks itself. 13-sector DOS 3.2
+  disks are out of scope.
+- Copy-protected disks, and capturing raw nibbles, bit streams or flux as
+  WOZ images, are a follow-on feature built on this link; here a protected
+  disk reads only as far as its standard sectors allow.
+- Casso's emulation of the Super Serial Card and of the Uthernet II are two
+  separate features. Each lands in Casso on its own and is merged into this
+  branch when the link's work on that card starts; the link's scenarios on
+  a ][+ or //e depend on them.
+- A serial Wi-Fi modem is any that can make a plain TCP connection from
+  Hayes-style commands; Casso Explorer accepts the connection as it accepts
+  one from an emulated machine.
+- An Apple-side menu, from which the Apple starts transfers itself, is a
+  later feature; here the Apple side is a server with a status screen.
+- The link is used from Casso Explorer only; there is no command-line
+  entry for it beside `casso disk`.
