@@ -371,10 +371,20 @@ void Disk2Controller::HandleSwitch (int offset)
             m_engine[m_activeDrive].SetShiftLoadMode (true);
             break;
         case 0xE:
+            if (m_q7 && m_eventSinks.IsAny())
+            {
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (m_activeDrive, false); });
+            }
+
             m_q7 = false;
             UpdateEngineWriteMode();
             break;
         case 0xF:
+            if (!m_q7 && m_eventSinks.IsAny())
+            {
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (m_activeDrive, true); });
+            }
+
             // Writing turned on with a write-protected disk in the drive:
             // the nibbles go nowhere. RWTS checks the sense line first, so
             // only a program that does not check gets here.

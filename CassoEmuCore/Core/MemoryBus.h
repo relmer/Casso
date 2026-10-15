@@ -285,9 +285,9 @@ private:
 
     // The I/O listeners, their filters by slot, and the filters' union, which
     // the access paths test.
-    ObserverSlots<IIoAccessSink>    m_ioSinks;
-    std::array<IoAccessFilter, 2>   m_ioFilters;
-    IoAccessFilter                  m_ioWanted;
+    ObserverSlots<IIoAccessSink>                    m_ioSinks;
+    std::array<IoAccessFilter, kObserverSlotCount>  m_ioFilters;
+    IoAccessFilter                                  m_ioWanted;
 
     BankingChangedFn        m_bankingChanged;
 

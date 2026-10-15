@@ -65,6 +65,8 @@ namespace Disk2ControllerEventTests
                 DriveSelect,
                 DiskInserted,
                 DiskEjected,
+                WriteModeOn,
+                WriteModeOff,
             };
 
             struct LogEntry
@@ -87,6 +89,7 @@ namespace Disk2ControllerEventTests
             void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
             void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
             void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
+            void OnWriteMode (int drive, bool isOn) override    { log.push_back ({ isOn ? Event::WriteModeOn : Event::WriteModeOff, drive }); }
 
             int CountOf (Event ev) const
             {
@@ -596,6 +599,113 @@ namespace Disk2ControllerEventTests
                 Byte  b = observed.Read (0xC08C);
                 Assert::AreEqual (a, b);
             }
+        }
+
+
+        //  A sequence touching every switch kind: motor, a step, both drive
+        //  selects, write mode on and off, and the motor off and spun down.
+        static void RunScript (Disk2Controller & ctrl)
+        {
+            ctrl.Write (0xC0E9, 0x00);      // motor on
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on: a step
+            ctrl.Write (0xC0E2, 0x00);      // phase 1 off
+            ctrl.Write (0xC0EB, 0x00);      // drive 2
+            ctrl.Write (0xC0EA, 0x00);      // drive 1
+            ctrl.Write (0xC0EF, 0x00);      // write mode on
+            ctrl.Write (0xC0EF, 0x00);      // on again: no event
+            ctrl.Write (0xC0EE, 0x00);      // write mode off
+            ctrl.Write (0xC0E8, 0x00);      // motor off
+            ctrl.Tick  (Disk2Controller::kMotorSpindownCycles + 1);
+        }
+
+
+        static bool IsSameLog (const RecordingEventSink & a, const RecordingEventSink & b)
+        {
+            return std::equal (a.log.begin(), a.log.end(), b.log.begin(), b.log.end(),
+                               [] (const auto & x, const auto & y) { return x.event == y.event && x.arg == y.arg; });
+        }
+
+
+        //  Every event is delivered to the Breakpoints slot alone, and to the
+        //  Panel and Breakpoints slots together, in the same order as to the
+        //  Panel slot alone.
+        TEST_METHOD (EachEventReachesTheBreakpointsSlotAloneAndBesideThePanel)
+        {
+            RecordingEventSink  panelAlone;
+            RecordingEventSink  breakAlone;
+            RecordingEventSink  panelBoth;
+            RecordingEventSink  breakBoth;
+            auto                first  = std::make_unique<Disk2Controller> (6);
+            auto                second = std::make_unique<Disk2Controller> (6);
+            auto                third  = std::make_unique<Disk2Controller> (6);
+
+
+
+            first->SetEventSink (&panelAlone);
+            RunScript (*first);
+
+            second->SetEventSink (ObserverSlot::Breakpoints, &breakAlone);
+            RunScript (*second);
+
+            third->SetEventSink (&panelBoth);
+            third->SetEventSink (ObserverSlot::Breakpoints, &breakBoth);
+            RunScript (*third);
+
+            Assert::IsTrue (panelAlone.CountOf (RecordingEventSink::Event::WriteModeOn)  == 1, L"write mode on, once");
+            Assert::IsTrue (panelAlone.CountOf (RecordingEventSink::Event::WriteModeOff) == 1, L"write mode off, once");
+            Assert::IsTrue (IsSameLog (panelAlone, breakAlone), L"the Breakpoints slot alone");
+            Assert::IsTrue (IsSameLog (panelAlone, panelBoth),  L"the Panel slot beside it");
+            Assert::IsTrue (IsSameLog (panelAlone, breakBoth),  L"the Breakpoints slot beside the Panel");
+        }
+
+
+        //  With the window's sink set after the debugger's, the debugger's is in
+        //  its slot, and the Disk II log's events are the same whether or not
+        //  a Breakpoints listener is there.
+        TEST_METHOD (TheBreakpointsSlotIsIndependentOfTheOthers)
+        {
+            RecordingEventSink  breakpoints;
+            RecordingEventSink  window;
+            RecordingEventSink  historyAlone;
+            RecordingEventSink  historyBeside;
+            auto                ctrl     = std::make_unique<Disk2Controller> (6);
+            auto                alone    = std::make_unique<Disk2Controller> (6);
+            auto                beside   = std::make_unique<Disk2Controller> (6);
+
+
+
+            ctrl->SetEventSink (ObserverSlot::Breakpoints, &breakpoints);
+            ctrl->SetEventSink (&window);
+            RunScript (*ctrl);
+
+            Assert::IsFalse (breakpoints.log.empty(), L"the Breakpoints sink is in its slot after the Panel sink is set");
+            Assert::IsTrue  (IsSameLog (window, breakpoints));
+
+            alone->SetEventSink (ObserverSlot::History, &historyAlone);
+            RunScript (*alone);
+
+            beside->SetEventSink (ObserverSlot::History,     &historyBeside);
+            beside->SetEventSink (ObserverSlot::Breakpoints, &breakpoints);
+            RunScript (*beside);
+
+            Assert::IsTrue (IsSameLog (historyAlone, historyBeside), L"the History slot's events are the same with a Breakpoints listener");
+        }
+
+
+        TEST_METHOD (WithNoListenerNoSlotIsAny)
+        {
+            ObserverSlots<IDisk2EventSink>  slots;
+            RecordingEventSink              sink;
+
+
+
+            Assert::IsFalse (slots.IsAny());
+
+            slots.Set (ObserverSlot::Breakpoints, &sink);
+            Assert::IsTrue  (slots.IsAny(), L"the Breakpoints slot alone");
+
+            slots.Set (ObserverSlot::Breakpoints, nullptr);
+            Assert::IsFalse (slots.IsAny());
         }
     };
 }

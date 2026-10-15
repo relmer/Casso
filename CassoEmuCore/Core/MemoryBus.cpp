@@ -508,9 +508,13 @@ void MemoryBus::SetIoAccessSink (ObserverSlot slot, IIoAccessSink * sink, const 
     m_ioSinks.Set (slot, sink);
 
     m_ioFilters[(size_t) slot] = (sink != nullptr) ? filter : IoAccessFilter();
+    m_ioWanted                 = IoAccessFilter();
 
-    m_ioWanted.reads  = m_ioFilters[0].reads  | m_ioFilters[1].reads;
-    m_ioWanted.writes = m_ioFilters[0].writes | m_ioFilters[1].writes;
+    for (const IoAccessFilter & each : m_ioFilters)
+    {
+        m_ioWanted.reads  |= each.reads;
+        m_ioWanted.writes |= each.writes;
+    }
 }
 
 

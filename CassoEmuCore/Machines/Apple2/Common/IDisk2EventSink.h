@@ -56,6 +56,8 @@
 //                                 once per stall
 //
 //  Writing:
+//    * OnWriteMode            -- Q7 turned on or off, with the selected
+//                                 drive
 //    * OnWriteProtected       -- the program turned on writing with a
 //                                 write-protected disk in the drive
 //
@@ -96,6 +98,7 @@ public:
     virtual void OnDataFieldCutOff      (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
     virtual void OnDataWithoutAddress   (std::span<const Byte> bytes)                                    { (void) bytes; }
     virtual void OnWriteProtected       ()                                                                {}
+    virtual void OnWriteMode            (int drive, bool isOn)                                            { (void) drive; (void) isOn; }
 
     virtual void OnDriveSelect (int drive) = 0;
     virtual void OnDiskInserted (int drive) = 0;
