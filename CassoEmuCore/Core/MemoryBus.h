@@ -79,8 +79,15 @@ public:
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
 
-    // The last byte on the bus: what an address nothing drives reads as.
+    // The last byte on the bus: what an address nothing drives reads as when
+    // no floating-bus source is set.
     Byte GetFloatingBusValue () const { return m_floatingBusValue; }
+
+    // What an I/O address nothing drives reads as on an Apple II: the byte the
+    // video scanner fetched in that cycle. The machine sets it; without one,
+    // such a read returns the last byte on the bus.
+    using FloatingBusFn = function<Byte ()>;
+    void SetFloatingBusSource (FloatingBusFn fn) { m_floatingBusSource = move (fn); }
 
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to
     // a host buffer; null = read-only / writes ignored. Only used for RAM
@@ -141,6 +148,7 @@ private:
 
     vector<BusEntry>        m_entries;
     Byte                    m_floatingBusValue = 0xFF;
+    FloatingBusFn           m_floatingBusSource;
 
     // I/O dispatch map. FindDevice used to linear-scan the device list on every
     // $C000+ read and write -- I/O plus ROM/language-card fetches, since only
