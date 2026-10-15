@@ -848,12 +848,12 @@ void AppleWinFormatter::FormatTrace (const TraceData & data, Lines & lines)
 //
 //  AppleWinFormatter::FormatTraceLine
 //
-//  Entry number, cycle count, address, the opcode bytes, the address's symbol,
-//  the instruction, the registers before it, and the access: R or W, the
+//  Cycle count, address, the opcode bytes, the address's symbol, the
+//  instruction, the registers before it, and the access: R or W, the
 //  address, the byte, and the address's symbol. An interrupt handler's first
 //  instruction is marked.
 //
-//      1234    5678901  0300  AD 00 C0  START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
+//         5678901  0300  AD 00 C0  START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -863,8 +863,8 @@ std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
 
 
 
-    line = std::format ("{:>6}  {:>10}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
-                        record.index, record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
+    line = std::format ("{:>12}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
+                        record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
                         record.a, record.x, record.y, record.sp, FormatFlags (record.p));
 
     if (record.hasAccess)

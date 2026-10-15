@@ -315,7 +315,6 @@ namespace DebuggerTests
 
 
 
-            write.index         = 7;
             write.cycles        = 1234;
             write.pc            = 0x0302;
             write.opcode        = 0x8D;
@@ -326,7 +325,6 @@ namespace DebuggerTests
             write.accessAddress = 0x0400;
             write.accessData    = 0x05;
             write.accessSymbol  = "SCREEN";
-            implied.index       = 8;
             implied.instruction = "INX";
             data.isOn           = true;
             data.total          = 9;

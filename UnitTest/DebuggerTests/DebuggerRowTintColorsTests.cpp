@@ -279,19 +279,19 @@ public:
     {
         DxuiDarkTheme                    dark;
         DebuggerTextColors::Set          c   = MakeFor (dark);
-        std::vector<DxuiListView::Cell>  row (8);
+        std::vector<DxuiListView::Cell>  row (7);
 
 
 
-        row[2].text = L"C28B";
-        row[5].text = L"LDA KBD";
+        row[1].text = L"C28B";
+        row[4].text = L"LDA KBD";
 
         TracePane::AddColors (row, c);
 
-        Assert::AreEqual (c.syntax.address, row[2].argb);
-        Assert::AreEqual (c.syntax.symbol,  row[4].argb);
-        Assert::IsFalse  (row[5].colorRanges.empty());
-        Assert::AreEqual (c.syntax.mnemonic, std::get<2> (row[5].colorRanges[0]));
+        Assert::AreEqual (c.syntax.address, row[1].argb);
+        Assert::AreEqual (c.syntax.symbol,  row[3].argb);
+        Assert::IsFalse  (row[4].colorRanges.empty());
+        Assert::AreEqual (c.syntax.mnemonic, std::get<2> (row[4].colorRanges[0]));
     }
 
 

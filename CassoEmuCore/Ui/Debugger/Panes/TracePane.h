@@ -23,7 +23,7 @@
 //  arrives, rows outside the window are blank.
 //
 //  While the machine is stopped with tracing on, the instructions it runs
-//  next follow the last entry, with no entry number, cycles or registers;
+//  next follow the last entry, with "next" for cycles and no registers;
 //  the first, the PC's, has the PC's marker and row color.
 //
 //  The window owns the list as a child control; the pane holds a pointer to
@@ -67,7 +67,7 @@ public:
     void  ProvideRow     (int row, std::vector<DxuiListView::Cell> & out) const;
 
     //  A row's address, bytes, label and instruction in the disassembly's
-    //  colors; the entry number and cycles in the muted one.
+    //  colors; the cycles in the muted one.
     static void  AddColors (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors);
     bool  IsShowingBytes () const { return m_showBytes; }
 

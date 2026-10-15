@@ -141,7 +141,6 @@ public:
         for (size_t index = first; index < trace.size() && index - first < count; index++)
         {
             entries.push_back (trace[index]);
-            entries.back().index = index;
         }
     }
 

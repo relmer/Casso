@@ -548,7 +548,8 @@ void DebuggerWindow::ConfigureWidgets()
     m_registerList->SetShowHeader (false);
 
     m_tracePane->Configure();
-    m_traceHint->SetPairs (TracePane::GetKeyPairs());
+    m_traceHint->SetPairs  (TracePane::GetKeyPairs());
+    m_traceHint->SetOnPick ([this] (int id) { (void) RunTraceAction (id); });
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
@@ -11790,6 +11791,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             m_callStackButton->SetMouse (x, y, m_callStackButton->HitTest (x, y) && lbDown);
         }
 
+        //  The trace's key hints light under the pointer.
+        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
+        {
+            Invalidate();
+        }
+
         return true;
 
     case DxuiMouseEventKind::Down:
@@ -11800,6 +11807,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (ClickGutter (ev))
         {
+            return true;
+        }
+
+        //  A trace key hint is a button; the keys stay with the trace's rows.
+        if (IsRoutable (m_traceHint) && m_traceHint->IsVisible() && m_traceHint->OnMouse (ev))
+        {
+            SetFocusedControl (m_traceList);
+            Invalidate();
             return true;
         }
 
@@ -11831,6 +11846,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left && DropPcMarker (ev))
         {
+            return true;
+        }
+
+        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
+        {
+            Invalidate();
             return true;
         }
 
@@ -13592,13 +13613,28 @@ bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
 
 bool DebuggerWindow::RouteTraceKey (const DxuiKeyEvent & ev)
 {
+    return RunTraceAction ((int) TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunTraceAction
+//
+//  A trace key's action, from the key or a click on its hint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RunTraceAction (int action)
+{
     using Action = DebuggerKeySchemes::Action;
 
-    TracePane::KeyAction  action = TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift);
 
 
-
-    switch (action)
+    switch ((TracePane::KeyAction) action)
     {
     case TracePane::KeyAction::StepInto:    return OnMappedCommand ((int) Action::StepInto);
     case TracePane::KeyAction::StepOver:    return OnMappedCommand ((int) Action::StepOver);

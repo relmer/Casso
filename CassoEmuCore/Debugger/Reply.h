@@ -465,7 +465,6 @@ struct CallStackModeData
 // and the symbols are filled by the command that reports it.
 struct TraceRecord
 {
-    uint64_t     index         = 0;
     uint64_t     cycles        = 0;
     Word         pc            = 0;
     Byte         opcode        = 0;

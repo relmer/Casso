@@ -122,7 +122,7 @@ namespace DebuggerTests
 
             Assert::AreEqual ((int) 0x300, (int) memory.a1);
             Assert::AreEqual ((uint32_t) 3, clear.count);
-            Assert::AreEqual ((uint64_t) 100, history.first.value_or (0));
+            Assert::AreEqual ((uint64_t) 100, history.fromCycle.value_or (0));
             Assert::AreEqual ((uint32_t) 20,  history.count);
         }
 

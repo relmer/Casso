@@ -969,6 +969,7 @@ private:
     static int  GetColumnAt     (const DxuiListView * list, int xPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
     bool     RouteTraceKey      (const DxuiKeyEvent & ev);
+    bool     RunTraceAction     (int action);    // a TracePane::KeyAction
     void     SaveTrace          ();
     void     ApplySavedPlacement ();
 

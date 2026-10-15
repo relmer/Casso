@@ -271,7 +271,7 @@ namespace DebuggerTests
 
         TEST_METHOD (BKey_HidesAndShowsTheBytesColumn)
         {
-            static constexpr size_t  kBytes = 3;
+            static constexpr size_t  kBytes = 2;
 
             CassoTheme       theme    = CassoTheme::MakeSkeuomorphic();
             TraceKeysHost    host;
@@ -315,12 +315,12 @@ namespace DebuggerTests
 
             pane.ProvideRow (2, cells);
             Assert::AreEqual (std::wstring (L"next"),     cells[0].text);
-            Assert::AreEqual (std::wstring (L"0300"),     cells[2].text);
-            Assert::AreEqual (std::wstring (L"LDA #$05"), cells[5].text);
-            Assert::IsTrue   (cells[6].text.empty(), L"no registers before it runs");
+            Assert::AreEqual (std::wstring (L"0300"),     cells[1].text);
+            Assert::AreEqual (std::wstring (L"LDA #$05"), cells[4].text);
+            Assert::IsTrue   (cells[5].text.empty(), L"no registers before it runs");
 
             pane.ProvideRow (3, cells);
-            Assert::AreEqual (std::wstring (L"0302"), cells[2].text);
+            Assert::AreEqual (std::wstring (L"0302"), cells[1].text);
         }
 
 

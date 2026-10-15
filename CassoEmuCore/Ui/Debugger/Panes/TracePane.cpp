@@ -16,18 +16,14 @@
 //  The list follows the newest entry while it sits at the end, as the
 //  console does.
 //
-//  The entry number is left-aligned, so it and its heading start where the
-//  pane's title does, as every pane's first text does. Right-aligned, only
-//  a number as wide as the column would: the column is fitted by counting
-//  characters rather than measuring them, so it runs wider than its widest
-//  number, and the heading and the "next" rows are narrower still.
+//  The cycle count is left-aligned, so it and its heading start where the
+//  pane's title does, as every pane's first text does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TracePane::Configure()
 {
-    m_list->SetColumns ({ { L"Entry",       0, false, DxuiTextHAlign::Left  },
-                          { L"Cycles",      0, false, DxuiTextHAlign::Right },
+    m_list->SetColumns ({ { L"Cycles",      0, false, DxuiTextHAlign::Left  },
                           { L"PC",          0, false, DxuiTextHAlign::Left  },
                           { L"Bytes",       0, false, DxuiTextHAlign::Left  },
                           { L"Label",       0, false, DxuiTextHAlign::Left  },
@@ -40,7 +36,7 @@ void TracePane::Configure()
     m_list->SetPreciseAutoFit (false);
 
     //  Home, End, the arrows and the page keys move through the entries; Home
-    //  goes to entry 0.
+    //  goes to the oldest.
     m_list->SetKeyboardColumnNav (true);
 }
 
@@ -149,7 +145,7 @@ std::optional<uint64_t> TracePane::GetReadStartFor (uint64_t first, uint64_t hel
 
 void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) const
 {
-    static constexpr size_t  kColumns = 8;
+    static constexpr size_t  kColumns = 7;
     uint64_t                 index    = (uint64_t) row;
     const TraceRecord      * record   = nullptr;
     std::string              access;
@@ -167,10 +163,10 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
         bytes  = AppleWinFormatter::FormatTraceBytes (*record);
 
         out[0].text = L"next";
-        out[2].text = std::format (L"{:04X}", record->pc);
-        out[3].text = TextEncoding::NarrowToWide (bytes);
-        out[4].text = TextEncoding::NarrowToWide (record->symbol);
-        out[5].text = TextEncoding::NarrowToWide (record->instruction);
+        out[1].text = std::format (L"{:04X}", record->pc);
+        out[2].text = TextEncoding::NarrowToWide (bytes);
+        out[3].text = TextEncoding::NarrowToWide (record->symbol);
+        out[4].text = TextEncoding::NarrowToWide (record->instruction);
         AddColors (out, m_colors);
 
         if (index == m_total)
@@ -201,18 +197,17 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     bytes = AppleWinFormatter::FormatTraceBytes (*record);
 
-    out[0].text = std::format (L"{}", record->index);
-    out[1].text = std::format (L"{}", record->cycles);
-    out[2].text = std::format (L"{:04X}", record->pc);
-    out[3].text = TextEncoding::NarrowToWide (bytes);
-    out[4].text = TextEncoding::NarrowToWide (record->symbol);
-    out[5].text = TextEncoding::NarrowToWide (record->instruction);
-    out[6].text = std::format (L"A={:02X} X={:02X} Y={:02X} SP={:02X} ", record->a, record->x, record->y, record->sp);
-    out[7].text = TextEncoding::NarrowToWide (access);
+    out[0].text = std::format (L"{}", record->cycles);
+    out[1].text = std::format (L"{:04X}", record->pc);
+    out[2].text = TextEncoding::NarrowToWide (bytes);
+    out[3].text = TextEncoding::NarrowToWide (record->symbol);
+    out[4].text = TextEncoding::NarrowToWide (record->instruction);
+    out[5].text = std::format (L"A={:02X} X={:02X} Y={:02X} SP={:02X} ", record->a, record->x, record->y, record->sp);
+    out[6].text = TextEncoding::NarrowToWide (access);
 
     for (char ch : AppleWinFormatter::FormatFlags (record->p))
     {
-        out[6].text += (wchar_t) ch;
+        out[5].text += (wchar_t) ch;
     }
 
     AddColors (out, m_colors);
@@ -230,17 +225,16 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
 void TracePane::AddColors (std::vector<DxuiListView::Cell> & row, const DebuggerTextColors::Set & colors)
 {
-    if (colors.syntax.address == 0 || row.size() < 6)
+    if (colors.syntax.address == 0 || row.size() < 5)
     {
         return;
     }
 
     row[0].argb        = colors.muted;
-    row[1].argb        = colors.muted;
-    row[2].argb        = colors.syntax.address;
-    row[3].argb        = colors.syntax.bytes;
-    row[4].argb        = colors.syntax.symbol;
-    row[5].colorRanges = DebuggerTextColors::GetInstructionRanges (row[5].text, colors);
+    row[1].argb        = colors.syntax.address;
+    row[2].argb        = colors.syntax.bytes;
+    row[3].argb        = colors.syntax.symbol;
+    row[4].colorRanges = DebuggerTextColors::GetInstructionRanges (row[4].text, colors);
 }
 
 
@@ -286,19 +280,20 @@ TracePane::KeyAction TracePane::GetKeyAction (WPARAM vk, bool ctrl, bool alt, bo
 //
 //  TracePane::GetKeyPairs
 //
-//  The line above the rows listing the keys GetKeyAction takes.
+//  The line above the rows listing the keys GetKeyAction takes, each with
+//  its action as its id, so a click on it does what the key does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<KeyHintLine::Pair> TracePane::GetKeyPairs()
 {
-    return { { L"Space",  L"step into"    },
-             { L"O",      L"step over"    },
-             { L"R",      L"step out"     },
-             { L"Return", L"run"          },
-             { L"T",      L"trace on/off" },
-             { L"B",      L"bytes"        },
-             { L"S",      L"save"         } };
+    return { { L"Space",  L"step into",    (int) KeyAction::StepInto    },
+             { L"O",      L"step over",    (int) KeyAction::StepOver    },
+             { L"R",      L"step out",     (int) KeyAction::StepOut     },
+             { L"Return", L"run",          (int) KeyAction::Run         },
+             { L"T",      L"trace on/off", (int) KeyAction::ToggleTrace },
+             { L"B",      L"bytes",        (int) KeyAction::ToggleBytes },
+             { L"S",      L"save",         (int) KeyAction::Save        } };
 }
 
 
@@ -330,7 +325,7 @@ std::wstring TracePane::GetKeyHint()
 
 void TracePane::ToggleBytes()
 {
-    static constexpr size_t  kBytesColumn = 3;
+    static constexpr size_t  kBytesColumn = 2;
 
 
 

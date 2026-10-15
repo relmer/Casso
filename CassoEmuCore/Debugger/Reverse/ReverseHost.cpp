@@ -435,7 +435,6 @@ void ReverseHost::GetRecentTrace (
     for (const ReplayStep & step : steps)
     {
         record        = TraceRecord();
-        record.index  = outEntries.size();
         record.cycles = step.cycles;
         record.pc     = step.pc;
         record.opcode = step.opcode;

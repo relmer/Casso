@@ -298,7 +298,7 @@ struct DebugCommand
     std::string              symbol;       // BP: the symbol its address was given as
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
-    std::optional<uint64_t>  first;        // HISTORY: the window's first entry
+    std::optional<uint64_t>  fromCycle;    // HISTORY: the window starts at the first entry at or after this cycle
     CommandMode              mode     = CommandMode::AppleWin;
     OutputFormat             output   = OutputFormat::AppleWin;
 

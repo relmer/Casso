@@ -1830,6 +1830,7 @@ namespace DebuggerViewStateTests
         {
             MachineRig            rig;
             DebuggerViewSnapshot  snapshot;
+            uint64_t              newest   = 0;
 
 
 
@@ -1840,12 +1841,12 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (kTotal,                     snapshot.trace.total);
             Assert::AreEqual (kTotal - kRows,             snapshot.trace.first, L"following the end");
             Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size());
-            Assert::AreEqual (kTotal - 1,                 snapshot.trace.entries.back().index);
+            newest = snapshot.trace.entries.back().cycles;
 
             rig.view.SetTraceTop (100);
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((uint64_t) 100,             snapshot.trace.first);
-            Assert::AreEqual ((uint64_t) 100,             snapshot.trace.entries.front().index);
+            Assert::IsTrue   (snapshot.trace.entries.front().cycles < newest, L"older than the window at the end");
             Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size(), L"a window, never the whole trace");
             Assert::AreEqual (std::string ("JMP $0300"),  snapshot.trace.entries.front().instruction);
         }

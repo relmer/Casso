@@ -75,7 +75,7 @@ namespace DebuggerTests
         {
             Assert::AreEqual (std::string ("0x1.txt"),  ParseOk ("!tf 0x1.txt").command.text);
             Assert::AreEqual (std::string ("0n1.txt"),  ParseOk ("!history save 0n1.txt").command.text);
-            Assert::AreEqual ((uint64_t) 100,           ParseOk ("!history 0n100 0n20").command.first.value_or (0));
+            Assert::AreEqual ((uint64_t) 100,           ParseOk ("!history 0n100 0n20").command.fromCycle.value_or (0));
             Assert::AreEqual ((uint32_t) 20,            ParseOk ("!history 0n100 0n20").command.count);
         }
 

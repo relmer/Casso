@@ -33,7 +33,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "GG",          H::RunningAndStepping, "GG [addr [skip[,len|:last]]]",                   "Run at full speed, stopping as G does"                                                   },
     { "G-",          H::RunningAndStepping, "G-",                                             "Run backward through the recorded history to the latest breakpoint or watchpoint"        },
     { "GU-",         H::RunningAndStepping, "GU-",                                            "Step back out to the JSR that called the current subroutine"                             },
-    { "HISTORY",     H::RunningAndStepping, "HISTORY [ON|OFF|SAVE file|first [n]]",           "Show the instruction trace, turn it on or off, or save it"                               },
+    { "HISTORY",     H::RunningAndStepping, "HISTORY [ON|OFF|SAVE file|cycle [n]]",           "List the instruction trace, turn it on or off, or save it"                               },
     { "JSR",         H::RunningAndStepping, "JSR addr",                                       "Call a subroutine and run until it returns"                                              },
     { "KEY",         H::RunningAndStepping, "KEY byte [byte ...]",                            "Queue key codes for the machine to read"                                                 },
     { "LIVE",        H::RunningAndStepping, "LIVE",                                           "Leave the recorded history and return to where the machine was running"                  },

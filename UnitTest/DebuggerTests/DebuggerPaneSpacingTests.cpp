@@ -468,8 +468,8 @@ namespace DebuggerTests
 
                 trace.total = 2;
                 trace.entries.resize (2);
-                trace.entries[0].index = 9;
-                trace.entries[1].index = 12345678;
+                trace.entries[0].cycles = 9;
+                trace.entries[1].cycles = 12345678;
                 trace.next.resize (1);
                 pane.Apply (trace);
 
@@ -479,7 +479,7 @@ namespace DebuggerTests
                 text.Reset();
                 list.Paint  (painter, text, theme);
 
-                for (const wchar_t * first : { L"Entry", L"9", L"12345678", L"next" })
+                for (const wchar_t * first : { L"Cycles", L"9", L"12345678", L"next" })
                 {
                     found = FindText (text, first);
 

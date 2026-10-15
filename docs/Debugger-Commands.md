@@ -206,7 +206,7 @@ Casso commands:
     BASICOUT                                             Run to the Applesoft statement after the active GOSUB returns
     BASICSTEP                                            Run to the start of the next Applesoft statement
     BUDGET cycles                                        Stop each run after a number of cycles, in decimal; 0 removes the limit
-    HISTORY [ON|OFF|SAVE file|first [n]]                 Show the instruction trace, turn it on or off, or save it
+    HISTORY [ON|OFF|SAVE file|cycle [n]]                 List the instruction trace, turn it on or off, or save it
     PAUSE                                                Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR]|SAVE [file]]       Profile where execution goes, by routine or by address
     SKIP [CLEAR|[-]name|addr[.last]]                     Show or change the routines stepping goes over
@@ -283,7 +283,7 @@ Casso commands:
     /G-                                                    Run backward through the recorded history to the latest breakpoint or watchpoint
     /GG [addr [skip[,len|:last]]]                          Run at full speed, stopping as G does
     /GU-                                                   Step back out to the JSR that called the current subroutine
-    /HISTORY [ON|OFF|SAVE file|first [n]]                  Show the instruction trace, turn it on or off, or save it
+    /HISTORY [ON|OFF|SAVE file|cycle [n]]                  List the instruction trace, turn it on or off, or save it
     /JSR addr                                              Call a subroutine and run until it returns
     /KEY byte [byte ...]                                   Queue key codes for the machine to read
     /LBR                                                   Show the last branch taken
@@ -524,7 +524,7 @@ Casso commands:
     CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
     FRAME [count]                                   Run one video frame, or count of them
     GG [addr [skip[,len|:last]]]                    Run at full speed, stopping as G does
-    HISTORY [ON|OFF|SAVE file|first [n]]            Show the instruction trace, turn it on or off, or save it
+    HISTORY [ON|OFF|SAVE file|cycle [n]]            List the instruction trace, turn it on or off, or save it
     JSR addr                                        Call a subroutine and run until it returns
     KEY byte [byte ...]                             Queue key codes for the machine to read
     LBR                                             Show the last branch taken
@@ -725,7 +725,7 @@ Casso commands:
     !CYCLES [ABS|REL|PART]                           Show the cycles in total, in the last run, or since RCC
     !FRAME [count]                                   Run one video frame, or count of them
     !GG [addr [skip[,len|:last]]]                    Run at full speed, stopping as G does
-    !HISTORY [ON|OFF|SAVE file|first [n]]            Show the instruction trace, turn it on or off, or save it
+    !HISTORY [ON|OFF|SAVE file|cycle [n]]            List the instruction trace, turn it on or off, or save it
     !JSR addr                                        Call a subroutine and run until it returns
     !KEY byte [byte ...]                             Queue key codes for the machine to read
     !LBR                                             Show the last branch taken
@@ -891,7 +891,7 @@ Casso commands:
     G-                                                   Run backward through the recorded history to the latest breakpoint or watchpoint
     GG [addr [skip[,len|:last]]]                         Run at full speed, stopping as G does
     GU-                                                  Step back out to the JSR that called the current subroutine
-    HISTORY [ON|OFF|SAVE file|first [n]]                 Show the instruction trace, turn it on or off, or save it
+    HISTORY [ON|OFF|SAVE file|cycle [n]]                 List the instruction trace, turn it on or off, or save it
     JSR addr                                             Call a subroutine and run until it returns
     KEY byte [byte ...]                                  Queue key codes for the machine to read
     LBR                                                  Show the last branch taken

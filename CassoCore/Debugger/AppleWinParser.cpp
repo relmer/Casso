@@ -1673,15 +1673,15 @@ bool AppleWinParser::TryParseCallsArguments (const Arguments & args, DebugComman
 //  AppleWinParser::TryParseHistoryArguments
 //
 //  HISTORY ON and HISTORY OFF switch the trace; HISTORY SAVE file writes it;
-//  HISTORY first [count] shows count entries from first, and a bare HISTORY
-//  the newest. The numbers are decimal, since an entry number runs past what
-//  a 16-bit expression holds.
+//  HISTORY cycle [count] lists count entries from the first at or after the
+//  cycle, and a bare HISTORY the newest. The numbers are decimal, since a
+//  cycle count runs past what a 16-bit expression has room for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a first entry and a count in decimal.";
+    static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a cycle and a count in decimal.";
     std::string                   first;
     uint64_t                      value  = 0;
     NumberSyntax                  syntax = args.context->GetNumberSyntax();
@@ -1722,7 +1722,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
         return false;
     }
 
-    command.first = value;
+    command.fromCycle = value;
 
     if (args.tokens.size() == 2)
     {

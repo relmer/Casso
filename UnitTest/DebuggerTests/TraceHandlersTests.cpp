@@ -42,7 +42,7 @@ namespace DebuggerTests
             for (size_t i = 0; i < count; i++)
             {
                 record        = TraceRecord();
-                record.cycles = i;
+                record.cycles = i * 3;
                 record.pc     = (Word) (0x0300 + i);
                 record.opcode = 0xEA;
                 rig.target.trace.push_back (record);
@@ -90,7 +90,9 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (Window_NewestByDefault_FromFirstWhenGiven)
+        //  Each entry's cycle is three times its place in the trace, so a cycle
+        //  between two entries starts at the later one.
+        TEST_METHOD (Window_NewestByDefault_FromACycleWhenGiven)
         {
             Rig      rig;
             Reply    reply;
@@ -102,16 +104,22 @@ namespace DebuggerTests
             reply = rig.RunOk ("HISTORY");
             Assert::AreEqual ((uint64_t) 50,                          GetData (reply).total);
             Assert::AreEqual ((size_t) TraceHandlers::kDefaultCount,  GetData (reply).entries.size());
-            Assert::AreEqual ((uint64_t) 30,                          GetData (reply).entries.front().index);
-            Assert::AreEqual ((uint64_t) 49,                          GetData (reply).entries.back().index);
+            Assert::AreEqual ((uint64_t) 90,                          GetData (reply).entries.front().cycles);
+            Assert::AreEqual ((uint64_t) 147,                         GetData (reply).entries.back().cycles);
             Assert::AreEqual (std::string ("NOP"),                    GetData (reply).entries.back().instruction);
 
-            reply = rig.RunOk ("HISTORY 45 10");
-            Assert::AreEqual ((size_t) 5,   GetData (reply).entries.size(), L"cut at the newest entry");
-            Assert::AreEqual ((uint64_t) 45, GetData (reply).entries.front().index);
+            reply = rig.RunOk ("HISTORY 135 10");
+            Assert::AreEqual ((size_t) 5,    GetData (reply).entries.size(), L"cut at the newest entry");
+            Assert::AreEqual ((uint64_t) 135, GetData (reply).entries.front().cycles);
 
-            reply = rig.RunOk ("HISTORY 60");
-            Assert::AreEqual ((size_t) 0,   GetData (reply).entries.size(), L"past the end holds nothing");
+            reply = rig.RunOk ("HISTORY 134 1");
+            Assert::AreEqual ((uint64_t) 135, GetData (reply).entries.front().cycles, L"the first entry at or after the cycle");
+
+            reply = rig.RunOk ("HISTORY 0 1");
+            Assert::AreEqual ((uint64_t) 0,   GetData (reply).entries.front().cycles, L"the oldest");
+
+            reply = rig.RunOk ("HISTORY 148");
+            Assert::AreEqual ((size_t) 0,    GetData (reply).entries.size(), L"nothing past the newest");
         }
 
 
@@ -132,7 +140,7 @@ namespace DebuggerTests
             lines = (size_t) std::count (saved.begin(), saved.end(), '\n');
 
             Assert::AreEqual ((size_t) 25, lines, L"every entry, not the default window");
-            Assert::IsTrue   (saved.starts_with ("     0           0  0300"));
+            Assert::IsTrue   (saved.starts_with ("           0  0300"));
         }
 
 

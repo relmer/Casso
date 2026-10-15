@@ -97,8 +97,8 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 //
 //  TraceHandlers::Show
 //
-//  A first past the end gives no entries; a window running past the end is
-//  cut at it.
+//  A cycle past the newest entry returns no entries; a window running past
+//  the newest is cut at it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,9 +110,9 @@ void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, 
 
 
 
-    if (command.first.has_value())
+    if (command.fromCycle.has_value())
     {
-        first = (size_t) std::min<uint64_t> (*command.first, total);
+        first = FindCycle (session.GetTarget(), *command.fromCycle);
     }
     else
     {
@@ -120,6 +120,47 @@ void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, 
     }
 
     reply.data = MakeWindow (session, first, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHandlers::FindCycle
+//
+//  The place in the trace of the first entry at or after cycle, or the
+//  trace's size when every entry is before it. The cycle count rises from
+//  one entry to the next, so the search halves the trace each step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TraceHandlers::FindCycle (IDebugTarget & target, uint64_t cycle)
+{
+    size_t                     low  = 0;
+    size_t                     high = target.GetTraceSize();
+    size_t                     mid  = 0;
+    std::vector<TraceRecord>   one;
+
+
+
+    while (low < high)
+    {
+        mid = low + (high - low) / 2;
+        target.GetTraceWindow (mid, 1, one);
+
+        if (!one.empty() && one.front().cycles < cycle)
+        {
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid;
+        }
+    }
+
+    return low;
 }
 
 

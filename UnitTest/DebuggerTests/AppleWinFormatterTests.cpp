@@ -323,7 +323,6 @@ namespace DebuggerTests
 
 
 
-            write.index         = 41;
             write.cycles        = 5678;
             write.pc            = 0x0302;
             write.opcode        = 0x8D;
@@ -339,7 +338,6 @@ namespace DebuggerTests
             write.accessAddress = 0x0400;
             write.accessData    = 0x05;
             write.accessSymbol  = "SCREEN";
-            entry.index         = 42;
             entry.cycles        = 5682;
             entry.pc            = 0x0305;
             entry.opcode        = 0xE8;
@@ -355,8 +353,8 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 3, lines.size());
             Assert::AreEqual (std::string ("Trace off, 100000 entries retained."), lines[0]);
-            Assert::AreEqual (std::string ("    41        5678  0302  8D 00 04  START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
-            Assert::AreEqual (std::string ("    42        5682  0305  E8                 INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),
+            Assert::AreEqual (std::string ("        5678  0302  8D 00 04  START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
+            Assert::AreEqual (std::string ("        5682  0305  E8                 INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),
                               lines[2], L"only the instruction's own byte, not the one after it");
         }
 

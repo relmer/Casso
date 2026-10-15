@@ -512,7 +512,7 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) bare.command.verb);
-            Assert::IsFalse  (bare.command.first.has_value());
+            Assert::IsFalse  (bare.command.fromCycle.has_value());
             Assert::AreEqual ((uint32_t) 0,                 bare.command.count);
 
             Assert::AreEqual ((int) DebugVerb::SetHistory,  (int) on.command.verb);
@@ -524,9 +524,9 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("trace.txt"),    save.command.text);
 
             Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) window.command.verb);
-            Assert::AreEqual ((uint64_t) 99990,             window.command.first.value(), L"entry numbers are decimal and pass 16 bits");
+            Assert::AreEqual ((uint64_t) 99990,             window.command.fromCycle.value(), L"cycles are decimal and pass 16 bits");
             Assert::AreEqual ((uint32_t) 25,                window.command.count);
-            Assert::AreEqual ((uint64_t) 100,               from.command.first.value());
+            Assert::AreEqual ((uint64_t) 100,               from.command.fromCycle.value());
             Assert::AreEqual ((uint32_t) 0,                 from.command.count);
 
             ParseFails ("HISTORY SAVE",       ParseStatus::Invalid);

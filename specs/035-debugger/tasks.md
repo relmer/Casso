@@ -1613,3 +1613,10 @@ Owner decisions 2026-10-14, fifth review.
 Found 2026-10-14.
 
 - [X] T855 [P] Lay each heat map range under a header out at least a row label's line tall, so the first address label of a range of one short row (zero page, stack, I/O) ends before the next range's header (HeatMapView::PlaceBands, MeasureGutter, m_labelLinePx in CassoEmuCore/Ui/Debugger/Panes/HeatMapView.h/.cpp); checked on a capture of the debugger **Done 2026-10-14**
+
+## Phase 40: Owner review, 2026-10-15
+
+- [X] T856 Keep the event log panes' cost per frame to the size of each delta: extend the view with newer rows rather than build it again, count a cut only when it drops rows (each live keyframe sends one at the machine's position), and drop the oldest rows past 200,000 down to 150,000 with a "from" request so the machine's thread rebuilds them on scrolling up (EventLogPane::ExtendView and TrimRows in CassoEmuCore/Ui/Debugger/Panes/EventLogPane.h, EventLogRows::TrimFront, InputLogPane::GetSettledCount, DebugEventLogs::DropBefore); tested in UnitTest/DebuggerTests/EventLogPaneTests.cpp **Done 2026-10-15** (5e0f29474)
+- [X] T857 Know a trace entry by its cycle count: `HISTORY cycle [count]` starts at the first entry at or after the cycle (TraceHandlers::FindCycle), the trace pane's Entry column and the trace record's index go, and the channel's `trace` entries have no `index`; tested in UnitTest/DebuggerTests/TraceHandlersTests.cpp
+- [X] T858 [P] Make room for a cell's checkbox or icon in a column fitted by counting characters, so the trace's "next" row with the PC's marker is not clipped (DxuiListView::NoteAutoFitRow in Dxui/Widgets/DxuiListView.cpp); tested in UnitTest/Dxui/DxuiListViewColumnFitTests.cpp
+- [X] T859 Make each of the trace pane's key hints a button that does what its key does, filled with the button hover color under the pointer (KeyHintLine::OnMouse and GetPairAt in CassoEmuCore/Ui/Debugger/KeyHintLine.h/.cpp, DebuggerWindow::RunTraceAction); tested in UnitTest/DebuggerTests/DebuggerReviewPolishTests.cpp

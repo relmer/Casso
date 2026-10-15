@@ -729,17 +729,20 @@ into stops on the handler's first instruction.
 made, with symbols. `HISTORY OFF` stops recording and keeps what it has.
 
 ```text
-HISTORY               the newest 20 entries
-HISTORY 5000 40       40 entries from entry 5000 (decimal)
-HISTORY SAVE run.txt  every retained entry
+HISTORY                  the newest 20 entries
+HISTORY 1175751201 40    40 entries from the first at or after that cycle (decimal)
+HISTORY SAVE run.txt     every retained entry
 ```
+
+Each entry is known by its cycle count, which no later instruction changes.
 
 The trace costs nothing while it is off.
 
-The window's trace pane lists its keys above its rows. With the pane focused,
-`Space`, `O` and `R` step into, over and out, `Return` runs, `T` turns the
-trace off and on, `B` shows and hides the bytes column, and `S` saves the
-trace to a file you pick, as `HISTORY SAVE` does. While the machine is
+The window's trace pane lists its keys above its rows, and a click on a key
+there does what the key does. With the pane focused, `Space`, `O` and `R` step
+into, over and out, `Return` runs, `T` turns the trace off and on, `B` turns
+the bytes column off and on, and `S` saves the trace to a file you pick, as
+`HISTORY SAVE` does. While the machine is
 stopped, the next few instructions from the PC follow the last entry, taking
 each branch the way the current flags send it and ending at one an earlier
 instruction may have changed the flags for.

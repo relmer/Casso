@@ -168,7 +168,6 @@ void TraceController::GetWindow (size_t first, size_t count, std::vector<TraceRe
         }
 
         record               = TraceRecord();
-        record.index         = index;
         record.cycles        = entry.cycles;
         record.pc            = entry.pc;
         record.opcode        = entry.opcode;
