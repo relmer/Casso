@@ -391,4 +391,42 @@ public:
         list.Paint (painter, text, theme);
         Assert::AreEqual (wide, list.GetColumnEffectiveWidthPx (0), L"measured again after a reset");
     }
+
+
+    //  A column fitted by counting characters makes room for an icon ahead
+    //  of a cell's text, as the trace's "next" row has the PC's marker, when
+    //  that row comes after the column was first fitted.
+    TEST_METHOD (AnIconWidensACountedColumn)
+    {
+        MockDxuiPainter                        painter;
+        MockDxuiTextRenderer                   text;
+        MockDxuiTheme                          theme;
+        DxuiListView                           list;
+        DxuiDpiScaler                          scaler;
+        auto                                   marker = std::make_shared<DxuiIconImage>();
+        int                                    before = 0;
+        int                                    after  = 0;
+
+
+
+        scaler.SetDpi (96);
+
+        list.SetColumns        ({ DxuiListView::Column { L"", 0 }, DxuiListView::Column { L"Rest", 0, true } });
+        list.SetPreciseAutoFit (false);
+        list.SetRowProvider    (1, [&marker] (int row, std::vector<DxuiListView::Cell> & out)
+        {
+            out.assign (2, DxuiListView::Cell { L"next", false });
+            out[0].icon = (row == 1) ? marker : nullptr;
+        });
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.Paint (painter, text, theme);
+        before = list.GetColumnEffectiveWidthPx (0);
+
+        list.SetVirtualRowCount (2);
+        list.Paint (painter, text, theme);
+        after = list.GetColumnEffectiveWidthPx (0);
+
+        Assert::IsTrue (after > before, L"wider by the icon and its gap");
+    }
 };

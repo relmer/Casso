@@ -295,6 +295,10 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
 
 void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 {
+    int  perCharPx = std::max (1, (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm));
+
+
+
     if (m_autoMaxChars.size() != m_columns.size())
     {
         m_autoMaxChars.assign (m_columns.size(), 0);
@@ -309,7 +313,8 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
             continue;
         }
 
-        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size();
+        //  A checkbox or icon ahead of the text takes its room in characters.
+        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size() + (GetCellLeadPx (cells[c]) + perCharPx - 1) / perCharPx;
 
         if (m_showHeader)
         {
