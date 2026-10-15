@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/SerialTrafficLog.h"
+#include "Shell/EmulatorShell.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -118,5 +119,21 @@ public:
 
         Assert::AreEqual (std::string ("           0 2 < 01 02"), lines[1], L"a gap of exactly the pause stays on the line");
         Assert::AreEqual (std::string ("       20001 2 < 03"),    lines[2]);
+    }
+
+
+    TEST_METHOD (ABareFlagLogsToATimestampedFileUnderSerialLogs)
+    {
+        SYSTEMTIME  now = {};
+
+        now.wYear   = 2026;
+        now.wMonth  = 10;
+        now.wDay    = 5;
+        now.wHour   = 9;
+        now.wMinute = 7;
+        now.wSecond = 3;
+
+        Assert::AreEqual (std::wstring (L"C:\\Data\\Casso\\SerialLogs\\serial-20261005-090703.txt"),
+                          EmulatorShell::GetDefaultSerialLogPath (L"C:\\Data\\Casso", now).wstring());
     }
 };

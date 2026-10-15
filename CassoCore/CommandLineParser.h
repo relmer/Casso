@@ -370,6 +370,7 @@ public:
         None,
         Required,
         OptionalSize,
+        OptionalPath,
     };
 
     //  One entry per name in GetEmulatorLongOptions, each with its decision
@@ -582,6 +583,10 @@ public:
 private:
     //  Whether an argument is a disk image Casso mounts, by its extension.
     static bool  IsDiskImagePath (const std::string & path);
+
+    //  Whether the argument after --serial-log is its file: not an option and
+    //  not a disk image, so `--serial-log game.dsk` mounts the disk.
+    static bool  IsSerialLogPath (const std::string & arg);
     static constexpr const char *  s_kpszDiskImageExtensions[] = { ".dsk", ".do", ".po", ".woz", ".nib", ".nb2" };
 
     //  Words the refusal for one emulator argument, and records the verdict.

@@ -471,19 +471,28 @@ void EmulatorShell::SetWindowTitlePrefix (const wstring & prefix)
 //
 //  OpenSerialLog
 //
-//  Each piece is flushed as it is written, so a capture that ends in a crash
-//  or a killed process has every byte up to that point.
+//  A folder in the path that does not exist is created. Each piece is
+//  flushed as it is written, so a capture that ends in a crash or a killed
+//  process has every byte up to that point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::OpenSerialLog (const std::filesystem::path & path)
 {
     HRESULT                         hr     = S_OK;
-    std::shared_ptr<std::ofstream>  file   = std::make_shared<std::ofstream> (path, std::ios::binary | std::ios::trunc);
-    bool                            opened = file->is_open();
+    std::error_code                 ec;
+    std::shared_ptr<std::ofstream>  file;
+    bool                            opened = false;
 
 
 
+    if (path.has_parent_path())
+    {
+        std::filesystem::create_directories (path.parent_path(), ec);
+    }
+
+    file   = std::make_shared<std::ofstream> (path, std::ios::binary | std::ios::trunc);
+    opened = file->is_open();
     CBREx (opened, HRESULT_FROM_WIN32 (ERROR_OPEN_FAILED));
 
     m_serialLog = std::make_unique<SerialTrafficLog> ([file] (std::string_view text)
@@ -494,6 +503,26 @@ HRESULT EmulatorShell::OpenSerialLog (const std::filesystem::path & path)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDefaultSerialLogPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path EmulatorShell::GetDefaultSerialLogPath (const std::filesystem::path & dataDir, const SYSTEMTIME & now)
+{
+    std::wstring  name = format (L"serial-{:04}{:02}{:02}-{:02}{:02}{:02}.txt",
+                                 now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+
+
+
+    return dataDir / L"SerialLogs" / name;
 }
 
 

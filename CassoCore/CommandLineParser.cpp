@@ -344,7 +344,7 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
     { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
-    { "serial-log",     CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "serial-log",     CommandLineParser::OptionValue::OptionalPath, CommandLineParser::RelaunchRule::Drop   },
     { "updated",       CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
     { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
@@ -4399,9 +4399,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.titlePrefix = argv[++i];
         }
-        else if (arg == "--serial-log" && hasValue)
+        else if (arg == "--serial-log")
         {
-            parsed.serialLog = argv[++i];
+            parsed.serialLogRequested = true;
+
+            if (hasValue && IsSerialLogPath (argv[i + 1]))
+            {
+                parsed.serialLog = argv[++i];
+            }
         }
         else if (arg == "--updated")
         {
@@ -4458,6 +4463,21 @@ bool CommandLineParser::IsDiskImagePath (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineParser::IsSerialLogPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsSerialLogPath (const std::string & arg)
+{
+    return !IsFlagShaped (arg) && !IsDiskImagePath (arg);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineParser::RefuseEmulatorArgument
 //
 //  Why one argument stopped the emulator starting, in the words the user reads.
@@ -4501,7 +4521,7 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
-          || canonical == "--cleanup-old" || canonical == "--serial-log")
+          || canonical == "--cleanup-old")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -4671,7 +4691,8 @@ std::vector<std::string> CommandLineParser::SelectRelaunchArguments (int argc, c
         hasValue = (i + 1) < argc;
         takes    = !hasEqual && hasValue &&
                    (rule->value == OptionValue::Required ||
-                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])));
+                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])) ||
+                    (rule->value == OptionValue::OptionalPath && IsSerialLogPath (argv[i + 1])));
 
         if (rule->rule == RelaunchRule::Repeat)
         {

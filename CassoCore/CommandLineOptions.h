@@ -395,12 +395,15 @@ struct CommandLineOptions
         std::string  titlePrefix;                       // --title <text>
 
         //  A file that every byte on a bridged serial port is written to, with
-        //  its port, direction and machine cycle, for protocol captures.
+        //  its port, direction and machine cycle, for protocol captures. The
+        //  path is optional; without one, the log is a new timestamped file in
+        //  the SerialLogs folder of Casso's data directory.
         //
         //  UNDOCUMENTED AND NOT IN THE HELP, for the same reason as
         //  --no-image-watch: it serves work on the serial link's protocol, not
         //  anyone running the emulator.
-        std::string  serialLog;                         // --serial-log <file>
+        bool         serialLogRequested = false;        // --serial-log [file]
+        std::string  serialLog;                         // empty for the default file
 
         //  Set by Casso itself when it relaunches after replacing its own
         //  files from a release zip: `--updated` marks the launch, and

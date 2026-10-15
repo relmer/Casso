@@ -650,6 +650,7 @@ extern "C" int WINAPI wCassoMain (
     wstring                              disk2Path;
     wstring                              tapePath;
     wstring                              titlePrefix;
+    fs::path                             serialLogPath;
     size_t                               traceCapacity = 0;
     bool                                 noImageWatch  = false;
     int                                  exitCode      = 0;
@@ -739,10 +740,18 @@ extern "C" int WINAPI wCassoMain (
 
     // --serial-log: opened before the machine is built, so the bridges built
     // with it write to the file from the first byte.
-    if (!parsed.serialLog.empty())
+    if (parsed.serialLogRequested)
     {
-        hr = shell->OpenSerialLog (fs::path (TextEncoding::NarrowToWide (parsed.serialLog)));
-        CHRN (hr, L"Could not open the serial log file");
+        SYSTEMTIME  now = {};
+
+        GetLocalTime (&now);
+
+        serialLogPath = parsed.serialLog.empty()
+                      ? EmulatorShell::GetDefaultSerialLogPath (AssetBootstrap::GetAssetBaseDirectory(), now)
+                      : fs::path (TextEncoding::NarrowToWide (parsed.serialLog));
+
+        hr = shell->OpenSerialLog (serialLogPath);
+        CHRN (hr, format (L"Could not open the serial log file:\n{}", serialLogPath.wstring()).c_str());
     }
 
     // --updated / --cleanup-old: a relaunch by a finished zip update, which

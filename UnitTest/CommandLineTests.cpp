@@ -3230,24 +3230,40 @@ namespace CommandLineTests
         }
 
         //  The serial capture file is undocumented, and parsed through the
-        //  same table, so the slash form works and a missing path stops startup.
+        //  same table, so the slash form works. Its path is optional: the
+        //  next argument is the path only when it is neither an option nor a
+        //  disk image.
         TEST_METHOD (Emulator_TakesAnUndocumentedSerialLog)
         {
-            ArgVector  dashed  = { "--serial-log", "C:\\captures\\adtpro send.txt", "--machine", "Apple2c" };
-            ArgVector  slashed = { "/serial-log", "log.txt" };
-            ArgVector  missing = { "--serial-log" };
+            ArgVector  dashed   = { "--serial-log", "C:\\captures\\adtpro send.txt", "--machine", "Apple2c" };
+            ArgVector  slashed  = { "/serial-log", "log.txt" };
+            ArgVector  bare     = { "--serial-log" };
+            ArgVector  optionAfter = { "--serial-log", "--machine", "Apple2c" };
+            ArgVector  diskAfter   = { "--serial-log", "game.dsk" };
+            ArgVector  absent   = { "--machine", "Apple2c" };
 
-            CommandLineOptions::EmulatorOptions  withLog =
-                CommandLineParser::ParseEmulator (dashed.Count(), dashed.Data());
-            CommandLineOptions::EmulatorOptions  withSlash =
-                CommandLineParser::ParseEmulator (slashed.Count(), slashed.Data());
-            CommandLineOptions::EmulatorOptions  withoutPath =
-                CommandLineParser::ParseEmulator (missing.Count(), missing.Data());
+            CommandLineOptions::EmulatorOptions  withLog       = CommandLineParser::ParseEmulator (dashed.Count(),      dashed.Data());
+            CommandLineOptions::EmulatorOptions  withSlash     = CommandLineParser::ParseEmulator (slashed.Count(),     slashed.Data());
+            CommandLineOptions::EmulatorOptions  withoutPath   = CommandLineParser::ParseEmulator (bare.Count(),        bare.Data());
+            CommandLineOptions::EmulatorOptions  beforeOption  = CommandLineParser::ParseEmulator (optionAfter.Count(), optionAfter.Data());
+            CommandLineOptions::EmulatorOptions  beforeDisk    = CommandLineParser::ParseEmulator (diskAfter.Count(),   diskAfter.Data());
+            CommandLineOptions::EmulatorOptions  without       = CommandLineParser::ParseEmulator (absent.Count(),      absent.Data());
 
+            Assert::IsTrue (withLog.serialLogRequested);
             Assert::AreEqual (std::string ("C:\\captures\\adtpro send.txt"), withLog.serialLog);
             Assert::AreEqual (std::string ("Apple2c"), withLog.machine);
             Assert::AreEqual (std::string ("log.txt"), withSlash.serialLog);
-            Assert::AreEqual (std::string ("Error: missing value for --serial-log"), withoutPath.refusalMessage);
+
+            Assert::IsTrue (withoutPath.serialLogRequested && withoutPath.serialLog.empty(), L"a bare flag selects the default file");
+            Assert::IsTrue (withoutPath.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+
+            Assert::IsTrue (beforeOption.serialLogRequested && beforeOption.serialLog.empty());
+            Assert::AreEqual (std::string ("Apple2c"), beforeOption.machine);
+
+            Assert::IsTrue (beforeDisk.serialLogRequested && beforeDisk.serialLog.empty());
+            Assert::AreEqual (std::string ("game.dsk"), beforeDisk.disk1, L"a disk image after the flag is mounted, not logged to");
+
+            Assert::IsFalse (without.serialLogRequested);
         }
 
         //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they

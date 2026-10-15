@@ -470,7 +470,7 @@ in-process and over TCP, at real line timing.
 **Purpose**: settle what ADTPro's protocol document omits, from its
 own host and client, never from its source (FR-096).
 
-- [ ] T187 [US16] Capture traffic between ADTPro 2.1.0's host (`C:\Users\relmer\Downloads\ADTPro-2.1.0`, its serial-over-IP transport) and its own client disk booted in an emulated //c on T186's TCP port, through T182's byte log, written to a file by Casso's undocumented `--serial-log <file>` (`CassoEmuCore/Devices/SerialTrafficLog.h/.cpp`):
+- [ ] T187 [US16] Capture traffic between ADTPro 2.1.0's host (`C:\Users\relmer\Downloads\ADTPro-2.1.0`, its serial-over-IP transport) and its own client disk booted in an emulated //c on T186's TCP port, through T182's byte log, written to a file by Casso's undocumented `--serial-log [file]` (by default a timestamped file in `%LOCALAPPDATA%\Casso\SerialLogs\`) (`CassoEmuCore/Devices/SerialTrafficLog.h/.cpp`):
   - a disk sent to the host and one received from it;
   - a Directory and a Size query;
   - virtual-drive block reads, timestamped reads and writes.

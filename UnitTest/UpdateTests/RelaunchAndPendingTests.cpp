@@ -92,6 +92,10 @@ public:
         Assert::IsTrue (Select ({ "--trace=20M" }) == std::vector<std::string> ({ "--trace=20M" }), L"an = form stays whole");
         Assert::IsTrue (Select ({ "--machine", "--title" }).empty(), L"--machine takes the next word as its value");
         Assert::IsTrue (Select ({ "-Embedding", "work.dsk" }).empty(), L"anything else is dropped");
+        Assert::IsTrue (Select ({ "--serial-log", "cap.txt", "--title", "x" }) == std::vector<std::string> ({ "--title", "x" }),
+                        L"the serial log is dropped with its path");
+        Assert::IsTrue (Select ({ "--serial-log", "--title", "x" }) == std::vector<std::string> ({ "--title", "x" }),
+                        L"--serial-log's path is optional");
     }
 
 

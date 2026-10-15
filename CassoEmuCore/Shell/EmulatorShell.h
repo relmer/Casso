@@ -140,6 +140,10 @@ public:
     // for protocol captures. Called before Initialize builds the machine.
     HRESULT OpenSerialLog (const std::filesystem::path & path);
 
+    // The file a bare --serial-log writes: SerialLogs\serial-<local time>.txt
+    // under Casso's data directory, a new one for each launch.
+    static std::filesystem::path GetDefaultSerialLogPath (const std::filesystem::path & dataDir, const SYSTEMTIME & now);
+
     // Update notification and self-update, including the launch-by-update
     // flags and the Settings > General update toggles.
     ShellUpdater &  GetUpdater();
