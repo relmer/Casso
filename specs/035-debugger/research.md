@@ -1771,8 +1771,8 @@ Checked 2026-10-04 against the documents themselves, not against other emulators
 
 **Status**: designed 2026-10-08 from a request the disk inspector work (spec
 040, GH #159) sent on the owner's behalf, checked claim by claim against the
-code at `811a6f727`; nothing is built. Tasks T712-T734, scheduled with the
-owner.
+code at `811a6f727`; T712's measurement is in "The read test". Tasks
+T712-T734, scheduled with the owner.
 
 **Decision**: one `BPDISK` command that adds breakpoint-table entries of a new
 `Disk` kind. The Disk II controller gains a second listener slot behind its one
@@ -2055,6 +2055,57 @@ instruction that found its address prologue, the test misses its reads and
 - Detecting that the CPU stopped reading after the field: the drive advances
   only when the CPU touches the controller (the catch-up on each access), so
   a gap shows only at the next access, long after the read.
+
+**Measured 2026-10-14 (T712).** `ScenarioTests/DiskReadProbeTests.cpp` boots
+the DOS 3.3 System Master and the ProDOS Users Disk on an enhanced //e from a
+power cycle, with a test hook before every instruction and a listener on reads
+of $C0EC. A read is the first of its nibble when the drive's count of
+assembled nibbles has gone up since the last one taken, which is the rule
+`ConsumeFreshNibble` follows. The requests are taken at the boot ROM's $C65C
+($3D, $41), at RWTS's entry with the IOB at Y and A, and at ProDOS's device
+vector at $BF1C ($42, $46-$47), each mapped to physical sectors. Both
+statements are confirmed:
+
+| Boot | Prologue read at | Checksum read at | Fields | The sector requested |
+|---|---|---|---|---|
+| DOS 3.3 | $B94F (RDADR16) | $B925 (READ16) | 60 | 60 |
+| DOS 3.3 | $B94F | $B94F | 213 | 0 |
+| DOS 3.3 | $394F (RWTS at $3D00) | $3925 | 27 | 27 |
+| DOS 3.3 | $394F | $394F | 38 | 0 |
+| DOS 3.3 | $C65E (boot ROM) | $C6CB | 11 | 11 |
+| DOS 3.3 | $C65E | $C65E | 14 | 0 |
+| ProDOS | $FBA5 (driver) | $FCB1 | 118 | 118 |
+| ProDOS | $FBA5 | $FBA5 | 269 | 2, both read on a later turn |
+| ProDOS | $09F2 (block 0 loader) | $0A5F | 70 | not followed |
+| ProDOS | $09F2 | $09F2 | 62 | not followed |
+| ProDOS | $C65E | $C6CB | 2 | 2 |
+| ProDOS | $C65E | $C65E | 2 | 0 |
+
+Every request is counted as read, 98 of 98 on DOS 3.3 and 54 of 54 on
+ProDOS, and no field counted as read is another sector. ProDOS's block 0
+loader reads through a routine of its own, whose requests the probe does not
+follow; its 70 reads and 62 fields passed over split the same way. Four
+findings the design did not have:
+
+- **The boot ROM skips the address checksum.** The checksum's first nibble can
+  go unread, so an address field the ROM finds may fail a decode that requires
+  all eight nibbles. T720's tracker takes an address field whose only gap is in
+  the checksum pair, unchecked.
+- **Boot stage 2 runs a second RWTS.** The System Master's stage 2 reads 27
+  sectors through a copy of RWTS at $3D00 before DOS moves up, while $03D9
+  has no JMP. `BPDISK RWTS` is unresolved for those reads, as designed;
+  sector-read breakpoints stop on them.
+- **Every call of RWTS's entry comes through $B7B5**, the $03D9 JMP's
+  target (60 of 60), and RDADR16 is called only from $BDC4, inside RWTS. The
+  only other calls into $B800-$BFFF from outside are two from $A0E2 to $BFDC,
+  which is neither RWTS's entry, RDADR16 nor READ16. Scenario 9 and the "A
+  relocated DOS" edge case are unaffected.
+- **The window's "Data read" events are mostly sectors passed over.** On DOS
+  3.3, 87 fire on a sector read and 265 on one passed over; on ProDOS, none
+  on the 188 sectors read and 271 on ones passed over, since its driver, its
+  loader and the boot ROM stop at the checksum nibble and never read DE AA.
+  Spec 006's window was replaced by 035's Disk II log, whose "Sector read"
+  rows are these events: GH #175.
 
 ### The epilogue in a sector-read report
 

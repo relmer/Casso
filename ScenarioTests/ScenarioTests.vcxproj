@@ -178,6 +178,7 @@
     <ClCompile Include="HistoryRateTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />
     <ClCompile Include="Disk2SectorEventTests.cpp" />
+    <ClCompile Include="DiskReadProbeTests.cpp" />
     <ClCompile Include="DebugEventLogRebuildTests.cpp" />
     <ClCompile Include="DebugEventLogScrollTests.cpp" />
     <ClCompile Include="IoLogCostTests.cpp" />
