@@ -20,6 +20,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/CommandSuggestion.h"
 #include "Debugger/DiskCallVector.h"
+#include "Debugger/DiskValueSymbols.h"
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
@@ -2360,8 +2361,10 @@ bool DebugSession::TryPeekIo (Word address, Byte & value) const
 //
 //  DebugSession::TryResolveSymbol
 //
-//  @n is the nth search result, counted from 1; any other name is looked up
-//  in the enabled symbol tables.
+//  The disk values come first, ahead of any program symbol with the same
+//  name, and are unknown on a machine with no Disk II. @n is the nth search
+//  result, counted from 1; any other name is looked up in the enabled symbol
+//  tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2371,6 +2374,11 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
     SymbolTableId  table = SymbolTableId::Main;
 
 
+
+    if (DiskValueSymbols::IsDiskValue (name))
+    {
+        return DiskValueSymbols::TryResolve (name, m_target, address);
+    }
 
     if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
     {
