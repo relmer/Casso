@@ -51,6 +51,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BP",          H::Breakpoints,        "BP addr[,len|:last]|file:line [IF expr]",        "Set an execution breakpoint, or one on PC with < > = !"                                  },
     { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a memory watchpoint"                                     },
     { "BPBEAM",      H::Breakpoints,        "BPBEAM line cycle|VBL",                          "Stop when the beam reaches a scanline and cycle, or vertical blank"                      },
+    { "BPDISK",      H::Breakpoints,        "BPDISK [D1|D2] event [arguments] [IF expr]",     "Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor"   },
     { "BPC",         H::Breakpoints,        "BPC #|*",                                        "Clear a breakpoint, or all of them"                                                      },
     { "BPCHANGE",    H::Breakpoints,        "BPCHANGE # flags",                               "Change a breakpoint's flags: E enabled, T temporary, S stops"                            },
     { "BPD",         H::Breakpoints,        "BPD #|*",                                        "Disable a breakpoint, or all of them"                                                    },

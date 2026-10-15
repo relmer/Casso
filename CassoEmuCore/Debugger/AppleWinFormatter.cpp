@@ -378,7 +378,21 @@ void AppleWinFormatter::FormatDisassembly (const DisassemblyData & data, Lines &
 
 void AppleWinFormatter::FormatBreakpointSet (const BreakpointSetData & data, Lines & lines)
 {
-    lines.push_back (std::format ("Breakpoint #{} set {}", data.breakpoint.id, DescribeBreakpoint (data.breakpoint)));
+    const BreakpointInfo  & info   = data.breakpoint;
+    bool                    isCall = info.disk.has_value() && (info.disk->event == DiskEvent::RwtsCall || info.disk->event == DiskEvent::DriverCall);
+    const char            * vector = (isCall && info.disk->event == DiskEvent::RwtsCall) ? "$03D9 has no JMP" : "the device vector has no routine";
+
+
+
+    if (info.kind != BreakpointKind::Disk)
+    {
+        lines.push_back (std::format ("Breakpoint #{} set {}", info.id, DescribeBreakpoint (info)));
+    }
+    else
+    {
+        lines.push_back (std::format ("Set disk breakpoint #{} ({}){}", info.id, DiskBreakSpecText::GetDescription (*info.disk),
+                                      (isCall && !info.resolved.has_value()) ? std::format (", unresolved: {} yet", vector) : std::string()));
+    }
 }
 
 

@@ -36,6 +36,7 @@ AppleWin commands:
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                              Disable a breakpoint, or all of them
+    BPDISK [D1|D2] event [arguments] [IF expr]           Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                                              Enable a breakpoint, or all of them
     BPEDIT # definition                                  Replace a breakpoint with a new definition
     BPL                                                  List the breakpoints
@@ -292,6 +293,7 @@ Casso commands:
     /BPC #|*                                               Clear a breakpoint, or all of them
     /BPCHANGE # flags                                      Change a breakpoint's flags: E enabled, T temporary, S stops
     /BPD #|*                                               Disable a breakpoint, or all of them
+    /BPDISK [D1|D2] event [arguments] [IF expr]            Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     /BPE #|*                                               Enable a breakpoint, or all of them
     /BPEDIT # definition                                   Replace a breakpoint with a new definition
     /BPL                                                   List the breakpoints
@@ -515,6 +517,7 @@ Casso commands:
     BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
     BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
+    BPDISK [D1|D2] event [arguments] [IF expr]      Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                                         Enable a breakpoint, or all of them
     BPEDIT # definition                             Replace a breakpoint with a new definition
     BPL                                             List the breakpoints
@@ -705,6 +708,7 @@ Casso commands:
     !BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
     !BPBEAM line cycle|VBL                           Stop when the beam reaches a scanline and cycle, or vertical blank
     !BPCHANGE # flags                                Change a breakpoint's flags: E enabled, T temporary, S stops
+    !BPDISK [D1|D2] event [arguments] [IF expr]      Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition                             Replace a breakpoint with a new definition
     !BPMV addr byte [IF expr]                        Stop when a write leaves addr holding byte
     !BPR reg [op] value                              Stop when a register meets a condition
@@ -868,6 +872,7 @@ Casso commands:
     BPC #|*                                              Clear a breakpoint, or all of them
     BPCHANGE # flags                                     Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                              Disable a breakpoint, or all of them
+    BPDISK [D1|D2] event [arguments] [IF expr]           Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                                              Enable a breakpoint, or all of them
     BPEDIT # definition                                  Replace a breakpoint with a new definition
     BPL                                                  List the breakpoints

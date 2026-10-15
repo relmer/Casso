@@ -86,6 +86,30 @@ namespace DebuggerTests
         }
 
 
+        //  BPDISK fails with no Disk II controller; with one, the set line and
+        //  BPL have the event, and BPSAVE's line sets it again.
+        TEST_METHOD (BPDISK_SetsListsAndSaves)
+        {
+            Rig    bare;
+            Rig    rig;
+            Reply  set;
+
+
+
+            bare.RunFails ("BPDISK READ 11 0", "no Disk II controller");
+
+            rig.target.machineInfo.disks = { "", "" };
+            set = rig.RunOk ("BPDISK D1 READ 11 0");
+
+            Assert::AreEqual (std::string ("Set disk breakpoint #0 (sector read, track $11 sector $00, drive 1)"), set.text.at (0));
+            Assert::IsTrue   (List (rig).at (0).find ("on disk sector read, track $11 sector $00, drive 1") != std::string::npos);
+            Assert::AreEqual (std::string ("BPDISK D1 READ 11 0"), BreakpointHandlers::MakeDefinition (BreakpointHandlers::MakeInfo (rig.session.GetBreakpoints().GetAll().at (0))));
+
+            set = rig.RunOk ("BPDISK RWTS 11 0 READ");
+            Assert::IsTrue (set.text.at (0).ends_with (", unresolved: $03D9 has no JMP yet"), L"an RWTS breakpoint before DOS has filled its vector");
+        }
+
+
         TEST_METHOD (BRK_Lengths_NmosTable)
         {
             // Stable undocumented opcodes take their table lengths, the

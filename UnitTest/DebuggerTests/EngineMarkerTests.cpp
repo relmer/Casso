@@ -97,6 +97,28 @@ namespace DebuggerTests
             Assert::IsFalse (AppleWinCommandTable::IsEngineCommand ("FROB"));
         }
 
+        //  BPDISK, a Casso command, is bare in AppleWin and GSSquared modes,
+        //  /bpdisk in Monitor mode and !bpdisk in WinDbg mode, and each sets
+        //  the same breakpoint.
+        TEST_METHOD (BpdiskReachesTheSameCommandInEveryMode)
+        {
+            MockExpressionContext  context;
+            std::string            line      = "BPDISK D1 READ 11 0 PASSED";
+            AppleWinParseResult    appleWin  = AppleWinParser::Parse (line, context);
+            MonitorState           state;
+            MonitorParseResult     monitor   = MonitorParser::Parse ("/" + ToLower (line), state);
+            AppleWinParseResult    viaSlash  = AppleWinParser::Parse (monitor.appleWinLine, context);
+            GSSquaredParseResult   gssquared = GSSquaredParser::Parse (ToLower (line), context);
+            WinDbgParseResult      windbg    = WinDbgParser::Parse ("!" + ToLower (line), context);
+
+
+
+            Assert::IsTrue (appleWin.status == ParseStatus::Ok && appleWin.command.verb == DebugVerb::SetDiskBreakpoint);
+            Assert::IsTrue (viaSlash.status == ParseStatus::Ok && viaSlash.command.disk == appleWin.command.disk, L"/bpdisk");
+            Assert::IsTrue (gssquared.status == ParseStatus::Ok && gssquared.commands.front().disk == appleWin.command.disk, L"bpdisk");
+            Assert::IsTrue (windbg.status == ParseStatus::Ok && windbg.command.disk == appleWin.command.disk, L"!bpdisk");
+        }
+
         //  Each mode's marker reaches the same command AppleWin mode parses.
         TEST_METHOD (EveryEngineCommand_IsReachableInEveryMode_WithItsMarker)
         {

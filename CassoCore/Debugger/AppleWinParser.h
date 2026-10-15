@@ -102,6 +102,18 @@ private:
     static void    NoteSymbol                (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    IsMnemonicToken           (const std::string & token);
     static bool    TryParseBeamArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+
+    // BPDISK (AppleWinParserDisk.cpp).
+    static bool    TryParseDiskArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseDiskEventArguments (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec);
+    static bool    TryParseDiskNumber         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue);
+    static bool    TryParseDiskFields         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count);
+    static bool    TryParseDiskRange          (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, bool takesHalf);
+    static bool    TryParseDiskCommand        (const Tokens & tokens, size_t & at, DiskBreakSpec & spec);
+    static bool    TryParseDiskOptions        (const Tokens & tokens, size_t & at, DiskBreakSpec & spec);
+    static bool    TryParseDiskMarks          (const Tokens & tokens, size_t & at, std::optional<DiskMarkPattern> & outMarks);
+    static bool    IsDiskOptionWord           (const std::string & token);
+    static bool    TryEvaluateQuietly         (const std::string & text, const IDebugExpressionContext & context, Word & value);
     static bool    TryParseFrameArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);

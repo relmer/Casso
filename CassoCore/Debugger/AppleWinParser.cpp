@@ -512,6 +512,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
                                                        command.verb == DebugVerb::SetReadWatchpoint   ||
                                                        command.verb == DebugVerb::SetWriteWatchpoint  ||
                                                        command.verb == DebugVerb::SetValueBreakpoint  ||
+                                                       command.verb == DebugVerb::SetDiskBreakpoint   ||
                                                        (command.verb == DebugVerb::SetBreakpoint && !isConditional);
     bool                               takesOne      = command.verb == DebugVerb::SetBreakpointAndWatchpoint ||
                                                        command.verb == DebugVerb::ClearBreakpoint            ||
@@ -589,6 +590,9 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
     case DebugVerb::BreakOnBeam:
         return TryParseBeamArguments (args, command, error);
+
+    case DebugVerb::SetDiskBreakpoint:
+        return TryParseDiskArguments (args, command, error);
 
     case DebugVerb::RunFrame:
         return TryParseFrameArguments (args, command, error);

@@ -91,6 +91,35 @@ namespace DebuggerTests
         }
 
 
+        //  Every mode's help lists BPDISK, as that mode writes it, under its
+        //  Breakpoints heading: a heading is indented two spaces, a command
+        //  four.
+        TEST_METHOD (EveryModesHelpListsBpdiskUnderBreakpoints)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                std::string  heading;
+                std::string  under;
+
+
+
+                for (const std::string & line : CommandModeHelp::BuildHelp (mode))
+                {
+                    std::string  upper = line;
+
+
+
+                    std::transform (upper.begin(), upper.end(), upper.begin(), [] (unsigned char c) { return (char) toupper (c); });
+
+                    heading = (line.starts_with ("  ") && !line.starts_with ("    ")) ? line.substr (2) : heading;
+                    under   = (under.empty() && upper.find ("BPDISK") != std::string::npos) ? heading : under;
+                }
+
+                Assert::AreEqual (std::string ("Breakpoints"), under, Widen (std::format ("mode {}", (int) mode)).c_str());
+            }
+        }
+
+
         TEST_METHOD (DiskRunsInGSSquaredAsListed)
         {
             MockExpressionContext  context;

@@ -81,6 +81,7 @@ private:
     static bool  TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes);
     static void  SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetDisk        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enable         (DebugSession & session, const DebugCommand & command, bool enabled, Reply & reply);
     static void  Edit           (DebugSession & session, const DebugCommand & command, Reply & reply);

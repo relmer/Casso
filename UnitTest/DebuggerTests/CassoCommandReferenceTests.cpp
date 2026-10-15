@@ -168,6 +168,17 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (BpdiskIsInTheBreakpointsSection)
+        {
+            const CassoCommandReference::Entry  * entry = CassoCommandReference::Find ("bpdisk");
+
+
+
+            Assert::IsNotNull (entry);
+            Assert::IsTrue    (entry->category == HelpCategory::Breakpoints, L"beside BPBEAM");
+        }
+
+
         TEST_METHOD (Find_ReportedAndUnknownNames_AreNull)
         {
             Assert::IsNull (CassoCommandReference::Find ("SHR"));

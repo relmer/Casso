@@ -43,6 +43,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::BreakOnOpcode:              SetOpcode     (session, command, reply);                         return true;
     case DebugVerb::BreakOnInterrupt:           SetInterrupt  (session, command, reply);                         return true;
     case DebugVerb::BreakOnUnwrittenRead:       SetUnwritten  (session, command, reply);                         return true;
+    case DebugVerb::SetDiskBreakpoint:          SetDisk       (session, command, reply);                         return true;
     case DebugVerb::ClearBreakpoint:            Clear         (session, command, reply);                         return true;
     case DebugVerb::DisableBreakpoint:          Enable        (session, command, false, reply);                  return true;
     case DebugVerb::EnableBreakpoint:           Enable        (session, command, true,  reply);                  return true;
@@ -1060,6 +1061,44 @@ bool BreakpointHandlers::TryFindOpcodes (DebugSession & session, const std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::SetDisk
+//
+//  BPDISK on a machine with a Disk II controller, with the user's IF alone
+//  as the condition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetDisk (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int         id      = 0;
+    bool        hasDisk = !session.GetTarget().GetMachineInfo().disks.empty();
+    Breakpoint  entry;
+
+
+
+    if (!hasDisk)
+    {
+        reply.SetError (CommandStatus::Error, "no Disk II controller", "This machine has no Disk II controller.");
+        return;
+    }
+
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddDisk (command.disk.value_or (DiskBreakSpec {}), command.expression);
+    session.OnStopConditionsChanged();
+    session.GetBreakpoints().TryFind (id, entry);
+    reply.data = BreakpointSetData { MakeInfo (entry) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::SetInterrupt
 //
 //  BRKINT [ON|OFF]; alone, it reports the setting.
@@ -1444,6 +1483,12 @@ bool BreakpointHandlers::TryMakeEntry (
     case DebugVerb::BreakOnInterrupt:
         breakpoint.kind = BreakpointKind::Interrupt;
         return definition.text == "ON";
+
+    case DebugVerb::SetDiskBreakpoint:
+        breakpoint.kind      = BreakpointKind::Disk;
+        breakpoint.disk      = definition.disk;
+        breakpoint.condition = definition.expression;
+        return definition.disk.has_value();
 
     case DebugVerb::SetMemoryWatchpoint: watchpoint.access = WatchAccess::ReadWrite; isWatchpoint = true; return true;
     case DebugVerb::SetReadWatchpoint:   watchpoint.access = WatchAccess::Read;      isWatchpoint = true; return true;
