@@ -30,6 +30,7 @@
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
 #include "Ui/Debugger/DebuggerOptionsSheet.h"
+#include "Ui/Debugger/MemoryFileDialog.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -604,6 +605,11 @@ protected:
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
     virtual int                ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type);
+
+    //  The format, address and length of a file loaded into memory, or the
+    //  address and length of memory saved to one; none when canceled. A test
+    //  overrides it.
+    virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
     bool                       ConfirmDeleteRangeSet  ();
 
     //  Whether a frame repaints the window: when it took an update, while
@@ -933,6 +939,8 @@ private:
     void     OpenSourceFile       ();
     void     OpenOptions          ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
+    void     LoadFileIntoMemory   ();
+    void     SaveMemoryToFile     ();
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
     void     PlaceCodeBars        ();
@@ -1607,6 +1615,8 @@ private:
     std::map<int, std::wstring>                                   m_looseSources;
     int                                                           m_nextLooseId         = kFirstLooseFileId;
     std::wstring                                                  m_pendingLooseSource;
+    MemoryFileDialog::Fields                                      m_loadFileFields;
+    MemoryFileDialog::Fields                                      m_saveFileFields;
     bool                                                          m_showSourceCode      = true;
     uint64_t                                                      m_sourceClickMs       = 0;
     POINT                                                         m_sourceClickAt       = {};

@@ -306,6 +306,13 @@ relative, and then as the absolute path it resolved to.
 bytes: `300.3FFR "data.bin"`. In batch and on the channel, `R` and `W` need a
 file name; the debugger window asks for one when it is missing.
 
+In the debugger window, **File > Load file into memory...**, or its button at
+the end of the toolbar, runs `BLOAD` of a file you pick, with the format,
+address and length typed in a dialog after it; it is off while the machine
+runs. **File > Save memory to file...** runs `BSAVE` of the address and length
+typed. The dialogs open with the fields typed last time, and the console has
+the command each one ran and its reply.
+
 ## Batch mode
 
 `CassoCli debug` builds a machine, stops it at power-on, runs the script's lines

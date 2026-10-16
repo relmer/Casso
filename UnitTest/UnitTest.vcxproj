@@ -397,6 +397,7 @@
     <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxAssemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceListingSyntaxTests.cpp" />
+    <ClCompile Include="DebuggerTests\MemoryFileDialogTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineOperandsTests.cpp" />
     <ClCompile Include="DebuggerTests\TracePaneHomeKeyTests.cpp" />

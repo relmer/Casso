@@ -38,6 +38,8 @@ public:
         Assert::AreEqual (parsed.command.sourceName,  action.command.sourceName, what.c_str());
         Assert::AreEqual (parsed.command.a1,          action.command.a1,         what.c_str());
         Assert::AreEqual (parsed.command.hasA1,       action.command.hasA1,      what.c_str());
+        Assert::AreEqual (parsed.command.a2,          action.command.a2,         what.c_str());
+        Assert::AreEqual (parsed.command.hasA2,       action.command.hasA2,      what.c_str());
         Assert::IsTrue   (parsed.command.values == action.command.values,        what.c_str());
         Assert::AreEqual (parsed.command.text,        action.command.text,       what.c_str());
         Assert::AreEqual (parsed.command.count,       action.command.count,      what.c_str());
@@ -59,6 +61,41 @@ public:
         AssertParsesTo (rig, "CALLS MODE WALK",        DebuggerActions::GetCallStackMode    ("WALK", aw));
         AssertParsesTo (rig, "HISTORY SAVE \"trace.txt\"", DebuggerActions::GetSaveHistory      ("trace.txt", aw));
         AssertParsesTo (rig, "W 0300",                 DebuggerActions::GetAddWatch         (0x0300, aw));
+    }
+
+
+
+    //  File > Load file into memory... and Save memory to file... are BLOAD
+    //  and BSAVE as their lines parse.
+    TEST_METHOD (TheMemoryFileActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "BLOAD \"game.bin\"",              DebuggerActions::GetLoadBinary ("game.bin", "", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"my game\",DOS",           DebuggerActions::GetLoadBinary ("my game", "DOS", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000",     DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000,100", DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, 0x100, aw));
+        AssertParsesTo (rig, "BSAVE \"page.bin\" 0400,400",     DebuggerActions::GetSaveBinary ("page.bin", 0x0400, 0x400, aw));
+    }
+
+
+
+    //  A load from the File menu runs with no parser and writes the file's
+    //  bytes at the address given.
+    TEST_METHOD (ALoadFromTheMenuWritesTheFilesBytes)
+    {
+        ControllerRig  rig;
+
+
+
+        rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
+
+        Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300));
+        Assert::AreEqual ((Byte) 0x60, rig.machine.GetMemoryBus().ReadByte (0x0302));
     }
 
 

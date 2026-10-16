@@ -1009,6 +1009,12 @@ void DebuggerWindow::RunCommandBarEntry (int id)
         return;
     }
 
+    if (id == DebuggerCommands::kLoadFile)
+    {
+        LoadFileIntoMemory();
+        return;
+    }
+
     (void) OnMappedCommand (id);
 }
 
@@ -1044,9 +1050,10 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
         return !paused || (m_host != nullptr && m_host->IsReplayingHistory());
     }
 
+    //  A load writes memory, which BLOAD does only with the machine stopped.
     if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
         id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext ||
-        id == DebuggerCommands::kRunFrame)
+        id == DebuggerCommands::kRunFrame || id == DebuggerCommands::kLoadFile)
     {
         return paused;
     }

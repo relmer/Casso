@@ -243,6 +243,11 @@ void DebuggerWindow::SetWindowMenus()
     add (file, row);
     add (file, MakeMenuCommand (L"Save trace...", false, [this] { SaveTrace(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
+    row            = MakeMenuCommand (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
+    row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
+    add (file, row);
+    add (file, MakeMenuCommand (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
+    file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, MakeMenuCommand (L"Open project...", false, [this] { OpenProject(); }));
     add (file, MakeMenuCommand (L"Save project as...", false, [this] { SaveProjectAs(); }));
     add (file, MakeMenuCommand (L"Project settings...", false, [this] { EditProjectSettings(); }));
@@ -763,6 +768,119 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadFileIntoMemory
+//
+//  BLOAD of a file the user picks, in the format, at the address and for the
+//  length typed in the dialog after the picker, run directly. The dialog
+//  opens with the fields typed last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadFileIntoMemory()
+{
+    HRESULT                                  hr     = S_OK;
+    FileDialogSpec                           spec;
+    std::filesystem::path                    chosen;
+    bool                                     picked = false;
+    std::optional<MemoryFileDialog::Fields>  fields;
+    DebuggerAction                           action;
+    std::wstring                             error;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr || !IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile), S_OK);
+
+    spec.filters = { { L"Binary and hex files", L"*.bin;*.b;*.obj;*.hex;*.ihx;*.s19;*.srec;*.as" }, { L"All files", L"*.*" } };
+
+    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    fields = RunMemoryFileDialog (chosen.wstring(), false, m_loadFileFields);
+    BAIL_OUT_IF (!fields.has_value(), S_OK);
+
+    m_loadFileFields = *fields;
+
+    if (MemoryFileDialog::TryMakeLoad (TextEncoding::WideToNarrow (chosen.wstring()), *fields, GetMode(), action, error))
+    {
+        RunAction (action);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveMemoryToFile
+//
+//  BSAVE of a range to a file the user picks, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveMemoryToFile()
+{
+    HRESULT                                  hr     = S_OK;
+    FileDialogSpec                           spec;
+    std::filesystem::path                    chosen;
+    bool                                     picked = false;
+    std::optional<MemoryFileDialog::Fields>  fields;
+    DebuggerAction                           action;
+    std::wstring                             error;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    spec.filters          = { { L"Binary files", L"*.bin" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"bin";
+    spec.defaultFileName  = L"memory.bin";
+
+    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    fields = RunMemoryFileDialog (chosen.wstring(), true, m_saveFileFields);
+    BAIL_OUT_IF (!fields.has_value(), S_OK);
+
+    m_saveFileFields = *fields;
+
+    if (MemoryFileDialog::TryMakeSave (TextEncoding::WideToNarrow (chosen.wstring()), *fields, GetMode(), action, error))
+    {
+        RunAction (action);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunMemoryFileDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<MemoryFileDialog::Fields> DebuggerWindow::RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial)
+{
+    return MemoryFileDialog::RunModal (GetHwnd(), m_theme, path, isSave, initial);
 }
 
 

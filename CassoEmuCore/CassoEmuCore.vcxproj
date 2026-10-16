@@ -233,6 +233,7 @@
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
     <ClCompile Include="Ui\Debugger\BranchArrow.cpp" />
     <ClCompile Include="Ui\Debugger\CommandCompletion.cpp" />
+    <ClCompile Include="Ui\Debugger\MemoryFileDialog.cpp" />
     <ClCompile Include="Ui\Debugger\SourceSyntax.cpp" />
     <ClCompile Include="Ui\Debugger\ConsoleHistory.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerKeySchemes.cpp" />
@@ -828,6 +829,7 @@
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
     <ClInclude Include="Ui\Debugger\BranchArrow.h" />
     <ClInclude Include="Ui\Debugger\CommandCompletion.h" />
+    <ClInclude Include="Ui\Debugger\MemoryFileDialog.h" />
     <ClInclude Include="Ui\Debugger\SourceSyntax.h" />
     <ClInclude Include="Ui\Debugger\ConsoleHistory.h" />
     <ClInclude Include="Ui\Debugger\DebuggerKeySchemes.h" />

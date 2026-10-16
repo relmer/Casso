@@ -526,6 +526,73 @@ DebuggerAction DebuggerActions::GetCallStackMode (const std::string & mechanism,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetLoadBinary
+//
+//  As the parser reads `BLOAD "path",FORMAT addr,len`: the name without its
+//  quotes, then the format after a comma, and the last address, not the
+//  length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetLoadBinary (const std::string & path, const std::string & format, std::optional<Word> address,
+                                               std::optional<uint32_t> length, CommandMode mode)
+{
+    std::string     suffix = format.empty() ? std::string() : "," + format;
+    std::string     range;
+    DebuggerAction  action;
+
+
+
+    if (address.has_value())
+    {
+        range = std::format (" {:04X}", *address) + (length.has_value() ? std::format (",{:X}", *length) : std::string());
+    }
+
+    action = Make (DebugVerb::LoadBinary, DebuggerViewState::GetLineWithFileName ("BLOAD ", path) + suffix + range, mode);
+
+    action.command.text  = path + suffix;
+    action.command.a1    = address.value_or (0);
+    action.command.hasA1 = address.has_value();
+
+    if (address.has_value() && length.has_value())
+    {
+        action.command.a2    = (Word) (*address + *length - 1);
+        action.command.hasA2 = true;
+    }
+
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveBinary
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveBinary (const std::string & path, Word address, uint32_t length, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SaveBinary, DebuggerViewState::GetLineWithFileName ("BSAVE ", path) + std::format (" {:04X},{:X}", address, length), mode);
+
+
+
+    action.command.text  = path;
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    action.command.a2    = (Word) (address + length - 1);
+    action.command.hasA2 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetSaveHistory
 //
 ////////////////////////////////////////////////////////////////////////////////

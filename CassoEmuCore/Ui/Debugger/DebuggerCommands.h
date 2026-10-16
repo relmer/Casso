@@ -44,6 +44,7 @@ public:
     static constexpr int  kShowNext        = 100;
     static constexpr int  kTrace           = 101;
     static constexpr int  kGoLive          = 103;
+    static constexpr int  kLoadFile        = 104;
 
     struct Handlers
     {

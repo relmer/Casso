@@ -119,6 +119,15 @@ public:
     static DebuggerAction  GetPatch            (Word address, std::span<const Byte> bytes, CommandMode mode);
     static DebuggerAction  GetCallStackMode    (const std::string & mechanism, CommandMode mode);
     static DebuggerAction  GetSaveHistory      (const std::string & path, CommandMode mode);
+
+    //  BLOAD and BSAVE: a file loaded in a format (BinaryImageReader's word,
+    //  or empty for the format the file's contents indicate), at an address
+    //  and for a length when given; and a range saved as raw bytes. A length
+    //  runs from the address, which is required with it, and ends within
+    //  memory.
+    static DebuggerAction  GetLoadBinary       (const std::string & path, const std::string & format, std::optional<Word> address,
+                                                std::optional<uint32_t> length, CommandMode mode);
+    static DebuggerAction  GetSaveBinary       (const std::string & path, Word address, uint32_t length, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
     static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 
