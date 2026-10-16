@@ -716,3 +716,79 @@ Tests send the loader through Casso's cassette emulation (spec 037, on master).
 
 **Alternatives considered**: typing an Applesoft loader with POKEs, which
 is several times longer than hex at 9,600 baud.
+
+## R24. The Apple's screen while the link runs
+
+**Finding**: The shim fills page 3 from $0300 to $03EF; above it are the
+monitor's vectors, so it cannot grow there. The program occupies $0800 to
+about $11FF and its buffers start at $4000, leaving $1200 to $3FFF unused.
+The program's status screen has the connection, drive, track, operation and
+progress, and the program has no clock: time on the Apple is counted in
+polling loops.
+
+**Decision**:
+
+- **The shim moves to $3E00**, with up to 512 bytes, below the program's
+  first table at $4000. It writes its own lines on the text page: a title,
+  `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each
+  page arrives, and `STARTING VERSION <n>`. The typed bootstrap grows to
+  about 14 seconds at 9,600 baud, within SC-033.
+- **The shim's speed is a data byte** at a fixed offset, the 6551 control
+  byte. Save link to disk and the emulated link's boot disk write it at the
+  link's speed; for the typed bootstrap it is 9,600 (FR-094).
+- **The program counts its polls.** It sends Ready and waits about a second
+  for a reply, sending Ready again on silence. A reply sets the PC line to
+  `CONNECTED`; each unanswered second adds one to `NO REPLY FOR <n> S`.
+- **The last error stays** on its own line, as text from the Status error
+  code, until the next operation succeeds.
+- **A label from the host.** A new command, Label ($CE), has up to 38
+  characters of text, such as `COPYING HELLO TO DRIVE 2`; the program
+  prints it on the operation's line and sends Ready. The host sends one ahead
+  of each operation the user starts. An ADTPro client never receives it.
+
+**Alternatives considered**: the shim's text fit into page 3 by shortening
+its code, with no room for a percentage; a label inside each Read
+and Write packet, which changes commands the scenario tests already cover.
+
+## R25. Finding a running Casso
+
+**Finding**: Casso connects an emulated serial port to TCP in
+`MachineHost::ConnectSerialPort`, listening on 127.0.0.1 at the port the
+machine's setting specifies. Casso Explorer already finds running Cassos for
+Insert into drive, by their windows, but no file indicates which of them has
+a serial port on TCP.
+
+**Decision**:
+
+- **A file per connected port.** When `ConnectSerialPort` opens a TCP
+  listener, Casso writes `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json`
+  with the process id, the process's start time, the machine's name, the
+  serial port's number and the address. Casso deletes it when the port is
+  connected elsewhere and when it exits.
+- **Casso Explorer reads the folder** at start and when it changes, through
+  a change notification on that folder. A file whose process is gone, or
+  whose process started at another time, is ignored and deleted, so a crash
+  results in no root.
+- **Each record is a root**, "Casso //c (port 6502)", with an Emulated
+  link's settings and no entry in the preferences. A record for port 1 is
+  listed with the reason, since the link program uses port 2.
+- **An Emulated link's address defaults to 127.0.0.1:6502** in the dialog,
+  for an emulator that is not Casso.
+
+**Alternatives considered**: probing 127.0.0.1 ports, which finds only
+what is already set up and connects to programs that are not Casso; a
+pipe per Casso, which every Casso Explorer would poll.
+
+## R26. The link dialog and the Wi-Fi modem's address
+
+**Decision**:
+
+- **Only the transport's settings.** Serial: COM port (empty to search),
+  speed, bootstrap speed, handshaking. TCP: address. Emulated: address.
+  Wi-Fi modem: port, speed, handshaking. Changing the transport hides and
+  reveals the rows and resizes the dialog.
+- **The search opens each port at both speeds**, the bootstrap speed and then the link's,
+  on each port (FR-083a), about two seconds a port.
+- **The dial address.** A Wi-Fi modem link's root lists
+  `ATDT <pcname>.local:<port>`. Windows resolves a `.local` host by mDNS from
+  Windows 10 on.

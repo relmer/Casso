@@ -233,6 +233,34 @@ hardware.
   → A: No. Only standard sectors are written; raw-track writes are part of
   the protected-disk follow-on.
 
+### Session 2026-10-16
+
+- Q: What is on the Apple's screen while the link runs? → A: The shim displays a
+  title and its state: waiting for the PC on port 2 at its speed, loading
+  the program with a percentage, and starting the program's version. The
+  program's status screen adds whether the PC is connected, or how long since
+  its last packet; the last error, until the next operation succeeds; and a
+  short label of the user's operation, which the PC sends.
+- Q: Is a link to an emulated Apple set up in the dialog? → A: No. Each
+  running Casso whose serial port is connected to a TCP port writes that
+  port where Casso Explorer finds it, and Casso Explorer lists each such
+  machine as a link root with no dialog. A machine connected through port 1
+  rather than port 2 is listed with that reason.
+- Q: Which speeds does the link start at? → A: The shim starts at the link's
+  speed, 115,200 baud by default, for an emulated machine and for a link boot
+  disk. The 9,600-baud bootstrap speed is only for the loader typed in
+  through the Apple's serial input.
+- Q: Which settings are in the link dialog? → A: Only those that apply
+  to the chosen transport: a COM port, bootstrap speed and handshaking for
+  serial; an address for TCP and an emulated machine, defaulting to
+  127.0.0.1:6502 for an emulated machine; a port and handshaking for a Wi-Fi
+  modem.
+- Q: At which speeds is each port opened in the COM port search? → A: The
+  bootstrap speed and the link's speed.
+- Q: How does the user find the address a Wi-Fi modem dials? → A: The
+  address is listed under the link's root, as the PC's name with .local and
+  the port.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -830,6 +858,13 @@ to Casso over TCP.
 5. **Given** a transfer is under way, **When** the developer breaks into
    the debugger and resumes, **Then** the transfer completes, any packets
    dropped during the pause being sent again.
+6. **Given** Casso is running a //c whose serial port is connected to a TCP
+   port, **When** Casso Explorer starts, **Then** that machine is a root in
+   the tree with no setup, and opening it connects; when that Casso exits,
+   the root is removed.
+7. **Given** the link disk boots in an emulated //c, **When** nothing is yet
+   connected, **Then** the shim displays that it is waiting for the PC,
+   with the port and speed, and then the program loading.
 
 ---
 ### Edge Cases
@@ -941,6 +976,10 @@ to Casso over TCP.
 - **Another device on a searched COM port**: a modem or printer on a
   searched port receives only the link's short greeting, and the search
   moves to the next port when no link replies.
+- **A running Casso with no link program on it**: its root connects and
+  waits, the Apple showing nothing of the link until it boots a link disk;
+  the root lists that state. A Casso that exits while connected drops its
+  root, and a transfer in progress fails as on a pulled cable.
 - **An ADTPro client against Casso**: it is served as ADTPro's host serves
   it; operations the PC starts require Casso's own Apple program, and Casso
   Explorer reports that rather than offering them.
@@ -1421,7 +1460,17 @@ to Casso over TCP.
   each COM port that no other program has open, only when an Apple root with
   no port set is opened or when the user chooses to search; it MUST NOT open
   ports in the background, and MUST stop at the first port where a link
-  replies.
+  replies. Each port MUST be opened at the bootstrap speed and at the link's speed.
+- **FR-083b**: Casso Explorer MUST list each running Casso whose emulated
+  serial port is connected to a TCP port as a link root, with no setup, and
+  MUST remove the root when that Casso exits. Each running Casso MUST record
+  its machine, which serial port is connected and the TCP address where
+  Casso Explorer reads them. A machine connected through port 1 MUST be
+  listed with the reason, as the link program uses port 2.
+- **FR-083c**: The link dialog MUST contain only the settings that apply to the
+  chosen transport. An emulated machine's address MUST default to
+  127.0.0.1:6502. A Wi-Fi modem link's root MUST list the address the modem
+  dials: the PC's name with .local, and the port.
 - **FR-084**: An Apple drive MUST be browsable as an image is: DOS 3.3 and
   ProDOS catalogs, ProDOS directories, previews and Properties.
 - **FR-085**: Files MUST copy from an Apple drive to the host, and from the
@@ -1455,7 +1504,12 @@ to Casso over TCP.
   every exchange in that framing, the Apple-side program MUST poll the PC for
   the next operation.
 - **FR-090**: The Apple-side program MUST display a status screen with the
-  connection, the drive, the track or block, the operation and its progress.
+  connection, the drive, the track or block, the operation and its progress;
+  whether the PC is connected, or how long since its last packet; the last
+  error, until the next operation succeeds; and a short label of the user's
+  operation, sent by the PC. The shim MUST display a title and its state:
+  waiting for the PC, with the port and speed; loading the program, with a
+  percentage; and starting the program's version.
 - **FR-091**: The Apple-side program MUST be a resident shim that, at each
   launch, compares its version with Casso's and loads the current program
   from the PC when they differ. Casso MUST offer to write the current shim
@@ -1472,7 +1526,9 @@ to Casso over TCP.
   the link MUST also connect directly, with no port.
 - **FR-094**: Serial speed and handshaking MUST be settable, defaulting to
   ADTPro's: 115,200 baud, no hardware handshake, and 9,600 baud for
-  bootstrap.
+  bootstrap. The bootstrap speed applies only to the loader typed in over
+  serial; a shim on a link boot disk or in an emulated machine MUST start at
+  the link's speed. Handshaking applies only to serial and the Wi-Fi modem.
 - **FR-095**: An emulated serial port, the //c's or a Super Serial Card's,
   MUST be connectable to a TCP port, which Casso Explorer's link or another
   program connects to, or to a PC COM port. Bytes MUST arrive at the emulated machine no faster than
@@ -1529,6 +1585,9 @@ to Casso over TCP.
   a version; the program's copy on the PC is the current one.
 - **Link operation**: one request from the PC to the Apple, with its
   progress; queued, running, done, failed or canceled.
+- **Running Casso**: a Casso instance whose emulated serial port is
+  connected to a TCP port: its process, machine, serial port and address;
+  written to a file while it runs, for Casso Explorer to list as a link.
 
 ## Success Criteria *(mandatory)*
 

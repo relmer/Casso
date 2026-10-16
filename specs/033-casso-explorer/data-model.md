@@ -156,15 +156,33 @@ Preview-pane visibility is window-wide, in `CassoExplorerPrefs`, not here.
 | port | string | `COM3` for serial; empty to search (FR-083a) |
 | address | string | `host:port` for TCP and the Wi-Fi modem; for `Emulated`, `127.0.0.1:port`, the TCP port Casso offers the emulated serial port on |
 | baud | int | Default 115200 (FR-094) |
-| bootstrapBaud | int | Default 9600 |
-| hardwareHandshake | bool | Default false |
+| bootstrapBaud | int | Default 9600; serial only (FR-094) |
+| hardwareHandshake | bool | Default false; serial and Wi-Fi modem only |
+
+An `Emulated` link's address defaults to `127.0.0.1:6502`. The dialog
+contains only the fields its transport uses (FR-083c).
+
+### Running Casso: `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json`  (R25)
+
+| Field | Type | Meaning |
+|---|---|---|
+| pid | int | The Casso process |
+| started | int64 | The process's start time as a FILETIME, so a reused pid is not mistaken for it |
+| machine | string | The machine's name, as in Casso's title, such as `Apple //c` |
+| serialPort | int | 1 or 2; the link program uses port 2 |
+| address | string | `127.0.0.1:<port>` |
+
+Written when Casso connects a serial port to TCP; deleted when the port is
+connected elsewhere, when Casso exits, and by Casso Explorer when the
+process is gone. Each record is a root with an `Emulated` link's settings,
+never stored in `links`.
 
 ### In memory
 
 - **AppleLinkSession**: one per open link. It owns the `IByteStream`, the
   protocol engine, a `LinkedDisk` per drive and the operation queue, and
   runs on its own thread.
-  - **States**: Closed → Opening → Waiting for Ready → Loading program →
+  - **States**: Closed → (Searching, a serial link with no port) → Opening → Waiting for Ready → Loading program →
     Ready ⇄ Busy → Closed. Any state goes to Disconnected on a timeout or
     a closed stream; Disconnected goes to Opening on the next request.
 - **LinkedDisk**: a 140 KB sector image with a presence bit per sector, the

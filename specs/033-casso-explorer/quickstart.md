@@ -167,9 +167,13 @@ run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
 
 1. **Emulated //c, over TCP.** Start Casso on a //c with the link disk
    from Save link to disk, set its port 2 to a TCP port on the Hardware
-   settings page, and add an `Emulated` link in Casso Explorer at
-   `127.0.0.1` and that port.
-   Result: an Apple root with two drives, each labeled with its volume.
+   settings page, and start Casso Explorer.
+   Result: a root for that Casso with no setup (FR-083b). Before it
+   connects, the shim is waiting on port 2 at 115,200 on the //c's screen;
+   once it connects, the program's status screen with the PC line
+   `CONNECTED` and each operation's label (FR-090). Opening the root lists
+   two drives, each labeled with its volume. Close that Casso. Result: its
+   root is removed.
    Copy a 10 KB file out and back, and read a disk to `.dsk`. Result: the
    file and the image compare equal to their sources with `fc /b`.
 2. **The debugger.** During a disk read, break into Casso's debugger for 10

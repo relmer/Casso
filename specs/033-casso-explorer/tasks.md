@@ -633,13 +633,34 @@ image is.
   Tests over a fake factory with a busy port, a silent port and a port with a link. Per FR-083a and the edge cases.
 - [X] T209 [US14] Open a COM port or TCP port only while the user has a link started, and release it on stop. A TCP link listens on 127.0.0.1, except with the `WifiModem` transport, which listens on the network. Tests through the fake factory. Per FR-097.
 
+## Phase 21a: The Apple's screen, and finding Casso (US16, US14, US15)
+
+**Purpose**: the Session 2026-10-16 decisions. The Apple displays what the
+link is doing from the shim on, a running Casso is a root with no setup, the
+link dialog contains only its transport's settings, and the COM search
+opens each port at both speeds.
+
+**Independent test**: boot the link disk in an emulated //c and start
+Casso Explorer with no link set up: the root for that Casso appears, the
+//c's screen displays the shim waiting, then loading, then the program's
+status screen with the PC line and each operation's label (US16/AC6, AC7).
+
+- [ ] T219 [US16] Move the shim to `$3E00` in `CassoEmuCore/AppleLink/Apple/Shim.s`, with its 6551 control byte for the starting speed at `$3E02`, and its own screen on the text page: a title, `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each page arrives, and `STARTING VERSION <n>`. Point the program's `SHIM` at `$3E00` in `Program.s`, and fail the build's assembly test in `UnitTest/AppleLink/LinkProgramTests.cpp` when the program ends at or above `$3E00` or the shim ends above `$3FFF`. Per FR-090, FR-094 and R24.
+- [ ] T220 [US16] Add `LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`, writing the speed byte at offset 2 from `GetSpeedControl`. `AppleLinkSession::Connect` in `CassoEmuCore/AppleLink/AppleLinkSession.cpp` opens Emulated, TCP and Wi-Fi modem links at the link's speed alone; a serial link is opened at the bootstrap speed and then the link's. Tests in `LinkProgramTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-094 and R24.
+- [ ] T221 [US16] Add the Label command ($CE) to `CassoEmuCore/AppleLink/AppleLinkCodec.h` and `AppleLinkHost::SendLabel`, sent ahead of each operation the user starts with up to 38 characters, such as `COPYING HELLO TO DRIVE 2`; `AppleLinkSession` builds the text from the `LinkOperation`. Update `contracts/apple-link.md`'s table. Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-090 and R24.
+- [ ] T222 [US16] Add to the program's status screen in `Program.s`: a PC line, `CONNECTED` after any packet and `NO REPLY FOR <n> S` for each unanswered second, sending Ready again each second with no reply; an error line with the last Status error's text until an operation succeeds; and the last Label on the operation's line. A scenario test in `ScenarioTests/AppleLinkSessionTests.cpp` reads the //c's text page: the shim's waiting line before the host connects, then `CONNECTED`, a label, and a write-protected error. Per FR-090, US16/AC7 and R24.
+- [ ] T223 [P] [US16] Add `RunningCassoRegistry` in `CassoEmuCore/AppleLink/RunningCassoRegistry.h/.cpp` over a file-system seam: `Publish` writes `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json` with `pid`, `started` (the process's start time as a FILETIME), `machine`, `serialPort` (1 or 2) and `address` (`127.0.0.1:<port>`); `Withdraw` deletes it; `Enumerate` returns the files whose process is alive with that start time, and deletes the rest. Tests in `UnitTest/AppleLink/RunningCassoRegistryTests.cpp` with a fake process probe. Per FR-083b, R25 and data-model.md.
+- [ ] T224 [US16] Call `Publish` from `MachineHost::ConnectSerialPort` in `CassoEmuCore/Shell/MachineHost.cpp` when a port is connected to TCP, and `Withdraw` when it is connected elsewhere and when the machine is torn down. Tests in `UnitTest/EmuTests/` over the fake factory. Per FR-083b.
+- [ ] T225 [US16] List the running Cassos as link roots in `CassoEmuCore/CassoExplorer/Model/AppleLinkConnections.cpp` and `TreeModel`, labeled `<machine> (port <n>)`, with an Emulated link's settings never written to `links`; a record for port 1 lists its reason in place of drives. `CassoExplorerWindow` reads the folder at start and on a change notification for it, and removes a root when its Casso exits. Tests in `UnitTest/CassoExplorer/AppleLinkConnectionsTests.cpp` and `TreeModelTests.cpp`. Per FR-083b, US16/AC6 and the edge cases.
+- [ ] T226 [US14] In `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.cpp`, contain only the selected transport's rows: Serial, COM port (empty to search), speed, bootstrap speed and handshaking; TCP, address; Emulated, address defaulting to `127.0.0.1:6502`; Wi-Fi modem, port, speed and handshaking. Changing the transport hides and reveals rows and resizes the dialog. A Wi-Fi modem link's root lists `ATDT <pcname>.local:<port>`. Tests in `UnitTest/CassoExplorer/CassoExplorerLinkDialogTests.cpp`. Per FR-083c, FR-094 and R26.
+- [ ] T227 [US14] Open each port at the bootstrap speed and then the link's in `AppleLinkSearch::Find` and the session's search, in `CassoEmuCore/AppleLink/AppleLinkSearch.cpp`. Tests in `UnitTest/AppleLink/AppleLinkSearchTests.cpp` with a fake Apple that replies Ready only at 9,600. Per FR-083a and R26.
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 
 **Purpose**: a bare //c brought up from the PC, updated from it, and the
 owner's walkthrough.
 
 - [ ] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/AppleLink/LinkBootstrap.h/.cpp`:
-  - the monitor text `CALL -151`, the shim as `0300:` lines of 8 bytes, then `300G`;
+  - the monitor text `CALL -151`, the shim as `3E00:` lines of 8 bytes with its speed byte at 9,600, then `3E00G`;
   - sent at the bootstrap speed with 250 ms after each line.
 
   Confirm the //c serial firmware's Ctrl-A `14B` speed command from the //c Technical Reference transcription. Tests of the generated text in `UnitTest/AppleLink/LinkBootstrapTests.cpp`. Per FR-092 and R23.
@@ -648,7 +669,7 @@ owner's walkthrough.
   - **Scenario test** in `ScenarioTests/AppleLinkBootstrapTests.cpp`: a //c `TestMachine` at the BASIC prompt with `IN#2` and Ctrl-A `14B` typed, bootstrapped over the bridge to the status screen.
 
   Per US15/AC1, SC-033 and the edge cases.
-- [ ] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.
+- [ ] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim to `$3E00`, built by `LinkProgram::BuildShim` at the link's speed, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.
 - [ ] T213 [US14] Add the `WifiModem` transport:
   - Save link to disk stores the PC's address on the disk;
   - the shim sends the modem's dial command for that address before Ready;
@@ -687,7 +708,7 @@ audio bootstrap, once Casso emulates the cards.
 - **Phase 19 after T182 and T189.**
 - **Phase 20 after T197.**
 - **Phase 21 after T201.**
-- **Phase 22 after T196 and T201;** T214 after everything before it.
+- **Phase 21a after Phase 21; Phase 22 after Phase 21a;** T214 after everything before it.
 - **Phase 23 after the 042 and 043 merges.**
 - **Parallel work:**
   - T184 and T185 alongside T182;

@@ -83,6 +83,7 @@ client sends first; the host's reply is the next operation.
 | Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count); for each sector the client sends Acknowledge ($CB: ACK, sector, track) with the number of the sector to send, or NAK for another copy of a damaged one, and the host sends its Sector data; the client writes it and reads it back before the next Acknowledge |
 | Format track | $C8 `'H'` | host | drive (1), track (1), volume (1) |
 | Status | $D4 `'T'` | client | operation (1: 1 read, 2 write, 3 format), drive (1), track (1), sectors done (1), error (1); ends every Read, Write and Format |
+| Label | $CE `'N'` | host | up to 38 ASCII characters, the user's operation; the program prints it and sends Ready (R24) |
 | Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |
 
 The host distinguishes clients by the first command it receives: Ready is
@@ -93,15 +94,22 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $0300 to $03EF, below the monitor's vectors; the program
+The shim occupies $3E00 to $3FFF, with the 6551 control byte for its starting speed at $3E02 (R24); the program
 runs from $0800 and uses $4000 to $68FF for buffers, with no DOS or ProDOS
 in memory.
 
 ## Bootstrap (R23)
 
 At 9,600 baud, 250 ms after each line, into the //c's monitor through
-`IN#2`: `CALL -151`, the shim as `0300:` lines of 8 bytes, `300G`. The shim
-then sends Ready at 9,600 baud and receives Load program.
+`IN#2`: `CALL -151`, the shim as `3E00:` lines of 8 bytes, `3E00G`. The shim
+then sends Ready at 9,600 baud and receives Load program. A shim on a boot
+disk starts at the link's speed instead.
+
+The shim's screen: a title, then `WAITING FOR THE PC ON PORT 2 AT <speed>`,
+`LOADING PROGRAM <n>%` and `STARTING VERSION <n>`. The program adds a PC line,
+`CONNECTED` or `NO REPLY FOR <n> S`, sending Ready again after each second
+with no reply; an error line with the last Status error until an operation
+succeeds; and the last Label.
 
 ## Session interface (Casso Explorer side)
 
