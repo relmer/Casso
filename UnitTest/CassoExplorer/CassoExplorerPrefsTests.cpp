@@ -327,4 +327,62 @@ public:
         Assert::IsFalse (loaded.navShowAllFolders.has_value());
         Assert::IsFalse (loaded.navExpandToCurrent.has_value());
     }
+
+
+
+    TEST_METHOD (Links_RoundTrip)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+        AppleLinkSettings   serial;
+        AppleLinkSettings   emulated;
+
+        serial.name              = "Apple II (COM3)";
+        serial.transport         = LinkTransport::Serial;
+        serial.port              = "COM3";
+        serial.baud              = 19200;
+        serial.hardwareHandshake = true;
+
+        emulated.name      = "Apple II (Casso)";
+        emulated.transport = LinkTransport::Emulated;
+        emulated.address   = "127.0.0.1:6502";
+
+        saved.links = { serial, emulated };
+        saved.tabs  = { Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Apple II (COM3)", 6, 1), "GAMES") };
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::AreEqual ((size_t) 2, loaded.links.size());
+        Assert::IsTrue (loaded.links[0] == serial);
+        Assert::IsTrue (loaded.links[1] == emulated);
+        Assert::IsTrue (loaded.tabs.size() == 1 && loaded.tabs[0] == saved.tabs[0], L"a tab on an Apple drive");
+    }
+
+
+
+    TEST_METHOD (Links_DefaultsAndUnreadableEntries)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  loaded;
+        std::string         text = R"({ "links": [
+            { "name": "Plain", "transport": "Serial" },
+            { "name": "Plain", "transport": "Tcp", "address": "a:1" },
+            { "name": "", "transport": "Serial" },
+            { "name": "Odd", "transport": "Pigeon" },
+            { "transport": "Serial" }
+        ] })";
+
+        AssertSucceeded (fs.WriteAllText (CassoExplorerPrefs::GetFilePath (kBase), text));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::AreEqual ((size_t) 1, loaded.links.size(), L"one per name, with a name and a known transport");
+        Assert::AreEqual (std::string ("Plain"), loaded.links[0].name);
+        Assert::IsTrue   (loaded.links[0].transport == LinkTransport::Serial);
+        Assert::AreEqual ((DWORD) 115200, loaded.links[0].baud);
+        Assert::AreEqual ((DWORD) 9600,   loaded.links[0].bootstrapBaud);
+        Assert::IsFalse  (loaded.links[0].hardwareHandshake);
+        Assert::IsTrue   (loaded.links[0].port.empty(), L"no port: search");
+    }
 };

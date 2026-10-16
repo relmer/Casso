@@ -27,6 +27,8 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
+class AppleLinkConnections;
+
 
 
 
@@ -64,6 +66,9 @@ public:
         //  Optional: without one, the browser shows what it read when it read
         //  it, and a change made elsewhere is seen on the next navigation.
         IFolderWatcher * watcher    = nullptr;
+
+        //  Optional: without them, no Apple links are listed.
+        AppleLinkConnections * links = nullptr;
     };
 
     CassoExplorerWindow (CassoExplorerBrowser & browser, CassoExplorerActions & actions, CassoExplorerPrefs & prefs, Context context);
@@ -281,6 +286,9 @@ private:
     //  Posted once the shell's New menu choices are read.
     static constexpr UINT      kNewChoicesMessage    = WM_APP + 0x3D;
 
+    //  Posted by an Apple link when an operation is done or its state changes.
+    static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
+
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
     static constexpr UINT_PTR  kRestoreTimerId       = 0x5155;   // re-reads while the Recycle Bin restores
@@ -488,6 +496,7 @@ private:
     void                            AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
     bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
     void  OnShellListed     (const std::wstring & key);
+    void  OnLinkChanged     ();
 
     //  A verb's label as a window's title: no access key, no trailing dots.
     static std::wstring  GetVerbTitle (CassoExplorerActions::Verb verb);
@@ -673,6 +682,14 @@ private:
 
     //  The menu below the tree's last node, and the pane options it sets.
     void  ShowTreeEmptyMenu   (int x, int y);
+
+    //  The Apple links: added or edited through the link dialog, removed,
+    //  or disconnected, which closes the link's port. Each change is saved
+    //  at once.
+    void  EditLink            (const std::string & name);
+    void  RemoveLink          (const std::string & name);
+    void  DisconnectLink      (const std::string & name);
+    void  ApplyLinks          ();
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
     void  ApplyNavPaneOptions ();
     bool  IsNavOptionOn       (CassoExplorerPrefs::NavOption option) const;

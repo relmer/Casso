@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Model/BrowserModel.h"
+#include "CassoExplorer/Model/TreeModel.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -341,5 +342,40 @@ public:
 
         Assert::AreEqual ((size_t) 2, locations.size());
         Assert::IsTrue   (locations[1] == Image (L"C:\\B\\x.po"));
+    }
+
+
+
+    TEST_METHOD (AppleDrive_AddressHasTheLinkTheDriveAndTheDirectories)
+    {
+        Location                                   location = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Apple II", 6, 2), "GAMES/ARCADE");
+        std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (location);
+
+        Assert::AreEqual ((size_t) 4, segments.size());
+        Assert::AreEqual (std::wstring (L"Apple II"), segments[0].label);
+        Assert::IsTrue   (segments[0].location == Location::MakeRoot (L"link:Apple II"));
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2"), segments[1].label);
+        Assert::IsTrue   (segments[1].location == Location::MakeAppleDrive (L"link:Apple II|6,2", std::string()));
+        Assert::AreEqual (std::wstring (L"GAMES"), segments[2].label);
+        Assert::IsTrue   (segments[3].location == location);
+
+        Assert::AreEqual (std::wstring (L"Apple II\\Slot 6, Drive 2\\GAMES\\ARCADE"), BrowserModel::FormatAddress (location));
+        Assert::AreEqual (std::wstring (L"Apple II"), BrowserModel::FormatAddress (Location::MakeRoot (L"link:Apple II")));
+    }
+
+
+
+    TEST_METHOD (AppleDrive_TypedAddress_ParsesUnderAKnownLink)
+    {
+        InMemoryFileSystem  fs;
+        Location            parsed;
+
+        Assert::IsTrue (BrowserModel::ParseAddress (fs, L"Apple II\\Slot 6, Drive 2\\GAMES\\ARCADE", parsed, { L"Apple II" }));
+        Assert::IsTrue (parsed == Location::MakeAppleDrive (L"link:Apple II|6,2", "GAMES/ARCADE"));
+
+        Assert::IsTrue (BrowserModel::ParseAddress (fs, L"apple ii", parsed, { L"Apple II" }));
+        Assert::IsTrue (parsed == Location::MakeRoot (L"link:Apple II"));
+
+        Assert::IsFalse (BrowserModel::ParseAddress (fs, L"Apple II\\Slot 6, Drive 2", parsed), L"not without the link");
     }
 };

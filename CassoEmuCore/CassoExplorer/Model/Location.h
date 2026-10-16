@@ -11,11 +11,12 @@
 //  Location
 //
 //  What a tab is looking at: a host folder, a disk image, a directory inside
-//  one, one of the tree's roots, the Recycle Bin, or any other folder the
-//  shell has, such as Gallery or Network. The image path is a host path; the
+//  one, one of the tree's roots, the Recycle Bin, a drive of a linked Apple,
+//  or any other folder the shell has, such as Gallery or Network. The image path is a host path; the
 //  inner path is the directory's name as the volume stores it. A root's path
 //  is its id in the tree, such as TreeModel::kThisPcRootId, and the Recycle
-//  Bin's is its own id in the tree. A shell folder's path is the shell's own
+//  Bin's is its own id in the tree. An Apple drive's path is its id in the
+//  tree, link:<name>|<slot>,<drive>, and its inner path the directory. A shell folder's path is the shell's own
 //  name for it, which reads nothing like a path, so it carries the name it
 //  shows as well; the label plays no part in comparing two locations.
 //
@@ -23,7 +24,7 @@
 
 struct Location
 {
-    enum class Kind { None, HostFolder, DiskImage, DiskDirectory, Root, RecycleBin, ShellFolder };
+    enum class Kind { None, HostFolder, DiskImage, DiskDirectory, Root, RecycleBin, ShellFolder, AppleDrive };
 
     Kind          kind = Kind::None;
     std::wstring  path;
@@ -45,6 +46,7 @@ struct Location
     static Location  MakeRoot          (const std::wstring & id)                                { return Location { Kind::Root,          id,   std::string() }; }
     static Location  MakeRecycleBin    ()                                                       { return Location { Kind::RecycleBin,    kRecycleBinId, std::string() }; }
     static Location  MakeShellFolder   (const std::wstring & id, const std::wstring & label)    { return Location { Kind::ShellFolder,   id,   std::string(), label }; }
+    static Location  MakeAppleDrive    (const std::wstring & id, const std::string & inner)     { return Location { Kind::AppleDrive,    id,   inner }; }
 
     //  Whether text is the shell's own name for a folder rather than a path:
     //  a class id ("::{...}") or a shell: name.

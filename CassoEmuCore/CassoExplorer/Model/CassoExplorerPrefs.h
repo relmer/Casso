@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "AppleLink/AppleLinkSettings.h"
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 #include "CassoExplorer/Model/PicturePreview.h"
@@ -109,6 +110,11 @@ struct CassoExplorerPrefs
     //  choice of its own follows. Stored as listHiddenColumns.
     std::vector<int>           hiddenColumns;
 
+    //  The Apple links, each a root in the tree, in the order they were
+    //  added. Their names are unique; a later entry with a name already
+    //  read is not read.
+    std::vector<AppleLinkSettings>  links;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.
@@ -168,6 +174,8 @@ struct CassoExplorerPrefs
 
 private:
     static JsonValue  LocationToJson (const Location & location);
+    static JsonValue  LinkToJson     (const AppleLinkSettings & link);
+    static bool       TryLinkFromJson (const JsonValue & value, AppleLinkSettings & outLink);
 
     //  A list of column indexes, and the one under a key; an entry that is
     //  not a number reads as -1, which nothing applies.

@@ -14,6 +14,7 @@ static constexpr const char *  s_kpszKindDiskDirectory = "diskDirectory";
 static constexpr const char *  s_kpszKindRoot          = "root";
 static constexpr const char *  s_kpszKindRecycleBin    = "recycleBin";
 static constexpr const char *  s_kpszKindShellFolder   = "shellFolder";
+static constexpr const char *  s_kpszKindAppleDrive    = "appleDrive";
 
 
 
@@ -192,6 +193,7 @@ JsonValue CassoExplorerPrefs::LocationToJson (const Location & location)
         case Location::Kind::Root:          kind = s_kpszKindRoot;          break;
         case Location::Kind::RecycleBin:    kind = s_kpszKindRecycleBin;    break;
         case Location::Kind::ShellFolder:   kind = s_kpszKindShellFolder;   break;
+        case Location::Kind::AppleDrive:    kind = s_kpszKindAppleDrive;    break;
         default:                            break;
     }
 
@@ -246,9 +248,84 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
     else if (kind == s_kpszKindRoot)          { outLocation.kind = Location::Kind::Root; }
     else if (kind == s_kpszKindRecycleBin)    { outLocation.kind = Location::Kind::RecycleBin; }
     else if (kind == s_kpszKindShellFolder)   { outLocation.kind = Location::Kind::ShellFolder; }
+    else if (kind == s_kpszKindAppleDrive)    { outLocation.kind = Location::Kind::AppleDrive; }
     else                                      { return false; }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::LinkToJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue CassoExplorerPrefs::LinkToJson (const AppleLinkSettings & link)
+{
+    std::vector<std::pair<std::string, JsonValue>>  fields;
+
+
+
+    fields.emplace_back ("name",              JsonValue (link.name));
+    fields.emplace_back ("transport",         JsonValue (std::string (AppleLinkSettings::GetTransportName (link.transport))));
+    fields.emplace_back ("port",              JsonValue (link.port));
+    fields.emplace_back ("address",           JsonValue (link.address));
+    fields.emplace_back ("baud",              JsonValue ((double) link.baud));
+    fields.emplace_back ("bootstrapBaud",     JsonValue ((double) link.bootstrapBaud));
+    fields.emplace_back ("hardwareHandshake", JsonValue (link.hardwareHandshake));
+
+    return JsonValue (std::move (fields));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::TryLinkFromJson
+//
+//  A link is read only with a name and one of Casso's transports; anything
+//  else left out takes its default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, AppleLinkSettings & outLink)
+{
+    std::string  transport;
+    int          baud      = 0;
+    bool         usable    = false;
+
+
+
+    outLink = AppleLinkSettings();
+
+    usable = value.GetType() == JsonType::Object
+          && value.HasString ("name", outLink.name) && !outLink.name.empty()
+          && value.HasString ("transport", transport) && AppleLinkSettings::TryParseTransport (transport, outLink.transport);
+
+    if (usable)
+    {
+        value.HasString ("port",    outLink.port);
+        value.HasString ("address", outLink.address);
+        value.HasBool   ("hardwareHandshake", outLink.hardwareHandshake);
+
+        if (value.HasInt ("baud", baud) && baud > 0)
+        {
+            outLink.baud = (DWORD) baud;
+        }
+
+        if (value.HasInt ("bootstrapBaud", baud) && baud > 0)
+        {
+            outLink.bootstrapBaud = (DWORD) baud;
+        }
+    }
+
+    return usable;
 }
 
 
@@ -268,6 +345,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
+    std::vector<JsonValue>                          linkValues;
     std::vector<JsonValue>                          widthValues;
     std::vector<JsonValue>                          orderValues;
     std::vector<JsonValue>                          viewValues;
@@ -315,6 +393,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
     for (const std::wstring & typed : typedPaths)
     {
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
+    }
+
+    for (const AppleLinkSettings & link : links)
+    {
+        linkValues.push_back (LinkToJson (link));
     }
 
     for (int width : columnWidthsDip)
@@ -382,6 +465,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
+    root.emplace_back ("links",            JsonValue (std::move (linkValues)));
 
     return JsonValue (std::move (root));
 }
@@ -463,6 +547,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * splitters    = nullptr;
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
+    const JsonValue  * linkArray    = nullptr;
     const JsonValue  * widthArray   = nullptr;
     const JsonValue  * orderArray   = nullptr;
     const JsonValue  * viewArray    = nullptr;
@@ -577,6 +662,22 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             if (TryLocationFromJson (tabArray->GetArrayElement (i), location))
             {
                 tabs.push_back (location);
+            }
+        }
+    }
+
+    if (root.HasArray ("links", linkArray))
+    {
+        links.clear();
+
+        for (i = 0; i < linkArray->GetArraySize(); i++)
+        {
+            AppleLinkSettings  link;
+
+            if (TryLinkFromJson (linkArray->GetArrayElement (i), link)
+                && std::none_of (links.begin(), links.end(), [&link] (const AppleLinkSettings & other) { return other.name == link.name; }))
+            {
+                links.push_back (link);
             }
         }
     }

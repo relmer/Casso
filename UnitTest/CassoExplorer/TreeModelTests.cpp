@@ -370,4 +370,120 @@ public:
         Assert::AreEqual (std::wstring (L"Games"),              labels[2]);
         Assert::AreEqual (std::wstring (L"C:\\"),               labels[3]);
     }
+
+
+
+    static std::vector<LinkTreeEntry>  TwoLinks()
+    {
+        LinkTreeEntry  replying;
+        LinkTreeEntry  silent;
+
+        replying.name     = L"Apple II (COM3)";
+        replying.replying = true;
+        replying.drives   = { { 6, 1, false, L"DOS 3.3 volume 254" }, { 6, 2, true, L"" } };
+
+        silent.name   = L"Apple II (Casso)";
+        silent.status = L"Not connected: Casso is not running on port 6502";
+
+        return { replying, silent };
+    }
+
+
+
+    TEST_METHOD (Links_FollowThisPc_AsRoots)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  roots;
+
+        model.SetLinks (TwoLinks());
+        model.GetRoots (roots);
+
+        Assert::AreEqual ((size_t) 4, roots.size());
+        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::ThisPcRoot);
+        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::AppleLink);
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), roots[2].label);
+        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), roots[2].id);
+        Assert::IsTrue   (roots[2].location == Location::MakeRoot (L"link:Apple II (COM3)"));
+        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[3].label);
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), TreeModel::GetRootLabel (roots[2].id));
+    }
+
+
+
+    TEST_METHOD (Links_ListTheirDrives_WithSlotDriveAndVolume)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  drives;
+
+        model.SetLinks (TwoLinks());
+        AssertSucceeded (model.GetChildren (L"link:Apple II (COM3)", drives));
+
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::IsTrue   (drives[0].kind == TreeNode::Kind::AppleDrive);
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (DOS 3.3 volume 254)"), drives[0].label);
+        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)|6,1"), drives[0].id);
+        Assert::IsTrue   (drives[0].location == Location::MakeAppleDrive (L"link:Apple II (COM3)|6,1", std::string()));
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (empty)"), drives[1].label);
+        Assert::IsTrue   (drives[1].missing, L"an empty drive is drawn dimmed");
+    }
+
+
+
+    TEST_METHOD (Links_WithNoAppleReplying_ListTheStateInPlaceOfDrives)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  children;
+
+        model.SetLinks (TwoLinks());
+        AssertSucceeded (model.GetChildren (L"link:Apple II (Casso)", children));
+
+        Assert::AreEqual ((size_t) 1, children.size());
+        Assert::AreEqual (std::wstring (L"Not connected: Casso is not running on port 6502"), children[0].label);
+        Assert::IsFalse  (children[0].canExpand);
+        Assert::IsTrue   (children[0].location.kind == Location::Kind::None, L"the state opens nothing");
+    }
+
+
+
+    TEST_METHOD (Links_SetAgain_ListTheirDrivesAgain)
+    {
+        InMemoryFileSystem          fs;
+        TreeModel                   model (fs);
+        std::vector<TreeNode>       children;
+        std::vector<LinkTreeEntry>  links = TwoLinks();
+
+        model.SetLinks (links);
+        AssertSucceeded (model.GetChildren (L"link:Apple II (Casso)", children));
+
+        links[1].replying = true;
+        links[1].drives   = { { 6, 1, false, L"LINKED" } };
+        model.SetLinks (links);
+        AssertSucceeded (model.GetChildren (L"link:Apple II (Casso)", children));
+
+        Assert::AreEqual ((size_t) 1, children.size());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (LINKED)"), children[0].label);
+    }
+
+
+
+    TEST_METHOD (LinkIds_RoundTrip)
+    {
+        std::wstring  name;
+        int           slot  = 0;
+        int           drive = 0;
+
+        Assert::IsTrue   (TreeModel::TryParseLinkId (TreeModel::MakeLinkDriveId (L"Apple", 6, 2), name, slot, drive));
+        Assert::AreEqual (std::wstring (L"Apple"), name);
+        Assert::AreEqual (6, slot);
+        Assert::AreEqual (2, drive);
+
+        Assert::IsTrue   (TreeModel::TryParseLinkId (TreeModel::MakeLinkId (L"Apple"), name, slot, drive));
+        Assert::AreEqual (0, drive, L"a root has no drive");
+
+        Assert::IsFalse  (TreeModel::TryParseLinkId (L"link:Apple|9,1", name, slot, drive));
+        Assert::IsFalse  (TreeModel::TryParseLinkId (L"pc:C:\\", name, slot, drive));
+    }
 };

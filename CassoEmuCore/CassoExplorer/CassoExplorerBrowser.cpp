@@ -2,6 +2,7 @@
 
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -259,6 +260,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_listing      = VolumeListing();
     m_kind         = VolumeKind::Unknown;
     m_isImage      = false;
+    m_isAppleDrive = false;
     m_writeProtected = false;
     m_listError.clear();
     m_selectedRows.clear();
@@ -285,6 +287,10 @@ HRESULT CassoExplorerBrowser::Refresh()
 
         case Location::Kind::ShellFolder:
             hr = LoadShellFolder (location.path);
+            break;
+
+        case Location::Kind::AppleDrive:
+            hr = LoadAppleDrive (location);
             break;
 
         default:
@@ -676,13 +682,32 @@ std::wstring CassoExplorerBrowser::GetImageProblem (const std::wstring & imagePa
 
 HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
 {
-    HRESULT  hr    = S_OK;
-    size_t   index = 0;
+    HRESULT       hr    = S_OK;
+    size_t        index = 0;
+    std::wstring  link;
+    int           slot  = 0;
+    int           drive = 0;
 
 
+
+    //  Opening a link's root starts it; until Casso's program runs on the
+    //  Apple, the list has the link's state in place of drives.
+    if (m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_links->IsStarted (TextEncoding::WideToNarrow (link)))
+    {
+        hr = m_links->Start (TextEncoding::WideToNarrow (link));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_tree.SetLinks (m_links->BuildTreeEntries());
+    }
 
     hr = m_tree.GetChildren (id, m_rootChildren);
     CHR (hr);
+
+    if (m_rootChildren.size() == 1 && m_rootChildren[0].kind == TreeNode::Kind::AppleLink)
+    {
+        m_listError = m_rootChildren[0].label;
+        m_rootChildren.clear();
+    }
 
     for (index = 0; index < m_rootChildren.size(); index++)
     {
@@ -764,6 +789,100 @@ HRESULT CassoExplorerBrowser::LoadImage (const std::wstring & path, const std::s
     IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::LoadAppleDrive
+//
+//  A drive of a linked Apple, read over the link: the list has a working
+//  message until the listing arrives, when the window refreshes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerBrowser::LoadAppleDrive (const Location & location)
+{
+    HRESULT       hr      = S_OK;
+    std::wstring  link;
+    std::string   message;
+    int           slot    = 0;
+    int           drive   = 0;
+    bool          parsed  = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive != 0;
+
+
+
+    if (m_links == nullptr || !parsed)
+    {
+        m_listError = L"This drive could not be read.";
+        return HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);
+    }
+
+    if (!m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_listing, m_kind, hr, message))
+    {
+        m_listError = s_kWorkingText;
+        return S_OK;
+    }
+
+    if (FAILED (hr))
+    {
+        m_listError = message.empty() ? L"This drive could not be read." : TextEncoding::NarrowToWide (message);
+        return hr;
+    }
+
+    m_isAppleDrive = true;
+    CatalogModel::FromListing (m_listing, m_kind, m_rows);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::PreviewAppleEntry
+//
+//  A file on a linked Apple's drive, read over the link and then previewed
+//  as a file in an image is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::PreviewAppleEntry (const std::string & entryPath, const FileEntry & entry)
+{
+    HRESULT       hr          = S_OK;
+    FilePayload   payload;
+    std::wstring  link;
+    std::string   message;
+    int           slot        = 0;
+    int           drive       = 0;
+    bool          disassemble = m_model.HasTabs() && m_model.GetActiveTab().disassemble;
+
+
+
+    TreeModel::TryParseLinkId (GetLocation().path, link, slot, drive);
+
+    if (!m_links->TryGetFile (TextEncoding::WideToNarrow (link), drive, entryPath, payload, hr, message))
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = s_kWorkingText;
+        return;
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = PreviewDecoder::Render (entry, m_kind, payload, disassemble, m_bus, m_preview, m_previewMonitor, m_customArgb);
+    }
+
+    if (FAILED (hr) && m_preview.message.empty())
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = message.empty() ? L"This file could not be previewed." : TextEncoding::NarrowToWide (message);
+    }
 }
 
 
@@ -1202,7 +1321,7 @@ bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) con
 
     outEntry = nullptr;
 
-    if (!m_isImage || m_selectedRows.size() != 1)
+    if ((!m_isImage && !m_isAppleDrive) || m_selectedRows.size() != 1)
     {
         return false;
     }
@@ -1257,7 +1376,15 @@ void CassoExplorerBrowser::UpdatePreview()
             return;
         }
 
-        PreviewEntry (location.path, GetEntryPath (*entry), *entry, m_kind);
+        if (m_isAppleDrive)
+        {
+            PreviewAppleEntry (GetEntryPath (*entry), *entry);
+        }
+        else
+        {
+            PreviewEntry (location.path, GetEntryPath (*entry), *entry, m_kind);
+        }
+
         return;
     }
 
@@ -3109,7 +3236,7 @@ std::string CassoExplorerBrowser::GetEntryPath (const FileEntry & entry) const
 
 
 
-    if (location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty())
+    if ((location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::AppleDrive) && !location.innerPath.empty())
     {
         return location.innerPath + "/" + entry.name;
     }
@@ -3152,6 +3279,10 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
 
         inner       += (inner.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name);
         outLocation  = Location::MakeDiskDirectory (location.path, inner);
+    }
+    else if (location.kind == Location::Kind::AppleDrive && m_rows[row].isDirectory)
+    {
+        outLocation = Location::MakeAppleDrive (location.path, location.innerPath + (location.innerPath.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name));
     }
     else if (location.kind == Location::Kind::ShellFolder)
     {
@@ -3268,6 +3399,7 @@ bool CassoExplorerBrowser::CanGoUp() const
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+        case Location::Kind::AppleDrive:
             return true;
 
         case Location::Kind::ShellFolder:
@@ -3305,6 +3437,20 @@ bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
     if (location.kind == Location::Kind::DiskDirectory)
     {
         outTarget = Location::MakeDiskImage (location.path);
+    }
+    else if (location.kind == Location::Kind::AppleDrive)
+    {
+        std::wstring  link;
+        int           slot  = 0;
+        int           drive = 0;
+        size_t        slash = location.innerPath.find_last_of ('/');
+
+        TreeModel::TryParseLinkId (location.path, link, slot, drive);
+
+        //  A directory goes up to its parent, and a drive to its link.
+        outTarget = location.innerPath.empty()       ? Location::MakeRoot (TreeModel::MakeLinkId (link))
+                  : slash == std::string::npos      ? Location::MakeAppleDrive (location.path, std::string())
+                                                    : Location::MakeAppleDrive (location.path, location.innerPath.substr (0, slash));
     }
     else if (location.kind == Location::Kind::ShellFolder && SearchQuery::IsId (location.path))
     {
@@ -3659,6 +3805,18 @@ std::wstring CassoExplorerBrowser::GetLocationLabel (const Location & location)
         case Location::Kind::DiskDirectory:
             slash = inner.find_last_of ("/:");
             return TextEncoding::NarrowToWide ((slash == std::string::npos) ? inner : inner.substr (slash + 1));
+
+        case Location::Kind::AppleDrive:
+        {
+            std::wstring  link;
+            int           slot  = 0;
+            int           drive = 0;
+
+            TreeModel::TryParseLinkId (location.path, link, slot, drive);
+            slash = inner.find_last_of ('/');
+
+            return inner.empty() ? TreeModel::GetLinkDriveLabel (slot, drive) : TextEncoding::NarrowToWide ((slash == std::string::npos) ? inner : inner.substr (slash + 1));
+        }
 
         default:
             break;

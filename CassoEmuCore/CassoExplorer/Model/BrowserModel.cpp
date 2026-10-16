@@ -508,12 +508,24 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             AppendArchiveSegments (location, root, segments);
             break;
 
+        case Location::Kind::AppleDrive:
+        {
+            std::wstring  name;
+            int           slot  = 0;
+            int           drive = 0;
+
+            TreeModel::TryParseLinkId (location.path, name, slot, drive);
+            segments.push_back (AddressSegment { name, Location::MakeRoot (TreeModel::MakeLinkId (name)) });
+            segments.push_back (AddressSegment { TreeModel::GetLinkDriveLabel (slot, drive), Location::MakeAppleDrive (location.path, std::string()) });
+            break;
+        }
+
         default:
             segments.push_back (AddressSegment { L"Home", Location() });
             break;
     }
 
-    if (location.kind == Location::Kind::DiskDirectory)
+    if (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::AppleDrive)
     {
         while (start < location.innerPath.size())
         {
@@ -524,7 +536,8 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
             {
                 inner += (inner.empty() ? "" : "/") + location.innerPath.substr (start, slash - start);
                 segments.push_back (AddressSegment { TextEncoding::NarrowToWide (location.innerPath.substr (start, slash - start)),
-                                                     Location::MakeDiskDirectory (location.path, inner) });
+                                                     location.kind == Location::Kind::AppleDrive ? Location::MakeAppleDrive (location.path, inner)
+                                                                                                 : Location::MakeDiskDirectory (location.path, inner) });
             }
 
             start = slash + 1;
@@ -687,12 +700,21 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
         return location.label.empty() ? location.path : location.label;
     }
 
-    if (location.kind != Location::Kind::None)
+    if (location.kind == Location::Kind::AppleDrive)
+    {
+        std::wstring  name;
+        int           slot  = 0;
+        int           drive = 0;
+
+        TreeModel::TryParseLinkId (location.path, name, slot, drive);
+        text = name + L"\\" + TreeModel::GetLinkDriveLabel (slot, drive);
+    }
+    else if (location.kind != Location::Kind::None)
     {
         text = location.path;
     }
 
-    if (location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty())
+    if ((location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::AppleDrive) && !location.innerPath.empty())
     {
         inner = TextEncoding::NarrowToWide (location.innerPath);
         std::replace (inner.begin(), inner.end(), L'/', L'\\');
@@ -709,6 +731,66 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::TryParseLinkAddress
+//
+//  A link's name alone is its root; "Slot s, Drive d" after it is a drive,
+//  and anything after that a directory on the drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserModel::TryParseLinkAddress (const std::wstring & path, const std::vector<std::wstring> & linkNames, Location & outLocation)
+{
+    bool  parsed = false;
+
+
+
+    for (const std::wstring & name : linkNames)
+    {
+        std::wstring  rest;
+        std::wstring  inner;
+        size_t        slash = 0;
+        int           slot  = 0;
+        int           drive = 0;
+
+        if (parsed || _wcsnicmp (path.c_str(), name.c_str(), name.size()) != 0)
+        {
+            continue;
+        }
+
+        if (path.size() == name.size())
+        {
+            outLocation = Location::MakeRoot (TreeModel::MakeLinkId (name));
+            parsed      = true;
+            continue;
+        }
+
+        if (path[name.size()] != L'\\')
+        {
+            continue;
+        }
+
+        rest  = path.substr (name.size() + 1);
+        slash = rest.find (L'\\');
+        inner = slash == std::wstring::npos ? std::wstring() : rest.substr (slash + 1);
+        rest  = rest.substr (0, slash);
+
+        if (swscanf_s (rest.c_str(), L"Slot %d, Drive %d", &slot, &drive) == 2 && _wcsicmp (rest.c_str(), TreeModel::GetLinkDriveLabel (slot, drive).c_str()) == 0)
+        {
+            std::replace (inner.begin(), inner.end(), L'\\', L'/');
+            outLocation = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (name, slot, drive), TextEncoding::WideToNarrow (inner));
+            parsed      = true;
+        }
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::ParseAddress
 //
 //  Spaces, quotes and trailing separators around the text are ignored. The
@@ -717,7 +799,7 @@ std::wstring BrowserModel::FormatAddress (const Location & location)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Location & outLocation)
+bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Location & outLocation, const std::vector<std::wstring> & linkNames)
 {
     constexpr const wchar_t *  s_kpszTrimmed            = L" \t\"";
     constexpr const wchar_t *  s_kpszRecycleBinShellName = L"shell:RecycleBinFolder";
@@ -751,6 +833,12 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
             outLocation = Location::MakeRoot (id);
             return true;
         }
+    }
+
+    //  A link's name, and its drives under it.
+    if (TryParseLinkAddress (path, linkNames, outLocation))
+    {
+        return true;
     }
 
     //  So does the Recycle Bin's, and the shell's own name for it.

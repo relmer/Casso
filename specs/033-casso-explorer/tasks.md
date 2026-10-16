@@ -595,13 +595,13 @@ source in the core (R16, R17, R22).
 **Purpose**: the Apple as a root in the tree, browsed and copied as an
 image is.
 
-- [ ] T203 [US14] Add the Apple link to the tree:
+- [X] T203 [US14] Add the Apple link to the tree:
   - `Location::Kind::AppleDrive` in `CassoEmuCore/CassoExplorer/Model/Location.h`;
   - `TreeNode::Kind::AppleLink` and `AppleDrive`, with ids `link:<name>` and `link:<name>|<slot>,<drive>`, in `Model/TreeModel.h/.cpp`;
   - address parsing and formatting in `Model/BrowserModel.cpp`.
 
   The roots follow This PC. A drive is labeled with its slot, drive and volume; an empty drive is listed as empty; a link with no Apple replying lists its state and the reason in place of drives. Tests in `UnitTest/CassoExplorer/TreeModelTests.cpp`. Per FR-083.
-- [ ] T204 [US14] Add `links` to `CassoEmuCore/CassoExplorer/Model/CassoExplorerPrefs.h/.cpp`:
+- [X] T204 [US14] Add `links` to `CassoEmuCore/CassoExplorer/Model/CassoExplorerPrefs.h/.cpp`:
   - `name`, unique among links;
   - `transport`: `Serial`, `Tcp`, `WifiModem` or `Emulated`;
   - `port`, `COM3` for serial, or empty to search;
@@ -611,7 +611,7 @@ image is.
   - `hardwareHandshake`, default false.
 
   Add a dialog to add and edit a link, in `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp`. Tests for load, save and defaults. Per FR-083, FR-094 and data-model.md.
-- [ ] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
+- [X] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
 - [ ] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
   - `HostFileNaming` styles and the put conversion rules;
   - a write to a write-protected disk fails with the reason.

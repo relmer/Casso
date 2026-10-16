@@ -114,7 +114,10 @@ public:
     //  which is the image's path followed by the directory's.
     static std::vector<AddressSegment>  GetAddressSegments (const Location & location, const AddressRoot & root = AddressRoot());
     static std::wstring                 FormatAddress      (const Location & location);
-    static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation);
+    //  An Apple link's root and drives are typed under the link's name:
+    //  "name\Slot 6, Drive 1\DIR", for one of linkNames.
+    static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation,
+                                                            const std::vector<std::wstring> & linkNames = {});
 
     //  The folders and disk images in a host folder, folders first and each in
     //  name order, for the menu an address bar separator opens. Empty for any
@@ -127,6 +130,7 @@ private:
     static void  AppendArchiveSegments (const Location & location, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
     static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
     static bool  IsLabelBefore      (const AddressSegment & a, const AddressSegment & b);
+    static bool  TryParseLinkAddress (const std::wstring & path, const std::vector<std::wstring> & linkNames, Location & outLocation);
 
     std::vector<Tab>  m_tabs;
     size_t            m_active = 0;

@@ -23,7 +23,7 @@
 
 struct TreeNode
 {
-    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot };
+    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive };
 
     std::wstring  id;
     Kind          kind         = Kind::HostFolder;
@@ -38,6 +38,36 @@ struct TreeNode
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system
     bool          dividerAbove = false;   // a line above it, as between Explorer's navigation groups
     std::wstring  iconId;                 // the shell's name for the entry whose icon it shows
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkTreeEntry
+//
+//  An Apple link as the tree lists it: a root with the link's name, and
+//  under it the Apple's drives, or, while Casso's program is not replying,
+//  the link's state and the reason in their place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct LinkTreeEntry
+{
+    struct Drive
+    {
+        int           slot    = 6;
+        int           drive   = 1;
+        bool          empty   = false;
+        std::wstring  volume;
+    };
+
+    std::wstring        name;
+    bool                replying = false;
+    std::wstring        status;
+    std::vector<Drive>  drives;
 };
 
 
@@ -119,6 +149,11 @@ public:
     enum class NavRoot { ThisPc, Network, Libraries };
 
     void  SetNavPaneOptions  (const NavPaneOptions & options) { m_navOptions = options; }
+
+    //  The Apple links, each a root after This PC. Their drives are listed
+    //  again on the next expand.
+    void  SetLinks           (std::vector<LinkTreeEntry> links);
+    const std::vector<LinkTreeEntry> &  GetLinks () const { return m_links; }
     bool  IsNavRootShown     (NavRoot root) const;
 
     void     GetRoots    (std::vector<TreeNode> & outNodes) const;
@@ -160,6 +195,17 @@ public:
     //  namespace, with Home, This PC and the rest under it.
     static constexpr const wchar_t *  kDesktopRootId = L"desktop:";
 
+    //  An Apple link's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
+    static constexpr const wchar_t *  kLinkRootTag   = L"link:";
+
+    static std::wstring  MakeLinkId       (const std::wstring & name);
+    static std::wstring  MakeLinkDriveId  (const std::wstring & name, int slot, int drive);
+    static bool          TryParseLinkId   (const std::wstring & id, std::wstring & outName, int & outSlot, int & outDrive);
+
+    //  "Slot 6, Drive 1", and the volume in parentheses after it when known.
+    static std::wstring  GetLinkDriveLabel (int slot, int drive);
+    static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
+
     //  A root's label in the tree, the tab and the address bar, or empty for
     //  an id that is no root.
     static std::wstring  GetRootLabel (const std::wstring & id);
@@ -172,6 +218,8 @@ private:
     static constexpr wchar_t          kSeparator       = L'|';
 
     HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
+    HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
+    void     AppendLinkRoots (std::vector<TreeNode> & outNodes) const;
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
     HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
     TreeNode  MakeRootNode    (const std::wstring & id) const;
@@ -212,4 +260,5 @@ private:
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;
+    std::vector<LinkTreeEntry>                       m_links;
 };

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "AppleLink/AppleLinkHost.h"
+#include "AppleLink/AppleLinkSettings.h"
 #include "AppleLink/LinkedDisk.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
@@ -11,31 +12,6 @@
 class IByteStream;
 class IByteStreamFactory;
 class IDiskFileIo;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AppleLinkSettings
-//
-//  One link, as CassoExplorerPrefs.json stores it. The address is host:port
-//  for the TCP transports; for Emulated it is Casso's own serial port on
-//  127.0.0.1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct AppleLinkSettings
-{
-    std::string    name;
-    LinkTransport  transport         = LinkTransport::Serial;
-    std::string    port;
-    std::string    address;
-    DWORD          baud              = 115200;
-    DWORD          bootstrapBaud     = 9600;
-    bool           hardwareHandshake = false;
-};
 
 
 
@@ -100,6 +76,7 @@ struct LinkOperation
     std::string                      message;
 
     VolumeListing                    listing;
+    VolumeKind                       volumeKind = VolumeKind::Unknown;
     FilePayload                      file;
 
     //  Read disk and Write disk: the image file, and for a read, whether an
@@ -162,6 +139,7 @@ class AppleLinkSession
 public:
     static constexpr DWORD  kConnectTimeoutMs = 20000;
     static constexpr DWORD  kIdlePollMs       = 100;
+    static constexpr DWORD  kPromptMs         = 2000;
     static constexpr int    kDriveCount       = 2;
 
     //  The folder is the one ADTPro's own clients are served from, between
@@ -179,6 +157,11 @@ public:
     void       Cancel ();
 
     LinkState  GetState    () const { return m_state; }
+
+    //  Whether ADTPro's own client is on the line instead of Casso's. The
+    //  session goes on serving it, and opening goes on waiting for Casso's
+    //  program.
+    bool       IsServingAdtPro () const { return m_adtPro; }
     Byte       GetDriveMap () const { return m_driveMap; }
 
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
@@ -254,6 +237,7 @@ private:
     std::array<std::optional<VolumeListing>, 2>   m_listings;
     std::atomic<LinkState>                        m_state    { LinkState::Closed };
     std::atomic<Byte>                             m_driveMap { 0 };
+    std::atomic<bool>                             m_adtPro   { false };
     std::mutex                                  m_lock;
     std::condition_variable_any                 m_wake;
     std::deque<std::shared_ptr<LinkOperation>>  m_queue;

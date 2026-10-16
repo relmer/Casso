@@ -2,8 +2,10 @@
 
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
@@ -904,6 +906,18 @@ void CassoExplorerWindow::ConfigureWidgets()
 
         return fs.EnumerateAllEntries (path, outEntries);
     });
+
+    //  The Apple links are roots after This PC; each is started when it is
+    //  opened, and posts here when an operation finishes or its state
+    //  changes.
+    if (m_context.links != nullptr)
+    {
+        m_context.links->SetTarget (GetHwnd(), kLinkMessage);
+        m_context.links->SetLinks (m_prefs.links);
+        m_browser.SetLinks (m_context.links);
+        m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+        RefreshTree();
+    }
 
     //  A second window opens on its path alone, as File Explorer's new
     //  window does, rather than on the saved tabs.
@@ -9207,6 +9221,13 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
+    if (msg == kLinkMessage)
+    {
+        OnLinkChanged();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == kDropMenuMessage)
     {
         ShowDropMenu();
@@ -9371,6 +9392,27 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddMenuCommand (items, L"&Add to Casso", [this, folder]() { ChangeKnownFolder (folder, true); });
     }
 
+    //  A link's root: its settings, its port, and the link itself.
+    {
+        std::wstring  link;
+        int           slot  = 0;
+        int           drive = 0;
+
+        if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && TreeModel::TryParseLinkId (location.path, link, slot, drive))
+        {
+            std::string  name = TextEncoding::WideToNarrow (link);
+
+            AddMenuCommand (items, L"&Edit link...", [this, name]() { EditLink (name); });
+
+            if (m_context.links->IsStarted (name))
+            {
+                AddMenuCommand (items, L"&Disconnect", [this, name]() { DisconnectLink (name); });
+            }
+
+            AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
+        }
+    }
+
     //  The Recycle Bin's node empties it, as Explorer's does.
     if (hasLocation && location.kind == Location::Kind::RecycleBin)
     {
@@ -9383,7 +9425,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         });
         m_menuCommands.back()->menuSvg = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
     }
-    else if (hasLocation && location.kind != Location::Kind::Root)
+    else if (hasLocation && location.kind != Location::Kind::Root && location.kind != Location::Kind::AppleDrive)
     {
         //  One group, as in File Explorer: Windows' commands, Copy as path,
         //  New and Properties follow the open and pin rows.
@@ -9541,7 +9583,138 @@ void CassoExplorerWindow::ShowTreeEmptyMenu (int x, int y)
     AddNavPaneToggle (items, L"Show &all folders",      &CassoExplorerPrefs::navShowAllFolders);
     AddNavPaneToggle (items, L"&Expand to open folder", &CassoExplorerPrefs::navExpandToCurrent);
 
+    if (m_context.links != nullptr)
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, L"Add an Apple &link...", [this]() { EditLink (std::string()); });
+    }
+
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::EditLink
+//
+//  An empty name adds a link. An edited link is stopped, as its settings
+//  are no longer the ones its port was opened with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::EditLink (const std::string & name)
+{
+    AppleLinkSettings                 initial;
+    std::vector<std::wstring>         others;
+    CassoExplorerLinkDialog::Outcome  outcome;
+    auto                              found = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const AppleLinkSettings & link) { return link.name == name; });
+
+
+
+    if (found != m_prefs.links.end())
+    {
+        initial = *found;
+    }
+    else
+    {
+        initial.name = "Apple II";
+    }
+
+    for (const AppleLinkSettings & link : m_prefs.links)
+    {
+        if (link.name != name)
+        {
+            others.push_back (TextEncoding::NarrowToWide (link.name));
+        }
+    }
+
+    outcome = CassoExplorerLinkDialog::Ask (GetHwnd(), m_theme, initial, others, found == m_prefs.links.end());
+
+    if (!outcome.confirmed)
+    {
+        return;
+    }
+
+    if (found != m_prefs.links.end())
+    {
+        *found = outcome.settings;
+    }
+    else
+    {
+        m_prefs.links.push_back (outcome.settings);
+    }
+
+    ApplyLinks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RemoveLink
+//
+//  A tab on the link goes to This PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::RemoveLink (const std::string & name)
+{
+    std::wstring  link;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    std::erase_if (m_prefs.links, [&name] (const AppleLinkSettings & settings) { return settings.name == name; });
+
+    if (TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive) && TextEncoding::WideToNarrow (link) == name)
+    {
+        GoToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+    }
+
+    ApplyLinks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::DisconnectLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::DisconnectLink (const std::string & name)
+{
+    m_context.links->Stop (name);
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyLinks
+//
+//  The preferences' links to the connections and the tree, and saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyLinks()
+{
+    m_context.links->SetLinks (m_prefs.links);
+    m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+
+    SaveSession();
+    RefreshTree();
 }
 
 
@@ -9870,6 +10043,60 @@ void CassoExplorerWindow::GoToLocation (const Location & location)
         m_browser.NavigateToLocation (location);
         FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnLinkChanged
+//
+//  An Apple link finished an operation or changed state: its root's drives
+//  are listed again where the root is in the tree, and the list and preview
+//  are refreshed when the location is on the link.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnLinkChanged()
+{
+    HRESULT       hr       = S_OK;
+    Location      location = m_browser.GetLocation();
+    std::wstring  link;
+    int           slot     = 0;
+    int           drive    = 0;
+    bool          showing  = TreeModel::TryParseLinkId (location.path, link, slot, drive);
+
+
+
+    if (m_context.links == nullptr || !m_context.links->TakeChanged())
+    {
+        return;
+    }
+
+    m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+
+    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    {
+        std::wstring  id = TreeModel::MakeLinkId (TextEncoding::NarrowToWide (settings.name));
+
+        if (m_tree->FindRowById (id) >= 0)
+        {
+            m_tree->ReplaceChildren (id, m_browser.GetTreeChildren (id));
+        }
+    }
+
+    if (showing)
+    {
+        hr = m_browser.Reload (true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        FillList();
+        FillPreview();
+    }
+
+    Invalidate();
 }
 
 

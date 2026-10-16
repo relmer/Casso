@@ -16,7 +16,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerShell::CassoExplorerShell()
-    : m_browser (m_fs, m_fileIo),
+    : m_linkFolder (m_fs, m_fileIo),
+      m_links (m_streams, m_linkFolder, m_fileIo),
+      m_browser (m_fs, m_fileIo),
       m_actions (m_browser, m_fs)
 {
     //  A write to an image tells any Casso with it mounted to reload it.
@@ -506,6 +508,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
         context.openPath    = m_options.openPath;
         context.newWindow   = m_options.newWindow;
         context.watcher     = &m_watcher;
+    context.links       = &m_links;
 
         m_window = std::make_unique<CassoExplorerWindow> (m_browser, m_actions, m_prefs, context);
     }

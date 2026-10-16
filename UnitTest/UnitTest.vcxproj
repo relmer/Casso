@@ -370,6 +370,8 @@
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerLinkDialogTests.cpp" />
+    <ClCompile Include="CassoExplorer\AppleLinkConnectionsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderViewsTests.cpp" />

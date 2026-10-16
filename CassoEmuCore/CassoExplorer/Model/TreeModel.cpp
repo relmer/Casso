@@ -410,6 +410,8 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (pc);
         }
 
+        AppendLinkRoots (outNodes);
+
         if (m_navOptions.showAllFolders)
         {
             outNodes.push_back (bin);
@@ -458,6 +460,11 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
         }
 
         outNodes.push_back (root.isThisPc ? pc : MakeShellNode (root));
+
+        if (root.isThisPc)
+        {
+            AppendLinkRoots (outNodes);
+        }
     }
 
     if (rest < outNodes.size())
@@ -772,7 +779,224 @@ std::wstring TreeModel::GetRootLabel (const std::wstring & id)
         return L"Recycle Bin";
     }
 
+    if (id.starts_with (kLinkRootTag) && id.find (kSeparator) == std::wstring::npos)
+    {
+        return id.substr (wcslen (kLinkRootTag));
+    }
+
     return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::SetLinks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetLinks (std::vector<LinkTreeEntry> links)
+{
+    for (const LinkTreeEntry & link : m_links)
+    {
+        m_children.erase (MakeLinkId (link.name));
+    }
+
+    m_links = std::move (links);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakeLinkId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::MakeLinkId (const std::wstring & name)
+{
+    return kLinkRootTag + name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakeLinkDriveId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::MakeLinkDriveId (const std::wstring & name, int slot, int drive)
+{
+    return std::format (L"{}{}{}{},{}", kLinkRootTag, name, kSeparator, slot, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::TryParseLinkId
+//
+//  A link's root has slot and drive 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::TryParseLinkId (const std::wstring & id, std::wstring & outName, int & outSlot, int & outDrive)
+{
+    size_t  bar   = id.find (kSeparator);
+    size_t  comma = std::wstring::npos;
+    bool    link  = id.starts_with (kLinkRootTag) && id.size() > wcslen (kLinkRootTag);
+
+
+
+    outName  = std::wstring();
+    outSlot  = 0;
+    outDrive = 0;
+
+    if (link)
+    {
+        outName = id.substr (wcslen (kLinkRootTag), bar == std::wstring::npos ? std::wstring::npos : bar - wcslen (kLinkRootTag));
+
+        if (bar != std::wstring::npos)
+        {
+            comma = id.find (L',', bar);
+            link  = comma != std::wstring::npos
+                 && swscanf_s (id.c_str() + bar + 1, L"%d,%d", &outSlot, &outDrive) == 2
+                 && outSlot >= 1 && outSlot <= 7 && (outDrive == 1 || outDrive == 2);
+        }
+    }
+
+    return link;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetLinkDriveLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetLinkDriveLabel (int slot, int drive)
+{
+    return std::format (L"Slot {}, Drive {}", slot, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetLinkDriveLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
+{
+    std::wstring  label = GetLinkDriveLabel (drive.slot, drive.drive);
+
+
+
+    if (drive.empty)
+    {
+        label += L" (empty)";
+    }
+    else if (!drive.volume.empty())
+    {
+        label += L" (" + drive.volume + L")";
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::AppendLinkRoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes) const
+{
+    for (const LinkTreeEntry & link : m_links)
+    {
+        TreeNode  node;
+
+        node.id        = MakeLinkId (link.name);
+        node.kind      = TreeNode::Kind::AppleLink;
+        node.label     = link.name;
+        node.location  = Location::MakeRoot (node.id);
+        node.canExpand = true;
+
+        outNodes.push_back (node);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListLink
+//
+//  A link's drives, or, with no Apple replying, one row with its state and
+//  the reason, which opens nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & outNodes)
+{
+    HRESULT  hr    = S_OK;
+    auto     found = std::find_if (m_links.begin(), m_links.end(), [&name] (const LinkTreeEntry & link) { return link.name == name; });
+    bool     known = found != m_links.end();
+
+
+
+    CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    if (!found->replying)
+    {
+        TreeNode  status;
+
+        status.id        = MakeLinkId (name) + kSeparator + L"status";
+        status.kind      = TreeNode::Kind::AppleLink;
+        status.label     = found->status;
+        status.canExpand = false;
+
+        outNodes.push_back (status);
+    }
+
+    for (const LinkTreeEntry::Drive & drive : found->replying ? found->drives : std::vector<LinkTreeEntry::Drive>())
+    {
+        TreeNode  node;
+
+        node.id        = MakeLinkDriveId (name, drive.slot, drive.drive);
+        node.kind      = TreeNode::Kind::AppleDrive;
+        node.label     = GetLinkDriveLabel (drive);
+        node.location  = Location::MakeAppleDrive (node.id, std::string());
+        node.canExpand = false;
+        node.missing   = drive.empty;
+
+        outNodes.push_back (node);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1318,6 +1542,14 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kThisPcRootId)
     {
         hr = ListRoot (false, outNodes);
+    }
+    else if (id.starts_with (kLinkRootTag))
+    {
+        //  A drive's directories are in the list, not the tree.
+        if (id.find (kSeparator) == std::wstring::npos)
+        {
+            hr = ListLink (GetRootLabel (id), outNodes);
+        }
     }
     else if (id.rfind (kCassoRootId, 0) == 0)
     {

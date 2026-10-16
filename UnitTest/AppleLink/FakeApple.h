@@ -35,6 +35,10 @@ public:
     std::array<bool, 2>               writeProtected = {};
     std::atomic<bool>                 startAsShim    { false };
     std::atomic<bool>                 nakFirstPage   { false };
+
+    //  As an Apple whose Ready went out before the line was open: silent
+    //  until the host sends it something.
+    std::atomic<bool>                 readySentEarly { false };
     std::atomic<int>                  sectorDelayMs  { 0 };
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  sectorsWritten { 0 };
@@ -147,10 +151,16 @@ private:
         Line             line { stream, {} };
         Word             version = startAsShim ? 0 : LinkProgram::kProgramVersion;
         AppleLinkPacket  packet;
+        bool             silent  = readySentEarly;
 
         while (!stop.stop_requested() && !stream.IsClosed())
         {
-            SendPacket (line, AppleLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+            if (!silent)
+            {
+                SendPacket (line, AppleLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+            }
+
+            silent = false;
 
             if (!Receive (stop, line, packet, 3000))
             {
@@ -367,6 +377,9 @@ public:
     explicit FakeAppleFactory (FakeApple & apple) : m_apple (apple) {}
 
     std::atomic<int>  connections { 0 };
+
+    //  The Apple end of the last line, when answer was clear.
+    std::shared_ptr<InProcessByteStream>  GetUnansweredEnd () const { return m_unanswered; }
     std::atomic<bool> answer      { true };
 
     HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override

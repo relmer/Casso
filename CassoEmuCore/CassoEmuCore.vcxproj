@@ -219,6 +219,7 @@
     <ClCompile Include="AppleLink\LinkProgram.cpp" />
     <ClCompile Include="AppleLink\LinkedDisk.cpp" />
     <ClCompile Include="AppleLink\AppleLinkSession.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkSettings.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -260,6 +261,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerLinkDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerProperties.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerRawDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
@@ -297,6 +299,7 @@
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\AppleLinkConnections.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
     <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
@@ -656,6 +659,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerLinkDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerShellListings.h" />
@@ -700,6 +704,7 @@
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
+    <ClInclude Include="CassoExplorer\Model\AppleLinkConnections.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
@@ -803,6 +808,7 @@
     <ClInclude Include="AppleLink\LinkProgram.h" />
     <ClInclude Include="AppleLink\LinkedDisk.h" />
     <ClInclude Include="AppleLink\AppleLinkSession.h" />
+    <ClInclude Include="AppleLink\AppleLinkSettings.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />

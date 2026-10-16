@@ -202,6 +202,20 @@ public:
 
 
 
+    TEST_METHOD (AnAppleWhoseReadyCameEarly_IsPromptedForAnother)
+    {
+        Rig  rig;
+
+        rig.apple.startAsShim    = true;
+        rig.apple.readySentEarly = true;
+        rig.Start();
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"Idle drew the shim's Ready");
+    }
+
+
+
+
     TEST_METHOD (Enumerate_ListsBothDrives)
     {
         Rig            rig;

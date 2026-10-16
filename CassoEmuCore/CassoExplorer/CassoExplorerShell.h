@@ -2,11 +2,14 @@
 
 #include "Pch.h"
 
+#include "AppleLink/AppleLinkFolder.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
+#include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Seams/Win32IntentChannel.h"
@@ -117,6 +120,9 @@ private:
     Win32DiskFileIo                       m_fileIo;
     Win32FolderWatcher                    m_watcher;
     Win32IntentChannel                    m_intentChannel;
+    Win32ByteStreamFactory                m_streams;
+    AppleLinkFolder                       m_linkFolder;
+    AppleLinkConnections                  m_links;
     CassoExplorerBrowser                  m_browser;
     CassoExplorerActions                  m_actions;
     std::unique_ptr<CassoExplorerWindow>  m_window;

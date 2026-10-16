@@ -15,6 +15,7 @@
 #include "Seams/IShellIcons.h"
 #include "Seams/IShellItemVerbs.h"
 
+class AppleLinkConnections;
 class IDiskFileIo;
 
 
@@ -249,6 +250,7 @@ public:
     const std::vector<int> &         GetSelectedRows () const { return m_selectedRows; }
     Location                         GetLocation   () const;
     VolumeKind                       GetVolumeKind () const { return m_kind; }
+    bool                             IsAppleDriveLocation () const { return m_isAppleDrive; }
     bool                             IsImageLocation () const { return m_isImage; }
 
     //  The root being listed, or empty when the list is another location's.
@@ -302,6 +304,11 @@ public:
     static std::vector<DxuiListView::Column>  GetColumns();
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
+
+    //  The Apple links an Apple drive is listed and read through. Without
+    //  them, an Apple drive lists nothing.
+    void                    SetLinks (AppleLinkConnections * links) { m_links = links; }
+    AppleLinkConnections *  GetLinks () const                       { return m_links; }
 
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
@@ -419,6 +426,8 @@ private:
     CassoExplorerShellListings  m_shellListings;
     CassoExplorerHostListings   m_hostListings;
     HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
+    HRESULT  LoadAppleDrive (const Location & location);
+    void     PreviewAppleEntry (const std::string & entryPath, const FileEntry & entry);
     bool     CanListImage   (const std::wstring & imagePath);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
@@ -471,6 +480,8 @@ private:
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
     bool                                m_writeProtected = false;
+    bool                                m_isAppleDrive   = false;
+    AppleLinkConnections              * m_links          = nullptr;
     std::vector<int>                    m_selectedRows;
     PreviewContent                      m_preview;
     std::wstring                        m_listError;

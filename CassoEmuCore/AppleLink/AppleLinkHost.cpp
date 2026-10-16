@@ -67,6 +67,8 @@ HRESULT AppleLinkHost::ServeOne (DWORD timeoutMs)
 
     if (m_buffer[0] == AppleLinkCodec::kVirtualDrive)
     {
+        m_adtProClient = true;
+
         hr = ServeVirtualDrive();
         CHR (hr);
     }
@@ -395,6 +397,8 @@ HRESULT AppleLinkHost::ServePacket (const AppleLinkPacket & packet)
     HRESULT  hr = S_OK;
 
 
+
+    m_adtProClient = m_adtProClient || packet.command != AppleLinkCodec::kReady;
 
     switch (packet.command)
     {

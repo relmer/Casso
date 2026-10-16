@@ -154,6 +154,10 @@ public:
 
     //  Casso's client, once one has sent Ready.
     bool             HasClient () const { return m_hasClient; }
+
+    //  Whether ADTPro's own client has sent a request since the host was
+    //  made.
+    bool             HasAdtProClient () const { return m_adtProClient; }
     AppleLinkClient  GetClient () const { return m_client; }
 
     //  How the last request ended: S_OK, or why its transfer failed.
@@ -170,6 +174,11 @@ public:
     //  The client acknowledges at the old speed and then switches; the
     //  caller switches the line after this returns.
     HRESULT  SetSpeed     (Byte control);
+
+    //  Idle, sent unprompted. A shim or program whose Ready went out before
+    //  the host connected is in its receive loop; Idle ends that loop, and
+    //  Ready is sent again.
+    HRESULT  PromptReady  () { return SendPacket (AppleLinkCodec::kIdle, {}); }
 
     //  Stops the client's running operation from another thread. The client
     //  sends Ready next, and the operation then returns ERROR_CANCELLED.
@@ -235,6 +244,7 @@ private:
     DWORD                             m_replyTimeoutMs     = kReplyTimeoutMs;
     DWORD                             m_operationTimeoutMs = kOperationTimeoutMs;
     bool                              m_hasClient          = false;
+    std::atomic<bool>                 m_adtProClient       { false };
     AppleLinkClient                   m_client;
     std::vector<Byte>                 m_program;
     std::atomic<bool>                 m_cancelRequested { false };

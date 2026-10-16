@@ -801,6 +801,7 @@ HRESULT AppleLinkSession::AwaitProgram (std::stop_token stop, DWORD timeoutMs, b
 {
     HRESULT  hr       = S_OK;
     auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    auto     prompt   = std::chrono::steady_clock::now();
 
 
 
@@ -809,11 +810,30 @@ HRESULT AppleLinkSession::AwaitProgram (std::stop_token stop, DWORD timeoutMs, b
 
     while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
     {
+        //  An Apple that sent its Ready before the line was open is waiting
+        //  for a reply, and is prompted for another.
+        if (!m_host->HasClient() && !m_host->HasAdtProClient() && std::chrono::steady_clock::now() >= prompt)
+        {
+            hr = m_host->PromptReady();
+            CHR (hr);
+
+            prompt = std::chrono::steady_clock::now() + std::chrono::milliseconds (kPromptMs);
+        }
+
         hr = m_host->ServeOne (kIdlePollMs);
         CHR (hr);
 
+        //  ADTPro's client is served for as long as it is there, rather
+        //  than dropped when Casso's program does not answer.
+        if (m_host->HasAdtProClient())
+        {
+            m_adtPro = true;
+            deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+        }
+
         if (m_host->HasClient())
         {
+            m_adtPro = false;
             outReady = m_host->GetClient().programVersion == LinkProgram::kProgramVersion;
 
             if (!outReady)
@@ -906,6 +926,7 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
     {
         case LinkOperationKind::Enumerate:
             hr = disk->Run ([&] (const IVolume & volume) { return volume.EnumerateDirectory (operation.path, operation.listing); });
+            operation.volumeKind = disk->GetKind();
 
             if (SUCCEEDED (hr) && operation.path.IsEmpty())
             {
@@ -965,7 +986,7 @@ Error:
 //  directory's key block -- are read again; when they differ from what is
 //  in memory, another disk is in the drive, or this one was written
 //  elsewhere, and its sectors are dropped. The drive's listing is not: a
-//  write checks the disk against the catalog last shown.
+//  write checks the disk against the drive's last listing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
