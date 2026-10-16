@@ -140,7 +140,7 @@ namespace DebugEventLogRebuildTests
             cache.CopySpan (cache.GetCoveredFrom(), end, live);
 
             Assert::AreEqual (live.size(), compared, L"every live event up to the last keyframe is in a rebuilt stretch");
-            Assert::IsTrue   (sectors > 100, L"the boot read DOS");
+            Assert::AreEqual ((size_t) 98, sectors, L"each sector the boot requested, and none passed over");
         }
     };
 }

@@ -96,7 +96,10 @@ namespace Disk2SectorEventTests
 
             Logger::WriteMessage (std::format ("{} sector reads, {} with the sector unknown\n", counter.reads, counter.unknownSectors).c_str());
 
-            Assert::IsTrue   (counter.reads > 100, L"the boot read DOS");
+            //  The boot ROM's 11 and RWTS's 87, as DiskReadProbeTests counts the
+            //  sectors requested; the ones address searches passed over are not
+            //  sector reads (GH #175).
+            Assert::AreEqual ((size_t) 98, counter.reads, L"each sector the boot requested, and none passed over");
             Assert::AreEqual ((size_t) 0, counter.addressErrors, L"no address field fails its checksum");
             Assert::AreEqual ((size_t) 0, counter.dataErrors,    L"no data field fails its checksum");
             Assert::AreEqual ((size_t) 0, counter.cutOffs,       L"no data field is cut off");

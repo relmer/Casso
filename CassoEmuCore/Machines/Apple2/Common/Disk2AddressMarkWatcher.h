@@ -30,6 +30,17 @@ class IDisk2EventSink;
 //  343 nibbles (342 and the checksum) are 6-and-2, 411 are 5-and-3. Fields
 //  in any other format fire nothing.
 //
+//  A SECTOR IS READ WHEN ITS CHECKSUM NIBBLE IS READ BY ANOTHER INSTRUCTION
+//  THAN ITS ADDRESS PROLOGUE (spec 035 R-041, GH #175). An address search
+//  reads every nibble that passes the head with one instruction, the whole
+//  data field of each sector it passes over included; a routine that reads
+//  a sector reads it with another, and may stop at the checksum nibble, as
+//  the boot ROM and ProDOS's driver do. So a data field after an address
+//  field is reported as the checksum nibble its address field's prologue
+//  sets the length of is read, as a sector read or a data checksum error,
+//  and nothing is reported for one the search passed over. A data field
+//  with no address field before it is reported at its epilogue.
+//
 //  The controller passes the watcher only the nibbles the CPU read, so when
 //  the CPU pauses longer than kGapCycles between them, nibbles went by
 //  unread. A field in progress at a gap is dropped without an event: the
@@ -92,15 +103,16 @@ public:
     static constexpr uint64_t kGapCycles            = 52;
 
     static constexpr uint32_t kStateTag             = IMachineState::MakeTag ('D', '2', 'A', 'M');
-    static constexpr uint16_t kStateVersion         = 2;
+    static constexpr uint16_t kStateVersion         = 3;
 
     Disk2AddressMarkWatcher() = default;
 
     // Called by Disk2Controller::Read whenever the data latch returns a
-    // fresh nibble to the CPU, with the CPU's cycle then; 0 is a cycle
-    // not known, which marks no gap. The watcher inspects but does not
-    // modify the nibble.
-    void   ObserveNibble (uint8_t nibble, uint64_t cycle = 0) noexcept;
+    // fresh nibble to the CPU, with the CPU's cycle then and the address of
+    // the instruction that read it; 0 is a cycle not known, which marks no
+    // gap, and an instruction not known, which makes every field read. The
+    // watcher inspects but does not modify the nibble.
+    void   ObserveNibble (uint8_t nibble, uint64_t cycle = 0, Word instruction = 0) noexcept;
 
     // Called by Disk2Controller::Write with each nibble the program loads
     // into the write latch.
@@ -173,6 +185,7 @@ private:
     void      CountForStall     () noexcept;
     void      BeginReadField    () noexcept;
     void      FinishReadField   () noexcept;
+    void      ReportReadField   () noexcept;
     void      FireCutOff        () noexcept;
 
     static FieldEnd  StepField  (DataField & field, uint8_t nibble) noexcept;
@@ -214,6 +227,18 @@ private:
     int                 m_readSector        = -1;
     int                 m_readVolume        = -1;
     bool                m_isReadOrphan      = false;
+
+    // The read test's instructions: the one that read the address prologue
+    // now being matched, the latest good address field's, and the data
+    // field's own address field's; and whether those fields are 5-and-3, and
+    // whether the data field was reported at its checksum nibble.
+    Word                m_prologueInstruction    = 0;
+    Word                m_addressInstruction     = 0;
+    Word                m_readAddressInstruction = 0;
+    bool                m_isPrologue13           = false;
+    bool                m_isAddress13            = false;
+    bool                m_isRead13               = false;
+    bool                m_isReadReported         = false;
 
     DataField           m_write;
 

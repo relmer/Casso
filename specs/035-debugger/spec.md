@@ -3554,12 +3554,14 @@ debug channel.
   either way and moves the selected drive's head only then; the phases on
   when a drive is next enabled pull its head at that moment (GH #176, fixed
   2026-10-15).
-- **The Disk ][ debug window's rows** belong to spec 006 and are not changed
-  here. Its "Data read" event fires after DE AA, which the boot ROM and
-  ProDOS never read for a sector they read, so its rows are mostly sectors
-  passed over: measured by T712 (research R-041) and tracked as GH #175, which
-  applies as well to the Disk II log's "Sector read" rows that replaced the
-  window.
+- **The Disk II log's "Sector read" rows** follow the read test (research
+  R-041): a data field after an address field is a sector read when an
+  instruction other than the one that read its address prologue reads its
+  checksum nibble, and is logged then. The DE AA epilogue that spec 006's
+  window waited for is never read by the boot ROM or ProDOS, and the
+  searches read it for every sector they pass over (GH #175, fixed
+  2026-10-15); a DOS 3.3 boot now logs the 98 sectors it requests and no
+  others.
 
 - **Exit**: closing the main window by any route (its close button, Alt+F4,
   File > Exit, or the restart that applies an update) counts as exit for

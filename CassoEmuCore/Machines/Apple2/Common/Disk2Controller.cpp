@@ -459,7 +459,7 @@ Byte Disk2Controller::HandleReadDispatch()
 
         if (isFresh)
         {
-            m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0);
+            m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0, GetInstructionAddress());
         }
 
         // The recent nibbles: each one the CPU takes, with the instruction

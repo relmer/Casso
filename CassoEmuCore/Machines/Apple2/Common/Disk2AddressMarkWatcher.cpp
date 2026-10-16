@@ -29,7 +29,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble, uint64_t cycle) noexcept
+void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble, uint64_t cycle, Word instruction) noexcept
 {
     bool  isGap = cycle != 0 && m_lastCycle != 0 && cycle - m_lastCycle > kGapCycles;
 
@@ -47,9 +47,28 @@ void Disk2AddressMarkWatcher::ObserveNibble (uint8_t nibble, uint64_t cycle) noe
         m_isGapSinceAddress = true;
     }
 
+    //  The instruction that reads an address prologue's first nibble.
+    if (nibble == kAddrMarkPrologue0 && m_addrState != AddrState::SawD5)
+    {
+        m_prologueInstruction = instruction;
+    }
+
     CountForStall();
     StepAddrMarkState (nibble);
     StepDataMarkState (nibble);
+
+    //  The checksum nibble of a data field after an address field: read, or
+    //  passed over by a search.
+    if (m_read.state == FieldState::Body && !m_isReadReported && !m_isReadOrphan && m_readTrack >= 0 &&
+        m_read.count == (m_isRead13 ? kBodyNibbles53 : kBodyNibbles62))
+    {
+        m_isReadReported = true;
+
+        if (instruction == 0 || instruction != m_readAddressInstruction)
+        {
+            ReportReadField();
+        }
+    }
 }
 
 
@@ -183,7 +202,8 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
         case AddrState::SawAA:
             if (nibble == kAddrMarkPrologue2 || nibble == kAddrMarkPrologue13)
             {
-                m_addrState = AddrState::VolHi;
+                m_addrState    = AddrState::VolHi;
+                m_isPrologue13 = nibble == kAddrMarkPrologue13;
             }
             else if (nibble == kAddrMarkPrologue0)
             {
@@ -221,10 +241,12 @@ void Disk2AddressMarkWatcher::StepAddrMarkState (uint8_t nibble) noexcept
                 break;
             }
 
-            m_cachedSector      = (int) sec;
-            m_cachedTrack       = (int) trk;
-            m_cachedVolume      = (int) vol;
-            m_isAddressPending  = true;
+            m_cachedSector       = (int) sec;
+            m_cachedTrack        = (int) trk;
+            m_cachedVolume       = (int) vol;
+            m_addressInstruction = m_prologueInstruction;
+            m_isAddress13        = m_isPrologue13;
+            m_isAddressPending   = true;
             m_isGapSinceAddress = false;
             m_stallNibbles      = 0;
             m_isStallFired      = false;
@@ -369,11 +391,14 @@ void Disk2AddressMarkWatcher::StepDataMarkState (uint8_t nibble) noexcept
 
 void Disk2AddressMarkWatcher::BeginReadField() noexcept
 {
-    m_readTrack        = m_isAddressPending ? m_cachedTrack  : -1;
-    m_readSector       = m_isAddressPending ? m_cachedSector : -1;
-    m_readVolume       = m_isAddressPending ? m_cachedVolume : -1;
-    m_isReadOrphan     = !m_isAddressPending && !m_isGapSinceAddress;
-    m_isAddressPending = false;
+    m_readTrack              = m_isAddressPending ? m_cachedTrack  : -1;
+    m_readSector             = m_isAddressPending ? m_cachedSector : -1;
+    m_readVolume             = m_isAddressPending ? m_cachedVolume : -1;
+    m_readAddressInstruction = m_isAddressPending ? m_addressInstruction : 0;
+    m_isRead13               = m_isAddressPending && m_isAddress13;
+    m_isReadOrphan           = !m_isAddressPending && !m_isGapSinceAddress;
+    m_isReadReported         = false;
+    m_isAddressPending       = false;
 }
 
 
@@ -384,12 +409,35 @@ void Disk2AddressMarkWatcher::BeginReadField() noexcept
 //
 //  FinishReadField
 //
-//  A complete field's bytes, as a sector read, a data checksum error or an
-//  orphan.
+//  A complete field not reported at its checksum nibble: an orphan, or one
+//  whose length its address field did not set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2AddressMarkWatcher::FinishReadField() noexcept
+{
+    if (!m_isReadReported)
+    {
+        ReportReadField();
+    }
+
+    m_isReadReported = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportReadField
+//
+//  The field's bytes, as a sector read, a data checksum error or an
+//  orphan; the field ends at its checksum nibble.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2AddressMarkWatcher::ReportReadField() noexcept
 {
     std::array<Byte, 256>  bytes  = {};
     bool                   isGood = false;
@@ -601,6 +649,14 @@ HRESULT Disk2AddressMarkWatcher::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_isStallFired);
     writer.WriteUInt32 ((uint32_t) m_quarterTrack);
 
+    writer.WriteUInt32 (m_prologueInstruction);
+    writer.WriteUInt32 (m_addressInstruction);
+    writer.WriteUInt32 (m_readAddressInstruction);
+    writer.WriteBool   (m_isPrologue13);
+    writer.WriteBool   (m_isAddress13);
+    writer.WriteBool   (m_isRead13);
+    writer.WriteBool   (m_isReadReported);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -625,19 +681,22 @@ Error:
 
 HRESULT Disk2AddressMarkWatcher::LoadState (StateReader & reader)
 {
-    HRESULT                  hr           = S_OK;
-    uint16_t                 version      = 0;
+    HRESULT                  hr            = S_OK;
+    uint16_t                 version       = 0;
     Disk2AddressMarkWatcher  loaded;
-    Byte                     addrState    = 0;
-    uint32_t                 cachedSector = 0;
-    uint32_t                 cachedTrack  = 0;
-    uint32_t                 cachedVolume = 0;
-    uint32_t                 readTrack    = 0;
-    uint32_t                 readSector   = 0;
-    uint32_t                 readVolume   = 0;
-    uint32_t                 quarterTrack = 0;
-    Byte                     skippedByte  = 0;
-    uint32_t                 skippedWord  = 0;
+    Byte                     addrState     = 0;
+    uint32_t                 cachedSector  = 0;
+    uint32_t                 cachedTrack   = 0;
+    uint32_t                 cachedVolume  = 0;
+    uint32_t                 readTrack     = 0;
+    uint32_t                 readSector    = 0;
+    uint32_t                 readVolume    = 0;
+    uint32_t                 quarterTrack  = 0;
+    Byte                     skippedByte   = 0;
+    uint32_t                 skippedWord   = 0;
+    uint32_t                 prologueAt    = 0;
+    uint32_t                 addressAt     = 0;
+    uint32_t                 readAddressAt = 0;
 
 
 
@@ -697,6 +756,21 @@ HRESULT Disk2AddressMarkWatcher::LoadState (StateReader & reader)
     reader.ReadBool   (loaded.m_isStallFired);
     reader.ReadUInt32 (quarterTrack);
 
+    //  Version 3 adds the read test's instructions; a field under way in an
+    //  older state is reported at its checksum nibble or, past it, at its
+    //  epilogue.
+    if (version >= 3)
+    {
+        reader.ReadUInt32 (prologueAt);
+        reader.ReadUInt32 (addressAt);
+        reader.ReadUInt32 (readAddressAt);
+        reader.ReadBool   (loaded.m_isPrologue13);
+        reader.ReadBool   (loaded.m_isAddress13);
+        reader.ReadBool   (loaded.m_isRead13);
+        reader.ReadBool   (loaded.m_isReadReported);
+    }
+
+
     hr = reader.EndSection();
     CHR (hr);
 
@@ -711,6 +785,9 @@ HRESULT Disk2AddressMarkWatcher::LoadState (StateReader & reader)
     loaded.m_readSector   = (int) readSector;
     loaded.m_readVolume   = (int) readVolume;
     loaded.m_quarterTrack = (int) quarterTrack;
+    loaded.m_prologueInstruction    = (Word) prologueAt;
+    loaded.m_addressInstruction     = (Word) addressAt;
+    loaded.m_readAddressInstruction = (Word) readAddressAt;
     loaded.m_eventSinks   = m_eventSinks;
 
     *this = loaded;

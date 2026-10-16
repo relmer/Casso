@@ -746,5 +746,100 @@ namespace Disk2AddressMarkWatcherTests
             Assert::AreEqual (18,                            targetSink.stallLog[0]);
             Assert::AreEqual (source.GetCachedTrack(),       target.GetCachedTrack());
         }
+
+
+
+        //  Feeds each nibble as read by the instruction at `instruction`.
+        static void FeedBy (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles, Word instruction)
+        {
+            for (auto & nibble : nibbles)
+            {
+                w.ObserveNibble (nibble, 0, instruction);
+            }
+        }
+
+
+
+        //  A sector a routine reads after the search found its address field
+        //  is reported as its checksum nibble is read, so one read that stops
+        //  there, as the boot ROM's and ProDOS's do, is reported too (GH #175).
+        TEST_METHOD (ASectorReadByAnotherInstructionIsReportedAtItsChecksum)
+        {
+            constexpr Word            kSearch = 0xB94F;
+            constexpr Word            kRead   = 0xB925;
+            Disk2AddressMarkWatcher   watcher;
+            RecordingSink             sink;
+            std::vector<uint8_t>      address;
+            std::vector<uint8_t>      data;
+
+
+
+            watcher.SetEventSink (&sink);
+            AppendAddressMark (address, 254, 17, 5, 0, false);
+            AppendDataMark    (data, MakeSector (5));
+
+            FeedBy (watcher, address, kSearch);
+            FeedBy (watcher, { data.begin(), data.end() - 3 }, kRead);
+
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size(), L"reported at the checksum nibble, before any epilogue");
+            Assert::AreEqual (5,          sink.dataLog[0].sector);
+            Assert::IsTrue   (sink.dataLog[0].bytes == MakeSector (5));
+
+            FeedBy (watcher, { data.end() - 3, data.end() }, kRead);
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size(), L"and not again at the epilogue");
+        }
+
+
+
+        //  An address search reads every nibble that passes the head with one
+        //  instruction, the data fields of the sectors it passes over
+        //  included; none of those is a sector read.
+        TEST_METHOD (ASectorTheSearchPassesOverIsNotReported)
+        {
+            constexpr Word            kSearch = 0xB94F;
+            Disk2AddressMarkWatcher   watcher;
+            RecordingSink             sink;
+            std::vector<uint8_t>      stream;
+
+
+
+            watcher.SetEventSink (&sink);
+            AppendAddressMark (stream, 254, 17, 5, 0, false);
+            AppendDataMark    (stream, MakeSector (5));
+            AppendAddressMark (stream, 254, 17, 6, 0, false);
+            AppendDataMark    (stream, MakeSector (6));
+
+            FeedBy (watcher, stream, kSearch);
+
+            Assert::AreEqual ((size_t) 2, sink.addrLog.size(), L"both address fields");
+            Assert::IsTrue   (sink.dataLog.empty(),           L"neither sector read");
+            Assert::IsTrue   (sink.cutOffLog.empty() && sink.orphanLog.empty() && sink.dataErrorLog.empty());
+        }
+
+
+
+        //  A 13-sector address field sets the 5-and-3 length, so its sector
+        //  is reported at the 411th nibble.
+        TEST_METHOD (AThirteenSectorFieldIsReportedAtItsOwnChecksum)
+        {
+            Disk2AddressMarkWatcher   watcher;
+            RecordingSink             sink;
+            std::vector<uint8_t>      address;
+            std::vector<uint8_t>      data;
+
+
+
+            watcher.SetEventSink (&sink);
+            AppendAddressMark (address, 254, 3, 9, 0, false, DiskFieldKind::Thirteen);
+            AppendDataMark    (data, MakeSector (9), DiskFieldKind::Thirteen);
+
+            FeedBy (watcher, address, 0x3D00);
+            FeedBy (watcher, { data.begin(), data.end() - 4 }, 0x3E00);
+            Assert::IsTrue   (sink.dataLog.empty(), L"not before the checksum nibble");
+
+            FeedBy (watcher, { data.end() - 4, data.end() - 3 }, 0x3E00);
+            Assert::AreEqual ((size_t) 1, sink.dataLog.size());
+            Assert::IsTrue   (sink.dataLog[0].bytes == MakeSector (9));
+        }
     };
 }
