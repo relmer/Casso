@@ -92,6 +92,11 @@ private:
     DebugChannelServer     m_server;
     DebugSession           m_session;
     DebugHandlerSet        m_handlers;
+
+public:
+    const DebugHandlerSet &  GetHandlers () const { return m_handlers; }
+
+private:
     ReverseStopTest        m_reverseStopTest { m_session };
     CallStackHistory       m_callHistory     { m_host, m_session };
 };

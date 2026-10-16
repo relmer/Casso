@@ -389,11 +389,23 @@ reads.
 
 ## Debug projects
 
-Breakpoints and the name of each, watches, zero-page pointers, bookmarks,
-data directives, step filters and loaded symbol files are saved as a debug
-project, one for each program, with the window's layout, the heat map's range
-sets, the disassembly options and the open views. The program is the most
-specific of these:
+A debug project, one for each program, has the debugger's configuration:
+
+- breakpoints and the name of each, watches, zero-page pointers, bookmarks,
+  data directives, step filters, loaded symbol files and which symbol tables
+  are on;
+- the command mode, the `CD` directory, the instruction trace and trace file,
+  the profiler, the stopwatch and where the trip count starts;
+- the pane layout, the closed panes, the pane with the focus, where the
+  command bar and the timeline are docked, and the open views;
+- the console history, each pane's find history and options, and the column
+  widths you set;
+- the disassembly options, the heat map's options and range sets, and the
+  Disk II and input logs' filters and columns.
+
+The key scheme, the theme, the text size and the history settings are yours
+rather than a program's, and are the same for every project. The program is
+the most specific of these:
 
 1. the debug or symbol file `SYM LOAD` last loaded, by its content rather
    than its path, so moving the file loses nothing;

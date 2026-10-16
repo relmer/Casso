@@ -34,6 +34,10 @@ class ExecutionHandlers : public IDebugCommandHandler,
                           public IInstructionObserver
 {
 public:
+    //  The commands that set the trace file, the profiler and the stopwatch
+    //  as they are now, for a debug project to run again.
+    std::vector<std::string>  MakeScript () const;
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
     void  OnInterrupt      (DebugSession & session) override;

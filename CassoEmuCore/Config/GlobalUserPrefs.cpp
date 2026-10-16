@@ -113,7 +113,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
-    "debuggerProgramSourceFolders"
+    "debuggerProgramSourceFolders",
+    "debuggerWindowState"
 };
 
 
@@ -1294,6 +1295,17 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debugger.sourceFolders));
     root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debugger.programSourceFolders));
 
+    {
+        std::vector<std::pair<std::string, JsonValue>>  state;
+
+        for (const auto & [name, text] : debugger.windowState)
+        {
+            state.emplace_back (name, JsonValue (text));
+        }
+
+        root.emplace_back ("debuggerWindowState", JsonValue (std::move (state)));
+    }
+
     // Printer mechanical-audio prefs (FR-034).
     root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
     root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
@@ -1564,6 +1576,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     if (v.HasObject ("debuggerProgramSourceFolders", programFolderObj))
     {
         FolderMapFromJson (*programFolderObj, debugger.programSourceFolders);
+    }
+
+    debugger.windowState.clear();
+    if (v.HasObject ("debuggerWindowState", programFolderObj))
+    {
+        for (const auto & [name, value] : programFolderObj->GetObjectEntries())
+        {
+            if (value.GetType() == JsonType::String)
+            {
+                debugger.windowState[name] = value.GetString();
+            }
+        }
     }
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.

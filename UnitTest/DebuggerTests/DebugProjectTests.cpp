@@ -105,6 +105,44 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
         }
 
+        //  The session's other state comes back too: a symbol table turned
+        //  off, the CD directory, the stopwatch, the profiler, the command
+        //  mode and the trip count's mark; and the window's states by name.
+        TEST_METHOD (TheSessionsSettingsAndTheWindowsStatesComeBack)
+        {
+            SessionRig                first;
+            SessionRig                second;
+            DebugProject              project;
+            DebugProject              read;
+            std::string               error;
+            std::vector<std::string>  failures;
+
+
+
+            first.rig.RunOk ("SYMDOS33 OFF");
+            first.rig.RunOk ("CD \"C:\\Work\"");
+            first.rig.RunOk ("STOPWATCH 300 310");
+            first.rig.RunOk ("PROFILE ON");
+            first.rig.session.SetCycleMarker (1234);
+            first.rig.RunOk ("MODE MONITOR");
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+            project.windowStrings = { { "console", "BP 300\nG\n" }, { "focusedPane", "watches" } };
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            Assert::IsTrue   (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
+            Assert::IsFalse  (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Dos33), L"the table stays off");
+            Assert::IsTrue   (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Main));
+            Assert::IsTrue   (second.rig.session.GetCurrentDirectory() == L"C:\\Work");
+            Assert::IsTrue   (second.rig.session.GetMode() == CommandMode::Monitor);
+            Assert::AreEqual ((uint64_t) 1234, second.rig.session.GetCycleMarker());
+            Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("STOPWATCH 0300 0310")) != read.engineScript.end());
+            Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("PROFILE ON")) != read.engineScript.end());
+            Assert::IsTrue   (read.windowStrings == project.windowStrings, L"the window's states through the JSON");
+        }
+
         //  A symbol file beside or below the project's file is written
         //  relative to it, so the project moves with its program; one
         //  elsewhere is written whole.

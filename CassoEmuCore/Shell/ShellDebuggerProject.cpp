@@ -589,7 +589,7 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 
 
 
-    project.CaptureEngine (m_debugController->GetSession());
+    project.CaptureEngine (m_debugController->GetSession(), &m_debugController->GetHandlers().GetExecution());
 
     if (m_projectWindowPending.has_value())
     {
@@ -597,6 +597,7 @@ void ShellDebugger::CaptureProject (DebugProject & project)
         project.rangeSets          = m_projectWindowPending->rangeSets;
         project.disassemblyOptions = m_projectWindowPending->disassemblyOptions;
         project.openViews          = m_projectWindowPending->openViews;
+        project.windowStrings      = m_projectWindowPending->windowStrings;
         return;
     }
 
@@ -604,6 +605,84 @@ void ShellDebugger::CaptureProject (DebugProject & project)
     project.rangeSets          = m_settings.heatMapRanges;
     project.disassemblyOptions = m_settings.disassemblyOptions;
     project.openViews          = m_settings.openViews;
+    project.windowStrings      = GetProjectWindowStrings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetProjectWindowStrings
+//
+//  The window's settings a project saves beyond its four, by name; the caller
+//  has the project lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() const
+{
+    std::map<std::string, std::string>  strings = m_settings.windowState;
+
+
+
+    strings["closedPanes"]     = m_settings.closedPanes;
+    strings["focusedPane"]     = m_settings.focusedPane;
+    strings["commandBarDock"]  = m_settings.commandBarDock;
+    strings["timelineDock"]    = m_settings.timelineDock;
+    strings["heatMapOptions"]  = m_settings.heatMapOptions;
+    strings["diskLogOptions"]  = m_settings.diskLogOptions;
+    strings["inputLogOptions"] = m_settings.inputLogOptions;
+    return strings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::SetProjectWindowStrings
+//
+//  As the four, a setting is replaced only by a string the project has; the
+//  caller has the project lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::string> & strings)
+{
+    std::pair<const char *, std::string *>  settings[] =
+    {
+        { "closedPanes",     &m_settings.closedPanes     },
+        { "focusedPane",     &m_settings.focusedPane     },
+        { "commandBarDock",  &m_settings.commandBarDock  },
+        { "timelineDock",    &m_settings.timelineDock    },
+        { "heatMapOptions",  &m_settings.heatMapOptions  },
+        { "diskLogOptions",  &m_settings.diskLogOptions  },
+        { "inputLogOptions", &m_settings.inputLogOptions },
+    };
+
+
+
+    for (const auto & [name, text] : strings)
+    {
+        auto  setting = std::ranges::find_if (settings, [&name] (const auto & each) { return name == each.first; });
+
+        if (text.empty())
+        {
+            continue;
+        }
+
+        if (setting != std::end (settings))
+        {
+            *setting->second = text;
+        }
+        else
+        {
+            m_settings.windowState[name] = text;
+        }
+    }
 }
 
 
@@ -682,6 +761,8 @@ bool ShellDebugger::TakeDebuggerProjectState()
         m_settings.heatMapRanges      = pending->rangeSets.empty()          ? m_settings.heatMapRanges      : pending->rangeSets;
         m_settings.disassemblyOptions = pending->disassemblyOptions.empty() ? m_settings.disassemblyOptions : pending->disassemblyOptions;
         m_settings.openViews          = pending->openViews.empty()          ? m_settings.openViews          : pending->openViews;
+
+        SetProjectWindowStrings (pending->windowStrings);
     }
 
     m_host.SaveSettings();

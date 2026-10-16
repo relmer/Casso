@@ -585,6 +585,22 @@ void DebuggerWindow::ConfigureWidgets()
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
     m_focusMgr.SetFocused (m_commandBox);
+
+    //  A list's column widths, once the user sizes one, are saved with the
+    //  project; the event logs' are in their own options.
+    for (DxuiListView * list : GetLists())
+    {
+        if (list != m_diskLog.list && list != m_inputLog.list)
+        {
+            list->SetOnColumnResized ([this, list] (int, int)
+            {
+                m_columnWidths[GetPaneOfControl (list)].clear();
+                SaveColumnWidths();
+            });
+        }
+    }
+
+    RestoreWindowState (false);
 }
 
 
@@ -3202,6 +3218,8 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
         return;
     }
 
+    ApplySavedFind (pane, state);
+
     //  The widget floats over its pane's text, so it comes after every
     //  pane's controls: its plate, then what sits on the plate.
     state.plate       = CreateChild<FindWidgetPlate> ();
@@ -3621,6 +3639,7 @@ void DebuggerWindow::RecordFindHistory()
     }
 
     m_findHistoryAt = -1;
+    SaveFindStates();
 }
 
 
@@ -4093,6 +4112,7 @@ void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRege
     m_findMatchCase = matchCase;
     m_findWholeWord = wholeWord;
     m_findRegex     = isRegex;
+    SaveFindStates();
 
     m_findCaseButton->SetEmphasis  (matchCase);
     m_findWordButton->SetEmphasis  (wholeWord);
@@ -8680,6 +8700,7 @@ void DebuggerWindow::SubmitCommandBox()
     }
 
     m_consoleHistory.Add (typed);
+    SaveConsoleHistory();
 
     //  Running a command shows its output, however far back the console was
     //  scrolled.

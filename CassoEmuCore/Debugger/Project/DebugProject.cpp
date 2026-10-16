@@ -9,6 +9,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/ReplyJson.h"
 
@@ -31,7 +32,7 @@ using Members = std::vector<std::pair<std::string, JsonValue>>;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugProject::CaptureEngine (DebugSession & session)
+void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandlers * execution)
 {
     BreakpointListData  list;
     std::string         script;
@@ -55,6 +56,31 @@ void DebugProject::CaptureEngine (DebugSession & session)
     {
         engineScript.push_back (MakeDataLine (entry));
     }
+
+    //  Each symbol table on or off, the CD directory, the instruction trace,
+    //  the trace file, the profiler and the stopwatch; the command mode last,
+    //  since a line after MODE would be read in the new mode.
+    for (int table = 0; table < SymbolTable::kTableCount; table++)
+    {
+        engineScript.push_back (std::format ("SYM{} {}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName ((SymbolTableId) table)),
+                                             session.GetSymbols().IsEnabled ((SymbolTableId) table) ? "ON" : "OFF"));
+    }
+
+    if (!session.GetCurrentDirectory().empty())
+    {
+        engineScript.push_back (std::format ("CD \"{}\"", TextEncoding::WideToNarrow (session.GetCurrentDirectory())));
+    }
+
+    engineScript.push_back (session.GetTarget().IsTraceOn() ? "HISTORY ON" : "HISTORY OFF");
+
+    if (execution != nullptr)
+    {
+        std::ranges::copy (execution->MakeScript(), std::back_inserter (engineScript));
+    }
+
+    engineScript.push_back (std::format ("MODE {}", SymbolTable::ToUpper (CommandModeNames::GetName (session.GetMode()))));
+
+    cycleMarker = session.GetCycleMarker();
 
     BreakpointHandlers::ListAll (session, list);
     breakpointNames.clear();
@@ -130,6 +156,8 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
         run (line);
     }
 
+    session.SetCycleMarker (cycleMarker);
+
     BreakpointHandlers::ListAll (session, list);
 
     for (const auto & [index, name] : breakpointNames)
@@ -157,6 +185,7 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     std::vector<JsonValue>  script;
     std::vector<JsonValue>  named;
     std::vector<JsonValue>  startup;
+    Members                 window;
     Members                 root;
 
 
@@ -192,10 +221,18 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     root.emplace_back ("symbolFiles",     JsonValue (std::move (files)));
     root.emplace_back ("engineScript",    JsonValue (std::move (script)));
     root.emplace_back ("names",           JsonValue (std::move (named)));
-    root.emplace_back ("window",          JsonValue (Members { { "layout",             JsonValue (layout) },
-                                                               { "rangeSets",          JsonValue (rangeSets) },
-                                                               { "disassemblyOptions", JsonValue (disassemblyOptions) },
-                                                               { "openViews",          JsonValue (openViews) } }));
+    window.emplace_back ("layout",             JsonValue (layout));
+    window.emplace_back ("rangeSets",          JsonValue (rangeSets));
+    window.emplace_back ("disassemblyOptions", JsonValue (disassemblyOptions));
+    window.emplace_back ("openViews",          JsonValue (openViews));
+
+    for (const auto & [name, text] : windowStrings)
+    {
+        window.emplace_back (name, JsonValue (text));
+    }
+
+    root.emplace_back ("window",          JsonValue (std::move (window)));
+    root.emplace_back ("cycleMarker",     JsonValue ((double) cycleMarker));
     root.emplace_back ("startupCommands", JsonValue (std::move (startup)));
 
     return JsonWriter::Write (JsonValue (std::move (root)));
@@ -303,6 +340,24 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
         window->HasString ("rangeSets",          project.rangeSets);
         window->HasString ("disassemblyOptions", project.disassemblyOptions);
         window->HasString ("openViews",          project.openViews);
+
+        //  Every other string of the window's is one of its states, by name.
+        for (const auto & [name, value] : window->GetObjectEntries())
+        {
+            if (value.GetType() == JsonType::String && name != "layout" && name != "rangeSets" && name != "disassemblyOptions" && name != "openViews")
+            {
+                project.windowStrings[name] = value.GetString();
+            }
+        }
+    }
+
+    {
+        double  marker = 0;
+
+        if (root.HasNumber ("cycleMarker", marker) && marker >= 0)
+        {
+            project.cycleMarker = (uint64_t) marker;
+        }
     }
 
     if (root.HasArray ("startupCommands", array))

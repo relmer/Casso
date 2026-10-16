@@ -1142,6 +1142,35 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::MakeScript
+//
+//  TF is a switch, so it is in the script only while the trace file is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ExecutionHandlers::MakeScript() const
+{
+    std::vector<std::string>  lines;
+
+
+
+    lines.push_back (m_stopwatch.IsArmed() ? std::format ("STOPWATCH {:04X} {:04X}", m_stopwatch.GetStart(), m_stopwatch.GetStop()) : std::string ("STOPWATCH OFF"));
+    lines.push_back (m_profile.IsOn() ? "PROFILE ON" : "PROFILE OFF");
+
+    if (m_trace.isOn)
+    {
+        lines.push_back (std::format ("TF \"{}\"{}", m_trace.name, m_trace.withVideo ? " v" : ""));
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::ResetCycles
 //
 ////////////////////////////////////////////////////////////////////////////////

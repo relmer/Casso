@@ -441,7 +441,14 @@ void ShellDebugger::SetDebuggerClosedPanes (const std::string & text)
         return;
     }
 
-    m_settings.closedPanes = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.closedPanes = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -477,7 +484,14 @@ void ShellDebugger::SetDebuggerCommandBarDock (const std::string & text)
         return;
     }
 
-    m_settings.commandBarDock = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.commandBarDock = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -513,7 +527,14 @@ void ShellDebugger::SetDebuggerTimelineDock (const std::string & text)
         return;
     }
 
-    m_settings.timelineDock = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.timelineDock = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -549,7 +570,14 @@ void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
         return;
     }
 
-    m_settings.focusedPane = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.focusedPane = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -670,7 +698,14 @@ void ShellDebugger::SetDebuggerHeatMapOptions (const std::string & text)
         return;
     }
 
-    m_settings.heatMapOptions = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.heatMapOptions = text;
+    }
+
     m_host.SaveSettings();
 }
 
@@ -2536,6 +2571,62 @@ void ShellDebugger::SetDebuggerEventLogOptions (
         return;
     }
 
-    options = text;
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        options = text;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDebuggerWindowState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebugger::GetDebuggerWindowState (const std::string & name)
+{
+    auto  found = m_settings.windowState.find (name);
+
+
+
+    return (found != m_settings.windowState.end()) ? found->second : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerWindowState
+//
+//  Saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerWindowState (const std::string & name, const std::string & text)
+{
+    if (GetDebuggerWindowState (name) == text)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.windowState[name] = text;
+    }
+
     m_host.SaveSettings();
 }

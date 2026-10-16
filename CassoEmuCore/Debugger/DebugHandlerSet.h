@@ -37,6 +37,8 @@ class DebugHandlerSet
 public:
     void  Attach (DebugSession & session);
 
+    const ExecutionHandlers &  GetExecution () const { return m_execution; }
+
 private:
     RegisterHandlers       m_registers;
     BreakpointHandlers     m_breakpoints;

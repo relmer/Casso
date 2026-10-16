@@ -8,6 +8,7 @@
 #include "Debugger/Reply.h"
 
 class DebugSession;
+class ExecutionHandlers;
 
 
 
@@ -61,13 +62,22 @@ struct DebugProject
     std::string                    openViews;
     std::vector<StartupCommand>    startupCommands;
 
+    //  The cycle count RCC last started the trip count at.
+    uint64_t                       cycleMarker = 0;
+
+    //  The window's other state by name, each the text its setting has: the
+    //  closed panes, the focused pane, the docks, the heat map's and the event
+    //  logs' options, the console history, the find history and the column
+    //  widths.
+    std::map<std::string, std::string>  windowStrings;
+
     //  Where the project is saved, and whether that is its scope's automatic
     //  file rather than one the user chose.
     std::wstring                 filePath;
     bool                         isAutomatic = true;
 
     //  The engine's part, read from the session.
-    void  CaptureEngine (DebugSession & session);
+    void  CaptureEngine (DebugSession & session, const ExecutionHandlers * execution = nullptr);
 
     //  The engine's part into the session, the old state cleared first: the
     //  symbol files, then the script, then each breakpoint's name. A line that fails is

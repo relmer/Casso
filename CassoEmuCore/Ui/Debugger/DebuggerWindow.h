@@ -222,6 +222,11 @@ public:
     virtual std::string  GetDebuggerFocusedPane ()                         { return {}; }
     virtual void         SetDebuggerFocusedPane (const std::string &)      {}
 
+    //  The window's state with no setting of its own, by name, saved with the
+    //  debug project: "console", "find" and "columns".
+    virtual std::string  GetDebuggerWindowState (const std::string & name)                       { (void) name; return {}; }
+    virtual void         SetDebuggerWindowState (const std::string & name, const std::string & text) { (void) name; (void) text; }
+
     //  The disassembly views' viewing options, in DisassemblyOptions' text for
     //  them, kept the same way; none kept gives the defaults.
     virtual std::string  GetDebuggerDisassemblyOptions ()                  { return {}; }
@@ -959,6 +964,17 @@ private:
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     LoadFileIntoMemory   ();
     void     PushStackByte        ();
+
+    //  The window's state a debug project saves with no setting of its own:
+    //  the console history, each pane's find history and options, and the
+    //  widths of the columns the user sized. A project's switch brings back
+    //  the rest of its settings too.
+    void     RestoreWindowState   (bool isProjectSwitch);
+    void     SaveConsoleHistory   ();
+    void     SaveFindStates       ();
+    void     SaveColumnWidths     ();
+    void     ApplyColumnWidths    ();
+    void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
     void     FindInMemory         (MemoryPane * pane);
     void     StepMemoryFind       (bool forward);
     void     FillMemorySelection  (MemoryPane * pane);
@@ -1210,6 +1226,19 @@ private:
     };
 
     MemoryFind                              m_memoryFind;
+
+    //  Find histories and options a project brought back for panes whose find
+    //  widgets are not built yet, and the column widths in dips by pane.
+    struct SavedFind
+    {
+        bool                       matchCase = false;
+        bool                       wholeWord = false;
+        bool                       isRegex   = false;
+        std::vector<std::wstring>  history;
+    };
+
+    std::map<std::wstring, SavedFind>         m_savedFinds;
+    std::map<std::wstring, std::vector<int>>  m_columnWidths;
     MemoryCompare                           m_memoryCompare;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;

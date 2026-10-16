@@ -293,6 +293,10 @@ public:
     bool                 IsHistorySeekBusy    () const override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
+    std::string  GetDebuggerWindowState (const std::string & name) override;
+    std::map<std::string, std::string>  GetProjectWindowStrings () const;
+    void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);
+    void         SetDebuggerWindowState (const std::string & name, const std::string & text) override;
     int          GetDebuggerTextZoomPercent () override;
     void         SetDebuggerTextZoomPercent (int percent) override;
     std::string  GetDebuggerDisassemblyOptions () override;

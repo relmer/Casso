@@ -96,5 +96,10 @@ struct DebuggerSettings
     // every program, and for each program by its debug file's SHA-1. A
     // program's own list is searched before the global one.
     std::vector<std::string>                          sourceFolders;
+
+    // The debugger window's state with no setting of its own, by name: the
+    // console history, the find history and the column widths, each in the
+    // window's text for it. A debug project saves these with the rest.
+    std::map<std::string, std::string>                windowState;
     std::map<std::string, std::vector<std::string>>   programSourceFolders;
 };
