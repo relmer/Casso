@@ -30,6 +30,10 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- as65: a colon inside a quoted string, as in `.text "A:B"`, is assembled as
+  data rather than parsed as a label.
+- as65: a `.byte` line that mixes values with forward `<` or `>` references
+  reserves a byte for every argument, so later labels are no longer misplaced.
 - On the //c, writes to the IWM mode register while the disk motor was running
   (even if only spinning down) caused 0 bits to be written at the head's
   current position, causing disk corruption.

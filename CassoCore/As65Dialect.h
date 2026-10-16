@@ -63,4 +63,7 @@ public:
     // gives the source OPT / NOOPT to steer it. Merlin does neither, so this is
     // stated here rather than made the engine's ambient behavior.
     bool                HasJumpToBranchOptimization () const override { return true; }
+
+private:
+    static size_t       FindLabelColon (const std::string & text);
 };

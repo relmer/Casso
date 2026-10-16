@@ -936,6 +936,38 @@ namespace AssemblerTests
             Assert::IsTrue (result.success);
             Assert::AreEqual ((size_t) 0, result.bytes.size());
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Text_ColonInString_IsData
+        //
+        //  A ':' inside the quotes is a character of the string, not a label
+        //  terminator. The labeled line takes its label from the first colon
+        //  outside the quotes.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Text_ColonInString_IsData)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                R"(                         .text "A:B"
+                                    msg:    .text "C:"
+                )");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 5, result.bytes.size());
+            Assert::AreEqual ((Byte) 0x41, result.bytes[0]); // A
+            Assert::AreEqual ((Byte) 0x3A, result.bytes[1]); // :
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]); // B
+            Assert::AreEqual ((Byte) 0x43, result.bytes[3]); // C
+            Assert::AreEqual ((Byte) 0x3A, result.bytes[4]); // :
+            Assert::AreEqual ((Word) 0x0003, result.symbols["msg"]);
+        }
     };
 
 
@@ -968,6 +1000,46 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 4, result.symbols.size());  // 1 label + 3 built-ins
             Assert::AreEqual ((Word) 0x0000, result.symbols["data"]);
             Assert::AreEqual ((size_t) 3, result.bytes.size());
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ByteWithForwardLowHigh_AdvancesByEveryArgument
+        //
+        //  A .byte line that mixes a known value with forward `<` / `>`
+        //  references reserves one byte per argument in pass 1, so the labels
+        //  after the table land where pass 2 emits them.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ByteWithForwardLowHigh_AdvancesByEveryArgument)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                R"(                         .org $1000
+                                    speeds: .byte $0E, <s9600, >s9600
+                                            .byte $0F, <s19200, >s19200
+                                    s9600:  .text "9600"
+                                            .byte 0
+                                    s19200: .text "19200"
+                                            .byte 0
+                )");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((Word) 0x1006, result.symbols["s9600"]);
+            Assert::AreEqual ((Word) 0x100B, result.symbols["s19200"]);
+            Assert::AreEqual ((size_t) 17, result.bytes.size());
+            Assert::AreEqual ((Byte) 0x0E, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0x06, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0x10, result.bytes[2]);
+            Assert::AreEqual ((Byte) 0x0F, result.bytes[3]);
+            Assert::AreEqual ((Byte) 0x0B, result.bytes[4]);
+            Assert::AreEqual ((Byte) 0x10, result.bytes[5]);
+            Assert::AreEqual ((Byte) '9',  result.bytes[6]);
         }
     };
 
