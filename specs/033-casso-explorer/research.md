@@ -460,7 +460,8 @@ contract:
   byte repeats. Every packet decodes to the source image's blocks, and the
   image ADTPro's server wrote from the //c was identical to its source.
 - **Virtual drives**: the EOR covers the 512 block bytes alone; the driver
-  reads with Read3 only.
+  reads with Read3 only; and the server's reply to a write ends with the
+  block's check, not the header's EOR as the document has it.
 - **Timeouts and retries**: the client waits about 2 s; the server resends a
   NAKed packet twice, after 0.26 s and 0.52 s, then ends with Home. With the
   server's ACKs dropped, the client resends with no limit, under the same

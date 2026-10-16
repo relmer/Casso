@@ -489,7 +489,7 @@ own host and client, never from its source (FR-096).
 
 **Purpose**: Casso serves an unmodified ADTPro client (FR-088).
 
-- [ ] T189 [P] [US14] Add `AppleLinkCodec` in `CassoEmuCore/AppleLink/AppleLinkCodec.h/.cpp`:
+- [X] T189 [P] [US14] Add `AppleLinkCodec` in `CassoEmuCore/AppleLink/AppleLinkCodec.h/.cpp`:
   - the envelope: start `$C1`, a two-byte length, the command, and an EOR of those four bytes;
   - the payload EOR;
   - Send Image Data with T188's RLE and CRC;
@@ -497,25 +497,25 @@ own host and client, never from its source (FR-096).
   - Acknowledgement (`$CB`) with ACK `$06` and NAK `$15`.
 
   Tests in `UnitTest/AppleLink/AppleLinkCodecTests.cpp` decode every T187 capture, round-trip every packet kind, and fail on damaged envelopes, damaged payloads and bad CRCs. Per FR-087 and the contract.
-- [ ] T190 [US14] Add `AppleLinkHost` in `CassoEmuCore/AppleLink/AppleLinkHost.h/.cpp`, serving ADTPro's clients:
+- [X] T190 [US14] Add `AppleLinkHost` in `CassoEmuCore/AppleLink/AppleLinkHost.h/.cpp`, serving ADTPro's clients:
   - CD, Directory, Size, Get, Put, Batch, Multiple, Summary, Home and Send File;
   - virtual drives (`$C5`) over 512-byte blocks: Read, Read with timestamp, Write;
   - Nibble with ADTPro's abort reply.
 
   Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` replay T187's client side over an `InProcessByteStream` and compare the host's replies with the captures. Per FR-088 and US14/AC7.
-- [ ] T191 [US14] Set `AppleLinkHost`'s image folder from Casso Explorer:
+- [X] T191 [US14] Set `AppleLinkHost`'s image folder from Casso Explorer (`AppleLinkFolder` in `CassoEmuCore/AppleLink/AppleLinkFolder.h/.cpp`; `AppleLinkSession`, T201, passes it the tab's location):
   - the host folder open in the current tab;
   - for a tab inside a disk image, the folder the image is in;
   - with no host folder open, such as This PC, each request fails with ADTPro's unable status.
 
   Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp`. Per FR-088.
-- [ ] T192 [US14] Add retries and failure handling to `AppleLinkHost`:
+- [X] T192 [US14] Add retries and failure handling to `AppleLinkHost`:
   - resend on NAK up to the retry limit, then fail with the reason;
   - close the link when no byte arrives within the timeout;
   - commit an image file only after its last packet, through `IDiskFileIo`'s atomic replace, so no file exists after a failed transfer.
 
   Tests for each, including a stream closed mid-transfer followed by a second transfer that succeeds with neither end restarted. Per FR-087, SC-030 and the edge cases.
-- [ ] T193 [US16] Add `ScenarioTests/AppleLinkAdtProTests.cpp`:
+- [X] T193 [US16] Add `ScenarioTests/AppleLinkAdtProTests.cpp`:
   - boot ADTPro 2.1.0's client disk (a GPL fixture under `UnitTest/Fixtures/AppleLink/` with its `LICENSE` note) in a //c `TestMachine`;
   - send a disk to `AppleLinkHost` and receive one from it over T182's bridge;
   - compare each image byte for byte with the one ADTPro's own host made in T187.

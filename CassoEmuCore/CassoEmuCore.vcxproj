@@ -213,6 +213,9 @@
     <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
     <ClCompile Include="Devices\SerialPortDevice.cpp" />
     <ClCompile Include="Devices\SerialTrafficLog.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkCodec.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkFolder.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkHost.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -791,6 +794,9 @@
     <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
     <ClInclude Include="Devices\SerialPortDevice.h" />
     <ClInclude Include="Devices\SerialTrafficLog.h" />
+    <ClInclude Include="AppleLink\AppleLinkCodec.h" />
+    <ClInclude Include="AppleLink\AppleLinkFolder.h" />
+    <ClInclude Include="AppleLink\AppleLinkHost.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />
     <ClInclude Include="Devices\Ay8910.h" />

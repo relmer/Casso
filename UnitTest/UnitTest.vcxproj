@@ -335,6 +335,8 @@
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
     <ClCompile Include="AppleLink\InProcessByteStreamTests.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkCodecTests.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkHostTests.cpp" />
     <ClCompile Include="AppleLink\ByteStreamSettingsTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
@@ -662,6 +664,8 @@
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
+    <ClInclude Include="AppleLink\AppleLinkCaptures.h" />
+    <ClInclude Include="AppleLink\InMemoryAppleLinkFolder.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
     <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />

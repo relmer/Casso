@@ -1,6 +1,7 @@
-EVERY FILE IN THIS DIRECTORY is a capture of serial traffic between ADTPro's
-own server and its own Apple II client. ADTPro is licensed under the GNU
-General Public License, version 2 or later.
+EVERY FILE IN THIS DIRECTORY is ADTPro material: captures of serial traffic
+between ADTPro's own server and its own Apple II client, and its client
+disk. ADTPro is licensed under the GNU General Public License, version 2 or
+later.
 
     https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -12,8 +13,8 @@ Author:    David Schmidt
 Source:    https://adtpro.com, https://github.com/ADTPro/adtpro
 
 The captures contain bytes ADTPro sent and received, which include its client
-disk's contents, so they are treated as ADTPro material. They are test
-fixtures only: they are not compiled into, linked into, or distributed with
+disk's contents, so they are treated as ADTPro material. Every file here is
+a test fixture only: none is compiled into, linked into, or distributed with
 any Casso binary. No ADTPro source was read to make them or to use them; the
 protocol is implemented from ADTPro's published protocol document and from
 these captures.
@@ -45,6 +46,9 @@ Apple //c booted ADTPro's own client disk, with its port 2 joined to TCP port
                              the send above, with the server's replies to the
                              packet for block 4 dropped in transit: the
                              client's resends about 2 s apart
+
+ADTPRO-2.1.0.DSK is ADTPro's client disk as distributed, unaltered, which
+ScenarioTests boots to drive ADTPro's own client against Casso's host.
 
 The two fault captures were made by filtering the bytes between the TCP port
 and the emulated serial port; the server and client ran unmodified.

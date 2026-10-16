@@ -62,7 +62,8 @@ met with ADTPro's abort reply; raw tracks are the protected-disk follow-on's.
 The virtual-drive packets are unframed. ADTPro's VSDRIVE driver reads with
 Read3 ($03 for drive 1, $05 for drive 2), whose reply has the host's ProDOS
 date and time ahead of the block, and writes with $02 or $04. Each header's
-check is the EOR of the bytes before it in the header, and each block's
+check is the EOR of the bytes before it in the header, except in the reply
+to a write, which ends with the written block's check; and each block's
 check is the EOR of its 512 bytes alone. The driver's first request at
 startup can arrive twice before the host's first reply.
 
