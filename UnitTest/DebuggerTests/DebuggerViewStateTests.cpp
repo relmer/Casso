@@ -3307,7 +3307,8 @@ namespace DebuggerViewStateTests
 
         //  Focus moving between the source and the disassembly switches how
         //  steps go, in whatever mode the session is in, and runs nothing.
-        TEST_METHOD (TheSourceStepLineWorksInEveryMode)
+        //  The action's echo is a line that mode's console runs too.
+        TEST_METHOD (TheSourceStepActionWorksInEveryMode)
         {
             for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
             {
@@ -3319,13 +3320,15 @@ namespace DebuggerViewStateTests
 
                 LoadDebugFile (rig);
 
-                reply = rig.Run (DebuggerViewState::GetSourceStepLine (true, mode), mode);
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (true, mode));
                 Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
-                reply = rig.Run (DebuggerViewState::GetSourceStepLine (false, mode), mode);
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (false, mode));
                 Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
+
+                reply = rig.Run (DebuggerActions::GetSourceStepping (true, mode).echo, mode);
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
                 Assert::AreEqual ((int) 0x0300, (int) rig.controller.GetSession().GetTarget().GetRegisters().pc, where.c_str());
             }

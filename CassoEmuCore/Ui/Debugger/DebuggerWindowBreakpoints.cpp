@@ -588,7 +588,7 @@ void DebuggerWindow::ExportBreakpoints()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode ("BPSAVE " + TextEncoding::WideToNarrow (chosen.wstring()), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;

@@ -1583,21 +1583,6 @@ bool DebuggerViewState::IsHexBytes (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerViewState::GetSourceStepLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerViewState::GetSourceStepLine (bool isSource, CommandMode mode)
-{
-    return GetModeLine (isSource ? "SRC ON" : "SRC OFF", mode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerViewState::GetWinDbgLine
 //
 //  A control's AppleWin line in WinDbg's words: t, p, gu, g, bp, bc and eb.

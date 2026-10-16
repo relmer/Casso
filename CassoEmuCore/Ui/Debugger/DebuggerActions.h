@@ -143,12 +143,19 @@ public:
     static DebuggerAction  GetClearZeroPagePointer   (int slot, CommandMode mode);
     static DebuggerAction  GetEnableZeroPagePointer  (int slot, bool enable, CommandMode mode);
 
-    //  A Memory pane's S over all memory, F, M and MC, each the line the
-    //  session parses as it runs; `items` are S's, as typed.
+    //  A Memory pane's S over all memory, F, M and MC. `items` are S's, as
+    //  typed, which the session parses as it runs.
     static DebuggerAction  GetSearchMemory   (const std::string & items, CommandMode mode);
     static DebuggerAction  GetFillMemory     (Word first, Word last, std::span<const Byte> bytes, CommandMode mode);
     static DebuggerAction  GetMoveMemory     (Word destination, Word first, Word last, CommandMode mode);
     static DebuggerAction  GetCompareMemory  (Word other, Word first, Word last, CommandMode mode);
+
+    //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
+    //  OPEN or SAVEAS, each on a file the user picked.
+    static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
+    static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetSaveBreakpoints  (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetProject          (const std::string & subcommand, const std::string & path, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
     static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 
@@ -187,5 +194,6 @@ public:
     static bool  IsStepAction (DebuggerKeySchemes::Action action);
 
 private:
-    static DebuggerAction  Make (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
+    static DebuggerAction  Make         (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
+    static void            SetRangeFrom (DebugCommand & command, Word other, Word first, Word last);
 };

@@ -46,6 +46,7 @@ namespace DebuggerLooseSourceTests
         void  SetDebuggerMemoryWindow (int, std::optional<Word>)                 override {}
 
         void  RunDebuggerCommandInMode (const std::string & line, CommandMode) override { commands.push_back (line); }
+        void  RunDebuggerAction        (const DebuggerAction & action)       override { commands.push_back (action.echo); verbs.push_back (action.command.verb); }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -79,6 +80,7 @@ namespace DebuggerLooseSourceTests
 
         std::map<std::wstring, std::string>  files;
         std::vector<std::string>             commands;
+        std::vector<DebugVerb>               verbs;
         FakeHostDialogs                      dialogs;
     };
 

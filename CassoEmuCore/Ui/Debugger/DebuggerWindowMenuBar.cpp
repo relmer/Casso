@@ -353,7 +353,7 @@ void DebuggerWindow::SetWindowMenus()
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
-            m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (!m_snapshot->source->stepBySource, m_snapshot->mode));
+            RunAction (DebuggerActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
         }
     });
     row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
@@ -771,7 +771,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
     m_pendingLooseSource = thenShow;
 
 Error:

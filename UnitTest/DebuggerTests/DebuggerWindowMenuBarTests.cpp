@@ -407,9 +407,10 @@ namespace DebuggerMenuBarTests
             row->command->dispatch();
 
             Assert::AreEqual (1, host.dialogs.opens);
-            Assert::AreEqual (1, (int) host.inModeLines.size());
-            Assert::AreEqual (std::string ("SYM LOAD \"C:\\games\\game.dbg\""), host.inModeLines[0]);
-            Assert::IsTrue   (host.inModeModes[0] == CommandMode::AppleWin);
+            Assert::AreEqual (1, host.actions);
+            Assert::AreEqual (std::string ("SYM LOAD \"C:\\games\\game.dbg\""), host.lastAction.echo);
+            Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::LoadSymbols);
+            Assert::AreEqual (std::string ("\"C:\\games\\game.dbg\""), host.lastAction.command.text);
         }
 
 

@@ -677,10 +677,6 @@ public:
     static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line);
     static bool         IsHexBytes    (const std::string & text);
 
-    //  SRC ON or SRC OFF, which the window sends when focus moves between the
-    //  source and the disassembly, in the words of the given mode.
-    static std::string  GetSourceStepLine (bool isSource, CommandMode mode);
-
     //  In GSSquared mode with the command line empty, Space and F10 step and
     //  Return resumes, as GSSquared's own window does, whatever the key
     //  scheme; otherwise nothing, and the key goes where it would have.

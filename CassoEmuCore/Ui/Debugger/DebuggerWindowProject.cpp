@@ -54,7 +54,7 @@ void DebuggerWindow::SaveProjectAs()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode (std::format ("PROJECT SAVEAS \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetProject ("SAVEAS", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;
@@ -85,7 +85,7 @@ void DebuggerWindow::OpenProject()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode (std::format ("PROJECT OPEN \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetProject ("OPEN", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;

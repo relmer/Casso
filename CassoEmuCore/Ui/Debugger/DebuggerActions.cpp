@@ -777,8 +777,13 @@ DebuggerAction DebuggerActions::GetFillMemory (Word first, Word last, std::span<
         line += std::format (" {:02X}", each);
     }
 
-    action            = Make (DebugVerb::FillMemory, line, mode);
-    action.definition = line;
+    action               = Make (DebugVerb::FillMemory, line, mode);
+    action.command.a1    = first;
+    action.command.a2    = last;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
+    action.command.values.assign (bytes.begin(), bytes.end());
+    action.command.mask.assign (bytes.size(), 0xFF);
     return action;
 }
 
@@ -794,12 +799,119 @@ DebuggerAction DebuggerActions::GetFillMemory (Word first, Word last, std::span<
 
 DebuggerAction DebuggerActions::GetMoveMemory (Word destination, Word first, Word last, CommandMode mode)
 {
-    std::string     line   = std::format ("M {:04X} {:04X}:{:04X}", destination, first, last);
-    DebuggerAction  action = Make (DebugVerb::MoveMemory, line, mode);
+    DebuggerAction  action = Make (DebugVerb::MoveMemory, std::format ("M {:04X} {:04X}:{:04X}", destination, first, last), mode);
 
 
 
-    action.definition = line;
+    SetRangeFrom (action.command, destination, first, last);
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::SetRangeFrom
+//
+//  M's and MC's fields: the other address in a3 and the range in a1 and a2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerActions::SetRangeFrom (DebugCommand & command, Word other, Word first, Word last)
+{
+    command.a1    = first;
+    command.a2    = last;
+    command.a3    = other;
+    command.hasA1 = true;
+    command.hasA2 = true;
+    command.hasA3 = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSourceStepping
+//
+//  SRC ON or SRC OFF; the count is 1 for source lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSourceStepping (bool isSource, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SetSourceStepping, isSource ? "SRC ON" : "SRC OFF", mode);
+
+
+
+    action.command.count = isSource ? 1 : 0;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetLoadSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetLoadSymbols (const std::string & path, CommandMode mode)
+{
+    std::string     quoted = std::format ("\"{}\"", path);
+    DebuggerAction  action = Make (DebugVerb::LoadSymbols, "SYM LOAD " + quoted, mode);
+
+
+
+    action.command.text = quoted;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveBreakpoints (const std::string & path, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SaveBreakpoints, "BPSAVE " + path, mode);
+
+
+
+    action.command.text = path;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetProject
+//
+//  PROJECT with its subcommand and a file name, as `SAVEAS "file"`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetProject (const std::string & subcommand, const std::string & path, CommandMode mode)
+{
+    std::string     text   = std::format ("{} \"{}\"", subcommand, path);
+    DebuggerAction  action = Make (DebugVerb::Project, "PROJECT " + text, mode);
+
+
+
+    action.command.text = text;
     return action;
 }
 
@@ -815,12 +927,11 @@ DebuggerAction DebuggerActions::GetMoveMemory (Word destination, Word first, Wor
 
 DebuggerAction DebuggerActions::GetCompareMemory (Word other, Word first, Word last, CommandMode mode)
 {
-    std::string     line   = std::format ("MC {:04X} {:04X}:{:04X}", other, first, last);
-    DebuggerAction  action = Make (DebugVerb::CompareMemory, line, mode);
+    DebuggerAction  action = Make (DebugVerb::CompareMemory, std::format ("MC {:04X} {:04X}:{:04X}", other, first, last), mode);
 
 
 
-    action.definition = line;
+    SetRangeFrom (action.command, other, first, last);
     return action;
 }
 

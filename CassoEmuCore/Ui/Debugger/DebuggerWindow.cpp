@@ -2105,7 +2105,7 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
 
     if (m_snapshot->source->stepBySource != isSource)
     {
-        m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (isSource, m_snapshot->mode));
+        RunAction (DebuggerActions::GetSourceStepping (isSource, m_snapshot->mode));
     }
 }
 
@@ -2253,7 +2253,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Symbols)
         {
-            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (path)), CommandMode::AppleWin);
+            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));
             continue;
         }
 
@@ -2318,7 +2318,7 @@ void DebuggerWindow::OpenSourcePath (const std::wstring & path)
     {
         if (m_host->DoesDebuggerFileExist (beside))
         {
-            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (beside)), CommandMode::AppleWin);
+            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), GetMode()));
             m_pendingLooseSource = path;
             break;
         }
