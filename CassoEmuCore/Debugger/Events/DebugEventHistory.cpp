@@ -106,8 +106,10 @@ Error:
 //  DebugEventHistory::AddStretch
 //
 //  The stretch whose keyframe is at the bounds' start, a keyframe history
-//  must have; the end's cycle is the next keyframe's, or zero before a gap,
-//  since KeyframeInfo has no cycle for a gap's start.
+//  must have; the end's cycle is the next keyframe's when the bounds end
+//  there, and zero otherwise: before a gap, since KeyframeInfo has no cycle
+//  for a gap's start, and for part of a stretch or the live one after the
+//  newest keyframe, which end at the machine's position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,8 +127,9 @@ HRESULT DebugEventHistory::AddStretch (
 
 
     isFound = m_keyframes->TryFindByPosition (bounds.startPosition, index);
-    hasNext = isFound && index + 1 < m_keyframes->GetCount();
-    CBREx (hasNext, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+    CBREx (isFound, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hasNext = index + 1 < m_keyframes->GetCount();
 
     hr = m_keyframes->CopyPacked (bounds.startPosition, m_noUnpacker, stretch.start, copy);
     CHR (hr);
@@ -137,7 +140,8 @@ HRESULT DebugEventHistory::AddStretch (
     stretch.startCycle    = m_keyframes->GetInfo (index).cycle;
     stretch.journalIndex  = m_keyframes->GetInfo (index).journalIndex;
     stretch.endPosition   = bounds.endPosition;
-    stretch.endCycle      = bounds.hasGapAfter ? 0 : m_keyframes->GetInfo (index + 1).cycle;
+    stretch.endCycle      = (hasNext && !bounds.hasGapAfter && bounds.endPosition == m_keyframes->GetInfo (index + 1).position)
+                          ? m_keyframes->GetInfo (index + 1).cycle : 0;
 
     ioJob.stretches.push_back (std::move (stretch));
 

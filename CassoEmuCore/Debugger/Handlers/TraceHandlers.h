@@ -26,6 +26,10 @@ class TraceHandlers : public IDebugCommandHandler
 public:
     static constexpr uint32_t  kDefaultCount = 20;
 
+    //  HISTORY SAVE writes at most the newest this many: with history the
+    //  trace runs to millions of instructions.
+    static constexpr size_t    kMaxSaved     = 1'000'000;
+
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
     //  Fills each entry's instruction text and symbols.

@@ -863,6 +863,11 @@ std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
 
 
 
+    if (!record.isAvailable)
+    {
+        return record.isRebuilding ? "  (being rebuilt from history)" : "  (not available: history could not be replayed here)";
+    }
+
     line = std::format ("{:>12}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
                         record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
                         record.a, record.x, record.y, record.sp, FormatFlags (record.p));

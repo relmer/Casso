@@ -10,6 +10,7 @@
 #include "Debugger/Events/MachineEventFeed.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Shell/ScratchEventReplayer.h"
+#include "Shell/TraceHistory.h"
 
 class MachineHost;
 class ReverseController;
@@ -69,8 +70,12 @@ public:
     void  Start (ReverseController * controller);
     void  Stop  ();
 
-    //  Takes the stretches rebuilt since the last call.
-    void  Pump  ();
+    //  Takes the stretches rebuilt since the last call. True when the trace's
+    //  history took any, so its pane is built again.
+    bool  Pump  ();
+
+    //  The instruction trace's depth, from the same history.
+    TraceHistory &  GetTraceHistory () { return m_trace; }
 
     void  SetOpen        (DebugLogKind kind, bool isOpen);
     void  RequestEarlier (DebugLogKind kind);
@@ -165,6 +170,7 @@ private:
     Log<InputEvent>      m_input;
     Log<IoEvent>         m_video;
     Log<IoEvent>         m_sound;
+    TraceHistory         m_trace          { m_machine, m_history };
     uint64_t             m_videoClearedAt = 0;
     uint64_t             m_soundClearedAt = 0;
     bool                 m_isVideoCleared = false;

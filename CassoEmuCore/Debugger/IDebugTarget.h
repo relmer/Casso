@@ -179,6 +179,11 @@ public:
     virtual size_t              GetTraceSize      () const = 0;
     virtual void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const = 0;
 
+    //  The index of the trace's first entry at or after cycle, when the
+    //  target can find it faster than a search through its entries; false
+    //  otherwise.
+    virtual bool                TryFindTraceCycle (uint64_t cycle, size_t & outIndex) const { (void) cycle; (void) outIndex; return false; }
+
     // The access heat map. On, every bus access and opcode fetch is counted;
     // off frees it, and the machine does no work for it. Fold brings the heat
     // up to the current cycle and gives the map, or null while it is off.

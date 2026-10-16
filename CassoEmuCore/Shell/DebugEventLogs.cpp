@@ -85,6 +85,7 @@ void DebugEventLogs::Start (ReverseController * controller)
     m_input.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_video.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_sound.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_trace.Start (controller);
 
     m_feed.AttachToCaches (m_machine,
                            { &m_disk.cache, &m_input.cache, &m_video.cache, &m_sound.cache },
@@ -140,6 +141,8 @@ void DebugEventLogs::Stop()
     m_disk.wantedBefore  = 0;
     m_input.wantedBefore = 0;
 
+    m_trace.Stop();
+
     m_controller = nullptr;
     m_history.Attach (nullptr);
 }
@@ -154,10 +157,12 @@ void DebugEventLogs::Stop()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugEventLogs::Pump()
+bool DebugEventLogs::Pump()
 {
     m_disk.replayer.Pump();
     m_input.replayer.Pump();
+
+    return m_trace.Pump();
 }
 
 
@@ -336,6 +341,7 @@ void DebugEventLogs::OnKeyframe (uint64_t position)
 void DebugEventLogs::OnLive (uint64_t position)
 {
     EndAt (position);
+    m_trace.OnHistoryChanged();
 
     m_feed.Reseed();
 
@@ -409,6 +415,7 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
     m_input.replayer.OnHistoryCut (position);
     m_video.replayer.OnHistoryCut (position);
     m_sound.replayer.OnHistoryCut (position);
+    m_trace.OnHistoryChanged();
 }
 
 

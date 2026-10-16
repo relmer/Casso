@@ -728,6 +728,16 @@ into stops on the handler's first instruction.
 100,000: the cycle count, the registers before it, and the memory access it
 made, with symbols. `HISTORY OFF` stops recording and keeps what it has.
 
+While history recording is on (Tools > Options), the trace starts where history
+starts, `HISTORY ON` or not: older instructions are rebuilt from
+history by replaying it, at once while the machine is stopped and in the
+background while it runs, and the 100,000 newest are a cache that makes the
+newest quick to list. While the machine runs, the trace ends at history's
+newest keyframe unless `HISTORY ON` is set, and then the ring has the
+instructions since. A row
+history cannot replay, because its disks were changed since, reads "Not
+available". `HISTORY SAVE` writes at most the newest 1,000,000 entries.
+
 ```text
 HISTORY                  the newest 20 entries
 HISTORY 1175751201 40    40 entries from the first at or after that cycle (decimal)

@@ -42,10 +42,5 @@ DebuggerViewSnapshot DebugViewBuilder::Build (const DebuggerViewState & view, co
 
     snapshot = view.BuildCaptured (m_session, input.isPaused, m_runner);
 
-    if (input.historyTrace.has_value())
-    {
-        DebuggerViewState::ApplyHistoryTrace (m_session, *input.historyTrace, snapshot);
-    }
-
     return snapshot;
 }

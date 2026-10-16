@@ -61,6 +61,11 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 
 
 
+        if (!record.isAvailable)
+        {
+            continue;
+        }
+
         if (hasInstructionSet)
         {
             line = DisassemblyLine();
@@ -144,6 +149,11 @@ size_t TraceHandlers::FindCycle (IDebugTarget & target, uint64_t cycle)
     std::vector<TraceRecord>   one;
 
 
+
+    if (target.TryFindTraceCycle (cycle, low))
+    {
+        return low;
+    }
 
     while (low < high)
     {
@@ -231,15 +241,17 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     IDebugTarget             & target  = session.GetTarget();
     IFileSystem              * files   = session.GetFileSystem();
     size_t                     total   = target.GetTraceSize();
+    size_t                     first   = (total > kMaxSaved) ? total - kMaxSaved : 0;
     std::vector<TraceRecord>   entries;
     std::string                text;
+    std::string                saved;
 
 
 
     CBRF (files != nullptr, reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files."));
     CBRF (total != 0,       reply.SetError (CommandStatus::Error, "no trace", "The trace is empty. Use HISTORY ON to start one."));
 
-    target.GetTraceWindow (0, total, entries);
+    target.GetTraceWindow (first, total - first, entries);
     Describe (session, entries);
 
     for (const TraceRecord & record : entries)
@@ -250,7 +262,9 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     hr = files->WriteAllText (session.ResolvePath (command.text), text);
     CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text)));
 
-    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", entries.size(), entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
+    saved = (first > 0) ? std::format ("the newest {} of {}", entries.size(), total) : std::format ("{}", entries.size());
+
+    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
 
 Error:
     return;

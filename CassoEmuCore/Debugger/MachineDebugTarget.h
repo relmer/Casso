@@ -77,6 +77,7 @@ public:
     Word                        GetInstructionAddress   () const override;
     uint64_t            GetBusCycle       () const override;
     size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
+    bool                TryFindTraceCycle (uint64_t cycle, size_t & outIndex) const override { return m_trace.TryFindCycle (cycle, outIndex); }
     void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
 
     TraceController   & GetTrace          () { return m_trace; }

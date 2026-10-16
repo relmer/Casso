@@ -893,6 +893,12 @@ JsonValue ReplyJson::MakeTraceRecord (const TraceRecord & record)
                                       { "symbol",    record.accessSymbol.empty() ? JsonValue (nullptr) : MakeString (record.accessSymbol) } });
     }
 
+    if (!record.isAvailable)
+    {
+        return JsonValue (Members { { "available",  JsonValue (false) },
+                                    { "rebuilding", JsonValue (record.isRebuilding) } });
+    }
+
     return JsonValue (Members { { "cycles",      MakeNumber ((int64_t) record.cycles) },
                                 { "pc",          MakeNumber ((int64_t) record.pc) },
                                 { "bytes",       JsonValue (std::vector<JsonValue> { MakeNumber (record.opcode),

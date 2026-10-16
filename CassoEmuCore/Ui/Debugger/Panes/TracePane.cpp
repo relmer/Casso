@@ -189,6 +189,14 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     record = &m_entries[(size_t) (index - m_first)];
 
+    //  An instruction history could not replay, or is replaying now.
+    if (!record->isAvailable)
+    {
+        out[4].text = record->isRebuilding ? L"Rebuilding from history" : L"Not available: history could not be replayed here";
+        out[4].dim  = true;
+        return;
+    }
+
     if (record->hasAccess)
     {
         access = std::format ("{} {:04X}={:02X} {}", record->accessIsWrite ? 'W' : 'R',

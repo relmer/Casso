@@ -972,6 +972,7 @@
     <ClCompile Include="DebuggerTests\BasicStopTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointNameTests.cpp" />
     <ClCompile Include="DebuggerTests\ProjectShellTests.cpp" />
+    <ClCompile Include="EmuTests\TraceHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugProjectTests.cpp" />
     <ClCompile Include="EmuTests\ReverseNoCallerTests.cpp" />
     <ClCompile Include="EmuTests\ReverseStepOutSeekTests.cpp" />

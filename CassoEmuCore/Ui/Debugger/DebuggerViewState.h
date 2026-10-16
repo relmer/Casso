@@ -494,13 +494,6 @@ public:
     static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
     static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
 
-    //  Behind live, the trace pane lists the instructions that led to the
-    //  current position, at most kHistoryTraceRows of them, in place of the
-    //  live trace.
-    static constexpr size_t  kHistoryTraceRows = 1000;
-
-    static void         ApplyHistoryTrace   (DebugSession & session, std::vector<TraceRecord> entries, DebuggerViewSnapshot & snapshot);
-
     //  The BASIC panes: while one is visible each snapshot includes the
     //  Applesoft program; with none visible the program is not read.
     void                 SetBasicShown   (bool isVisible) { m_isBasicShown = isVisible; }

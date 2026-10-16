@@ -1953,18 +1953,11 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
     bool                        isPaused = m_cpuManager.IsPaused();
     auto                        capture  = std::make_shared<DebugViewCapture>();
     uint64_t                    first    = 0;
-    std::vector<TraceRecord>    entries;
 
 
 
     m_debugViewState.BuildLive (session, live, isPaused);
     live.history = GetHistoryStatus();
-
-    if (live.history.isBehindLive && m_reverseHost != nullptr)
-    {
-        m_reverseHost->GetRecentTrace (DebuggerViewState::kHistoryTraceRows, entries);
-        input.historyTrace = std::move (entries);
-    }
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
 
@@ -2198,6 +2191,11 @@ void ShellDebugger::CloseDebugger()
     SetDebugSession    (nullptr);
     SetReverseStopTest (nullptr);
 
+    if (m_debugController != nullptr)
+    {
+        m_debugController->GetTarget().GetTrace().SetHistory (nullptr);
+    }
+
     //  The panes went with the window; the logs record on.
     m_eventLogs.SetOpen (DebugLogKind::Disk,  false);
     m_eventLogs.SetOpen (DebugLogKind::Input, false);
@@ -2268,6 +2266,11 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     SetReverseStopTest (&m_debugController->GetReverseStopTest());
 
     m_debugController->GetSession().SetIoEventSource (&m_eventLogs);
+
+    //  The trace's older instructions are history's, rebuilt at once while
+    //  the machine is stopped and in the background while it runs.
+    m_eventLogs.GetTraceHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
+    m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
 
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
@@ -2451,7 +2454,11 @@ void ShellDebugger::ServiceEventLogs()
 
 
 
-    m_eventLogs.Pump();
+    //  A stretch of the trace rebuilt in the background is in the next snapshot.
+    if (m_eventLogs.Pump())
+    {
+        m_isDebugViewDirty = true;
+    }
 
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);

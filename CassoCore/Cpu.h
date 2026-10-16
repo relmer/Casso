@@ -334,6 +334,11 @@ public:
     // Stops recording and keeps what the ring holds.
     void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; UpdateFetchObserved(); }
 
+    // Empties the ring and starts tracing again into the buffer it has, with no new
+    // allocation; nothing when there is no buffer.
+    void     RestartTrace   ()       { m_traceHead = 0; m_traceCount = 0; m_pendingTraceIntr = kTraceIntrNone; m_traceEnabled = m_traceCapacity != 0; UpdateFetchObserved(); }
+    size_t   GetTraceCapacity () const { return m_traceCapacity; }
+
     // The opcodes, a 256-entry table, whose fetches the watcher is told of,
     // with the fetch after each; null for none. The table is read in place.
     void     SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher);

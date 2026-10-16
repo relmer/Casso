@@ -477,6 +477,8 @@ struct TraceRecord
     Byte         sp            = 0;
     Byte         p             = 0;
     bool         isInterrupt   = false;   // the first instruction of an interrupt handler
+    bool         isAvailable   = true;    // false when history could not be replayed there, or not yet
+    bool         isRebuilding  = false;   // history's rebuild of it is running
     bool         hasAccess     = false;
     bool         accessIsWrite = false;
     Byte         accessData    = 0;
