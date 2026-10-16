@@ -89,6 +89,29 @@ public:
     bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
+    //  Compare with...: the differing bytes marked, the other range's values
+    //  drawn in their place or not, and the comparison ended.
+    void  SetComparison   (const std::vector<CompareDifference> & differences);
+    void  ToggleShowOther ()       { m_model.SetShowOther (!m_model.IsShowingOther()); Refresh(); }
+    void  ClearComparison ()       { m_model.ClearComparison(); Refresh(); }
+    bool  HasComparison   () const { return m_model.HasComparison(); }
+    bool  IsShowingOther  () const { return m_model.IsShowingOther(); }
+
+    //  The bytes from an address, selected and brought into view, as a found
+    //  match is.
+    void  SelectRange     (Word address, size_t count);
+
+    //  The first and last addresses selected; none with nothing selected.
+    std::optional<std::pair<Word, Word>>  GetSelectedRange () const
+    {
+        if (!m_view->HasSelection())
+        {
+            return std::nullopt;
+        }
+
+        return std::pair<Word, Word> { m_model.GetAddressOf (m_view->GetSelectionFirst()), m_model.GetAddressOf (m_view->GetSelectionLast()) };
+    }
+
     //  What Undo and Redo would take back or make again, as "changed 2 bytes
     //  at $0300", or empty when there is nothing.
     std::wstring  GetUndoText () const { return CanUndo() ? m_model.GetUndoText() : std::wstring(); }
@@ -121,4 +144,5 @@ private:
     uint32_t               m_romArgb     = 0xFF7FB2E5;
     uint32_t               m_ioArgb      = 0xFF909090;
     uint32_t               m_unreadArgb  = 0xFF707070;
+    uint32_t               m_differsArgb = 0xFFE8A317;
 };

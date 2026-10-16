@@ -161,6 +161,41 @@ public:
 
 
 
+    //  A Memory pane's Find, Fill, Copy and Compare: S's hits, F's bytes, M's
+    //  copy and MC's differences, the hits and differences in the snapshot
+    //  for the pane.
+    TEST_METHOD (TheMemoryPanesCommandsRunAndTheirResultsReachTheSnapshot)
+    {
+        ControllerRig         rig;
+        CommandMode           aw      = CommandMode::AppleWin;
+        const Byte            bytes[] = { 0x5A, 0xA5 };
+        DebuggerViewSnapshot  snapshot;
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
+        Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x6002), L"the pattern repeats");
+        Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x6003));
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
+        Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x7001), L"copied");
+
+        rig.machine.GetMemoryBus().WriteByte (0x7002, 0x00);
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSearchMemory ("5A A5 5A", aw));
+
+        snapshot = rig.view.Build (rig.controller.GetSession());
+
+        Assert::AreEqual ((size_t) 1, snapshot.comparison.size(), L"one byte differs");
+        Assert::AreEqual ((Word) 0x6002, snapshot.comparison[0].address);
+        Assert::AreEqual ((Byte) 0x00, snapshot.comparison[0].otherValue);
+        Assert::IsTrue   (snapshot.compareSerial > 0);
+        Assert::IsTrue   (std::ranges::find (snapshot.searchHits, (Word) 0x6000) != snapshot.searchHits.end(), L"the fill's start is a hit");
+        Assert::IsTrue   (snapshot.searchSerial > 0);
+    }
+
+
+
     //  A load from the File menu runs with no parser and writes the file's
     //  bytes at the address given.
     TEST_METHOD (ALoadFromTheMenuWritesTheFilesBytes)

@@ -316,7 +316,14 @@ public:
 
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
-    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); }
+    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
+    uint64_t              GetSearchSerial      () const                           { return m_searchSerial; }
+
+    //  The last MC's differences, numbered as the searches are, for a Memory
+    //  pane's comparison.
+    const std::vector<CompareDifference> & GetCompareResults () const              { return m_compareResults; }
+    void                  SetCompareResults    (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
+    uint64_t              GetCompareSerial     () const                           { return m_compareSerial; }
 
     // Line-assembly mode: each following line is assembled at the address,
     // and a blank line ends it.
@@ -506,6 +513,9 @@ private:
     std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
     std::vector<Word>                     m_searchResults;
+    uint64_t                              m_searchSerial  = 0;
+    std::vector<CompareDifference>        m_compareResults;
+    uint64_t                              m_compareSerial = 0;
 
     //  Counts the call record's starts, ends and resets; and how far along a
     //  rebuild of it from history is, while one runs.

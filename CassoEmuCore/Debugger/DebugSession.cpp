@@ -3282,6 +3282,10 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.callRecord       = m_callRecorder.GetRecord();
     out.callRebuild      = m_callRebuildProgress;
     out.cycleMarker      = m_cycleMarker;
+    out.searchResults    = m_searchResults;
+    out.searchSerial     = m_searchSerial;
+    out.compareResults   = m_compareResults;
+    out.compareSerial    = m_compareSerial;
     out.fileSystem       = m_fileSystem;
     out.currentDirectory = m_currentDirectory;
 
@@ -3343,6 +3347,10 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_stepBySource     = view.isStepBySource;
     m_callMechanism    = view.callMechanism;
     m_cycleMarker      = view.cycleMarker;
+    m_searchResults    = view.searchResults;
+    m_searchSerial     = view.searchSerial;
+    m_compareResults   = view.compareResults;
+    m_compareSerial    = view.compareSerial;
     m_fileSystem       = view.fileSystem;
     m_currentDirectory = view.currentDirectory;
 

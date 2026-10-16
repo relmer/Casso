@@ -142,6 +142,13 @@ public:
     static DebuggerAction  GetAddZeroPagePointer     (Byte address, CommandMode mode);
     static DebuggerAction  GetClearZeroPagePointer   (int slot, CommandMode mode);
     static DebuggerAction  GetEnableZeroPagePointer  (int slot, bool enable, CommandMode mode);
+
+    //  A Memory pane's S over all memory, F, M and MC, each the line the
+    //  session parses as it runs; `items` are S's, as typed.
+    static DebuggerAction  GetSearchMemory   (const std::string & items, CommandMode mode);
+    static DebuggerAction  GetFillMemory     (Word first, Word last, std::span<const Byte> bytes, CommandMode mode);
+    static DebuggerAction  GetMoveMemory     (Word destination, Word first, Word last, CommandMode mode);
+    static DebuggerAction  GetCompareMemory  (Word other, Word first, Word last, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
     static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 

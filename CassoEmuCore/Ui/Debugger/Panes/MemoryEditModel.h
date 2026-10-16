@@ -43,6 +43,9 @@ public:
     //  A byte no read has reached yet, whose value and region are unknown.
     static constexpr uint8_t  kMarkUnread  = 4;
 
+    //  A byte that differs from its counterpart in the range compared with.
+    static constexpr uint8_t  kMarkDiffers = 5;
+
     //  The regions a window outlines: one for each run with a label of its
     //  own, every slot's ROM apart from the next. Main RAM is in none.
     static constexpr uint16_t  kRegionRom          = 1;
@@ -101,6 +104,14 @@ public:
     //  was refused.
     std::optional<MemoryRegion>  TryGetRegion (Word address) const;
 
+    //  A comparison's differing bytes, each with the other range's value,
+    //  marked; with `showOther`, drawn as the other range's values.
+    void  SetComparison   (std::map<Word, Byte> others, bool showOther) { m_others = std::move (others); m_showOther = showOther; }
+    void  ClearComparison ()       { m_others.clear(); m_showOther = false; }
+    bool  HasComparison   () const { return !m_others.empty(); }
+    bool  IsShowingOther  () const { return m_showOther; }
+    void  SetShowOther    (bool showOther) { m_showOther = showOther; }
+
     bool  Undo         ();
     bool  Redo         ();
     bool  CanUndo      () const { return m_isPaused && !m_history.empty(); }
@@ -134,6 +145,10 @@ private:
     bool                                      m_isPaused = true;
     mutable std::vector<std::optional<Byte>>  m_bytes;
     std::vector<MemoryRegion>                 m_regions;
+
+    //  A comparison's other values by address, and whether they are drawn.
+    std::map<Word, Byte>                      m_others;
+    bool                                      m_showOther = false;
 
     //  Every read's bytes and regions, kept by address, so a window scrolled
     //  past its read draws what it was last shown there rather than unmarked

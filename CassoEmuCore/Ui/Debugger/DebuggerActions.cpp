@@ -740,6 +740,96 @@ DebuggerAction DebuggerActions::GetEnableZeroPagePointer (int slot, bool enable,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetSearchMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSearchMemory (const std::string & items, CommandMode mode)
+{
+    std::string     line   = "S 0000:FFFF " + items;
+    DebuggerAction  action = Make (DebugVerb::SearchMemory, line, mode);
+
+
+
+    action.definition = line;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetFillMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetFillMemory (Word first, Word last, std::span<const Byte> bytes, CommandMode mode)
+{
+    std::string     line = std::format ("F {:04X}:{:04X}", first, last);
+    DebuggerAction  action;
+
+
+
+    for (Byte each : bytes)
+    {
+        line += std::format (" {:02X}", each);
+    }
+
+    action            = Make (DebugVerb::FillMemory, line, mode);
+    action.definition = line;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetMoveMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetMoveMemory (Word destination, Word first, Word last, CommandMode mode)
+{
+    std::string     line   = std::format ("M {:04X} {:04X}:{:04X}", destination, first, last);
+    DebuggerAction  action = Make (DebugVerb::MoveMemory, line, mode);
+
+
+
+    action.definition = line;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetCompareMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetCompareMemory (Word other, Word first, Word last, CommandMode mode)
+{
+    std::string     line   = std::format ("MC {:04X} {:04X}:{:04X}", other, first, last);
+    DebuggerAction  action = Make (DebugVerb::CompareMemory, line, mode);
+
+
+
+    action.definition = line;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetSaveHistory
 //
 ////////////////////////////////////////////////////////////////////////////////

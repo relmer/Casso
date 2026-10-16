@@ -33,6 +33,7 @@
 #include "Ui/Debugger/MemoryFileDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/ByteDialog.h"
+#include "Ui/Debugger/TextDialog.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
@@ -618,6 +619,11 @@ protected:
     //  A byte for Push byte..., none when canceled; a test overrides it.
     virtual std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label);
 
+    //  A line typed for a Memory pane's Find, Fill, Copy or Compare, none when
+    //  canceled; a test overrides it.
+    virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
+                                                        TextDialog::CheckFn check);
+
     virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
     bool                       ConfirmDeleteRangeSet  ();
 
@@ -953,6 +959,13 @@ private:
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     LoadFileIntoMemory   ();
     void     PushStackByte        ();
+    void     FindInMemory         (MemoryPane * pane);
+    void     StepMemoryFind       (bool forward);
+    void     FillMemorySelection  (MemoryPane * pane);
+    void     CopyMemorySelection  (MemoryPane * pane);
+    void     CompareMemorySelection (MemoryPane * pane);
+    void     ApplyMemoryResults   ();
+    static size_t  GetSearchLength (const std::wstring & items);
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
@@ -1176,6 +1189,28 @@ private:
 
     bool                                    m_swallowSpace       = false;
     bool                                    m_swallowChordChar   = false;
+
+    //  A Memory pane's last Find: the pane, the bytes a match covers, the hit
+    //  it is on, and the serial of the snapshot's hits it waits to replace;
+    //  and a Compare with... waiting for its differences the same way.
+    struct MemoryFind
+    {
+        int       pane       = -1;
+        size_t    length     = 1;
+        int       at         = -1;
+        uint64_t  awaited    = 0;
+        bool      isAwaiting = false;
+    };
+
+    struct MemoryCompare
+    {
+        int       pane       = -1;
+        uint64_t  awaited    = 0;
+        bool      isAwaiting = false;
+    };
+
+    MemoryFind                              m_memoryFind;
+    MemoryCompare                           m_memoryCompare;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
     std::optional<Word>                     m_navigatedTo;

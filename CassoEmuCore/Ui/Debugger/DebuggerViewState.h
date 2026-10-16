@@ -361,6 +361,13 @@ struct DebuggerViewSnapshot
 
     std::optional<GoTo>  goTo;
 
+    //  The last S or SH's hits and the last MC's differences, each with a
+    //  serial that moves when a new one replaces it.
+    std::vector<Word>               searchHits;
+    uint64_t                        searchSerial  = 0;
+    std::vector<CompareDifference>  comparison;
+    uint64_t                        compareSerial = 0;
+
     //  The Applesoft program while a BASIC pane is open: whether Applesoft
     //  is in the $D000 bank, its lines when the chain from TXTTAB ends as it
     //  should, the line being run (none in direct mode or at the ] prompt)

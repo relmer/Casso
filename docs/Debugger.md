@@ -1336,6 +1336,18 @@ a narrow pane moves into the bar's **...** menu. Type over the hex or the
 text to edit memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that
 window.
 
+**Edit > Find**, Ctrl+F or **Find...** on the window's menu searches all of
+memory as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
+bit set), `??` for any byte and `?n` or `n?` for half of one. The window goes
+to the first match and selects it, and F3 and Shift+F3 walk the matches, round
+to the other end. On a selection, while the machine is stopped, **Fill
+selection...** fills it with the bytes typed, repeated, as `F` does, and
+**Copy selection to...** copies it to the address typed, as `M` does.
+**Compare with...** compares the selection with the range at the address
+typed, as `MC` does: the bytes that differ are drawn in the result color, and
+each one's tip has the other range's value. **View the other range's values**
+draws those values in their place, and **Clear comparison** ends it.
+
 A window reads the bytes around its rows as it scrolls. Until a read reaches
 rows scrolled into view, they show what an earlier read left there, in the
 same colors; rows no read has reached yet show zeros in a muted color, and

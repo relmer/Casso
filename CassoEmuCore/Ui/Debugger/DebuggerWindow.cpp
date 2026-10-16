@@ -1463,6 +1463,8 @@ void DebuggerWindow::ApplyMemoryWindows()
         }
     }
 
+    ApplyMemoryResults();
+
     m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
     m_stackHistory.OnSnapshot    (m_snapshot->isPaused, m_snapshot->pc);
 
@@ -2901,6 +2903,23 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     {
         ShowPane  (DebuggerKeySchemes::GetPaneOfAction (action));
         FocusPane (DebuggerKeySchemes::GetPaneOfAction (action));
+        return true;
+    }
+
+    //  In a Memory pane, Find searches memory and F3 and Shift+F3 walk the
+    //  matches.
+    if (GetFocusedMemoryPane() != nullptr && (action == DebuggerKeySchemes::Action::Find || action == DebuggerKeySchemes::Action::FindNext ||
+                                              action == DebuggerKeySchemes::Action::FindPrevious))
+    {
+        if (action != DebuggerKeySchemes::Action::Find && m_memoryFind.pane == GetFocusedMemoryPane()->GetId())
+        {
+            StepMemoryFind (action == DebuggerKeySchemes::Action::FindNext);
+        }
+        else
+        {
+            FindInMemory (GetFocusedMemoryPane());
+        }
+
         return true;
     }
 
@@ -6226,6 +6245,26 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
         items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
         items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
+        items.push_back ({ L"Find...",                [this, memory] { FindInMemory (memory); } });
+
+        //  On a selection: F and M write the machine, so only while it is
+        //  stopped; MC reads it, so at any time.
+        if (memory->GetSelectedRange().has_value())
+        {
+            if (m_snapshot->isPaused)
+            {
+                items.push_back ({ L"Fill selection...",    [this, memory] { FillMemorySelection (memory); } });
+                items.push_back ({ L"Copy selection to...", [this, memory] { CopyMemorySelection (memory); } });
+            }
+
+            items.push_back ({ L"Compare with...", [this, memory] { CompareMemorySelection (memory); } });
+        }
+
+        if (memory->HasComparison())
+        {
+            items.push_back ({ memory->IsShowingOther() ? L"View this range's values" : L"View the other range's values", [memory] { memory->ToggleShowOther(); } });
+            items.push_back ({ L"Clear comparison", [memory] { memory->ClearComparison(); } });
+        }
 
         if (memory->CanUndo())
         {

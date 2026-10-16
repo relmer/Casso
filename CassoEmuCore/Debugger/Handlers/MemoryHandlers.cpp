@@ -292,6 +292,7 @@ void MemoryHandlers::Compare (DebugSession & session, const DebugCommand & comma
         }
     }
 
+    session.SetCompareResults (data.differences);
     reply.data = data;
 }
 

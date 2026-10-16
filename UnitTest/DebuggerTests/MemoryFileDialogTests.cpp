@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/MemoryFileDialog.h"
 #include "Ui/Debugger/ByteDialog.h"
+#include "Ui/Debugger/TextDialog.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "CppUnitTest.h"
@@ -109,6 +110,25 @@ namespace DebuggerTests
             Assert::IsFalse  (ByteDialog::TryParseByte (L"100", value), L"more than a byte");
             Assert::IsFalse  (ByteDialog::TryParseByte (L"", value));
             Assert::IsFalse  (ByteDialog::TryParseByte (L"zz", value));
+        }
+
+
+
+        TEST_METHOD (TypedBytesAndAddressesAreHex)
+        {
+            std::vector<Byte>  bytes;
+            Word               address = 0;
+
+
+
+            Assert::IsTrue   (TextDialog::TryParseBytes (L" A9 $20  7 ", bytes));
+            Assert::IsTrue   ((std::vector<Byte> { 0xA9, 0x20, 0x07 }) == bytes);
+            Assert::IsFalse  (TextDialog::TryParseBytes (L"", bytes), L"at least one");
+            Assert::IsFalse  (TextDialog::TryParseBytes (L"A9 1234", bytes), L"bytes only");
+
+            Assert::IsTrue   (TextDialog::TryParseAddress (L"$6000", address));
+            Assert::AreEqual ((Word) 0x6000, address);
+            Assert::IsFalse  (TextDialog::TryParseAddress (L"10000", address));
         }
 
 

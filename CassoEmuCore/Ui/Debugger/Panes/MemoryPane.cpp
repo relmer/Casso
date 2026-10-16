@@ -81,6 +81,10 @@ void MemoryPane::Configure (HWND hwnd)
         {
             outArgb = m_unreadArgb;
         }
+        else if (mark == MemoryEditModel::kMarkDiffers)
+        {
+            outArgb = m_differsArgb;
+        }
 
         return mark != MemoryEditModel::kMarkNone;
     });
@@ -111,6 +115,7 @@ void MemoryPane::SetTextColors (const DebuggerTextColors::Set & colors)
     m_romArgb     = colors.rom;
     m_ioArgb      = colors.io;
     m_unreadArgb  = colors.muted;
+    m_differsArgb = colors.result;
 
     regions.rom     = colors.rom;
     regions.io      = colors.io;
@@ -172,6 +177,63 @@ void MemoryPane::FollowScroll()
         m_requested = start;
         m_move (m_id, *start);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetComparison
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetComparison (const std::vector<CompareDifference> & differences)
+{
+    std::map<Word, Byte>  others;
+
+
+
+    for (const CompareDifference & each : differences)
+    {
+        others[each.address] = each.otherValue;
+    }
+
+    m_model.SetComparison (std::move (others), false);
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SelectRange
+//
+//  The view's offsets start at the model's phase, so an address's offset is
+//  its distance from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SelectRange (Word address, size_t count)
+{
+    uint64_t  offset = 0;
+
+
+
+    GoTo (address);
+    offset = (uint64_t) (Word) (address - m_model.GetPhase());
+
+    m_view->SelectByte (offset, DxuiHexView::Column::Hex);
+
+    if (count > 1)
+    {
+        m_view->ExtendSelectionTo (offset + count - 1);
+    }
+
+    m_view->EnsureByteVisible (offset);
 }
 
 

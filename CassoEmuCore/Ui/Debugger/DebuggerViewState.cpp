@@ -210,6 +210,11 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     snapshot.callStack = session.GetCallStack();
 
+    snapshot.searchHits    = session.GetSearchResults();
+    snapshot.searchSerial  = session.GetSearchSerial();
+    snapshot.comparison    = session.GetCompareResults();
+    snapshot.compareSerial = session.GetCompareSerial();
+
     for (const WatchEntry & entry : watches.entries)
     {
         snapshot.watches.push_back ({ entry.id, entry.address,

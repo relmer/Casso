@@ -151,9 +151,17 @@ void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 
     for (size_t i = 0; i < out.size(); i++)
     {
+        Word  address = GetAddressOf (offset + i);
+        auto  other   = m_others.find (address);
+
         value.reset();
 
-        out[i] = TryGetKnown (GetAddressOf (offset + i), value, region) ? value.value_or (0) : 0;
+        out[i] = TryGetKnown (address, value, region) ? value.value_or (0) : 0;
+
+        if (m_showOther && other != m_others.end())
+        {
+            out[i] = other->second;
+        }
     }
 }
 
@@ -187,6 +195,12 @@ void MemoryEditModel::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
         Word  address = GetAddressOf (offset + i);
 
         out[i] = kMarkNone;
+
+        if (m_others.contains (address))
+        {
+            out[i] = kMarkDiffers;
+            continue;
+        }
 
         if (TryGetShown (address, index) && m_changes.IsChanged (address))
         {
@@ -286,6 +300,7 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
     case kMarkIo:      tip += L"  I/O";          break;
     case kMarkRom:     tip += L"  ROM";          break;
     case kMarkUnread:  tip += L"  not read yet"; break;
+    case kMarkDiffers: tip += std::format (L"  differs: the other range has ${:02X}", m_others.at (GetAddressOf (offset))); break;
     default:                                     break;
     }
 
