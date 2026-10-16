@@ -443,6 +443,11 @@ private:
     std::string                                               m_mergeFrom;
     std::string                                               m_mergeInto;
 
+    // The scope a project's own symbol files called for once it was applied,
+    // as when a machine's project loads a debug file. Switching to it is part
+    // of the same restore, so the user is not offered a merge.
+    std::optional<ProjectScope>                               m_restoredScope;
+
     void            OpenProjectStore    ();
     ProjectScope    GetProjectScope     ();
     void            NoteBootDisk        ();
@@ -450,6 +455,7 @@ private:
     void            ApplyProject        (const DebugProject & project);
     void            RunStartupCommands  ();
     void            OfferProjectMerge   (const DebugProject & old);
+    static bool     HasMergeItems       (const DebugProject & project);
     void            RunMergeLines       ();
     void            RunProjectRequest   (const std::string & text, Reply & reply);
     void            CaptureProject      (DebugProject & project);

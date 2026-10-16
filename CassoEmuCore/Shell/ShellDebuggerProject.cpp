@@ -186,8 +186,10 @@ void ShellDebugger::ServiceProject()
 //  When the scope the signals choose is not the open project's, the open
 //  one is saved and the scope's opens. A scope with no project yet starts
 //  from what the debugger and its window have now. An existing project for
-//  a more specific scope replaces the debugger's items with its own, and
-//  the user is offered the old project's items too (FR-169).
+//  a more specific scope replaces the debugger's items with its own. The
+//  user is offered the old project's breakpoints, watches and bookmarks
+//  too, when it has any and the switch is not part of restoring the old
+//  project, as when a machine's project loads a debug file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,7 +221,7 @@ void ShellDebugger::SyncProject()
     {
         SaveProject();
         old     = m_project;
-        isOffer = scope.IsMoreSpecificThan (old.scope);
+        isOffer = scope.IsMoreSpecificThan (old.scope) && scope != m_restoredScope && HasMergeItems (old);
     }
 
     hr = m_projectStore->Open (scope, opened, notices);
@@ -241,11 +243,31 @@ void ShellDebugger::SyncProject()
     }
 
     ApplyProject (opened);
+    m_restoredScope = GetProjectScope();
 
     if (isOffer)
     {
         OfferProjectMerge (old);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::HasMergeItems
+//
+//  Whether a project has a breakpoint, watch, bookmark or zero-page pointer
+//  to offer; its settings alone are not offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::HasMergeItems (const DebugProject & project)
+{
+    return !project.breakpointIds.entries.empty() || !project.watchIds.entries.empty() || !project.bookmarkIds.entries.empty() ||
+           std::ranges::any_of (project.engineScript, [] (const std::string & line) { return line.starts_with ("ZP "); });
 }
 
 
