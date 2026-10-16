@@ -983,6 +983,47 @@ public:
     }
 
 
+    // OK re-reads the machine's file before it applies, so the ports other
+    // menus save behind the sheet are written as they are on disk. A serial port is edited on
+    // the Hardware page, so its staged change survives that re-read, and a
+    // second drive connected behind the sheet is taken from the file.
+    TEST_METHOD (SerialPorts_StagedChangeSurvivesTheReReadBeforeApply)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+        JsonValue           onDisk = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "disk-iic-drive" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSerialPortDevice (2, "tcp:6502");
+
+        st.RefreshMergedJson (onDisk);
+
+        Assert::AreEqual (std::string ("tcp:6502"), st.GetSerialPortDevice (2));
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 tcp:6502" }), L"the change is connected");
+        Assert::IsTrue (text.find ("\"serial2\",\"device\":\"tcp:6502\"") != std::string::npos, L"and saved");
+        Assert::IsTrue (text.find ("\"disk\",\"device\":\"disk-iic-drive\"") != std::string::npos, L"with the second drive from the file");
+    }
+
+
     TEST_METHOD (SerialPorts_AMachineWithoutThemHasNoneToSet)
     {
         SettingsPanelState  st;

@@ -1224,13 +1224,32 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
     // The second drive is taken from disk too. No page edits it -- it is
     // connected from the Storage menu and the drives' right-click menus,
     // which save it the moment it changes -- so the copy read when the sheet
-    // opened is the stale one, and BuildJson writes it out on OK.
+    // opened is the stale one, and BuildJson writes it out on OK. The serial
+    // ports ARE edited here, on the Hardware page, so a staged change to one
+    // is put back on top of the list read from disk.
     hr = ExtractMachinePorts (mergedJson, ports);
 
     if (SUCCEEDED (hr))
     {
+        std::array<std::string, std::size (kpszSerialPortNames)>  staged;
+        std::array<bool, std::size (kpszSerialPortNames)>         changed = {};
+
+        for (size_t i = 0; i < std::size (kpszSerialPortNames); i++)
+        {
+            staged[i]  = GetSerialPortDevice ((int) i + 1);
+            changed[i] = staged[i] != GetPortDevice (m_original.machinePorts, kpszSerialPortNames[i]);
+        }
+
         m_current.machinePorts  = ports;
         m_original.machinePorts = ports;
+
+        for (size_t i = 0; i < std::size (kpszSerialPortNames); i++)
+        {
+            if (changed[i])
+            {
+                SetSerialPortDevice ((int) i + 1, staged[i]);
+            }
+        }
     }
 
     augmented = CloneJson (mergedJson);
