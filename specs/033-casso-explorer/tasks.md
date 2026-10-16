@@ -476,7 +476,7 @@ own host and client, never from its source (FR-096).
   - virtual-drive block reads, timestamped reads and writes.
 
   Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. The owner runs this once, manually, on a machine which has ADTPro's Java host; the captures are checked in and CI only reads them. Per R15.
-- [ ] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/apple-link.md` marked *captured*, replacing the mark:
+- [X] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/apple-link.md` marked *captured*, replacing the mark:
   - the length field's byte order;
   - the CRC's polynomial, initial value and bit order;
   - the RLE encoding of image pages;

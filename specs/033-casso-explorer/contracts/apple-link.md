@@ -2,34 +2,53 @@
 
 Spec FR-083 to FR-098; research R15 to R23. This is the wire contract
 between Casso and an Apple-side client, and between Casso Explorer and the
-link's session. Values marked *captured* are settled from traffic between
-ADTPro 2.1.0's own host and client (R15) before the codec is written;
-until then they are open in this contract, not guessed.
+link's session. The values once marked *captured* were settled on 2026-10-15
+from traffic between ADTPro 2.1.0's own host and client (R15); the
+captures are in `UnitTest/Fixtures/AppleLink/`.
 
 ## Framing (ADTPro's, unchanged)
 
 | Field | Bytes | Value |
 |---|---|---|
 | Start | 1 | `'A'` ($C1) |
-| Payload length | 2 | LSB first (*captured*) |
+| Payload length | 2 | LSB first |
 | Command | 1 | below |
 | Envelope check | 1 | EOR of the four bytes before it |
 | Payload | n | per command |
 | Payload check | 1 | EOR of the payload; absent when n is 0 |
 
-ADTPro's data travels in Send Image Data ($D3): a two-byte start (LSB,
-MSB), the page data RLE-encoded (*captured*), and a two-byte CRC over the
-page data, LSB first (algorithm *captured*). Casso's client uses Sector
-data (below) instead: unencoded, with CRC-16/XMODEM (polynomial $1021,
-initial value 0), so it depends on nothing captured. The receiver of either
-replies with Acknowledgement ($CB): ACK $06, or NAK $15 to have it sent
-again.
+ADTPro's data travels in Send Image Data ($D3). Its length field is the
+length of the data after decoding (1,024 for two blocks), not counting the
+start block or the CRC. The payload is a two-byte starting block (LSB, MSB)
+and the data encoded page by page; a CRC-16/XMODEM (polynomial $1021,
+initial value 0) of the decoded data, LSB first, takes the place of the
+payload check. In the encoding, each byte is the difference from the
+previous decoded byte, modulo 256, starting from 0 in each packet. A 0 is
+followed by an offset within the current 256-byte page, and the previous
+byte repeats up to that offset, 0 meaning the end of the page. Casso's
+client uses Sector data (below) instead: unencoded, with the same CRC.
 
-A side that receives a damaged envelope or packet sends NAK. The sender
-resends up to five times (FR-087); with an ADTPro client, the client's own
-retry count applies (*captured*). When no byte arrives
-within the timeout (*captured*, default 3 s), the link closes and the
-operation fails (FR-087).
+Replies differ by direction. A host receiving a packet (Put, Batch)
+replies with one unframed byte, ACK $06 or NAK $15. A client receiving one
+(Get) replies with Acknowledgement ($CB), whose payload is ACK or NAK and
+the two-byte number of the next block to send.
+
+A side that receives a damaged envelope or packet sends NAK. Casso resends
+up to five times (FR-087). ADTPro's own peers, as captured:
+
+- Its host resends a packet the client NAKs after 0.26 s, then after
+  0.52 s, and stops after the third NAK. When the client next sends, the
+  host ends the transfer with Home ($D8), with a check byte of $13 rather
+  than the EOR, $19; its client accepts it.
+- Its client waits about 2 s (2.03 to 2.09 million cycles) for a reply
+  before sending again. When the host's ACKs are dropped it sends again with
+  no limit, under the same starting block but with the data of later
+  blocks, so a host ACKs a starting block it has already accepted and
+  discards that packet's data.
+
+When no byte arrives within 3 s, longer than the ADTPro client's 2 s so
+that its resends arrive first, the link closes and the operation fails
+(FR-087).
 
 ## ADTPro's client (served unchanged, FR-088)
 
@@ -39,6 +58,13 @@ Home and Send File as ADTPro's host does, and serves virtual drives
 in Casso Explorer's current tab, or the folder an open image is in; with
 none, each request fails with ADTPro's "unable" status. Nibble ($CD) is
 met with ADTPro's abort reply; raw tracks are the protected-disk follow-on's.
+
+The virtual-drive packets are unframed. ADTPro's VSDRIVE driver reads with
+Read3 ($03 for drive 1, $05 for drive 2), whose reply has the host's ProDOS
+date and time ahead of the block, and writes with $02 or $04. Each header's
+check is the EOR of the bytes before it in the header, and each block's
+check is the EOR of its 512 bytes alone. The driver's first request at
+startup can arrive twice before the host's first reply.
 
 ## Casso's client (extended)
 

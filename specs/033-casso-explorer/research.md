@@ -446,6 +446,32 @@ The recordings become test fixtures. ADTPro's GPL source is never read
 which the clean-room rule forbids; guessing the CRC from common 16-bit
 variants, which a recording settles in minutes and without risk.
 
+**Settled (2026-10-15)**: captured with ADTPro 2.1.0's server in its
+serial-over-IP mode and its client booted in an emulated //c, the captures
+in `UnitTest/Fixtures/AppleLink/`. Each gap above is now settled in the
+contract:
+
+- **Length**: LSB first; in Send Image Data it is the length after decoding.
+- **CRC**: CRC-16/XMODEM (polynomial $1021, initial value 0, not
+  reflected) over the decoded data, LSB first. It matches all 280 packets in
+  the send and receive captures.
+- **Encoding**: each byte is the difference from the previous decoded byte,
+  and a 0 is followed by an offset within the page up to which the previous
+  byte repeats. Every packet decodes to the source image's blocks, and the
+  image ADTPro's server wrote from the //c was identical to its source.
+- **Virtual drives**: the EOR covers the 512 block bytes alone; the driver
+  reads with Read3 only.
+- **Timeouts and retries**: the client waits about 2 s; the server resends a
+  NAKed packet twice, after 0.26 s and 0.52 s, then ends with Home. With the
+  server's ACKs dropped, the client resends with no limit, under the same
+  block number but with later blocks' data, until its memory is overwritten.
+- **Replies**: a host receiving data replies with one unframed byte, a
+  client with an Acknowledgement packet.
+
+The Nibble packet layout remains open: it is Phase 23's, after the protected-
+disk follow-on, and none of the captures contains it.
+
+
 ## R16. The PC drives inside a framing where the client speaks first
 
 **Finding**: every ADTPro exchange begins at the Apple, and the host only
