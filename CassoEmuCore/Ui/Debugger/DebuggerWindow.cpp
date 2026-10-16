@@ -517,6 +517,24 @@ void DebuggerWindow::ConfigureWidgets()
         }
     });
 
+    //  A watch's or a zero-page pointer's check enables or disables it.
+    m_watchList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
+    {
+        if (row < 0 || row >= (int) m_watchRows.size())
+        {
+            return;
+        }
+
+        if (m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
+        {
+            RunAction (DebuggerActions::GetEnableWatch (m_watchRows[(size_t) row].index, checked, GetMode()));
+        }
+        else if (m_watchRows[(size_t) row].kind == WatchRowKind::ZeroPage)
+        {
+            RunAction (DebuggerActions::GetEnableZeroPagePointer (m_watchRows[(size_t) row].index, checked, GetMode()));
+        }
+    });
+
     //  A click on a heading sorts by that column, and a second click on the
     //  same one turns the order around.
     m_breakpointList->SetOnSortColumn ([this] (int column) { SortBreakpoints ((BreakpointColumns::Column) column); });
@@ -6221,6 +6239,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
         byte = memory->GetAddressAt (clientPx);
 
+        //  A byte in zero page can be the low byte of a pointer.
+        if (byte.has_value() && *byte < 0x100)
+        {
+            items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { RunAction (DebuggerActions::GetAddZeroPagePointer (at, GetMode())); } });
+        }
+
         if (byte.has_value())
         {
             AddHeatMapAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
@@ -6519,7 +6543,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         //  (FR-094).
         items.push_back ({ L"Edit...", [this, bp]
         {
-            std::optional<std::string>  definition = BreakpointDialog::Ask (GetHwnd(), m_theme, bp.info);
+            std::optional<std::string>  definition = BreakpointDialog::RunModal (GetHwnd(), m_theme, bp.info);
 
             if (definition.has_value())
             {
@@ -6547,6 +6571,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
                 items.push_back ({ L"Remove", [this, watch] { RunAction (DebuggerActions::GetClearWatch (watch.id, GetMode())); } });
             }
         }
+        else if (what.kind == WatchRowKind::ZeroPage)
+        {
+            items.push_back ({ L"Remove", [this, slot = what.index] { RunAction (DebuggerActions::GetClearZeroPagePointer (slot, GetMode())); } });
+        }
         else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
                  s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
         {
@@ -6559,6 +6587,8 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         {
             items.push_back ({ L"Copy", copy });
         }
+
+        items.push_back ({ L"Add zero-page pointer...", [this] { AddZeroPagePointer(); } });
 
         if (m_watchHistory.CanUndo())
         {
@@ -7684,8 +7714,29 @@ void DebuggerWindow::ApplySnapshot()
         value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
                                               value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
 
+        name.check = watch.enabled;
         rows.push_back ({ name, value });
         m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
+    }
+
+    //  The zero-page pointers under their own heading: each the zero-page
+    //  address, then the address its two bytes form and the bytes there.
+    if (!m_snapshot->zeroPagePointers.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Zero-page pointers"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (const DebuggerViewSnapshot::WatchLine & pointer : m_snapshot->zeroPagePointers)
+        {
+            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
+            DxuiListView::Cell  value = { Widen (pointer.value) };
+
+            name.check = pointer.enabled;
+            name.dim   = !pointer.enabled;
+            value.dim  = !pointer.enabled;
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::ZeroPage, pointer.id });
+        }
     }
 
     //  As in Visual Studio, the last row adds a watch: an expression typed

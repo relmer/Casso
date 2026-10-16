@@ -113,6 +113,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     const VideoPosition           video          = session.GetTarget().GetVideoPosition();
     const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
     const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
+    const WatchListData           pointers       = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
     BreakpointListData            breakpoints;
     DebugDiskState                diskState;
     InlineParallelRunner          inlineRunner;
@@ -214,6 +215,25 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         snapshot.watches.push_back ({ entry.id, entry.address,
                                       entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
                                       entry.enabled });
+    }
+
+    for (const WatchEntry & entry : pointers.entries)
+    {
+        constexpr int  kPointedBytes = 4;
+        std::string    text          = "--";
+        Byte           value         = 0;
+
+        if (entry.value.has_value())
+        {
+            text = std::format ("${:04X}:", *entry.value);
+
+            for (int i = 0; i < kPointedBytes; i++)
+            {
+                text += session.GetTarget().TryPeek ((Word) (*entry.value + i), value) ? std::format (" {:02X}", value) : std::string (" ??");
+            }
+        }
+
+        snapshot.zeroPagePointers.push_back ({ entry.id, entry.address, text, entry.enabled });
     }
 
     if (isPaused)

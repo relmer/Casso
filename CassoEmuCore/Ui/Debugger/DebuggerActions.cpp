@@ -658,6 +658,88 @@ DebuggerAction DebuggerActions::GetPopWord (CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetEnableWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnableWatch (int id, bool enable, CommandMode mode)
+{
+    DebuggerAction  action = Make (enable ? DebugVerb::EnableWatch : DebugVerb::DisableWatch, std::format ("{} {}", enable ? "WE" : "WD", id), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetAddZeroPagePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddZeroPagePointer (Byte address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddZeroPagePointer, std::format ("ZP {:02X}", address), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetClearZeroPagePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetClearZeroPagePointer (int slot, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::ClearZeroPagePointer, std::format ("ZPC {}", slot), mode);
+
+
+
+    action.command.count = (uint32_t) slot;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnableZeroPagePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnableZeroPagePointer (int slot, bool enable, CommandMode mode)
+{
+    DebuggerAction  action = Make (enable ? DebugVerb::EnableZeroPagePointer : DebugVerb::DisableZeroPagePointer,
+                                   std::format ("{} {}", enable ? "ZPE" : "ZPD", slot), mode);
+
+
+
+    action.command.count = (uint32_t) slot;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetSaveHistory
 //
 ////////////////////////////////////////////////////////////////////////////////

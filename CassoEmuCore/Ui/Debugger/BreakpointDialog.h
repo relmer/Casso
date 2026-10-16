@@ -48,7 +48,8 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError };
+    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
+                      UnwrittenRead, VideoLine, Beam, ExecuteWatch };
 
     //  The values of the dialog's controls. A disk breakpoint's event is an
     //  index into DiskBreakSpecText::GetEventWords, its drive 0 for either,
@@ -74,8 +75,9 @@ public:
     //  The type an existing breakpoint is.
     static Type  GetType (const BreakpointInfo & info);
 
-    //  Runs the dialog modally over `owner`; the definition when OK.
-    static std::optional<std::string>  Ask (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info);
+    //  Runs the dialog modally over `owner`, on `type` when given and on
+    //  the breakpoint's own type otherwise; the definition when OK.
+    static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt);
 
 protected:
     void  OnCreate() override;
@@ -87,6 +89,7 @@ private:
 
     const IDxuiTheme            * m_theme          = nullptr;
     BreakpointInfo                m_info;
+    std::optional<Type>           m_presetType;
     std::optional<std::string>    m_definition;
     DxuiLabel                     m_typeLabel;
     DxuiLabel                     m_modeLabel;

@@ -1001,6 +1001,20 @@ call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
 pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
 `PUSH`, `POP` and `PPOP`.
 
+The Breakpoints pane's **New** drop-down also has **Read of memory never
+written...**, **Video line...**, **Beam position...** and **Execute and
+watch...**, which run `BRKUNINIT ON`, `BPV`, `BPBEAM` and `BPA`. The first
+three are stops of the session, not rows of the pane, so the console's reply
+is the only sign of them; `BPA` adds a breakpoint and a watchpoint, each a row.
+
+Each row of the Watches pane has a check box, which runs `WE` or `WD`. Under
+**Zero-page pointers** the pane lists the zero-page pointers: each zero-page
+address, then the address its two bytes form and the first four bytes there,
+as `$0800: 00 00 00 00`, with a check box running `ZPE` or `ZPD` and Remove on
+its menu running `ZPC`. **Add zero-page pointer...** on the pane's menu, and
+**Add as pointer watch** on a Memory pane's menu over a byte in zero page,
+run `ZP`.
+
 ### The heat map
 
 The heat map is a tab beside **Memory 1** in the default layout, and **View >

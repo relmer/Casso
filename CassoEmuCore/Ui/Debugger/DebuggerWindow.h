@@ -31,6 +31,7 @@
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
 #include "Ui/Debugger/DebuggerOptionsSheet.h"
 #include "Ui/Debugger/MemoryFileDialog.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/ByteDialog.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/Debugger/WholeWordButton.h"
@@ -642,7 +643,9 @@ protected:
     DxuiToolbar *                                      GetBreakpointBar       () const { return m_breakpointBar; }
     bool                                               IsBreakpointBarEnabled (int id) const;
     void                                               RunBreakpointBarEntry  (int id);
-    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access, bool isIoPage);
+    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access, bool isIoPage,
+                                                                               std::optional<BreakpointDialog::Type> type = std::nullopt);
+    void                                               AddZeroPagePointer     ();
     void                                               RunBreakpointStep      (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
 
@@ -1185,7 +1188,7 @@ private:
     //  What each row of the watch pane is, since the list mixes headings,
     //  automatic watches and the user's own: an automatic row carries its
     //  index into the snapshot, a manual one its watch id.
-    enum class WatchRowKind { Heading, Automatic, Manual, Add };
+    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add };
 
     struct WatchRow
     {

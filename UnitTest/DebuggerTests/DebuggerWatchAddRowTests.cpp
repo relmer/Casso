@@ -162,5 +162,54 @@ namespace DebuggerWatchAddRowTests
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::IsTrue   (host.commands.front().find ("400") != std::string::npos, L"the typed expression is watched");
         }
+
+
+
+        //  Each watch and zero-page pointer has a check that enables or
+        //  disables it; a pointer's row has where it points and the bytes there.
+        TEST_METHOD (WatchesAndPointersHaveChecksAndPointersTheirTargets)
+        {
+            CassoTheme                          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                   host;
+            WatchWindow                         window   (theme, host);
+            DxuiDpiScaler                       scaler;
+            auto                                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            RECT                                check    = {};
+            DxuiMouseEvent                      press;
+
+
+
+            snapshot->watches          = { { 0, 0x0300, "0000", true } };
+            snapshot->zeroPagePointers = { { 1, 0x0006, "$0300: A9 41 8D 00", false } };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+            window.GetWatchList()->SetColumns ({ { L"Watch", 160, false, DxuiTextHAlign::Left },
+                                                 { L"Value", 200, false, DxuiTextHAlign::Left } });
+
+            Assert::AreEqual (4, window.GetWatchList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
+            Assert::IsTrue   (window.GetWatchList()->GetCellsOfRow (0)[0].check.value_or (false), L"the watch is on");
+            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchList()->GetCellsOfRow (2)[0].text);
+            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchList()->GetCellsOfRow (2)[1].text);
+            Assert::IsFalse  (window.GetWatchList()->GetCellsOfRow (2)[0].check.value_or (true), L"the pointer is off");
+
+            Assert::IsTrue   (window.GetWatchList()->GetCheckRectPx (0, 0, check), L"the watch's check is in view");
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Left;
+            press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
+            (void) window.GetWatchList()->OnMouse (press);
+
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue   (host.commands.back().starts_with ("WD 0"), L"its check disables the watch");
+
+            window.GetWatchList()->EnsureVisible (2);
+            Assert::IsTrue   (window.GetWatchList()->GetCheckRectPx (2, 0, check), L"the pointer's check is in view");
+            press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
+            (void) window.GetWatchList()->OnMouse (press);
+
+            Assert::IsTrue   (host.commands.back().starts_with ("ZPE 1"), L"and the pointer's enables it");
+        }
     };
 }

@@ -135,6 +135,13 @@ public:
     static DebuggerAction  GetPushByte         (Byte value, CommandMode mode);
     static DebuggerAction  GetPopByte          (CommandMode mode);
     static DebuggerAction  GetPopWord          (CommandMode mode);
+
+    //  WE and WD, by the watch's id; ZP, ZPC, ZPE and ZPD for the zero-page
+    //  pointers, by slot.
+    static DebuggerAction  GetEnableWatch            (int id, bool enable, CommandMode mode);
+    static DebuggerAction  GetAddZeroPagePointer     (Byte address, CommandMode mode);
+    static DebuggerAction  GetClearZeroPagePointer   (int slot, CommandMode mode);
+    static DebuggerAction  GetEnableZeroPagePointer  (int slot, bool enable, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
     static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 

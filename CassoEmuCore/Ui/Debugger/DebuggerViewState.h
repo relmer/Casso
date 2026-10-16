@@ -269,6 +269,10 @@ struct DebuggerViewSnapshot
     bool                                  canUndoBreakpoints = false;
     bool                                  canRedoBreakpoints = false;
     std::vector<WatchLine>                watches;
+
+    //  The zero-page pointers, each the address its two bytes form and the
+    //  first bytes there, as "$0300: A9 41 8D 00"; "--" for one disabled.
+    std::vector<WatchLine>                zeroPagePointers;
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;

@@ -2,6 +2,7 @@
 
 #include "ControllerRig.h"
 #include "Debugger/AppleWinParser.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Core/TextEncoding.h"
@@ -95,6 +96,67 @@ public:
         AssertParsesTo (rig, "PUSH A9", DebuggerActions::GetPushByte    (0xA9, aw));
         AssertParsesTo (rig, "POP",     DebuggerActions::GetPopByte     (aw));
         AssertParsesTo (rig, "PPOP",    DebuggerActions::GetPopWord     (aw));
+    }
+
+
+
+    TEST_METHOD (TheWatchAndPointerActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "WE 2",  DebuggerActions::GetEnableWatch           (2, true,  aw));
+        AssertParsesTo (rig, "WD 2",  DebuggerActions::GetEnableWatch           (2, false, aw));
+        AssertParsesTo (rig, "ZP 06", DebuggerActions::GetAddZeroPagePointer    (0x06, aw));
+        AssertParsesTo (rig, "ZPC 1", DebuggerActions::GetClearZeroPagePointer  (1, aw));
+        AssertParsesTo (rig, "ZPE 1", DebuggerActions::GetEnableZeroPagePointer (1, true,  aw));
+        AssertParsesTo (rig, "ZPD 1", DebuggerActions::GetEnableZeroPagePointer (1, false, aw));
+    }
+
+
+
+    //  The breakpoint dialog's New types for the stops that are not entries
+    //  of the breakpoint table, each a definition the console runs.
+    TEST_METHOD (TheDialogsMachineStopsAreDefinitionsTheConsoleRuns)
+    {
+        using Type = BreakpointDialog::Type;
+
+        struct Case
+        {
+            Type         type;
+            std::string  address;
+            std::string  value;
+            std::string  expected;
+        };
+
+        const Case  cases[] =
+        {
+            { Type::UnwrittenRead, "",          "",   "BRKUNINIT ON"  },
+            { Type::VideoLine,     "64:6B",     "",   "BPV 64:6B"     },
+            { Type::Beam,          "64",        "20", "BPBEAM 64 20"  },
+            { Type::Beam,          "vbl",       "",   "BPBEAM VBL"    },
+            { Type::ExecuteWatch,  "0300:030F", "",   "BPA 0300:030F" },
+        };
+
+
+
+        for (const Case & each : cases)
+        {
+            ControllerRig             rig;
+            BreakpointDialog::Fields  fields;
+            Reply                     reply;
+
+            fields.type    = each.type;
+            fields.address = each.address;
+            fields.value   = each.value;
+
+            Assert::AreEqual (each.expected, BreakpointDialog::MakeDefinition (fields));
+
+            reply = rig.Run (each.expected);
+            Assert::IsTrue (reply.status == CommandStatus::Ok, TextEncoding::NarrowToWide (each.expected).c_str());
+        }
     }
 
 

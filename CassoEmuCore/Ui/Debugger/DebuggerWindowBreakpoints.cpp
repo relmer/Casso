@@ -83,6 +83,21 @@ void DebuggerWindow::SetBreakpointBarMenus()
         { L"BASIC variable change...", BreakpointKind::BasicVariable, WatchAccess::ReadWrite, false },
         { L"BASIC error...",           BreakpointKind::BasicError,    WatchAccess::ReadWrite, false },
     };
+    //  Stops that are not entries of the breakpoint table, which the dialog
+    //  makes as BRKUNINIT, BPV, BPBEAM and BPA.
+    struct Special
+    {
+        const wchar_t           * label;
+        BreakpointDialog::Type    type;
+    };
+
+    static constexpr Special        kSpecials[] =
+    {
+        { L"Read of memory never written...", BreakpointDialog::Type::UnwrittenRead },
+        { L"Video line...",                   BreakpointDialog::Type::VideoLine     },
+        { L"Beam position...",                BreakpointDialog::Type::Beam          },
+        { L"Execute and watch...",            BreakpointDialog::Type::ExecuteWatch  },
+    };
     std::vector<DxuiPopupMenuItem>  kinds;
 
 
@@ -94,6 +109,16 @@ void DebuggerWindow::SetBreakpointBarMenus()
         bool            isIoPage = each.isIoPage;
 
         kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
+    }
+
+    for (const Special & each : kSpecials)
+    {
+        BreakpointDialog::Type  type = each.type;
+
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, type]
+        {
+            NewBreakpoint (BreakpointKind::Address, WatchAccess::ReadWrite, false, type);
+        })));
     }
 
     m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew, std::move (kinds));
@@ -339,7 +364,7 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, bool isIoPage)
+void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, bool isIoPage, std::optional<BreakpointDialog::Type> type)
 {
     constexpr Word              kIoFirst   = 0xC000;
     constexpr Word              kIoLast    = 0xC0FF;
@@ -355,11 +380,35 @@ void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, boo
     info.address = isIoPage ? kIoFirst : (isBasic || m_snapshot == nullptr) ? (Word) 0 : m_snapshot->pc;
     info.last    = isIoPage ? kIoLast  : info.address;
 
-    definition = BreakpointDialog::Ask (GetHwnd(), m_theme, info);
+    definition = BreakpointDialog::RunModal (GetHwnd(), m_theme, info, type);
 
     if (definition.has_value())
     {
         RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, GetMode()) }, {} });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddZeroPagePointer
+//
+//  ZP of a zero-page address typed in a dialog, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddZeroPagePointer()
+{
+    std::optional<Byte>  address = RunByteDialog (L"Add zero-page pointer", L"Zero-page address");
+
+
+
+    if (address.has_value())
+    {
+        RunAction (DebuggerActions::GetAddZeroPagePointer (*address, GetMode()));
     }
 }
 

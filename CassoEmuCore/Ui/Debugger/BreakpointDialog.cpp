@@ -96,6 +96,14 @@ std::string BreakpointDialog::MakeDefinition (const Fields & fields)
         return "BPBASICVAR " + fields.address;
     case Type::BasicError:
         return "BRKBASIC ON";
+    case Type::UnwrittenRead:
+        return "BRKUNINIT ON";
+    case Type::VideoLine:
+        return "BPV " + fields.address;
+    case Type::Beam:
+        return (_stricmp (fields.address.c_str(), "VBL") == 0) ? std::string ("BPBEAM VBL") : "BPBEAM " + fields.address + " " + fields.value;
+    case Type::ExecuteWatch:
+        return "BPA " + fields.address;
     default:              return "BP " + fields.address + clause;
     }
 }
@@ -232,6 +240,7 @@ void BreakpointDialog::ShowFieldsForType()
     bool    isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
     bool    isDisk    = type == Type::Disk;
     bool    isBasic   = type == Type::BasicLine || type == Type::BasicVariable || type == Type::BasicError;
+    bool    isMachine = type == Type::UnwrittenRead || type == Type::VideoLine || type == Type::Beam || type == Type::ExecuteWatch;
     size_t  event     = std::clamp<size_t> (m_event.GetSelectedIndex(), 0, DiskBreakSpecText::GetEventWords().size() - 1);
 
 
@@ -239,9 +248,9 @@ void BreakpointDialog::ShowFieldsForType()
     m_mode.SetEnabled      (isWatched);
     m_event.SetEnabled     (isDisk);
     m_drive.SetEnabled     (isDisk);
-    m_value.SetEnabled     (!isDisk && !isBasic);
-    m_address.SetEnabled   (type != Type::BasicError);
-    m_condition.SetEnabled (!isBasic);
+    m_value.SetEnabled     (!isDisk && !isBasic && (!isMachine || type == Type::Beam));
+    m_address.SetEnabled   (type != Type::BasicError && type != Type::UnwrittenRead);
+    m_condition.SetEnabled (!isBasic && !isMachine);
     m_address.SetPlaceholder (isDisk ? SourcePathList::Utf8ToWide (DiskBreakSpecText::GetEventWords()[event].syntax) : std::wstring());
 
     switch (type)
@@ -249,6 +258,8 @@ void BreakpointDialog::ShowFieldsForType()
     case Type::Disk:          m_addressLabel.SetText (L"Arguments");                 break;
     case Type::BasicLine:     m_addressLabel.SetText (L"Line number");               break;
     case Type::BasicVariable: m_addressLabel.SetText (L"Variable (A, B%, C$, D(3))"); break;
+    case Type::VideoLine:     m_addressLabel.SetText (L"Scanlines (hex, 64:6B)");    break;
+    case Type::Beam:          m_addressLabel.SetText (L"Scanline (hex) or VBL");     break;
     default:                  m_addressLabel.SetText (L"Address or range");          break;
     }
 
@@ -257,6 +268,7 @@ void BreakpointDialog::ShowFieldsForType()
     case Type::Value:    m_valueLabel.SetText (L"Value (hex byte)");       break;
     case Type::Register: m_valueLabel.SetText (L"Register test (A=41)");  break;
     case Type::Opcode:   m_valueLabel.SetText (L"Opcode or mnemonic");    break;
+    case Type::Beam:     m_valueLabel.SetText (L"Cycle in the line (hex)"); break;
     default:             m_valueLabel.SetText (L"Value (unused)");        break;
     }
 }
@@ -278,6 +290,13 @@ void BreakpointDialog::OnCreate()
 
 
 
+    //  A New entry for a type no breakpoint kind has, such as a video line,
+    //  opens on that type.
+    if (m_presetType.has_value())
+    {
+        fields.type = *m_presetType;
+    }
+
     for (DxuiLabel * label : { &m_typeLabel, &m_eventLabel, &m_driveLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
@@ -292,7 +311,8 @@ void BreakpointDialog::OnCreate()
     m_conditionLabel.SetText (L"Condition (A == 41)");
 
     m_type.SetItems    ({ L"Execute", L"Read", L"Write", L"Read or write", L"Memory value", L"Register", L"Opcode", L"BRK", L"BRK on interrupt", L"Disk event",
-                         L"BASIC line", L"BASIC variable change", L"BASIC error" });
+                         L"BASIC line", L"BASIC variable change", L"BASIC error", L"Read of memory never written", L"Video line", L"Beam position",
+                         L"Execute, with a watch" });
     m_type.SetSelected ((int) fields.type);
     m_type.SetSelect   ([this] (int) { ShowFieldsForType(); Invalidate(); });
     m_type.SetPopupHost (GetPopupHost());
@@ -361,11 +381,11 @@ void BreakpointDialog::OnCreate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointDialog::Ask
+//  BreakpointDialog::RunModal
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::Ask (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info)
+std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type)
 {
     HRESULT                   hr     = S_OK;
     BreakpointDialog          dialog;
@@ -375,6 +395,7 @@ std::optional<std::string> BreakpointDialog::Ask (HWND owner, const IDxuiTheme *
 
     dialog.m_theme = theme;
     dialog.m_info  = info;
+    dialog.m_presetType = type;
 
     params.title                    = std::format (L"Breakpoint #{}", info.id);
     params.hInstance                = GetModuleHandleW (nullptr);
