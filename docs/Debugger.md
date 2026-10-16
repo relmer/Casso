@@ -398,8 +398,9 @@ A debug project, one for each program, has the debugger's configuration:
   the profiler, the stopwatch and where the trip count starts;
 - the pane layout, the closed panes, the pane with the focus, where the
   command bar and the timeline are docked, and the open views;
-- the console history, each pane's find history and options, and the column
-  widths you set;
+- the console history, each pane's find history and options, the column
+  widths you set, and the undo history of the registers, the stack and the
+  memory windows;
 - the disassembly options, the heat map's options and range sets, and the
   Disk II and input logs' filters and columns.
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
+#include "Ui/Debugger/UndoText.h"
 
 
 
@@ -130,6 +131,81 @@ std::optional<MemoryRegion> MemoryEditModel::TryGetRegion (Word address) const
     }
 
     return region;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::GetHistoryText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryEditModel::GetHistoryText() const
+{
+    std::string  text;
+
+
+
+    for (const std::vector<Edit> * edits : { &m_history, &m_redo })
+    {
+        text += (edits == &m_redo) ? "|" : "";
+
+        for (size_t i = 0; i < edits->size(); i++)
+        {
+            const Edit  & edit = (*edits)[i];
+
+            text += std::format ("{}{:04X}:{}:{}", (i == 0) ? "" : ",", edit.address, UndoText::FormatBytes (edit.replaced), UndoText::FormatBytes (edit.written));
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::SetHistoryText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryEditModel::SetHistoryText (const std::string & text)
+{
+    std::vector<std::string>  lists = UndoText::Split (text, '|');
+
+
+
+    ClearHistory();
+
+    if (lists.size() != 2)
+    {
+        return;
+    }
+
+    for (size_t list = 0; list < 2; list++)
+    {
+        for (const std::string & field : UndoText::Split (lists[list], ','))
+        {
+            std::vector<std::string>  values  = UndoText::Split (field, ':');
+            uint32_t                  address = 0;
+            Edit                      edit;
+
+            if (values.size() != 3 || !UndoText::TryParseHex (values[0], address) || !UndoText::TryParseBytes (values[1], edit.replaced) ||
+                !UndoText::TryParseBytes (values[2], edit.written) || edit.replaced.size() != edit.written.size() || edit.written.empty())
+            {
+                ClearHistory();
+                return;
+            }
+
+            edit.address = (Word) address;
+            ((list == 0) ? m_history : m_redo).push_back (std::move (edit));
+        }
+    }
 }
 
 

@@ -4,6 +4,8 @@
 
 #include "Core/TextEncoding.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/UndoText.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/ProjectSettingsDialog.h"
 
@@ -281,6 +283,28 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
     ApplyColumnWidths();
 
+    //  The registers', the stack's and each memory window's undo, a line
+    //  each, its name before its history.
+    for (const std::string & each : UndoText::Split (m_host->GetDebuggerWindowState ("undo"), '\n'))
+    {
+        size_t       equals = each.find ('=');
+        std::string  name   = each.substr (0, equals);
+        std::string  text   = (equals == std::string::npos) ? std::string() : each.substr (equals + 1);
+
+        if (name == "registers")
+        {
+            m_registerHistory.FromText (text);
+        }
+        else if (name == "stack")
+        {
+            m_stackHistory.FromText (text);
+        }
+        else if (name.starts_with ("memory") && name.size() == 7 && name[6] >= '1' && name[6] < '1' + DebuggerViewState::kMaxMemoryWindows)
+        {
+            m_memoryPanes[(size_t) (name[6] - '1')]->SetHistoryText (text);
+        }
+    }
+
     if (!isProjectSwitch)
     {
         return;
@@ -298,6 +322,58 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     {
         FocusPane (GetSavedFocusPane());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetUndoHistoriesText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerWindow::GetUndoHistoriesText() const
+{
+    std::string  text = "registers=" + m_registerHistory.ToText() + "\nstack=" + m_stackHistory.ToText() + "\n";
+
+
+
+    for (size_t i = 0; i < m_memoryPanes.size(); i++)
+    {
+        text += std::format ("memory{}={}\n", i + 1, m_memoryPanes[i]->GetHistoryText());
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveUndoHistories
+//
+//  Once a second at most, and to the host only when they changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveUndoHistories()
+{
+    constexpr uint64_t  kIntervalMs = 1000;
+    uint64_t            now         = GetTickCount64();
+
+
+
+    if (m_host == nullptr || now - m_undoSavedMs < kIntervalMs)
+    {
+        return;
+    }
+
+    m_undoSavedMs = now;
+    m_host->SetDebuggerWindowState ("undo", GetUndoHistoriesText());
 }
 
 

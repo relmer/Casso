@@ -118,6 +118,13 @@ public:
     bool  CanRedo      () const { return m_isPaused && !m_redo.empty(); }
     void  ClearHistory ()       { m_history.clear(); m_redo.clear(); }
 
+    //  The edits to undo and to redo as a debug project saves them, the two
+    //  lists apart at a bar and each edit its address, the bytes it replaced
+    //  and the bytes it wrote, apart at colons. FromText replaces the
+    //  history; the history is left empty for text it cannot read.
+    std::string   GetHistoryText () const;
+    void          SetHistoryText (const std::string & text);
+
     //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
     std::wstring  GetUndoText () const;
     std::wstring  GetRedoText () const;

@@ -89,6 +89,9 @@ public:
     bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
+    std::string  GetHistoryText () const                       { return m_model.GetHistoryText(); }
+    void         SetHistoryText (const std::string & text)     { m_model.SetHistoryText (text); }
+
     //  Compare with...: the differing bytes marked, the other range's values
     //  drawn in their place or not, and the comparison ended.
     void  SetComparison   (const std::vector<CompareDifference> & differences);

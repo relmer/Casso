@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/RegisterHistory.h"
+#include "Ui/Debugger/StackHistory.h"
+#include "Ui/Debugger/Panes/MemoryEditModel.h"
 
 #include "CppUnitTest.h"
 
@@ -91,6 +93,44 @@ namespace RegisterHistoryTests
             history.OnSnapshot (true, 0x0300);
 
             Assert::IsTrue (history.CanUndo());
+        }
+
+
+
+        //  The registers', the stack's and a memory window's undo come back
+        //  from the text a debug project saves; text that does not read
+        //  empties the history.
+        TEST_METHOD (TheHistoriesComeBackFromTheirText)
+        {
+            RegisterHistory  registers;
+            RegisterHistory  readRegisters;
+            StackHistory     stack;
+            StackHistory     readStack;
+            MemoryEditModel  memory;
+            MemoryEditModel  readMemory;
+
+
+
+            registers.Record ("A", 0x01, 0x02, 0x0300);
+            registers.Record ("X", 0x10, 0x20, 0x0300);
+            (void) registers.TryUndo (CommandMode::AppleWin);
+            readRegisters.FromText (registers.ToText());
+
+            Assert::AreEqual (registers.ToText(), readRegisters.ToText());
+            Assert::IsTrue   (readRegisters.CanUndo() && readRegisters.CanRedo());
+
+            stack.Record (0x01FD, 0x12, 0x34, 0x0300);
+            readStack.FromText (stack.ToText());
+            Assert::AreEqual (stack.ToText(), readStack.ToText());
+
+            readMemory.SetHistoryText ("0300:0001:A9EA|");
+            Assert::AreEqual (std::string ("0300:0001:A9EA|"), readMemory.GetHistoryText());
+            Assert::IsTrue   (readMemory.GetUndoText().find (L"$0300") != std::wstring::npos);
+
+            readRegisters.FromText ("nonsense");
+            Assert::IsFalse  (readRegisters.CanUndo());
+            readMemory.SetHistoryText ("0300:00:A9EA|");
+            Assert::AreEqual (std::string ("|"), readMemory.GetHistoryText(), L"replaced and written differ in length");
         }
     };
 }

@@ -47,6 +47,13 @@ public:
 
     void  Clear ();
 
+    //  The history as a debug project saves it: the stop's PC, then the
+    //  steps to undo and to redo, each list's steps apart at commas, the
+    //  three apart at bars. FromText replaces the history,
+    //  or empties it for text it cannot read.
+    std::string  ToText   () const;
+    void         FromText (const std::string & text);
+
 private:
     struct Step
     {

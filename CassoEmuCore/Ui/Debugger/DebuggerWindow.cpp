@@ -6779,6 +6779,8 @@ void DebuggerWindow::RenderFrame()
         return;
     }
 
+    SaveUndoHistories();
+
     if (m_host->TakeDebuggerProjectState())
     {
         ReloadProjectState();

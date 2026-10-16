@@ -235,6 +235,7 @@
     <ClCompile Include="Ui\Debugger\CommandCompletion.cpp" />
     <ClCompile Include="Ui\Debugger\ByteDialog.cpp" />
     <ClCompile Include="Ui\Debugger\FieldDialogPanel.cpp" />
+    <ClCompile Include="Ui\Debugger\UndoText.cpp" />
     <ClCompile Include="Ui\Debugger\TextDialog.cpp" />
     <ClCompile Include="Ui\Debugger\MemoryFileDialog.cpp" />
     <ClCompile Include="Ui\Debugger\SourceSyntax.cpp" />
@@ -834,6 +835,7 @@
     <ClInclude Include="Ui\Debugger\CommandCompletion.h" />
     <ClInclude Include="Ui\Debugger\ByteDialog.h" />
     <ClInclude Include="Ui\Debugger\FieldDialogPanel.h" />
+    <ClInclude Include="Ui\Debugger\UndoText.h" />
     <ClInclude Include="Ui\Debugger\TextDialog.h" />
     <ClInclude Include="Ui\Debugger\MemoryFileDialog.h" />
     <ClInclude Include="Ui\Debugger\SourceSyntax.h" />

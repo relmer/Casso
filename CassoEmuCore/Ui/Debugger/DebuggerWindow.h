@@ -974,6 +974,8 @@ private:
     void     SaveFindStates       ();
     void     SaveColumnWidths     ();
     void     ApplyColumnWidths    ();
+    void     SaveUndoHistories    ();
+    std::string  GetUndoHistoriesText () const;
     void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
     void     FindInMemory         (MemoryPane * pane);
     void     StepMemoryFind       (bool forward);
@@ -1239,6 +1241,7 @@ private:
 
     std::map<std::wstring, SavedFind>         m_savedFinds;
     std::map<std::wstring, std::vector<int>>  m_columnWidths;
+    uint64_t                                  m_undoSavedMs = 0;
     MemoryCompare                           m_memoryCompare;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
