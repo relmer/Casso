@@ -22,9 +22,9 @@ struct DebuggerAction;
 //  it forward again. Either prints one line for each breakpoint it changed,
 //  saying what happened to it.
 //
-//  A breakpoint added again gets a new id, so a step refers to each
-//  breakpoint by a handle of its own and the history keeps the id each handle
-//  has now. A change typed at the console is not a step; an inverse whose
+//  A breakpoint added again takes the id it had, unless another breakpoint
+//  has taken that id since, so a step refers to each breakpoint by a handle
+//  of its own and the history has the id each handle has now. A change typed at the console is not a step; an inverse whose
 //  breakpoint the console has removed, or replaced with another, does nothing.
 //
 //  CPU thread only, like the session it reads.

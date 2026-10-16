@@ -98,7 +98,7 @@ namespace BreakpointHistoryTests
             Assert::IsFalse  (after.stops);
 
             rig.Do (BreakpointStep::Kind::Redo);
-            Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again, under its new id");
+            Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again");
         }
 
 
@@ -348,7 +348,8 @@ namespace BreakpointHistoryTests
 
             second.Do (BreakpointStep::Kind::Undo);
             Assert::AreEqual ((size_t) 2, second.List().size(), L"the delete is undone");
-            restored = second.List().at (1);
+            restored = second.List().at (0);
+            Assert::AreEqual (0, restored.id, L"under the id it had");
             Assert::AreEqual (std::string ("BPMW 0400:04FF IF A=41"), BreakpointHandlers::MakeDefinition (restored));
             Assert::IsFalse  (restored.enabled);
             Assert::IsTrue   (restored.temporary);

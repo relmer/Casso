@@ -271,7 +271,22 @@ BreakpointHistory::Outcome BreakpointHistory::Apply (
 
 void BreakpointHistory::Add (DebugSession & session, int handle, const Saved & saved)
 {
-    m_ids[handle] = BreakpointHandlers::Add (session, saved);
+    auto  previous = m_ids.find (handle);
+    int   id       = BreakpointHandlers::Add (session, saved);
+
+
+
+    //  The breakpoint comes back under the id it had, unless another took it.
+    //  The next id stays past it, since BPC * starts the ids over at 0 and
+    //  the next add would otherwise take it too.
+    if (previous != m_ids.end() && previous->second != id &&
+        (session.GetBreakpoints().TryChangeId (id, previous->second) || session.GetWatchpoints().TryChangeId (id, previous->second)))
+    {
+        id = previous->second;
+        session.SetNextId (std::max (session.GetNextId(), id + 1));
+    }
+
+    m_ids[handle] = id;
 }
 
 
