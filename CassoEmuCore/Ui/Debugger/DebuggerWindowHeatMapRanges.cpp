@@ -24,20 +24,21 @@
 
 void DebuggerWindow::ConfigureHeatRanges()
 {
-    HeatMapRangeBarCommands::Handlers  handlers;
-    std::vector<DxuiListView::Column>  columns =
+    HeatMapRangeBarCommands::Handlers                  handlers;
+    std::vector<DxuiEditableGrid::GridColumn>          columns =
     {
-        { L"Name",     kHeatRangeNameDip },
-        { L"Start",    kHeatRangeSpanDip },
-        { L"End",      kHeatRangeSpanDip },
-        { L"Size",     kHeatRangeSizeDip },
-        { L"Built-in", kHeatRangeSizeDip },
+        { { L"Name",     kHeatRangeNameDip } },
+        { { L"Start",    kHeatRangeSpanDip }, true, true },
+        { { L"End",      kHeatRangeSpanDip } },
+        { { L"Size",     kHeatRangeSizeDip } },
+        { { L"Built-in", kHeatRangeSizeDip }, false },
     };
 
 
 
     m_isHeatRangesOpened = m_host != nullptr && !m_host->GetDebuggerHeatMapRanges().empty();
     m_heatRanges         = HeatMapRangeSets::FromText ((m_host != nullptr) ? m_host->GetDebuggerHeatMapRanges() : std::string());
+    (void) m_heatRanges.TryAddDefaultSet();
     m_heatRangeSet = !m_heatRanges.shown.empty() ? m_heatRanges.shown : (m_heatRanges.sets.empty() ? std::string() : m_heatRanges.sets.front().name);
 
     handlers.dispatch  = [this] (int id) { RunHeatRangeBarEntry (id); };
@@ -56,20 +57,18 @@ void DebuggerWindow::ConfigureHeatRanges()
     m_heatRangeBar->SetVisible       (false);
 
     MakeDense (m_heatRangeList);
-    m_heatRangeList->SetMonospace             (false);
-    m_heatRangeList->SetColumns               (std::move (columns));
-    m_heatRangeList->SetActivateOnDoubleClick (true);
-    m_heatRangeList->SetAlwaysShowSelection   (true);
+    m_heatRangeList->SetMonospace           (false);
+    m_heatRangeList->SetGridColumns         (std::move (columns));
+    m_heatRangeList->SetAddRowText          (L"Add new range");
+    m_heatRangeList->SetAlwaysShowSelection (true);
+    m_heatRangeList->SetEditorHwnd          (GetHwnd());
+    m_heatRangeList->SetEditorMaxLength     (kHeatRangeEditMaxChars);
     m_heatRangeList->SetOnCheckToggled ([this] (int row, size_t, bool checked) { ToggleHeatRange (row, checked); });
-    m_heatRangeList->SetOnActivateRow  ([this] (int row)
-    {
-        RECT  bounds = m_heatRangeList->GetBounds();
-        int   column = GetColumnAt (m_heatRangeList, m_lastPressPx.x - bounds.left);
-
-
-
-        BeginHeatRangeEdit (row, (column >= 1 && column <= (int) HeatMapRangeSets::Field::Size) ? (HeatMapRangeSets::Field) column : HeatMapRangeSets::Field::Name);
-    });
+    m_heatRangeList->SetOnCommitCell   ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitHeatRangeCell (row, column, text, outError); });
+    m_heatRangeList->SetOnAddRow       ([this] (const std::vector<std::wstring> & texts, std::wstring & outError) { return AddHeatRange (texts, outError); });
+    m_heatRangeList->SetOnMoveRow      ([this] (int from, int to) { MoveHeatRangeRow (from, to); });
+    m_heatRangeList->SetOnDeleteRow    ([this] (int row) { RemoveHeatRange (row); });
+    m_heatRangeList->SetOnError        ([this] (const std::wstring & text) { SetHeatRangeError (TextEncoding::WideToUtf8 (text)); });
 
     m_heatRangeError->SetTextRole  (DxuiTextRole::Error);
     m_heatRangeError->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -308,7 +307,6 @@ bool DebuggerWindow::IsHeatRangeBarEnabled (int id) const
     case HeatMapRangeBarCommands::kSet:        return !m_heatRanges.sets.empty();
     case HeatMapRangeBarCommands::kRenameSet:  return set != nullptr;
     case HeatMapRangeBarCommands::kDeleteSet:  return set != nullptr;
-    case HeatMapRangeBarCommands::kNew:        return set != nullptr;
     case HeatMapRangeBarCommands::kEdit:       return isOwn;
     case HeatMapRangeBarCommands::kRemove:     return isOwn;
     case HeatMapRangeBarCommands::kUp:         return selected.has_value() && row > 0;
@@ -333,10 +331,8 @@ bool DebuggerWindow::IsHeatRangeBarEnabled (int id) const
 
 void DebuggerWindow::RunHeatRangeBarEntry (int id)
 {
-    std::string              error;
-    std::string              name;
-    HeatMapRangeSet        * set      = GetEditedSet();
-    std::optional<size_t>    selected = GetSelectedHeatRange();
+    std::string  error;
+    std::string  name;
 
 
 
@@ -378,24 +374,12 @@ void DebuggerWindow::RunHeatRangeBarEntry (int id)
         SetHeatRangeMenus();
         break;
 
-    case HeatMapRangeBarCommands::kNew:
-        AddHeatRange();
-        break;
-
     case HeatMapRangeBarCommands::kEdit:
         BeginHeatRangeEdit (m_heatRangeList->GetSelectedRow(), HeatMapRangeSets::Field::Start);
         break;
 
     case HeatMapRangeBarCommands::kRemove:
-        if (!HeatMapRangeSets::TryRemoveRange (*set, *selected, error))
-        {
-            SetHeatRangeError (error);
-            break;
-        }
-
-        SetHeatRangeError ({});
-        SaveHeatRanges();
-        ApplyHeatRanges();
+        RemoveHeatRange (m_heatRangeList->GetSelectedRow());
         break;
 
     case HeatMapRangeBarCommands::kUp:    MoveHeatRange (-1); break;
@@ -416,38 +400,104 @@ void DebuggerWindow::RunHeatRangeBarEntry (int id)
 //
 //  DebuggerWindow::AddHeatRange
 //
-//  A range is added at the set's end and its start opened for typing, as
-//  Visual Studio's New opens a row; one left empty goes again.
+//  The grid's new row, added at the set's end once it reads as a range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::AddHeatRange()
+bool DebuggerWindow::AddHeatRange (const std::vector<std::wstring> & texts, std::wstring & outError)
 {
-    HeatMapRangeSet  * set = GetEditedSet();
+    HeatMapRangeSet  * set   = GetEditedSet();
+    HeatMapRange       range;
+    std::string        error;
+    auto               field = [&texts] (HeatMapRangeSets::Field which) { return TextEncoding::WideToUtf8 (texts[(size_t) which]); };
 
 
 
     if (set == nullptr)
     {
-        return;
+        outError = L"There is no set to add the range to.";
+        return false;
     }
 
-    set->ranges.push_back (HeatMapRange {});
-    ApplyHeatRangeRows();
-
-    m_heatRangeList->SetSelectedRow (m_heatRangeList->GetRowCount() - 1);
-    BeginHeatRangeEdit (m_heatRangeList->GetRowCount() - 1, HeatMapRangeSets::Field::Start);
-
-    //  With no room to type in, as in a pane too short for a row, the range
-    //  goes again rather than stay empty.
-    if (!IsEditingHeatRange())
+    if (!HeatMapRangeSets::TryMakeRange (field (HeatMapRangeSets::Field::Name), field (HeatMapRangeSets::Field::Start), field (HeatMapRangeSets::Field::End),
+                                         field (HeatMapRangeSets::Field::Size), GetHeatRangeSymbols(), range, error))
     {
-        set->ranges.pop_back();
-        ApplyHeatRangeRows();
+        outError = TextEncoding::Utf8ToWide (error);
+        return false;
+    }
+
+    set->ranges.push_back (range);
+    SaveHeatRanges();
+    ApplyHeatRanges();
+    Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CommitHeatRangeCell
+//
+//  A cell edited in the grid, stored once the range reads with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::CommitHeatRangeCell (int row, int column, const std::wstring & text, std::wstring & outError)
+{
+    HeatMapRangeSet  * set = GetEditedSet();
+    std::string        error;
+
+
+
+    if (set == nullptr || row < 0 || row >= (int) m_heatRangeRows.size() ||
+        !HeatMapRangeSets::TryEditRange (*set, m_heatRangeRows[(size_t) row], (HeatMapRangeSets::Field) column, TextEncoding::WideToUtf8 (text),
+                                        GetHeatRangeSymbols(), error))
+    {
+        outError = TextEncoding::Utf8ToWide (error);
+        return false;
+    }
+
+    SaveHeatRanges();
+    ApplyHeatRanges();
+    Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RemoveHeatRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RemoveHeatRange (int row)
+{
+    HeatMapRangeSet  * set = GetEditedSet();
+    std::string        error;
+
+
+
+    if (set == nullptr || row < 0 || row >= (int) m_heatRangeRows.size())
+    {
         return;
     }
 
-    m_heatRangeEdit.isNew = true;
+    if (!HeatMapRangeSets::TryRemoveRange (*set, m_heatRangeRows[(size_t) row], error))
+    {
+        SetHeatRangeError (error);
+        return;
+    }
+
+    SetHeatRangeError ({});
+    SaveHeatRanges();
+    ApplyHeatRanges();
+    Invalidate();
 }
 
 
@@ -458,22 +508,40 @@ void DebuggerWindow::AddHeatRange()
 //
 //  DebuggerWindow::MoveHeatRange
 //
-//  A row moves past the row beside it, even with a range hidden between
-//  them in the set, as "My program" is with no symbols loaded.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::MoveHeatRange (int delta)
 {
+    int  row = m_heatRangeList->GetSelectedRow();
+
+
+
+    MoveHeatRangeRow (row, row + delta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MoveHeatRangeRow
+//
+//  A row moves to another row's place, past every range between them in the
+//  set, a hidden one too, as "My program" is with no symbols loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MoveHeatRangeRow (int row, int to)
+{
     HeatMapRangeSet  * set    = GetEditedSet();
-    int                row    = m_heatRangeList->GetSelectedRow();
-    int                to     = row + delta;
+    int                delta  = (to < row) ? -1 : 1;
     size_t             index  = 0;
     size_t             target = 0;
 
 
 
-    if (set == nullptr || row < 0 || to < 0 || to >= (int) m_heatRangeRows.size())
+    if (set == nullptr || row < 0 || to < 0 || to == row || row >= (int) m_heatRangeRows.size() || to >= (int) m_heatRangeRows.size())
     {
         return;
     }
@@ -499,62 +567,19 @@ void DebuggerWindow::MoveHeatRange (int delta)
 //
 //  DebuggerWindow::BeginHeatRangeEdit
 //
-//  A box over the cell, holding what was typed for it: a range's name,
-//  start or end, or its length for its size. A built-in range has nothing
-//  of its own to edit.
+//  The grid's box over the cell, with what was typed for it: a range's
+//  name, start or end, or its length for its size. A built-in range has
+//  nothing of its own to edit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::BeginHeatRangeEdit (int row, HeatMapRangeSets::Field field)
 {
-    const HeatMapRangeSet  * set    = GetEditedSet();
-    const HeatMapRange     * range  = nullptr;
-    RECT                     list   = m_heatRangeList->GetBounds();
-    RECT                     cell   = {};
-    std::string              text;
-
-
-
-    if (set == nullptr || row < 0 || row >= (int) m_heatRangeRows.size())
+    if (m_heatRangeList->BeginEdit (row, (int) field))
     {
-        return;
+        SetFocusedControl (m_heatRangeList);
     }
 
-    range = &set->ranges[m_heatRangeRows[(size_t) row]];
-
-    if (HeatMapRangeSets::IsBuiltIn (*range))
-    {
-        return;
-    }
-
-    switch (field)
-    {
-    case HeatMapRangeSets::Field::Name:  text = range->name;  break;
-    case HeatMapRangeSets::Field::Start: text = range->start; break;
-    case HeatMapRangeSets::Field::End:   text = range->end;   break;
-    case HeatMapRangeSets::Field::Size:  text = range->end.starts_with ('+') ? range->end.substr (1) : std::string(); break;
-    }
-
-    m_heatRangeList->EnsureVisible (row);
-
-    if (!m_heatRangeList->GetCellTextRectPx (row, (size_t) field, cell))
-    {
-        return;
-    }
-
-    OffsetRect (&cell, list.left, list.top);
-
-    m_heatRangeEdit = HeatRangeEdit { row, field, false, false };
-
-    //  In the list's own face and size, so the text does not jump when the
-    //  box opens over it.
-    m_heatRangeEditor->SetTextRenderer (GetTextRenderer());
-    m_heatRangeEditor->SetFont         (DxuiTheme::kMonoFace, m_heatRangeList->GetFontSizeDip());
-    m_heatRangeEditor->SetText         (TextEncoding::Utf8ToWide (text));
-    m_heatRangeEditor->Layout          (cell, m_scaler);
-    m_heatRangeEditor->SetVisible      (true);
-    SetFocusedControl                  (m_heatRangeEditor);
-    m_heatRangeEditor->SelectAll();
     Invalidate();
 }
 
@@ -586,7 +611,7 @@ void DebuggerWindow::BeginSetNameEdit (bool isNew)
         entry = m_heatRangeBar->GetBounds();
     }
 
-    m_heatRangeEdit = HeatRangeEdit { -1, HeatMapRangeSets::Field::Name, isNew, true };
+    m_heatRangeEdit = HeatRangeEdit { isNew, true };
 
     m_heatRangeEditor->SetTextRenderer (GetTextRenderer());
     m_heatRangeEditor->SetFont         (DxuiTheme::kBodyFace, m_heatRangeList->GetFontSizeDip());
@@ -606,47 +631,36 @@ void DebuggerWindow::BeginSetNameEdit (bool isNew)
 //
 //  DebuggerWindow::EndHeatRangeEdit
 //
-//  Enter keeps what was typed once it reads, and the box stays open with
-//  the reason under the bar when it does not; Escape leaves the range or
-//  the set as it was, and a new range left empty, or abandoned, goes again.
+//  A range's cell is the grid's to end. For the set's name, Enter stores
+//  what was typed once it is a name no other set has, and the box stays
+//  open with the reason under the bar when it is not; Escape cancels it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::EndHeatRangeEdit (bool commit)
 {
-    std::string        typed    = TextEncoding::WideToUtf8 (m_heatRangeEditor->GetText());
-    HeatRangeEdit      edit     = m_heatRangeEdit;
-    HeatMapRangeSet  * set      = GetEditedSet();
-    size_t             index    = (edit.row >= 0 && edit.row < (int) m_heatRangeRows.size()) ? m_heatRangeRows[(size_t) edit.row] : 0;
-    bool               isBlank  = typed.find_first_not_of (" \t") == std::string::npos;
+    std::string        typed = TextEncoding::WideToUtf8 (m_heatRangeEditor->GetText());
+    HeatMapRangeSet  * set   = GetEditedSet();
     std::string        error;
 
 
 
-    if (!IsEditingHeatRange())
+    if (!m_heatRangeEdit.isSetName)
     {
+        m_heatRangeList->EndEdit (commit);
+        Invalidate();
         return;
     }
 
-    if (commit && edit.isSetName && !m_heatRanges.TryRenameSet (m_heatRangeSet, typed, error))
+    if (commit && !m_heatRanges.TryRenameSet (m_heatRangeSet, typed, error))
     {
         SetHeatRangeError (error);
         return;
     }
 
-    if (commit && edit.isSetName)
+    if (commit)
     {
         m_heatRangeSet = (set != nullptr) ? set->name : m_heatRangeSet;
-    }
-
-    if (!edit.isSetName && set != nullptr && edit.isNew && (!commit || isBlank))
-    {
-        set->ranges.erase (set->ranges.begin() + (ptrdiff_t) index);
-    }
-    else if (!edit.isSetName && set != nullptr && commit && !HeatMapRangeSets::TryEditRange (*set, index, edit.field, typed, GetHeatRangeSymbols(), error))
-    {
-        SetHeatRangeError (error);
-        return;
     }
 
     m_heatRangeEdit = HeatRangeEdit {};
@@ -800,7 +814,7 @@ void DebuggerWindow::ApplyHeatRangeRows()
     const HeatMapSymbols                          & symbols   = GetHeatRangeSymbols();
     uint32_t                                        error     = (m_theme != nullptr) ? m_theme->ErrorForeground() : 0;
     std::wstring                                    separator = L"  ";
-    std::vector<std::vector<DxuiListView::Cell>>    rows;
+    std::vector<DxuiEditableGrid::GridRow>          rows;
 
 
 
@@ -858,10 +872,13 @@ void DebuggerWindow::ApplyHeatRangeRows()
         }
 
         m_heatRangeRows.push_back (i);
-        rows.push_back (std::move (cells));
+        rows.push_back ({ std::move (cells),
+                          { TextEncoding::Utf8ToWide (range.name), TextEncoding::Utf8ToWide (range.start), TextEncoding::Utf8ToWide (range.end),
+                            TextEncoding::Utf8ToWide (range.end.starts_with ('+') ? range.end.substr (1) : std::string()) },
+                          HeatMapRangeSets::IsBuiltIn (range) });
     }
 
-    m_heatRangeList->SetRows (std::move (rows));
+    m_heatRangeList->SetGridRows (std::move (rows));
 }
 
 
@@ -1013,8 +1030,9 @@ std::optional<size_t> DebuggerWindow::GetSelectedHeatRange() const
 //
 //  DebuggerWindow::RouteHeatRangeEditMouse
 //
-//  As a watch's edit: the box takes the pointer while it is over it, and a
-//  press or a wheel anywhere else keeps what was typed and lets it through.
+//  As a watch's edit: the set name's box takes the pointer while it is over
+//  it, and a press or a wheel anywhere else commits what was typed and goes
+//  on to whatever is there. The grid routes its own box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1024,7 +1042,7 @@ bool DebuggerWindow::RouteHeatRangeEditMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (!IsEditingHeatRange())
+    if (!m_heatRangeEdit.isSetName)
     {
         return false;
     }
@@ -1052,9 +1070,10 @@ bool DebuggerWindow::RouteHeatRangeEditMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::RouteHeatRangeKey
 //
-//  An edit takes every key: Enter keeps what was typed, Escape leaves it as
-//  it was. In the list, Delete removes a range, F2 renames one and Insert
-//  adds one, as in Visual Studio's tool windows.
+//  The set name's edit takes every key: Enter commits what was typed and
+//  Escape cancels it. The grid takes every key while a cell is edited, and
+//  otherwise Delete, Insert, F2 and Enter, as in Visual Studio's tool
+//  windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1064,7 +1083,7 @@ bool DebuggerWindow::RouteHeatRangeKey (const DxuiKeyEvent & ev, IDxuiControl * 
 
 
 
-    if (IsEditingHeatRange())
+    if (m_heatRangeEdit.isSetName)
     {
         if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
         {
@@ -1079,28 +1098,20 @@ bool DebuggerWindow::RouteHeatRangeKey (const DxuiKeyEvent & ev, IDxuiControl * 
         return true;
     }
 
-    if (!isPlain || focused != m_heatRangeList)
+    if (focused != m_heatRangeList)
     {
         return false;
     }
 
-    switch (ev.vk)
+    if (m_heatRangeList->IsEditing() ||
+        (isPlain && (ev.vk == VK_DELETE || ev.vk == VK_INSERT || ev.vk == VK_F2 || ev.vk == VK_RETURN)))
     {
-    case VK_DELETE:
-        RunHeatRangeBarEntry (HeatMapRangeBarCommands::kRemove);
+        (void) m_heatRangeList->OnKey (ev);
+        Invalidate();
         return true;
-
-    case VK_INSERT:
-        RunHeatRangeBarEntry (HeatMapRangeBarCommands::kNew);
-        return true;
-
-    case VK_F2:
-        BeginHeatRangeEdit (m_heatRangeList->GetSelectedRow(), HeatMapRangeSets::Field::Name);
-        return true;
-
-    default:
-        return false;
     }
+
+    return false;
 }
 
 

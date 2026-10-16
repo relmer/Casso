@@ -8,7 +8,6 @@
 
 
 //  Chosen from a rendered sheet of Segoe MDL2 Assets.
-static constexpr const wchar_t *  s_kGlyphNew    = s_kpszMdl2Add;      // plus
 static constexpr const wchar_t *  s_kGlyphEdit   = s_kpszMdl2Rename;   // A in a text box
 static constexpr const wchar_t *  s_kGlyphRemove = s_kpszMdl2Delete;   // trash can
 static constexpr const wchar_t *  s_kGlyphUp     = s_kpszMdl2Up;       // arrow up
@@ -34,7 +33,6 @@ const std::vector<HeatMapRangeBarCommands::Row> & HeatMapRangeBarCommands::GetRo
         { kNewSet,    L"New set",    nullptr,        L"Make a set, starting with every built-in range left out", DxuiToolbar::Kind::Command,  0, false },
         { kRenameSet, L"Rename set", nullptr,        L"Rename this set",                                         DxuiToolbar::Kind::Command,  0, false },
         { kDeleteSet, L"Delete set", nullptr,        L"Delete this set and its ranges",                          DxuiToolbar::Kind::Command,  0, false },
-        { kNew,       L"New",        s_kGlyphNew,    L"New range, as $6000-$95FF or ZP_VARS..+$20",              DxuiToolbar::Kind::Command,  1, true  },
         { kEdit,      L"Edit",       s_kGlyphEdit,   L"Edit the selected range",                                 DxuiToolbar::Kind::Command,  1, true  },
         { kRemove,    L"Remove",     s_kGlyphRemove, L"Remove the selected range",                               DxuiToolbar::Kind::Command,  1, true  },
         { kUp,        L"Move up",    s_kGlyphUp,     L"Move the selected range up the map",                      DxuiToolbar::Kind::Command,  2, true  },

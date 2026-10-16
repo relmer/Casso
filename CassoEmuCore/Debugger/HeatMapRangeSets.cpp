@@ -89,6 +89,36 @@ HeatMapRangeSet HeatMapRangeSets::MakeSet (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapRangeSets::TryAddDefaultSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapRangeSets::TryAddDefaultSet()
+{
+    HeatMapRangeSet  set = MakeSet (kpszDefaultSet);
+
+
+
+    if (!sets.empty())
+    {
+        return false;
+    }
+
+    for (HeatMapRange & range : set.ranges)
+    {
+        range.included = true;
+    }
+
+    sets.push_back (std::move (set));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapRangeSets::AddPresets
 //
 //  Each built-in range the set lacks, at its end and left out.
@@ -507,6 +537,59 @@ bool HeatMapRangeSets::TryDeleteSet (const std::string & name)
     }
 
     return removed > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapRangeSets::TryMakeRange
+//
+//  The range's end is the end typed, else the size, else the end of a span
+//  typed in the start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapRangeSets::TryMakeRange (
+    const std::string     & name,
+    const std::string     & start,
+    const std::string     & end,
+    const std::string     & size,
+    const HeatMapSymbols  & symbols,
+    HeatMapRange          & range,
+    std::string           & error)
+{
+    std::string  spanStart;
+    std::string  spanEnd;
+    std::string  typedSize = Trim (size);
+    Word         first     = 0;
+    Word         last      = 0;
+
+
+
+    range       = HeatMapRange {};
+    range.name  = Trim (name);
+    range.start = Trim (start);
+
+    if (TrySplit (range.start, spanStart, spanEnd))
+    {
+        range.start = spanStart;
+        range.end   = spanEnd;
+    }
+
+    if (!typedSize.empty())
+    {
+        range.end = typedSize.starts_with ('+') ? typedSize : "+" + typedSize;
+    }
+
+    if (!Trim (end).empty())
+    {
+        range.end = Trim (end);
+    }
+
+    return TryResolve (range, symbols, first, last, error);
 }
 
 

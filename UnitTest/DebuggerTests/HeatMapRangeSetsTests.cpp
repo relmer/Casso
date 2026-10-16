@@ -247,6 +247,51 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (ANewRowReadsAsARangeFromItsColumns)
+        {
+            HeatMapSymbols  symbols = MakeSymbols();
+            HeatMapRange    range;
+            std::string     error;
+
+
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange (" Game ", "$6000-$95FF", "", "", symbols, range, error), L"a whole span in the start");
+            Assert::AreEqual (std::string ("Game"),  range.name);
+            Assert::AreEqual (std::string ("$6000"), range.start);
+            Assert::AreEqual (std::string ("$95FF"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "$300", "", "$100", symbols, range, error), L"a size");
+            Assert::AreEqual (std::string ("+$100"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "$300", "$3FF", "$10", symbols, range, error), L"an end over a size");
+            Assert::AreEqual (std::string ("$3FF"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "ZP_VARS", "", "", symbols, range, error), L"a symbol with its own size");
+
+            Assert::IsFalse  (HeatMapRangeSets::TryMakeRange ("", "$6000", "", "", symbols, range, error), L"no end");
+            Assert::IsFalse  (error.empty());
+        }
+
+
+
+        TEST_METHOD (TheDefaultSetHasEveryBuiltInRangeIncluded)
+        {
+            HeatMapRangeSets  sets = HeatMapRangeSets::FromText ("");
+
+
+
+            Assert::IsTrue   (sets.TryAddDefaultSet());
+            Assert::AreEqual ((size_t) 1, sets.sets.size());
+            Assert::AreEqual (std::string ("Default"), sets.sets[0].name);
+            Assert::AreEqual (HeatMapRangeSets::GetPresets().size(), sets.sets[0].ranges.size());
+            Assert::IsTrue   (std::ranges::all_of (sets.sets[0].ranges, [] (const HeatMapRange & range) { return range.included; }));
+
+            Assert::IsFalse  (sets.TryAddDefaultSet(), L"only with no set at all");
+            Assert::AreEqual ((size_t) 1, sets.sets.size());
+        }
+
+
+
         TEST_METHOD (TheSetsRoundTripThroughText)
         {
             HeatMapRangeSets  sets;

@@ -18,23 +18,19 @@ static constexpr const wchar_t *  s_kModeLabels[] = { L"AppleWin", L"Monitor", L
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProjectSettingsPanel::Init (DxuiLabel & scope, DxuiLabel & file, DxuiLabel & heading, std::span<DxuiComboBox> modes, std::span<DxuiTextInput> lines)
+void ProjectSettingsPanel::Init (DxuiLabel & scope, DxuiLabel & file, DxuiLabel & heading, DxuiEditableGrid & grid, DxuiLabel & error)
 {
     m_scope   = &scope;
     m_file    = &file;
     m_heading = &heading;
-    m_modes   = modes;
-    m_lines   = lines;
+    m_grid    = &grid;
+    m_error   = &error;
 
     Adopt (scope);
     Adopt (file);
     Adopt (heading);
-
-    for (size_t i = 0; i < m_modes.size(); i++)
-    {
-        Adopt (m_modes[i]);
-        Adopt (m_lines[i]);
-    }
+    Adopt (grid);
+    Adopt (error);
 }
 
 
@@ -45,14 +41,16 @@ void ProjectSettingsPanel::Init (DxuiLabel & scope, DxuiLabel & file, DxuiLabel 
 //
 //  ProjectSettingsPanel::Layout
 //
+//  The labels a row each, the error line at the bottom, and the grid
+//  between them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProjectSettingsPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  row   = scaler.ToPx (kRowDip);
-    int  gap   = scaler.ToPx (kGapDip);
-    int  split = boundsDip.left + scaler.ToPx (kModeDip);
-    int  y     = boundsDip.top;
+    int  row = scaler.ToPx (kRowDip);
+    int  gap = scaler.ToPx (kGapDip);
+    int  y   = boundsDip.top;
 
 
 
@@ -64,12 +62,8 @@ void ProjectSettingsPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler &
         y += row;
     }
 
-    for (size_t i = 0; i < m_modes.size(); i++)
-    {
-        m_modes[i].Layout (RECT { boundsDip.left, y, split - gap, y + row }, scaler);
-        m_lines[i].Layout (RECT { split, y, boundsDip.right, y + row }, scaler);
-        y += row + gap;
-    }
+    m_grid->Layout  (RECT { boundsDip.left, y, boundsDip.right, boundsDip.bottom - row - gap }, scaler);
+    m_error->Layout (RECT { boundsDip.left, boundsDip.bottom - row, boundsDip.right, boundsDip.bottom }, scaler);
 }
 
 
@@ -78,32 +72,127 @@ void ProjectSettingsPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProjectSettingsDialog::GetCommands
+//  ProjectSettingsPanel::OnMouse
+//
+//  Only the grid takes the pointer: over it, or anywhere while it drags or
+//  edits, so a press elsewhere commits its edit. A press over it is passed
+//  on first, with the row under it, for the focus and a row's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProjectSettingsDialog::StartupCommands ProjectSettingsDialog::GetCommands (const std::array<CommandMode, kRows> & modes, const std::array<std::string, kRows> & lines)
+bool ProjectSettingsPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    StartupCommands  commands;
+    RECT            bounds = m_grid->GetBounds();
+    DxuiMouseEvent  local  = ev;
+    bool            isOver = PtInRect (&bounds, ev.positionDip) != FALSE;
 
 
 
-    for (size_t i = 0; i < kRows; i++)
+    local.positionDip = { ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top };
+
+    if (!isOver && !m_grid->IsInteracting() && !m_grid->IsEditing())
     {
-        size_t  first = lines[i].find_first_not_of (" \t");
-        size_t  last  = lines[i].find_last_not_of (" \t");
-
-
-
-        if (first == std::string::npos)
-        {
-            continue;
-        }
-
-        commands.push_back ({ lines[i].substr (first, last - first + 1), modes[i] });
+        return false;
     }
 
-    return commands;
+    if (ev.kind == DxuiMouseEventKind::Down && isOver && m_pressed)
+    {
+        m_pressed (ev, m_grid->HitTestRow (local.positionDip.x, local.positionDip.y));
+    }
+
+    return m_grid->OnMouse (local) || isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsPanel::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR ProjectSettingsPanel::GetCursorForPoint (POINT clientPx) const
+{
+    RECT  bounds = m_grid->GetBounds();
+
+
+
+    if (!PtInRect (&bounds, clientPx) && !m_grid->IsDraggingRow())
+    {
+        return nullptr;
+    }
+
+    return m_grid->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::TryParseMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProjectSettingsDialog::TryParseMode (const std::wstring & text, CommandMode & mode)
+{
+    size_t  first = text.find_first_not_of (L" \t");
+    size_t  last  = text.find_last_not_of (L" \t");
+
+
+
+    if (first == std::wstring::npos)
+    {
+        mode = CommandMode::AppleWin;
+        return true;
+    }
+
+    for (size_t i = 0; i < std::size (s_kModeLabels); i++)
+    {
+        if (_wcsicmp (text.substr (first, last - first + 1).c_str(), s_kModeLabels[i]) == 0)
+        {
+            mode = (CommandMode) i;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::TryMakeCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProjectSettingsDialog::TryMakeCommand (const std::wstring & line, const std::wstring & mode, DebugProject::StartupCommand & command, std::wstring & error)
+{
+    size_t  first = line.find_first_not_of (L" \t");
+    size_t  last  = line.find_last_not_of (L" \t");
+
+
+
+    if (first == std::wstring::npos)
+    {
+        error = L"A startup command has no text.";
+        return false;
+    }
+
+    if (!TryParseMode (mode, command.mode))
+    {
+        error = L"The modes are AppleWin, Monitor, GSSquared, WinDbg and Casso.";
+        return false;
+    }
+
+    command.text = SourcePathList::WideToUtf8 (line.substr (first, last - first + 1));
+    return true;
 }
 
 
@@ -114,7 +203,7 @@ ProjectSettingsDialog::StartupCommands ProjectSettingsDialog::GetCommands (const
 //
 //  ProjectSettingsDialog::OnCreate
 //
-//  OK reads the rows before the dialog ends.
+//  OK takes the commands as the grid has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,56 +213,215 @@ void ProjectSettingsDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_scope, &m_file, &m_heading })
+    for (DxuiLabel * label : { &m_scope, &m_file, &m_heading, &m_error })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
+    m_error.SetTextRole (DxuiTextRole::Error);
+
     m_scope.SetText   (L"Debug project for " + SourcePathList::Utf8ToWide (m_project.scope.label));
     m_file.SetText    (m_project.filePath);
     m_heading.SetText (L"Startup commands, run in order when the project opens:");
 
-    for (size_t i = 0; i < kRows; i++)
-    {
-        bool  isUsed = i < m_project.startupCommands.size();
-
-
-
-        m_modes[i].SetItems     (std::vector<std::wstring> (std::begin (s_kModeLabels), std::end (s_kModeLabels)));
-        m_modes[i].SetSelected  (isUsed ? (int) m_project.startupCommands[i].mode : (int) CommandMode::AppleWin);
-        m_modes[i].SetPopupHost (GetPopupHost());
-
-        m_lines[i].SetTheme        (m_theme);
-        m_lines[i].SetHwnd         (GetHwnd());
-        m_lines[i].SetTextRenderer (GetTextRenderer());
-        m_lines[i].SetText         (isUsed ? SourcePathList::Utf8ToWide (m_project.startupCommands[i].text) : std::wstring());
-    }
+    m_commands = m_project.startupCommands;
+    ConfigureGrid();
 
     m_body = CreateDialogContent<ProjectSettingsPanel>();
-    m_body->Init (m_scope, m_file, m_heading, m_modes, m_lines);
+    m_body->Init (m_scope, m_file, m_heading, m_grid, m_error);
+    m_body->SetOnGridPressed ([this] (const DxuiMouseEvent & ev, int row)
+    {
+        FocusControl (&m_grid);
+
+        if (ev.button == DxuiMouseButton::Right)
+        {
+            ShowRowMenu (ev, row);
+        }
+    });
 
     ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
 
     ok->SetOnClick ([this]()
     {
-        std::array<CommandMode, kRows>  modes;
-        std::array<std::string, kRows>  lines;
-
-
-
-        for (size_t i = 0; i < kRows; i++)
-        {
-            modes[i] = (CommandMode) m_modes[i].GetSelectedIndex();
-            lines[i] = SourcePathList::WideToUtf8 (m_lines[i].GetText());
-        }
-
-        m_result = GetCommands (modes, lines);
+        m_grid.EndEdit (true);
+        m_result = m_commands;
         EndDialog (IDOK);
     });
 
-    SetInitialFocus (&m_lines[0]);
+    SetInitialFocus (&m_grid);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::ConfigureGrid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProjectSettingsDialog::ConfigureGrid()
+{
+    constexpr int  kCommandDip = 300;
+    constexpr int  kModeDip    = 110;
+
+
+
+    m_grid.SetTheme       (m_theme);
+    m_grid.SetShowHeader  (true);
+    m_grid.SetEditorHwnd  (GetHwnd());
+    m_grid.SetGridColumns ({ { { L"Command", kCommandDip }, true, true }, { { L"Mode", kModeDip } } });
+    m_grid.SetAddRowText  (L"Add startup command");
+
+    m_grid.SetOnCommitCell ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column, text, outError); });
+    m_grid.SetOnAddRow     ([this] (const std::vector<std::wstring> & texts, std::wstring & outError) { return AddCommand (texts, outError); });
+    m_grid.SetOnMoveRow    ([this] (int from, int to) { MoveCommand (from, to); });
+    m_grid.SetOnError      ([this] (const std::wstring & text) { m_error.SetText (text); Invalidate(); });
+    m_grid.SetOnDeleteRow  ([this] (int row)
+    {
+        m_commands.erase (m_commands.begin() + row);
+        ApplyRows();
+    });
+
+    ApplyRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::ApplyRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProjectSettingsDialog::ApplyRows()
+{
+    std::vector<DxuiEditableGrid::GridRow>  rows;
+
+
+
+    for (const DebugProject::StartupCommand & command : m_commands)
+    {
+        rows.push_back ({ { { SourcePathList::Utf8ToWide (command.text) }, { s_kModeLabels[(size_t) command.mode] } } });
+    }
+
+    m_grid.SetGridRows (std::move (rows));
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::CommitCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProjectSettingsDialog::CommitCell (int row, int column, const std::wstring & text, std::wstring & outError)
+{
+    DebugProject::StartupCommand  & command = m_commands[(size_t) row];
+    DebugProject::StartupCommand    made;
+
+
+
+    if (!TryMakeCommand ((column == kCommandColumn) ? text : SourcePathList::Utf8ToWide (command.text),
+                         (column == kModeColumn)    ? text : std::wstring (s_kModeLabels[(size_t) command.mode]), made, outError))
+    {
+        return false;
+    }
+
+    command = made;
+    ApplyRows();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::AddCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProjectSettingsDialog::AddCommand (const std::vector<std::wstring> & texts, std::wstring & outError)
+{
+    DebugProject::StartupCommand  command;
+
+
+
+    if (!TryMakeCommand (texts[kCommandColumn], texts[kModeColumn], command, outError))
+    {
+        return false;
+    }
+
+    m_commands.push_back (command);
+    ApplyRows();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::MoveCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProjectSettingsDialog::MoveCommand (int from, int to)
+{
+    auto  first = m_commands.begin();
+
+
+
+    if (from < to)
+    {
+        std::rotate (first + from, first + from + 1, first + to + 1);
+    }
+    else
+    {
+        std::rotate (first + to, first + from, first + from + 1);
+    }
+
+    ApplyRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProjectSettingsDialog::ShowRowMenu
+//
+//  Delete, on a command's row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProjectSettingsDialog::ShowRowMenu (const DxuiMouseEvent & ev, int row)
+{
+    if (!m_grid.CanDeleteRow (row) || GetPopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_grid.SetSelectedRow (row);
+
+    m_deleteCommand           = std::make_shared<DxuiCommand>();
+    m_deleteCommand->label    = L"Delete";
+    m_deleteCommand->dispatch = [this, row] { m_grid.DeleteRow (row); };
+
+    DxuiContextMenu::Show (*GetPopupHost(), ev.positionDip.x, ev.positionDip.y, { DxuiPopupMenuItem::ForCommand (m_deleteCommand) });
 }
 
 

@@ -104,11 +104,16 @@ public:
     int   GetDropRowAt   (int yPx) const;
     bool  IsDraggingRow  () const { return m_dragRow >= 0; }
 
+    //  A row's drag counts, so a host that sends moves only to a list mid-drag
+    //  sends them to the grid.
+    bool  IsInteracting  () const override { return IsDraggingRow() || DxuiListView::IsInteracting(); }
+
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    LPCWSTR  GetCursorForPoint (POINT localPx) const override;
     bool     OnKey             (const DxuiKeyEvent & ev) override;
+    bool     OnChar            (wchar_t ch) override;
     void     OnFocusChanged    (bool focused) override;
 
     using DxuiListView::Paint;
@@ -126,6 +131,7 @@ private:
     void  PaintGrippers    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     void  PaintDropLine    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     std::wstring  GetEditText (int row, int column) const;
+    bool          TryGetEditorRect (int row, int column, RECT & outRect) const;
 
     std::vector<GridColumn>    m_columns;
     std::vector<GridRow>       m_rows;

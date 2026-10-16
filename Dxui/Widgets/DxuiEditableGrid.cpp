@@ -70,8 +70,7 @@ void DxuiEditableGrid::SetGridColumns (std::vector<GridColumn> columns)
 void DxuiEditableGrid::SetGridRows (std::vector<GridRow> rows)
 {
     bool  isAddEdit = IsEditing() && IsAddRow (m_editRow);
-    RECT  cell      = {};
-    RECT  bounds    = GetBounds();
+    RECT  box       = {};
 
 
 
@@ -89,10 +88,9 @@ void DxuiEditableGrid::SetGridRows (std::vector<GridRow> rows)
         m_editor.SetFocused (false);
     }
 
-    if (IsEditing() && GetCellTextRectPx (m_editRow, (size_t) m_editColumn + 1, cell))
+    if (IsEditing() && TryGetEditorRect (m_editRow, m_editColumn, box))
     {
-        OffsetRect (&cell, bounds.left, bounds.top);
-        m_editor.Layout (cell, m_gridScaler);
+        m_editor.Layout (box, m_gridScaler);
     }
 }
 
@@ -276,6 +274,35 @@ std::wstring DxuiEditableGrid::GetEditText (int row, int column) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::TryGetEditorRect
+//
+//  The box over a cell, in the window's coordinates, moved left by the
+//  input's own text padding so its text starts where the cell's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::TryGetEditorRect (int row, int column, RECT & outRect) const
+{
+    RECT  bounds = GetBounds();
+
+
+
+    if (!GetCellTextRectPx (row, (size_t) column + 1, outRect))
+    {
+        return false;
+    }
+
+    OffsetRect (&outRect, bounds.left, bounds.top);
+    outRect.left -= m_gridScaler.ToPx (DxuiTextInput::kPadLeftDip);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::BeginEdit
 //
 //  In the list's own face and size, so the text does not move when the box
@@ -285,8 +312,7 @@ std::wstring DxuiEditableGrid::GetEditText (int row, int column) const
 
 bool DxuiEditableGrid::BeginEdit (int row, int column)
 {
-    RECT  cell   = {};
-    RECT  bounds = GetBounds();
+    RECT  box = {};
 
 
 
@@ -298,19 +324,17 @@ bool DxuiEditableGrid::BeginEdit (int row, int column)
     SetSelectedRow (row);
     EnsureVisible  (row);
 
-    if (!GetCellTextRectPx (row, (size_t) column + 1, cell))
+    if (!TryGetEditorRect (row, column, box))
     {
         return false;
     }
-
-    OffsetRect (&cell, bounds.left, bounds.top);
 
     m_editRow    = row;
     m_editColumn = column;
 
     m_editor.SetFont    (IsMonospace() ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace, GetFontSizeDip());
     m_editor.SetText    (GetEditText (row, column));
-    m_editor.Layout     (cell, m_gridScaler);
+    m_editor.Layout     (box, m_gridScaler);
     m_editor.SetFocused (true);
     m_editor.SelectAll();
     return true;
@@ -645,7 +669,7 @@ int DxuiEditableGrid::GetDropRowAt (int yPx) const
 
 void DxuiEditableGrid::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    RECT  cell = {};
+    RECT  box = {};
 
 
 
@@ -653,10 +677,9 @@ void DxuiEditableGrid::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     m_editor.SetDpi (scaler.GetDpi());
     DxuiListView::Layout (boundsDip, scaler);
 
-    if (IsEditing() && GetCellTextRectPx (m_editRow, (size_t) m_editColumn + 1, cell))
+    if (IsEditing() && TryGetEditorRect (m_editRow, m_editColumn, box))
     {
-        OffsetRect (&cell, GetBounds().left, GetBounds().top);
-        m_editor.Layout (cell, scaler);
+        m_editor.Layout (box, scaler);
     }
 }
 
@@ -921,33 +944,23 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiEditableGrid::GetCursorForPoint
 //
+//  The point is relative to the grid, as the list takes it. Over a gripper,
+//  and while a row is dragged, the cursor is the up-and-down arrow.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT clientPx) const
+LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 {
-    RECT  bounds = GetBounds();
-    int   lx     = clientPx.x - bounds.left;
-    int   ly     = clientPx.y - bounds.top;
-    int   row    = -1;
+    int  row = HitTestRow (localPx.x, localPx.y);
 
 
 
-    if (IsDraggingRow())
+    if (IsDraggingRow() || (row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
     {
         return IDC_SIZENS;
     }
 
-    if (PtInRect (&bounds, clientPx))
-    {
-        row = HitTestRow (lx, ly);
-
-        if (row >= 0 && row < GetDataRowCount() && GetGridColumnAt (lx) < 0)
-        {
-            return IDC_SIZENS;
-        }
-    }
-
-    return DxuiListView::GetCursorForPoint (clientPx);
+    return DxuiListView::GetCursorForPoint (localPx);
 }
 
 
@@ -1030,6 +1043,24 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
     }
 
     return DxuiListView::OnKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::OnChar
+//
+//  A character typed while a cell is edited, from a window that sends
+//  characters apart from keys, as a dialog does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::OnChar (wchar_t ch)
+{
+    return IsEditing() ? m_editor.OnChar (ch) : DxuiListView::OnChar (ch);
 }
 
 

@@ -380,29 +380,28 @@ namespace ProjectShellTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  EmptyRowsAreDroppedAndTheRestKeepTheirOrder
+        //  ARowIsACommandInItsMode
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (EmptyRowsAreDroppedAndTheRestKeepTheirOrder)
+        TEST_METHOD (ARowIsACommandInItsMode)
         {
-            std::array<CommandMode, ProjectSettingsDialog::kRows>   modes = {};
-            std::array<std::string, ProjectSettingsDialog::kRows>   lines = {};
-            ProjectSettingsDialog::StartupCommands                  commands;
+            DebugProject::StartupCommand  command;
+            std::wstring                  error;
 
 
 
-            modes[1] = CommandMode::Monitor;
-            lines[1] = "  300L ";
-            lines[2] = "   ";
-            lines[4] = "BP 300";
+            Assert::IsTrue   (ProjectSettingsDialog::TryMakeCommand (L"  300L ", L"monitor", command, error), L"a mode in any case");
+            Assert::AreEqual (std::string ("300L"), command.text, L"trimmed");
+            Assert::IsTrue   (command.mode == CommandMode::Monitor);
 
-            commands = ProjectSettingsDialog::GetCommands (modes, lines);
+            Assert::IsTrue   (ProjectSettingsDialog::TryMakeCommand (L"BP 300", L"", command, error), L"no mode is AppleWin");
+            Assert::IsTrue   (command.mode == CommandMode::AppleWin);
 
-            Assert::AreEqual ((size_t) 2, commands.size(), L"the two rows with text");
-            Assert::AreEqual (std::string ("300L"), commands[0].text, L"trimmed");
-            Assert::IsTrue   (commands[0].mode == CommandMode::Monitor, L"in its row's mode");
-            Assert::AreEqual (std::string ("BP 300"), commands[1].text, L"then the next row");
+            Assert::IsFalse  (ProjectSettingsDialog::TryMakeCommand (L"   ", L"Casso", command, error), L"no text");
+            Assert::IsFalse  (error.empty());
+
+            Assert::IsFalse  (ProjectSettingsDialog::TryMakeCommand (L"BP 300", L"Forth", command, error), L"no such mode");
         }
     };
 }

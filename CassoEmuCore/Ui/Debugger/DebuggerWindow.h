@@ -586,11 +586,11 @@ protected:
     //  an edit in place over a cell or the set's name, and a range's check.
     const HeatMapRangeSets &   GetHeatRanges          () const { return m_heatRanges; }
     const std::string &        GetEditedRangeSet      () const { return m_heatRangeSet; }
-    DxuiListView *             GetHeatRangeList       () const { return m_heatRangeList; }
+    DxuiEditableGrid *         GetHeatRangeList       () const { return m_heatRangeList; }
     DxuiToolbar *              GetHeatRangeBar        () const { return m_heatRangeBar; }
-    DxuiTextInput *            GetHeatRangeEditor     () const { return m_heatRangeEditor; }
+    DxuiTextInput *            GetHeatRangeEditor     () const { return m_heatRangeEdit.isSetName ? m_heatRangeEditor : &m_heatRangeList->GetEditor(); }
     std::wstring               GetHeatRangeError      () const;
-    bool                       IsEditingHeatRange     () const { return m_heatRangeEdit.row >= 0 || m_heatRangeEdit.isSetName; }
+    bool                       IsEditingHeatRange     () const { return m_heatRangeEdit.isSetName || m_heatRangeList->IsEditing(); }
     void                       ShowRangeSet           (const std::string & name);
     void                       EditRangeSet           (const std::string & name);
     void                       RunHeatRangeBarEntry   (int id);
@@ -1383,10 +1383,8 @@ private:
     //  or over the set's name on the bar.
     struct HeatRangeEdit
     {
-        int                      row       = -1;
-        HeatMapRangeSets::Field  field     = HeatMapRangeSets::Field::Start;
-        bool                     isNew     = false;
-        bool                     isSetName = false;
+        bool  isNew     = false;
+        bool  isSetName = false;
     };
 
     static constexpr int                         kHeatRangeEditMaxChars = 64;
@@ -1397,7 +1395,7 @@ private:
     std::string                                  m_heatRangeSet;
     std::shared_ptr<const HeatMapSymbols>        m_heatRangeSymbols;
     std::vector<size_t>                          m_heatRangeRows;
-    DxuiListView                               * m_heatRangeList        = nullptr;
+    DxuiEditableGrid                           * m_heatRangeList        = nullptr;
     DxuiToolbar                                * m_heatRangeBar         = nullptr;
     DxuiTextInput                              * m_heatRangeEditor      = nullptr;
     DxuiLabel                                  * m_heatRangeError       = nullptr;
@@ -1422,7 +1420,10 @@ private:
     void                     SetHeatRangeError        (const std::string & error);
     void                     BeginSetNameEdit         (bool isNew);
     void                     MoveHeatRange            (int delta);
-    void                     AddHeatRange             ();
+    void                     MoveHeatRangeRow         (int row, int to);
+    bool                     AddHeatRange             (const std::vector<std::wstring> & texts, std::wstring & outError);
+    bool                     CommitHeatRangeCell      (int row, int column, const std::wstring & text, std::wstring & outError);
+    void                     RemoveHeatRange          (int row);
     HeatMapRangeSet *        GetEditedSet             ();
     const HeatMapRangeSet *  GetEditedSet             () const;
     const HeatMapSymbols &   GetHeatRangeSymbols      () const;

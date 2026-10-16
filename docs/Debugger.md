@@ -408,7 +408,11 @@ one. `PROJECT` lists the open project and its file, `PROJECT SAVEAS file` and
 items of the project open before the last switch.
 
 File > Project settings... lists the startup commands, each with its command
-mode, which run in order each time the project opens. A project file that
+mode, which run in order each time the project opens. The list is edited in
+place, as the heat map's ranges are: the last row, **Add startup command**,
+adds one, a click on a command or its mode edits it, a mode left empty is
+AppleWin, a row's gripper drags it to another place in the order, and Delete
+or the row's menu deletes it. A project file that
 cannot be read is copied to the same name with `.unreadable-` and the date
 appended, and an empty project opens in its place.
 
@@ -1080,28 +1084,32 @@ the address in memory all work in every range as on the whole map.
 **Edit ranges...** on the bar, or **View > Heat map ranges**, opens the pane
 that edits the sets; it stays closed until first opened. Its bar holds the
 set being edited as a drop-down, **New set**, **Rename set** and **Delete
-set**, then **New**, **Edit**, **Remove**, **Move up** and **Move down** for
-the set's ranges. The list shows each range's **Name**, **Start**, **End**,
-**Size** and whether it is **Built-in**, with a check box in front that
-includes the range in the map or leaves it out.
+set**, then **Edit**, **Remove**, **Move up** and **Move down** for the set's
+ranges. The list has each range's **Name**, **Start**, **End**, **Size** and
+whether it is **Built-in**, with a check box in front to include the range in
+the map or not.
 
 Every set holds the built-in ranges: **Zero page**, **Stack**, **Text page
 1**, **Text page 2**, **Hi-res page 1**, **Hi-res page 2**, **I/O**,
 **Language Card**, and **My program**, which spans the symbols loaded from
-files and is listed only while some are loaded. A new set starts with all of
-them left out. A built-in range can be checked in or out and moved, but not
-edited or removed.
+files and is listed only while some are loaded. The first time the pane is
+used there is a set called **Default** with all of them included; a new set
+starts with all of them left out. A built-in range can be checked in or out
+and moved, but not edited or removed.
 
-**New** adds a range and opens its start for typing. A start accepts a whole
-span: `$6000-$95FF`, `ZP_VARS..+$20` (a symbol and a length), the console's
+The list's last row, **Add new range**, adds a range: a click opens its cell
+for typing, Enter or Tab goes on along the row, and once it has a start the
+range is added and a new last row follows it. A start accepts a whole span: `$6000-$95FF`, `ZP_VARS..+$20` (a symbol and a length), the console's
 `$300:$3FF` and `$300,$100`, or a symbol alone, which takes the size its
-cc65 debug file gave it. Double-clicking a cell, **Edit** or F2 edits a
-range's name, start, end or size in place; a size is kept as a length. Every
-start and end is read by the console's own evaluator, so symbols, decimal
-and arithmetic work as in any command. A range that does not read is
-refused with the reason under the bar, and the box stays open; Escape leaves
-the range as it was. Delete removes the selected range and Insert adds one.
-The sets and the set shown are kept between sessions.
+cc65 debug file has for it. A click on a cell, **Edit** or F2 edits a
+range's name, start, end or size in place; a size is stored as a length.
+Every start and end is read by the console's own evaluator, so symbols,
+decimal and arithmetic work as in any command. For a range that does not
+read, the reason is under the bar and the box stays open; Escape cancels the
+edit. The gripper at a row's left drags it to another place in the set.
+Delete, or **Delete** on the row's menu, removes the selected range, and
+Insert starts a new one. The sets, and the set on the map, are saved between
+sessions.
 
 The machine records for the heat map only while its pane is open and in
 front. Closed, or behind another tab, it records nothing and costs nothing,

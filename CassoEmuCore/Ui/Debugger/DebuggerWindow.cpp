@@ -241,7 +241,7 @@ void DebuggerWindow::OnCreate()
     m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
     m_heatMapView       = CreateChild<HeatMapView>   ();
     m_heatRangeError    = CreateChild<DxuiLabel>     ();
-    m_heatRangeList     = CreateChild<DxuiListView>  ();
+    m_heatRangeList     = CreateChild<DxuiEditableGrid> ();
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
@@ -6469,6 +6469,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     else if (list == m_diskLog.list || list == m_inputLog.list)
     {
         AddEventLogMenuItems (list, row, items);
+    }
+    else if (list == m_heatRangeList && m_heatRangeList->CanDeleteRow (row))
+    {
+        items.push_back ({ L"Delete", [this, row] { m_heatRangeList->DeleteRow (row); Invalidate(); } });
     }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
