@@ -30,6 +30,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Selecting the other Disk II drive no longer moves its head to the previous
+  drive's track. Each drive has its own head position, as on real hardware.
 - On the //c, writes to the IWM mode register while the disk motor was running
   (even if only spinning down) caused 0 bits to be written at the head's
   current position, causing disk corruption.
