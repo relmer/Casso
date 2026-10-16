@@ -343,7 +343,7 @@ public:
         auto  write = rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)));
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
-        Assert::IsTrue   (rig.Row (kRow8).starts_with ("ERROR: WRITE-PROTECTED"), L"the error row");
+        Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRow8), L"the disk's drive, not a track");
         Assert::AreEqual (std::string ("COPYING FROMPC TO DRIVE 1"), rig.Row (kRow6));
     }
 

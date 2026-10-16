@@ -1800,8 +1800,8 @@ pcconn: .text "CONNECTED"
 pcnone: .text "NO REPLY FOR "
         .byte 0
 
-; showerr: the last operation's error and its track, as ERROR: WRITE-PROTECTED
-; T17, or the row cleared when it succeeded.
+; showerr: the last operation's error, as ERROR: WRITE-PROTECTED DISK IN D2 or
+; ERROR: BAD DATA D2, T17, S5, or the row cleared when it succeeded.
 showerr: ldx #<ROWER
         lda #>ROWER
         jsr fullrow
@@ -1825,14 +1825,37 @@ seknown: tax
         lda errtext+1,x
         sta ptr+1
         jsr puttext
-        lda #' '
-        jsr putch
-        lda #'T'
-        jsr putch
+        lda err                 ; write protection is the disk's: its drive
+        cmp #ERRPROTECT
+        bne senotwp
+        lda drive
+        jmp putdec
+senotwp: cmp #ERRNOTFND          ; a sector that cannot be read or verified:
+        bcc sedone              ; where it is, as the status row has it
+        cmp #ERRLINK
+        bcs sedone
+        lda #<stdrive
+        sta ptr
+        lda #>stdrive
+        sta ptr+1
+        jsr puttext
+        lda drive
+        jsr putdec
+        lda #<sttrack
+        sta ptr
+        lda #>sttrack
+        sta ptr+1
+        jsr puttext
         lda track
+        jsr putdec
+        lda #<stsector
+        sta ptr
+        lda #>stsector
+        sta ptr+1
+        jsr puttext
+        lda sector
         jmp putdec
 sedone: rts
-
 ; The error codes are $10 apart, so the code shifted right three times is
 ; the index of its text's address; the first entry is for any other code.
 ertext:  .text "ERROR"
@@ -1843,7 +1866,7 @@ errtextend:
 
 eother:   .text "FAILED"
           .byte 0
-eprotect: .text "WRITE-PROTECTED"
+eprotect: .text "WRITE-PROTECTED DISK IN D"
           .byte 0
 enotfnd:  .text "NO SECTOR"
           .byte 0
