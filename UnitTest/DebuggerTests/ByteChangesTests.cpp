@@ -55,7 +55,7 @@ namespace DebuggerTests
 
 
 
-            model.SetOnPatch ([] (Word, std::span<const Byte>) {});
+            model.SetOnPatch ([] (Word, std::span<const Byte>, std::span<const Byte>) {});
             Show (model, 5);
 
             Assert::IsTrue (model.WriteBytes (0x0305, data));

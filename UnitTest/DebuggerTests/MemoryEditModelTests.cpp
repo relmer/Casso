@@ -21,8 +21,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  an edit reaches RAM, ROM and a refusal by the same path the command box
 //  does.
 //
-//  UNDO RESTORES WHAT THE EDIT REPLACED, even when the machine has changed the
-//  byte since; that is what undoing an edit means.
+//  UNDO RESTORES WHAT THE EDIT REPLACED, only while memory contains what the
+//  edit wrote: a byte the machine changed since is not written over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,12 +36,17 @@ namespace DebuggerTests
         {
             MemoryEditModel            model;
             std::vector<std::string>   lines;
+            std::vector<Byte>          required;
 
             Rig()
             {
                 //  $0300-$030F: $00-$0F, all RAM, and $C000-$C00F: I/O.
                 Show (0x0300, MemoryRegion::MainRam);
-                model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes) { lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo); });
+                model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes, std::span<const Byte> before)
+                {
+                    lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
+                    required.assign (before.begin(), before.end());
+                });
             }
 
             void  Show (Word first, MemoryRegion region)
@@ -232,9 +237,10 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (UndoRestoresWhatTheEditReplacedEvenAfterTheMachineChangedIt)
+        TEST_METHOD (UndoDoesNotWriteOverAByteTheMachineChanged)
         {
-            Rig  rig;
+            Rig                  rig;
+            std::optional<Word>  changed;
 
 
 
@@ -242,8 +248,55 @@ namespace DebuggerTests
             rig.Show  (0x0300, MemoryRegion::MainRam);      // a new snapshot: the machine rewrote $0300 as $00
             rig.lines.clear();
 
-            rig.model.Undo();
-            Assert::AreEqual (std::string ("PATCH 0300 00"), rig.lines.at (0), L"the value the edit replaced, not what is there now");
+            Assert::IsFalse  (rig.model.Undo (changed));
+            Assert::IsTrue   (changed == std::optional<Word> (0x0300));
+            Assert::IsTrue   (rig.lines.empty(), L"nothing is written");
+            Assert::IsTrue   (rig.model.CanUndo(), L"the edit stays in the history");
+            Assert::IsFalse  (rig.model.CanRedo());
+        }
+
+
+        TEST_METHOD (UndoAndRedoSendTheBytesMemoryMustContain)
+        {
+            Rig                  rig;
+            std::optional<Word>  changed;
+
+
+
+            rig.Write (0x0300, { 0xA9, 0xEA });
+            rig.lines.clear();
+
+            Assert::IsTrue   (rig.model.Undo (changed));
+            Assert::IsFalse  (changed.has_value());
+            Assert::AreEqual (std::string ("PATCH 0300 00 01"), rig.lines.at (0));
+            Assert::IsTrue   (rig.required == std::vector<Byte> { 0xA9, 0xEA }, L"for undo, the bytes the edit wrote");
+
+            Assert::IsTrue   (rig.model.Redo (changed));
+            Assert::AreEqual (std::string ("PATCH 0300 A9 EA"), rig.lines.at (1));
+            Assert::IsTrue   (rig.required == std::vector<Byte> { 0x00, 0x01 }, L"for redo, the bytes the edit replaced");
+        }
+
+
+        TEST_METHOD (RedoDoesNotWriteOverAByteTheMachineChanged)
+        {
+            Rig                               rig;
+            std::optional<Word>               changed;
+            std::vector<std::optional<Byte>>  bytes (16);
+            std::vector<MemoryRegion>         regions (16, MemoryRegion::MainRam);
+
+
+
+            rig.Write (0x0300, { 0xA9 });
+            Assert::IsTrue   (rig.model.Undo());
+
+            bytes[0] = 0x77;                                // the machine wrote $0300 after the undo
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.lines.clear();
+
+            Assert::IsFalse  (rig.model.Redo (changed));
+            Assert::IsTrue   (changed == std::optional<Word> (0x0300));
+            Assert::IsTrue   (rig.lines.empty());
+            Assert::IsTrue   (rig.model.CanRedo(), L"the step stays to redo");
         }
 
 

@@ -439,7 +439,7 @@ DebuggerAction DebuggerActions::GetSetRegister (const std::string & name, const 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebuggerAction DebuggerActions::GetPatch (Word address, std::span<const Byte> bytes, CommandMode mode)
+DebuggerAction DebuggerActions::GetPatch (Word address, std::span<const Byte> bytes, CommandMode mode, std::span<const Byte> required)
 {
     std::string     line = std::format ("PATCH {:04X}", address);
     DebuggerAction  action;
@@ -455,6 +455,7 @@ DebuggerAction DebuggerActions::GetPatch (Word address, std::span<const Byte> by
     action.command.a1    = address;
     action.command.hasA1 = true;
     action.command.values.assign (bytes.begin(), bytes.end());
+    action.required.assign (required.begin(), required.end());
     return action;
 }
 

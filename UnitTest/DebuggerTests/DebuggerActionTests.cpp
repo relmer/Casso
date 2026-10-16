@@ -166,6 +166,34 @@ public:
 
 
 
+    //  A memory window's undo writes only while memory contains the action's
+    //  required bytes, whatever the window last read.
+    TEST_METHOD (APatchWithExpectedBytesWritesOnlyOverThem)
+    {
+        ControllerRig             rig;
+        std::vector<std::string>  lines;
+        const Byte                written[]  = { 0xA9, 0xEA };
+        const Byte                replaced[] = { 0x11, 0x22 };
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, written, CommandMode::AppleWin));
+        rig.machine.GetMemoryBus().WriteByte (0x0401, 0x33);
+
+        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+
+        Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0400), L"nothing was written");
+        Assert::IsTrue   (std::ranges::any_of (lines, [] (const std::string & line) { return line.find ("$0401 has changed since the edit") != std::string::npos; }));
+
+        rig.machine.GetMemoryBus().WriteByte (0x0401, 0xEA);
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+
+        Assert::AreEqual ((Byte) 0x11, rig.machine.GetMemoryBus().ReadByte (0x0400));
+        Assert::AreEqual ((Byte) 0x22, rig.machine.GetMemoryBus().ReadByte (0x0401));
+    }
+
+
+
     //  Run to cursor echoes Casso's G in every mode, since GSSquared's g takes
     //  no address.
     TEST_METHOD (RunToCursorEchoesCassosG)

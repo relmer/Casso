@@ -2401,6 +2401,19 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
         return reply;
     }
 
+    for (size_t i = 0; i < action.required.size(); i++)
+    {
+        Word  address = (Word) (command.a1 + i);
+        Byte  value   = 0;
+
+        if (session.GetTarget().TryPeek (address, value) && value != action.required[i])
+        {
+            reply.command = command.sourceName;
+            reply.SetError (CommandStatus::Error, "memory changed", std::format ("${:04X} has changed since the edit, so nothing was written.", address));
+            return reply;
+        }
+    }
+
     session.SetScriptLineRunner ([this, &session] (const std::string & scriptLine, CommandMode scriptMode)
     {
         return ExecuteWindowLine (session, scriptLine, scriptMode);

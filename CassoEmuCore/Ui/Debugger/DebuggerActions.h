@@ -64,6 +64,10 @@ struct DebuggerAction
     //  The window putting back what it had open, not a choice the user
     //  made: the command runs and the console shows neither echo nor reply.
     bool                           quiet = false;
+
+    //  For a memory window's undo or redo: the bytes memory must contain from
+    //  the command's address, or nothing is written.
+    std::vector<Byte>              required;
 };
 
 //  Builds an action in the session's mode, for a pane that does not know it.
@@ -116,7 +120,7 @@ public:
     static DebuggerAction  GetTraceToggle      (bool isOn, CommandMode mode);
     static DebuggerAction  GetSetMode          (CommandMode target, CommandMode mode);
     static DebuggerAction  GetSetRegister      (const std::string & name, Word value, CommandMode mode);
-    static DebuggerAction  GetPatch            (Word address, std::span<const Byte> bytes, CommandMode mode);
+    static DebuggerAction  GetPatch            (Word address, std::span<const Byte> bytes, CommandMode mode, std::span<const Byte> required = {});
     static DebuggerAction  GetCallStackMode    (const std::string & mechanism, CommandMode mode);
     static DebuggerAction  GetSaveHistory      (const std::string & path, CommandMode mode);
 

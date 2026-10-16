@@ -83,8 +83,10 @@ public:
     //  The address of the byte under a point, if any.
     std::optional<Word>  GetAddressAt (POINT clientDip) const;
 
-    bool  Undo    () { return m_view->IsEditable() && m_model.Undo(); }
-    bool  Redo    () { return m_view->IsEditable() && m_model.Redo(); }
+    //  Neither writes over a byte that changed since the step; a line with
+    //  that byte's address goes to the console instead.
+    bool  Undo    () { return UndoOrRedo (false); }
+    bool  Redo    () { return UndoOrRedo (true); }
     bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }
     bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
@@ -132,6 +134,7 @@ private:
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
 
     void  NoteRefusal (uint64_t offset) const;
+    bool  UndoOrRedo  (bool redo);
 
     int                    m_id          = 0;
     DxuiHexView          * m_view        = nullptr;

@@ -26,11 +26,12 @@ MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, R
     m_move (std::move (move)),
     m_note (std::move (note))
 {
-    m_model.SetOnPatch ([run = std::move (run)] (Word address, std::span<const Byte> bytes)
+    m_model.SetOnPatch ([run = std::move (run)] (Word address, std::span<const Byte> bytes, std::span<const Byte> required)
     {
         std::vector<Byte>  values (bytes.begin(), bytes.end());
+        std::vector<Byte>  before (required.begin(), required.end());
 
-        run ([address, values] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode); });
+        run ([address, values, before] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode, before); });
     });
     m_view->SetSource (&m_model);
 }
@@ -372,6 +373,38 @@ std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOff
     start = start & ~(uint64_t) (kBytesPerRow - 1);
 
     return (Word) start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::UndoOrRedo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryPane::UndoOrRedo (bool redo)
+{
+    std::optional<Word>  changed;
+    bool                 done = false;
+
+
+
+    if (!m_view->IsEditable())
+    {
+        return false;
+    }
+
+    done = redo ? m_model.Redo (changed) : m_model.Undo (changed);
+
+    if (changed.has_value() && m_note)
+    {
+        m_note (std::format ("${:04X} has changed since the edit, so it was not {}.", *changed, redo ? "redone" : "undone"));
+    }
+
+    return done;
 }
 
 

@@ -180,7 +180,7 @@ namespace PaneUndoHistoryTests
                 }
 
                 model.SetContents (0x0300, bytes, regions);
-                model.SetOnPatch ([this] (Word address, std::span<const Byte> data) { lines.push_back (DebuggerActions::GetPatch (address, data, CommandMode::AppleWin).echo); });
+                model.SetOnPatch ([this] (Word address, std::span<const Byte> data, std::span<const Byte>) { lines.push_back (DebuggerActions::GetPatch (address, data, CommandMode::AppleWin).echo); });
             }
 
             bool  Write (Word address, std::initializer_list<uint8_t> bytes)
