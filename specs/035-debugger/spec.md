@@ -191,6 +191,16 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How is a flag that changed since the last stop drawn in P's tip? -> A: Its line in the changed color, as its letter is in the cell, with no line explaining the color (FR-081).
 - Q: Is the repo's Karateka.woz a corrupted copy? -> A: No. It is byte for byte the archive.org Woz-A-Day preservation copy (the same SHA-1), so its address checksum errors are on the original disk.
 
+### Session 2026-10-16 (owner review: BASIC in the standard panes, names in expressions)
+
+- Q: Is there a separate pane for BASIC variables? -> A: No. They are in the Watches pane: one is added in the add row as Applesoft writes it (`A$`, `N%`, `X(2,3)`), the Automatic section lists the variables the current statement uses, and every variable is under a heading that expands. The BASIC variables pane is removed (FR-176, FR-095).
+- Q: Which pane lists the active GOSUB returns and FOR loops? -> A: The Call stack pane, while the machine is stopped in BASIC. The BASIC stack pane is removed (FR-177).
+- Q: How is a variable name longer than two characters drawn, since Applesoft reads only the first two? -> A: The characters past the second are dimmed, so in `HIGH` only `HI` is drawn at full strength (FR-176).
+- Q: Do the BASIC views come forward without the user opening them? -> A: Yes: when the machine stops inside a running Applesoft program, and as soon as a BASIC line breakpoint is set, the BASIC program pane comes forward at the line, with the variables in Watches and the frames in the Call stack (FR-173).
+- Q: How is a name in an expression read when it could be a symbol, a register or a hex number? -> A: In every mode whose commands take symbols, a defined symbol first, as AppleWin does, then a register, then a hex number; `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` always mean the register, in every mode including WinDbg. A BASIC variable is read by name only in the Watches pane while the machine is stopped in a running Applesoft program and no symbol has the name; a name with `$`, `%` or a subscript is always a BASIC variable (FR-241).
+- Q: How is the user warned that a symbol hides a register? -> A: Loading a symbol file that defines a register's name reports each such name, and that `@` and the name mean the register (FR-242).
+- Q: When is the earlier project's items offered on a switch to a more specific project? -> A: Only when the user loads the symbol file, debug file or binary that brings the switch, not when restoring a project loads it, and only when the earlier project has a breakpoint, watch, bookmark or zero-page pointer (FR-169).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -2171,7 +2181,9 @@ run something, switch back to the //e: it is where it was left.
   a value changed. The previous instruction is the one that just ran, known
   only when the stop is exactly where it would have left the machine -- a
   step; after a free run it is left out rather than shown for an
-  instruction that did not just run.
+  instruction that did not just run. While the machine is stopped in a
+  running Applesoft program, the automatic watches MUST also list the BASIC
+  variables the current statement uses.
 - **FR-096**: A manual watch MUST edit in place: double-clicking its expression
   replaces the expression with what is typed, and double-clicking its value
   writes what is typed to the watched address. A manual watch MUST be
@@ -2735,8 +2747,11 @@ run something, switch back to the //e: it is where it was left.
   never a damaged one.
 - **FR-169**: When a more specific signal appears while a project is open (a
   debug file loaded while working in the boot disk's project), its project
-  MUST take over, and Casso MUST offer to bring the breakpoints, watches and
-  bookmarks set so far into it.
+  MUST take over. When the user loaded the symbol file, debug file or binary
+  that brought the switch, and the earlier project has a breakpoint, watch,
+  bookmark or zero-page pointer, Casso MUST offer to bring them into it. A
+  switch that restoring a project brings, as when a machine's project loads a
+  debug file, MUST NOT offer it.
 - **FR-170**: File > Save project as... MUST write a copy of the current
   project to a chosen file and make it the open one; File > Open project...
   MUST switch to a chosen project file. A project's paths MUST be relative to
@@ -2754,6 +2769,10 @@ run something, switch back to the //e: it is where it was left.
 - **FR-173**: When an Applesoft program is in memory, a BASIC view MUST show
   its listing as LIST would print it, read from memory without side effects,
   with the line being run marked, and MUST follow edits made by the guest.
+  The BASIC view MUST come forward at the line, with the BASIC variables in
+  the Watches pane and the BASIC frames in the Call stack pane, when the
+  machine stops inside a running Applesoft program and as soon as a BASIC
+  line breakpoint is set.
 - **FR-174**: Stepping in the BASIC view MUST run to the start of the next
   statement, or of the next line, as the interpreter begins it; Step out MUST
   run to the statement after the active GOSUB's return.
@@ -2761,11 +2780,16 @@ run something, switch back to the //e: it is where it was left.
   the line begins, and on a BASIC variable changing, stopping after the
   statement that changed it; the Breakpoints pane MUST show them with Kind
   "BASIC" and Trigger "Line" or "Variable change".
-- **FR-176**: A BASIC variables view MUST list the program's simple variables
-  (real, integer and string) and its arrays with their values, decoded from
-  the interpreter's tables, and watches MUST accept BASIC variable names.
-- **FR-177**: A BASIC stack view MUST list the active GOSUB returns and FOR
-  loops (variable, limit, step and line); the debugger MUST be able to stop on
+- **FR-176**: The Watches pane MUST list BASIC variables: a variable or array
+  element added in the add row as Applesoft writes it (`A$`, `N%`,
+  `X(2,3)`), and, under a heading that expands, every simple variable (real,
+  integer and string) and array element with its value, decoded from the
+  interpreter's tables. A name's characters past the second MUST be dimmed,
+  since Applesoft reads only the first two. There is no separate BASIC
+  variables pane.
+- **FR-177**: While the machine is stopped in BASIC, the Call stack pane MUST
+  list the active GOSUB returns and FOR loops (variable, limit, step and
+  line); there is no separate BASIC stack pane. The debugger MUST be able to stop on
   a BASIC error, showing the error and its line, whether or not ONERR handles
   it.
 - **FR-178**: The source view MUST color C sources' syntax (keywords, types,
@@ -3076,6 +3100,15 @@ run something, switch back to the //e: it is where it was left.
   drawn with the focus accent.
 - **FR-240**: The MMU panel MUST list each switch once; the switches are not
   one register and MUST NOT be packed into a byte.
+- **FR-241**: In every command mode whose commands take symbols, a name in an
+  expression MUST be read as a defined symbol first, as AppleWin reads it,
+  then as a register, then as a hex number. `@A`, `@X`, `@Y`, `@P`, `@S` and
+  `@PC` MUST mean the register in every mode, WinDbg's included. A BASIC
+  variable MUST be read by name only in the Watches pane while the machine is
+  stopped in a running Applesoft program and no symbol has the name; a name
+  with `$`, `%` or a subscript MUST always be read as a BASIC variable.
+- **FR-242**: Loading a symbol file that defines a register's name MUST report
+  each such name and that `@` and the name mean the register.
 
 ### Key Entities
 
