@@ -37,6 +37,16 @@ Apple //c booted ADTPro's own client disk, with its port 2 joined to TCP port
                              server onto drive 1
     adtpro-vsdrive.txt       VSDRIVE from VDRIVE-2.1.0.DSK: CAT,S1 (block
                              reads), SAVE to S1,D1 (block writes), CAT,S1
+    adtpro-receive-nak.txt   the receive above, with every copy of the
+                             server's packet for block 4 damaged in transit:
+                             the client's NAKs, the server's resends and the
+                             Home that ends the transfer
+    adtpro-send-ack-lost.txt the send above, with the server's replies to the
+                             packet for block 4 dropped in transit: the
+                             client's resends about 2 s apart
+
+The two fault captures were made by filtering the bytes between the TCP port
+and the emulated serial port; the server and client ran unmodified.
 
 Format
 ------
