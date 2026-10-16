@@ -316,7 +316,7 @@ public:
 
         for (const std::string & screen : rig.screens)
         {
-            if (screen.find ("READING") != std::string::npos && screen.find ("PROGRESS:   8 OF 16") != std::string::npos)
+            if (screen.find ("READING") != std::string::npos && screen.find ("(50%)") != std::string::npos)
             {
                 reading = screen;
                 break;
@@ -325,8 +325,7 @@ public:
 
         Assert::IsFalse (reading.empty(), L"the screen reported the read halfway through");
         Assert::IsTrue (reading.find ("CONNECTION: PORT 2, 115200") != std::string::npos, L"the connection");
-        Assert::IsTrue (reading.find ("DRIVE:      1") != std::string::npos, L"the drive");
-        Assert::IsTrue (reading.find ("TRACK:      17") != std::string::npos, L"the track");
+        Assert::IsTrue (reading.find ("STATUS: READING D1, T17, S") != std::string::npos, L"the drive and track on the status row");
     }
 
 
@@ -345,7 +344,7 @@ public:
         hr = rig.Run ([&] () { return rig.host->ReadSectors (1, 17, AllSectors(), data, status); },
                       [&] ()
                       {
-                          if (!canceled && rig.screens.back().find ("PROGRESS:   3 OF 16") != std::string::npos)
+                          if (!canceled && rig.screens.back().find ("(18%)") != std::string::npos)
                           {
                               canceled = true;
                               Assert::AreEqual (S_OK, rig.host->Cancel());
@@ -374,7 +373,7 @@ public:
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadSectors (1, 0, AllSectors(), data, status); },
                                          [&] ()
                                          {
-                                             if (!paused && rig.screens.back().find ("PROGRESS:   4 OF 16") != std::string::npos)
+                                             if (!paused && rig.screens.back().find ("(25%)") != std::string::npos)
                                              {
                                                  paused = true;
                                                  std::this_thread::sleep_for (std::chrono::seconds (10));

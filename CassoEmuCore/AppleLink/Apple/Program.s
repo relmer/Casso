@@ -108,6 +108,12 @@ PKTBUF   = $4900                ; a command's payload
 WSTREAM  = $4A00                ; a sector's write stream, two pages
 FSTREAM  = $5000                ; a track's format stream, 25 pages
 RAWBUF   = $5000                ; read: a track's raw sectors, two pages each, to $6FFF
+AUXT0    = $4C00                ; a 6-bit group's two bits for the first third
+AUXT1    = $4C40                ; for the second
+AUXT2    = $4C80                ; for the third
+AUXA0    = $4D00                ; sendsector: a sector's bits, 86 per third
+AUXA1    = AUXA0 + 86
+AUXA2    = AUXA1 + 86
 PENDING  = $4980                ; read: a flag per physical sector not yet read
 FPAGES   = 25
 WSTART   = 512 - 354            ; the sector stream ends at its second page's end
@@ -159,6 +165,10 @@ entry:  sei
 slotok: clc
         adc #<ACIADATA
         sta pbsta+1
+        sta sdsta+1             ; sendsector's own store and status read,
+        clc                     ; absolute for the same reason as putb's
+        adc #1
+        sta sdwait+1
         lda #$60
         sta diskx
         lda #$FF
@@ -450,11 +460,19 @@ statend:
 
 ; sendsector: Sector data with the track, the sector, RDSEC and its CRC.
 ; sendsector: Sector data with the track, the sector, the raw sector at (dst)
-; and (dstp) decoded, and its CRC. Each byte is decoded and added to the CRC
-; while the 6551 sends the one before, so a track read does not decode at all.
+; and (dstp) decoded, and its CRC. The 86 groups are first turned into three
+; arrays of ready two-bit values, one per third of the sector; each byte is
+; then one shift and one ORA, sent, and added to the EOR and the CRC, all
+; inline, in less time than the 6551 takes to send a byte at 115,200 baud.
 sendsector: ldy #85
-ssaux:  lda (dst),y              ; the groups, where the decode can index them
-        sta RDAUX,y
+ssaux:  lda (dst),y
+        tax
+        lda AUXT0,x
+        sta AUXA0,y
+        lda AUXT1,x
+        sta AUXA1,y
+        lda AUXT2,x
+        sta AUXA2,y
         dey
         bpl ssaux
         ldy #0
@@ -473,29 +491,46 @@ sdloop: lda datahdr,x
         lda sector
         jsr putpe
         ldy #0
-        ldx #0
-sddata: lda RDAUX,x              ; the byte: RDPRI[i] << 2 | two bits from
-        and #3                  ; RDAUX[i mod 86], shifted as used
-        sta tmp
-        lsr RDAUX,x
-        lsr RDAUX,x
-        lda (dstp),y
+        lda #<AUXA0
+        sta sdora+1
+        lda #>AUXA0
+        sta sdora+2
+sdpass: ldx #0
+sddata: lda (dstp),y             ; the byte: the value << 2 | its two bits
         asl a
         asl a
-        stx tmp2
-        ldx tmp
-        ora swap2,x
+sdora:  ora AUXA0,x             ; the third's array, set before each pass
         sta sbyte
-        jsr putpe
+sdwait: lda ACIASTAT            ; set for the port at startup
+        and #TDRE
+        beq sdwait
         lda sbyte
-        jsr crcupd
+sdsta:  sta ACIADATA            ; set for the port at startup
+        eor peor
+        sta peor
+        lda sbyte
+        eor crchi
+        stx tmp2
+        tax
+        lda crclo
+        eor CRCHI,x
+        sta crchi
+        lda CRCLO,x
+        sta crclo
         ldx tmp2
+        iny
+        beq sddone
         inx
         cpx #86
-        bne sdnext
-        ldx #0
-sdnext: iny
         bne sddata
+        lda sdora+1             ; the next third's array, 86 bytes on
+        clc
+        adc #86
+        sta sdora+1
+        bcc sdpass
+        inc sdora+2
+        jmp sdpass
+sddone:
         lda crclo
         jsr putpe
         lda crchi
@@ -723,6 +758,30 @@ mknext: dey
         sta CRCHI,x
         inx
         bne mkcrc
+
+        ldx #63                 ; for each 6-bit group, its two bits for each
+mkaux:  txa                     ; third of the sector, swapped as written
+        and #3
+        tay
+        lda swap2,y
+        sta AUXT0,x
+        txa
+        lsr a
+        lsr a
+        and #3
+        tay
+        lda swap2,y
+        sta AUXT1,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        tay
+        lda swap2,y
+        sta AUXT2,x
+        dex
+        bpl mkaux
         rts
 
 ; The 6-and-2 write table: the 64 values a data nibble can have.
@@ -1366,15 +1425,12 @@ dlinner: dey
 ; The status screen
 ; ---------------------------------------------------------------------------
 
-ROW0 = $0400
-ROW2 = $0500
-ROW3 = $0580
-ROW4 = $0600
-ROW5 = $0680
-ROW6 = $0700
-ROW7 = $0780
-ROW8 = $0428
-ROW10 = $0528
+ROW0 = $0400                    ; the title
+ROW2 = $0500                    ; the connection
+ROW3 = $0580                    ; the PC
+ROWST = $0680                   ; row 5: the status, after a blank row
+ROWLB = $0700                   ; row 6: the label of the user's operation
+ROWER = $0428                   ; row 8: the last error, when there is one
 FIELD = 12
 FIELDLEN = 20
 scr = $13                       ; and $14: the field being drawn
@@ -1388,6 +1444,8 @@ spinning = $1B                  ; the drive whose motor is running, or 0
 dst = $1C                       ; and $1D: a raw sector's 86 groups
 dstp = $1E                      ; and $1F: its 256 values
 sbyte = $20                     ; sendsector: the byte being sent
+pct = $21                       ; showstatus: the percentage
+pcsum = $22                     ; and $23: percent's running sum
 
 ; drawscreen: clear the text page and draw the labels.
 drawscreen: lda #$A0
@@ -1418,10 +1476,7 @@ dsnext: inx
         jmp dsline
 dsdone: jsr showconn
         jsr showpc
-        jsr showop
-        jsr showdrive
-        jsr showtrack
-        jmp showprog
+        jmp showstatus
 
 labels: .byte <ROW0, >ROW0
         .text "CASSO APPLE II LINK"
@@ -1431,21 +1486,6 @@ labels: .byte <ROW0, >ROW0
         .byte $3A, 0
         .byte <ROW3, >ROW3
         .text "PC"
-        .byte $3A, 0
-        .byte <ROW4, >ROW4
-        .text "DRIVE"
-        .byte $3A, 0
-        .byte <ROW5, >ROW5
-        .text "TRACK"
-        .byte $3A, 0
-        .byte <ROW6, >ROW6
-        .text "OPERATION"
-        .byte $3A, 0
-        .byte <ROW7, >ROW7
-        .text "PROGRESS"
-        .byte $3A, 0
-        .byte <ROW8, >ROW8
-        .text "ERROR"
         .byte $3A, 0
         .byte 0
         .byte 0, 0
@@ -1576,10 +1616,24 @@ speeds: .byte $0E, <s9600, >s9600
 speedend:
         .byte $FF, <sother, >sother
 
-; showop: the operation.
-showop: ldx #<ROW6
-        lda #>ROW6
-        jsr field
+; showstatus: the status row: the operation, and while one runs its drive,
+; track and sector and how much of the request is done, as
+; STATUS: READING D2, T17, S5 (45%). The other labels are the points that
+; update it.
+showop:
+showdrive:
+showtrack:
+showprog:
+showstatus: jsr percent
+        sta pct
+        ldx #<ROWST
+        lda #>ROWST
+        jsr fullrow
+        lda #<sttext
+        sta ptr
+        lda #>sttext
+        sta ptr+1
+        jsr puttext
         lda op
         asl a
         tax
@@ -1588,22 +1642,51 @@ showop: ldx #<ROW6
         lda optext+1,x
         sta ptr+1
         jsr puttext
-        lda err
-        beq sodone
         lda op
-        beq sodone
+        bne strun
+        rts
+strun:  lda #<stdrive
+        sta ptr
+        lda #>stdrive
+        sta ptr+1
+        jsr puttext
+        lda drive
+        jsr putdec
+        lda #<sttrack
+        sta ptr
+        lda #>sttrack
+        sta ptr+1
+        jsr puttext
+        lda track
+        jsr putdec
+        lda #<stsector
+        sta ptr
+        lda #>stsector
+        sta ptr+1
+        jsr puttext
+        lda sector
+        jsr putdec
         lda #' '
         jsr putch
-        lda #'E'
+        lda #'('
         jsr putch
-        lda err
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        ora #'0'
+        lda pct
+        jsr putdec
+        lda #'%'
         jsr putch
-sodone: rts
+        lda #')'
+        jmp putch
+
+sttext:   .text "STATUS: "
+          .byte 0
+stdrive:  .text " D"
+          .byte 0
+sttrack:  .byte $2C
+          .text " T"
+          .byte 0
+stsector: .byte $2C
+          .text " S"
+          .byte 0
 
 optext: .word oidle, oread, owrite, oformat, ospeed
 
@@ -1618,36 +1701,48 @@ oformat: .text "FORMATTING"
 ospeed:  .text "SETTING SPEED"
          .byte 0
 
-; showdrive: the drive.
-showdrive: ldx #<ROW4
-        lda #>ROW4
-        jsr field
-        lda drive
-        jmp putdec
-
-; showtrack: the track.
-showtrack: ldx #<ROW5
-        lda #>ROW5
-        jsr field
-        lda track
-        jmp putdec
-
-; showprog: sectors done, of the request's count.
-showprog: ldx #<ROW7
-        lda #>ROW7
-        jsr field
-        lda index
-        jsr putdec
-        lda #' '
-        jsr putch
-        lda #'O'
-        jsr putch
-        lda #'F'
-        jsr putch
-        lda #' '
-        jsr putch
+; percent: index * 100 / count in A, or 0 with no count. Y is overwritten.
+percent: lda #0
+        sta pcsum
+        sta pcsum+1
+        ldx index
+        beq pcdiv
+pcmul:  clc
+        lda pcsum
+        adc #100
+        sta pcsum
+        bcc pcmnext
+        inc pcsum+1
+pcmnext: dex
+        bne pcmul
+pcdiv:  ldx #0
         lda count
-        jmp putdec
+        beq pctdone
+pcsub:  lda pcsum
+        sec
+        sbc count
+        tay
+        lda pcsum+1
+        sbc #0
+        bcc pctdone
+        sta pcsum+1
+        sty pcsum
+        inx
+        bne pcsub
+pctdone: txa
+        rts
+
+; fullrow: scr at the row whose address is in X (low) and A (high), and the
+; whole row cleared. Y is 0.
+fullrow: stx scr
+        sta scr+1
+        ldy #39
+        lda #$A0
+frclear: sta (scr),y
+        dey
+        bpl frclear
+        iny
+        rts
 
 ; showpc: the PC: waiting for its first reply, connected, or how long since
 ; its last reply.
@@ -1705,13 +1800,19 @@ pcconn: .text "CONNECTED"
 pcnone: .text "NO REPLY FOR "
         .byte 0
 
-; showerr: the last operation's error and its track, or the line cleared
-; when it succeeded.
-showerr: ldx #<ROW8
-        lda #>ROW8
-        jsr field
+; showerr: the last operation's error and its track, as ERROR: WRITE-PROTECTED
+; T17, or the row cleared when it succeeded.
+showerr: ldx #<ROWER
+        lda #>ROWER
+        jsr fullrow
         lda err
         beq sedone
+        lda #<ertext
+        sta ptr
+        lda #>ertext
+        sta ptr+1
+        jsr puttext
+        lda err
         lsr a
         lsr a
         lsr a
@@ -1734,6 +1835,9 @@ sedone: rts
 
 ; The error codes are $10 apart, so the code shifted right three times is
 ; the index of its text's address; the first entry is for any other code.
+ertext:  .text "ERROR"
+         .byte $3A, $20, 0
+
 errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive
 errtextend:
 
@@ -1756,7 +1860,7 @@ edrive:   .text "NO SUCH DRIVE"
 ; then Ready again.
 dolabel: ldy #39
         lda #$A0
-lbclear: sta ROW10,y
+lbclear: sta ROWLB,y
         dey
         bpl lbclear
         ldy #0
@@ -1766,7 +1870,7 @@ lbtext: cpy lenlo
         beq lbdone
         lda PKTBUF,y
         ora #$80
-        sta ROW10,y
+        sta ROWLB,y
         iny
         bne lbtext
 lbdone: jmp main

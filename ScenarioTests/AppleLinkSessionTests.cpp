@@ -211,7 +211,8 @@ public:
     static constexpr Word  kRow2  = 0x0500;
     static constexpr Word  kRow3  = 0x0580;
     static constexpr Word  kRow8  = 0x0428;
-    static constexpr Word  kRow10 = 0x0528;
+    static constexpr Word  kRow5  = 0x0680;
+    static constexpr Word  kRow6  = 0x0700;
     static constexpr int   kField = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
@@ -332,8 +333,9 @@ public:
         AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
 
         Assert::AreEqual (std::string ("CONNECTED"),                      rig.Row (kRow3, kField));
-        Assert::AreEqual (std::string ("READING THE CATALOG OF DRIVE 1"), rig.Row (kRow10));
-        Assert::AreEqual (std::string(),                                  rig.Row (kRow8, kField), L"no error yet");
+        Assert::AreEqual (std::string ("READING THE CATALOG OF DRIVE 1"), rig.Row (kRow6));
+        Assert::AreEqual (std::string(),                                  rig.Row (kRow8), L"no error row yet");
+        Assert::AreEqual (std::string ("STATUS: WAITING"),                rig.Row (kRow5));
 
         //  A write to a protected disk: the error stays on the screen.
         rig.machine.GetDiskStore().GetImage (6, 0)->SetWriteProtected (true);
@@ -341,8 +343,8 @@ public:
         auto  write = rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)));
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
-        Assert::IsTrue   (rig.Row (kRow8, kField).starts_with ("WRITE-PROTECTED"), L"the error line");
-        Assert::AreEqual (std::string ("COPYING FROMPC TO DRIVE 1"), rig.Row (kRow10));
+        Assert::IsTrue   (rig.Row (kRow8).starts_with ("ERROR: WRITE-PROTECTED"), L"the error row");
+        Assert::AreEqual (std::string ("COPYING FROMPC TO DRIVE 1"), rig.Row (kRow6));
     }
 
 
@@ -359,7 +361,7 @@ public:
 
     //  A whole 140 KB disk at 115,200 baud, at the //c's own speed. SC-027
     //  sets 30 seconds; the line alone takes about 12.5.
-    TEST_METHOD (ReadDisk_At115200_TakesUnder36Seconds)
+    TEST_METHOD (ReadDisk_At115200_TakesUnder30Seconds)
     {
         Rig       rig (true, 115200);
         uint64_t  spent = 0;
@@ -384,6 +386,6 @@ public:
 
         Logger::WriteMessage (std::format ("Read disk: {:.1f} seconds", spent / 1020484.0).c_str());
         AssertSucceeded (disk->result);
-        Assert::IsTrue (spent < 36ULL * 1'020'484, L"a whole disk in under 36 seconds");
+        Assert::IsTrue (spent < 30ULL * 1'020'484, L"a whole disk in under 30 seconds (SC-027)");
     }
 };
