@@ -47,6 +47,9 @@ public:
     //  Sectors the drive cannot read, as track and physical sector.
     std::set<std::pair<int, int>>     badSectors;
     std::vector<Byte>                 loadedProgram;
+
+    //  Each Label's text, in the order received.
+    std::vector<std::string>          labels;
     std::mutex                        lock;
 
     ~FakeApple()
@@ -192,6 +195,14 @@ private:
                 case AppleLinkCodec::kFormatTrack:
                     FormatTrack (line, packet.payload);
                     break;
+
+                case AppleLinkCodec::kLabel:
+                {
+                    std::lock_guard<std::mutex>  guard (lock);
+
+                    labels.emplace_back (packet.payload.begin(), packet.payload.end());
+                    break;
+                }
 
                 default:
                     break;
@@ -388,6 +399,11 @@ public:
 
     std::map<std::wstring, Port>  comPorts;
     std::vector<std::wstring>     comOpened;
+    std::vector<DWORD>            comBauds;
+
+    //  The one speed an Apple port replies at; at any other it is silent.
+    //  With zero, it replies at every speed.
+    DWORD                         appleBaud = 0;
 
     //  Set when a COM port was opened while another was open.
     std::atomic<bool>             comOverlapped { false };
@@ -409,7 +425,7 @@ public:
         return S_OK;
     }
 
-    HRESULT  OpenComPort (const std::wstring & port, const ComSettings &, std::unique_ptr<IByteStream> & outStream) override
+    HRESULT  OpenComPort (const std::wstring & port, const ComSettings & settings, std::unique_ptr<IByteStream> & outStream) override
     {
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::shared_ptr<InProcessByteStream>  appleEnd;
@@ -432,9 +448,10 @@ public:
 
         InProcessByteStream::CreatePair (pcEnd, appleEnd);
         comOpened.push_back (port);
+        comBauds.push_back (settings.baud);
         m_ends.push_back (pcEnd);
 
-        if (found->second == Port::Apple)
+        if (found->second == Port::Apple && (appleBaud == 0 || appleBaud == settings.baud))
         {
             m_apple.Attach (appleEnd);
         }

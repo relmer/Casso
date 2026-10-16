@@ -1,12 +1,20 @@
 ; Casso's Apple II link: the shim.
 ;
-; Resident at $0300, in the 208 bytes below the page-3 vectors at $03D0. It
-; sets the //c's port 2 to 9,600 baud, sends Ready with no program loaded,
-; and takes the reply. Load program brings the program as Sector data
-; packets, one page each, the page number in the track field: each page is
-; stored from $0800 up and checked against its CRC-16/XMODEM, and the shim
-; sends a bare ACK or NAK byte for it. After the last page the shim jumps to
-; the program.
+; Resident at $3D00, below the program's first table at $4000. It sets the
+; //c's port 2 to its speed, sends Ready with no program loaded, and takes the
+; reply. Load program brings the program as Sector data packets, one page
+; each, the page number in the track field: each page is stored from $0800 up
+; and checked against its CRC-16/XMODEM, and the shim sends a bare ACK or NAK
+; byte for it. After the last page the shim jumps to the program.
+;
+; The 6551 control byte for the starting speed is at $3D02 and the speed's
+; text, six characters, at $3D06. The host writes both for the link's speed;
+; as assembled they are 9,600 baud.
+;
+; The shim draws its state on the text page: a title, then waiting for the
+; PC, the program's loading as a percentage, and the version it starts. Each
+; page's percentage is drawn before its ACK, since the host sends the next
+; page only after the ACK and the 6551 has room for one byte.
 ;
 ; NMOS 6502 code throughout. The program finds the 6551 through slotx, which
 ; the shim sets.
@@ -29,6 +37,10 @@ ACK      = $06
 NAK      = $15
 
 PROGRAM  = $0800
+PROGVERLO = $0803               ; the program's version, low byte
+
+ROW0     = $0400                ; the title
+ROW2     = $0500                ; the state
 
 slotx    = $06                  ; the 6551's index, slot * 16, for the program
 crclo    = $07                  ; the CRC being computed
@@ -40,19 +52,39 @@ gotlo    = $0D                  ; the CRC it came with
 gothi    = $0E
 envchk   = $0F
 envcmd   = $10
+prodlo   = $11                  ; the percentage's numerator
+prodhi   = $12
+quot     = $13                  ; the percentage
+num      = $14                  ; putdec: the value left
+digit    = $15
+lead     = $16                  ; putdec: nonzero once a digit is drawn
 
-        .org $0300
+        .org $3D00
 
         sei
+        lda #$1E                ; $3D02: 8 data bits, 1 stop bit, 9,600 baud
+        jmp start
+speedtxt: .text "9600  "        ; $3D06: the speed, six characters
+
+start:  sta ACIACTL
         cld
         lda #$20
         sta slotx
         lda #$0B                ; DTR on, no parity, no interrupts
         sta ACIACMD
-        lda #$1E                ; 8 data bits, 1 stop bit, 9,600 baud
-        sta ACIACTL
+        jsr home
 
-ready:  ldx #0
+ready:  ldx #msgwait-msgs
+        jsr drawstate
+        ldx #0
+spdtext: lda speedtxt,x
+        ora #$80
+        sta ROW2,y
+        iny
+        inx
+        cpx #6
+        bne spdtext
+        ldx #0
 sendrdy: lda readypkt,x
         jsr putb
         inx
@@ -82,9 +114,8 @@ loadpg: jsr getenv
         sty ptr
         sty crclo
         sty crchi
-data:   jsr getb
-        sta (ptr),y
-        jsr crcbyte
+data:   jsr getb                ; stored as it arrives: at 115,200 baud a byte
+        sta (ptr),y             ; comes every 89 cycles, too few for the CRC
         iny
         bne data
         jsr getb
@@ -92,23 +123,142 @@ data:   jsr getb
         jsr getb
         sta gothi
         jsr getb                ; the payload's EOR; the CRC checks the page
+pagecrc: lda (ptr),y              ; the CRC, once the page is in
+        jsr crcbyte
+        iny
+        bne pagecrc
 
-        lda #NAK
-        ldx crclo
-        cpx gotlo
-        bne verdict
-        ldx crchi
-        cpx gothi
-        bne verdict
+        lda crclo
+        cmp gotlo
+        bne badpg
+        lda crchi
+        cmp gothi
+        bne badpg
+        jsr showpct
         lda #ACK
-verdict: jsr putb
-        cmp #ACK
-        bne loadpg              ; NAK: the host sends the page again
+        jsr putb
         ldx page
         inx
         cpx pages
         bne loadpg
+        ldx #msgstart-msgs
+        jsr drawstate
+        lda PROGVERLO
+        jsr putdec
         jmp PROGRAM
+
+badpg:  lda #NAK                ; the host sends the page again
+        jsr putb
+        jmp loadpg
+
+
+; home: the text page cleared and the title drawn.
+
+home:   lda #$A0
+        ldy #0
+hmclear: sta $0400,y
+        sta $0500,y
+        sta $0600,y
+        sta $0700,y
+        iny
+        bne hmclear
+        ldx #0
+hmtitle: lda title,x
+        beq hmdone
+        ora #$80
+        sta ROW0,y
+        iny
+        inx
+        bne hmtitle
+hmdone: rts
+
+
+; drawstate: the state row cleared and the message at msgs+X drawn from column 0.
+; Y is the column after it.
+
+drawstate:   ldy #39
+        lda #$A0
+shclear: sta ROW2,y
+        dey
+        bpl shclear
+        iny
+shtext: lda msgs,x
+        beq shdone
+        ora #$80
+        sta ROW2,y
+        iny
+        inx
+        bne shtext
+shdone: rts
+
+
+; showpct: the loading message and (page + 1) * 100 / pages, then a percent
+; sign.
+
+showpct: ldx #msgload-msgs
+        jsr drawstate
+        lda #0
+        sta prodlo
+        sta prodhi
+        sta quot
+        ldx page
+        inx
+spmul:  clc
+        lda prodlo
+        adc #100
+        sta prodlo
+        bcc spmul2
+        inc prodhi
+spmul2: dex
+        bne spmul
+spdiv:  lda prodlo
+        sec
+        sbc pages
+        tax
+        lda prodhi
+        sbc #0
+        bcc spdone
+        sta prodhi
+        stx prodlo
+        inc quot
+        bne spdiv
+spdone: lda quot
+        jsr putdec
+        lda #$A5                ; a percent sign
+        sta ROW2,y
+        rts
+
+
+; putdec: A in decimal, without leading zeros, on the state row from Y.
+
+putdec: sta num
+        lda #0
+        sta lead
+        ldx #2
+pdloop: lda #0
+        sta digit
+pdsub:  lda num
+        cmp pdtab,x
+        bcc pdout
+        sbc pdtab,x
+        sta num
+        inc digit
+        bne pdsub
+pdout:  lda digit
+        ora lead
+        bne pdput
+        cpx #0
+        bne pdnext
+pdput:  lda digit
+        ora #$B0
+        sta ROW2,y
+        sta lead
+        iny
+pdnext: dex
+        bpl pdloop
+        rts
+
+pdtab:  .byte 1, 10, 100
 
 
 ; getenv: an envelope, skipping bytes until a start byte. A is the command,
@@ -169,6 +319,16 @@ putwait: lda ACIASTAT
         sta ACIADATA
         rts
 
+
+title:  .text "CASSO APPLE II LINK"
+        .byte 0
+msgs:
+msgwait: .text "WAITING FOR THE PC ON PORT 2 AT "
+        .byte 0
+msgload: .text "LOADING PROGRAM "
+        .byte 0
+msgstart: .text "STARTING VERSION "
+        .byte 0
 
 ; Ready with no program: version 0, the shim's version, no drives.
 readypkt: .byte $C1, $04, $00, CMDREADY, $C1 ^ $04 ^ $00 ^ CMDREADY

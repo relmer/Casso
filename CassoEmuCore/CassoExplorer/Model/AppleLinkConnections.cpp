@@ -52,9 +52,118 @@ AppleLinkConnections::~AppleLinkConnections()
 
 void AppleLinkConnections::SetLinks (const std::vector<AppleLinkSettings> & links)
 {
-    std::vector<std::string>  stale;
+    m_saved = links;
+    Merge();
+}
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::SetRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleLinkConnections::SetRunning (const std::vector<RunningCasso> & running)
+{
+    m_running = running;
+    Merge();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::IsDiscovered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleLinkConnections::IsDiscovered (const std::string & name) const
+{
+    bool  saved  = std::any_of (m_saved.begin(), m_saved.end(), [&name] (const AppleLinkSettings & settings) { return settings.name == name; });
+    bool  listed = std::any_of (m_links.begin(), m_links.end(), [&name] (const AppleLinkSettings & settings) { return settings.name == name; });
+
+
+
+    return listed && !saved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::MakeRunningName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleLinkConnections::MakeRunningName (const RunningCasso & running)
+{
+    size_t       colon   = running.address.rfind (':');
+    std::string  port    = colon == std::string::npos ? running.address : running.address.substr (colon + 1);
+    std::string  machine = running.machine.empty() ? std::string ("Casso") : running.machine;
+
+
+
+    return std::format ("{} (port {})", machine, port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::Merge
+//
+//  The saved links and the running Cassos into the one list the tree and
+//  the sessions use; a started link no longer in it, or changed, is stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleLinkConnections::Merge()
+{
+    std::vector<AppleLinkSettings>  links = m_saved;
+    std::vector<std::string>        stale;
+
+
+
+    m_unusable.clear();
+
+    for (const RunningCasso & running : m_running)
+    {
+        AppleLinkSettings  settings;
+        bool               covered  = false;
+
+        settings.name      = MakeRunningName (running);
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = running.address;
+
+        covered = std::any_of (links.begin(), links.end(), [&settings] (const AppleLinkSettings & link)
+        {
+            bool  sameAddress = (link.transport == LinkTransport::Emulated || link.transport == LinkTransport::Tcp) && link.address == settings.address;
+
+            return link.name == settings.name || sameAddress;
+        });
+
+        if (covered)
+        {
+            continue;
+        }
+
+        if (running.serialPort != 2)
+        {
+            m_unusable[settings.name] = std::format (L"Serial port {} of this Casso is on TCP, and the link program uses port 2. "
+                                                     L"Connect port 2 in Casso's Hardware settings.", running.serialPort);
+        }
+
+        links.push_back (settings);
+    }
 
     for (const std::unique_ptr<Link> & link : m_started)
     {
@@ -91,11 +200,13 @@ HRESULT AppleLinkConnections::Start (const std::string & name, bool search)
     AppleLinkSettings      opening;
     auto                   settings = std::find_if (m_links.begin(), m_links.end(), [&name] (const AppleLinkSettings & s) { return s.name == name; });
     bool                   known    = settings != m_links.end();
+    bool                   usable   = !m_unusable.contains (name);
 
 
 
     BAIL_OUT_IF (IsStarted (name), S_OK);
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+    CBREx (usable, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     link           = std::make_unique<Link>();
     link->settings = *settings;
@@ -222,20 +333,41 @@ std::vector<LinkTreeEntry> AppleLinkConnections::BuildTreeEntries() const
         LinkTreeEntry  entry;
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
+        auto           unusable = m_unusable.find (settings.name);
+
         entry.name = TextEncoding::NarrowToWide (settings.name);
 
-        if (found == m_started.end())
+        if (unusable != m_unusable.end())
         {
-            entry.status = DescribeState (LinkState::Closed, false);
+            entry.status = unusable->second;
             entries.push_back (entry);
             continue;
         }
 
-        LinkState  state = (*found)->session->GetState();
-        Byte       map   = (*found)->session->GetDriveMap();
+        if (found == m_started.end())
+        {
+            entry.status = DescribeState (LinkState::Closed, false);
+        }
+        else
+        {
+            LinkState  state = (*found)->session->GetState();
 
-        entry.replying = state == LinkState::Ready || state == LinkState::Busy;
-        entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro());
+            entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro());
+        }
+
+        if (settings.transport == LinkTransport::WifiModem && !entry.replying)
+        {
+            entry.status += L" " + DescribeDial (GetPcName(), settings);
+        }
+
+        if (found == m_started.end())
+        {
+            entries.push_back (entry);
+            continue;
+        }
+
+        Byte  map = (*found)->session->GetDriveMap();
 
         for (int drive = 1; entry.replying && drive <= AppleLinkSession::kDriveCount; drive++)
         {
@@ -527,6 +659,52 @@ std::wstring AppleLinkConnections::DescribeJobs (const std::vector<std::shared_p
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::DescribeDial
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkConnections::DescribeDial (const std::wstring & pcName, const AppleLinkSettings & settings)
+{
+    std::wstring  address = TextEncoding::NarrowToWide (settings.address);
+    size_t        colon   = address.rfind (L':');
+    std::wstring  port    = colon == std::wstring::npos ? address : address.substr (colon + 1);
+
+
+
+    return std::format (L"Dial ATDT {}.local:{} from the modem.", pcName, port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::GetPcName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkConnections::GetPcName()
+{
+    wchar_t  name[256] = {};
+    DWORD    size      = (DWORD) std::size (name);
+
+
+
+    if (!GetComputerNameExW (ComputerNameDnsHostname, name, &size))
+    {
+        size = 0;
+    }
+
+    return std::wstring (name, size);
 }
 
 

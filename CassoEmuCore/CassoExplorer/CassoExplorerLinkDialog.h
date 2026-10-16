@@ -44,15 +44,33 @@ public:
     static int   GetTransportIndex (LinkTransport transport);
     static int   GetSpeedIndex     (DWORD baud);
 
-    //  A serial link has a port; every other transport an address.
-    static bool  UsesPort (LinkTransport transport) { return transport == LinkTransport::Serial; }
+    //  The rows each transport has (FR-083c). A serial link has a COM port,
+    //  speed, bootstrap speed and handshaking; TCP and an emulated machine,
+    //  an address; a Wi-Fi modem, the TCP port it connects to, speed and
+    //  handshaking.
+    static bool  UsesPort      (LinkTransport transport) { return transport == LinkTransport::Serial; }
+    static bool  UsesAddress   (LinkTransport transport) { return transport != LinkTransport::Serial; }
+    static bool  UsesSpeed     (LinkTransport transport) { return transport == LinkTransport::Serial || transport == LinkTransport::WifiModem; }
+    static bool  UsesBootstrap (LinkTransport transport) { return transport == LinkTransport::Serial; }
+    static bool  UsesHandshake (LinkTransport transport) { return transport == LinkTransport::Serial || transport == LinkTransport::WifiModem; }
 
+    //  The address row's label and its value when nothing is entered. A
+    //  Wi-Fi modem's row is the TCP port alone, as it listens on every
+    //  address; an emulated machine's is Casso's own serial port on this PC.
+    static const wchar_t *  GetAddressLabel   (LinkTransport transport);
+    static std::wstring     GetDefaultAddress (LinkTransport transport);
+
+    //  The address row's text for a link's settings, and the reason it
+    //  cannot be used for a transport, or empty.
+    static std::wstring     GetAddressText    (const AppleLinkSettings & settings);
+    static std::wstring     ValidateAddressFor (LinkTransport transport, const std::wstring & text);
     //  Why a field's value cannot be used, or empty when it can. A name must
     //  be new among `otherNames`; a port is COM and a number, or empty to
     //  search; an address is a host, a colon and a port from 1 to 65535.
     static std::wstring  ValidateName    (const std::wstring & name, const std::vector<std::wstring> & otherNames);
     static std::wstring  ValidatePort    (const std::wstring & port);
     static std::wstring  ValidateAddress (const std::wstring & address);
+    static std::wstring  ValidateTcpPort (const std::wstring & port);
 
     //  The settings for the chosen values. An index out of range takes the
     //  list's first choice.
@@ -108,6 +126,9 @@ public:
     int   GetRequiredHeightPx () const { return ArrangeRows (m_boundsDip, m_scaler, false); }
 
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+
+    //  The rows placed again, after a row's visibility changes.
+    void  Relayout () { Layout (GetBounds(), m_scaler); }
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kRowHeightDip     = 30;
@@ -164,14 +185,16 @@ protected:
 
 private:
     void  Revalidate   ();
+    void  ShowTransportRows ();
     void  FitToContent ();
 
-    const IDxuiTheme           * m_theme   = nullptr;
+    const IDxuiTheme           * m_theme          = nullptr;
     AppleLinkSettings            m_initial;
     std::vector<std::wstring>    m_otherNames;
-    bool                         m_adding  = true;
-    bool                         m_fitted  = false;
-    DxuiButton                 * m_ok      = nullptr;
+    bool                         m_adding         = true;
+    bool                         m_fitted         = false;
+    LinkTransport                m_shownTransport = LinkTransport::Serial;
+    DxuiButton                 * m_ok             = nullptr;
     DxuiFieldValidator           m_validator;
     Outcome                      m_outcome;
     DxuiLabel                    m_nameLabel;

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "AppleLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -77,6 +78,11 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
 
 CassoExplorerWindow::~CassoExplorerWindow()
 {
+    if (m_context.running != nullptr && m_context.watcher != nullptr)
+    {
+        m_context.watcher->Unwatch (m_context.running->GetFolder());
+    }
+
     m_shellVerbs.UnwatchRecycleBin();
     m_dropTarget.Shutdown();
     m_labelTip.Hide();
@@ -917,6 +923,23 @@ void CassoExplorerWindow::ConfigureWidgets()
         m_browser.SetLinks (m_context.links);
         m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
         RefreshTree();
+    }
+
+    //  Each running Casso with a serial port on TCP is a root as well, read
+    //  now and again whenever a Casso starts, connects a port or exits.
+    if (m_context.links != nullptr && m_context.running != nullptr)
+    {
+        HWND             hwnd   = GetHwnd();
+        std::error_code  ignore;
+
+        std::filesystem::create_directories (m_context.running->GetFolder(), ignore);
+
+        if (m_context.watcher != nullptr)
+        {
+            m_context.watcher->Watch (m_context.running->GetFolder(), [hwnd] (const std::wstring &) { PostMessageW (hwnd, kRunningMessage, 0, 0); });
+        }
+
+        OnRunningChanged();
     }
 
     //  A second window opens on its path alone, as File Explorer's new
@@ -9395,6 +9418,13 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
+    if (msg == kRunningMessage)
+    {
+        OnRunningChanged();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (msg == kDropMenuMessage)
     {
         ShowDropMenu();
@@ -9569,7 +9599,12 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         {
             std::string  name = TextEncoding::WideToNarrow (link);
 
-            AddMenuCommand (items, L"&Edit link...", [this, name]() { EditLink (name); });
+            bool  saved = !m_context.links->IsDiscovered (name);
+
+            if (saved)
+            {
+                AddMenuCommand (items, L"&Edit link...", [this, name]() { EditLink (name); });
+            }
 
             if (m_context.links->IsStarted (name))
             {
@@ -9581,7 +9616,10 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
                 AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
             }
 
-            AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
+            if (saved)
+            {
+                AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
+            }
         }
         else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
         {
@@ -10359,6 +10397,54 @@ void CassoExplorerWindow::OnLinkChanged()
 
         ShowMessage (text, MB_ICONERROR);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnRunningChanged
+//
+//  A root whose Casso has exited is removed; when the list is on it, the
+//  list goes to This PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnRunningChanged()
+{
+    HRESULT                    hr      = S_OK;
+    std::vector<RunningCasso>  running;
+    std::wstring               link;
+    int                        slot    = 0;
+    int                        drive   = 0;
+    bool                       showing = false;
+    bool                       gone    = false;
+
+
+
+    hr = m_context.running->Enumerate (running);
+    CHR (hr);
+
+    m_context.links->SetRunning (running);
+
+    showing = TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive);
+    gone    = showing && std::none_of (m_context.links->GetLinks().begin(), m_context.links->GetLinks().end(), [&link] (const AppleLinkSettings & settings)
+    {
+        return TextEncoding::NarrowToWide (settings.name) == link;
+    });
+
+    if (gone)
+    {
+        GoToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+    }
+
+    m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+    RefreshTree();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

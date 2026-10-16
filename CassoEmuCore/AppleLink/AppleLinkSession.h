@@ -194,6 +194,9 @@ public:
     //  A Status error code as an HRESULT.
     static HRESULT  FromStatusError (Byte error);
 
+    //  The Label text the program draws for an operation (FR-090).
+    static std::string  DescribeOperation (const LinkOperation & operation);
+
 private:
     //  A drive's sectors over the link, for its LinkedDisk.
     class DriveSource : public ILinkedSectorSource

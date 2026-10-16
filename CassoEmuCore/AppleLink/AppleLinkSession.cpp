@@ -641,16 +641,19 @@ void AppleLinkSession::Run (std::stop_token stop)
 //
 //  AppleLinkSession::Connect
 //
-//  A serial line is opened at the bootstrap speed, where a shim starts, and
-//  then at the link's speed, where a program already loaded runs. The program
-//  is then set to the link's speed, and a serial port opened again at it.
+//  A serial line is opened at the bootstrap speed, where a typed-in shim
+//  starts, and then at the link's speed, where a shim from a boot disk or a
+//  program already loaded runs. A TCP line has no speed of its own; it is
+//  opened once, as the Apple end starts at the link's speed (FR-094). The
+//  program is then set to the link's speed, and a serial port opened again
+//  at it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AppleLinkSession::Connect (std::stop_token stop)
 {
     HRESULT             hr       = S_OK;
-    std::vector<DWORD>  speeds   = { m_settings.bootstrapBaud };
+    std::vector<DWORD>  speeds   = { m_settings.baud };
     ComSettings         search;
     DWORD               opened   = 0;
     Byte                control  = 0;
@@ -661,7 +664,7 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
 
     if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud)
     {
-        speeds.push_back (m_settings.baud);
+        speeds.insert (speeds.begin(), m_settings.bootstrapBaud);
     }
 
     //  A serial link with no port set finds one, once; the port found is
@@ -670,10 +673,9 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
     {
         SetState (LinkState::Searching);
 
-        search.baud              = m_settings.baud;
         search.hardwareHandshake = m_settings.hardwareHandshake;
 
-        hr = AppleLinkSearch::Find (m_factory, search, AppleLinkSearch::kReplyTimeoutMs, m_port);
+        hr = AppleLinkSearch::Find (m_factory, search, speeds, AppleLinkSearch::kReplyTimeoutMs, m_port);
         CHR (hr);
     }
 
@@ -929,6 +931,42 @@ void AppleLinkSession::SetState (LinkState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkSession::DescribeOperation
+//
+//  The Label text for an operation, as the program's screen draws it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleLinkSession::DescribeOperation (const LinkOperation & operation)
+{
+    std::string  path  = operation.path.ToString();
+    std::string  text;
+
+
+
+    switch (operation.kind)
+    {
+        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("READING THE CATALOG OF DRIVE {}", operation.drive) : "LISTING " + path; break;
+        case LinkOperationKind::ReadFile:        text = std::format ("COPYING {} FROM DRIVE {}", path, operation.drive);  break;
+        case LinkOperationKind::WriteFile:       text = std::format ("COPYING {} TO DRIVE {}", path, operation.drive);    break;
+        case LinkOperationKind::Delete:          text = "DELETING " + path;                                                break;
+        case LinkOperationKind::Rename:          text = std::format ("RENAMING {} TO {}", path, operation.newName);        break;
+        case LinkOperationKind::MakeDirectory:   text = "MAKING FOLDER " + path;                                           break;
+        case LinkOperationKind::RemoveDirectory: text = "DELETING FOLDER " + path;                                         break;
+        case LinkOperationKind::ReadDisk:        text = std::format ("READING DRIVE {} TO AN IMAGE", operation.drive);     break;
+        case LinkOperationKind::WriteDisk:       text = std::format ("WRITING AN IMAGE TO DRIVE {}", operation.drive);     break;
+        default:                                 text = "WORKING";                                                         break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkSession::Execute
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -946,6 +984,9 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
     CBREx (present, HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE));
 
     disk = m_disks[index].get();
+
+    hr = m_host->SendLabel (DescribeOperation (operation));
+    CHR (hr);
 
     if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk)
     {

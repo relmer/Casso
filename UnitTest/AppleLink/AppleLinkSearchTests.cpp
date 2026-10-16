@@ -30,7 +30,8 @@ public:
 
     using Port = FakeAppleFactory::Port;
 
-    static constexpr DWORD  kReplyMs = 300;
+    static constexpr DWORD  kReplyMs   = 300;
+    static constexpr DWORD  kSpeeds[]  = { 9600, 115200 };
 
     struct Sink : IAppleLinkSessionSink
     {
@@ -93,10 +94,10 @@ public:
 
         rig.factory.comPorts = { { L"COM1", Port::Busy }, { L"COM2", Port::Silent }, { L"COM3", Port::Apple }, { L"COM4", Port::Apple } };
 
-        AssertSucceeded (AppleLinkSearch::Find (rig.factory, ComSettings(), kReplyMs, port));
+        AssertSucceeded (AppleLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
 
         Assert::AreEqual (std::wstring (L"COM3"), port);
-        Assert::IsTrue   (rig.factory.comOpened == std::vector<std::wstring> { L"COM2", L"COM3" }, L"the busy port fails to open; the search stops at COM3");
+        Assert::IsTrue   (rig.factory.comOpened == std::vector<std::wstring> { L"COM2", L"COM2", L"COM3" }, L"the busy port fails to open; the silent one is opened at both speeds; the search stops at COM3");
         Assert::IsFalse  (rig.factory.comOverlapped.load(), L"each port closed before the next");
         Assert::IsTrue   (rig.factory.ArePortsClosed());
     }
@@ -111,7 +112,7 @@ public:
 
         rig.factory.comPorts = { { L"COM1", Port::Silent }, { L"COM2", Port::Busy } };
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), AppleLinkSearch::Find (rig.factory, ComSettings(), kReplyMs, port));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), AppleLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
         Assert::IsTrue   (port.empty());
         Assert::IsTrue   (rig.factory.ArePortsClosed());
     }
@@ -178,5 +179,43 @@ public:
 
         rig.session->Stop();
         Assert::IsTrue (rig.factory.ArePortsClosed());
+    }
+
+
+
+    TEST_METHOD (Find_OpensEachPortAtTheLinksSpeed_WhenTheBootstrapSpeedIsSilent)
+    {
+        Rig           rig;
+        std::wstring  port;
+
+        rig.factory.comPorts  = { { L"COM4", Port::Apple } };
+        rig.factory.appleBaud = 115200;
+
+        AssertSucceeded (AppleLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
+
+        Assert::AreEqual (std::wstring (L"COM4"), port);
+        Assert::IsTrue   (rig.factory.comBauds == std::vector<DWORD> { 9600, 115200 }, L"a boot disk's shim starts at the link's speed");
+    }
+
+
+
+
+    TEST_METHOD (ASerialLink_OpensAtTheBootstrapSpeed_ThenTheLinks)
+    {
+        Rig                rig;
+        AppleLinkSettings  settings;
+
+        rig.factory.comPorts  = { { L"COM3", Port::Apple } };
+        rig.factory.appleBaud = 115200;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Serial;
+        settings.port      = "COM3";
+
+        rig.session->SetConnectTimeout (2000);
+        AssertSucceeded (rig.session->Start (settings));
+        Assert::IsTrue  (rig.sink.WaitForState (LinkState::Ready), L"connected at the link's speed");
+        Assert::AreEqual ((DWORD) 9600,   rig.factory.comBauds.front());
+        Assert::AreEqual ((DWORD) 115200, rig.factory.comBauds.back());
     }
 };

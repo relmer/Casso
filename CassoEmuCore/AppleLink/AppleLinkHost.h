@@ -175,6 +175,11 @@ public:
     //  caller switches the line after this returns.
     HRESULT  SetSpeed     (Byte control);
 
+    //  The user's operation as text for the program's screen, in capitals
+    //  and cut to AppleLinkCodec::kLabelLength. The program draws it and
+    //  sends Ready, which the next operation takes.
+    HRESULT  SendLabel    (const std::string & text);
+
     //  Idle, sent unprompted. A shim or program whose Ready went out before
     //  the host connected is in its receive loop; Idle ends that loop, and
     //  Ready is sent again.

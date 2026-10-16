@@ -201,4 +201,66 @@ public:
         Assert::IsFalse (entries[0].replying);
         Assert::IsTrue  (entries[0].drives.empty());
     }
+
+
+
+    TEST_METHOD (RunningCassos_AreRoots_UnlessASavedLinkHasTheirAddress)
+    {
+        Rig                         rig;
+        RunningCasso                second;
+        RunningCasso                covered;
+        RunningCasso                portOne;
+        std::vector<LinkTreeEntry>  entries;
+
+        second.pid  = 7;   second.machine  = "Apple //c"; second.serialPort  = 2; second.address  = "127.0.0.1:6600";
+        covered.pid = 8;   covered.machine = "Apple //c"; covered.serialPort = 2; covered.address = "127.0.0.1:6502";
+        portOne.pid = 9;   portOne.machine = "Apple //c"; portOne.serialPort = 1; portOne.address = "127.0.0.1:6700";
+
+        rig.links->SetRunning ({ second, covered, portOne });
+        entries = rig.links->BuildTreeEntries();
+
+        Assert::AreEqual ((size_t) 3, entries.size(), L"the saved link, then two running Cassos; the one at the saved link's address is left out");
+        Assert::AreEqual (std::wstring (L"Test"),                    entries[0].name);
+        Assert::AreEqual (std::wstring (L"Apple //c (port 6600)"),   entries[1].name);
+        Assert::AreEqual (std::wstring (L"Apple //c (port 6700)"),   entries[2].name);
+        Assert::IsTrue   (entries[2].status.find (L"port 2") != std::wstring::npos, L"port 1 is listed with the reason");
+
+        Assert::IsTrue  (rig.links->IsDiscovered ("Apple //c (port 6600)"));
+        Assert::IsFalse (rig.links->IsDiscovered ("Test"));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), rig.links->Start ("Apple //c (port 6700)"));
+    }
+
+
+
+
+    TEST_METHOD (ARunningCassoThatExits_StopsItsLink)
+    {
+        Rig           rig;
+        RunningCasso  running;
+
+        running.pid        = 7;
+        running.machine    = "Apple //c";
+        running.serialPort = 2;
+        running.address    = "127.0.0.1:6600";
+
+        rig.links->SetRunning ({ running });
+        AssertSucceeded (rig.links->Start ("Apple //c (port 6600)"));
+        Assert::IsTrue (rig.links->IsStarted ("Apple //c (port 6600)"));
+
+        rig.links->SetRunning ({});
+        Assert::IsFalse (rig.links->IsStarted ("Apple //c (port 6600)"));
+        Assert::AreEqual ((size_t) 1, rig.links->GetLinks().size());
+    }
+
+
+
+    TEST_METHOD (AWifiModemLink_ListsTheAddressToDial)
+    {
+        AppleLinkSettings  modem;
+
+        modem.transport = LinkTransport::WifiModem;
+        modem.address   = "0.0.0.0:6400";
+
+        Assert::AreEqual (std::wstring (L"Dial ATDT relmer-pc.local:6400 from the modem."), AppleLinkConnections::DescribeDial (L"relmer-pc", modem));
+    }
 };

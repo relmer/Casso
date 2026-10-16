@@ -1228,6 +1228,45 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkHost::SendLabel
+//
+//  Anything outside printable ASCII is drawn as a question mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::SendLabel (const std::string & text)
+{
+    HRESULT            hr    = S_OK;
+    std::vector<Byte>  label;
+
+
+
+    for (char ch : text)
+    {
+        if (label.size() == AppleLinkCodec::kLabelLength)
+        {
+            break;
+        }
+
+        label.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+    }
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (AppleLinkCodec::kLabel, label);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkHost::Cancel
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,6 +28,7 @@
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
 class AppleLinkConnections;
+class RunningCassoRegistry;
 
 
 
@@ -69,6 +70,9 @@ public:
 
         //  Optional: without them, no Apple links are listed.
         AppleLinkConnections * links = nullptr;
+
+        //  Optional: without it, running Cassos are not listed as links.
+        RunningCassoRegistry * running = nullptr;
     };
 
     CassoExplorerWindow (CassoExplorerBrowser & browser, CassoExplorerActions & actions, CassoExplorerPrefs & prefs, Context context);
@@ -288,6 +292,7 @@ private:
 
     //  Posted by an Apple link when an operation is done or its state changes.
     static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
+    static constexpr UINT      kRunningMessage       = WM_APP + 0x3F;
 
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
@@ -497,6 +502,9 @@ private:
     bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
     void  OnShellListed     (const std::wstring & key);
     void  OnLinkChanged     ();
+
+    //  The running Cassos read again, at start and when their folder changes.
+    void  OnRunningChanged  ();
 
     //  A verb's label as a window's title: no access key, no trailing dots.
     static std::wstring  GetVerbTitle (CassoExplorerActions::Verb verb);

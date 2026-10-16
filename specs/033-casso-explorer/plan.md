@@ -351,7 +351,7 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 21. **Casso Explorer**: the link roots, settings, the COM search,
     copy in and out, Read disk to image and Write image to disk.
 21a. **The Apple's screen, and finding Casso** (R24 to R26, Session
-     2026-10-16): the shim at $3E00 with its screen and its speed byte; the
+     2026-10-16): the shim at $3D00 with its screen and its speed byte; the
      program's PC, error and label lines and the Label command; the
      running-Casso files and their roots; the dialog's rows by transport;
      the search at both speeds; the Wi-Fi modem's dial address.
@@ -384,7 +384,7 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 - **ADTPro's undocumented details**: the CRC, RLE and timeouts come from
   recordings (R15). A recording that does not settle one blocks phase 18,
   not the link: Casso's own client uses neither ADTPro's RLE nor its CRC.
-- **The shim's new address**: $3E00 is in hi-res page 1. The program draws
+- **The shim's new address**: $3D00 is in hi-res page 1. The program draws
   only text, and a program that grows past $3DFF fails the build's size
   check rather than overwriting the shim.
 - **Card features slipping**: phase 23 waits on 042 and 043; everything

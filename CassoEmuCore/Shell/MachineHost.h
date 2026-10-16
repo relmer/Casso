@@ -177,6 +177,12 @@ public:
     HRESULT  AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
     void     DetachSerialPorts  ();
 
+    //  Where a file for each port connected to TCP is written for Casso Explorer
+    //  (FR-083b): written when the port connects, deleted when it is connected
+    //  elsewhere or detached. With null, no file is written.
+    void     SetRunningRegistry (class RunningCassoRegistry * registry) { m_runningRegistry = registry; }
+    void     WithdrawSerialPorts ();
+
     CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
     MachineConfig     &  GetConfig       () noexcept { return *m_config; }
@@ -317,4 +323,6 @@ private:
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;
+
+    class RunningCassoRegistry  * m_runningRegistry = nullptr;
 };

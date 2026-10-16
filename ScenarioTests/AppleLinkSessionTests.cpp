@@ -108,12 +108,11 @@ public:
         std::vector<Byte>                     dosFile;
         std::vector<Byte>                     prodosFile;
 
-        Rig()
+        explicit Rig (bool start = true, DWORD shimBaud = 9600)
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  bytes;
             std::vector<Byte>     shim;
-            std::string           errors;
             Word                  at = LinkProgram::kShimAddress;
             AppleLinkSettings     settings;
 
@@ -134,7 +133,7 @@ public:
             InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
-            Assert::AreEqual (S_OK, LinkProgram::AssembleShim (shim, errors));
+            Assert::AreEqual (S_OK, LinkProgram::BuildShim (shimBaud, shim));
 
             for (Byte b : shim)
             {
@@ -143,12 +142,37 @@ public:
 
             machine.GetCpu()->SetPC (LinkProgram::kShimAddress);
 
+            session = std::make_unique<AppleLinkSession> (factory, folder, fileIo, sink);
+
+            if (start)
+            {
+                Start();
+            }
+        }
+
+        void  Start()
+        {
+            AppleLinkSettings  settings;
+
             settings.name      = "//c";
             settings.transport = LinkTransport::Emulated;
             settings.address   = "127.0.0.1:6502";
 
-            session = std::make_unique<AppleLinkSession> (factory, folder, fileIo, sink);
             AssertSucceeded (session->Start (settings));
+        }
+
+        //  A row of the text page, from a column, as text with its trailing
+        //  spaces cut.
+        std::string  Row (Word address, int column = 0)
+        {
+            std::string  text;
+
+            for (int i = column; i < 40; i++)
+            {
+                text += (char) (machine.GetCpu()->ReadByte ((Word) (address + i)) & 0x7F);
+            }
+
+            return text.substr (0, text.find_last_not_of (' ') + 1);
         }
 
         ~Rig()
@@ -183,6 +207,12 @@ public:
             return sectors;
         }
     };
+
+    static constexpr Word  kRow2  = 0x0500;
+    static constexpr Word  kRow3  = 0x0580;
+    static constexpr Word  kRow8  = 0x0428;
+    static constexpr Word  kRow10 = 0x0528;
+    static constexpr int   kField = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
     {
@@ -286,5 +316,42 @@ public:
             AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, "back.dsk"))->result);
             Assert::IsTrue (rig.Sectors (1) == next, L"drive 1 is the image");
         }
+    }
+
+
+
+    TEST_METHOD (TheScreen_ShowsTheShimWaiting_ThenThePcTheLabelAndAnError)
+    {
+        Rig  rig (false);
+
+        //  No host yet: the shim waits, at its own speed.
+        rig.machine.RunCycles (kFrame * 30);
+        Assert::AreEqual (std::string ("WAITING FOR THE PC ON PORT 2 AT 9600"), rig.Row (kRow2));
+
+        rig.Start();
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+
+        Assert::AreEqual (std::string ("CONNECTED"),                      rig.Row (kRow3, kField));
+        Assert::AreEqual (std::string ("READING THE CATALOG OF DRIVE 1"), rig.Row (kRow10));
+        Assert::AreEqual (std::string(),                                  rig.Row (kRow8, kField), L"no error yet");
+
+        //  A write to a protected disk: the error stays on the screen.
+        rig.machine.GetDiskStore().GetImage (6, 0)->SetWriteProtected (true);
+
+        auto  write = rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)));
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
+        Assert::IsTrue   (rig.Row (kRow8, kField).starts_with ("WRITE-PROTECTED"), L"the error line");
+        Assert::AreEqual (std::string ("COPYING FROMPC TO DRIVE 1"), rig.Row (kRow10));
+    }
+
+
+
+    TEST_METHOD (AShimAtTheLinksSpeed_Connects)
+    {
+        Rig  rig (true, 115200);
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
+        Assert::AreEqual (std::string ("CONNECTED"), rig.Row (kRow3, kField));
     }
 };

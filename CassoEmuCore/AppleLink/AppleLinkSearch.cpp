@@ -13,10 +13,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AppleLinkSearch::Find (IByteStreamFactory & factory, const ComSettings & settings, DWORD replyTimeoutMs, std::wstring & outPort)
+HRESULT AppleLinkSearch::Find (IByteStreamFactory & factory, const ComSettings & settings, std::span<const DWORD> speeds,
+                               DWORD replyTimeoutMs, std::wstring & outPort)
 {
     HRESULT                    hr       = S_OK;
     std::vector<std::wstring>  ports;
+    ComSettings                opening  = settings;
     bool                       replied  = false;
 
 
@@ -28,17 +30,29 @@ HRESULT AppleLinkSearch::Find (IByteStreamFactory & factory, const ComSettings &
 
     for (const std::wstring & port : ports)
     {
-        std::unique_ptr<IByteStream>  stream;
-        HRESULT                       opened = factory.OpenComPort (port, settings, stream);
-
-        if (FAILED (opened))
+        for (DWORD speed : speeds)
         {
-            continue;
-        }
+            std::unique_ptr<IByteStream>  stream;
+            HRESULT                       opened = S_OK;
 
-        hr = Probe (*stream, replyTimeoutMs, replied);
-        stream->Close();
-        IGNORE_RETURN_VALUE (hr, S_OK);
+            opening.baud = speed;
+            opened       = factory.OpenComPort (port, opening, stream);
+
+            //  A port another program has open is skipped at every speed.
+            if (FAILED (opened))
+            {
+                break;
+            }
+
+            hr = Probe (*stream, replyTimeoutMs, replied);
+            stream->Close();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (replied)
+            {
+                break;
+            }
+        }
 
         if (replied)
         {

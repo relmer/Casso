@@ -205,6 +205,126 @@ std::wstring CassoExplorerLinkChoices::ValidateAddress (const std::wstring & add
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkChoices::ValidateTcpPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::ValidateTcpPort (const std::wstring & port)
+{
+    std::wstring  error;
+    bool          digits = !port.empty() && port.size() <= 5 && port.find_first_not_of (L"0123456789") == std::wstring::npos;
+    int           value  = digits ? _wtoi (port.c_str()) : 0;
+
+
+
+    if (value < 1 || value > 65535)
+    {
+        error = L"Enter a TCP port from 1 to 65535.";
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetAddressLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerLinkChoices::GetAddressLabel (LinkTransport transport)
+{
+    return transport == LinkTransport::WifiModem ? L"TCP port:" : L"Address:";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetDefaultAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::GetDefaultAddress (LinkTransport transport)
+{
+    std::wstring  address;
+
+
+
+    switch (transport)
+    {
+        case LinkTransport::Emulated:  address = L"127.0.0.1:6502"; break;
+        case LinkTransport::WifiModem: address = L"6502";           break;
+        default:                                                    break;
+    }
+
+    return address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetAddressText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::GetAddressText (const AppleLinkSettings & settings)
+{
+    std::wstring  address = TextEncoding::NarrowToWide (settings.address);
+    size_t        colon   = address.rfind (L':');
+
+
+
+    if (settings.transport == LinkTransport::WifiModem && colon != std::wstring::npos)
+    {
+        address = address.substr (colon + 1);
+    }
+
+    return address.empty() ? GetDefaultAddress (settings.transport) : address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::ValidateAddressFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transport, const std::wstring & text)
+{
+    std::wstring  error;
+
+
+
+    if (transport == LinkTransport::WifiModem)
+    {
+        error = ValidateTcpPort (text);
+    }
+    else if (UsesAddress (transport))
+    {
+        error = ValidateAddress (text);
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkChoices::MakeSettings
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,10 +341,26 @@ AppleLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
     settings.name              = TextEncoding::WideToNarrow (name);
     settings.transport         = kTransports[(transportIndex >= 0 && transportIndex < transports) ? transportIndex : 0].transport;
     settings.port              = UsesPort (settings.transport) ? TextEncoding::WideToNarrow (port) : std::string();
-    settings.address           = UsesPort (settings.transport) ? std::string() : TextEncoding::WideToNarrow (address);
-    settings.baud              = kSpeeds[(speedIndex >= 0 && speedIndex < speeds) ? speedIndex : 0];
-    settings.bootstrapBaud     = kSpeeds[(bootstrapIndex >= 0 && bootstrapIndex < speeds) ? bootstrapIndex : 0];
-    settings.hardwareHandshake = hardwareHandshake;
+    settings.address           = UsesAddress (settings.transport) ? TextEncoding::WideToNarrow (address) : std::string();
+
+    //  A Wi-Fi modem connects from the network, to any of this PC's addresses.
+    if (settings.transport == LinkTransport::WifiModem)
+    {
+        settings.address = std::string (ByteStreamSettings::kAnyAddress) + ":" + settings.address;
+    }
+
+    //  A row the transport does not have takes its default.
+    if (UsesSpeed (settings.transport))
+    {
+        settings.baud = kSpeeds[(speedIndex >= 0 && speedIndex < speeds) ? speedIndex : 0];
+    }
+
+    if (UsesBootstrap (settings.transport))
+    {
+        settings.bootstrapBaud = kSpeeds[(bootstrapIndex >= 0 && bootstrapIndex < speeds) ? bootstrapIndex : 0];
+    }
+
+    settings.hardwareHandshake = UsesHandshake (settings.transport) && hardwareHandshake;
 
     return settings;
 }
@@ -304,12 +440,12 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
     y = PlaceRow (bounds, y, m_kids.speedLabel,     m_kids.speed,     nullptr,             scaler, place);
     y = PlaceRow (bounds, y, m_kids.bootstrapLabel, m_kids.bootstrap, nullptr,             scaler, place);
 
-    if (place)
+    if (place && m_kids.handshake->IsVisible())
     {
         m_kids.handshake->Layout (RECT { fieldX, y, bounds.right, y + row }, scaler);
     }
 
-    y += row;
+    y += m_kids.handshake->IsVisible() ? row : 0;
 
     return y - bounds.top;
 }
@@ -337,6 +473,11 @@ int CassoExplorerLinkPanel::PlaceRow (const RECT & bounds, int y, DxuiLabel * la
     int  err    = 0;
 
 
+
+    if (!field->IsVisible())
+    {
+        return y;
+    }
 
     if (place)
     {
@@ -472,8 +613,8 @@ void CassoExplorerLinkDialog::OnCreate()
 
     m_port.SetText           (TextEncoding::NarrowToWide (m_initial.port));
     m_port.SetPlaceholder    (L"Search");
-    m_address.SetText        (TextEncoding::NarrowToWide (m_initial.address));
-    m_address.SetPlaceholder (L"127.0.0.1:6502");
+    m_address.SetText        (CassoExplorerLinkChoices::GetAddressText (m_initial));
+    m_shownTransport = m_initial.transport;
 
     for (DxuiComboBox * combo : { &m_transport, &m_speed, &m_bootstrap })
     {
@@ -535,9 +676,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
     m_validator.AddField ([this]()
     {
-        bool  serial = CassoExplorerLinkChoices::UsesPort (CassoExplorerLinkChoices::kTransports[m_transport.GetSelectedIndex()].transport);
-
-        return serial ? std::wstring() : CassoExplorerLinkChoices::ValidateAddress (m_address.GetText());
+        return CassoExplorerLinkChoices::ValidateAddressFor (CassoExplorerLinkChoices::kTransports[m_transport.GetSelectedIndex()].transport, m_address.GetText());
     }, &m_addressError);
 
     m_validator.SetConfirmButton (m_ok);
@@ -610,21 +749,69 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
 
 void CassoExplorerLinkDialog::Revalidate()
 {
-    bool  serial = CassoExplorerLinkChoices::UsesPort (CassoExplorerLinkChoices::kTransports[m_transport.GetSelectedIndex()].transport);
-    bool  valid  = false;
+    bool  valid = false;
 
 
 
-    m_portLabel.SetEnabled    (serial);
-    m_port.SetEnabled         (serial);
-    m_addressLabel.SetEnabled (!serial);
-    m_address.SetEnabled      (!serial);
+    ShowTransportRows();
 
     valid = m_validator.Revalidate();
     IGNORE_RETURN_VALUE (valid, true);
 
     FitToContent();
+
+    if (m_body != nullptr)
+    {
+        m_body->Relayout();
+    }
+
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkDialog::ShowTransportRows
+//
+//  Only the chosen transport's rows are visible (FR-083c). A change of
+//  transport replaces an address left empty or at the old transport's
+//  default with the new one's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerLinkDialog::ShowTransportRows()
+{
+    using Choices = CassoExplorerLinkChoices;
+
+    LinkTransport  transport = Choices::kTransports[m_transport.GetSelectedIndex()].transport;
+    LinkTransport  previous  = m_shownTransport;
+    std::wstring   address   = m_address.GetText();
+
+
+
+    m_shownTransport = transport;
+
+    if (transport != previous && (address.empty() || address == Choices::GetDefaultAddress (previous)))
+    {
+        m_address.SetText (Choices::GetDefaultAddress (transport));
+    }
+
+    m_addressLabel.SetText (Choices::GetAddressLabel (transport));
+
+    m_portLabel.SetVisible      (Choices::UsesPort (transport));
+    m_port.SetVisible           (Choices::UsesPort (transport));
+    m_portError.SetVisible      (Choices::UsesPort (transport));
+    m_addressLabel.SetVisible   (Choices::UsesAddress (transport));
+    m_address.SetVisible        (Choices::UsesAddress (transport));
+    m_addressError.SetVisible   (Choices::UsesAddress (transport));
+    m_speedLabel.SetVisible     (Choices::UsesSpeed (transport));
+    m_speed.SetVisible          (Choices::UsesSpeed (transport));
+    m_bootstrapLabel.SetVisible (Choices::UsesBootstrap (transport));
+    m_bootstrap.SetVisible      (Choices::UsesBootstrap (transport));
+    m_handshake.SetVisible      (Choices::UsesHandshake (transport));
 }
 
 

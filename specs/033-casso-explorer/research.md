@@ -728,7 +728,7 @@ polling loops.
 
 **Decision**:
 
-- **The shim moves to $3E00**, with up to 512 bytes, below the program's
+- **The shim moves to $3D00**, with up to 768 bytes, below the program's
   first table at $4000. It writes its own lines on the text page: a title,
   `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each
   page arrives, and `STARTING VERSION <n>`. The typed bootstrap grows to

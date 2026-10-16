@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
+#include "AppleLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
@@ -295,6 +296,11 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
 
     InstallSerialEndpoint (port, std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
 
+    if (m_runningRegistry != nullptr)
+    {
+        m_runningRegistry->Withdraw (GetCurrentProcessId(), port);
+    }
+
     hr = SerialPortDevice::Parse (device, parsed);
     CHR (hr);
     BAIL_OUT_IF (parsed.kind == SerialPortDevice::Kind::Loopback, S_OK);
@@ -313,6 +319,15 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
 
     hr = AttachSerialStream (port, std::shared_ptr<IByteStream> (std::move (stream)), &bridge);
     CHR (hr);
+
+    //  Casso Explorer finds the port by its file; one that cannot be written
+    //  does not stop the port; the port is only unlisted.
+    if (m_runningRegistry != nullptr && parsed.kind == SerialPortDevice::Kind::Tcp)
+    {
+        HRESULT  published = m_runningRegistry->Publish (GetCurrentProcessId(), port, m_config->name, parsed.tcpPort);
+
+        IGNORE_RETURN_VALUE (published, S_OK);
+    }
 
     if (log != nullptr)
     {
@@ -421,12 +436,33 @@ void MachineHost::DetachSerialPorts()
         {
             acia->SetEndpoint (nullptr);
         }
+
     }
+
+    WithdrawSerialPorts();
 
     m_serialPorts     = {};
     m_serialBridges   = {};
     m_serialEndpoints = {};
     m_ownedAciaEndpoints.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::WithdrawSerialPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::WithdrawSerialPorts()
+{
+    for (int port = 1; port <= s_kSerialPortCount && m_runningRegistry != nullptr; port++)
+    {
+        m_runningRegistry->Withdraw (GetCurrentProcessId(), port);
+    }
 }
 
 

@@ -4,6 +4,7 @@
 
 #include "AppleLink/AppleLinkSession.h"
 #include "AppleLink/AppleLinkSettings.h"
+#include "AppleLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/TreeModel.h"
 
 class IAppleLinkFolder;
@@ -41,7 +42,21 @@ public:
     //  The links, as the preferences have them. A link removed or changed is
     //  stopped.
     void                                    SetLinks (const std::vector<AppleLinkSettings> & links);
+
+    //  The running Cassos with a serial port on TCP, each an Emulated link
+    //  with its machine and port as its name, never saved (FR-083b). One whose
+    //  address a saved link has is left out, and one on port 1 is listed with
+    //  the reason it cannot connect. A Casso that exits stops its link.
+    void                                    SetRunning (const std::vector<RunningCasso> & running);
+
+    //  Every link: the saved ones, then the running Cassos.
     const std::vector<AppleLinkSettings> &  GetLinks () const { return m_links; }
+
+    //  Whether a link is a running Casso's rather than a saved one.
+    bool                                    IsDiscovered (const std::string & name) const;
+
+    //  A running Casso's root name: its machine and TCP port.
+    static std::string                      MakeRunningName (const RunningCasso & running);
 
     //  A search starts a serial link by searching the COM ports for the
     //  Apple, as a link with no port set does (FR-083a).
@@ -101,6 +116,10 @@ public:
     //  The text under a link's root in place of its drives.
     static std::wstring  DescribeState (LinkState state, bool servingAdtPro);
 
+    //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
+    //  .local, and the link's TCP port (FR-083c).
+    static std::wstring  DescribeDial  (const std::wstring & pcName, const AppleLinkSettings & settings);
+
     static constexpr DWORD  kWaitPollMs = 20;
 
 private:
@@ -126,17 +145,22 @@ private:
     };
 
     static std::string  MakeKey (int drive, const std::string & path, bool file);
+    static std::wstring GetPcName ();
 
     Link *        FindLink (const std::string & name);
     const Link *  FindLink (const std::string & name) const;
     bool          TryGetResult (const std::string & name, int drive, const std::string & key, LinkOperationKind kind,
                                 const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
     void          Notify ();
+    void          Merge ();
 
     IByteStreamFactory                 & m_factory;
     IAppleLinkFolder                   & m_folder;
     IDiskFileIo                        & m_fileIo;
+    std::vector<AppleLinkSettings>       m_saved;
+    std::vector<RunningCasso>            m_running;
     std::vector<AppleLinkSettings>       m_links;
+    std::map<std::string, std::wstring>  m_unusable;
     std::vector<std::unique_ptr<Link>>   m_started;
 
     struct Job

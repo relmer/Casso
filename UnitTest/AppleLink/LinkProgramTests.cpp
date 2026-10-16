@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "../EhmTestHelper.h"
 #include "AppleLink/AppleLinkCodec.h"
 #include "AppleLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
@@ -37,7 +38,7 @@ public:
 
 
 
-    TEST_METHOD (Shim_AssemblesBelowTheMonitorVectors)
+    TEST_METHOD (Shim_AssemblesBelowTheProgramsTables)
     {
         std::vector<Byte>  bytes;
         std::string        errors;
@@ -46,7 +47,7 @@ public:
         Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (errors.empty());
         Assert::IsFalse (bytes.empty());
-        Assert::IsTrue (LinkProgram::kShimAddress + bytes.size() <= 0x03F0u);
+        Assert::IsTrue (LinkProgram::kShimAddress + bytes.size() <= 0x4000u);
     }
 
 
@@ -61,7 +62,11 @@ public:
         Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (errors.empty());
         Assert::IsFalse (bytes.empty());
-        Assert::IsTrue (LinkProgram::kProgramAddress + bytes.size() <= 0x4000u);
+        Assert::IsTrue (LinkProgram::kProgramAddress + bytes.size() <= LinkProgram::kShimAddress, L"the program ends below the shim");
+
+        //  The version the shim draws, at $0803.
+        Assert::AreEqual<int> (LinkProgram::kProgramVersion & 0xFF, bytes[3]);
+        Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[4]);
     }
 
 
@@ -102,5 +107,27 @@ public:
         Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[at + 6]);
         Assert::AreEqual<int> (LinkProgram::kShimVersion,           bytes[at + 7]);
         Assert::AreEqual<int> (AppleLinkCodec::ComputeEor (std::span<const Byte> (bytes).subspan (at + 5, 4)), bytes[at + 9]);
+    }
+
+
+
+    TEST_METHOD (BuildShim_WritesTheSpeedAndItsText)
+    {
+        std::vector<Byte>  assembled;
+        std::vector<Byte>  fast;
+        std::string        errors;
+        Byte               control = 0;
+
+        AssertSucceeded (LinkProgram::AssembleShim (assembled, errors));
+        AssertSucceeded (LinkProgram::BuildShim (115200, fast));
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (9600, control));
+        Assert::AreEqual<int> (control, assembled[LinkProgram::kSpeedOffset], L"as assembled, 9,600 baud");
+        Assert::AreEqual (std::string ("9600  "), std::string (assembled.begin() + LinkProgram::kSpeedTextOffset, assembled.begin() + LinkProgram::kSpeedTextOffset + LinkProgram::kSpeedTextLength));
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (115200, control));
+        Assert::AreEqual<int> (control, fast[LinkProgram::kSpeedOffset]);
+        Assert::AreEqual (std::string ("115200"), std::string (fast.begin() + LinkProgram::kSpeedTextOffset, fast.begin() + LinkProgram::kSpeedTextOffset + LinkProgram::kSpeedTextLength));
+        Assert::AreEqual (HRESULT (E_INVALIDARG), LinkProgram::BuildShim (300, fast), L"a speed the //c's port does not have");
     }
 };

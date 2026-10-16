@@ -710,6 +710,12 @@ private:
     bool                   m_imageWatchDisabled = false;  // --no-image-watch (undocumented)
     std::unique_ptr<class IByteStreamFactory>  m_streamFactory;   // opens the stream for each serial port's device
     std::unique_ptr<class SerialTrafficLog>    m_serialLog;       // --serial-log; null without it
+
+    //  The files through which Casso Explorer finds this Casso's serial ports
+    //  on TCP (FR-083b).
+    std::unique_ptr<class IFileSystem>           m_linkFileSystem;
+    std::unique_ptr<class IProcessProbe>         m_processProbe;
+    std::unique_ptr<class RunningCassoRegistry>  m_runningRegistry;
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
 

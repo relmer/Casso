@@ -18,6 +18,7 @@
 CassoExplorerShell::CassoExplorerShell()
     : m_linkFolder (m_fs, m_fileIo),
       m_links (m_streams, m_linkFolder, m_fileIo),
+      m_running (m_fs, m_processProbe, RunningCassoRegistry::GetDefaultFolder()),
       m_browser (m_fs, m_fileIo),
       m_actions (m_browser, m_fs)
 {
@@ -509,6 +510,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
         context.newWindow   = m_options.newWindow;
         context.watcher     = &m_watcher;
     context.links       = &m_links;
+    context.running     = &m_running;
 
         m_window = std::make_unique<CassoExplorerWindow> (m_browser, m_actions, m_prefs, context);
     }

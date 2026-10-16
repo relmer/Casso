@@ -6,6 +6,11 @@
 #include "Devices/AciaEndpoints.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Seams/InProcessByteStream.h"
+#include "Seams/IByteStreamFactory.h"
+#include "Seams/IProcessProbe.h"
+#include "AppleLink/RunningCassoRegistry.h"
+#include "../EhmTestHelper.h"
+#include "../UiTests/InMemoryFileSystem.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -462,6 +467,80 @@ public:
         Assert::IsTrue (FAILED (hr), L"no stream factory, no TCP port");
         machine.GetMemoryBus().WriteByte (data, 0x11);
         Assert::AreEqual<Byte> (0x11, machine.GetMemoryBus().ReadByte (data), L"a device that fails to open is replaced by loopback");
+    }
+
+    //  A port on TCP is written where Casso Explorer finds it, and deleted
+    //  when the port is connected elsewhere and when the machine's ports are
+    //  detached (FR-083b).
+    TEST_METHOD (APortOnTcp_IsRecordedForCassoExplorer_UntilItIsNot)
+    {
+        struct Handle : IByteStream
+        {
+            std::shared_ptr<InProcessByteStream>  end;
+
+            explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
+
+            HRESULT  Write            (const Byte * bytes, size_t count) override                                  { return end->Write (bytes, count); }
+            HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
+            size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
+            bool     IsClosed() const override                                                                    { return end->IsClosed(); }
+            void     Close() override                                                                             { end->Close(); }
+        };
+
+        struct Listener : IByteStreamFactory
+        {
+            std::vector<std::shared_ptr<InProcessByteStream>>  ends;
+
+            HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
+            HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return E_NOTIMPL; }
+            HRESULT  ConnectTcp   (const std::string &, uint16_t, std::unique_ptr<IByteStream> &) override             { return E_NOTIMPL; }
+
+            HRESULT  ListenTcp (uint16_t, LinkTransport, std::unique_ptr<IByteStream> & outStream) override
+            {
+                std::shared_ptr<InProcessByteStream>  machineEnd;
+                std::shared_ptr<InProcessByteStream>  pcEnd;
+
+                InProcessByteStream::CreatePair (machineEnd, pcEnd);
+                ends.push_back (pcEnd);
+                outStream = std::make_unique<Handle> (machineEnd);
+                return S_OK;
+            }
+        };
+
+        struct Probe : IProcessProbe
+        {
+            bool  TryGetStartTime (DWORD, uint64_t & outStarted) override { outStarted = 77; return true; }
+        };
+
+        TestMachine                machine ("Apple2c");
+        InMemoryFileSystem         fs;
+        Probe                      probe;
+        Listener                   factory;
+        RunningCassoRegistry       registry (fs, probe, L"C:\\Links");
+        std::vector<RunningCasso>  running;
+
+
+
+        machine.PowerCycle();
+        machine.SetRunningRegistry (&registry);
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::AreEqual ((size_t) 1, running.size());
+        Assert::AreEqual (2, running[0].serialPort);
+        Assert::AreEqual (std::string ("127.0.0.1:6502"), running[0].address);
+        Assert::AreEqual (machine.GetConfig().name, running[0].machine);
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", &factory, nullptr));
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::IsTrue (running.empty(), L"connected elsewhere");
+
+        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        machine.DetachSerialPorts();
+        AssertSucceeded (registry.Enumerate (running));
+        Assert::IsTrue (running.empty(), L"detached");
+
+        machine.SetRunningRegistry (nullptr);
     }
 
     // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7

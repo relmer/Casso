@@ -343,6 +343,7 @@
     <ClCompile Include="AppleLink\LinkedDiskTests.cpp" />
     <ClCompile Include="AppleLink\AppleLinkSessionTests.cpp" />
     <ClCompile Include="AppleLink\AppleLinkSearchTests.cpp" />
+    <ClCompile Include="AppleLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
     <ClCompile Include="EmuTests\SerialTrafficLogTests.cpp" />

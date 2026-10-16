@@ -12,6 +12,8 @@
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32FolderWatcher.h"
+#include "Seams/IProcessProbe.h"
+#include "AppleLink/RunningCassoRegistry.h"
 #include "Seams/Win32IntentChannel.h"
 
 
@@ -123,6 +125,8 @@ private:
     Win32ByteStreamFactory                m_streams;
     AppleLinkFolder                       m_linkFolder;
     AppleLinkConnections                  m_links;
+    Win32ProcessProbe                     m_processProbe;
+    RunningCassoRegistry                  m_running;
     CassoExplorerBrowser                  m_browser;
     CassoExplorerActions                  m_actions;
     std::unique_ptr<CassoExplorerWindow>  m_window;

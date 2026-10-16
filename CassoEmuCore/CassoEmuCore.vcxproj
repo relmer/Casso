@@ -221,6 +221,8 @@
     <ClCompile Include="AppleLink\AppleLinkSession.cpp" />
     <ClCompile Include="AppleLink\AppleLinkSettings.cpp" />
     <ClCompile Include="AppleLink\AppleLinkSearch.cpp" />
+    <ClCompile Include="AppleLink\RunningCassoRegistry.cpp" />
+    <ClCompile Include="Seams\Win32ProcessProbe.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -811,6 +813,8 @@
     <ClInclude Include="AppleLink\AppleLinkSession.h" />
     <ClInclude Include="AppleLink\AppleLinkSettings.h" />
     <ClInclude Include="AppleLink\AppleLinkSearch.h" />
+    <ClInclude Include="AppleLink\RunningCassoRegistry.h" />
+    <ClInclude Include="Seams\IProcessProbe.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />

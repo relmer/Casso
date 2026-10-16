@@ -11,6 +11,7 @@
 ;                   host's Sector data, written and read back
 ;   Format track    drive, track, volume
 ;   Cancel          during an operation: it stops, and Ready follows
+;   Label           the user's operation, as text: drawn, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
 ;
 ; Every operation ends with a Status packet: operation, drive, track,
@@ -18,8 +19,10 @@
 ; the number in its address field, the physical sector; the host maps DOS 3.3
 ; and ProDOS numbering onto it.
 ;
-; The status screen on the text page has the connection, the drive, the
-; track, the operation and the progress.
+; The status screen on the text page has the connection; the PC, connected
+; or how long since its last reply; the drive, the track, the operation and
+; the progress; the last error, until an operation succeeds; and the last
+; Label. Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
 ; the Disk II and the 6-and-2 encoding Casso's NibblizationLayer writes: the
@@ -70,7 +73,8 @@ CMDFORMAT = $C8
 CMDSTATUS = $D4
 CMDCANCEL = $D1
 CMDLOAD   = $CF
-SHIM      = $0300
+CMDLABEL  = $CE
+SHIM      = $3D00
 ACK       = $06
 NAK       = $15
 
@@ -139,6 +143,9 @@ curhalf  = $FE                  ; and $FF: each drive's half-track, $FF unknown
 
         .org $0800
 
+        jmp entry
+        .word PROGVER           ; $0803: the version the shim draws
+
 entry:  sei
         cld
         ldx #$FF
@@ -163,6 +170,10 @@ slotok: clc
         sta track
         sta index
         sta count
+        sta pcflag
+        sta silent
+        lda #3
+        sta tmolen
         jsr mktables
         jsr drawscreen
 
@@ -170,10 +181,17 @@ main:   lda #OPIDLE
         sta op
         jsr showop
         jsr sendready
+        lda #1                  ; a second for the reply
+        sta tmolen
         jsr getenvt
+        lda #3                  ; and three for each byte of an operation
+        sta tmolen
+        bcc mreply
+        jsr nopc
+        jmp main
+mreply: jsr getpayload
         bcs main
-        jsr getpayload
-        bcs main
+        jsr pcok
         lda envcmd
         cmp #CMDIDLE
         bne notidle
@@ -192,7 +210,10 @@ notread: cmp #CMDWRITE
 notwrite: cmp #CMDFORMAT
         bne notformat
         jmp doformat
-notformat: cmp #CMDLOAD
+notformat: cmp #CMDLABEL
+        bne notlabel
+        jmp dolabel
+notlabel: cmp #CMDLOAD
         bne tomain
         jmp SHIM
 tomain: jmp main
@@ -245,6 +266,7 @@ rdnext: jsr showprog
         bne rdnext
         jsr showprog
 opdone: jsr motoroff
+        jsr showerr
         jsr sendstatus
         jmp main
 
@@ -594,7 +616,7 @@ getbt:  stx savex
         lda #0
         sta tmo
         sta tmo+1
-        lda #3
+        lda tmolen
         sta tmo+2
 gbwait: lda ACIASTAT,x
         and #RDRF
@@ -1215,15 +1237,21 @@ dlinner: dey
 
 ROW0 = $0400
 ROW2 = $0500
+ROW3 = $0580
 ROW4 = $0600
 ROW5 = $0680
 ROW6 = $0700
 ROW7 = $0780
+ROW8 = $0428
+ROW10 = $0528
 FIELD = 12
 FIELDLEN = 20
 scr = $13                       ; and $14: the field being drawn
 vtries = $15                    ; seek: address fields left to check
 acky = $16                      ; sendack: its third byte
+pcflag = $17                    ; nonzero once the PC has replied
+silent = $18                    ; seconds since its last reply
+tmolen = $19                    ; getbt's timeout, in about seconds
 
 ; drawscreen: clear the text page and draw the labels.
 drawscreen: lda #$A0
@@ -1253,6 +1281,7 @@ dstext: lda labels,x
 dsnext: inx
         jmp dsline
 dsdone: jsr showconn
+        jsr showpc
         jsr showop
         jsr showdrive
         jsr showtrack
@@ -1263,6 +1292,9 @@ labels: .byte <ROW0, >ROW0
         .byte 0
         .byte <ROW2, >ROW2
         .text "CONNECTION"
+        .byte $3A, 0
+        .byte <ROW3, >ROW3
+        .text "PC"
         .byte $3A, 0
         .byte <ROW4, >ROW4
         .text "DRIVE"
@@ -1275,6 +1307,9 @@ labels: .byte <ROW0, >ROW0
         .byte $3A, 0
         .byte <ROW7, >ROW7
         .text "PROGRESS"
+        .byte $3A, 0
+        .byte <ROW8, >ROW8
+        .text "ERROR"
         .byte $3A, 0
         .byte 0
         .byte 0, 0
@@ -1477,3 +1512,125 @@ showprog: ldx #<ROW7
         jsr putch
         lda count
         jmp putdec
+
+; showpc: the PC: waiting for its first reply, connected, or how long since
+; its last reply.
+showpc: ldx #<ROW3
+        lda #>ROW3
+        jsr field
+        lda silent
+        bne spquiet
+        lda #<pcwait
+        ldx #>pcwait
+        ldy pcflag
+        beq sptext
+        lda #<pcconn
+        ldx #>pcconn
+sptext: sta ptr
+        stx ptr+1
+        ldy #0
+        jmp puttext
+spquiet: lda #<pcnone
+        sta ptr
+        lda #>pcnone
+        sta ptr+1
+        ldy #0
+        jsr puttext
+        lda silent
+        jsr putdec
+        lda #' '
+        jsr putch
+        lda #'S'
+        jmp putch
+
+; pcok: a reply arrived. The line is drawn again only when it changes, as a
+; command's reply follows.
+pcok:   lda pcflag
+        beq pcnew
+        lda silent
+        beq pcsame
+pcnew:  lda #1
+        sta pcflag
+        lda #0
+        sta silent
+        jmp showpc
+pcsame: rts
+
+; nopc: a second with no reply.
+nopc:   inc silent
+        bne npdraw
+        dec silent              ; it stays at 255
+npdraw: jmp showpc
+
+pcwait: .text "WAITING"
+        .byte 0
+pcconn: .text "CONNECTED"
+        .byte 0
+pcnone: .text "NO REPLY FOR "
+        .byte 0
+
+; showerr: the last operation's error and its track, or the line cleared
+; when it succeeded.
+showerr: ldx #<ROW8
+        lda #>ROW8
+        jsr field
+        lda err
+        beq sedone
+        lsr a
+        lsr a
+        lsr a
+        cmp #errtextend-errtext
+        bcc seknown
+        lda #0
+seknown: tax
+        lda errtext,x
+        sta ptr
+        lda errtext+1,x
+        sta ptr+1
+        jsr puttext
+        lda #' '
+        jsr putch
+        lda #'T'
+        jsr putch
+        lda track
+        jmp putdec
+sedone: rts
+
+; The error codes are $10 apart, so the code shifted right three times is
+; the index of its text's address; the first entry is for any other code.
+errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive
+errtextend:
+
+eother:   .text "FAILED"
+          .byte 0
+eprotect: .text "WRITE-PROTECTED"
+          .byte 0
+enotfnd:  .text "NO SECTOR"
+          .byte 0
+edata:    .text "BAD DATA"
+          .byte 0
+everify:  .text "VERIFY FAILED"
+          .byte 0
+elink:    .text "LINK DATA DAMAGED"
+          .byte 0
+edrive:   .text "NO SUCH DRIVE"
+          .byte 0
+
+; dolabel: the host's text for the user's operation across the label row,
+; then Ready again.
+dolabel: ldy #39
+        lda #$A0
+lbclear: sta ROW10,y
+        dey
+        bpl lbclear
+        ldy #0
+lbtext: cpy lenlo
+        beq lbdone
+        cpy #40
+        beq lbdone
+        lda PKTBUF,y
+        ora #$80
+        sta ROW10,y
+        iny
+        bne lbtext
+lbdone: jmp main

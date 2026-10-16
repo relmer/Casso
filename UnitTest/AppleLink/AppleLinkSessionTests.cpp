@@ -563,4 +563,41 @@ public:
         Assert::IsTrue (list->state == LinkOperationState::Failed);
         Assert::IsFalse (list->message.empty());
     }
+
+
+
+    TEST_METHOD (EachOperation_SendsItsLabelFirst)
+    {
+        Rig                       rig;
+        std::vector<std::string>  labels;
+
+        rig.Start();
+        rig.Finish (rig.session->Enumerate (1, FilePath()));
+        rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("NOTES"), Binary (Dos33Volume::kTypeBinary, 300, 7)));
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            labels = rig.apple.labels;
+        }
+
+        Assert::IsTrue (labels == std::vector<std::string> { "READING THE CATALOG OF DRIVE 1", "COPYING NOTES TO DRIVE 1" });
+    }
+
+
+
+
+    TEST_METHOD (DescribeOperation_GivesTheProgramsLabel)
+    {
+        LinkOperation  operation;
+
+        operation.kind    = LinkOperationKind::Rename;
+        operation.drive   = 2;
+        operation.path    = FilePath::Parse ("GAMES/OLD");
+        operation.newName = "NEW";
+        Assert::AreEqual (std::string ("RENAMING GAMES/OLD TO NEW"), AppleLinkSession::DescribeOperation (operation));
+
+        operation.kind = LinkOperationKind::ReadDisk;
+        Assert::AreEqual (std::string ("READING DRIVE 2 TO AN IMAGE"), AppleLinkSession::DescribeOperation (operation));
+    }
 };

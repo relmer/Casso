@@ -76,6 +76,9 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32ByteStreamFactory.h"
+#include "Seams/IProcessProbe.h"
+#include "AppleLink/RunningCassoRegistry.h"
+#include "Config/Win32FileSystem.h"
 #include "Devices/SerialTrafficLog.h"
 
 #pragma comment(lib, "ole32.lib")
@@ -163,6 +166,11 @@ EmulatorShell::EmulatorShell()
     MachineBuildServices  services;
 
     m_streamFactory = std::make_unique<Win32ByteStreamFactory>();
+
+    m_linkFileSystem  = std::make_unique<Win32FileSystem>();
+    m_processProbe    = std::make_unique<Win32ProcessProbe>();
+    m_runningRegistry = std::make_unique<RunningCassoRegistry> (*m_linkFileSystem, *m_processProbe, RunningCassoRegistry::GetDefaultFolder());
+    m_machine.SetRunningRegistry (m_runningRegistry.get());
 
     m_audio->BindBuildServices (services);
 
@@ -290,6 +298,11 @@ EmulatorShell::~EmulatorShell()
     }
 
     m_renderer->m_d3dRenderer.Shutdown();
+
+    //  This Casso's ports are no longer for Casso Explorer to find, and the
+    //  registry goes before the machine does.
+    m_machine.WithdrawSerialPorts();
+    m_machine.SetRunningRegistry (nullptr);
 
     if (m_window->m_fOleInitialized)
     {

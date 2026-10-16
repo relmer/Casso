@@ -47,7 +47,54 @@ Error:
 
 HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string & outErrors)
 {
-    return Assemble (GetProgramSource(), kProgramAddress, outBytes, outErrors);
+    HRESULT  hr   = S_OK;
+    bool     fits = false;
+
+
+
+    hr = Assemble (GetProgramSource(), kProgramAddress, outBytes, outErrors);
+    CHR (hr);
+
+    //  The program ends below the shim, which it returns to.
+    fits = kProgramAddress + outBytes.size() <= kShimAddress;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildShim
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)
+{
+    HRESULT      hr      = S_OK;
+    std::string  errors;
+    std::string  text    = std::to_string (baud);
+    Byte         control = 0;
+    bool         known   = GetSpeedControl (baud, control);
+
+
+
+    CBREx (known, E_INVALIDARG);
+
+    hr = AssembleShim (outShim, errors);
+    CHR (hr);
+
+    text.resize (kSpeedTextLength, ' ');
+
+    outShim[kSpeedOffset] = control;
+    std::copy (text.begin(), text.end(), outShim.begin() + kSpeedTextOffset);
+
+Error:
+    return hr;
 }
 
 
