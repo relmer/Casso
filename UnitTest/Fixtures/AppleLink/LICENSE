@@ -1,0 +1,51 @@
+EVERY FILE IN THIS DIRECTORY is a capture of serial traffic between ADTPro's
+own server and its own Apple II client. ADTPro is licensed under the GNU
+General Public License, version 2 or later.
+
+    https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+This note covers all files in this directory, not any single one of them.
+It does NOT extend to the parent directory or to any sibling directory.
+
+Work:      ADTPro (Apple Disk Transfer ProDOS), version 2.1.0
+Author:    David Schmidt
+Source:    https://adtpro.com, https://github.com/ADTPro/adtpro
+
+The captures contain bytes ADTPro sent and received, which include its client
+disk's contents, so they are treated as ADTPro material. They are test
+fixtures only: they are not compiled into, linked into, or distributed with
+any Casso binary. No ADTPro source was read to make them or to use them; the
+protocol is implemented from ADTPro's published protocol document and from
+these captures.
+
+Casso itself is MIT licensed. These files are not, and the difference is
+per-directory rather than per-repository. Do not alter them: a mismatch is a
+finding about Casso, never a reason to edit a capture.
+
+How they were made (2026-10-15)
+-------------------------------
+
+ADTPro 2.1.0's server ran in its serial-over-IP mode (started with the
+`localhost` argument, SerialIPHost=127.0.0.1, SerialIPPort=6502). An emulated
+Apple //c booted ADTPro's own client disk, with its port 2 joined to TCP port
+6502 at 115,200 baud, and Casso's serial log captured every byte.
+
+    adtpro-directory.txt     Dir, the server's directory listed
+    adtpro-send-disk.txt     Size and Put: ADTPRO-2.1.0.DSK sent to the server,
+                             which wrote a file identical to the source
+    adtpro-receive-disk.txt  Size and Get: VDRIVE-2.1.0.DSK received from the
+                             server onto drive 1
+    adtpro-vsdrive.txt       VSDRIVE from VDRIVE-2.1.0.DSK: CAT,S1 (block
+                             reads), SAVE to S1,D1 (block writes), CAT,S1
+
+Format
+------
+
+After a comment line, each line is
+
+    <cycle> <port> <direction> <bytes>
+
+The cycle is the count of 6502 cycles the line had run when the first byte
+crossed; `>` marks bytes from the Apple and `<` bytes to it; the bytes are hex,
+up to 32 to a line. A new line starts when the direction changes, after 32
+bytes, or after a pause of more than 10,000 cycles.
