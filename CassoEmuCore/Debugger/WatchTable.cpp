@@ -12,6 +12,33 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool WatchTable::TryChangeId (int from, int to)
+{
+    WatchItem  existing;
+    auto       found = std::ranges::find_if (m_items, [from] (const WatchItem & item) { return item.id == from; });
+
+
+
+    if (found == m_items.end() || (from != to && TryFind (to, existing)))
+    {
+        return false;
+    }
+
+    found->id = to;
+    std::sort (m_items.begin(), m_items.end(), [] (const WatchItem & a, const WatchItem & b) { return a.id < b.id; });
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::Add
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int WatchTable::Add (Word address)
 {
     WatchItem  item;

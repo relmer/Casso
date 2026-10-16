@@ -904,18 +904,40 @@ void ExecutionHandlers::ShowStopwatch (Reply & reply) const
 //
 //  TF ["file"] [v] turns the trace file on, or off if it is on. Each
 //  instruction a debugger-driven run executes becomes one line. The file is
-//  written at each stop and when tracing ends.
+//  written at each stop and when tracing ends. TF ON ["file"] [v] and TF OFF
+//  are not switches: ON with the file already on is nothing to do, and OFF
+//  with it off is nothing to do, so a debug project can run either again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     std::string  name      = TrimSpaces (command.text);
+    std::string  first     = name.substr (0, name.find_first_of (" \t"));
     size_t       split     = 0;
     bool         withVideo = false;
     HRESULT      hr        = S_OK;
 
 
+
+    std::ranges::transform (first, first.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    if (first == "OFF" && !m_trace.isOn)
+    {
+        reply.data = MessageData { { "Trace off." } };
+        return;
+    }
+
+    if (first == "ON")
+    {
+        name = TrimSpaces (name.substr (2));
+
+        if (m_trace.isOn)
+        {
+            reply.data = MessageData { { std::format ("Trace on: {}", m_trace.name) } };
+            return;
+        }
+    }
 
     if (m_trace.isOn)
     {
@@ -1144,23 +1166,24 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 //
 //  ExecutionHandlers::MakeScript
 //
-//  TF is a switch, so it is in the script only while the trace file is on.
+//  TF ON and TF OFF, so a second run of the script changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> ExecutionHandlers::MakeScript() const
 {
     std::vector<std::string>  lines;
+    std::string               name;
 
 
 
     lines.push_back (m_stopwatch.IsArmed() ? std::format ("STOPWATCH {:04X} {:04X}", m_stopwatch.GetStart(), m_stopwatch.GetStop()) : std::string ("STOPWATCH OFF"));
     lines.push_back (m_profile.IsOn() ? "PROFILE ON" : "PROFILE OFF");
 
-    if (m_trace.isOn)
-    {
-        lines.push_back (std::format ("TF \"{}\"{}", m_trace.name, m_trace.withVideo ? " v" : ""));
-    }
+    //  The name as it was typed, which may have quotes of its own.
+    name = m_trace.name.starts_with ('"') ? m_trace.name : "\"" + m_trace.name + "\"";
+
+    lines.push_back (m_trace.isOn ? std::format ("TF ON {}{}", name, m_trace.withVideo ? " v" : "") : std::string ("TF OFF"));
 
     return lines;
 }

@@ -45,6 +45,12 @@ public:
     bool  TrySetEnabled (int id, bool enabled);
     bool  TryFind       (int id, WatchItem & item) const;
 
+    //  An entry's id changed, and the id the next Add takes, as a debug
+    //  project restores them. TryChangeId fails if the id is taken.
+    bool  TryChangeId   (int from, int to);
+    int   GetNextId     () const     { return m_nextId; }
+    void  SetNextId     (int nextId) { m_nextId = nextId; }
+
     const std::vector<WatchItem> &  GetAll () const { return m_items; }
 
 private:

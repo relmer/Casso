@@ -82,6 +82,32 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     cycleMarker = session.GetCycleMarker();
 
+    {
+        BreakpointListData  listed;
+
+        BreakpointHandlers::ListAll (session, listed);
+        breakpointIds.entries.clear();
+
+        for (const BreakpointInfo & each : listed.breakpoints)
+        {
+            breakpointIds.entries.push_back (each.id);
+        }
+    }
+
+    breakpointIds.next = session.GetNextId();
+
+    for (const auto & [table, ids] : { std::pair<WatchTable *, Ids *> { &session.GetWatches(), &watchIds }, std::pair<WatchTable *, Ids *> { &session.GetBookmarks(), &bookmarkIds } })
+    {
+        ids->entries.clear();
+
+        for (const WatchItem & item : table->GetAll())
+        {
+            ids->entries.push_back (item.id);
+        }
+
+        ids->next = table->GetNextId();
+    }
+
     BreakpointHandlers::ListAll (session, list);
     breakpointNames.clear();
 
@@ -167,6 +193,182 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
             session.GetWatchpoints().TrySetName (list.breakpoints[index].id, name);
         }
     }
+
+    RestoreBreakpointIds (session);
+    RestoreWatchIds (session.GetWatches(),   watchIds);
+    RestoreWatchIds (session.GetBookmarks(), bookmarkIds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::IdsToJson
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue DebugProject::IdsToJson (const Ids & ids)
+{
+    std::vector<JsonValue>  entries;
+
+
+
+    for (int id : ids.entries)
+    {
+        entries.push_back (JsonValue ((double) id));
+    }
+
+    return JsonValue (Members { { "entries", JsonValue (std::move (entries)) }, { "next", JsonValue ((double) ids.next) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::IdsFromJson
+//
+//  For an id that is not a whole number of zero or more the list is empty,
+//  and the entries are then numbered as the script adds them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugProject::IdsFromJson (const JsonValue & object, const char * name, Ids & ids)
+{
+    const JsonValue  * member  = nullptr;
+    const JsonValue  * entries = nullptr;
+
+
+
+    if (!object.HasObject (name, member))
+    {
+        return;
+    }
+
+    (void) member->HasInt ("next", ids.next);
+    ids.next = std::max (ids.next, 0);
+
+    if (!member->HasArray ("entries", entries))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < entries->GetArraySize(); i++)
+    {
+        const JsonValue  & entry = entries->GetArrayElement (i);
+
+        if (entry.GetType() != JsonType::Number || entry.GetNumber() < 0)
+        {
+            ids.entries.clear();
+            return;
+        }
+
+        ids.entries.push_back ((int) entry.GetNumber());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::RestoreBreakpointIds
+//
+//  The script added each entry under a new id, in the order the project
+//  saved them, so the entry at each place in BPL's list takes the id saved
+//  for that place: first an id past every one in use or saved, so no two
+//  ever share one, then its own. Nothing changes when the counts differ,
+//  as when a line of the script failed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugProject::RestoreBreakpointIds (DebugSession & session) const
+{
+    BreakpointListData  list;
+    int                 spare = std::max (session.GetNextId(), breakpointIds.next);
+    auto                change = [&session] (int from, int to)
+    {
+        return session.GetBreakpoints().TryChangeId (from, to) || session.GetWatchpoints().TryChangeId (from, to);
+    };
+
+
+
+    BreakpointHandlers::ListAll (session, list);
+
+    if (list.breakpoints.size() != breakpointIds.entries.size())
+    {
+        session.SetNextId (std::max (session.GetNextId(), breakpointIds.next));
+        return;
+    }
+
+    for (int id : breakpointIds.entries)
+    {
+        spare = std::max (spare, id + 1);
+    }
+
+    for (size_t i = 0; i < list.breakpoints.size(); i++)
+    {
+        (void) change (list.breakpoints[i].id, spare + (int) i);
+    }
+
+    for (size_t i = 0; i < list.breakpoints.size(); i++)
+    {
+        (void) change (spare + (int) i, breakpointIds.entries[i]);
+    }
+
+    session.SetNextId (breakpointIds.next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::RestoreWatchIds
+//
+//  As the breakpoints' ids, for a watch or bookmark list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugProject::RestoreWatchIds (WatchTable & table, const Ids & ids)
+{
+    std::vector<int>  current;
+    int               spare = std::max (table.GetNextId(), ids.next);
+
+
+
+    for (const WatchItem & item : table.GetAll())
+    {
+        current.push_back (item.id);
+    }
+
+    if (current.size() != ids.entries.size())
+    {
+        table.SetNextId (std::max (table.GetNextId(), ids.next));
+        return;
+    }
+
+    for (int id : ids.entries)
+    {
+        spare = std::max (spare, id + 1);
+    }
+
+    for (size_t i = 0; i < current.size(); i++)
+    {
+        (void) table.TryChangeId (current[i], spare + (int) i);
+    }
+
+    for (size_t i = 0; i < current.size(); i++)
+    {
+        (void) table.TryChangeId (spare + (int) i, ids.entries[i]);
+    }
+
+    table.SetNextId (ids.next);
 }
 
 
@@ -233,6 +435,9 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
 
     root.emplace_back ("window",          JsonValue (std::move (window)));
     root.emplace_back ("cycleMarker",     JsonValue ((double) cycleMarker));
+    root.emplace_back ("ids",             JsonValue (Members { { "breakpoints", IdsToJson (breakpointIds) },
+                                                               { "watches",     IdsToJson (watchIds) },
+                                                               { "bookmarks",   IdsToJson (bookmarkIds) } }));
     root.emplace_back ("startupCommands", JsonValue (std::move (startup)));
 
     return JsonWriter::Write (JsonValue (std::move (root)));
@@ -352,11 +557,19 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
     }
 
     {
-        double  marker = 0;
+        double             marker = 0;
+        const JsonValue  * ids    = nullptr;
 
         if (root.HasNumber ("cycleMarker", marker) && marker >= 0)
         {
             project.cycleMarker = (uint64_t) marker;
+        }
+
+        if (root.HasObject ("ids", ids))
+        {
+            IdsFromJson (*ids, "breakpoints", project.breakpointIds);
+            IdsFromJson (*ids, "watches",     project.watchIds);
+            IdsFromJson (*ids, "bookmarks",   project.bookmarkIds);
         }
     }
 

@@ -143,6 +143,76 @@ namespace DebuggerTests
             Assert::IsTrue   (read.windowStrings == project.windowStrings, L"the window's states through the JSON");
         }
 
+        //  Every breakpoint, watchpoint, watch and bookmark comes back under
+        //  its own id, gaps and all, and the next one added takes the id it
+        //  would have taken in the first session.
+        TEST_METHOD (EachItemKeepsItsIdAndTheNextIdIsKept)
+        {
+            SessionRig                first;
+            SessionRig                second;
+            DebugProject              project;
+            DebugProject              read;
+            std::string               error;
+            std::vector<std::string>  failures;
+            BreakpointListData        list;
+            std::vector<int>          ids;
+
+
+
+            first.rig.RunOk ("BP 300");
+            first.rig.RunOk ("BPM 400");
+            first.rig.RunOk ("BP 302");
+            first.rig.RunOk ("BPC 0");
+            first.rig.RunOk ("WA 300");
+            first.rig.RunOk ("WA 301");
+            first.rig.RunOk ("WC 0");
+            first.rig.RunOk ("BMA 800");
+            first.rig.RunOk ("BMA 900");
+            first.rig.RunOk ("BMC 0");
+
+            project.CaptureEngine (first.rig.session);
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+            Assert::IsTrue (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            for (const BreakpointInfo & each : list.breakpoints)
+            {
+                ids.push_back (each.id);
+            }
+
+            Assert::IsTrue   ((std::vector<int> { 1, 2 }) == ids, L"the watchpoint and the breakpoint are ids 1 and 2");
+            Assert::AreEqual (1, second.rig.session.GetWatches().GetAll()[0].id, L"the watch is id 1");
+            Assert::AreEqual (1, second.rig.session.GetBookmarks().GetAll()[0].id, L"the bookmark is id 1");
+
+            Assert::IsTrue   (second.rig.RunOk ("BP 500").text.front().find ("3") != std::string::npos, L"the next breakpoint is 3");
+            Assert::AreEqual (2, second.rig.session.GetWatches().Add (0x0302), L"the next watch is 2");
+        }
+
+
+
+        //  TF ON and TF OFF can run again with nothing changed, as a debug
+        //  project runs them when it opens.
+        TEST_METHOD (TfOnAndOffCanRunAgain)
+        {
+            SessionRig  rig;
+            Reply       reply;
+
+
+
+            rig.rig.RunOk ("TF ON \"trace.txt\"");
+            reply = rig.rig.RunOk ("TF ON \"trace.txt\"");
+            Assert::IsTrue   (reply.text.front().find ("Trace on") != std::string::npos, L"on, not turned off");
+            Assert::AreEqual (std::string ("TF ON \"trace.txt\""), rig.handlers.GetExecution().MakeScript().back());
+
+            rig.rig.RunOk ("TF OFF");
+            reply = rig.rig.RunOk ("TF OFF");
+            Assert::IsTrue   (reply.text.front().find ("Trace off") != std::string::npos);
+            Assert::AreEqual (std::string ("TF OFF"), rig.handlers.GetExecution().MakeScript().back());
+        }
+
         //  A symbol file beside or below the project's file is written
         //  relative to it, so the project moves with its program; one
         //  elsewhere is written whole.

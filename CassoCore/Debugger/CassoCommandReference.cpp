@@ -49,7 +49,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "STOPWATCH",   H::RunningAndStepping, "STOPWATCH [start [stop]|OFF|RESET]",             "Count the cycles between two addresses in debugger runs"                                 },
     { "T",           H::RunningAndStepping, "T [count]",                                      "Step into"                                                                               },
     { "T-",          H::RunningAndStepping, "T-",                                             "Step back one instruction"                                                               },
-    { "TF",          H::RunningAndStepping, "TF [file] [V]",                                  "Turn tracing to a file on or off; V records the video position"                          },
+    { "TF",          H::RunningAndStepping, "TF [ON|OFF] [file] [V]",                         "Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position"    },
 
     { "BP",          H::Breakpoints,        "BP addr[,len|:last]|file:line [IF expr]",        "Set an execution breakpoint, or one on PC with < > = !"                                  },
     { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a memory watchpoint"                                     },

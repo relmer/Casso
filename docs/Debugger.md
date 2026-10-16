@@ -404,6 +404,8 @@ A debug project, one for each program, has the debugger's configuration:
 - the disassembly options, the heat map's options and range sets, and the
   Disk II and input logs' filters and columns.
 
+Each breakpoint, watchpoint, watch and bookmark comes back under the number it
+had, and the next one you add takes the number it would have taken before.
 The key scheme, the theme, the text size and the history settings are yours
 rather than a program's, and are the same for every project. The program is
 the most specific of these:

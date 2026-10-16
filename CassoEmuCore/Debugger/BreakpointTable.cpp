@@ -675,6 +675,34 @@ bool BreakpointTable::TryAdopt (const Breakpoint & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TryChangeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryChangeId (int from, int to)
+{
+    Breakpoint  existing;
+    auto  found = std::ranges::find_if (m_entries, [from] (const Breakpoint & entry) { return entry.id == from; });
+
+
+
+    if (found == m_entries.end() || (from != to && TryFind (to, existing)))
+    {
+        return false;
+    }
+
+    found->id = to;
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Breakpoint & a, const Breakpoint & b) { return a.id < b.id; });
+    RebuildAddressBits();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TryFind
 //
 ////////////////////////////////////////////////////////////////////////////////

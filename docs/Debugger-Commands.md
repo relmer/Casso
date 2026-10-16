@@ -28,7 +28,7 @@ AppleWin commands:
     RTS [count]                                          Step out of the current subroutine
     T, TL, TRACE [count]                                 Step into
     T-                                                   Step back one instruction
-    TF [file] [V]                                        Turn tracing to a file on or off; V records the video position
+    TF [ON|OFF] [file] [V]                               Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint
@@ -298,7 +298,7 @@ Casso commands:
     /SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]                 List speaker toggles and Mockingboard writes with their cycles
     /STOPWATCH [start [stop]|OFF|RESET]                    Count the cycles between two addresses in debugger runs
     /T-                                                    Step back one instruction
-    /TF [file] [V]                                         Turn tracing to a file on or off; V records the video position
+    /TF [ON|OFF] [file] [V]                                Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]               Set an execution breakpoint, or one on PC with < > = !
     /BPA addr[,len|:last]                                  Set an execution breakpoint and a memory watchpoint
@@ -535,7 +535,7 @@ Casso commands:
     SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]           List speaker toggles and Mockingboard writes with their cycles
     STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
-    TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
+    TF [ON|OFF] [file] [V]                          Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
     BPBASIC line                                    Stop as an Applesoft line begins
@@ -736,7 +736,7 @@ Casso commands:
     !SKIP [CLEAR|[-]name|addr[.last]]                Show or change the routines stepping goes over
     !SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]           List speaker toggles and Mockingboard writes with their cycles
     !STOPWATCH [start [stop]|OFF|RESET]              Count the cycles between two addresses in debugger runs
-    !TF [file] [V]                                   Turn tracing to a file on or off; V records the video position
+    !TF [ON|OFF] [file] [V]                          Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     !BPA addr[,len|:last]                            Set an execution breakpoint and a memory watchpoint
     !BPBASIC line                                    Stop as an Applesoft line begins
@@ -907,7 +907,7 @@ Casso commands:
     STOPWATCH [start [stop]|OFF|RESET]                   Count the cycles between two addresses in debugger runs
     T, TL, TRACE [count]                                 Step into
     T-                                                   Step back one instruction
-    TF [file] [V]                                        Turn tracing to a file on or off; V records the video position
+    TF [ON|OFF] [file] [V]                               Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]              Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                 Set an execution breakpoint and a memory watchpoint

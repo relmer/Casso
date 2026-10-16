@@ -115,6 +115,7 @@ public:
     bool   TrySetFlags      (int id, bool temporary, bool stops);
     bool   TrySetName       (int id, const std::string & name);
     bool   TryAdopt         (const Watchpoint & entry);
+    bool   TryChangeId      (int from, int to);
     bool   TryFind          (int id, Watchpoint & entry) const;
 
     //  Adds a copy of an entry under a new id, its hit count started afresh,

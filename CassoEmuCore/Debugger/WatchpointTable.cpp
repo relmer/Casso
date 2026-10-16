@@ -252,6 +252,34 @@ int WatchpointTable::AddCopy (const Watchpoint & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchpointTable::TryChangeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryChangeId (int from, int to)
+{
+    Watchpoint  existing;
+    auto  found = std::ranges::find_if (m_entries, [from] (const Watchpoint & entry) { return entry.id == from; });
+
+
+
+    if (found == m_entries.end() || (from != to && TryFind (to, existing)))
+    {
+        return false;
+    }
+
+    found->id = to;
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Watchpoint & a, const Watchpoint & b) { return a.id < b.id; });
+    Publish();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchpointTable::TryAdopt
 //
 //  Inserts an entry under the id it carries, for BPEDIT. Fails if the id is

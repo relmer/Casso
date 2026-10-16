@@ -105,6 +105,10 @@ public:
     //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
     //  breakpoint's id across its new definition. Fails if the id is taken.
     bool  TryAdopt         (const Breakpoint & entry);
+
+    //  Changes an entry's id, as a debug project restores each breakpoint's
+    //  saved id. Fails if the id is taken.
+    bool  TryChangeId      (int from, int to);
     bool  TryFind          (int id, Breakpoint & entry) const;
 
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }

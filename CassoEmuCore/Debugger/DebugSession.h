@@ -196,6 +196,10 @@ public:
     //  The cycle count RCC last reset the trip count at: CYCLES PART and the
     //  Registers pane's Trip row count from it.
     uint64_t              GetCycleMarker  () const        { return m_cycleMarker; }
+
+    //  The id the next breakpoint or watchpoint takes; the two share ids.
+    int                   GetNextId       () const        { return m_nextId; }
+    void                  SetNextId       (int nextId)    { m_nextId = nextId; }
     void                  SetCycleMarker  (uint64_t cycle) { m_cycleMarker = cycle; }
     uint64_t              GetTripCycles   (uint64_t total) const { return (total >= m_cycleMarker) ? total - m_cycleMarker : total; }
 

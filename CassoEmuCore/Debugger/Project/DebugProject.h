@@ -9,6 +9,8 @@
 
 class DebugSession;
 class ExecutionHandlers;
+class JsonValue;
+class WatchTable;
 
 
 
@@ -65,6 +67,21 @@ struct DebugProject
     //  The cycle count RCC last started the trip count at.
     uint64_t                       cycleMarker = 0;
 
+    //  The ids of the breakpoints and watchpoints, in BPL's order, and of the
+    //  watches and bookmarks, in their lists' order, with each table's next
+    //  id, so each comes back under its own id.
+    struct Ids
+    {
+        std::vector<int>  entries;
+        int               next = 0;
+
+        bool operator== (const Ids &) const = default;
+    };
+
+    Ids                            breakpointIds;
+    Ids                            watchIds;
+    Ids                            bookmarkIds;
+
     //  The window's other state by name, each the text its setting has: the
     //  closed panes, the focused pane, the docks, the heat map's and the event
     //  logs' options, the console history, the find history and the column
@@ -83,6 +100,14 @@ struct DebugProject
     //  symbol files, then the script, then each breakpoint's name. A line that fails is
     //  a line of the result, and the rest go on.
     void  ApplyEngine   (DebugSession & session, std::vector<std::string> & failures) const;
+
+private:
+    void  RestoreBreakpointIds (DebugSession & session) const;
+    static void       RestoreWatchIds (WatchTable & table, const Ids & ids);
+    static JsonValue  IdsToJson       (const Ids & ids);
+    static void       IdsFromJson     (const JsonValue & object, const char * name, Ids & ids);
+
+public:
 
     //  The project's file text, its paths relative to `directory`
     //  where they lie inside it.
