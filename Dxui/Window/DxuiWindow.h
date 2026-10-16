@@ -314,6 +314,10 @@ public:
 
 
 protected:
+    //  Whether the first key of a two-key chord was pressed and the second
+    //  is awaited.
+    bool  IsKeyPrefixPending () const { return m_keyPrefix.has_value(); }
+
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
     //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part

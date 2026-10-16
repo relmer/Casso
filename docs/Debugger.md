@@ -889,6 +889,27 @@ Ctrl+Break as well as Shift+F5. The AppleWin scheme uses Alt+Space,
 Ctrl+Alt+Space, Alt+Shift+Space and Alt+Enter; the GSSquared scheme uses
 Alt+Space, Alt+O, Alt+R and Alt+Enter. In those two schemes the debugger window
 keeps Alt+Space and Alt+Enter, so they do not open the window menu.
+Every scheme has the same keys to open a pane, or bring it forward, and focus
+it, and the View menu has each pane's key beside it. They are Visual Studio's
+where it has the window, and keys of the same kind where it does not. A chord's
+second key may be pressed with the first key's Ctrl and Alt down.
+
+| Pane | Key |
+|---|---|
+| Disassembly | Ctrl+Alt+D |
+| Breakpoints | Ctrl+Alt+B |
+| Call stack | Ctrl+Alt+C |
+| Watches | Ctrl+Alt+W, 1 |
+| Memory 1 to 4 | Ctrl+Alt+M, 1 to 4 |
+| Registers | Ctrl+Alt+G |
+| Console | Ctrl+\` or Ctrl+Alt+I |
+| Stack | Ctrl+Alt+K |
+| Trace | Ctrl+Alt+T |
+| Heat map | Ctrl+Alt+H |
+| Heat map ranges | Ctrl+Alt+R |
+| Disk II log, Input log | Ctrl+Alt+L, D and Ctrl+Alt+L, I |
+| BASIC program, variables, stack | Ctrl+Alt+P, P and V and S |
+
 Keys and the mouse button let go of while the machine is behind live are
 released in the machine when it goes live again; a key still held stays down.
 Drag its grab handle to move it along its edge or, pulled well away, to float

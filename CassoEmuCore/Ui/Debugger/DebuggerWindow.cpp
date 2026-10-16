@@ -2878,6 +2878,14 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 
 
 
+    //  A pane's key opens it, or brings it forward, and focuses it.
+    if (!DebuggerKeySchemes::GetPaneOfAction (action).empty())
+    {
+        ShowPane  (DebuggerKeySchemes::GetPaneOfAction (action));
+        FocusPane (DebuggerKeySchemes::GetPaneOfAction (action));
+        return true;
+    }
+
     //  Find acts on the window, not the machine.
     if (action == DebuggerKeySchemes::Action::Find)
     {
@@ -13808,6 +13816,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  stays where it was.
     if (m_routingPane.empty() && m_dockSite->OnDragKey (ev))
     {
+        return true;
+    }
+
+    //  The second key of a chord goes to the key scheme before any box or
+    //  list, so the 1 of Ctrl+Alt+M, 1 opens Memory 1 rather than typing,
+    //  and the character it would type goes too.
+    if (ev.kind == DxuiKeyEventKind::Down && IsKeyPrefixPending())
+    {
+        m_swallowChordChar = ev.vk != VK_CONTROL && ev.vk != VK_MENU && ev.vk != VK_SHIFT;
+        (void) RouteMappedKey (ev);
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Char && m_swallowChordChar)
+    {
+        m_swallowChordChar = false;
         return true;
     }
 

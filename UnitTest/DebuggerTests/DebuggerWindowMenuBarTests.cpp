@@ -254,6 +254,28 @@ namespace DebuggerMenuBarTests
         }
 
 
+        TEST_METHOD (ViewRowsHaveEachPanesKey)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            MenuBarHost                host;
+            MenuBarWindow              window (theme, host);
+            const DxuiPopupMenuItem  * row    = nullptr;
+
+
+
+            window.OnCreate();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Breakpoints");
+            Assert::IsNotNull (row);
+            Assert::AreEqual  (std::wstring (L"Ctrl+Alt+B"), row->command->accelerator);
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Console");
+            Assert::IsNotNull (row);
+            Assert::AreEqual  (std::wstring (L"Ctrl+` or Ctrl+Alt+I"), row->command->accelerator);
+        }
+
+
+
         TEST_METHOD (DebugRowsShowTheKeysOfTheSchemeInForce)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();

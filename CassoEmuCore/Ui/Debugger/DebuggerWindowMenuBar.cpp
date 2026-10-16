@@ -280,6 +280,13 @@ void DebuggerWindow::SetWindowMenus()
         row            = MakeMenuCommand (title, false, [this, pane] { ShowPane (pane); });
         row->isChecked = [this, pane] { return IsPaneShown (pane); };
 
+        //  The pane's key in the scheme in force, as the Debug menu's rows
+        //  have theirs.
+        if (DebuggerKeySchemes::GetActionOfPane (pane).has_value())
+        {
+            row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *DebuggerKeySchemes::GetActionOfPane (pane));
+        }
+
         if (group.empty())
         {
             add (view, row);

@@ -187,5 +187,69 @@ namespace DebuggerTests
             Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_SPACE, true,  false, true, false, false), L"Ctrl+Space");
             Assert::IsFalse (DebuggerKeySchemes::DoesBoxKeepKey (VK_DOWN,  true,  false, true, false, false), L"Ctrl+Down");
         }
+
+
+
+        //  Visual Studio's window keys, and Ctrl+` for the console, in every
+        //  scheme.
+        TEST_METHOD (EverySchemeOpensThePanesWithVisualStudiosKeys)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                const DxuiKeyMap  & map = DebuggerKeySchemes::GetMap (scheme);
+                int                 id  = 0;
+
+                Assert::IsTrue (map.Match ({ 'D', true, true, false }, std::nullopt, id) == DxuiKeyMatch::Command && id == (int) Action::ShowDisassembly);
+                Assert::IsTrue (map.Match ({ 'B', true, true, false }, std::nullopt, id) == DxuiKeyMatch::Command && id == (int) Action::ShowBreakpoints);
+                Assert::IsTrue (map.Match ({ 'C', true, true, false }, std::nullopt, id) == DxuiKeyMatch::Command && id == (int) Action::ShowCallStack);
+                Assert::IsTrue (map.Match ({ 'G', true, true, false }, std::nullopt, id) == DxuiKeyMatch::Command && id == (int) Action::ShowRegisters);
+                Assert::IsTrue (map.Match ({ VK_OEM_3, true, false, false }, std::nullopt, id) == DxuiKeyMatch::Command && id == (int) Action::ShowConsole);
+                Assert::IsTrue (map.Match ({ 'M', true, true, false }, std::nullopt, id) == DxuiKeyMatch::Prefix);
+                Assert::IsTrue (map.Match ({ '3', false, false, false }, DxuiKeyStroke { 'M', true, true, false }, id) == DxuiKeyMatch::Command && id == (int) Action::ShowMemory3);
+            }
+        }
+
+
+
+        TEST_METHOD (AChordsSecondKeyMayKeepTheFirstKeysModifiers)
+        {
+            const DxuiKeyMap  & map    = DebuggerKeySchemes::GetMap (DebuggerKeyScheme::VisualStudio);
+            DxuiKeyStroke       memory = { 'M', true, true, false };
+            int                 id     = 0;
+
+
+
+            Assert::IsTrue (map.Match ({ '2', true, true, false }, memory, id) == DxuiKeyMatch::Command && id == (int) Action::ShowMemory2, L"Ctrl+Alt+M, Ctrl+Alt+2");
+            Assert::IsTrue (map.Match ({ '2', true, true, true }, memory, id) == DxuiKeyMatch::None, L"not with Shift as well");
+        }
+
+
+
+        TEST_METHOD (ThePaneKeysReadAsVisualStudioWritesThem)
+        {
+            const DxuiKeyMap  & map = DebuggerKeySchemes::GetMap (DebuggerKeyScheme::VisualStudio);
+
+
+
+            Assert::AreEqual (std::wstring (L"Ctrl+Alt+B"),            map.GetChordText ((int) Action::ShowBreakpoints));
+            Assert::AreEqual (std::wstring (L"Ctrl+Alt+M, 1"),         map.GetChordText ((int) Action::ShowMemory1));
+            Assert::AreEqual (std::wstring (L"Ctrl+` or Ctrl+Alt+I"),  map.GetChordText ((int) Action::ShowConsole));
+        }
+
+
+
+        TEST_METHOD (EachShowActionHasItsPaneAndBack)
+        {
+            for (int a = (int) Action::ShowDisassembly; a <= (int) Action::Last; a++)
+            {
+                std::wstring  pane = DebuggerKeySchemes::GetPaneOfAction ((Action) a);
+
+                Assert::IsFalse (pane.empty());
+                Assert::IsTrue  (DebuggerKeySchemes::GetActionOfPane (pane) == (Action) a, pane.c_str());
+            }
+
+            Assert::IsTrue (DebuggerKeySchemes::GetPaneOfAction (Action::Run).empty());
+            Assert::IsTrue (!DebuggerKeySchemes::GetActionOfPane (L"source").has_value());
+        }
     };
 }

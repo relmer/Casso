@@ -1161,6 +1161,7 @@ private:
     std::optional<DxuiWindowsThemeColors::SystemColors>  m_systemColorsForTest;
 
     bool                                    m_swallowSpace       = false;
+    bool                                    m_swallowChordChar   = false;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
     std::optional<Word>                     m_navigatedTo;
