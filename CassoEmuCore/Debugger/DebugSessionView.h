@@ -66,6 +66,7 @@ struct DebugSessionView
     CallStackMechanism                        callMechanism   = CallStackMechanism::Hybrid;
     CallRecord                                callRecord;
     std::optional<float>                      callRebuild;
+    uint64_t                                  cycleMarker     = 0;
     IFileSystem                             * fileSystem      = nullptr;
     std::wstring                              currentDirectory;
 };

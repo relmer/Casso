@@ -147,6 +147,9 @@ public:
     // if none has since the CPU was reset.
     virtual bool                TryGetLastBranch  (Word & from) const = 0;
 
+    // Where that instruction sent PC; false when it is not known.
+    virtual bool                TryGetLastBranchTarget (Word & to) const   { (void) to; return false; }
+
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;

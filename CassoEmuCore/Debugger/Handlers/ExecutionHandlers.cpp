@@ -1129,7 +1129,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 
     if      (which.empty() || which == "ABS") { reply.data = CyclesData { total }; }
     else if (which == "REL")                  { reply.data = CyclesData { m_lastRunCycles }; }
-    else if (which == "PART")                 { reply.data = CyclesData { total >= m_cycleMarker ? total - m_cycleMarker : total }; }
+    else if (which == "PART")                 { reply.data = CyclesData { session.GetTripCycles (total) }; }
     else
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "CYCLES takes ABS, REL or PART.");
@@ -1148,7 +1148,7 @@ void ExecutionHandlers::ShowCycles (DebugSession & session, const DebugCommand &
 
 void ExecutionHandlers::ResetCycles (DebugSession & session, Reply & reply)
 {
-    m_cycleMarker = session.GetTarget().GetCycleCount();
+    session.SetCycleMarker (session.GetTarget().GetCycleCount());
     reply.data    = MessageData { { "Cycle counter reset. CYCLES PART now counts from here." } };
 }
 

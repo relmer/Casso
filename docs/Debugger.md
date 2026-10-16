@@ -947,6 +947,8 @@ A status bar runs along the bottom of the window. From the right:
   A click anywhere else, or Escape, closes the slider; the arrow keys move it
   while it is open. The size is saved and comes back the next time the
   debugger opens.
+- **Speed**, the emulator's: 1x, 2x or Maximum. Clicking it opens a menu of
+  the three, which sets the speed as the emulator's own speed menu does.
 - **History full**, how much of the reverse-execution memory budget the
   recorded history holds, with a meter that is green while empty and blends
   smoothly to blue as it fills. A full budget is not a fault: the oldest
@@ -989,6 +991,15 @@ sessions.
 The panes are the disassembly, the source, the console, registers,
 breakpoints, watches, the stack, the call stack, the trace, the heat map, up to
 four memory windows, and one panel for each device the machine has.
+
+Under the registers, **Cycles** is the CPU's count since power-on and **Trip**
+the count since the trip count was last reset, by **Reset trip count** on
+either row's menu or by `RCC`; the total is never reset. **Last branch** is
+the last instruction that sent the PC elsewhere, a taken branch, a jump, a
+call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
+**Go to branch** and **Go to target**. While the machine is stopped, the stack
+pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
+`PUSH`, `POP` and `PPOP`.
 
 ### The heat map
 

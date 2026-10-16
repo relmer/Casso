@@ -31,6 +31,8 @@
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
 #include "Ui/Debugger/DebuggerOptionsSheet.h"
 #include "Ui/Debugger/MemoryFileDialog.h"
+#include "Ui/Debugger/ByteDialog.h"
+#include "Ui/UiCommandTypes.h"
 #include "Ui/Debugger/WholeWordButton.h"
 #include "Ui/Debugger/WatchHistory.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -91,6 +93,9 @@ public:
     //  Reset or Restart under debugger, which the debugger's menu bar offers
     //  too. A host with no emulator, as a test's is, has nothing to do.
     virtual void  RunEmulatorCommand      (int commandId)                   { (void) commandId; }
+
+    //  The emulator's speed, which the status bar has and its popup sets.
+    virtual SpeedMode  GetEmulatorSpeed   ()                                { return SpeedMode::Authentic; }
     //  How many lines the code pane has room for, measured by the window.
     virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
@@ -609,6 +614,9 @@ protected:
     //  The format, address and length of a file loaded into memory, or the
     //  address and length of memory saved to one; none when canceled. A test
     //  overrides it.
+    //  A byte for Push byte..., none when canceled; a test overrides it.
+    virtual std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label);
+
     virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
     bool                       ConfirmDeleteRangeSet  ();
 
@@ -680,7 +688,8 @@ protected:
     static constexpr size_t  kStatusReplay  = 0;
     static constexpr size_t  kStatusBeam    = 1;
     static constexpr size_t  kStatusHistory = 2;
-    static constexpr size_t  kStatusZoom    = 3;
+    static constexpr size_t  kStatusSpeed   = 3;
+    static constexpr size_t  kStatusZoom    = 4;
 
     DxuiStatusBar *  GetStatusBar        () const { return m_statusBar; }
     DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
@@ -940,6 +949,8 @@ private:
     void     OpenOptions          ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     LoadFileIntoMemory   ();
+    void     PushStackByte        ();
+    void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
@@ -1274,11 +1285,13 @@ private:
     static constexpr int                  kZoomPopupWidthDip    = 240;
     static constexpr int                  kZoomPopupHeightDip   = 52;
     static constexpr int                  kStatusZoomDip        = 64;
+    static constexpr int                  kStatusSpeedDip       = 90;
     static constexpr int                  kStatusHistoryDip     = 480;
     static constexpr int                  kStatusBeamDip        = 220;
     DxuiStatusBar                       * m_statusBar           = nullptr;
     DxuiSlider                            m_zoomSlider;
     bool                                  m_zoomOpen            = false;
+    bool                                  m_isSpeedPressed      = false;
     RECT                                  m_zoomRect            = {};
     bool                                  m_isHistoryFitted     = false;
 

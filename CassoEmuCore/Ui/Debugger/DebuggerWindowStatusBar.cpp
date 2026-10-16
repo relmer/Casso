@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "resource.h"
 
 
 
@@ -30,6 +31,8 @@ void DebuggerWindow::CreateStatusBar()
     fields[kStatusBeam].widthDip    = kStatusBeamDip;
     fields[kStatusBeam].onClick     = [this] (const RECT &) { ToggleBeamMark(); };
     fields[kStatusHistory].widthDip = kStatusHistoryDip;
+    fields[kStatusSpeed].widthDip   = kStatusSpeedDip;
+    fields[kStatusSpeed].onClick    = [this] (const RECT &) { m_isSpeedPressed = true; };
     fields[kStatusZoom].widthDip    = kStatusZoomDip;
     fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZoom);
     fields[kStatusZoom].onClick     = [this] (const RECT &) { OpenZoomPopup(); };
@@ -159,7 +162,48 @@ void DebuggerWindow::UpdateStatusBar()
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
+    m_statusBar->SetText  (kStatusSpeed,   DebuggerStatusText::GetSpeedText ((m_host != nullptr) ? m_host->GetEmulatorSpeed() : SpeedMode::Authentic));
     m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenSpeedMenu
+//
+//  The emulator's speeds, the one in force checked, each posting the command
+//  the emulator's own speed menu posts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenSpeedMenu (const RECT & field)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+    SpeedMode                       speed  = (m_host != nullptr) ? m_host->GetEmulatorSpeed() : SpeedMode::Authentic;
+    const std::pair<SpeedMode, int> speeds[] =
+    {
+        { SpeedMode::Authentic, IDM_MACHINE_SPEED_1X  },
+        { SpeedMode::Double,    IDM_MACHINE_SPEED_2X  },
+        { SpeedMode::Maximum,   IDM_MACHINE_SPEED_MAX },
+    };
+
+
+
+    if (m_host == nullptr || GetMenuHost() == nullptr)
+    {
+        return;
+    }
+
+    for (const auto & [mode, id] : speeds)
+    {
+        m_menuCommands.push_back (MakeMenuCommand (DebuggerStatusText::GetSpeedText (mode), mode == speed, [this, id] { m_host->RunEmulatorCommand (id); }));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::ShowUnder (*GetMenuHost(), field, std::move (menu));
 }
 
 
@@ -261,6 +305,19 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
             {
                 return true;
             }
+        }
+    }
+
+    //  The speed menu opens as the click on its field ends, so the release
+    //  does not land outside the menu and close it.
+    if (ev.kind == DxuiMouseEventKind::Up && m_isSpeedPressed)
+    {
+        m_isSpeedPressed = false;
+
+        if (m_statusBar->FindFieldAt (point) == (int) kStatusSpeed)
+        {
+            OpenSpeedMenu (m_statusBar->GetFieldRect (kStatusSpeed));
+            return true;
         }
     }
 

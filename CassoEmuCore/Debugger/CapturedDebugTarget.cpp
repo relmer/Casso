@@ -104,6 +104,22 @@ bool CapturedDebugTarget::TryGetLastBranch (Word & from) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CapturedDebugTarget::TryGetLastBranchTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CapturedDebugTarget::TryGetLastBranchTarget (Word & to) const
+{
+    to = m_capture->lastBranchTo.value_or (0);
+    return m_capture->lastBranchTo.has_value();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CapturedDebugTarget::GetTraceWindow
 //
 //  The part of the asked-for window that the capture holds. The capture

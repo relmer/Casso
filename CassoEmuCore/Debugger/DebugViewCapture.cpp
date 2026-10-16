@@ -20,6 +20,7 @@ void DebugViewCapture::Take (
     DebugViewCapture    & out)
 {
     Word            branchFrom = 0;
+    Word            branchTo   = 0;
     DebugDiskState  disk;
 
 
@@ -29,6 +30,7 @@ void DebugViewCapture::Take (
     out.video          = target.GetVideoPosition();
     out.lastPenalties  = target.GetLastPenalties();
     out.lastBranch     = target.TryGetLastBranch (branchFrom) ? std::optional<Word> (branchFrom) : std::nullopt;
+    out.lastBranchTo   = target.TryGetLastBranchTarget (branchTo) ? std::optional<Word> (branchTo) : std::nullopt;
     out.cpuKind        = target.GetCpuKind();
     out.instructionSet = target.GetInstructionSet();
     out.machineInfo    = target.GetMachineInfo();

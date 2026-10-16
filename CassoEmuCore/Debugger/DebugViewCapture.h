@@ -27,6 +27,7 @@ struct DebugViewCapture
     VideoPosition             video;
     Byte                      lastPenalties  = 0;
     std::optional<Word>       lastBranch;
+    std::optional<Word>       lastBranchTo;
     DebugCpuKind              cpuKind        = DebugCpuKind::M6502;
     const Microcode         * instructionSet = nullptr;
     DebugMachineInfo          machineInfo;

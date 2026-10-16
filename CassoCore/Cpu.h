@@ -104,6 +104,7 @@ public:
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
     Byte GetLastPenalties         () const                   { return m_lastPenalties; }
     bool TryGetLastBranch         (Word & from) const        { from = m_lastBranchFrom; return m_hasLastBranch; }
+    bool TryGetLastBranchTarget   (Word & to) const          { to = m_lastBranchTo; return m_hasLastBranchTo; }
 
     // The address of the instruction StepOne is executing, or last executed,
     // for a device that reports which instruction touched it.
@@ -251,6 +252,10 @@ protected:
     // the next instruction: a taken branch, a jump, a call, a return or BRK.
     Word                  m_lastBranchFrom = 0;
     bool                  m_hasLastBranch  = false;
+
+    //  Where it sent PC; unknown after loading a state from a build without it.
+    Word                  m_lastBranchTo    = 0;
+    bool                  m_hasLastBranchTo = false;
 
     Word                  m_instructionStart = 0;
 

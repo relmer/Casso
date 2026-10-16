@@ -128,6 +128,13 @@ public:
     static DebuggerAction  GetLoadBinary       (const std::string & path, const std::string & format, std::optional<Word> address,
                                                 std::optional<uint32_t> length, CommandMode mode);
     static DebuggerAction  GetSaveBinary       (const std::string & path, Word address, uint32_t length, CommandMode mode);
+
+    //  RCC, which starts the trip count again; and PUSH, POP and PPOP, the
+    //  Stack pane's push and pops.
+    static DebuggerAction  GetResetCycles      (CommandMode mode);
+    static DebuggerAction  GetPushByte         (Byte value, CommandMode mode);
+    static DebuggerAction  GetPopByte          (CommandMode mode);
+    static DebuggerAction  GetPopWord          (CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
     static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
 

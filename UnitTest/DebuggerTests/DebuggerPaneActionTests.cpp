@@ -83,6 +83,22 @@ public:
 
 
 
+    //  The Registers and Stack panes' commands: RCC, PUSH, POP and PPOP.
+    TEST_METHOD (TheRegisterAndStackActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "RCC",     DebuggerActions::GetResetCycles (aw));
+        AssertParsesTo (rig, "PUSH A9", DebuggerActions::GetPushByte    (0xA9, aw));
+        AssertParsesTo (rig, "POP",     DebuggerActions::GetPopByte     (aw));
+        AssertParsesTo (rig, "PPOP",    DebuggerActions::GetPopWord     (aw));
+    }
+
+
+
     //  A load from the File menu runs with no parser and writes the file's
     //  bytes at the address given.
     TEST_METHOD (ALoadFromTheMenuWritesTheFilesBytes)

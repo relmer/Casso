@@ -1048,6 +1048,23 @@ void ShellDebugger::RunEmulatorCommand (int commandId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebugger::GetEmulatorSpeed
+//
+//  The speed the user chose, which the emulator's speed menu checks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SpeedMode ShellDebugger::GetEmulatorSpeed()
+{
+    return m_cpuManager.GetUserSpeedMode();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetCodeViewSuffix
 //
 //  Nothing for the first code view, 2 to 4 for the others, as the CPU

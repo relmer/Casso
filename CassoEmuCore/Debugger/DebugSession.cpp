@@ -3281,6 +3281,7 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.callMechanism    = m_callMechanism;
     out.callRecord       = m_callRecorder.GetRecord();
     out.callRebuild      = m_callRebuildProgress;
+    out.cycleMarker      = m_cycleMarker;
     out.fileSystem       = m_fileSystem;
     out.currentDirectory = m_currentDirectory;
 
@@ -3341,6 +3342,7 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_assemblyAddress  = view.assemblyAddress;
     m_stepBySource     = view.isStepBySource;
     m_callMechanism    = view.callMechanism;
+    m_cycleMarker      = view.cycleMarker;
     m_fileSystem       = view.fileSystem;
     m_currentDirectory = view.currentDirectory;
 

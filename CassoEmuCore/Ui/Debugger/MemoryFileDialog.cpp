@@ -15,73 +15,6 @@ static constexpr const char *     s_kFormatWords[]  = { "",              "RAW", 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryFileDialogPanel::Add
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryFileDialogPanel::Add (DxuiLabel & label, IDxuiControl & field)
-{
-    m_rows.push_back ({ &label, &field });
-    Adopt (label);
-    Adopt (field);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryFileDialogPanel::SetError
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryFileDialogPanel::SetError (DxuiLabel & error)
-{
-    m_error = &error;
-    Adopt (error);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryFileDialogPanel::Layout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryFileDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
-{
-    int  row   = scaler.ToPx (kRowDip);
-    int  gap   = scaler.ToPx (kGapDip);
-    int  split = boundsDip.left + scaler.ToPx (kLabelDip);
-    int  y     = boundsDip.top;
-
-
-
-    SetBounds (boundsDip);
-
-    for (const auto & [label, field] : m_rows)
-    {
-        label->Layout (RECT { boundsDip.left, y, split, y + row }, scaler);
-        field->Layout (RECT { split, y, boundsDip.right, y + row }, scaler);
-        y += row + gap;
-    }
-
-    if (m_error != nullptr)
-    {
-        m_error->Layout (RECT { boundsDip.left, y, boundsDip.right, y + row }, scaler);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryFileDialog::TryParseHex
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,7 +196,7 @@ void MemoryFileDialog::OnCreate()
     m_length.SetText         (m_fields.length);
     m_length.SetPlaceholder  (m_isSave ? L"$0400" : L"The whole file");
 
-    m_body = CreateDialogContent<MemoryFileDialogPanel>();
+    m_body = CreateDialogContent<FieldDialogPanel>();
     m_body->Add (m_fileLabel, m_file);
 
     if (!m_isSave)

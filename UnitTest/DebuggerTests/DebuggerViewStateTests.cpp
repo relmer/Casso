@@ -112,9 +112,35 @@ namespace DebuggerViewStateTests
             cycles   = rig.machine.GetCpu()->GetTotalCycles();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
-            Assert::AreEqual (std::string ("Cycles"),     snapshot.registers.back().name);
-            Assert::AreEqual (std::format ("{}", cycles), snapshot.registers.back().value);
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"the register pane is filled");
+            Assert::AreEqual (std::string ("Cycles"),      snapshot.registers[6].name);
+            Assert::AreEqual (std::format ("{}", cycles),  snapshot.registers[6].value);
+            Assert::AreEqual (std::string ("Trip"),        snapshot.registers[7].name);
+            Assert::AreEqual (std::format ("{}", cycles),  snapshot.registers[7].value, L"from power-on until RCC");
+            Assert::AreEqual (std::string ("Last branch"), snapshot.registers[8].name);
+            Assert::IsTrue   (snapshot.lastBranchFrom.has_value() && snapshot.lastBranchTo.has_value(), L"the ROM has branched by now");
+        }
+
+
+
+        //  RCC starts the trip count again; the total goes on.
+        TEST_METHOD (RccStartsTheTripCountAgain)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            uint64_t              trip = 0;
+
+
+
+            rig.machine.RunCycles (5000);
+            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetResetCycles (CommandMode::AppleWin));
+            rig.machine.RunCycles (100);
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            trip     = std::stoull (snapshot.registers[7].value);
+
+            Assert::IsTrue (trip >= 100 && trip < 200, L"counted from RCC");
+            Assert::IsTrue (std::stoull (snapshot.registers[6].value) > 5000, L"the total is not reset");
         }
 
         TEST_METHOD (TheCodePaneShowsThePcWithWhatLedToItAbove)
@@ -1703,7 +1729,7 @@ namespace DebuggerViewStateTests
 
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"six registers, the cycle and trip counts and the last branch");
             Assert::AreEqual (std::string ("A"),  snapshot.registers[0].name);
             Assert::AreEqual (std::string ("41"), snapshot.registers[0].value);
             Assert::AreEqual (std::string ("PC"), snapshot.registers[5].name);
@@ -2041,7 +2067,7 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the assembly is still open");
-            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"six registers, the cycle and trip counts and the last branch");
             Assert::IsFalse  (snapshot.memory.empty());
             Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300), L"nothing was assembled");
 

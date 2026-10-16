@@ -1,34 +1,7 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerActions.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryFileDialogPanel
-//
-//  A label beside each field, a row each, and the error line under them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class MemoryFileDialogPanel : public DxuiPanel
-{
-public:
-    void  Add      (DxuiLabel & label, IDxuiControl & field);
-    void  SetError (DxuiLabel & error);
-    void  Layout   (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-
-    static constexpr int  kRowDip   = 30;
-    static constexpr int  kGapDip   = 8;
-    static constexpr int  kLabelDip = 110;
-
-private:
-    std::vector<std::pair<DxuiLabel *, IDxuiControl *>>  m_rows;
-    DxuiLabel                                          * m_error = nullptr;
-};
+#include "Ui/Debugger/FieldDialogPanel.h"
 
 
 
@@ -89,5 +62,5 @@ private:
     DxuiLabel                m_lengthLabel;
     DxuiTextInput            m_length;
     DxuiLabel                m_error;
-    MemoryFileDialogPanel  * m_body   = nullptr;
+    FieldDialogPanel       * m_body   = nullptr;
 };

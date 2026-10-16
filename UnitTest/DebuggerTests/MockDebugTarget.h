@@ -35,6 +35,7 @@ public:
     uint64_t                 cycleCount       = 0;
     Byte                     lastPenalties    = 0;
     std::optional<Word>      lastBranch;
+    std::optional<Word>      lastBranchTo;
     bool                     keyPending       = false;
 
     IRunObserver           * observer         = nullptr;
@@ -123,6 +124,7 @@ public:
     uint64_t          GetCycleCount     () const override    { return cycleCount; }
     Byte              GetLastPenalties  () const override    { return lastPenalties; }
     bool              TryGetLastBranch  (Word & from) const override { from = lastBranch.value_or (0); return lastBranch.has_value(); }
+    bool              TryGetLastBranchTarget (Word & to) const override { to = lastBranchTo.value_or (0); return lastBranchTo.has_value(); }
     DebugCpuKind      GetCpuKind        () const override    { return cpuKind; }
     const Microcode * GetInstructionSet () const override    { return instructionSet; }
     DebugMachineInfo  GetMachineInfo    () const override    { return machineInfo; }

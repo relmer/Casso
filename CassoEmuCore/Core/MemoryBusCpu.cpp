@@ -213,7 +213,8 @@ void MemoryBusCpu::SoftReset()
     m_nmiLine    = false;
     m_nmiPending = false;
 
-    m_hasLastBranch = false;
+    m_hasLastBranch   = false;
+    m_hasLastBranchTo = false;
 
     PC = ReadWord (resVector);
 }
@@ -298,6 +299,8 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteByte   (m_lastPenalties);
     writer.WriteWord   (m_lastBranchFrom);
     writer.WriteBool   (m_hasLastBranch);
+    writer.WriteWord   (m_lastBranchTo);
+    writer.WriteBool   (m_hasLastBranchTo);
 
 
     m_pages.Save (writer, memory.data(), kStateRamSize);
@@ -343,6 +346,15 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     reader.ReadByte   (m_lastPenalties);
     reader.ReadWord   (m_lastBranchFrom);
     reader.ReadBool   (m_hasLastBranch);
+
+    //  Version 1 has no destination for the last branch.
+    m_hasLastBranchTo = false;
+
+    if (version >= 2)
+    {
+        reader.ReadWord (m_lastBranchTo);
+        reader.ReadBool (m_hasLastBranchTo);
+    }
 
     reader.ReadBytes  (memory.data(), kStateRamSize);
 

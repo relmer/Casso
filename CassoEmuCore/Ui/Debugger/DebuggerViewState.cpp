@@ -148,6 +148,16 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     //  The CPU cycles since power-on, as other emulators' register views
     //  show them; a replay or a seek restores the count with the machine.
     snapshot.registers.push_back ({ std::string (kCyclesRegister), std::format ("{}", session.GetTarget().GetCycleCount()) });
+    snapshot.registers.push_back ({ std::string (kTripRegister),   std::format ("{}", session.GetTripCycles (session.GetTarget().GetCycleCount())) });
+    snapshot.registers.push_back ({ std::string (kLastBranchRegister), std::string() });
+
+    {
+        Word  from = 0;
+        Word  to   = 0;
+
+        snapshot.lastBranchFrom = session.GetTarget().TryGetLastBranch (from)     ? std::optional<Word> (from) : std::nullopt;
+        snapshot.lastBranchTo   = session.GetTarget().TryGetLastBranchTarget (to) ? std::optional<Word> (to)   : std::nullopt;
+    }
 
     for (int bit = 7; bit >= 0; bit--)
     {

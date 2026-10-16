@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/MemoryFileDialog.h"
+#include "Ui/Debugger/ByteDialog.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "CppUnitTest.h"
 
@@ -90,6 +92,32 @@ namespace DebuggerTests
             Assert::IsFalse (MakeLoad ({ Format::Raw, L"$FF00", L"$200" }, action, error), L"past the end of memory");
             Assert::IsFalse (MakeLoad ({ Format::Raw, L"$300", L"0" }, action, error), L"nothing to load");
             Assert::IsFalse (MakeLoad ({ Format::Raw, L"lots", L"" }, action, error));
+        }
+
+
+
+        TEST_METHOD (APushedByteIsOneOrTwoHexDigits)
+        {
+            Byte  value = 0;
+
+
+
+            Assert::IsTrue   (ByteDialog::TryParseByte (L" $a9 ", value));
+            Assert::AreEqual ((Byte) 0xA9, value);
+            Assert::IsTrue   (ByteDialog::TryParseByte (L"7", value));
+            Assert::AreEqual ((Byte) 0x07, value);
+            Assert::IsFalse  (ByteDialog::TryParseByte (L"100", value), L"more than a byte");
+            Assert::IsFalse  (ByteDialog::TryParseByte (L"", value));
+            Assert::IsFalse  (ByteDialog::TryParseByte (L"zz", value));
+        }
+
+
+
+        TEST_METHOD (TheSpeedReadsAsTheEmulatorsMenuWritesIt)
+        {
+            Assert::AreEqual (std::wstring (L"1x"),      DebuggerStatusText::GetSpeedText (SpeedMode::Authentic));
+            Assert::AreEqual (std::wstring (L"2x"),      DebuggerStatusText::GetSpeedText (SpeedMode::Double));
+            Assert::AreEqual (std::wstring (L"Maximum"), DebuggerStatusText::GetSpeedText (SpeedMode::Maximum));
         }
 
 

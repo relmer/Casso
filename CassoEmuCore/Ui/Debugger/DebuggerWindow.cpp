@@ -6570,16 +6570,28 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ GetUndoLabel (true, m_watchHistory.GetRedoText()), [this] { UndoWatchEdit (true); } });
         }
     }
-    else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
+    else if (list == m_stackList)
     {
-        Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
+        if (row >= 0 && row < (int) s.stack.size())
+        {
+            Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
 
-        AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
-        items.push_back ({ L"Copy", copy });
+            AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
+            items.push_back ({ L"Copy", copy });
 
+            if (s.isPaused)
+            {
+                items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
+            }
+        }
+
+        //  PUSH, POP and PPOP, which write the machine, so only while it is
+        //  stopped.
         if (s.isPaused)
         {
-            items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
+            items.push_back ({ L"Push byte...", [this] { PushStackByte(); } });
+            items.push_back ({ L"Pop byte",     [this] { RunAction (DebuggerActions::GetPopByte (GetMode())); } });
+            items.push_back ({ L"Pop word",     [this] { RunAction (DebuggerActions::GetPopWord (GetMode())); } });
         }
 
         if (m_stackHistory.CanUndo())
@@ -6608,9 +6620,26 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
         }
 
-        if (name != DebuggerViewState::kCyclesRegister)
+        if (!DebuggerViewState::IsReadOnlyRegister (name))
         {
             AddShowInMemory (Widen (name), name, items);
+        }
+
+        //  The trip count starts again from here, as RCC starts it; the
+        //  total never does.
+        if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
+        {
+            items.push_back ({ L"Reset trip count", [this] { RunAction (DebuggerActions::GetResetCycles (GetMode())); } });
+        }
+
+        if (name == DebuggerViewState::kLastBranchRegister && s.lastBranchFrom.has_value())
+        {
+            items.push_back ({ L"Go to branch", [this, at = *s.lastBranchFrom] { ShowCode (at); } });
+
+            if (s.lastBranchTo.has_value())
+            {
+                items.push_back ({ L"Go to target", [this, at = *s.lastBranchTo] { ShowCode (at); } });
+            }
         }
 
         items.push_back ({ L"Copy",           copy });
@@ -7507,6 +7536,8 @@ void DebuggerWindow::ApplySnapshot()
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
         bool                isCycles = reg.name == DebuggerViewState::kCyclesRegister;
+        bool                isCount  = isCycles || reg.name == DebuggerViewState::kTripRegister;
+        bool                isBranch = reg.name == DebuggerViewState::kLastBranchRegister;
         DxuiListView::Cell  value    = { Widen (reg.value) };
         DxuiListView::Cell  flags    = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
         std::wstring        delta;
@@ -7516,9 +7547,9 @@ void DebuggerWindow::ApplySnapshot()
         //  column of its own in a list otherwise in the proportional face.
         flags.face = DxuiTheme::kMonoFace;
 
-        if (isCycles)
+        if (isCount)
         {
-            delta = Widen (m_stopChanges.GetDelta ("R:" + reg.name));
+            delta = isCycles ? Widen (m_stopChanges.GetDelta ("R:" + reg.name)) : std::wstring();
 
             if (std::from_chars (reg.value.data(), reg.value.data() + reg.value.size(), count).ec == std::errc())
             {
@@ -7529,8 +7560,18 @@ void DebuggerWindow::ApplySnapshot()
             value.spansRow  = true;
         }
 
+        //  From and to, as Visual Studio's Registers window has its last
+        //  branch; Go to is on the row's menu.
+        if (isBranch)
+        {
+            value.text     = !m_snapshot->lastBranchFrom.has_value() ? L"None" :
+                             std::format (L"${:04X} {} {}", *m_snapshot->lastBranchFrom, s_kpszRightArrow,
+                                          m_snapshot->lastBranchTo.has_value() ? std::format (L"${:04X}", *m_snapshot->lastBranchTo) : std::wstring (L"?"));
+            value.spansRow = true;
+        }
+
         //  On P's row only the flags that changed are in the changed color.
-        if (!isCycles && m_stopChanges.IsChanged ("R:" + reg.name))
+        if (!isCount && !isBranch && m_stopChanges.IsChanged ("R:" + reg.name))
         {
             value.argb = GetChangedArgb();
             value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
@@ -8625,7 +8666,7 @@ std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) c
 
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        if (reg.name == name && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
+        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
         {
             return (Byte) value;
         }
@@ -8664,7 +8705,7 @@ void DebuggerWindow::EditRegister (int row, bool onFlags)
     name  = m_snapshot->registers[(size_t) row].name;
     value = GetRegisterByte (name);
 
-    if (name == DebuggerViewState::kCyclesRegister)
+    if (DebuggerViewState::IsReadOnlyRegister (name))
     {
         return;
     }

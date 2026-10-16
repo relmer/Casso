@@ -226,6 +226,10 @@ struct DebuggerViewSnapshot
     //  by a step or a run that stopped there; none where the machine came to
     //  the PC otherwise, or while running.
     std::optional<Word>          branchedFrom;
+    //  The last instruction that sent PC elsewhere, at any stop, and where it
+    //  sent it, when that is known.
+    std::optional<Word>          lastBranchFrom;
+    std::optional<Word>          lastBranchTo;
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
@@ -411,8 +415,16 @@ public:
     //  the last reading. A stopped machine's is read at every build.
     static constexpr uint64_t  kHeatIntervalMs  = 100;
 
-    //  The registers pane's last row: the CPU cycle count, read only.
-    static constexpr const char  * kCyclesRegister = "Cycles";
+    //  The registers pane's last rows, read only: the CPU cycle count, the
+    //  cycles since RCC, and the last branch taken.
+    static constexpr const char  * kCyclesRegister     = "Cycles";
+    static constexpr const char  * kTripRegister       = "Trip";
+    static constexpr const char  * kLastBranchRegister = "Last branch";
+
+    static bool  IsReadOnlyRegister (const std::string & name)
+    {
+        return name == kCyclesRegister || name == kTripRegister || name == kLastBranchRegister;
+    }
 
     //  Memory windows: the first is always open, and up to three more. Each
     //  reads this many bytes from a sixteen-byte boundary, enough for the rows a

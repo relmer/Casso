@@ -60,6 +60,7 @@ public:
     uint64_t            GetCycleCount     () const override;
     Byte                GetLastPenalties  () const override;
     bool                TryGetLastBranch  (Word & from) const override;
+    bool                TryGetLastBranchTarget (Word & to) const override;
     DebugCpuKind        GetCpuKind        () const override;
     const Microcode   * GetInstructionSet () const override;
     DebugMachineInfo    GetMachineInfo    () const override;

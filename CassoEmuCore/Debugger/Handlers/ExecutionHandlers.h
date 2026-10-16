@@ -105,6 +105,5 @@ private:
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
     std::deque<Byte>                   m_keys;
-    uint64_t                           m_cycleMarker    = 0;
     uint64_t                           m_lastRunCycles  = 0;
 };

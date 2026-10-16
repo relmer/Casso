@@ -249,6 +249,7 @@ public:
     void    RunDebuggerAction        (const DebuggerAction & action) override;
     void    PauseDebugger            () override;
     void    RunEmulatorCommand       (int commandId) override;
+    SpeedMode  GetEmulatorSpeed      () override;
     void    SetDebuggerCodeLines     (int lines, int view) override;
     void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
     void    SetDebuggerCodeTop       (Word top, int view) override;

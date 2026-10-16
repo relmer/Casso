@@ -193,6 +193,12 @@ public:
     void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
     bool                  IsStepBySource  () const        { return m_stepBySource; }
 
+    //  The cycle count RCC last reset the trip count at: CYCLES PART and the
+    //  Registers pane's Trip row count from it.
+    uint64_t              GetCycleMarker  () const        { return m_cycleMarker; }
+    void                  SetCycleMarker  (uint64_t cycle) { m_cycleMarker = cycle; }
+    uint64_t              GetTripCycles   (uint64_t total) const { return (total >= m_cycleMarker) ? total - m_cycleMarker : total; }
+
     // The routines a step into runs as a step over, in every dialect.
     const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
 
@@ -491,6 +497,7 @@ private:
     uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
+    uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;
     std::vector<SymbolLoad>               m_symbolLoads;
     std::string                           m_binaryKey;
