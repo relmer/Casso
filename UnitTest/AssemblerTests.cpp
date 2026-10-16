@@ -968,6 +968,36 @@ namespace AssemblerTests
             Assert::AreEqual ((Byte) 0x3A, result.bytes[4]); // :
             Assert::AreEqual ((Word) 0x0003, result.symbols["msg"]);
         }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Text_SemicolonInQuotes_IsData
+        //
+        //  A ';' inside a string or a character literal is data. The comment
+        //  starts at the first ';' outside them.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Text_SemicolonInQuotes_IsData)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                R"(                         .text "A;B"     ; comment
+                                            LDA #';'        ; comment
+                )");
+
+            Assert::IsTrue (result.success);
+            Assert::AreEqual ((size_t) 5, result.bytes.size());
+            Assert::AreEqual ((Byte) 0x41, result.bytes[0]); // A
+            Assert::AreEqual ((Byte) 0x3B, result.bytes[1]); // ;
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]); // B
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[3]); // LDA #
+            Assert::AreEqual ((Byte) 0x3B, result.bytes[4]); // ;
+        }
     };
 
 

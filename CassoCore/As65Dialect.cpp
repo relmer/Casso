@@ -70,7 +70,7 @@ ParsedLine As65Dialect::ParseLine (const std::string & line, int lineNumber) con
     startsAtColumn0 = !stripped.empty() && !isspace ((unsigned char) stripped[0]);
 
     // Check for label (contains ':')
-    colonPos = FindLabelColon (remainder);
+    colonPos = Parser::FindUnquoted (remainder, ':');
 
     if (colonPos != std::string::npos)
     {
@@ -240,58 +240,6 @@ ParsedLine As65Dialect::ParseLine (const std::string & line, int lineNumber) con
 
 Error:
     return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  As65Dialect::FindLabelColon
-//
-//  The first ':' outside a double-quoted string or a 'c' character literal,
-//  or npos. A colon inside `.text "A:B"` or `lda #':'` is data, not a label
-//  terminator. A backslash inside a string escapes the next character, so
-//  `\"` does not end the string.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t As65Dialect::FindLabelColon (const std::string & text)
-{
-    size_t  found    = std::string::npos;
-    size_t  i        = 0;
-    bool    inString = false;
-
-
-
-    for (i = 0; i < text.size() && found == std::string::npos; i++)
-    {
-        char  c = text[i];
-
-        if (inString && c == '\\')
-        {
-            i++;
-        }
-        else if (c == '"')
-        {
-            inString = !inString;
-        }
-        else if (inString)
-        {
-            continue;
-        }
-        else if (c == '\'' && i + 2 < text.size() && text[i + 2] == '\'')
-        {
-            i += 2;
-        }
-        else if (c == ':')
-        {
-            found = i;
-        }
-    }
-
-    return found;
 }
 
 

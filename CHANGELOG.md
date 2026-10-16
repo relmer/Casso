@@ -30,8 +30,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
-- as65: a colon inside a quoted string, as in `.text "A:B"`, is assembled as
-  data rather than parsed as a label.
+- as65: a colon or semicolon inside a quoted string, as in `.text "A:B;C"`, is
+  assembled as data rather than parsed as a label or a comment.
 - as65: a `.byte` line that mixes values with forward `<` or `>` references
   reserves a byte for every argument, so later labels are no longer misplaced.
 - On the //c, writes to the IWM mode register while the disk motor was running
