@@ -664,6 +664,10 @@ protected:
     //  Undo and Redo bars as a click does.
     DxuiToolbar *  GetUndoBar (const std::wstring & pane) const;
 
+    //  Protected so a test can read whether the memory bar's entries,
+    //  Undo and Redo among them, are enabled.
+    bool  IsMemoryBarEnabled (int id) const;
+
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
     static constexpr int  kDialectEntry    = 1;
@@ -1008,7 +1012,6 @@ private:
     void     ImportBreakpoints       ();
     std::wstring  GetMemoryBarLabel  (int id) const;
     std::wstring  GetMemoryBarTip    (int id) const;
-    bool          IsMemoryBarEnabled (int id) const;
     static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
@@ -1242,6 +1245,11 @@ private:
     std::map<std::wstring, SavedFind>         m_savedFinds;
     std::map<std::wstring, std::vector<int>>  m_columnWidths;
     uint64_t                                  m_undoSavedMs = 0;
+
+    //  Set when a restore replaced the undo histories, so the machine change
+    //  that follows clears none of them.
+    bool                                      m_isHistoryRestored = false;
+
     MemoryCompare                           m_memoryCompare;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;

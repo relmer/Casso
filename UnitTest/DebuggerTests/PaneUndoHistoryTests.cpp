@@ -145,6 +145,68 @@ namespace PaneUndoHistoryTests
             Assert::IsTrue  (history.TryUndo (now, CommandMode::AppleWin).has_value());
             Assert::IsFalse (history.CanRedo());
         }
+
+
+        //  The history comes back from the text a debug project saves, each
+        //  action whole, typed values and values to evaluate alike.
+        TEST_METHOD (TheHistoryComesBackFromItsText)
+        {
+            WatchHistory                                history;
+            WatchHistory                                read;
+            DebuggerViewState::WatchUndo                undo;
+            DebuggerViewState::WatchUndo                moved;
+            DebuggerViewSnapshot                        now;
+            std::optional<std::vector<DebuggerAction>>  actions;
+            DebuggerAction                              action;
+
+
+
+            moved.restoreAddress = 0x0300;
+            moved.movedFromIds   = { 1, 3 };
+            moved.movedToId      = 4;
+            history.Record (moved, { DebuggerActions::GetClearWatch (3, CommandMode::AppleWin), DebuggerActions::GetAddWatch ("A:B", CommandMode::AppleWin) },
+                            L"moved watch 3");
+
+            undo.actions = { DebuggerActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
+            history.Record (undo, { DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg) }, L"changed watch 3");
+            (void) history.TryUndo (now, CommandMode::AppleWin);
+
+            read.FromText (history.ToText());
+            Assert::AreEqual (history.ToText(), read.ToText());
+            Assert::AreEqual (std::wstring (L"moved watch 3"),   read.GetUndoText());
+            Assert::AreEqual (std::wstring (L"changed watch 3"), read.GetRedoText());
+
+            actions = read.TryRedo();
+            Assert::IsTrue   (actions.has_value() && actions->size() == 1);
+            action = (*actions)[0];
+            Assert::IsTrue   (action.command.verb == DebugVerb::EnterWords);
+            Assert::AreEqual ((int) 0x0300, (int) action.command.a1);
+            Assert::AreEqual (std::string ("LABEL+1"), action.operand);
+            Assert::AreEqual (DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).echo, action.echo);
+            Assert::AreEqual (DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).command.sourceName, action.command.sourceName);
+
+            (void) read.TryUndo (now, CommandMode::AppleWin);
+            now.watches = { { 4, 0x0400, "00", true } };
+            actions = read.TryUndo (now, CommandMode::AppleWin);
+            Assert::IsTrue   (actions.has_value() && actions->size() == 2, L"the move is undone");
+            Assert::IsTrue   ((*actions)[0].command.verb == DebugVerb::ClearWatch);
+            Assert::AreEqual (4u, (*actions)[0].command.count);
+            Assert::AreEqual ((int) 0x0300, (int) (*actions)[1].command.a1);
+        }
+
+
+        TEST_METHOD (TextThatDoesNotParseGivesNoHistory)
+        {
+            WatchHistory  history;
+
+
+
+            for (const char * text : { "", "nonsense", "x:::::|", "W.300.1.0....|" })
+            {
+                history.FromText (text);
+                Assert::IsFalse (history.CanUndo() || history.CanRedo());
+            }
+        }
     };
 
 

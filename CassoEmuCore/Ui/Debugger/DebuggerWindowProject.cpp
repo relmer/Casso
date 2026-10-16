@@ -283,8 +283,21 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
     ApplyColumnWidths();
 
-    //  The registers', the stack's and each memory window's undo, a line
-    //  each, its name before its history.
+    //  The registers', the stack's, the watches' and each memory window's
+    //  undo, a line each, its name before its history. A history the text
+    //  lacks is empty, and the next machine change clears none of them,
+    //  since they are the new machine's.
+    m_registerHistory.FromText (std::string());
+    m_stackHistory.FromText    (std::string());
+    m_watchHistory.Clear();
+
+    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    {
+        pane->ClearHistory();
+    }
+
+    m_isHistoryRestored = true;
+
     for (const std::string & each : UndoText::Split (m_host->GetDebuggerWindowState ("undo"), '\n'))
     {
         size_t       equals = each.find ('=');
@@ -298,6 +311,10 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         else if (name == "stack")
         {
             m_stackHistory.FromText (text);
+        }
+        else if (name == "watches")
+        {
+            m_watchHistory.FromText (text);
         }
         else if (name.starts_with ("memory") && name.size() == 7 && name[6] >= '1' && name[6] < '1' + DebuggerViewState::kMaxMemoryWindows)
         {
@@ -336,7 +353,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
 std::string DebuggerWindow::GetUndoHistoriesText() const
 {
-    std::string  text = "registers=" + m_registerHistory.ToText() + "\nstack=" + m_stackHistory.ToText() + "\n";
+    std::string  text = "registers=" + m_registerHistory.ToText() + "\nstack=" + m_stackHistory.ToText() + "\nwatches=" + m_watchHistory.ToText() + "\n";
 
 
 

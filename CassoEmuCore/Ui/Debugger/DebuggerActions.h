@@ -157,6 +157,14 @@ public:
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
     //  OPEN or SAVEAS, each on a file the user picked.
     static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
+
+    //  A watch edit's action as a debug project saves it: the verb of an
+    //  AddWatch, ClearWatch, EnterBytes, EnterWords or SetRegister action and
+    //  its fields, apart at dots, with any text among them as hex digits. The
+    //  text of an action of another kind is empty, and TryFromText returns
+    //  false for text that does not parse.
+    static std::string     ToText      (const DebuggerAction & action);
+    static bool            TryFromText (const std::string & text, DebuggerAction & action);
     static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
     static DebuggerAction  GetSaveBreakpoints  (const std::string & path, CommandMode mode);
     static DebuggerAction  GetProject          (const std::string & subcommand, const std::string & path, CommandMode mode);

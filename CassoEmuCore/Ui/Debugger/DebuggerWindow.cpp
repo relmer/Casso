@@ -1488,14 +1488,20 @@ void DebuggerWindow::ApplyMemoryWindows()
     {
         m_machine = m_snapshot->machine;
 
-        //  Every undo record holds the old machine's values and addresses,
-        //  the watch pane's as much as the memory windows'.
-        for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+        //  Every undo record has the old machine's values and addresses, the
+        //  watch pane's as much as the memory windows', unless the histories
+        //  were restored for the new machine since the last change.
+        if (!m_isHistoryRestored)
         {
-            pane->ClearHistory();
+            for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+            {
+                pane->ClearHistory();
+            }
+
+            m_watchHistory.Clear();
         }
 
-        m_watchHistory.Clear();
+        m_isHistoryRestored = false;
     }
 
     for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)

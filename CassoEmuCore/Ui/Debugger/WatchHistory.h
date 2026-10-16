@@ -51,6 +51,12 @@ public:
 
     void  Clear ();
 
+    //  The steps to undo and to redo as a debug project saves them, the two
+    //  lists apart at a bar. For text that does not parse, the history is
+    //  empty.
+    std::string  ToText   () const;
+    void         FromText (const std::string & text);
+
 private:
     struct Step
     {
@@ -58,6 +64,11 @@ private:
         std::vector<DebuggerAction>   edit;
         std::wstring                  text;
     };
+
+    static std::string  FormatStep      (const Step & step);
+    static std::string  FormatActions   (const std::vector<DebuggerAction> & actions);
+    static bool         TryParseStep    (const std::string & text, Step & step);
+    static bool         TryParseActions (const std::string & text, std::vector<DebuggerAction> & actions);
 
     std::vector<Step>  m_undo;
     std::vector<Step>  m_redo;
