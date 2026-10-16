@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -36,6 +37,9 @@ public:
     //  Holds the buffer by reference and never modifies it. Every mutating
     //  operation produces a complete new buffer instead.
     explicit Dos33Volume (const vector<Byte> & sectors);
+
+    //  Called with each sector the volume reads from here on; null for none.
+    void     SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
 
     HRESULT  Enumerate (VolumeListing & outListing) const override;
     HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
@@ -238,6 +242,10 @@ private:
 
     Byte  ReadByte (int track, int sector, size_t offset) const;
 
+    //  The buffer, for a read of one sector of it. Every read of the volume's
+    //  own buffer goes through here, so the read observer has each sector.
+    const vector<Byte> &  AccessSector (int track, int sector) const;
+
     //  Case-insensitive, because the catalog is upper case and the caller's
     //  shell is not.
     static bool  TryFindEntry (const vector<RawEntry>  & entries,
@@ -294,5 +302,6 @@ private:
     //  address when the type records one.
     static void  ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
-    const vector<Byte> &  m_sectors;
+    const vector<Byte> &   m_sectors;
+    ISectorReadObserver  * m_readObserver = nullptr;
 };

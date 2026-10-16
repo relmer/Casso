@@ -251,7 +251,27 @@ Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
         return 0;
     }
 
-    return m_sectors[at];
+    return AccessSector (track, sector)[at];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::AccessSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<Byte> & Dos33Volume::AccessSector (int track, int sector) const
+{
+    if (m_readObserver != nullptr)
+    {
+        m_readObserver->OnSectorRead ((size_t) ToUnit (track, sector));
+    }
+
+    return m_sectors;
 }
 
 
@@ -616,7 +636,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             freeUnits += isFree ? 1u : 0u;
         }
@@ -809,7 +829,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     {
         for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_sectors, track, sector);
+            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             outReport.SetAllocatedInFreeMap (ToUnit (track, sector), !isFree);
         }
@@ -1152,7 +1172,7 @@ bool Dos33Volume::TryAllocateUnits (
         for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
         {
             uint32_t  unit    = ToUnit (track, sector);
-            bool      isFree  = IsFreeInBitmap (m_sectors, track, sector);
+            bool      isFree  = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
             bool      claimed = report.IsClaimed (unit);
 
             if (isFree && !claimed)

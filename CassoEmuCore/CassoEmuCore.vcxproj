@@ -217,6 +217,8 @@
     <ClCompile Include="AppleLink\AppleLinkFolder.cpp" />
     <ClCompile Include="AppleLink\AppleLinkHost.cpp" />
     <ClCompile Include="AppleLink\LinkProgram.cpp" />
+    <ClCompile Include="AppleLink\LinkedDisk.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkSession.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -799,6 +801,9 @@
     <ClInclude Include="AppleLink\AppleLinkFolder.h" />
     <ClInclude Include="AppleLink\AppleLinkHost.h" />
     <ClInclude Include="AppleLink\LinkProgram.h" />
+    <ClInclude Include="AppleLink\LinkedDisk.h" />
+    <ClInclude Include="AppleLink\AppleLinkSession.h" />
+    <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />
     <ClInclude Include="Devices\Ay8910.h" />

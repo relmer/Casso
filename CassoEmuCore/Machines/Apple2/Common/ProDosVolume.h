@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -42,6 +43,9 @@ class ProDosVolume : public IVolume
 {
 public:
     explicit ProDosVolume (const vector<Byte> & sectors);
+
+    //  Called with each sector the volume reads from here on; null for none.
+    void     SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
 
     HRESULT  Enumerate (VolumeListing & outListing) const override;
     HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const override;
@@ -156,6 +160,10 @@ private:
     static constexpr const char *  kpszKernelName = "PRODOS";
 
     Byte  ReadByte (int block, size_t offset) const;
+
+    //  The buffer, for a read of one block of it. Every read of the volume's
+    //  own buffer goes through here, so the read observer has each sector.
+    const vector<Byte> &  AccessBlock (int block) const;
     Word  ReadWord (int block, size_t offset) const;
 
     static void  WriteByteAt (vector<Byte> & buffer, int block, size_t offset, Byte value);
@@ -345,5 +353,6 @@ private:
                              vector<uint32_t>  & outBlocks,
                              ChainWalkGuard    & guard) const;
 
-    const vector<Byte> &  m_sectors;
+    const vector<Byte> &   m_sectors;
+    ISectorReadObserver  * m_readObserver = nullptr;
 };

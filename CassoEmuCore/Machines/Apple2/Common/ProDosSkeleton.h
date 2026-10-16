@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 
 
 
@@ -43,11 +44,13 @@ public:
 
     static constexpr int     kBlockByteSize   = 512;
 
-private:
-    static constexpr int     kBlocksPerTrack  = 8;
+    //  The volume directory's blocks and the volume bitmap's.
     static constexpr int     kDirKeyBlock     = 2;
     static constexpr int     kDirLastBlock    = 5;
     static constexpr int     kBitmapBlock     = 6;
+
+private:
+    static constexpr int     kBlocksPerTrack  = 8;
 
     static constexpr Byte    kStorageVolumeDir = 0xF0;
     static constexpr Byte    kAccessDefault    = 0xC3;
@@ -169,12 +172,16 @@ public:
 
     //  The same, for a file in the directory whose key block is given, which
     //  may be a subdirectory's.
-    static HRESULT  ExtractFileFromDirectory (const vector<Byte> & volume,
-                                              int                  dirKeyBlock,
-                                              const std::string  & fileName,
-                                              vector<Byte>       & outBytes,
-                                              Byte               & outFileType,
-                                              Word               & outAuxType);
+    static HRESULT  ExtractFileFromDirectory (const vector<Byte>   & volume,
+                                              int                    dirKeyBlock,
+                                              const std::string    & fileName,
+                                              vector<Byte>         & outBytes,
+                                              Byte                 & outFileType,
+                                              Word                 & outAuxType,
+                                              ISectorReadObserver  * observer = nullptr);
+
+    //  A block's two sectors, to the observer if there is one.
+    static void  NoteBlockRead (ISectorReadObserver * observer, int block);
 
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
@@ -185,9 +192,10 @@ public:
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
-    static bool  AppendIndexedBlocks (const vector<Byte> & volume,
-                                      Word                 indexBlock,
-                                      vector<Word>       & dataBlocks);
+    static bool  AppendIndexedBlocks (const vector<Byte>   & volume,
+                                      Word                   indexBlock,
+                                      vector<Word>         & dataBlocks,
+                                      ISectorReadObserver  * observer);
 };
 
 

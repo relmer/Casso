@@ -237,12 +237,13 @@ HRESULT ProDosReader::ExtractFile (
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosReader::ExtractFileFromDirectory (
-    const vector<Byte> & volume,
-    int                  dirKeyBlock,
-    const std::string  & fileName,
-    vector<Byte>       & outBytes,
-    Byte               & outFileType,
-    Word               & outAuxType)
+    const vector<Byte>   & volume,
+    int                    dirKeyBlock,
+    const std::string    & fileName,
+    vector<Byte>         & outBytes,
+    Byte                 & outFileType,
+    Word                 & outAuxType,
+    ISectorReadObserver  * observer)
 {
     HRESULT         hr          = S_OK;
     size_t          volumeBytes = volume.size();
@@ -287,6 +288,8 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
         {
             break;
         }
+
+        NoteBlockRead (observer, dirBlock);
 
         for (n = first; !found && n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
         {
@@ -355,12 +358,14 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
             break;
 
         case ProDosSkeleton::kStorageSapling:
-            gathered = AppendIndexedBlocks (volume, keyPointer, dataBlocks);
+            gathered = AppendIndexedBlocks (volume, keyPointer, dataBlocks, observer);
             break;
 
         case ProDosSkeleton::kStorageTree:
         {
             int  i = 0;
+
+            NoteBlockRead (observer, keyPointer);
 
             for (i = 0; gathered && i < (int) ProDosSkeleton::kPointersPerIndex; i++)
             {
@@ -371,7 +376,7 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
 
                 if (indexBlock != 0)
                 {
-                    gathered = AppendIndexedBlocks (volume, indexBlock, dataBlocks);
+                    gathered = AppendIndexedBlocks (volume, indexBlock, dataBlocks, observer);
                 }
                 else
                 {
@@ -401,6 +406,11 @@ HRESULT ProDosReader::ExtractFileFromDirectory (
     {
         size_t  i        = 0;
         bool    readable = block != 0 && IsBlockInRange (block);
+
+        if (readable && data.size() < (size_t) eof)
+        {
+            NoteBlockRead (observer, block);
+        }
 
         for (i = 0; i < 512 && data.size() < (size_t) eof; i++)
         {
@@ -434,9 +444,10 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProDosReader::AppendIndexedBlocks (
-    const vector<Byte> & volume,
-    Word                 indexBlock,
-    vector<Word>       & dataBlocks)
+    const vector<Byte>   & volume,
+    Word                   indexBlock,
+    vector<Word>         & dataBlocks,
+    ISectorReadObserver  * observer)
 {
     int   i     = 0;
     bool  valid = ProDosReader::IsBlockInRange (indexBlock);
@@ -447,6 +458,8 @@ bool ProDosReader::AppendIndexedBlocks (
     {
         return false;
     }
+
+    NoteBlockRead (observer, indexBlock);
 
     for (i = 0; i < (int) ProDosSkeleton::kPointersPerIndex; i++)
     {
@@ -466,6 +479,25 @@ bool ProDosReader::AppendIndexedBlocks (
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosReader::NoteBlockRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosReader::NoteBlockRead (ISectorReadObserver * observer, int block)
+{
+    if (observer != nullptr)
+    {
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (block, 0) / NibblizationLayer::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (block, NibblizationLayer::kSectorByteSize) / NibblizationLayer::kSectorByteSize);
+    }
 }
 
 

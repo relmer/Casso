@@ -36,6 +36,10 @@ public:
     static std::string  GetShimSource    ();
     static std::string  GetProgramSource ();
 
+    //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
+    //  rate. False for a speed the //c's port does not have.
+    static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
+
 private:
     static HRESULT      Assemble (const std::string & source, Word origin, std::vector<Byte> & outBytes, std::string & outErrors);
 };

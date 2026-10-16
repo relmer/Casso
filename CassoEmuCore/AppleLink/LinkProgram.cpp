@@ -86,6 +86,41 @@ std::string LinkProgram::GetProgramSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetSpeedControl
+//
+//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
+{
+    static constexpr std::pair<DWORD, Byte>  s_kRates[] =
+    {
+        { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
+    };
+    static constexpr Byte  kEightBitsOneStop = 0x10;
+    bool                   found             = false;
+
+
+
+    for (const auto & [rate, bits] : s_kRates)
+    {
+        if (rate == baud)
+        {
+            outControl = (Byte) (kEightBitsOneStop | bits);
+            found      = true;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::Assemble
 //
 //  The source starts with its own .org; the result must begin at `origin`,

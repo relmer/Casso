@@ -567,8 +567,8 @@ source in the core (R16, R17, R22).
 **Purpose**: catalogs and files over the line without reading whole disks
 (R20), one operation at a time (FR-098).
 
-- [ ] T199 [US14] Route every sector read and write in `Dos33Volume` and `ProDosVolume` (`CassoEmuCore/Machines/Apple2/Common/`) through one accessor, with no change in behavior. The existing `UnitTest/EmuTests/Dos33VolumeTests.cpp` and `ProDosVolumeTests.cpp` must pass untouched. Per R20.
-- [ ] T200 [US14] Add `LinkedDisk` in `CassoEmuCore/AppleLink/LinkedDisk.h/.cpp`:
+- [X] T199 [US14] Route every sector read and write in `Dos33Volume` and `ProDosVolume` (`CassoEmuCore/Machines/Apple2/Common/`) through one accessor, with no change in behavior. The existing `UnitTest/EmuTests/Dos33VolumeTests.cpp` and `ProDosVolumeTests.cpp` must pass untouched. Per R20.
+- [X] T200 [US14] Add `LinkedDisk` in `CassoEmuCore/AppleLink/LinkedDisk.h/.cpp`:
   - a 140 KB sector image with a presence bit per sector, the volume's kind, and the miss list of the last run;
   - a read of an absent sector adds it to the miss list and returns zeros;
   - fault-in: run, fetch the misses in one request, run again, until a run adds nothing;
@@ -576,19 +576,19 @@ source in the core (R16, R17, R22).
   - cleared when the drive's map or volume changes.
 
   Tests in `UnitTest/AppleLink/LinkedDiskTests.cpp` over a fake sector source: a catalog and a file read in a fixed number of rounds, and a write that sends only the sectors it changed. Per FR-084, FR-085 and R20.
-- [ ] T201 [US14] Add `AppleLinkSession` in `CassoEmuCore/AppleLink/AppleLinkSession.h/.cpp`, on its own thread, owning the `IByteStream`, the host engine, a `LinkedDisk` per drive and the operation queue:
+- [X] T201 [US14] Add `AppleLinkSession` in `CassoEmuCore/AppleLink/AppleLinkSession.h/.cpp`, on its own thread, owning the `IByteStream`, the host engine, a `LinkedDisk` per drive and the operation queue:
   - **States**: "Closed → Opening → Waiting for Ready → Loading program → Ready ⇄ Busy → Closed. Any state goes to Disconnected on a timeout or a closed stream; Disconnected goes to Opening on the next request."
   - **LinkOperation** kinds: enumerate, read file, write file, delete, rename, make directory, read disk, write disk, bootstrap and save link. Each has "progress (0 to 100), result HRESULT, and a message" and moves "Queued → Running → Done | Failed | Canceled"; one runs at a time, and Cancel stops the running one.
   - **Writes** re-read the catalog sectors first and fail if the volume name or catalog differs from the listing they started from.
   - Progress and results are posted, never waited on.
 
   Tests in `UnitTest/AppleLink/AppleLinkSessionTests.cpp`. Per FR-098, data-model.md and the edge cases.
-- [ ] T202 [US14] Add Read disk to image and Write image to disk to `AppleLinkSession`:
+- [X] T202 [US14] Add Read disk to image and Write image to disk to `AppleLinkSession`:
   - **Read**: every track's standard sectors, written to an image in any format Casso writes (a `.nib` or `.woz` built from the sectors), committed by atomic replace only on success. Unreadable sectors are listed, with an option to write them blank.
   - **Write**: every track formatted, written and read back, after the caller's confirmation. An image whose tracks do not decode to standard sectors fails before any track is written, with those tracks listed.
 
   Tests on the in-process stream. Per FR-086 and the edge cases.
-- [ ] T202a [US14] Add `ScenarioTests/AppleLinkSessionTests.cpp`: `AppleLinkSession` against a //c `TestMachine` running the shim and program over the in-process bridge, with a DOS 3.3 image in drive 1 and a ProDOS image in drive 2. List both catalogs, copy a file out of each and one onto each, read each disk to an image and write an image back, comparing every file and image byte for byte with its source. Per SC-029 and US14/AC1 to AC5.
+- [X] T202a [US14] Add `ScenarioTests/AppleLinkSessionTests.cpp`: `AppleLinkSession` against a //c `TestMachine` running the shim and program over the in-process bridge, with a DOS 3.3 image in drive 1 and a ProDOS image in drive 2. List both catalogs, copy a file out of each and one onto each, read each disk to an image and write an image back, comparing every file and image byte for byte with its source. Per SC-029 and US14/AC1 to AC5.
 
 ## Phase 21: Casso Explorer (US14)
 

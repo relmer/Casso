@@ -327,6 +327,10 @@ Error:
 
 HRESULT AppleLinkHost::Send (std::span<const Byte> bytes)
 {
+    std::lock_guard<std::mutex>  lock (m_sendLock);
+
+
+
     return m_stream->Write (bytes.data(), bytes.size());
 }
 
@@ -342,6 +346,10 @@ HRESULT AppleLinkHost::Send (std::span<const Byte> bytes)
 
 HRESULT AppleLinkHost::SendByte (Byte value)
 {
+    std::lock_guard<std::mutex>  lock (m_sendLock);
+
+
+
     return m_stream->Write (&value, 1);
 }
 
@@ -1091,6 +1099,8 @@ HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
     hr = SendPacket (AppleLinkCodec::kWriteSectors, request);
     CHR (hr);
 
+    m_writing = true;
+
     //  Each Acknowledge from the client has the number of the sector to
     //  send, again after a damaged copy; a Status ends the operation.
     for (;;)
@@ -1108,6 +1118,13 @@ HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
         isAck = packet.command == AppleLinkCodec::kAcknowledge && packet.payload.size() == 3;
         CBREx (isAck, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
+        if (m_cancelRequested)
+        {
+            hr = SendPacket (AppleLinkCodec::kCancel, {});
+            CHR (hr);
+            continue;
+        }
+
         index = (size_t) (std::find (sectors.begin(), sectors.end(), packet.payload[1]) - sectors.begin());
         listed = index < sectors.size();
         CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
@@ -1117,7 +1134,6 @@ HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
 
         encoded.clear();
 
-
         hr = AppleLinkCodec::EncodeSectorData (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
         CHR (hr);
 
@@ -1126,6 +1142,8 @@ HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
     }
 
 Error:
+    m_writing = false;
+
     return hr;
 }
 
@@ -1212,9 +1230,21 @@ Error:
 
 HRESULT AppleLinkHost::Cancel()
 {
+    HRESULT  hr = S_OK;
+
+
+
     m_cancelRequested = true;
 
-    return SendPacket (AppleLinkCodec::kCancel, {});
+    //  While a client writes, its 6551 has room for only the first byte;
+    //  WriteSectors sends Cancel in reply to the client's next Acknowledge.
+    BAIL_OUT_IF (m_writing, S_OK);
+
+    hr = SendPacket (AppleLinkCodec::kCancel, {});
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -1467,7 +1497,6 @@ HRESULT AppleLinkHost::LoadProgram()
         std::copy_n (m_program.begin() + (ptrdiff_t) from, std::min (kSectorSize, m_program.size() - from), page.begin());
 
         encoded.clear();
-
 
         hr = AppleLinkCodec::EncodeSectorData ((Byte) i, (Byte) i, page, encoded);
         CHR (hr);

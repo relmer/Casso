@@ -38,10 +38,11 @@ public:
     //  sectors the same single way -- matching ProDosSkeleton::GetBlockByteOffset.
     static size_t   GetSectorOffset (int track, int sector);
 
-private:
     //  DOS 3.3 on-disk geometry (Beneath Apple DOS ch. 4). The VTOC lives at
     //  T17 S0; the catalog chains T17 S15 down to S1.
     static constexpr int   kVtocTrack             = 17;
+
+private:
     static constexpr int   kCatalogFirstSector    = 15;
     static constexpr int   kVtocOffCatalogTrack   = 0x01;   // -> 17
     static constexpr int   kVtocOffCatalogSector  = 0x02;   // -> 15

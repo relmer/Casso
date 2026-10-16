@@ -52,7 +52,24 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
         return 0;
     }
 
-    return m_sectors[at];
+    return AccessBlock (block)[at];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::AccessBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<Byte> & ProDosVolume::AccessBlock (int block) const
+{
+    ProDosReader::NoteBlockRead (m_readObserver, block);
+
+    return m_sectors;
 }
 
 
@@ -574,7 +591,7 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
     outPayload = FilePayload();
 
     hr = ProDosReader::ExtractFileFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), outPayload.bytes,
-                                                 fileType, auxType);
+                                                 fileType, auxType, m_readObserver);
     CHR (hr);
 
     outPayload.type       = fileType;
@@ -1292,7 +1309,7 @@ bool ProDosVolume::TryAllocateBlocks (
 
     for (block = 0; block < (uint32_t) ProDosSkeleton::kTotalBlocks && taken < count; block++)
     {
-        bool  isFree  = IsFreeInBitmap (m_sectors, block);
+        bool  isFree  = IsFreeInBitmap (AccessBlock (ProDosSkeleton::kBitmapBlock), block);
         bool  claimed = report.IsClaimed (block);
 
         if (isFree && !claimed)

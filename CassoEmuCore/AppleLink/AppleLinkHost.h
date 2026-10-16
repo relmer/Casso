@@ -238,6 +238,8 @@ private:
     AppleLinkClient                   m_client;
     std::vector<Byte>                 m_program;
     std::atomic<bool>                 m_cancelRequested { false };
+    std::atomic<bool>                 m_writing         { false };
+    std::mutex                        m_sendLock;
     bool                              m_readyPending   = false;
     std::atomic<HRESULT>              m_lastResult { S_OK };
 };
