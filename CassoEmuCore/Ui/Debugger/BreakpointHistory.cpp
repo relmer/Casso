@@ -1,9 +1,11 @@
 #include "Pch.h"
 
+#include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/BreakpointHistory.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/UndoText.h"
 
 
 
@@ -429,3 +431,299 @@ bool BreakpointHistory::HasSameFlags (const BreakpointInfo & left, const Breakpo
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::Clear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHistory::Clear()
+{
+    m_undo.clear();
+    m_redo.clear();
+    m_ids.clear();
+    m_nextHandle = 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::ToText
+//
+//  The next handle, the handles' ids, the steps to undo and the steps to
+//  redo, apart at bars. Steps are apart at commas, a step's entries at
+//  slashes, and an entry is its handle and its two sides apart at dots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointHistory::ToText() const
+{
+    std::string  text  = std::format ("{:X}|", m_nextHandle);
+    bool         first = true;
+
+
+
+    for (const auto & [handle, id] : m_ids)
+    {
+        text += std::format ("{}{:X}:{:X}", first ? "" : ",", handle, id);
+        first = false;
+    }
+
+    for (const std::vector<Step> * steps : { &m_undo, &m_redo })
+    {
+        text += "|";
+
+        for (size_t i = 0; i < steps->size(); i++)
+        {
+            text += (i == 0) ? "" : ",";
+
+            for (size_t j = 0; j < (*steps)[i].size(); j++)
+            {
+                const Entry  & entry = (*steps)[i][j];
+
+                text += std::format ("{}{:X}.{}.{}", (j == 0) ? "" : "/", entry.handle, FormatSide (entry.before), FormatSide (entry.after));
+            }
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::FormatSide
+//
+//  Empty where the breakpoint did not exist; else its definition, its
+//  enabled, temporary and stops flags as 1 or 0, and its name, apart at
+//  colons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointHistory::FormatSide (const std::optional<BreakpointInfo> & info)
+{
+    if (!info.has_value())
+    {
+        return std::string();
+    }
+
+    return std::format ("{}:{}{}{}:{}", UndoText::FormatText (BreakpointHandlers::MakeDefinition (*info)),
+                        info->enabled ? 1 : 0, info->temporary ? 1 : 0, info->stops ? 1 : 0, UndoText::FormatText (info->name));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::FromText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHistory::FromText (DebugSession & session, const std::string & text)
+{
+    std::vector<std::string>  parts  = UndoText::Split (text, '|');
+    uint32_t                  next   = 0;
+    uint32_t                  handle = 0;
+    uint32_t                  id     = 0;
+    Step                      step;
+
+
+
+    Clear();
+
+    if (parts.size() != 4 || !UndoText::TryParseHex (parts[0], next) || next == 0)
+    {
+        return;
+    }
+
+    for (const std::string & pair : UndoText::Split (parts[1], ','))
+    {
+        std::vector<std::string>  fields = UndoText::Split (pair, ':');
+
+        if (fields.size() != 2 || !UndoText::TryParseHex (fields[0], handle) || !UndoText::TryParseHex (fields[1], id))
+        {
+            Clear();
+            return;
+        }
+
+        m_ids[(int) handle] = (int) id;
+    }
+
+    for (size_t list = 2; list <= 3; list++)
+    {
+        for (const std::string & each : UndoText::Split (parts[list], ','))
+        {
+            if (!TryParseStep (session, each, step))
+            {
+                Clear();
+                return;
+            }
+
+            ((list == 2) ? m_undo : m_redo).push_back (std::move (step));
+        }
+    }
+
+    m_nextHandle = (int) next;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::TryParseStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHistory::TryParseStep (DebugSession & session, const std::string & text, Step & step)
+{
+    uint32_t  handle = 0;
+
+
+
+    step.clear();
+
+    for (const std::string & each : UndoText::Split (text, '/'))
+    {
+        std::vector<std::string>  fields = UndoText::Split (each, '.');
+        Entry                     entry;
+
+        if (fields.size() != 3 || !UndoText::TryParseHex (fields[0], handle) ||
+            !TryParseSide (session, fields[1], entry.before, entry.savedBefore) ||
+            !TryParseSide (session, fields[2], entry.after,  entry.savedAfter))
+        {
+            return false;
+        }
+
+        entry.handle = (int) handle;
+        step.push_back (std::move (entry));
+    }
+
+    return !step.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::TryParseSide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string & text,
+                                      std::optional<BreakpointInfo> & info, std::optional<Saved> & saved)
+{
+    std::vector<std::string>  fields = UndoText::Split (text, ':');
+    std::string               definition;
+    std::string               name;
+    BreakpointInfo            rebuilt;
+    Saved                     entry;
+
+
+
+    info.reset();
+    saved.reset();
+
+    if (text.empty())
+    {
+        return true;
+    }
+
+    if (fields.size() != 3 || fields[1].size() != 3 || !std::ranges::all_of (fields[1], [] (char ch) { return ch == '0' || ch == '1'; }) ||
+        !UndoText::TryParseText (fields[0], definition) || !UndoText::TryParseText (fields[2], name) ||
+        !TryRebuild (session, definition, rebuilt, entry))
+    {
+        return false;
+    }
+
+    rebuilt.enabled   = fields[1][0] == '1';
+    rebuilt.temporary = fields[1][1] == '1';
+    rebuilt.stops     = fields[1][2] == '1';
+    rebuilt.name      = name;
+
+    if (entry.isWatchpoint)
+    {
+        entry.watchpoint.enabled   = rebuilt.enabled;
+        entry.watchpoint.temporary = rebuilt.temporary;
+        entry.watchpoint.stops     = rebuilt.stops;
+        entry.watchpoint.name      = name;
+    }
+    else
+    {
+        entry.breakpoint.enabled   = rebuilt.enabled;
+        entry.breakpoint.temporary = rebuilt.temporary;
+        entry.breakpoint.stops     = rebuilt.stops;
+        entry.breakpoint.name      = name;
+    }
+
+    info  = rebuilt;
+    saved = entry;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::TryRebuild
+//
+//  The table entry a definition makes, from adding it to the session and
+//  removing it again. A definition that makes other than one entry fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & definition, BreakpointInfo & info, Saved & saved)
+{
+    std::map<int, BreakpointInfo>  before = ListById (session);
+    std::map<int, BreakpointInfo>  after;
+    std::vector<int>               added;
+    int                            nextId = session.GetNextId();
+    AppleWinParseResult            parsed = AppleWinParser::Parse (definition, session);
+    bool                           isOk   = false;
+
+
+
+    if (parsed.status != ParseStatus::Ok)
+    {
+        return false;
+    }
+
+    (void) session.Execute (parsed.command);
+    after = ListById (session);
+
+    for (const auto & [id, each] : after)
+    {
+        if (!before.contains (id))
+        {
+            added.push_back (id);
+        }
+    }
+
+    isOk = added.size() == 1 && BreakpointHandlers::TrySave (session, added[0], saved);
+
+    if (isOk)
+    {
+        info = after[added[0]];
+    }
+
+    for (int id : added)
+    {
+        BreakpointHandlers::Remove (session, id);
+    }
+
+    session.SetNextId (nextId);
+    return isOk;
+}

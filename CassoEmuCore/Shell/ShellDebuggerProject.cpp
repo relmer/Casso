@@ -274,6 +274,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
 
 
         project.ApplyEngine (m_debugController->GetSession(), failures);
+        m_debugViewState.SetBreakpointUndoText (m_debugController->GetSession(), project.breakpointUndo);
     }
 
     {
@@ -589,6 +590,10 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 
 
 
+    //  The breakpoint undo history changes only on the CPU thread, which this
+    //  runs on, so reading it takes no view lock; a PROJECT command arrives
+    //  here with that lock already taken.
+    project.breakpointUndo = m_debugViewState.GetBreakpointUndoText();
     project.CaptureEngine (m_debugController->GetSession(), &m_debugController->GetHandlers().GetExecution());
 
     if (m_projectWindowPending.has_value())

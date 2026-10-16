@@ -227,6 +227,7 @@ namespace DebuggerTests
 
             project.symbolFiles = { { SymbolTableId::User, L"C:\\Work\\Prog\\build\\prog.dbg", 0x0800 },
                                     { SymbolTableId::User2, L"D:\\Shared\\rom.sym", 0 } };
+            project.breakpointUndo = "2|1:0||";
 
             json = project.ToJson (L"C:\\Work\\Prog");
 
@@ -237,6 +238,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"E:\\Moved\\build\\prog.dbg"), read.symbolFiles[0].path, L"moved with the project");
             Assert::AreEqual (std::wstring (L"D:\\Shared\\rom.sym"),        read.symbolFiles[1].path);
             Assert::AreEqual (0x0800, read.symbolFiles[0].offset);
+            Assert::AreEqual (std::string ("2|1:0||"), read.breakpointUndo);
         }
 
         //  The scope's automatic file; a save under a name writes that file

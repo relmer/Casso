@@ -438,6 +438,7 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     root.emplace_back ("ids",             JsonValue (Members { { "breakpoints", IdsToJson (breakpointIds) },
                                                                { "watches",     IdsToJson (watchIds) },
                                                                { "bookmarks",   IdsToJson (bookmarkIds) } }));
+    root.emplace_back ("breakpointUndo",  JsonValue (breakpointUndo));
     root.emplace_back ("startupCommands", JsonValue (std::move (startup)));
 
     return JsonWriter::Write (JsonValue (std::move (root)));
@@ -571,6 +572,8 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
             IdsFromJson (*ids, "watches",     project.watchIds);
             IdsFromJson (*ids, "bookmarks",   project.bookmarkIds);
         }
+
+        root.HasString ("breakpointUndo", project.breakpointUndo);
     }
 
     if (root.HasArray ("startupCommands", array))

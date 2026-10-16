@@ -125,3 +125,43 @@ bool UndoText::TryParseBytes (const std::string & text, std::vector<Byte> & byte
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UndoText::FormatText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string UndoText::FormatText (const std::string & text)
+{
+    return FormatBytes (std::span<const Byte> ((const Byte *) text.data(), text.size()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UndoText::TryParseText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UndoText::TryParseText (const std::string & hex, std::string & text)
+{
+    std::vector<Byte>  bytes;
+
+
+
+    if (!TryParseBytes (hex, bytes))
+    {
+        return false;
+    }
+
+    text.assign (bytes.begin(), bytes.end());
+    return true;
+}

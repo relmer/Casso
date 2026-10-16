@@ -730,6 +730,11 @@ public:
     //  CPU thread only.
     std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
 
+    //  The Breakpoints pane's undo history as a debug project saves it, and
+    //  that history replaced from such text. CPU thread only.
+    std::string  GetBreakpointUndoText () const                                         { return m_breakpointHistory.ToText(); }
+    void         SetBreakpointUndoText (DebugSession & session, const std::string & text) { m_breakpointHistory.FromText (session, text); }
+
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
     static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode, bool isAssembling);

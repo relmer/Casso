@@ -82,6 +82,10 @@ struct DebugProject
     Ids                            watchIds;
     Ids                            bookmarkIds;
 
+    //  The Breakpoints pane's undo history, as BreakpointHistory::ToText
+    //  formats it.
+    std::string                    breakpointUndo;
+
     //  The window's other state by name, each the text its setting has: the
     //  closed panes, the focused pane, the docks, the heat map's and the event
     //  logs' options, the console history, the find history and the column

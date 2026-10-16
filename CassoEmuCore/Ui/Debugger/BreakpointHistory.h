@@ -51,6 +51,16 @@ public:
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
 
+    //  The history as a debug project saves it: each handle's id, then the
+    //  steps to undo and to redo, each breakpoint's state on either side as
+    //  its definition, its flags and its name. FromText adds each definition
+    //  to the session for a moment to rebuild its table entry, then removes
+    //  it, so the session's next id is the same afterward. For text that
+    //  does not parse, the history is empty.
+    std::string  ToText   () const;
+    void         FromText (DebugSession & session, const std::string & text);
+    void         Clear    ();
+
     //  The BPCHANGE action that gives breakpoint `id` the enabled state and
     //  When hit setting of `info`.
     static DebuggerAction  GetFlagsAction (int id, const BreakpointInfo & info, CommandMode mode);
@@ -94,6 +104,11 @@ private:
     static std::vector<std::string>       Describe    (const std::vector<Outcome> & outcomes);
     static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
+    static std::string                    FormatSide   (const std::optional<BreakpointInfo> & info);
+    static bool                           TryParseSide (DebugSession & session, const std::string & text,
+                                                        std::optional<BreakpointInfo> & info, std::optional<Saved> & saved);
+    static bool                           TryRebuild   (DebugSession & session, const std::string & definition, BreakpointInfo & info, Saved & saved);
+    static bool                           TryParseStep (DebugSession & session, const std::string & text, Step & step);
 
     std::vector<Step>   m_undo;
     std::vector<Step>   m_redo;
