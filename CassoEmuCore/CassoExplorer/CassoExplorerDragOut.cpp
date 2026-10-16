@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "Core/TextEncoding.h"
 
 
@@ -284,6 +286,83 @@ std::vector<uint8_t> CassoExplorerDragOut::MakeHDrop (const std::vector<std::wst
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerDragOut::BuildAppleDriveFormats
+//
+//  Files on a linked Apple's drive, with the host names of a copy out. A
+//  drop requests each file's bytes and cannot complete without them, so each
+//  is read over the link then, for up to kDropWaitMs. Folders are not
+//  dragged from a drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style)
+{
+    std::vector<DxuiDragDropSource::Format>                  formats;
+    std::vector<FileEntry>                                   entries;
+    std::vector<FileEntry>                                   files;
+    DragPayload::Plan                                        plan;
+    std::shared_ptr<std::vector<DragPayload::Descriptor>>    descriptors;
+    std::shared_ptr<std::vector<uint8_t>>                    group;
+    std::wstring                                             link;
+    std::string                                              directory = browser.GetLocation().innerPath;
+    int                                                      slot      = 0;
+    int                                                      drive     = 0;
+    AppleLinkConnections                                   * links     = browser.GetLinks();
+
+
+
+    TreeModel::TryParseLinkId (browser.GetLocation().path, link, slot, drive);
+    browser.GetSelectedEntries (entries);
+
+    for (const FileEntry & entry : entries)
+    {
+        if (!entry.isDirectory)
+        {
+            files.push_back (entry);
+        }
+    }
+
+    if (files.empty() || links == nullptr)
+    {
+        return formats;
+    }
+
+    plan = DragPayload::Build (DragPayload::SourceKind::CatalogEntries, std::string(), browser.GetVolumeKind(), files, style,
+                               [] (const std::string &, VolumeListing &) { return E_NOTIMPL; }, {});
+
+    descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
+    group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
+
+    formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
+                         [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
+
+    formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
+                         [links, link = TextEncoding::WideToNarrow (link), drive, directory, descriptors] (int index, std::vector<uint8_t> & out)
+                         {
+                             const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
+                             std::string                      path       = directory.empty() ? descriptor.catalogPath : directory + "/" + descriptor.catalogPath;
+                             FilePayload                      payload;
+                             HRESULT                          hr         = links->WaitForFile (link, drive, path, kDropWaitMs, payload);
+
+                             out.clear();
+
+                             if (SUCCEEDED (hr))
+                             {
+                                 hr = CassoExplorerActions::ToHostBytes (payload, GetEncoding (descriptor), descriptor.appleSingle, descriptor.single, out);
+                             }
+
+                             return hr;
+                         } });
+
+    return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerDragOut::BuildFormats
 //
 //  The render callbacks hold what they need by value -- the image path and
@@ -307,6 +386,11 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     std::shared_ptr<std::vector<std::string>>                images;
 
 
+
+    if (browser.IsAppleDriveLocation())
+    {
+        return BuildAppleDriveFormats (browser, style);
+    }
 
     if (browser.IsImageLocation())
     {

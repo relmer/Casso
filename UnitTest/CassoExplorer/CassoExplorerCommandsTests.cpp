@@ -137,11 +137,18 @@ public:
         Assert::IsFalse (bar[8].trailing);
 
         //  An archive's Extract all follows View, as Explorer's does.
-        bar = commands.BuildCommandBarEntries (false, true);
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::Archive);
 
         Assert::AreEqual ((int) CassoExplorerCommands::kView,       bar[8].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kExtractAll, bar[9].command->id);
         Assert::IsFalse  (bar[9].iconOnly, L"with its label");
+
+        //  A linked Apple's drive reads and writes the whole disk, after View.
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::AppleDrive);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[9].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[10].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[11].command->id);
     }
 
 

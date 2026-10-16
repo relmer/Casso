@@ -2197,24 +2197,37 @@ void CassoExplorerWindow::FillPreview()
 
 void CassoExplorerWindow::UpdateCommandBar()
 {
-    bool  bin     = m_browser.GetLocation().kind == Location::Kind::RecycleBin;
-    bool  archive = !bin && !m_browser.GetExtractTarget().empty();
+    using Extra = CassoExplorerCommands::CommandBarExtra;
+
+    Extra  extra = Extra::None;
 
 
 
-    if (bin == m_commandBarForBin && archive == m_commandBarForArchive)
+    if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+    {
+        extra = Extra::RecycleBin;
+    }
+    else if (m_browser.IsAppleDriveLocation())
+    {
+        extra = Extra::AppleDrive;
+    }
+    else if (!m_browser.GetExtractTarget().empty())
+    {
+        extra = Extra::Archive;
+    }
+
+    if (extra == m_commandBarExtra)
     {
         return;
     }
 
-    m_commandBarForBin     = bin;
-    m_commandBarForArchive = archive;
+    m_commandBarExtra = extra;
 
     //  Explorer's own icons for the buttons, in the theme's set.
     m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, GetMenuSvg (L"windows.recyclebin.empty"));
     m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    GetMenuSvg (L"windows.recyclebin.restoreall"));
     m_commands.SetSvg (CassoExplorerCommands::kExtractAll,      GetMenuSvg (L"windows.compressedfile.extract"));
-    m_commandBar->SetEntries (m_commands.BuildCommandBarEntries (bin, archive));
+    m_commandBar->SetEntries (m_commands.BuildCommandBarEntries (extra));
     m_commandBar->Layout     (m_menuBand.GetBounds(), m_scaler);
     Invalidate();
 }
@@ -2243,6 +2256,133 @@ void CassoExplorerWindow::ExtractAll()
 
     hr = m_shellVerbs.RunItemVerb (GetHwnd(), { target }, "extract");
     CHR (hr);
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReadDiskToImage
+//
+//  The open Apple drive's disk into an image file the user picks, in the
+//  format of its extension. When sectors cannot be read, the user may read
+//  the disk again with them written as zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ReadDiskToImage (bool blankUnreadable, const std::wstring & imagePath)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          picked = imagePath;
+    bool                           chosen = !imagePath.empty();
+    FileDialogSpec                 spec;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    BAIL_OUT_IF (!m_browser.IsAppleDriveLocation(), S_OK);
+
+    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
+                              FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.clientGuid       = s_kLinkDiskPickerGuid;
+    spec.defaultFileName  = L"disk.dsk";
+    spec.defaultExtension = L"dsk";
+    spec.askToReplace     = false;
+    spec.title            = L"Read disk to image";
+
+    //  The picker's own replace prompt is Win32's; this one follows the theme,
+    //  and No goes back to the picker.
+    while (!chosen)
+    {
+        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
+        CHR (hr);
+        BAIL_OUT_IF (!chosen, S_OK);
+
+        if (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
+            DxuiMessageBox (GetHwnd(), m_theme, (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
+                            L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
+        {
+            spec.initialFolder   = picked.parent_path();
+            spec.defaultFileName = picked.filename().wstring();
+            chosen               = false;
+        }
+    }
+
+    outcome = m_actions.ReadDiskToImage (picked.wstring(), blankUnreadable, [this, picked] (const LinkOperation & operation)
+    {
+        std::wstring  message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros?";
+
+        if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Read disk to image",
+                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
+        {
+            ReadDiskToImage (true, picked.wstring());
+        }
+    });
+
+    if (!outcome.Succeeded())
+    {
+        ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    OnLinkChanged();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::WriteImageToDisk
+//
+//  An image file onto the open Apple drive's disk, once the user confirms,
+//  since everything on the disk is replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::WriteImageToDisk()
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    FileDialogSpec                 spec;
+    std::wstring                   message;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    BAIL_OUT_IF (!m_browser.IsAppleDriveLocation(), S_OK);
+
+    spec.filters    = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
+                        FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.clientGuid = s_kLinkDiskPickerGuid;
+    spec.title      = L"Write image to disk";
+
+    hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    message = std::format (L"Write {} to {}?\n\nEverything on the disk is replaced.", picked.filename().wstring(), m_actions.DescribeAppleDrive());
+
+    BAIL_OUT_IF (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Write image to disk",
+                                 MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK, S_OK);
+
+    outcome = m_actions.WriteImageToDisk (picked.wstring());
+
+    if (!outcome.Succeeded())
+    {
+        ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    OnLinkChanged();
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -3916,7 +4056,7 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Copy in an image writes the files a paste would, as the context menu's
     //  Copy row does; cut and paste are the host's alone.
     if (m_focus == Pane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
-        && m_browser.IsImageLocation() && !m_browser.GetSelectedRows().empty())
+        && m_browser.IsVolumeLocation() && !m_browser.GetSelectedRows().empty())
     {
         CopyEntriesToClipboard (GetNamingStyle());
         return true;
@@ -4082,12 +4222,15 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_browser.GetExtractTarget().empty();
+        case CassoExplorerCommands::kReadDiskToImage:
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_browser.IsAppleDriveLocation();
+        case CassoExplorerCommands::kCancelLinkOperation: return m_browser.IsAppleDriveLocation() && m_context.links != nullptr && !m_context.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
-        case CassoExplorerCommands::kNew:               return !m_browser.IsImageLocation() ? m_browser.GetLocation().kind == Location::Kind::HostFolder
+        case CassoExplorerCommands::kNew:               return !m_browser.IsVolumeLocation() ? m_browser.GetLocation().kind == Location::Kind::HostFolder
                                                                                       : (m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_browser.IsWriteProtected());
-        case CassoExplorerCommands::kNewFolder:         return !m_browser.IsImageLocation() ? true
+        case CassoExplorerCommands::kNewFolder:         return !m_browser.IsVolumeLocation() ? true
                                                                                       : (m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_browser.IsWriteProtected());
         case CassoExplorerCommands::kNewDisk:           return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder;
         default:                                  return true;
@@ -5341,6 +5484,9 @@ void CassoExplorerWindow::Dispatch (int id)
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
+        case CassoExplorerCommands::kReadDiskToImage:     ReadDiskToImage();                   break;
+        case CassoExplorerCommands::kWriteImageToDisk:    WriteImageToDisk();                  break;
+        case CassoExplorerCommands::kCancelLinkOperation: m_actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
         case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
@@ -5351,7 +5497,7 @@ void CassoExplorerWindow::Dispatch (int id)
         //  the shell, an entry in an image as the file a paste would write,
         //  in the style the Options dialog sets.
         case CassoExplorerCommands::kCopyItems:
-            if (m_browser.IsImageLocation() || m_browser.AreSelectedRowsSearchMatches())
+            if (m_browser.IsVolumeLocation() || m_browser.AreSelectedRowsSearchMatches())
             {
                 CopyEntriesToClipboard (GetNamingStyle());
             }
@@ -6366,7 +6512,7 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
 
             if (verb == CassoExplorerActions::Verb::NewFolder)
             {
-                command->isEnabled = [this]() { return !m_browser.IsImageLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos; };
+                command->isEnabled = [this]() { return !m_browser.IsVolumeLocation() || m_browser.GetVolumeKind() == VolumeKind::ProDos; };
                 newFolder          = command;
             }
             else
@@ -6381,7 +6527,7 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
         if (verb == CassoExplorerActions::Verb::Refresh && (newFolder != nullptr || newDisk != nullptr))
         {
             std::shared_ptr<DxuiCommand>  parent = std::make_shared<DxuiCommand>();
-            bool                          dos33  = m_browser.IsImageLocation() && m_browser.GetVolumeKind() != VolumeKind::ProDos;
+            bool                          dos33  = m_browser.IsVolumeLocation() && m_browser.GetVolumeKind() != VolumeKind::ProDos;
 
             AddNewChoices (newChoices, m_browser.GetLocation(), newFolder, newDisk);
 
@@ -6715,7 +6861,7 @@ void CassoExplorerWindow::BeginRename()
     int           row   = -1;
     std::wstring  name;
     size_t        dot   = std::wstring::npos;
-    bool          host  = !m_browser.IsImageLocation();
+    bool          host  = !m_browser.IsVolumeLocation();
 
 
 
@@ -6808,7 +6954,7 @@ void CassoExplorerWindow::EndRename (bool commit)
         return;
     }
 
-    if (!m_browser.IsImageLocation())
+    if (!m_browser.IsVolumeLocation())
     {
         if (m_browser.TryGetRowPath (row, path))
         {
@@ -7750,6 +7896,20 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         return;
     }
 
+    //  Onto the linked Apple's drive in the list: host files by the put
+    //  rules, an image's files as they are stored. Each write goes over the
+    //  link, and is reported when it is done.
+    if (tag != kDropTagTree && m_browser.IsAppleDriveLocation() && ReadDropSource (data, source))
+    {
+        m_dropTarget.SetDropResult (DROPEFFECT_COPY);
+
+        outcome = source.fromImage ? m_actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+                                   : m_actions.PutFiles (source.hostPaths, MakeAddressPrompt());
+
+        ReportOutcome (outcome, L"Put");
+        return;
+    }
+
     if (!TryGetDropLocation (tag, screen, location) || !ReadDropSource (data, source))
     {
         return;
@@ -8632,7 +8792,13 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             if (SUCCEEDED (hr) && chosen)
             {
                 outcome = m_actions.PutFiles ({ picked.wstring() }, MakeAddressPrompt());
-                PushPutUndo   (outcome, m_browser.GetLocation().path, m_browser.GetLocation().innerPath);
+
+                //  An Apple drive's writes finish later, over the link, with no undo.
+                if (!m_browser.IsAppleDriveLocation())
+                {
+                    PushPutUndo (outcome, m_browser.GetLocation().path, m_browser.GetLocation().innerPath);
+                }
+
                 ReportOutcome (outcome, L"Put");
                 FillList();
             }
@@ -8641,7 +8807,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::Cut:
         case CassoExplorerActions::Verb::Copy:
-            if (m_browser.IsImageLocation())
+            if (m_browser.IsVolumeLocation())
             {
                 CopyEntriesToClipboard (GetNamingStyle());
                 break;
@@ -8670,7 +8836,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Delete:
-            if (!m_browser.IsImageLocation())
+            if (!m_browser.IsVolumeLocation())
             {
                 //  Windows asks, and the Recycle Bin keeps it. A file inside a
                 //  zip has no file of its own to recycle, so it is deleted for
@@ -8697,8 +8863,8 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
         {
             std::vector<std::wstring>  plan    = m_actions.DescribeDeletePlan();
-            std::wstring               message = std::format (L"Delete {} selected item(s) from this disk image?",
-                                                              m_browser.GetSelectedRows().size());
+            std::wstring               message = std::format (L"Delete {} selected item(s) from this {}?",
+                                                              m_browser.GetSelectedRows().size(), m_browser.IsAppleDriveLocation() ? L"disk" : L"disk image");
 
             //  A folder goes with everything below it, which the list cannot
             //  show, so the plan's own rows and totals go into the question.
@@ -8719,7 +8885,8 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 //  files only, so a deletion that takes a folder is not kept.
                 m_browser.GetSelectedEntries (entries);
 
-                if (std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
+                if (!m_browser.IsAppleDriveLocation() &&
+                    std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
                     GetTempPathW (MAX_PATH, temp) != 0)
                 {
                     step.savedDir = std::format (L"{}CassoExplorerUndo\\{}", temp, GetTickCount64());
@@ -8780,7 +8947,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             //  An unused default name, open for renaming at once.
             newName = m_actions.GetNewFolderName();
 
-            if (!m_browser.IsImageLocation())
+            if (!m_browser.IsVolumeLocation())
             {
                 hr = m_shellVerbs.CreateFolder (GetHwnd(), m_browser.GetLocation().path, newName);
 
@@ -8795,7 +8962,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             {
                 outcome = m_actions.CreateFolder (newName);
 
-                if (outcome.Succeeded())
+                if (outcome.Succeeded() && !m_browser.IsAppleDriveLocation())
                 {
                     PushUndo (UndoStep { UndoStep::Kind::ImageNewFolder, m_browser.GetLocation(), {}, std::wstring(), newName });
                 }
@@ -9409,7 +9576,18 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
                 AddMenuCommand (items, L"&Disconnect", [this, name]() { DisconnectLink (name); });
             }
 
+            if (IsSerialLink (name))
+            {
+                AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
+            }
+
             AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
+        }
+        else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
+        {
+            //  A drive's whole disk, read or written from its node.
+            AddMenuCommand (items, L"Read disk to &image...", [this, location]() { GoToLocation (location); ReadDiskToImage(); });
+            AddMenuCommand (items, L"&Write image to disk...", [this, location]() { GoToLocation (location); WriteImageToDisk(); });
         }
     }
 
@@ -9694,6 +9872,59 @@ void CassoExplorerWindow::DisconnectLink (const std::string & name)
 {
     m_context.links->Stop (name);
     OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SearchLink
+//
+//  The link is started again, searching the COM ports for the Apple; the
+//  link's root reports the search and then what it found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SearchLink (const std::string & name)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_context.links->Stop (name);
+
+    hr = m_context.links->Start (name, true);
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+    }
+
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsSerialLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsSerialLink (const std::string & name) const
+{
+    const std::vector<AppleLinkSettings> &  links = m_context.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const AppleLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::Serial;
+    });
 }
 
 
@@ -10061,18 +10292,37 @@ void CassoExplorerWindow::GoToLocation (const Location & location)
 
 void CassoExplorerWindow::OnLinkChanged()
 {
-    HRESULT       hr       = S_OK;
-    Location      location = m_browser.GetLocation();
-    std::wstring  link;
-    int           slot     = 0;
-    int           drive    = 0;
-    bool          showing  = TreeModel::TryParseLinkId (location.path, link, slot, drive);
+    HRESULT                    hr       = S_OK;
+    Location                   location = m_browser.GetLocation();
+    std::wstring               link;
+    int                        slot     = 0;
+    int                        drive    = 0;
+    bool                       showing  = TreeModel::TryParseLinkId (location.path, link, slot, drive);
+    std::vector<std::wstring>  messages;
+    std::wstring               jobs;
 
 
 
     if (m_context.links == nullptr || !m_context.links->TakeChanged())
     {
         return;
+    }
+
+    messages = m_context.links->RunCompletions();
+
+    //  The running operation's progress and the queue after it; the status
+    //  bar's own text returns once nothing is pending.
+    jobs = AppleLinkConnections::DescribeJobs (m_context.links->GetPendingJobs());
+
+    if (!jobs.empty())
+    {
+        m_status->SetText (kStatusDetail, jobs);
+        m_linkJobsShown = true;
+    }
+    else if (m_linkJobsShown)
+    {
+        m_linkJobsShown = false;
+        FillStatus();
     }
 
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
@@ -10097,6 +10347,18 @@ void CassoExplorerWindow::OnLinkChanged()
     }
 
     Invalidate();
+
+    if (!messages.empty())
+    {
+        std::wstring  text;
+
+        for (const std::wstring & message : messages)
+        {
+            text += (text.empty() ? L"" : L"\n") + message;
+        }
+
+        ShowMessage (text, MB_ICONERROR);
+    }
 }
 
 

@@ -251,6 +251,9 @@ public:
     Location                         GetLocation   () const;
     VolumeKind                       GetVolumeKind () const { return m_kind; }
     bool                             IsAppleDriveLocation () const { return m_isAppleDrive; }
+
+    //  An image or an Apple drive: a volume whose catalog is in the list.
+    bool                             IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
     bool                             IsImageLocation () const { return m_isImage; }
 
     //  The root being listed, or empty when the list is another location's.

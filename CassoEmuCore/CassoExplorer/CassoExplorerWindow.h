@@ -503,6 +503,9 @@ private:
 
     //  The raw read and write pickers' own history, apart from other pickers.
     static constexpr GUID  s_kRawPickerGuid = { 0xe347dd39, 0x4a18, 0x4a0d, { 0x93, 0x4a, 0xfd, 0x63, 0xb7, 0x9c, 0xba, 0x3e } };
+
+    //  The whole-disk read and write pickers' own history.
+    static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
     void  ScrollTreeToRow (int row);
     int   WalkTreeLabels (int row, const std::wstring & path);
     void  FillTabs();
@@ -597,6 +600,8 @@ private:
     void  OnShellPreviewResult    ();
     void  ShowShellPreviewBytes   ();
     void  ExtractAll();
+    void  ReadDiskToImage   (bool blankUnreadable = false, const std::wstring & imagePath = std::wstring());
+    void  WriteImageToDisk  ();
     void  FillStatus();
     void  SetFocusPane (Pane pane);
 
@@ -689,6 +694,8 @@ private:
     void  EditLink            (const std::string & name);
     void  RemoveLink          (const std::string & name);
     void  DisconnectLink      (const std::string & name);
+    void  SearchLink          (const std::string & name);
+    bool  IsSerialLink        (const std::string & name) const;
     void  ApplyLinks          ();
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
     void  ApplyNavPaneOptions ();
@@ -902,9 +909,11 @@ private:
     //  rest.
     std::vector<std::wstring>                 m_rowProblems;
 
-    //  Whether the command bar has the Recycle Bin's buttons on it.
-    bool  m_commandBarForBin     = false;
-    bool  m_commandBarForArchive = false;
+    //  The location's buttons on the command bar, if any.
+    CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;
+
+    //  Whether the status bar's detail has the Apple links' pending operations.
+    bool  m_linkJobsShown = false;
 
     //  The list's view, and the key of the folder it was chosen for: a new
     //  folder opens in its own view.

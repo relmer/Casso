@@ -118,6 +118,12 @@ public:
         //  or open, and on its menu.
         kExtractAll,
 
+        //  A linked Apple's drive: the whole disk read into an image or
+        //  written from one, and the running operation canceled.
+        kReadDiskToImage,
+        kWriteImageToDisk,
+        kCancelLinkOperation,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -150,7 +156,10 @@ public:
     //  The toolbar's entries, in strip order: navigation, refresh, and the
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
-    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (bool recycleBin = false, bool archive = false) const;
+    //  The buttons a location adds to the command bar, after View.
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive };
+
+    std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
     //  The Fluent icon the command bar draws for a command, or none.
     static const DxuiVectorIcon    * GetCommandBarIcon (int id);
@@ -327,6 +336,9 @@ private:
         { kGroupDescending,   Menu::Count, L"D&escending",         nullptr,     true  },
         { kEmptyRecycleBin,   Menu::Count, L"Empty Recycle Bin",   nullptr,     false },
         { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
+        { kReadDiskToImage,   Menu::Count, L"Read disk to image...", nullptr,   false },
+        { kWriteImageToDisk,  Menu::Count, L"Write image to disk...", nullptr,  false },
+        { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -386,6 +398,14 @@ private:
     static constexpr ToolbarRow  kArchiveRows[] =
     {
         { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
+    };
+
+    //  A linked Apple's drive's buttons, after View while one is open.
+    static constexpr ToolbarRow  kAppleDriveRows[] =
+    {
+        { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Read disk",  L"Read the whole disk to an image file" },
+        { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write disk", L"Write an image file to the whole disk" },
+        { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",     L"Cancel the running operation"         },
     };
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =

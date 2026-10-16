@@ -360,14 +360,6 @@ private:
                                      Byte                     & outType,
                                      DiskCommandResult        & result);
 
-    //  The bytes a file from the host becomes on the disk, with whatever conversion was
-    //  asked for already applied. Refuses a conversion this build cannot do.
-    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
-                                     VolumeKind                  kind,
-                                     const std::vector<Byte>   & hostBytes,
-                                     FilePayload               & outPayload,
-                                     DiskCommandResult         & result);
-
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
     static std::string  GetOnDiskName (const CommandLineOptions & options);
@@ -376,12 +368,6 @@ private:
 
 
 
-
-    //  Applies the requested character conversion, or refuses one this build
-    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
-    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
-                                   FilePayload              & payload,
-                                   DiskCommandResult        & result);
 
     //  One line per catalog entry, in the shape the guest's own listing uses --
     //  with every column the volume records, since ProDOS fills eof= and aux=
@@ -398,6 +384,22 @@ private:
     //  before it was a class.
 public:
     DiskImageSession &  GetSession ()  { return m_session; }
+
+    //  Public so a file read or written over an Apple link converts as one
+    //  in an image does.
+    //  The bytes a file from the host becomes on the disk, with whatever conversion was
+    //  asked for already applied. Refuses a conversion this build cannot do.
+    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
+                                     VolumeKind                  kind,
+                                     const std::vector<Byte>   & hostBytes,
+                                     FilePayload               & outPayload,
+                                     DiskCommandResult         & result);
+
+    //  Applies the requested character conversion, or refuses one this build
+    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
+    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
+                                   FilePayload              & payload,
+                                   DiskCommandResult        & result);
 
 private:
     //  Whether a command puts bytes into the image it was given.

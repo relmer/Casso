@@ -602,7 +602,7 @@ void CassoExplorerBrowser::GetSelectedRecycledIds (std::vector<std::wstring> & o
 
 bool CassoExplorerBrowser::TryGetRowEntry (int row, FileEntry & outEntry) const
 {
-    if (!m_isImage || row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].sourceIndex >= m_listing.entries.size())
+    if (!IsVolumeLocation() || row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].sourceIndex >= m_listing.entries.size())
     {
         return false;
     }
@@ -3564,7 +3564,7 @@ void CassoExplorerBrowser::GetSelectedEntries (std::vector<FileEntry> & outEntri
 {
     outEntries.clear();
 
-    if (!m_isImage)
+    if (!IsVolumeLocation())
     {
         return;
     }

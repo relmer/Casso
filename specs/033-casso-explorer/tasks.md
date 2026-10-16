@@ -612,26 +612,26 @@ image is.
 
   Add a dialog to add and edit a link, in `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp`. Tests for load, save and defaults. Per FR-083, FR-094 and data-model.md.
 - [X] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
-- [ ] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
+- [X] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
   - `HostFileNaming` styles and the put conversion rules;
   - a write to a write-protected disk fails with the reason.
 
   Tests through the session's fake stream. Per FR-085 and US14/AC3 and AC4.
-- [ ] T207 [US14] Add Read disk to image and Write image to disk to an Apple drive's menu and the command bar:
+- [X] T207 [US14] Add Read disk to image and Write image to disk to an Apple drive's menu and the command bar:
   - the write's confirmation identifies the drive and the volume;
   - progress in the status bar;
   - Cancel;
   - queued operations listed.
 
   Per FR-086, FR-098 and US14/AC5 and AC6.
-- [ ] T208 [US14] Add the COM search in `CassoEmuCore/AppleLink/AppleLinkSearch.h/.cpp`, through `IByteStreamFactory`:
+- [X] T208 [US14] Add the COM search in `CassoEmuCore/AppleLink/AppleLinkSearch.h/.cpp`, through `IByteStreamFactory`:
   - open each COM port no other program has open, at the default speed;
   - only when an Apple root with no port set is opened, or Search is chosen; never in the background;
   - stop at the first port where a link replies;
   - close each port before the next.
 
   Tests over a fake factory with a busy port, a silent port and a port with a link. Per FR-083a and the edge cases.
-- [ ] T209 [US14] Open a COM port or TCP port only while the user has a link started, and release it on stop. A TCP link listens on 127.0.0.1, except with the `WifiModem` transport, which listens on the network. Tests through the fake factory. Per FR-097.
+- [X] T209 [US14] Open a COM port or TCP port only while the user has a link started, and release it on stop. A TCP link listens on 127.0.0.1, except with the `WifiModem` transport, which listens on the network. Tests through the fake factory. Per FR-097.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

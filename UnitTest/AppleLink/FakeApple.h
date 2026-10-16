@@ -367,7 +367,9 @@ private:
 //  FakeAppleFactory
 //
 //  Every TCP connection the session makes is a new in-process line whose
-//  Apple end FakeApple serves. A COM port or a listener is not offered.
+//  Apple end FakeApple serves. COM ports are listed from comPorts: a busy
+//  one fails to open, a silent one is a line with no Apple on it, an Apple one is a line
+//  FakeApple serves. A listener is a line no Apple connects to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,20 +384,85 @@ public:
     std::shared_ptr<InProcessByteStream>  GetUnansweredEnd () const { return m_unanswered; }
     std::atomic<bool> answer      { true };
 
+    enum class Port { Busy, Silent, Apple };
+
+    std::map<std::wstring, Port>  comPorts;
+    std::vector<std::wstring>     comOpened;
+
+    //  Set when a COM port was opened while another was open.
+    std::atomic<bool>             comOverlapped { false };
+
+    bool  ArePortsClosed() const
+    {
+        return std::all_of (m_ends.begin(), m_ends.end(), [] (const std::shared_ptr<InProcessByteStream> & end) { return end->IsClosed(); });
+    }
+
     HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override
     {
         outPorts.clear();
+
+        for (const auto & [name, kind] : comPorts)
+        {
+            outPorts.push_back (name);
+        }
+
         return S_OK;
     }
 
-    HRESULT  OpenComPort (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override
+    HRESULT  OpenComPort (const std::wstring & port, const ComSettings &, std::unique_ptr<IByteStream> & outStream) override
     {
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<InProcessByteStream>  appleEnd;
+        auto                                  found = comPorts.find (port);
+
+        if (found == comPorts.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        if (found->second == Port::Busy)
+        {
+            return HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+        }
+
+        for (const std::shared_ptr<InProcessByteStream> & end : m_ends)
+        {
+            comOverlapped = comOverlapped || !end->IsClosed();
+        }
+
+        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        comOpened.push_back (port);
+        m_ends.push_back (pcEnd);
+
+        if (found->second == Port::Apple)
+        {
+            m_apple.Attach (appleEnd);
+        }
+        else
+        {
+            m_silent.push_back (appleEnd);
+        }
+
+        outStream = std::make_unique<SharedStream> (pcEnd);
+        return S_OK;
     }
 
-    HRESULT  ListenTcp (uint16_t, LinkTransport, std::unique_ptr<IByteStream> &) override
+    //  The transports of the listeners opened, each one a line nobody
+    //  connects to.
+    std::vector<LinkTransport>  listened;
+
+    HRESULT  ListenTcp (uint16_t, LinkTransport transport, std::unique_ptr<IByteStream> & outStream) override
     {
-        return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::shared_ptr<InProcessByteStream>  appleEnd;
+
+        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        listened.push_back (transport);
+        m_ends.push_back (pcEnd);
+        m_silent.push_back (appleEnd);
+
+        outStream = std::make_unique<SharedStream> (pcEnd);
+        return S_OK;
     }
 
     HRESULT  ConnectTcp (const std::string &, uint16_t, std::unique_ptr<IByteStream> & outStream) override
@@ -433,6 +500,8 @@ private:
         std::shared_ptr<InProcessByteStream>  m_end;
     };
 
-    FakeApple                             & m_apple;
-    std::shared_ptr<InProcessByteStream>    m_unanswered;
+    FakeApple                                          & m_apple;
+    std::shared_ptr<InProcessByteStream>                 m_unanswered;
+    std::vector<std::shared_ptr<InProcessByteStream>>    m_ends;
+    std::vector<std::shared_ptr<InProcessByteStream>>    m_silent;
 };

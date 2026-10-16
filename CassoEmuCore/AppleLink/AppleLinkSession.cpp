@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleLink/AppleLinkSession.h"
+#include "AppleLink/AppleLinkSearch.h"
 #include "AppleLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -79,6 +80,7 @@ HRESULT AppleLinkSession::Start (const AppleLinkSettings & settings)
     CBREx (known, E_INVALIDARG);
 
     m_settings = settings;
+    m_port     = TextEncoding::NarrowToWide (settings.port);
     m_thread   = std::jthread ([this] (std::stop_token stop) { Run (stop); });
 
 Error:
@@ -237,6 +239,21 @@ std::shared_ptr<LinkOperation> AppleLinkSession::Rename (int drive, const FilePa
 std::shared_ptr<LinkOperation> AppleLinkSession::MakeDirectory (int drive, const FilePath & path)
 {
     return Queue (LinkOperationKind::MakeDirectory, drive, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkSession::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> AppleLinkSession::RemoveDirectory (int drive, const FilePath & path)
+{
+    return Queue (LinkOperationKind::RemoveDirectory, drive, path);
 }
 
 
@@ -634,6 +651,7 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
 {
     HRESULT             hr       = S_OK;
     std::vector<DWORD>  speeds   = { m_settings.bootstrapBaud };
+    ComSettings         search;
     DWORD               opened   = 0;
     Byte                control  = 0;
     Byte                driveMap = 0;
@@ -644,6 +662,19 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
     if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud)
     {
         speeds.push_back (m_settings.baud);
+    }
+
+    //  A serial link with no port set finds one, once; the port found is
+    //  used again when the line drops.
+    if (m_settings.transport == LinkTransport::Serial && m_port.empty())
+    {
+        SetState (LinkState::Searching);
+
+        search.baud              = m_settings.baud;
+        search.hardwareHandshake = m_settings.hardwareHandshake;
+
+        hr = AppleLinkSearch::Find (m_factory, search, AppleLinkSearch::kReplyTimeoutMs, m_port);
+        CHR (hr);
     }
 
     for (DWORD speed : speeds)
@@ -744,7 +775,7 @@ HRESULT AppleLinkSession::OpenStream (DWORD baud)
         com.baud              = baud;
         com.hardwareHandshake = m_settings.hardwareHandshake;
 
-        hr = m_factory.OpenComPort (TextEncoding::NarrowToWide (m_settings.port), com, stream);
+        hr = m_factory.OpenComPort (m_port, com, stream);
         CHR (hr);
     }
     else
@@ -953,6 +984,15 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::MakeDirectory:
             hr = RunWrite (operation, [&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.CreateDirectory (operation.path, outBuffer); });
+            break;
+
+        case LinkOperationKind::RemoveDirectory:
+            hr = RunWrite (operation, [&] (const IVolume & volume, std::vector<Byte> & outBuffer)
+            {
+                DeleteOutcome  outcome;
+
+                return volume.RemoveDirectory (operation.path, true, outBuffer, outcome);
+            });
             break;
 
         case LinkOperationKind::ReadDisk:

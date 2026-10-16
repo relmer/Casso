@@ -30,6 +30,7 @@ class IDiskFileIo;
 enum class LinkState
 {
     Closed,
+    Searching,
     Opening,
     WaitingForReady,
     LoadingProgram,
@@ -46,6 +47,7 @@ enum class LinkOperationKind
     Delete,
     Rename,
     MakeDirectory,
+    RemoveDirectory,
     ReadDisk,
     WriteDisk,
     Bootstrap,
@@ -171,6 +173,9 @@ public:
     std::shared_ptr<LinkOperation>  Rename        (int drive, const FilePath & path, const std::string & newName);
     std::shared_ptr<LinkOperation>  MakeDirectory (int drive, const FilePath & path);
 
+    //  A ProDOS directory and everything in it.
+    std::shared_ptr<LinkOperation>  RemoveDirectory (int drive, const FilePath & path);
+
     //  Every track's standard sectors into an image file, in the format of
     //  its extension, replaced atomically and only when the read succeeds
     //  (FR-086, FR-087).
@@ -230,6 +235,7 @@ private:
     IDiskFileIo                                 & m_fileIo;
     IAppleLinkSessionSink                       & m_sink;
     AppleLinkSettings                             m_settings;
+    std::wstring                                  m_port;
     std::shared_ptr<IByteStream>                  m_stream;
     std::unique_ptr<AppleLinkHost>                m_host;
     std::array<std::unique_ptr<DriveSource>, 2>   m_sources;

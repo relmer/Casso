@@ -43,7 +43,9 @@ public:
     void                                    SetLinks (const std::vector<AppleLinkSettings> & links);
     const std::vector<AppleLinkSettings> &  GetLinks () const { return m_links; }
 
-    HRESULT  Start     (const std::string & name);
+    //  A search starts a serial link by searching the COM ports for the
+    //  Apple, as a link with no port set does (FR-083a).
+    HRESULT  Start     (const std::string & name, bool search = false);
     void     Stop      (const std::string & name);
     bool     IsStarted (const std::string & name) const;
 
@@ -63,6 +65,33 @@ public:
     bool  TryGetFile    (const std::string & name, int drive, const std::string & path,
                          FilePayload & outPayload, HRESULT & outResult, std::string & outMessage);
 
+    //  An operation queued on a link, the link started first if it was not,
+    //  and what to do with its result on the window's thread. A completion
+    //  returns the message for the user, or empty for none.
+    using Queuer     = std::function<std::shared_ptr<LinkOperation> (AppleLinkSession & session)>;
+    using Completion = std::function<std::wstring (const LinkOperation & operation)>;
+
+    HRESULT  Submit (const std::string & name, const Queuer & queue, Completion completion);
+
+    //  The completions of the operations that finished, run on the window's
+    //  thread; their messages are returned.
+    std::vector<std::wstring>  RunCompletions ();
+
+    //  Operations submitted and not yet finished, in the order they run.
+    std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
+
+    //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
+    //  where the target requests the bytes and nothing else can run until
+    //  they arrive.
+    HRESULT  WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, FilePayload & outPayload);
+
+    //  The text for an operation that failed.
+    static std::wstring  DescribeFailure (const LinkOperation & operation);
+
+    //  The status bar's text for the pending operations: the first one's
+    //  progress, and how many follow it. Empty for none.
+    static std::wstring  DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
+
     //  Drops what was read from a drive, so it is read again.
     void  Invalidate (const std::string & name, int drive);
 
@@ -71,6 +100,8 @@ public:
 
     //  The text under a link's root in place of its drives.
     static std::wstring  DescribeState (LinkState state, bool servingAdtPro);
+
+    static constexpr DWORD  kWaitPollMs = 20;
 
 private:
     class Sink : public IAppleLinkSessionSink
@@ -107,6 +138,15 @@ private:
     IDiskFileIo                        & m_fileIo;
     std::vector<AppleLinkSettings>       m_links;
     std::vector<std::unique_ptr<Link>>   m_started;
+
+    struct Job
+    {
+        std::string                     link;
+        std::shared_ptr<LinkOperation>  operation;
+        Completion                      completion;
+    };
+
+    std::vector<Job>                     m_jobs;
     mutable std::mutex                   m_lock;
     std::atomic<bool>                    m_changed { false };
     HWND                                 m_hwnd    = nullptr;

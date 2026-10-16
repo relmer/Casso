@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/AppleSingleCodec.h"
@@ -136,6 +137,22 @@ public:
     std::vector<Verb>  GetListVerbs() const;
 
     Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style);
+
+    //  The list's Apple drive: its link, drive and directory. False when the
+    //  list is not on one.
+    bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const;
+
+    //  Files from an image onto the list's Apple drive, as one image's files
+    //  copy onto another: the bytes as stored, the type mapped between file
+    //  systems. A folder is not copied.
+    Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths);
+
+    //  A file read from an Apple, converted as a copy out of an image is,
+    //  and wrapped for HostFileNaming::Style::AppleSingle.
+    static HRESULT  ToHostBytes (FilePayload payload, Encoding encoding, bool appleSingle, const AppleSingleFile & single, std::vector<Byte> & outBytes);
+
+    //  A host file as the payload a put plan makes of it.
+    static HRESULT  MakePayload (const std::wstring & hostPath, const PutPlan & plan, const std::vector<Byte> & bytes, VolumeKind kind, FilePayload & outPayload);
     Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {});
 
     //  Host files and folders into a directory of an image, by Put's rules. A
@@ -230,6 +247,23 @@ public:
     Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath);
     Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
 
+    //  The open Apple drive's whole disk read into an image file, or written
+    //  from one, over the link. Each is queued and reported when it is done.
+    //  A read with sectors it could not read calls onUnreadable instead of
+    //  reporting a failure, so the user can choose to read it again with
+    //  those sectors written as zeros.
+    using UnreadableFn = std::function<void (const LinkOperation & operation)>;
+
+    Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable);
+    Outcome  WriteImageToDisk (const std::wstring & imagePath);
+
+    //  The open Apple drive for the write's confirmation: its slot, drive
+    //  and volume.
+    std::wstring  DescribeAppleDrive () const;
+
+    //  Stops the open Apple drive's link's running operation.
+    void  CancelLinkOperation ();
+
     //  Up to three whole numbers separated by spaces or commas, as typed into
     //  the raw verbs' prompts. Fewer than `required` fails; a missing count
     //  is one.
@@ -291,6 +325,18 @@ private:
     static void  AppendMessage (Outcome & inOutOutcome, HRESULT hr, const std::wstring & message);
 
     bool  IsHostFolder    (const std::wstring & path);
+
+    //  The verbs on an Apple drive. Each queues its operations on the link
+    //  and returns at once; each result is reported when the link's
+    //  completions run.
+    Outcome  GetFromAppleDrive        (const std::wstring & hostFolder, HostFileNaming::Style style);
+    Outcome  PutOnAppleDrive          (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress);
+    Outcome  DeleteOnAppleDrive       ();
+    Outcome  RenameOnAppleDrive       (const std::string & newName);
+    Outcome  CreateFolderOnAppleDrive (const std::string & name);
+    void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
+                                       const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Outcome & inOutOutcome);
+    void     SubmitWrite              (const std::string & link, int drive, AppleLinkConnections::Queuer queue, Outcome & inOutOutcome);
     void  CopyEntry       (const std::string & sourceImage, VolumeKind sourceKind, const std::string & catalogPath,
                            const std::string & targetImage, VolumeKind targetKind, const std::string & directory,
                            int depth, Outcome & inOutOutcome);

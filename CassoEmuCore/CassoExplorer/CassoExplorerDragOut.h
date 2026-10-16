@@ -50,6 +50,12 @@ public:
     //  A DROPFILES block with its double-terminated wide path list.
     static std::vector<uint8_t>  MakeHDrop (const std::vector<std::wstring> & paths);
 
+    //  The formats for files selected on a linked Apple's drive.
+    static std::vector<DxuiDragDropSource::Format>  BuildAppleDriveFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style);
+
+    //  How long a drop waits for each file from an Apple.
+    static constexpr DWORD  kDropWaitMs = 60000;
+
     //  The conversion a descriptor's host name asks for.
     static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
 };

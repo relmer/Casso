@@ -84,10 +84,11 @@ void AppleLinkConnections::SetLinks (const std::vector<AppleLinkSettings> & link
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AppleLinkConnections::Start (const std::string & name)
+HRESULT AppleLinkConnections::Start (const std::string & name, bool search)
 {
     HRESULT                hr       = S_OK;
     std::unique_ptr<Link>  link;
+    AppleLinkSettings      opening;
     auto                   settings = std::find_if (m_links.begin(), m_links.end(), [&name] (const AppleLinkSettings & s) { return s.name == name; });
     bool                   known    = settings != m_links.end();
 
@@ -101,7 +102,15 @@ HRESULT AppleLinkConnections::Start (const std::string & name)
     link->sink     = std::make_unique<Sink> (*this);
     link->session  = std::make_unique<AppleLinkSession> (m_factory, m_folder, m_fileIo, *link->sink);
 
-    hr = link->session->Start (link->settings);
+    //  A search opens the ports in turn even when the link has one set.
+    opening = link->settings;
+
+    if (search)
+    {
+        opening.port.clear();
+    }
+
+    hr = link->session->Start (opening);
     CHR (hr);
 
     {
@@ -326,6 +335,245 @@ bool AppleLinkConnections::TryGetFile (const std::string & name, int drive, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkConnections::Submit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkConnections::Submit (const std::string & name, const Queuer & queue, Completion completion)
+{
+    HRESULT  hr      = S_OK;
+    Link   * link    = nullptr;
+    bool     started = false;
+
+
+
+    if (!IsStarted (name))
+    {
+        hr = Start (name);
+        CHR (hr);
+    }
+
+    link    = FindLink (name);
+    started = link != nullptr;
+    CBREx (started, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_jobs.push_back (Job { name, queue (*link->session), std::move (completion) });
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::RunCompletions
+//
+//  The finished jobs are taken under the lock and completed outside it, as a
+//  completion may queue more.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> AppleLinkConnections::RunCompletions()
+{
+    std::vector<Job>           finished;
+    std::vector<std::wstring>  messages;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        for (auto job = m_jobs.begin(); job != m_jobs.end(); )
+        {
+            LinkOperationState  state = job->operation->state;
+
+            if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
+            {
+                job++;
+                continue;
+            }
+
+            finished.push_back (std::move (*job));
+            job = m_jobs.erase (job);
+        }
+    }
+
+    for (const Job & job : finished)
+    {
+        std::wstring  message = job.completion ? job.completion (*job.operation) : std::wstring();
+
+        if (!message.empty())
+        {
+            messages.push_back (message);
+        }
+    }
+
+    return messages;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::GetPendingJobs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::shared_ptr<LinkOperation>> AppleLinkConnections::GetPendingJobs() const
+{
+    std::vector<std::shared_ptr<LinkOperation>>  pending;
+    std::lock_guard<std::mutex>                  lock (m_lock);
+
+
+
+    for (const Job & job : m_jobs)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
+        {
+            pending.push_back (job.operation);
+        }
+    }
+
+    return pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::WaitForFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkConnections::WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, FilePayload & outPayload)
+{
+    HRESULT      hr      = S_OK;
+    std::string  message;
+    auto         until   = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    bool         arrived = false;
+
+
+
+    while (!arrived && std::chrono::steady_clock::now() < until)
+    {
+        arrived = TryGetFile (name, drive, path, outPayload, hr, message);
+
+        if (!arrived)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (kWaitPollMs));
+        }
+    }
+
+    CBREx (arrived, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::DescribeJobs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkConnections::DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs)
+{
+    std::wstring  text;
+    std::wstring  what;
+
+
+
+    if (jobs.empty())
+    {
+        return text;
+    }
+
+    switch (jobs[0]->kind)
+    {
+        case LinkOperationKind::ReadFile:        what = L"Reading a file";    break;
+        case LinkOperationKind::WriteFile:       what = L"Writing a file";    break;
+        case LinkOperationKind::Delete:          what = L"Deleting";          break;
+        case LinkOperationKind::Rename:          what = L"Renaming";          break;
+        case LinkOperationKind::MakeDirectory:   what = L"Making a folder";   break;
+        case LinkOperationKind::RemoveDirectory: what = L"Deleting a folder"; break;
+        case LinkOperationKind::ReadDisk:        what = L"Reading the disk";  break;
+        case LinkOperationKind::WriteDisk:       what = L"Writing the disk";  break;
+        default:                                 what = L"Working";           break;
+    }
+
+    text = std::format (L"{} in drive {}: {}%", what, jobs[0]->drive, jobs[0]->progress.load());
+
+    if (jobs.size() > 1)
+    {
+        text += std::format (L", {} more queued", jobs.size() - 1);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::DescribeFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkConnections::DescribeFailure (const LinkOperation & operation)
+{
+    std::wstring  what = operation.path.IsEmpty() ? std::format (L"Drive {}", operation.drive) : TextEncoding::NarrowToWide (operation.path.ToString());
+    std::wstring  why;
+
+
+
+    if (!operation.message.empty())
+    {
+        return TextEncoding::NarrowToWide (operation.message);
+    }
+
+    switch (operation.result)
+    {
+        case HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT):    why = std::format (L"the disk in drive {} is write-protected.", operation.drive); break;
+        case HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND): why = L"the disk could not be read; it may be missing or unformatted.";              break;
+        case HRESULT_FROM_WIN32 (ERROR_CRC):              why = L"a sector on the disk is damaged.";                                         break;
+        case HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT):      why = L"a sector did not read back as written.";                                   break;
+        case HRESULT_FROM_WIN32 (ERROR_DISK_FULL):        why = L"the disk is full.";                                                        break;
+        case HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS):
+        case HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS):   why = L"an entry with that name is already there.";                                break;
+        case HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND):   why = L"it is not on the disk.";                                                   break;
+        case HRESULT_FROM_WIN32 (ERROR_CANCELLED):        why = L"it was canceled.";                                                         break;
+        default:                                          why = L"the Apple did not complete it.";                                           break;
+    }
+
+    return what + L": " + why;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkConnections::Invalidate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,6 +639,7 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
     {
         case LinkState::Closed:          text = L"Not connected. Select the link to connect.";               break;
         case LinkState::Opening:         text = L"Opening the connection...";                                 break;
+        case LinkState::Searching:       text = L"Searching the COM ports for the Apple...";                  break;
         case LinkState::WaitingForReady: text = L"Waiting for the Apple to answer...";                        break;
         case LinkState::LoadingProgram:  text = L"Loading Casso's program into the Apple...";                 break;
         case LinkState::Ready:           text = L"Connected.";                                                break;

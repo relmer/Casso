@@ -83,6 +83,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     ApplyToolbarRows (kCommandBarRows);
     ApplyToolbarRows (kRecycleBinRows);
     ApplyToolbarRows (kArchiveRows);
+    ApplyToolbarRows (kAppleDriveRows);
     ApplyToolbarRows (kPreviewToolbarRows);
 }
 
@@ -368,26 +369,32 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildToolbarEntries() con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (bool recycleBin, bool archive) const
+std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (CommandBarExtra extra) const
 {
     std::vector<DxuiToolbar::Entry>  entries = BuildEntries (kCommandBarRows);
-    std::vector<DxuiToolbar::Entry>  bin;
+    std::vector<DxuiToolbar::Entry>  added;
     auto                             after   = entries.end();
 
 
 
-    //  The bin's buttons, or an archive's, follow View, ahead of what lives in
-    //  See more.
-    if (recycleBin || archive)
+    switch (extra)
     {
-        bin   = recycleBin ? BuildEntries (kRecycleBinRows) : BuildEntries (kArchiveRows);
+        case CommandBarExtra::RecycleBin: added = BuildEntries (kRecycleBinRows); break;
+        case CommandBarExtra::Archive:    added = BuildEntries (kArchiveRows);    break;
+        case CommandBarExtra::AppleDrive: added = BuildEntries (kAppleDriveRows); break;
+        default:                                                                  break;
+    }
+
+    //  The location's buttons follow View, ahead of what lives in See more.
+    if (!added.empty())
+    {
         after = std::find_if (entries.begin(), entries.end(), [] (const DxuiToolbar::Entry & entry)
         {
             return entry.command != nullptr && entry.command->id == kView;
         });
 
         after = (after == entries.end()) ? after : after + 1;
-        entries.insert (after, bin.begin(), bin.end());
+        entries.insert (after, added.begin(), added.end());
     }
 
     for (DxuiToolbar::Entry & entry : entries)
