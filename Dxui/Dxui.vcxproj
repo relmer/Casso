@@ -195,6 +195,7 @@
     <ClCompile Include="Widgets\DxuiNoticeStack.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
     <ClCompile Include="Widgets\DxuiLabel.cpp" />
+    <ClCompile Include="Widgets\DxuiEditableGrid.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiListViewItems.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
@@ -318,6 +319,7 @@
     <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiNoticeStack.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
+    <ClInclude Include="Widgets\DxuiEditableGrid.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
     <ClInclude Include="Widgets\DxuiModalScrim.h" />
