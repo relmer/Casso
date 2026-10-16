@@ -56,6 +56,21 @@ public:
     //  How long a drop waits for each file from an Apple.
     static constexpr DWORD  kDropWaitMs = 60000;
 
+    //  A whole disk takes far longer to come over the link than a file.
+    static constexpr DWORD  kDiskDropWaitMs = 180000;
+
+    //  The format a linked Apple's drive drags with, the drive's id in it,
+    //  so a drop inside Casso Explorer reads the disk without waiting on it.
+    static constexpr const wchar_t *  kDriveFormatName = L"CassoExplorer.AppleDrive";
+
+    //  A linked Apple's whole drive as one image file, its volume in its name:
+    //  the drive's id for Casso Explorer's own drops, and the image's bytes,
+    //  read over the link when a drop elsewhere requests them.
+    static std::vector<DxuiDragDropSource::Format>  BuildDiskFormats (CassoExplorerBrowser & browser, const std::wstring & driveId);
+
+    //  The drive id a drag of a whole drive has, or false for any other drag.
+    static bool  TryGetDraggedDrive (IDataObject * data, std::wstring & outDriveId);
+
     //  The conversion a descriptor's host name asks for.
     static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
 };

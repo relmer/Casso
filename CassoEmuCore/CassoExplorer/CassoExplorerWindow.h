@@ -609,6 +609,17 @@ private:
     void  ShowShellPreviewBytes   ();
     void  ExtractAll();
     void  ReadDiskToImage   (bool blankUnreadable = false, const std::wstring & imagePath = std::wstring());
+
+    //  An image onto a linked Apple's drive: the drive is checked for the
+    //  link disk, the user confirms, and the write is queued.
+    void  StartImageWrite   (const Location & drive, const std::wstring & imagePath);
+
+    //  A drag of a linked Apple's whole drive, from its node in the tree.
+    void  BeginDriveDrag    (const Location & drive);
+
+    //  The linked Apple's drive a drop would land on: a drive's node or row,
+    //  or the drive in the list.
+    bool  TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive);
     void  WriteImageToDisk  ();
     void  SaveLinkToDisk    ();
     void  SaveLinkDiskImage (const std::string & name);
@@ -707,6 +718,7 @@ private:
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    void  ReleaseIdleLinks    ();
     void  ApplyLinks          ();
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
     void  ApplyNavPaneOptions ();
@@ -919,6 +931,17 @@ private:
     //  Why each row's image is broken, as its cells are built; empty for the
     //  rest.
     std::vector<std::wstring>                 m_rowProblems;
+
+    //  A press on a drive's node in the tree, which drags the whole drive once
+    //  the pointer moves far enough.
+    struct TreeDrag
+    {
+        bool      armed = false;
+        POINT     start = {};
+        Location  drive;
+    };
+
+    TreeDrag  m_treeDrag;
 
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;

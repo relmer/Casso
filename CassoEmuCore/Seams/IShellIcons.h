@@ -29,7 +29,7 @@ public:
     //  Integer BASIC, binary, system or relocatable.
     enum class Kind
     {
-        ThisPc, Folder, File, Casso, RecycleBin, DiskImage,
+        ThisPc, Folder, File, Casso, RecycleBin, DiskImage, AppleMachine,
         AppleText, AppleApplesoft, AppleInteger, AppleBinary, AppleSystem, AppleRelocatable,
         Search,
     };

@@ -263,4 +263,30 @@ public:
 
         Assert::AreEqual (std::wstring (L"Dial ATDT relmer-pc.local:6400 from the modem."), AppleLinkConnections::DescribeDial (L"relmer-pc", modem));
     }
+
+
+
+    TEST_METHOD (TheWaitingText_NamesTheMachine_AndWhatToDo)
+    {
+        AppleLinkSettings  link;
+
+        link.name = "My //c";
+        link.port = "COM3";
+
+        Assert::AreEqual (std::wstring (L"Searching for My //c on COM3 at 115,200 baud. Boot a link disk on the Apple, or choose Bootstrap the Apple from My //c's menu."),
+                          AppleLinkConnections::DescribeState (LinkState::Disconnected, false, link, L"pc"));
+
+        link.transport = LinkTransport::Emulated;
+        link.address   = "127.0.0.1:6502";
+        Assert::AreEqual (std::wstring (L"Waiting for My //c on 127.0.0.1:6502. Boot a link disk in that Casso to connect."),
+                          AppleLinkConnections::DescribeState (LinkState::WaitingForReady, false, link, L"pc"));
+
+        link.transport = LinkTransport::WifiModem;
+        link.address   = "0.0.0.0:6400";
+        Assert::AreEqual (std::wstring (L"Waiting for My //c to dial relmer-pc.local:6400. Boot that Apple from a link disk saved from My //c."),
+                          AppleLinkConnections::DescribeState (LinkState::Opening, false, link, L"relmer-pc"));
+
+        Assert::AreEqual (std::wstring (L"Click My //c to connect."), AppleLinkConnections::DescribeState (LinkState::Closed, false, link, L"pc"));
+        Assert::AreEqual (std::wstring (L"1,200"), AppleLinkConnections::FormatBaud (1200));
+    }
 };

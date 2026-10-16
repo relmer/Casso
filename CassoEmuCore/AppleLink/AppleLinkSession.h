@@ -52,6 +52,7 @@ enum class LinkOperationKind
     RemoveDirectory,
     ReadDisk,
     WriteDisk,
+    CheckLinkDisk,
     Bootstrap,
     SaveLink,
 };
@@ -89,6 +90,9 @@ struct LinkOperation
     std::string                      imagePath;
     bool                             blankUnreadable = false;
     std::vector<std::pair<int, int>> unreadable;
+
+    //  Check link disk: whether the drive has the link's boot disk.
+    bool                             linkDisk = false;
 };
 
 
@@ -126,8 +130,9 @@ public:
 //  queue of operations, run one at a time on the session's own thread
 //  (FR-098). Every request returns at once with its queued operation.
 //
-//  The stream is opened when the session starts, and again when a request
-//  arrives after the line drops. Opening waits for the Apple's
+//  The stream is opened when the session starts. With no Apple answering,
+//  or after the line drops, it is opened again every kRetryMs, and at once
+//  when a request arrives. Opening waits for the Apple's
 //  Ready at the bootstrap speed, loads the program when its version
 //  differs, and switches to the link's speed. While nothing is queued, Idle
 //  is sent in reply to each Ready.
@@ -144,6 +149,7 @@ public:
     static constexpr DWORD  kConnectTimeoutMs = 20000;
     static constexpr DWORD  kIdlePollMs       = 100;
     static constexpr DWORD  kPromptMs         = 2000;
+    static constexpr DWORD  kRetryMs          = 5000;
     static constexpr int    kDriveCount       = 2;
 
     //  The folder is the one ADTPro's own clients are served from, between
@@ -160,6 +166,9 @@ public:
     //  typed in first (FR-092), and the returned operation finishes when the
     //  program is running or the Apple does not answer.
     HRESULT    StartWithBootstrap (const AppleLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
+
+    //  How long a disconnected session waits before connecting again.
+    void       SetRetryInterval (DWORD retryMs) { m_retryMs = retryMs; }
 
     //  The pause after each line of the loader.
     void       SetBootstrapPause (DWORD pauseMs) { m_bootstrapPauseMs = pauseMs; }
@@ -196,6 +205,10 @@ public:
     //  tracks do not all decode to standard sectors fails before any track
     //  is written.
     std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath);
+
+    //  Whether the drive has the link's boot disk, by its boot sector: a write
+    //  over it, the Apple has no disk to start the link from.
+    std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
 
     //  Physical sector to DOS-logical and back, within a track.
     static int  GetLogicalSector  (int physical);
@@ -238,6 +251,7 @@ private:
     HRESULT  RunWrite      (LinkOperation & operation, const LinkedDisk::WriteOperation & write);
     HRESULT  ReadWholeDisk (LinkOperation & operation);
     HRESULT  WriteWholeDisk (LinkOperation & operation);
+    HRESULT  ReadBootSector (LinkOperation & operation);
     HRESULT  ReadTrack     (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);
     void     Report        (LinkOperation & operation, int progress);
 
@@ -265,6 +279,7 @@ private:
     uint64_t                                    m_nextId           = 1;
     DWORD                                       m_connectTimeoutMs = kConnectTimeoutMs;
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
+    DWORD                                       m_retryMs          = kRetryMs;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;
     std::jthread                                m_thread;

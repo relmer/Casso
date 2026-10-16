@@ -600,4 +600,20 @@ public:
         operation.kind = LinkOperationKind::ReadDisk;
         Assert::AreEqual (std::string ("READING DRIVE 2 TO AN IMAGE"), AppleLinkSession::DescribeOperation (operation));
     }
+
+
+
+    TEST_METHOD (ALinkStartedBeforeItsApple_ConnectsOnItsOwn_WhenTheAppleAnswers)
+    {
+        Rig  rig;
+
+        rig.factory.answer = false;
+        rig.session->SetRetryInterval (100);
+        rig.Start (300);
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected), L"no Apple yet");
+
+        rig.factory.answer = true;
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"connected with no request made");
+    }
 };

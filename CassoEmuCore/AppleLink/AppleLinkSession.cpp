@@ -263,6 +263,21 @@ std::shared_ptr<LinkOperation> AppleLinkSession::RemoveDirectory (int drive, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkSession::CheckLinkDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> AppleLinkSession::CheckLinkDisk (int drive)
+{
+    return Queue (LinkOperationKind::CheckLinkDisk, drive, FilePath());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkSession::ReadDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -563,7 +578,10 @@ void AppleLinkSession::Run (std::stop_token stop)
                 }
 
                 m_queue.clear();
-                m_wake.wait (lock, stop, [this] () { return !m_queue.empty(); });
+
+                //  Connecting again after a while, or at once when a request arrives, so a
+                //  link started before its Apple is ready connects when it is.
+                m_wake.wait_for (lock, stop, std::chrono::milliseconds (m_retryMs), [this] () { return !m_queue.empty(); });
             }
 
             hr = stop.stop_requested() ? S_OK : Connect (stop);
@@ -1061,6 +1079,7 @@ std::string AppleLinkSession::DescribeOperation (const LinkOperation & operation
         case LinkOperationKind::RemoveDirectory: text = "DELETING FOLDER " + path;                                         break;
         case LinkOperationKind::ReadDisk:        text = std::format ("READING DRIVE {} TO AN IMAGE", operation.drive);     break;
         case LinkOperationKind::WriteDisk:       text = std::format ("WRITING AN IMAGE TO DRIVE {}", operation.drive);     break;
+        case LinkOperationKind::CheckLinkDisk:   text = std::format ("CHECKING THE DISK IN DRIVE {}", operation.drive);    break;
         default:                                 text = "WORKING";                                                         break;
     }
 
@@ -1094,7 +1113,7 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
     hr = m_host->SendLabel (DescribeOperation (operation));
     CHR (hr);
 
-    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk)
+    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk)
     {
         hr = Revalidate (operation.drive);
         CHR (hr);
@@ -1148,6 +1167,10 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::WriteDisk:
             hr = WriteWholeDisk (operation);
+            break;
+
+        case LinkOperationKind::CheckLinkDisk:
+            hr = ReadBootSector (operation);
             break;
 
         default:
@@ -1348,6 +1371,45 @@ HRESULT AppleLinkSession::ReadWholeDisk (LinkOperation & operation)
 
     hr = DurableCommit::Commit (m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkSession::ReadBootSector
+//
+//  Track 0's first sector against the link boot disk's. That sector is the
+//  loader, the same at every speed; a drive whose track 0 cannot be read has
+//  no link disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkSession::ReadBootSector (LinkOperation & operation)
+{
+    HRESULT                           hr       = S_OK;
+    std::vector<Byte>                 sectors (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>                 boot;
+    std::vector<std::pair<int, int>>  unreadable;
+    bool                              loader   = false;
+
+
+
+    hr = LinkProgram::BuildBootDisk (m_settings.baud, boot);
+    CHR (hr);
+
+    hr = ReadTrack (operation.drive, 0, sectors, unreadable);
+    CHR (hr);
+
+    loader = std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; })
+          && std::equal (boot.begin(), boot.begin() + NibblizationLayer::kSectorByteSize, sectors.begin());
+
+    operation.linkDisk = loader;
 
 Error:
     return hr;

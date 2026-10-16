@@ -119,7 +119,10 @@ public:
     bool  TakeChanged ();
 
     //  The text under a link's root in place of its drives.
-    static std::wstring  DescribeState (LinkState state, bool servingAdtPro);
+    static std::wstring  DescribeState (LinkState state, bool servingAdtPro, const AppleLinkSettings & settings, const std::wstring & pcName);
+
+    //  A speed with its thousands separated, as 115,200.
+    static std::wstring  FormatBaud    (DWORD baud);
 
     //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
     //  .local, and the link's TCP port (FR-083c).

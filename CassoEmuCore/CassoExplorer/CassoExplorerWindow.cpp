@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "AppleLink/RunningCassoRegistry.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -1625,6 +1626,8 @@ void CassoExplorerWindow::FillList()
 
 
 
+    ReleaseIdleLinks();
+
     //  The rows are about to change under it.
     if (m_renameRow >= 0)
     {
@@ -2316,7 +2319,7 @@ void CassoExplorerWindow::ReadDiskToImage (bool blankUnreadable, const std::wstr
     spec.defaultFileName  = L"disk.dsk";
     spec.defaultExtension = L"dsk";
     spec.askToReplace     = false;
-    spec.title            = L"Read disk to image";
+    spec.title            = std::format (L"Create image from {}", m_actions.DescribeAppleDrive());
 
     //  The picker's own replace prompt is Win32's; this one follows the theme,
     //  and No goes back to the picker.
@@ -2373,12 +2376,10 @@ Error:
 
 void CassoExplorerWindow::WriteImageToDisk()
 {
-    HRESULT                        hr     = S_OK;
-    std::filesystem::path          picked;
-    bool                           chosen = false;
-    FileDialogSpec                 spec;
-    std::wstring                   message;
-    CassoExplorerActions::Outcome  outcome;
+    HRESULT                hr     = S_OK;
+    std::filesystem::path  picked;
+    bool                   chosen = false;
+    FileDialogSpec         spec;
 
 
 
@@ -2387,28 +2388,187 @@ void CassoExplorerWindow::WriteImageToDisk()
     spec.filters    = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid = s_kLinkDiskPickerGuid;
-    spec.title      = L"Write image to disk";
+    spec.title      = std::format (L"Write image to {}", m_actions.DescribeAppleDrive());
 
     hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, chosen);
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    message = std::format (L"Write {} to {}?\n\nEverything on the disk is replaced.", picked.filename().wstring(), m_actions.DescribeAppleDrive());
-
-    BAIL_OUT_IF (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Write image to disk",
-                                 MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK, S_OK);
-
-    outcome = m_actions.WriteImageToDisk (picked.wstring());
-
-    if (!outcome.Succeeded())
-    {
-        ShowMessage (outcome.message, MB_ICONERROR);
-    }
-
-    OnLinkChanged();
+    StartImageWrite (m_browser.GetLocation(), picked.wstring());
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::StartImageWrite
+//
+//  The drive's boot sector is read first, so the one confirmation can warn
+//  when the disk is the link disk the Apple started from: writing over it
+//  does not end the link, but no disk is left to start it from again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::StartImageWrite (const Location & drive, const std::wstring & imagePath)
+{
+    HRESULT       hr     = S_OK;
+    std::wstring  link;
+    int           slot   = 0;
+    int           number = 0;
+    std::wstring  title  = m_browser.GetTreeModel().GetLinkDriveTitle (drive.path);
+    std::wstring  file   = std::filesystem::path (imagePath).filename().wstring();
+    std::string   name;
+
+
+
+    if (!TreeModel::TryParseLinkId (drive.path, link, slot, number) || number == 0)
+    {
+        return;
+    }
+
+    name = TextEncoding::WideToNarrow (link);
+
+    hr = m_actions.CheckLinkDisk (name, number, [this, name, number, title, file, imagePath] (bool linkDisk, HRESULT result)
+    {
+        std::wstring                   message;
+        CassoExplorerActions::Outcome  outcome;
+
+        if (FAILED (result))
+        {
+            ShowMessage (std::format (L"The disk in {} could not be read, so it was not written.", title), MB_ICONERROR);
+            return;
+        }
+
+        message = linkDisk
+                ? std::format (L"{} has the link disk this Apple started from.\n\nWriting {} over it replaces the link disk. "
+                               L"This does not end the link, but the Apple cannot start the link from that disk again "
+                               L"until you choose Save link to disk.\n\nWrite {} to {} anyway?", title, file, file, title)
+                : std::format (L"Write {} to {}?\n\nEverything on that disk is replaced.", file, title);
+
+        if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Write image",
+                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
+        {
+            return;
+        }
+
+        outcome = m_actions.WriteImageToAppleDrive (name, number, imagePath);
+
+        if (!outcome.Succeeded())
+        {
+            ShowMessage (outcome.message, MB_ICONERROR);
+        }
+    });
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+    }
+
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::BeginDriveDrag
+//
+//  The tree received the press and not the release, which the drag loop takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::BeginDriveDrag (const Location & drive)
+{
+    HRESULT                                  hr      = S_OK;
+    DWORD                                    effect  = DROPEFFECT_NONE;
+    DxuiMouseEvent                           release;
+    POINT                                    start   = {};
+    std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildDiskFormats (m_browser, drive.path);
+    BOOL                                     got     = FALSE;
+
+
+
+    release.kind   = DxuiMouseEventKind::Up;
+    release.button = DxuiMouseButton::Left;
+    m_tree->OnMouse (release);
+
+    if (formats.empty())
+    {
+        return;
+    }
+
+    got = GetCursorPos (&start);
+    IGNORE_RETURN_VALUE (got, TRUE);
+
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, start, effect);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TryGetAppleDropDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive)
+{
+    POINT                 client = screen;
+    RECT                  list   = m_list->GetBounds();
+    int                   row    = -1;
+    const DxuiTreeNode  * node   = nullptr;
+    Location              location;
+
+
+
+    ScreenToClient (GetHwnd(), &client);
+
+    if (tag == kDropTagTree)
+    {
+        row  = m_tree->HitTestRow (client.x, client.y);
+        node = (row >= 0) ? m_tree->GetNodeAt (row) : nullptr;
+
+        if (node != nullptr && m_browser.TryGetNodeLocation (node->id, location) && location.kind == Location::Kind::AppleDrive)
+        {
+            outDrive = location;
+            return true;
+        }
+
+        return false;
+    }
+
+    if (tag != kDropTagList)
+    {
+        return false;
+    }
+
+    row = m_list->IsVisible() ? m_list->HitTestRow (client.x - list.left, client.y - list.top) : -1;
+
+    if (row >= 0 && m_browser.TryGetRowLocation (row, location) && location.kind == Location::Kind::AppleDrive)
+    {
+        outDrive = location;
+        return true;
+    }
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        outDrive = m_browser.GetLocation();
+        return true;
+    }
+
+    return false;
 }
 
 
@@ -3657,6 +3817,25 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A press on a drive's node drags the whole drive once the pointer has
+    //  moved far enough, as a list row's press drags its selection.
+    if (m_treeDrag.armed)
+    {
+        if (ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Leave)
+        {
+            m_treeDrag.armed = false;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Move
+              && (abs (point.x - m_treeDrag.start.x) > GetSystemMetrics (SM_CXDRAG)
+               || abs (point.y - m_treeDrag.start.y) > GetSystemMetrics (SM_CYDRAG)))
+        {
+            m_treeDrag.armed = false;
+            BeginDriveDrag (m_treeDrag.drive);
+            Invalidate();
+            return true;
+        }
+    }
+
     //  The tree takes points in the window's coordinates, as its press did, so
     //  a drag that started there keeps the same origin.
     if (m_tree->IsInteracting())
@@ -3706,6 +3885,21 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
             }
 
             return true;
+        }
+
+        if (press && ev.button == DxuiMouseButton::Left)
+        {
+            int                   row  = m_tree->HitTestRow (point.x, point.y);
+            const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
+            Location              drive;
+
+            if (node != nullptr && m_browser.TryGetNodeLocation (node->id, drive)
+                && drive.kind == Location::Kind::AppleDrive && drive.innerPath.empty())
+            {
+                m_treeDrag.armed = true;
+                m_treeDrag.start = point;
+                m_treeDrag.drive = drive;
+            }
         }
 
         m_tree->OnMouse (ev);
@@ -7637,6 +7831,7 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
     Location      location;
     DropSource    source;
     std::wstring  hostFolder;
+    std::wstring  driveId;
     bool          readOnly = false;
     HRESULT       hr       = S_OK;
     DWORD         effect   = DROPEFFECT_NONE;
@@ -7659,6 +7854,27 @@ DWORD CassoExplorerWindow::GetDropEffect (IDataObject * data, int tag, POINT scr
         DescribeDrop   (data, DROPEFFECT_NONE, location);
 
         return DROPEFFECT_NONE;
+    }
+
+    //  A linked Apple's whole drive, onto a host folder: its image is made
+    //  there by Casso Explorer, with no waiting in the drop.
+    if (data != nullptr && CassoExplorerDragOut::TryGetDraggedDrive (data, driveId))
+    {
+        LeaveHostDrop();
+
+        effect = (TryGetHostDropFolder (tag, screen, hostFolder) && !hostFolder.starts_with (L"shell:")) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+
+        ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
+        return effect;
+    }
+
+    //  Onto a linked Apple's drive: an image is written to the whole disk, and
+    //  files are copied in.
+    if (data != nullptr && TryGetAppleDropDrive (tag, screen, location) && ReadDropSource (data, source))
+    {
+        LeaveHostDrop();
+        ShowDropTarget (tag, screen, true);
+        return DROPEFFECT_COPY;
     }
 
 
@@ -7988,6 +8204,7 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     DWORD                          effect     = DROPEFFECT_NONE;
     BOOL                           posted     = FALSE;
     std::wstring                   hostFolder;
+    std::wstring                   driveId;
     POINTL                         at         = { screen.x, screen.y };
 
 
@@ -8017,12 +8234,54 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         return;
     }
 
-    //  Onto the linked Apple's drive in the list: host files by the put
-    //  rules, an image's files as they are stored. Each write goes over the
-    //  link, and is reported when it is done.
-    if (tag != kDropTagTree && m_browser.IsAppleDriveLocation() && ReadDropSource (data, source))
+    //  A linked Apple's whole drive onto a host folder: its image, made there.
+    if (CassoExplorerDragOut::TryGetDraggedDrive (data, driveId) && TryGetHostDropFolder (tag, screen, hostFolder) && !hostFolder.starts_with (L"shell:"))
     {
+        std::wstring  link;
+        int           slot  = 0;
+        int           drive = 0;
+
+        LeaveHostDrop();
         m_dropTarget.SetDropResult (DROPEFFECT_COPY);
+
+        if (TreeModel::TryParseLinkId (driveId, link, slot, drive))
+        {
+            outcome = m_actions.CreateImageFromAppleDrive (TextEncoding::WideToNarrow (link), drive, hostFolder);
+
+            if (!outcome.Succeeded())
+            {
+                ShowMessage (outcome.message, MB_ICONERROR);
+            }
+
+            OnLinkChanged();
+        }
+
+        return;
+    }
+
+    //  Onto a linked Apple's drive: one disk image dropped on the drive itself
+    //  is written to the whole disk; files, or an image's files, are copied
+    //  in. Each write goes over the link, and is reported when it is done.
+    if (TryGetAppleDropDrive (tag, screen, location) && ReadDropSource (data, source))
+    {
+        DiskFormat  format = DiskFormat::Dsk;
+        bool        single = !source.fromImage && source.hostPaths.size() == 1 && location.innerPath.empty();
+        HRESULT     known  = single ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
+        bool        image  = single && SUCCEEDED (known);
+
+        LeaveHostDrop();
+        m_dropTarget.SetDropResult (DROPEFFECT_COPY);
+
+        if (image)
+        {
+            StartImageWrite (location, source.hostPaths[0]);
+            return;
+        }
+
+        if (m_browser.GetLocation().path != location.path || m_browser.GetLocation().innerPath != location.innerPath)
+        {
+            GoToLocation (location);
+        }
 
         outcome = source.fromImage ? m_actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_actions.PutFiles (source.hostPaths, MakeAddressPrompt());
@@ -8832,6 +9091,17 @@ std::wstring CassoExplorerWindow::GetCommandLabel (int id) const
     if (id == CassoExplorerCommands::kRestoreItems && !m_browser.GetSelectedRows().empty())
     {
         return L"Restore the selected items";
+    }
+
+    //  A linked Apple's drive by its slot, drive and volume.
+    if (id == CassoExplorerCommands::kReadDiskToImage && m_browser.IsAppleDriveLocation())
+    {
+        return std::format (L"Create image from {}...", m_actions.DescribeAppleDrive());
+    }
+
+    if (id == CassoExplorerCommands::kWriteImageToDisk && m_browser.IsAppleDriveLocation())
+    {
+        return std::format (L"Write image to {}...", m_actions.DescribeAppleDrive());
     }
 
     return std::wstring();
@@ -9725,8 +9995,10 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
         {
             //  A drive's whole disk, read or written from its node.
-            AddMenuCommand (items, L"Read disk to &image...", [this, location]() { GoToLocation (location); ReadDiskToImage(); });
-            AddMenuCommand (items, L"&Write image to disk...", [this, location]() { GoToLocation (location); WriteImageToDisk(); });
+            std::wstring  title = m_browser.GetTreeModel().GetLinkDriveTitle (location.path);
+
+            AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { GoToLocation (location); ReadDiskToImage(); });
+            AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { GoToLocation (location); WriteImageToDisk(); });
             AddMenuCommand (items, L"Save &link to disk...",   [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
         }
     }
@@ -10084,6 +10356,56 @@ void CassoExplorerWindow::BootstrapLink (const std::string & name)
     }
 
     OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ReleaseIdleLinks
+//
+//  A link connects only while its machine, or one of its drives, is the
+//  location. One that has not connected by the time the user goes elsewhere is
+//  stopped, closing its port; one that has connected, or is bootstrapping or
+//  loading the program, stays.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ReleaseIdleLinks()
+{
+    std::wstring              current;
+    int                       slot    = 0;
+    int                       drive   = 0;
+    std::vector<std::string>  release;
+
+
+
+    if (m_context.links == nullptr)
+    {
+        return;
+    }
+
+    TreeModel::TryParseLinkId (m_browser.GetLocation().path, current, slot, drive);
+
+    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    {
+        AppleLinkSession  * session   = m_context.links->GetSession (settings.name);
+        LinkState           state     = session != nullptr ? session->GetState() : LinkState::Closed;
+        bool                connected = state == LinkState::Ready || state == LinkState::Busy
+                                     || state == LinkState::Bootstrapping || state == LinkState::LoadingProgram;
+
+        if (session != nullptr && !connected && TextEncoding::NarrowToWide (settings.name) != current)
+        {
+            release.push_back (settings.name);
+        }
+    }
+
+    for (const std::string & name : release)
+    {
+        m_context.links->Stop (name);
+    }
 }
 
 

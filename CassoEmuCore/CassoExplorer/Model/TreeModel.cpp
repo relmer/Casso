@@ -940,7 +940,7 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes) const
         node.kind      = TreeNode::Kind::AppleLink;
         node.label     = link.name;
         node.location  = Location::MakeRoot (node.id);
-        node.canExpand = true;
+        node.canExpand = link.replying && !link.drives.empty();
 
         outNodes.push_back (node);
     }
@@ -952,10 +952,122 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::GetLinkDriveTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
+{
+    std::wstring  name;
+    int           slot  = 0;
+    int           drive = 0;
+    std::wstring  title;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return title;
+    }
+
+    title = GetLinkDriveLabel (slot, drive);
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            if (row.slot == slot && row.drive == drive)
+            {
+                title = GetLinkDriveLabel (row);
+            }
+        }
+    }
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListLinkFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const
+{
+    HRESULT       hr     = S_OK;
+    std::wstring  name;
+    int           slot   = 0;
+    int           drive  = 0;
+    bool          parsed = TryParseLinkId (driveId, name, slot, drive) && drive != 0;
+
+
+
+    CBREx (parsed, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            if (row.slot != slot || row.drive != drive)
+            {
+                continue;
+            }
+
+            for (const std::wstring & folder : row.folders)
+            {
+                TreeNode  node;
+
+                node.id        = driveId + L"/" + folder;
+                node.kind      = TreeNode::Kind::AppleDrive;
+                node.label     = folder;
+                node.location  = Location::MakeAppleDrive (driveId, TextEncoding::WideToNarrow (folder));
+                node.canExpand = false;
+
+                outNodes.push_back (node);
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetLinkStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::GetLinkStatus (const std::wstring & name, std::wstring & outStatus) const
+{
+    auto  found = std::find_if (m_links.begin(), m_links.end(), [&name] (const LinkTreeEntry & link) { return link.name == name; });
+    bool  waiting = found != m_links.end() && !found->replying;
+
+
+
+    outStatus = waiting ? found->status : std::wstring();
+
+    return waiting;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListLink
 //
-//  A link's drives, or, with no Apple replying, one row with its state and
-//  the reason, which opens nothing.
+//  A link's drives once its Apple replies, and nothing before; the list has
+//  the link's state then (GetLinkStatus).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -969,18 +1081,6 @@ HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & 
 
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    if (!found->replying)
-    {
-        TreeNode  status;
-
-        status.id        = MakeLinkId (name) + kSeparator + L"status";
-        status.kind      = TreeNode::Kind::AppleLink;
-        status.label     = found->status;
-        status.canExpand = false;
-
-        outNodes.push_back (status);
-    }
-
     for (const LinkTreeEntry::Drive & drive : found->replying ? found->drives : std::vector<LinkTreeEntry::Drive>())
     {
         TreeNode  node;
@@ -989,7 +1089,7 @@ HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & 
         node.kind      = TreeNode::Kind::AppleDrive;
         node.label     = GetLinkDriveLabel (drive);
         node.location  = Location::MakeAppleDrive (node.id, std::string());
-        node.canExpand = false;
+        node.canExpand = !drive.folders.empty();
         node.missing   = drive.empty;
 
         outNodes.push_back (node);
@@ -1545,10 +1645,15 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     }
     else if (id.starts_with (kLinkRootTag))
     {
-        //  A drive's directories are in the list, not the tree.
+        //  A link's drives, and a ProDOS drive's top-level folders; deeper
+        //  folders are in the list.
         if (id.find (kSeparator) == std::wstring::npos)
         {
             hr = ListLink (GetRootLabel (id), outNodes);
+        }
+        else
+        {
+            hr = ListLinkFolders (id, outNodes);
         }
     }
     else if (id.rfind (kCassoRootId, 0) == 0)

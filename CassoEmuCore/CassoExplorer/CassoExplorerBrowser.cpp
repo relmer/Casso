@@ -703,10 +703,9 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
     hr = m_tree.GetChildren (id, m_rootChildren);
     CHR (hr);
 
-    if (m_rootChildren.size() == 1 && m_rootChildren[0].kind == TreeNode::Kind::AppleLink)
+    if (m_rootChildren.empty() && TreeModel::TryParseLinkId (id, link, slot, drive))
     {
-        m_listError = m_rootChildren[0].label;
-        m_rootChildren.clear();
+        m_tree.GetLinkStatus (link, m_listError);
     }
 
     for (index = 0; index < m_rootChildren.size(); index++)
@@ -4309,6 +4308,8 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
         case TreeNode::Kind::RecycleBinRoot: return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
+        case TreeNode::Kind::AppleLink:     return icons.GetForKind (IShellIcons::Kind::AppleMachine);
+        case TreeNode::Kind::AppleDrive:    return icons.GetForKind (IShellIcons::Kind::DiskImage);
         //  Every remaining node is a drive or a host folder; a disk image node
         //  has Casso's floppy.
         case TreeNode::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);

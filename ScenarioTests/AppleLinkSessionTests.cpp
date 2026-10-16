@@ -354,4 +354,36 @@ public:
         AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
         Assert::AreEqual (std::string ("CONNECTED"), rig.Row (kRow3, kField));
     }
+
+
+
+    //  A whole 140 KB disk at 115,200 baud, at the //c's own speed. SC-027
+    //  sets 30 seconds; the line alone takes about 12.5.
+    TEST_METHOD (ReadDisk_At115200_TakesUnder36Seconds)
+    {
+        Rig       rig (true, 115200);
+        uint64_t  spent = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+
+        auto  disk    = rig.session->ReadDisk (1, "m.dsk", false);
+        auto  started = std::chrono::steady_clock::now();
+
+        //  At the //c's own speed, so each wait on the PC costs what it would on
+        //  a real //c rather than many emulated frames.
+        while (!rig.sink.IsDone (disk) && spent < kBudget)
+        {
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+
+            while (std::chrono::steady_clock::now() - started < std::chrono::microseconds (spent * 1'000'000 / 1'020'484))
+            {
+                std::this_thread::sleep_for (std::chrono::milliseconds (1));
+            }
+        }
+
+        Logger::WriteMessage (std::format ("Read disk: {:.1f} seconds", spent / 1020484.0).c_str());
+        AssertSucceeded (disk->result);
+        Assert::IsTrue (spent < 36ULL * 1'020'484, L"a whole disk in under 36 seconds");
+    }
 };

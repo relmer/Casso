@@ -62,6 +62,9 @@ struct LinkTreeEntry
         int           drive   = 1;
         bool          empty   = false;
         std::wstring  volume;
+
+        //  A ProDOS drive's top-level folders, once its catalog is read.
+        std::vector<std::wstring>  folders;
     };
 
     std::wstring        name;
@@ -153,6 +156,10 @@ public:
     //  The Apple links, each a root after This PC. Their drives are listed
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
+
+    //  A link's state while its Apple is not replying, for the list in place
+    //  of its drives; false once it replies.
+    bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
     const std::vector<LinkTreeEntry> &  GetLinks () const { return m_links; }
     bool  IsNavRootShown     (NavRoot root) const;
 
@@ -206,6 +213,10 @@ public:
     static std::wstring  GetLinkDriveLabel (int slot, int drive);
     static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
 
+    //  A drive of a link, by its id, as the tree labels it: its slot, its drive
+    //  and its volume once known.
+    std::wstring  GetLinkDriveTitle (const std::wstring & driveId) const;
+
     //  A root's label in the tree, the tab and the address bar, or empty for
     //  an id that is no root.
     static std::wstring  GetRootLabel (const std::wstring & id);
@@ -219,6 +230,7 @@ private:
 
     HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
     HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
+    HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes) const;
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
     HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);

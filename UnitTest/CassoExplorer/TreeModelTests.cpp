@@ -431,19 +431,19 @@ public:
 
 
 
-    TEST_METHOD (Links_WithNoAppleReplying_ListTheStateInPlaceOfDrives)
+    TEST_METHOD (Links_WithNoAppleReplying_HaveNoChildren_AndTheirStateIsForTheList)
     {
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
         std::vector<TreeNode>  children;
+        std::wstring           status;
 
         model.SetLinks (TwoLinks());
         AssertSucceeded (model.GetChildren (L"link:Apple II (Casso)", children));
 
-        Assert::AreEqual ((size_t) 1, children.size());
-        Assert::AreEqual (std::wstring (L"Not connected: Casso is not running on port 6502"), children[0].label);
-        Assert::IsFalse  (children[0].canExpand);
-        Assert::IsTrue   (children[0].location.kind == Location::Kind::None, L"the state opens nothing");
+        Assert::IsTrue (children.empty(), L"no row under a machine that is not connected");
+        Assert::IsTrue (model.GetLinkStatus (L"Apple II (Casso)", status));
+        Assert::AreEqual (std::wstring (L"Not connected: Casso is not running on port 6502"), status);
     }
 
 

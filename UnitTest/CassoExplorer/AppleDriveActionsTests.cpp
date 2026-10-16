@@ -397,13 +397,13 @@ public:
         rig.io.files["C:\\Images\\in.dsk"] = BuildProDos();
 
         rig.Open (1);
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 of Test (volume 254)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (DOS 3.3 volume 254)"), rig.actions->DescribeAppleDrive());
 
         AssertSucceeded (rig.actions->WriteImageToDisk (L"C:\\Images\\in.dsk").hr);
         Assert::IsTrue (rig.Finish().empty());
 
         Assert::IsTrue (rig.Drive (1) == rig.io.files["C:\\Images\\in.dsk"]);
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 of Test (volume LINKED)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/LINKED)"), rig.actions->DescribeAppleDrive());
     }
 
 
@@ -486,5 +486,67 @@ public:
 
         AssertSucceeded (LinkProgram::BuildShim (115200, shim, dial));
         Assert::AreEqual (dial, std::string (reinterpret_cast<const char *> (shim.data() + LinkProgram::kDialOffset)), L"the command, ending in a zero byte");
+    }
+
+
+
+    TEST_METHOD (CreateImageFromAppleDrive_NamesItForTheVolume_AndMakesTheNameFree)
+    {
+        Rig  rig;
+
+        rig.Open (1);
+        rig.io.files["C:\\Out\\DOS 3.3 volume 254.dsk"] = std::vector<Byte> (10, 0);
+
+        AssertSucceeded (rig.actions->CreateImageFromAppleDrive ("Test", 1, L"C:\\Out").hr);
+        Assert::IsTrue (rig.Finish().empty());
+
+        Assert::IsTrue (rig.io.files["C:\\Out\\DOS 3.3 volume 254 (2).dsk"] == rig.Drive (1), L"a name no file in the folder has");
+    }
+
+
+
+
+    TEST_METHOD (MakeDriveImageName_UsesTheVolume)
+    {
+        VolumeListing  listing;
+
+        Assert::AreEqual (std::wstring (L"Slot 6 Drive 2.dsk"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::Unknown, 6, 2));
+
+        listing.hasVolumeNumber = true;
+        listing.volumeNumber    = 254;
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 254.dsk"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::Dos33, 6, 1));
+
+        listing.hasVolumeName = true;
+        listing.volumeName    = "GAMES";
+        Assert::AreEqual (std::wstring (L"GAMES.po"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::ProDos, 6, 1));
+    }
+
+
+
+
+    TEST_METHOD (CheckLinkDisk_FindsTheLinkBootDisk)
+    {
+        Rig                rig;
+        std::vector<Byte>  boot;
+        int                calls    = 0;
+        bool               dataDisk = true;
+        bool               linkDisk = false;
+
+        AssertSucceeded (LinkProgram::BuildBootDisk (AppleLinkSettings::kDefaultBaud, boot));
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            rig.apple.drives[1] = boot;
+        }
+
+        rig.Open (1);
+        AssertSucceeded (rig.actions->CheckLinkDisk ("Test", 1, [&] (bool found, HRESULT result) { AssertSucceeded (result); dataDisk = found; calls++; }));
+        AssertSucceeded (rig.actions->CheckLinkDisk ("Test", 2, [&] (bool found, HRESULT result) { AssertSucceeded (result); linkDisk = found; calls++; }));
+        Assert::IsTrue (rig.Finish().empty());
+
+        Assert::AreEqual (2, calls);
+        Assert::IsFalse (dataDisk, L"a DOS 3.3 disk");
+        Assert::IsTrue  (linkDisk, L"the link boot disk");
     }
 };

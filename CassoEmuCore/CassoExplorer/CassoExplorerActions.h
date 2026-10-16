@@ -257,6 +257,25 @@ public:
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable);
     Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
+    //  The same for any drive of any link, as a drop onto a drive's node
+    //  writes to a drive that may not be open.
+    Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath);
+
+    //  A drive's whole disk read into an image in hostFolder, with its volume
+    //  in the file name, as a drag of the drive's node onto a folder does. The name is
+    //  made free of any file already there.
+    Outcome  CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder);
+
+    //  Whether a drive has the link's boot disk; `then` runs on the window's
+    //  thread with the answer, or with the failure.
+    using LinkDiskFn = std::function<void (bool linkDisk, HRESULT result)>;
+
+    HRESULT  CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then);
+
+    //  The file name a drive's image is given: its ProDOS volume's name with
+    //  .po, a DOS 3.3 volume as "DOS 3.3 volume 254.dsk", or the drive.
+    static std::wstring  MakeDriveImageName (const VolumeListing & listing, VolumeKind kind, int slot, int drive);
+
     //  The link's boot disk written to the open Apple drive over the link,
     //  through an image in tempFolder: its boot sector loads the shim at the
     //  link's speed (FR-091).
@@ -267,8 +286,8 @@ public:
     //  PC before its first Ready.
     Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const AppleLinkSettings & settings);
 
-    //  The open Apple drive for the write's confirmation: its slot, drive
-    //  and volume.
+    //  The open Apple drive as the menus and confirmations name it: its slot,
+    //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
     std::wstring  DescribeAppleDrive () const;
 
     //  Stops the open Apple drive's link's running operation.

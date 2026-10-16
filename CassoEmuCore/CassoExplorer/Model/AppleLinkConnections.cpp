@@ -404,19 +404,14 @@ std::vector<LinkTreeEntry> AppleLinkConnections::BuildTreeEntries() const
 
         if (found == m_started.end())
         {
-            entry.status = DescribeState (LinkState::Closed, false);
+            entry.status = DescribeState (LinkState::Closed, false, settings, GetPcName());
         }
         else
         {
             LinkState  state = (*found)->session->GetState();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
-            entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro());
-        }
-
-        if (settings.transport == LinkTransport::WifiModem && !entry.replying)
-        {
-            entry.status += L" " + DescribeDial (GetPcName(), settings);
+            entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro(), settings, GetPcName());
         }
 
         if (found == m_started.end())
@@ -447,6 +442,14 @@ std::vector<LinkTreeEntry> AppleLinkConnections::BuildTreeEntries() const
                 row.volume = listing.hasVolumeName   ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
                            : listing.hasVolumeNumber ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
                                                      : std::wstring();
+
+                for (const FileEntry & entry : listing.entries)
+                {
+                    if (entry.isDirectory)
+                    {
+                        row.folders.push_back (TextEncoding::NarrowToWide (entry.name));
+                    }
+                }
             }
             else if (catalog != (*found)->requests.end() && catalog->second->state == LinkOperationState::Failed)
             {
@@ -706,6 +709,7 @@ std::wstring AppleLinkConnections::DescribeJobs (const std::vector<std::shared_p
         case LinkOperationKind::RemoveDirectory: what = L"Deleting a folder"; break;
         case LinkOperationKind::ReadDisk:        what = L"Reading the disk";  break;
         case LinkOperationKind::WriteDisk:       what = L"Writing the disk";  break;
+        case LinkOperationKind::CheckLinkDisk:   what = L"Checking the disk"; break;
         default:                                 what = L"Working";           break;
     }
 
@@ -886,31 +890,86 @@ bool AppleLinkConnections::TakeChanged()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingAdtPro)
+std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingAdtPro, const AppleLinkSettings & settings, const std::wstring & pcName)
 {
+    std::wstring  name    = TextEncoding::NarrowToWide (settings.name);
+    std::wstring  address = TextEncoding::NarrowToWide (settings.address);
+    std::wstring  port    = TextEncoding::NarrowToWide (settings.port);
+    std::wstring  baud    = FormatBaud (settings.baud);
     std::wstring  text;
 
 
 
     if (servingAdtPro)
     {
-        return L"ADTPro's own Apple program is connected. Browsing and copying work only with Casso's Apple program; bootstrap the Apple to load it.";
+        return std::format (L"ADTPro's own Apple program is running on {}. Browsing and copying work only with Casso's program: "
+                            L"choose Bootstrap the Apple from {}'s menu to load it.", name, name);
     }
 
     switch (state)
     {
-        case LinkState::Closed:          text = L"Not connected. Select the link to connect.";               break;
-        case LinkState::Opening:         text = L"Opening the connection...";                                 break;
-        case LinkState::Searching:       text = L"Searching the COM ports for the Apple...";                  break;
-        case LinkState::Bootstrapping:   text = L"Typing the loader into the Apple...";                       break;
-        case LinkState::WaitingForReady: text = L"Waiting for the Apple to answer...";                        break;
-        case LinkState::LoadingProgram:  text = L"Loading Casso's program into the Apple...";                 break;
-        case LinkState::Ready:           text = L"Connected.";                                                break;
-        case LinkState::Busy:            text = L"Connected.";                                                break;
-        default:                         text = L"Not connected: the Apple did not answer. Select the link to try again."; break;
+        case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
+        case LinkState::Bootstrapping:   text = std::format (L"Typing the loader into {}...", name);              break;
+        case LinkState::LoadingProgram:  text = std::format (L"Loading Casso's program into {}...", name);        break;
+        case LinkState::Ready:
+        case LinkState::Busy:            text = L"Connected.";                                                     break;
+
+        case LinkState::Searching:
+            text = std::format (L"Searching the COM ports for {} at {} and {} baud. Boot a link disk on the Apple, "
+                                L"or choose Bootstrap the Apple from {}'s menu.", name, FormatBaud (settings.bootstrapBaud), baud, name);
+            break;
+
+        //  Opening, waiting for Ready, or no Apple yet: what to do on the Apple.
+        default:
+            switch (settings.transport)
+            {
+                case LinkTransport::Serial:
+                    text = std::format (L"Searching for {} on {} at {} baud. Boot a link disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
+                                        name, port.empty() ? std::wstring (L"the COM ports") : port, baud, name);
+                    break;
+
+                case LinkTransport::Emulated:
+                    text = std::format (L"Waiting for {} on {}. Boot a link disk in that Casso to connect.", name, address);
+                    break;
+
+                case LinkTransport::WifiModem:
+                    text = std::format (L"Waiting for {} to dial {}.local:{}. Boot that Apple from a link disk saved from {}.",
+                                        name, pcName, address.substr (address.rfind (L':') + 1), name);
+                    break;
+
+                default:
+                    text = std::format (L"Connecting to {} at {}. Start the link program on that machine.", name, address);
+                    break;
+            }
+
+            break;
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::FormatBaud
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkConnections::FormatBaud (DWORD baud)
+{
+    std::wstring  digits = std::to_wstring (baud);
+
+
+
+    for (int at = (int) digits.size() - 3; at > 0; at -= 3)
+    {
+        digits.insert ((size_t) at, L",");
+    }
+
+    return digits;
 }
 
 

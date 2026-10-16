@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/IDiskFileIo.h"
 
 
 
@@ -355,6 +356,142 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
                          } });
 
     return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::BuildDiskFormats
+//
+//  The image's bytes are read on demand: the disk is read over the link into
+//  a temporary file, and the drop waits for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (CassoExplorerBrowser & browser, const std::wstring & driveId)
+{
+    std::vector<DxuiDragDropSource::Format>  formats;
+    AppleLinkConnections                   * links   = browser.GetLinks();
+    IDiskFileIo                            * fileIo  = &browser.GetOperations().GetFileIo();
+    std::wstring                             link;
+    int                                      slot    = 0;
+    int                                      drive   = 0;
+    VolumeListing                            listing;
+    VolumeKind                               kind    = VolumeKind::Unknown;
+    HRESULT                                  result  = S_OK;
+    std::string                              message;
+    DragPayload::Descriptor                  descriptor;
+    std::vector<uint8_t>                     id ((driveId.size() + 1) * sizeof (wchar_t), 0);
+    std::shared_ptr<std::vector<uint8_t>>    group;
+
+
+
+    if (links == nullptr || !TreeModel::TryParseLinkId (driveId, link, slot, drive) || drive == 0)
+    {
+        return formats;
+    }
+
+    if (!links->TryGetListing (TextEncoding::WideToNarrow (link), drive, std::string(), listing, kind, result, message) || FAILED (result))
+    {
+        listing = VolumeListing();
+        kind    = VolumeKind::Unknown;
+    }
+
+    descriptor.relativePath = CassoExplorerActions::MakeDriveImageName (listing, kind, slot, drive);
+    group                   = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor ({ descriptor }));
+
+    memcpy (id.data(), driveId.c_str(), driveId.size() * sizeof (wchar_t));
+
+    formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (kDriveFormatName), 1,
+                         [id] (int, std::vector<uint8_t> & out) { out = id; return S_OK; } });
+
+    formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
+                         [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
+
+    formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), 1,
+                         [links, fileIo, link = TextEncoding::WideToNarrow (link), drive, name = descriptor.relativePath] (int, std::vector<uint8_t> & out)
+                         {
+                             HRESULT              hr             = S_OK;
+                             wchar_t              temp[MAX_PATH] = {};
+                             std::string          path;
+                             AppleLinkSession   * session        = links->GetSession (link);
+                             auto                 until          = std::chrono::steady_clock::now() + std::chrono::milliseconds (kDiskDropWaitMs);
+                             std::vector<Byte>    bytes;
+
+                             out.clear();
+
+                             if (session == nullptr || GetTempPathW (MAX_PATH, temp) == 0)
+                             {
+                                 return HRESULT_FROM_WIN32 (ERROR_NOT_READY);
+                             }
+
+                             path = TextEncoding::WideToNarrow (std::wstring (temp) + L"casso-drive-" + name);
+
+                             auto  operation = session->ReadDisk (drive, path, false);
+
+                             while ((operation->state == LinkOperationState::Queued || operation->state == LinkOperationState::Running)
+                                    && std::chrono::steady_clock::now() < until)
+                             {
+                                 std::this_thread::sleep_for (std::chrono::milliseconds (AppleLinkConnections::kWaitPollMs));
+                             }
+
+                             hr = operation->state == LinkOperationState::Done ? fileIo->ReadAllBytes (path, bytes) : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
+
+                             if (SUCCEEDED (hr))
+                             {
+                                 out.assign (bytes.begin(), bytes.end());
+                             }
+
+                             if (fileIo->Exists (path))
+                             {
+                                 fileIo->Remove (path);
+                             }
+
+                             return hr;
+                         } });
+
+    return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::TryGetDraggedDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerDragOut::TryGetDraggedDrive (IDataObject * data, std::wstring & outDriveId)
+{
+    FORMATETC  format = { (CLIPFORMAT) RegisterClipboardFormatW (kDriveFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium = {};
+    bool       found  = false;
+    HRESULT    hr     = (data != nullptr) ? data->GetData (&format, &medium) : E_POINTER;
+
+
+
+    outDriveId.clear();
+
+    if (SUCCEEDED (hr))
+    {
+        const wchar_t  * text = static_cast<const wchar_t *> (GlobalLock (medium.hGlobal));
+
+        if (text != nullptr)
+        {
+            outDriveId = text;
+            found      = !outDriveId.empty();
+            GlobalUnlock (medium.hGlobal);
+        }
+
+        ReleaseStgMedium (&medium);
+    }
+
+    return found;
 }
 
 

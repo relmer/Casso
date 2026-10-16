@@ -158,6 +158,7 @@
 #define IDI_DISK_IMAGE                     108
 // An Applesoft BASIC file's icon inside a disk image: an Apple II monitor.
 #define IDI_APPLESOFT_FILE                 109
+#define IDI_APPLE_MACHINE                  110
 #define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on

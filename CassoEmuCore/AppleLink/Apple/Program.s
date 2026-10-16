@@ -107,6 +107,8 @@ WRPRI    = $4800                ; write: the 256 six-bit values
 PKTBUF   = $4900                ; a command's payload
 WSTREAM  = $4A00                ; a sector's write stream, two pages
 FSTREAM  = $5000                ; a track's format stream, 25 pages
+RAWBUF   = $5000                ; read: a track's raw sectors, two pages each, to $6FFF
+PENDING  = $4980                ; read: a flag per physical sector not yet read
 FPAGES   = 25
 WSTART   = 512 - 354            ; the sector stream ends at its second page's end
 
@@ -172,6 +174,7 @@ slotok: clc
         sta count
         sta pcflag
         sta silent
+        sta spinning
         lda #3
         sta tmolen
         jsr mktables
@@ -195,6 +198,7 @@ mreply: jsr getpayload
         lda envcmd
         cmp #CMDIDLE
         bne notidle
+        jsr motoroff
         lda #100
         jsr delayms
         jmp main
@@ -248,16 +252,20 @@ spdwait: lda ACIASTAT,x
         jsr showconn
         jmp main
 
-; Read sectors: each sector's data, then the status.
+; Read sectors: the requested sectors read into TRKBUF in the order they pass
+; under the head, then each one's data in the order of the request, then the status.
+; Sending a sector takes longer than the gap to the next, so reading and
+; sending in turn would wait most of a revolution for every sector.
 doread: lda #OPREAD
         jsr begin
+        bcs opdone
+        jsr readtrack
         bcs opdone
 rdnext: jsr showprog
         ldy index
         lda PKTBUF+3,y
         sta sector
-        jsr readsector
-        bcs opdone
+        jsr rawslot
         jsr sendsector
         jsr pollcancel
         inc index
@@ -265,8 +273,9 @@ rdnext: jsr showprog
         cmp count
         bne rdnext
         jsr showprog
-opdone: jsr motoroff
-        jsr showerr
+; The motor runs on after an operation, so the next track's read does not wait
+; for it to spin up again; Idle, with nothing more to do, stops it.
+opdone: jsr showerr
         jsr sendstatus
         jmp main
 
@@ -440,13 +449,17 @@ stathdr: .byte $C1, $05, $00, CMDSTATUS, $C1 ^ $05 ^ $00 ^ CMDSTATUS
 statend:
 
 ; sendsector: Sector data with the track, the sector, RDSEC and its CRC.
-sendsector: ldy #0
+; sendsector: Sector data with the track, the sector, the raw sector at (dst)
+; and (dstp) decoded, and its CRC. Each byte is decoded and added to the CRC
+; while the 6551 sends the one before, so a track read does not decode at all.
+sendsector: ldy #85
+ssaux:  lda (dst),y              ; the groups, where the decode can index them
+        sta RDAUX,y
+        dey
+        bpl ssaux
+        ldy #0
         sty crclo
         sty crchi
-sscrc:  lda RDSEC,y
-        jsr crcupd
-        iny
-        bne sscrc
         ldx #0
 sdloop: lda datahdr,x
         jsr putb
@@ -460,9 +473,28 @@ sdloop: lda datahdr,x
         lda sector
         jsr putpe
         ldy #0
-sddata: lda RDSEC,y
+        ldx #0
+sddata: lda RDAUX,x              ; the byte: RDPRI[i] << 2 | two bits from
+        and #3                  ; RDAUX[i mod 86], shifted as used
+        sta tmp
+        lsr RDAUX,x
+        lsr RDAUX,x
+        lda (dstp),y
+        asl a
+        asl a
+        stx tmp2
+        ldx tmp
+        ora swap2,x
+        sta sbyte
         jsr putpe
-        iny
+        lda sbyte
+        jsr crcupd
+        ldx tmp2
+        inx
+        cpx #86
+        bne sdnext
+        ldx #0
+sdnext: iny
         bne sddata
         lda crclo
         jsr putpe
@@ -712,8 +744,15 @@ swap2:  .byte $00, $02, $01, $03
 ; ---------------------------------------------------------------------------
 
 ; motoron: select the drive, start its motor, read mode, and wait for it to
-; come up to speed.
+; come up to speed, unless that drive's motor is running already.
 motoron: ldx diskx
+        lda drive
+        cmp spinning
+        bne monstart
+        lda Q6L,x
+        lda Q7L,x
+        rts
+monstart: sta spinning
         lda drive
         cmp #2
         beq mon2
@@ -728,6 +767,8 @@ mon:    lda MOTORON,x
 
 motoroff: ldx diskx
         lda MOTOROFF,x
+        lda #0
+        sta spinning
         rts
 
 ; seek: the arm to `track`. Unknown at first, the arm is taken to track 0
@@ -898,10 +939,25 @@ readsector: lda #4
 rsagain: jsr findsector
         bcc rsfound
         rts
-rsfound: ldx diskx
+rsfound: jsr readdata
+        bcc rsdone
+rsretry: dec pagecnt
+        beq rsgive
+        jmp rsagain
+rsgive: lda #ERRDATA
+        sta err
+rsfail: sec
+        rts
+rsdone: rts
+
+; readraw: the data field after the address field just read, its 86 two-bit
+; groups at (dst) and its 256 six-bit values at (dstp), not yet decoded. The
+; carry is set when it is not found or its checksum is wrong. Decoding takes
+; longer than the gap to the next sector, so a track read stores the raw form.
+readraw: ldx diskx
         ldy #32                 ; the data prologue comes within a few nibbles
 rd1:    dey
-        beq rsretry
+        beq rrbad
 rd1w:   lda Q6L,x
         bpl rd1w
 rd1c:   cmp #$D5
@@ -922,7 +978,7 @@ rdauxw: ldy Q6L,x
         bpl rdauxw
         eor INVTAB,y
         ldy tmp
-        sta RDAUX,y
+        sta (dst),y
         iny
         cpy #86
         bne rdaux
@@ -932,13 +988,30 @@ rdpriw: ldy Q6L,x
         bpl rdpriw
         eor INVTAB,y
         ldy tmp
-        sta RDPRI,y
+        sta (dstp),y
         iny
         bne rdpri
 rdchk:  ldy Q6L,x
         bpl rdchk
         eor INVTAB,y
-        bne rsretry
+        bne rrbad
+        clc
+        rts
+rrbad:  sec
+        rts
+
+; readdata: the data field into RDAUX and RDPRI, decoded into RDSEC. The
+; carry is set when it is not found or does not decode.
+readdata: lda #<RDAUX
+        sta dst
+        lda #>RDAUX
+        sta dst+1
+        lda #<RDPRI
+        sta dstp
+        lda #>RDPRI
+        sta dstp+1
+        jsr readraw
+        bcs rdbad
 
         ldy #0                  ; RDSEC[i] = RDPRI[i] << 2 | the two bits
         ldx #0                  ; from RDAUX[i mod 86], shifted as used
@@ -963,14 +1036,72 @@ rddnext: iny
         bne rddec
         clc
         rts
-rsretry: dec pagecnt
-        beq rsgive
-        jmp rsagain
-rsgive: lda #ERRDATA
-        sta err
-rsfail: sec
+rdbad:  sec
         rts
 
+; readtrack: each requested sector of `track` into RAWBUF, raw, two pages per
+; physical sector, taken as its address field passes. The carry is set, with
+; err, when some are not read after several revolutions.
+readtrack: ldx #15
+        lda #0
+rtclear: sta PENDING,x
+        dex
+        bpl rtclear
+        ldy #0
+rtmark: lda PKTBUF+3,y
+        and #15
+        tax
+        lda #1
+        sta PENDING,x
+        iny
+        cpy count
+        bne rtmark
+        lda count
+        sta left
+        lda #96                 ; address fields to look at: six revolutions
+        sta tries
+rtloop: jsr rdaddr
+        bcs rtnext
+        lda atrk
+        cmp track
+        bne rtnext
+        ldx asec
+        cpx #16
+        bcs rtnext
+        lda PENDING,x
+        beq rtnext
+        stx sector
+        jsr rawslot
+        jsr readraw
+        bcs rtnext
+        ldx sector
+        lda #0
+        sta PENDING,x
+        dec left
+        beq rtdone
+rtnext: dec tries
+        bne rtloop
+        lda #ERRNOTFND
+        sta err
+        sec
+        rts
+rtdone: clc
+        rts
+
+; rawslot: dst and dstp at `sector`'s two pages in RAWBUF, its 86 groups and
+; its 256 values.
+rawslot: lda sector
+        asl a
+        clc
+        adc #>RAWBUF
+        sta dst+1
+        clc
+        adc #1
+        sta dstp+1
+        lda #0
+        sta dst
+        sta dstp
+        rts
 ; writesector: SECBUF to `sector`. The stream is built first, so writing can
 ; start the moment the sector's address field has passed.
 writesector: jsr encode
@@ -1252,6 +1383,11 @@ acky = $16                      ; sendack: its third byte
 pcflag = $17                    ; nonzero once the PC has replied
 silent = $18                    ; seconds since its last reply
 tmolen = $19                    ; getbt's timeout, in about seconds
+left = $1A                      ; readtrack: sectors not yet read
+spinning = $1B                  ; the drive whose motor is running, or 0
+dst = $1C                       ; and $1D: a raw sector's 86 groups
+dstp = $1E                      ; and $1F: its 256 values
+sbyte = $20                     ; sendsector: the byte being sent
 
 ; drawscreen: clear the text page and draw the labels.
 drawscreen: lda #$A0

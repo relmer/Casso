@@ -3142,7 +3142,6 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToDisk (const std:
     Outcome      outcome;
     std::string  link;
     std::string  directory;
-    std::string  path  = TextEncoding::WideToNarrow (imagePath);
     int          drive = 0;
 
 
@@ -3154,9 +3153,149 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToDisk (const std:
         return outcome;
     }
 
+    return WriteImageToAppleDrive (link, drive, imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::WriteImageToAppleDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath)
+{
+    Outcome      outcome;
+    std::string  path = TextEncoding::WideToNarrow (imagePath);
+
+
+
     SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CreateImageFromAppleDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder)
+{
+    Outcome                 outcome;
+    AppleLinkConnections  * links   = m_browser.GetLinks();
+    VolumeListing           listing;
+    VolumeKind              kind    = VolumeKind::Unknown;
+    HRESULT                 result  = S_OK;
+    std::string             message;
+    std::wstring            name;
+    std::wstring            stem;
+    std::wstring            extension;
+    std::wstring            path;
+    std::string             narrow;
+    HRESULT                 hr      = S_OK;
+
+
+
+    //  The volume's name, when the drive's catalog has been read.
+    if (!links->TryGetListing (link, drive, std::string(), listing, kind, result, message) || FAILED (result))
+    {
+        listing = VolumeListing();
+        kind    = VolumeKind::Unknown;
+    }
+
+    name      = MakeDriveImageName (listing, kind, 6, drive);
+    stem      = name.substr (0, name.rfind (L'.'));
+    extension = name.substr (name.rfind (L'.'));
+    path      = hostFolder + L"\\" + name;
+
+    for (int copy = 2; m_browser.GetOperations().GetFileIo().Exists (TextEncoding::WideToNarrow (path)); copy++)
+    {
+        path = std::format (L"{}\\{} ({}){}", hostFolder, stem, copy, extension);
+    }
+
+    narrow = TextEncoding::WideToNarrow (path);
+
+    hr = links->Submit (link, [drive, narrow] (AppleLinkSession & session) { return session.ReadDisk (drive, narrow, false); },
+                        [] (const LinkOperation & operation) -> std::wstring
+    {
+        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+    });
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, L"The link could not be started.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CheckLinkDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerActions::CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then)
+{
+    return m_browser.GetLinks()->Submit (link, [drive] (AppleLinkSession & session) { return session.CheckLinkDisk (drive); },
+                                         [then] (const LinkOperation & operation) -> std::wstring
+    {
+        then (operation.linkDisk, operation.result);
+        return std::wstring();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::MakeDriveImageName
+//
+//  Characters a file name cannot have are left out of a volume's name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerActions::MakeDriveImageName (const VolumeListing & listing, VolumeKind kind, int slot, int drive)
+{
+    std::wstring  name;
+
+
+
+    if (kind == VolumeKind::ProDos && listing.hasVolumeName)
+    {
+        name = TextEncoding::NarrowToWide (listing.volumeName) + L".po";
+    }
+    else if (listing.hasVolumeNumber)
+    {
+        name = std::format (L"DOS 3.3 volume {}.dsk", listing.volumeNumber);
+    }
+    else
+    {
+        name = std::format (L"Slot {} Drive {}.dsk", slot, drive);
+    }
+
+    std::erase_if (name, [] (wchar_t ch) { return wcschr (L"\\/:*?\"<>|", ch) != nullptr; });
+
+    return name;
 }
 
 
@@ -3278,15 +3417,15 @@ std::wstring CassoExplorerActions::DescribeAppleDrive() const
         return std::wstring();
     }
 
-    text = std::format (L"Slot {}, Drive {} of {}", slot, drive, link);
+    text = TreeModel::GetLinkDriveLabel (slot, drive);
 
     if (listing.hasVolumeName)
     {
-        text += std::format (L" (volume {})", TextEncoding::NarrowToWide (listing.volumeName));
+        text += std::format (L" (/{})", TextEncoding::NarrowToWide (listing.volumeName));
     }
     else if (listing.hasVolumeNumber)
     {
-        text += std::format (L" (volume {})", listing.volumeNumber);
+        text += std::format (L" (DOS 3.3 volume {})", listing.volumeNumber);
     }
 
     return text;
