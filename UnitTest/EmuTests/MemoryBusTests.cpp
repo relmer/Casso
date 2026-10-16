@@ -128,6 +128,35 @@ public:
             L"Unmapped I/O at $C100 should return floating bus ($FF)");
     }
 
+    // With a floating-bus source, unmapped I/O reads it in place of the last
+    // byte written, and a device or RAM read does not consult it.
+    TEST_METHOD (UnmappedIo_ReadsTheFloatingBusSource)
+    {
+        struct CountingSource : IFloatingBusSource
+        {
+            int   calls = 0;
+            Byte  GetFloatingBusByte() override { calls++; return 0xA0; }
+        };
+
+        MemoryBus       bus;
+        RamDevice       ram (0x0000, 0xBFFF);
+        MockDevice      dev (0xC030, 0xC030);
+        CountingSource  source;
+
+        bus.AddDevice (&ram);
+        bus.AddDevice (&dev);
+        bus.SetFloatingBusSource (&source);
+
+        bus.WriteByte (0xC0C3, 0x00);
+
+        Assert::AreEqual<Byte> (0xA0, bus.ReadByte (0xC0C1), L"the source, not the 0 just written");
+        Assert::AreEqual (1, source.calls);
+
+        bus.ReadByte (0xC030);
+        bus.ReadByte (0x0400);
+        Assert::AreEqual (1, source.calls, L"device and RAM reads do not call the source");
+    }
+
     TEST_METHOD (DeviceAtC030_ReadGoesToDevice)
     {
         MemoryBus  bus;

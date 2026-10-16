@@ -1151,29 +1151,26 @@ void MachineBuilder::WirePageTable()
 //  Points the video scanner at this machine's timing, display switches and
 //  main RAM, and makes it what unmapped I/O and the display switches read.
 //
-//  The ][ and ][+ keep their RAM in the CPU's memory array; the //e's main
-//  bank is the first RAM device, which its MMU pages from. The //c is left
-//  on the last-value bus. Neither edition of the Apple IIc Technical
-//  Reference Manual (1984, 1987) describes a floating bus: the only word on
-//  an unused bit is that the low seven bits of a switch input read are
-//  "undefined" (original pages 199-200, second
-//  edition pages 264-265). Nothing documents video data there, so none is
-//  modeled.
+//  The ][ and ][+ keep their RAM in the CPU's memory array; the //e's and
+//  the //c's main bank is the first RAM device, which the MMU pages from.
+//  The //c reads the scanner's byte too. Neither edition of the Apple IIc
+//  Technical Reference Manual describes a floating bus, but ProDOS 2.4.2
+//  probes the empty slot 4 for a status the screen's bytes satisfy, and
+//  hangs on ADTPro's client disk when the read returns the 0 just written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineBuilder::WireFloatingBus()
 {
-    VideoScanner         &  scanner   = m_host.GetVideoScanner();
-    IFloatingBusSource   *  source    = nullptr;
-    const Byte           *  mainRam   = nullptr;
-    bool                    isApple2c = m_host.GetApple2cRomBank() != nullptr;
+    VideoScanner         &  scanner = m_host.GetVideoScanner();
+    IFloatingBusSource   *  source  = nullptr;
+    const Byte           *  mainRam = nullptr;
 
 
 
     scanner = VideoScanner();
 
-    if (!isApple2c && m_host.GetCpu() != nullptr && m_host.GetVideoTiming() != nullptr)
+    if (m_host.GetCpu() != nullptr && m_host.GetVideoTiming() != nullptr)
     {
         if (m_host.GetMmu() == nullptr)
         {
