@@ -134,4 +134,35 @@
     </ClCompile>
   </ItemDefinitionGroup>
 
+  <!--
+    Build output layout: EVERYTHING under the solution's x64\<Config>\.
+
+    Set per project rather than here, because each .vcxproj declares OutDir
+    and IntDir in its own PropertyGroup after Microsoft.Cpp.props and that
+    declaration wins over anything this file sets. The convention, in all
+    nine of them:
+
+      OutDir   $(SolutionDir)$(Platform)\$(Configuration)\
+      IntDir   $(SolutionDir)$(Platform)\$(Configuration)\obj\$(ProjectName)\
+
+    IntDir was $(Platform)\$(Configuration)\, which is relative to the
+    PROJECT, so objects lived in CassoEmuCore\x64\Debug\ while the outputs
+    lived in x64\Debug\. Deleting the one people think of as the build
+    directory then half-cleaned the tree, and the halves disagree in a way
+    that does not announce itself: a static library's COMPILER pdb defaults
+    to $(OutDir)$(TargetName).pdb, so removing x64\ takes the pdb and
+    leaves every .obj that references it. Any object MSBuild then considers
+    up to date keeps pointing at a pdb signature that no longer exists, so
+    every consumer of the library links that one file with LNK4204, "is
+    missing debugging information for referencing module", and silently
+    loses its debug info. 2026-10-16: one surviving StbVorbisWrapper.obj
+    did exactly that across Casso, CassoCli and UnitTest, because the
+    commit before it touched MemoryBus.h and VideoScanner.h, which that
+    translation unit is the only one in the project not to reach.
+
+    One root means `ri -recurse .\x64\` is a real clean, which is the point.
+    $(ProjectName) keeps the nine apart; without it they would share an
+    IntDir and overwrite each other's objects and tlogs.
+  -->
+
 </Project>
