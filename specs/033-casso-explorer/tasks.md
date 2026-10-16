@@ -527,26 +527,26 @@ own host and client, never from its source (FR-096).
 **Purpose**: Casso's own client, a shim and a sector server, built from
 source in the core (R16, R17, R22).
 
-- [ ] T194 [US16] Write `CassoEmuCore/AppleLink/Apple/Shim.s` in AS65 syntax:
+- [X] T194 [US16] Write `CassoEmuCore/AppleLink/Apple/Shim.s` in AS65 syntax:
   - resident at `$0300`, under one page;
   - a polled driver for the //c's port 2 6551;
   - Ready (`$D2`) with the program version (2 bytes), the shim version (1) and the drive map (1);
   - Load program (`$CF`): Sector data pages to `$0800`, then a jump to `$0800`.
 
   Per FR-091 and R17.
-- [ ] T195 [US16] Write `CassoEmuCore/AppleLink/Apple/Program.s` in AS65 syntax, linked at `$0800`:
+- [X] T195 [US16] Write `CassoEmuCore/AppleLink/Apple/Program.s` in AS65 syntax, linked at `$0800`:
   - **Poll loop**: Ready, Idle, then Ready again after 100 ms.
   - **Status screen**: on the text page, with the connection, the drive, the track, the operation and the progress.
   - **Operations**: Read sectors (`$D5`) and Write sectors (`$D6`) with a read-back, Format track (`$C8`), Set speed (`$D7`), Status (`$D4`) and Cancel (`$D1`). A write to a write-protected disk is reported with an error code.
   - **Disk II routines**, Casso's own, written from Apple's published Disk II documentation: seek by the arm's phase sequence, read and write a 6-and-2 sector, format a track with a volume number.
 
   Per FR-089, FR-090 and R16.
-- [ ] T196 [US16] Add `LinkProgram` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`:
+- [X] T196 [US16] Add `LinkProgram` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`:
   - `Shim.s` and `Program.s` compiled in as text resources and assembled with CassoCore's assembler in the AS65 dialect;
   - one version constant read by both sides.
 
   Tests in `UnitTest/AppleLink/LinkProgramTests.cpp`: both assemble with no error on every build, the shim fits under one page, and the assembled version equals the core's. Per FR-096 and R22.
-- [ ] T197 [US16] Serve Casso's client in `AppleLinkHost`:
+- [X] T197 [US16] Serve Casso's client in `AppleLinkHost`:
   - distinguish it from ADTPro's by the first command (Ready, against ADTPro's set);
   - answer Ready with Idle or the next operation;
   - Load program when the versions differ;
@@ -554,7 +554,7 @@ source in the core (R16, R17, R22).
   - the sector, track and status operations of the contract.
 
   Tests over an `InProcessByteStream` with a scripted client. Per FR-089, FR-091 and R16.
-- [ ] T198 [US16] Add `ScenarioTests/AppleLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `AppleLinkHost` over the bridge:
+- [X] T198 [US16] Add `ScenarioTests/AppleLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `AppleLinkHost` over the bridge:
   - read and write sectors, and format a track, on a mounted DOS 3.3 image and a ProDOS image, compared byte for byte;
   - a write-protected image reports its error;
   - during a read, the text page contains the connection, the drive, the track, the operation and the progress (FR-090, US14/AC6);

@@ -338,6 +338,8 @@
     <ClCompile Include="AppleLink\AppleLinkCodecTests.cpp" />
     <ClCompile Include="AppleLink\AppleLinkHostTests.cpp" />
     <ClCompile Include="AppleLink\ByteStreamSettingsTests.cpp" />
+    <ClCompile Include="AppleLink\LinkProgramTests.cpp" />
+    <ClCompile Include="AppleLink\AppleLinkClientTests.cpp" />
     <ClCompile Include="EmuTests\AciaBridgeEndpointTests.cpp" />
     <ClCompile Include="EmuTests\SerialPortDeviceTests.cpp" />
     <ClCompile Include="EmuTests\SerialTrafficLogTests.cpp" />

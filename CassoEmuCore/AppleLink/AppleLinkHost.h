@@ -45,6 +45,36 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkClient
+//
+//  Casso's client as its last Ready packet reported it, and the Status packet
+//  that ends each of its operations. A shim with no program loaded reports
+//  program version 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct AppleLinkClient
+{
+    Word  programVersion = 0;
+    Byte  shimVersion    = 0;
+    Byte  driveMap       = 0;
+};
+
+struct AppleLinkStatus
+{
+    Byte  operation = 0;
+    Byte  drive     = 0;
+    Byte  track     = 0;
+    Byte  done      = 0;
+    Byte  error     = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkHost
 //
 //  The PC end of the link for ADTPro's own clients: CD, Directory, Size, Get,
@@ -62,6 +92,14 @@ public:
 //  GetLastResult while the host goes on serving; only a broken stream ends
 //  ServeOne with a failure.
 //
+//  Casso's own client sends Ready instead of ADTPro's commands. ServeOne
+//  sends Idle in reply, or the current program when the client's version
+//  differs. The operations below wait for the client's next Ready
+//  and send it the operation in reply; the program is loaded first in the
+//  same way. Each returns S_OK with the client's Status once the client
+//  finished, and a disk error, such as a write-protected disk, is the
+//  Status's error code. A failure of the link itself is the HRESULT.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class AppleLinkHost
@@ -71,14 +109,24 @@ public:
     //  ProDOS date, low byte first.
     using ClockFn = std::function<std::array<Byte, 4> ()>;
 
-    static constexpr DWORD   kReplyTimeoutMs   = 3000;
-    static constexpr int     kMaxResends       = 5;
-    static constexpr size_t  kBlockSize        = 512;
-    static constexpr size_t  kDirectoryPage    = 1024;
-    static constexpr size_t  kNamesPerPage     = 15;
-    static constexpr size_t  kSectorSize       = 256;
-    static constexpr size_t  kSectorsPerTrack  = 16;
-    static constexpr size_t  kDosImageSize     = 143360;
+    static constexpr DWORD   kReplyTimeoutMs     = 3000;
+    static constexpr int     kMaxResends         = 5;
+    static constexpr size_t  kBlockSize          = 512;
+    static constexpr size_t  kDirectoryPage      = 1024;
+    static constexpr size_t  kNamesPerPage       = 15;
+    static constexpr size_t  kSectorSize         = 256;
+    static constexpr size_t  kSectorsPerTrack    = 16;
+    static constexpr size_t  kDosImageSize       = 143360;
+    static constexpr DWORD   kOperationTimeoutMs = 30000;
+
+    //  Casso's client's Status error codes.
+    static constexpr Byte    kErrorNone           = 0x00;
+    static constexpr Byte    kErrorWriteProtected = 0x10;
+    static constexpr Byte    kErrorNotFound       = 0x20;
+    static constexpr Byte    kErrorData           = 0x30;
+    static constexpr Byte    kErrorVerify         = 0x40;
+    static constexpr Byte    kErrorLink           = 0x50;
+    static constexpr Byte    kErrorDrive          = 0x60;
 
     //  One-byte replies to commands, ADTPro's values.
     static constexpr Byte    kReplyOk          = 0x00;
@@ -100,10 +148,32 @@ public:
     void     SetVirtualDrive (int drive, const std::string & name);
     void     SetReplyTimeout (DWORD timeoutMs) { m_replyTimeoutMs = timeoutMs; }
 
+    //  How long an operation for Casso's client waits for each packet. The
+    //  default allows for a machine paused in a debugger.
+    void     SetOperationTimeout (DWORD timeoutMs) { m_operationTimeoutMs = timeoutMs; }
+
+    //  Casso's client, once one has sent Ready.
+    bool             HasClient () const { return m_hasClient; }
+    AppleLinkClient  GetClient () const { return m_client; }
+
     //  How the last request ended: S_OK, or why its transfer failed.
     HRESULT  GetLastResult () const { return m_lastResult; }
 
     HRESULT  ServeOne (DWORD timeoutMs);
+
+    //  Casso's client's operations. A sector is the number in its address
+    //  field; data is 256 bytes per sector, in the order of `sectors`.
+    HRESULT  ReadSectors  (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, AppleLinkStatus & outStatus);
+    HRESULT  WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, AppleLinkStatus & outStatus);
+    HRESULT  FormatTrack  (Byte drive, Byte track, Byte volume, AppleLinkStatus & outStatus);
+
+    //  The client acknowledges at the old speed and then switches; the
+    //  caller switches the line after this returns.
+    HRESULT  SetSpeed     (Byte control);
+
+    //  Stops the client's running operation from another thread. The client
+    //  sends Ready next, and the operation then returns ERROR_CANCELLED.
+    HRESULT  Cancel       ();
 
     //  The ProDOS date and time for Read3 from a local time.
     static std::array<Byte, 4>  GetProDosDateTime (const SYSTEMTIME & time);
@@ -136,6 +206,13 @@ private:
     HRESULT  ServeGet          (const AppleLinkPacket & packet);
     HRESULT  ServePut          (const AppleLinkPacket & packet, bool batch);
     HRESULT  ServeVirtualDrive ();
+    HRESULT  ServeReady        (const AppleLinkPacket & packet);
+
+    HRESULT  AwaitReady        ();
+    HRESULT  ReadReply         (AppleLinkPacket & outPacket);
+    HRESULT  ReadStatus        (const AppleLinkPacket & packet, AppleLinkStatus & outStatus);
+    HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
+    HRESULT  LoadProgram       ();
 
     HRESULT  ReceiveImage      (std::vector<Byte> & image);
     HRESULT  LoadVirtualDrive  (int drive);
@@ -154,7 +231,13 @@ private:
     std::vector<Byte>             m_buffer;
     std::array<std::string, 2>    m_driveNames = { "Virtual.po", "Virtual2.po" };
     std::array<std::vector<Byte>, 2>  m_driveImages;
-    std::array<bool, 2>               m_driveLoaded    = {};
-    DWORD                             m_replyTimeoutMs = kReplyTimeoutMs;
+    std::array<bool, 2>               m_driveLoaded        = {};
+    DWORD                             m_replyTimeoutMs     = kReplyTimeoutMs;
+    DWORD                             m_operationTimeoutMs = kOperationTimeoutMs;
+    bool                              m_hasClient          = false;
+    AppleLinkClient                   m_client;
+    std::vector<Byte>                 m_program;
+    std::atomic<bool>                 m_cancelRequested { false };
+    bool                              m_readyPending   = false;
     std::atomic<HRESULT>              m_lastResult { S_OK };
 };

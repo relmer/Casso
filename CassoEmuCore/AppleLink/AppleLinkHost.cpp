@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleLink/AppleLinkHost.h"
+#include "AppleLink/LinkProgram.h"
 #include "Seams/IByteStream.h"
 
 
@@ -404,6 +405,10 @@ HRESULT AppleLinkHost::ServePacket (const AppleLinkPacket & packet)
         case AppleLinkCodec::kHome:
         case AppleLinkCodec::kSendFile:
             hr = SendHome();
+            break;
+
+        case AppleLinkCodec::kReady:
+            hr = ServeReady (packet);
             break;
 
         default:
@@ -985,4 +990,512 @@ std::string AppleLinkHost::ReadName (const std::vector<Byte> & payload, size_t &
 
     outEnd = std::min (i + 1, payload.size());
     return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ReadSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, AppleLinkStatus & outStatus)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  request   = { drive, track, (Byte) sectors.size() };
+    AppleLinkPacket    packet;
+    Byte               gotTrack  = 0;
+    Byte               gotSector = 0;
+    size_t             received  = 0;
+    bool               isData    = false;
+    bool               matches   = false;
+
+
+
+    outData.assign (sectors.size() * kSectorSize, 0);
+    outStatus = {};
+
+    request.insert (request.end(), sectors.begin(), sectors.end());
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (AppleLinkCodec::kReadSectors, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == AppleLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        isData = packet.command == AppleLinkCodec::kSectorData && received < sectors.size();
+        CBREx (isData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        hr = AppleLinkCodec::ParseSectorData (packet, gotTrack, gotSector, std::span<Byte> (outData).subspan (received * kSectorSize, kSectorSize));
+        CHR (hr);
+
+        matches = gotTrack == track && gotSector == sectors[received];
+        CBREx (matches, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        received++;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::WriteSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, AppleLinkStatus & outStatus)
+{
+    HRESULT            hr       = S_OK;
+    std::vector<Byte>  request  = { drive, track, (Byte) sectors.size() };
+    std::vector<Byte>  encoded;
+    AppleLinkPacket    packet;
+    size_t             index    = 0;
+    size_t             sends    = 0;
+    size_t             limit    = sectors.size() * (kMaxResends + 1);
+    bool               sized    = data.size() == sectors.size() * kSectorSize;
+    bool               isAck    = false;
+    bool               listed   = false;
+
+
+
+    outStatus = {};
+
+    CBRAEx (sized, E_INVALIDARG);
+
+    request.insert (request.end(), sectors.begin(), sectors.end());
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (AppleLinkCodec::kWriteSectors, request);
+    CHR (hr);
+
+    //  Each Acknowledge from the client has the number of the sector to
+    //  send, again after a damaged copy; a Status ends the operation.
+    for (;;)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == AppleLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        isAck = packet.command == AppleLinkCodec::kAcknowledge && packet.payload.size() == 3;
+        CBREx (isAck, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        index = (size_t) (std::find (sectors.begin(), sectors.end(), packet.payload[1]) - sectors.begin());
+        listed = index < sectors.size();
+        CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        sends++;
+        CBREx (sends <= limit, HRESULT_FROM_WIN32 (ERROR_RETRY));
+
+        encoded.clear();
+
+
+        hr = AppleLinkCodec::EncodeSectorData (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
+        CHR (hr);
+
+        hr = Send (encoded);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::FormatTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::FormatTrack (Byte drive, Byte track, Byte volume, AppleLinkStatus & outStatus)
+{
+    HRESULT          hr        = S_OK;
+    const Byte       request[] = { drive, track, volume };
+    AppleLinkPacket  packet;
+
+
+
+    outStatus = {};
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (AppleLinkCodec::kFormatTrack, request);
+    CHR (hr);
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    hr = ReadStatus (packet, outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::SetSpeed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::SetSpeed (Byte control)
+{
+    HRESULT          hr        = S_OK;
+    const Byte       request[] = { control };
+    AppleLinkPacket  packet;
+    bool             acked     = false;
+
+
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (AppleLinkCodec::kSetSpeed, request);
+    CHR (hr);
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    acked = packet.command == AppleLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == AppleLinkCodec::kAck;
+    CBREx (acked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::Cancel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::Cancel()
+{
+    m_cancelRequested = true;
+
+    return SendPacket (AppleLinkCodec::kCancel, {});
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ServeReady
+//
+//  A client of another version is sent the current program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::ServeReady (const AppleLinkPacket & packet)
+{
+    HRESULT  hr    = S_OK;
+    bool     whole = packet.payload.size() == 4;
+
+
+
+    CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
+    m_client.shimVersion    = packet.payload[2];
+    m_client.driveMap       = packet.payload[3];
+    m_hasClient             = true;
+
+    if (m_client.programVersion == LinkProgram::kProgramVersion)
+    {
+        hr = SendPacket (AppleLinkCodec::kIdle, {});
+        CHR (hr);
+    }
+    else
+    {
+        hr = LoadProgram();
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::AwaitReady
+//
+//  Waits for Ready from the current program, loading it first if the Ready
+//  is from another version. Other packets, and damage between them, are
+//  passed over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::AwaitReady()
+{
+    HRESULT          hr      = S_OK;
+    AppleLinkPacket  packet;
+    bool             current = false;
+
+
+
+    m_cancelRequested = false;
+
+    //  A canceled operation ended on the client's Ready, which is the reply
+    //  this operation waits for.
+    current        = m_readyPending;
+    m_readyPending = false;
+
+    while (!current)
+    {
+        hr = ReadPacket (m_operationTimeoutMs, packet);
+
+        if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+        {
+            continue;
+        }
+
+        CHR (hr);
+
+        if (packet.command != AppleLinkCodec::kReady)
+        {
+            continue;
+        }
+
+        current = packet.payload.size() == 4 && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
+
+        if (current)
+        {
+            m_client.programVersion = LinkProgram::kProgramVersion;
+            m_client.shimVersion    = packet.payload[2];
+            m_client.driveMap       = packet.payload[3];
+            m_hasClient             = true;
+        }
+        else
+        {
+            hr = ServeReady (packet);
+            CHR (hr);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ReadReply
+//
+//  The client's next packet in an operation, past a Ready sent before the
+//  operation. After Cancel, a Ready ends the operation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::ReadReply (AppleLinkPacket & outPacket)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    do
+    {
+        hr = ReadPacket (m_operationTimeoutMs, outPacket);
+        CHR (hr);
+
+        if (outPacket.command == AppleLinkCodec::kReady && m_cancelRequested.exchange (false))
+        {
+            m_readyPending = true;
+            CBREx (false, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+        }
+    }
+    while (outPacket.command == AppleLinkCodec::kReady);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ReadStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::ReadStatus (const AppleLinkPacket & packet, AppleLinkStatus & outStatus)
+{
+    HRESULT  hr     = S_OK;
+    bool     status = packet.command == AppleLinkCodec::kStatus && packet.payload.size() == 5;
+
+
+
+    CBREx (status, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outStatus.operation = packet.payload[0];
+    outStatus.drive     = packet.payload[1];
+    outStatus.track     = packet.payload[2];
+    outStatus.done      = packet.payload[3];
+    outStatus.error     = packet.payload[4];
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::SendPacket
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::SendPacket (Byte command, std::span<const Byte> payload)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  encoded;
+
+
+
+    hr = AppleLinkCodec::Encode (command, payload, encoded);
+    CHR (hr);
+
+    hr = Send (encoded);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::LoadProgram
+//
+//  Load program and the program's pages, each followed by the shim's bare
+//  ACK or NAK. Sent to a running program instead, Load program alone
+//  returns it to the shim.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::LoadProgram()
+{
+    HRESULT            hr      = S_OK;
+    std::string        errors;
+    std::vector<Byte>  page (kSectorSize, 0);
+    std::vector<Byte>  encoded;
+    Byte               count[1] = {};
+    size_t             pages    = 0;
+    size_t             from     = 0;
+    Byte               reply    = 0;
+    bool               filled   = false;
+    bool               acked    = false;
+
+
+
+    if (m_program.empty())
+    {
+        hr = LinkProgram::AssembleProgram (m_program, errors);
+        CHR (hr);
+    }
+
+    pages    = (m_program.size() + kSectorSize - 1) / kSectorSize;
+    count[0] = (Byte) pages;
+
+    hr = SendPacket (AppleLinkCodec::kLoadProgram, count);
+    CHR (hr);
+
+    //  A running program goes back to the shim, whose Ready comes next.
+    BAIL_OUT_IF (m_client.programVersion != 0, S_OK);
+
+    for (size_t i = 0; i < pages; i++)
+    {
+        from = i * kSectorSize;
+
+        std::fill (page.begin(), page.end(), (Byte) 0);
+        std::copy_n (m_program.begin() + (ptrdiff_t) from, std::min (kSectorSize, m_program.size() - from), page.begin());
+
+        encoded.clear();
+
+
+        hr = AppleLinkCodec::EncodeSectorData ((Byte) i, (Byte) i, page, encoded);
+        CHR (hr);
+
+        acked = false;
+
+        for (int attempt = 0; attempt <= kMaxResends && !acked; attempt++)
+        {
+            hr = Send (encoded);
+            CHR (hr);
+
+            do
+            {
+                hr = Fill (1, m_operationTimeoutMs, filled);
+                CHR (hr);
+                CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+
+                reply = m_buffer[0];
+                Consume (1);
+            }
+            while (reply != AppleLinkCodec::kAck && reply != AppleLinkCodec::kNak);
+
+            acked = reply == AppleLinkCodec::kAck;
+        }
+
+        CBREx (acked, HRESULT_FROM_WIN32 (ERROR_RETRY));
+    }
+
+Error:
+    return hr;
 }

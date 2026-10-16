@@ -77,16 +77,25 @@ client sends first; the host's reply is the next operation.
 | Ready | $D2 `'R'` | client | program version (2), shim version (1), drive map (1: bit per slot 6 drive 1/2, //c internal and external) |
 | Idle | $C9 `'I'` | host | none; client sends Ready again after 100 ms |
 | Sector data | $CA `'J'` | either | track (1), sector (1), 256 bytes unencoded, CRC-16/XMODEM of the 256 bytes (2, LSB first) |
-| Load program | $CF `'O'` | host | page count (1); then Sector data packets, one per page from $0800, with the page number in the track and sector fields; client jumps to it |
-| Set speed | $D7 `'W'` | host | 6551 control byte (1); both ends switch after the ACK |
+| Load program | $CF `'O'` | host | page count (1); then Sector data packets, one per page from $0800, with the page number in the track and sector fields, each followed by the shim's bare ACK or NAK byte; the shim jumps to $0800 after the last. Sent to a running program, it returns that program to the shim, whose Ready follows |
+| Set speed | $D7 `'W'` | host | 6551 control byte (1); the client acknowledges ($CB, ACK, 0, 0) at the old speed, and both ends then switch |
 | Read sectors | $D5 `'U'` | host | drive (1), track (1), count (1), sector list (count); client replies with Sector data per sector |
-| Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count); host then sends Sector data per sector; client ACKs each after writing and reading it back |
+| Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count); for each sector the client sends Acknowledge ($CB: ACK, sector, track) with the number of the sector to send, or NAK for another copy of a damaged one, and the host sends its Sector data; the client writes it and reads it back before the next Acknowledge |
 | Format track | $C8 `'H'` | host | drive (1), track (1), volume (1) |
-| Status | $D4 `'T'` | client | operation (1), drive (1), track (1), percent (1), error (1) |
-| Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098) |
+| Status | $D4 `'T'` | client | operation (1: 1 read, 2 write, 3 format), drive (1), track (1), sectors done (1), error (1); ends every Read, Write and Format |
+| Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |
 
 The host distinguishes clients by the first command it receives: Ready is
 Casso's client; any command in ADTPro's set is ADTPro's client (R16).
+
+Status error codes: $00 none, $10 write-protected, $20 no address field
+for the sector, $30 the data field did not decode, $40 the sector read back
+differently, $50 the host's data did not arrive whole, $60 no such drive.
+A sector is the physical sector, the number in its address field.
+
+The shim occupies $0300 to $03EF, below the monitor's vectors; the program
+runs from $0800 and uses $4000 to $68FF for buffers, with no DOS or ProDOS
+in memory.
 
 ## Bootstrap (R23)
 
