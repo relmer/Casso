@@ -846,7 +846,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (CYCLES_RCC_VIDEOINFO_BPV_BENCHMARK)
+        TEST_METHOD (CYCLES_RCC_VIDEOINFO_BPV)
         {
             Rig        rig;
             StopEvent  stop;
@@ -880,9 +880,19 @@ namespace DebuggerTests
             rig.target.Stop (StopEvent { StopReason::Breakpoint, 0x0300 });
             Assert::IsFalse  (rig.session.HasVideoBreak(), L"a video break clears when it fires");
             Assert::IsFalse  (rig.target.hookInstalled);
+        }
 
-            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("BENCHMARK").status);
-            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("EXITBENCH").status);
+
+
+        //  BENCHMARK is gone (FR-179): no command of any mode has the name.
+        TEST_METHOD (BENCHMARK_IsNoCommand)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("BENCHMARK").status);
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("EXITBENCH").status);
         }
 
 

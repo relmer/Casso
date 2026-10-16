@@ -34,7 +34,7 @@ namespace DebuggerTests
             //  and CONSOLE bring a pane forward, so they are listed.
             static constexpr const char * kOnlyReported[] =
             {
-                "BENCHMARK", "EXITBENCH", "SOURCE1", "SOURCE2", "WIN", "WINDOW", "\\",
+                "SOURCE1", "SOURCE2", "WIN", "WINDOW", "\\",
             };
 
             bool  isRunnable = command.availability == CommandAvailability::Headless ||

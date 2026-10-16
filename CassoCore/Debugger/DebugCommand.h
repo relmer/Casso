@@ -79,8 +79,6 @@ enum class DebugVerb
     Stopwatch,
     VideoLog,
     SoundLog,
-    Benchmark,
-    ExitBenchmark,
     ShowCycles,
     ResetCycles,
     BreakOnVideoLine,

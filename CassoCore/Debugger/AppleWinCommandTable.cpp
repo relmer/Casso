@@ -97,7 +97,6 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "VIDEOINFO",   V::ShowVideoInfo,            F::Video,       A::Headless,     nullptr,     nullptr },
 
     // Config
-    { "BENCHMARK",   V::Benchmark,                F::Config,      A::Headless,     nullptr,     nullptr },
     { "LOAD",        V::LoadConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "SAVE",        V::SaveConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "PWD",         V::PrintDirectory,           F::Config,      A::Headless,     nullptr,     nullptr },
@@ -252,8 +251,6 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "ZAP",         V::WriteNop,                 F::Cpu,         A::Headless,     "NOP",       nullptr },
 
     // Deprecated
-    { "BENCH",       V::Benchmark,                F::Config,      A::Headless,     "BENCHMARK", nullptr },
-    { "EXITBENCH",   V::ExitBenchmark,            F::Config,      A::Headless,     nullptr,     nullptr },
     { "MDB",         V::DumpMemory,               F::Memory,      A::Headless,     "D",         nullptr },
 
     // Casso engine commands

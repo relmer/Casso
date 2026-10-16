@@ -36,8 +36,6 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::Stopwatch:         Stopwatch         (session, command, reply); return true;
     case DebugVerb::ShowCycles:        ShowCycles        (session, command, reply); return true;
     case DebugVerb::ResetCycles:       ResetCycles       (session, reply);          return true;
-    case DebugVerb::Benchmark:
-    case DebugVerb::ExitBenchmark:     Benchmark         (command, reply);          return true;
     case DebugVerb::StepBack:
     case DebugVerb::StepBackOver:
     case DebugVerb::StepBackOut:
@@ -1152,22 +1150,6 @@ void ExecutionHandlers::ResetCycles (DebugSession & session, Reply & reply)
 {
     m_cycleMarker = session.GetTarget().GetCycleCount();
     reply.data    = MessageData { { "Cycle counter reset. CYCLES PART now counts from here." } };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExecutionHandlers::Benchmark
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExecutionHandlers::Benchmark (const DebugCommand & command, Reply & reply)
-{
-    reply.SetError (CommandStatus::NotAvailable, "command not available",
-                    std::format ("{} is not available in this session.", command.sourceName));
 }
 
 

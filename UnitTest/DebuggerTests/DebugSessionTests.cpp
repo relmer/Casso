@@ -588,9 +588,6 @@ namespace DebuggerTests
                 Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"WinDbg");
             }
 
-            reply = session.ExecuteLine ("!benchmark", CommandMode::WinDbg);
-            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"!benchmark");
-
             reply = session.ExecuteLine ("hgr", CommandMode::GSSquared);
             Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status, L"GSSquared hgr");
             Assert::IsTrue   (reply.error.detail.starts_with ("HGR:"), L"the line help gives");
