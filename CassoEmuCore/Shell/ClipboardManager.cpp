@@ -58,33 +58,55 @@ ClipboardManager::ClipboardManager (
 //
 //  ClipboardManager::DecodeScreenByte
 //
-//  Map one raw text-screen byte to a printable wchar. Normal, inverse, and
-//  flashing glyphs all live in the $80-$FF span, so strip the high bit and
-//  blank anything outside printable ASCII.
+//  The character on screen for a text-screen byte, whatever its video
+//  (FR-199). Each $40-byte quarter of the primary set has the same 64
+//  characters, @-_ and space-?, inverse at $00-$3F, flashing at $40-$7F and
+//  normal at $80-$BF,
+//  and normal again at $C0-$FF with lowercase at $E0-$FF on a //e. The //e's
+//  alternate set has MouseText at $40-$5F, which has no character to copy
+//  and copies as a space, and inverse lowercase at $60-$7F.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
+wchar_t ClipboardManager::DecodeScreenByte (Byte ch, bool isAltCharset)
 {
-    constexpr Byte  kInverseHighStart = 0xA0;
+    constexpr Byte  kQuarter      = 0x40;
+    constexpr Byte  kHalfQuarter  = 0x20;
+    constexpr Byte  kFlashing     = 0x40;
+    constexpr Byte  kLowercase    = 0x60;
+    Byte            shown         = 0;
 
 
 
-    if (ch >= kInverseHighStart)
+    if (ch >= kHighBitMask)
     {
-        ch -= kHighBitMask;
+        shown = static_cast<Byte> (ch - kHighBitMask);
     }
-    else if (ch >= kHighBitMask)
+    else if (isAltCharset && ch >= kLowercase)
     {
-        ch -= kHighBitMask;
+        shown = ch;
+    }
+    else if (isAltCharset && ch >= kFlashing)
+    {
+        shown = ' ';
+    }
+    else
+    {
+        shown = static_cast<Byte> (ch % kQuarter);
     }
 
-    if (ch < kPrintableLow || ch > kPrintableHigh)
+    //  The first half of a quarter is @-_, the second space-?.
+    if (shown < kHalfQuarter)
     {
-        ch = ' ';
+        shown = static_cast<Byte> (shown + kQuarter);
     }
 
-    return static_cast<wchar_t> (ch);
+    if (shown < kPrintableLow || shown > kPrintableHigh)
+    {
+        shown = ' ';
+    }
+
+    return static_cast<wchar_t> (shown);
 }
 
 
@@ -122,6 +144,12 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
     bool  eighty = (auxRam != nullptr)
                 && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
+
+    // The //e's alternate character set (RDALTCHAR, $C01E bit 7), read where
+    // there is an aux bank, as RD80VID is.
+    bool  isAlt  = (auxRam != nullptr)
+                && ((m_memoryBus.ReadByte (kRdAltChar) & kHighBitMask) != 0);
+
     cols = eighty ? kTextCols80 : kTextCols;
 
 
@@ -150,7 +178,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte
                 ch = (mainRam != nullptr) ? mainRam[addr] : m_memoryBus.ReadByte (addr);
             }
 
-            text += DecodeScreenByte (ch);
+            text += DecodeScreenByte (ch, isAlt);
         }
 
         while (!text.empty() && text.back() == L' ')

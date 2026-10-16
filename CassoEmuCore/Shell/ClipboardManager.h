@@ -88,16 +88,17 @@ public:
     // when any did.
     static bool  AppendPasteText (const std::wstring & text, bool capsLockOn, std::string & pasteBuffer);
 
+    // The character on screen for a text-screen byte, inverse and flashing
+    // ones included; with the //e's alternate set, MouseText copies as a space.
+    static wchar_t  DecodeScreenByte (Byte ch, bool isAltCharset = false);
+
 private:
     static constexpr Byte  kHighBitMask      = 0x80;
     static constexpr Byte  kPrintableLow     = 0x20;
     static constexpr Byte  kPrintableHigh    = 0x7E;
     static constexpr int   kBitsPerByte      = 8;
     static constexpr Word  kRd80Vid          = 0xC01F;   // 80-column display status
-
-    // Map one raw text-screen byte to a printable wchar (high bit stripped,
-    // non-printables blanked).
-    static wchar_t  DecodeScreenByte (Byte ch);
+    static constexpr Word  kRdAltChar        = 0xC01E;   // alternate character set status
 
     IHostClipboard         & m_clipboard;
     MemoryBus              & m_memoryBus;
