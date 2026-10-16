@@ -83,6 +83,11 @@ public:
     //  then its source's runs where the source starts.
     static std::vector<Run>  GetLineRuns (const std::wstring & line, Assembler assembler, Listing listing);
 
+    //  A line of C, in the source colors: a keyword as a mnemonic, a type or
+    //  a preprocessor line as a directive. ioIsInComment is whether a block
+    //  comment is open at the line's start, and at its end.
+    static std::vector<Run>  GetCRuns (const std::wstring & line, bool & ioIsInComment);
+
     //  Whether a line's opcode is one of the assembler's directives, which
     //  lays down data rather than code; a macro's invocation is not.
     static bool  IsDirectiveLine (const std::wstring & line, Assembler assembler);

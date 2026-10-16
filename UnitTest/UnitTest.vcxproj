@@ -511,6 +511,7 @@
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
+    <ClCompile Include="CLexerTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />

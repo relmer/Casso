@@ -4,6 +4,7 @@
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "CLexer.h"
 
 
 
@@ -305,6 +306,7 @@ void SourcePane::SetTopSourceLine (int line)
 void SourcePane::LoadFile (int fileId)
 {
     SourceLookup  lookup;
+    std::string   name;
 
 
 
@@ -313,6 +315,7 @@ void SourcePane::LoadFile (int fileId)
         if (record.id == fileId)
         {
             lookup = m_find (record, m_state->debugFilePath, m_state->programKey);
+            name   = record.name;
         }
     }
 
@@ -323,6 +326,7 @@ void SourcePane::LoadFile (int fileId)
     m_lines     = SplitLines (lookup.text);
     m_detected  = SourceSyntax::DetectAssembler (m_lines);
     m_listing   = SourceSyntax::DetectListing (m_lines);
+    m_isC       = CLexer::IsCFile (lookup.path.empty() ? SourcePathList::Utf8ToWide (name) : lookup.path);
 }
 
 
@@ -397,7 +401,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing));
+        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC));
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;
@@ -636,6 +640,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
     m_fileId    = (recordIndex >= 0 && recordIndex < (int) m_state->files.size()) ? m_state->files[(size_t) recordIndex].id : -1;
     m_detected  = SourceSyntax::DetectAssembler (m_lines);
     m_listing   = SourceSyntax::DetectListing (m_lines);
+    m_isC       = CLexer::IsCFile (lookup.path);
     m_rowsFileId = -2;
 
     Rebuild();
@@ -667,6 +672,7 @@ void SourcePane::ShowLoose (const std::wstring & path, const std::string & text,
     m_foundPath     = path;
     m_detected      = SourceSyntax::DetectAssembler (m_lines);
     m_listing       = SourceSyntax::DetectListing (m_lines);
+    m_isC           = CLexer::IsCFile (path);
     m_rowsFileId    = -2;
 
     Rebuild();
@@ -1039,12 +1045,14 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const Style         & style,
                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
                                                       SourceSyntax::Assembler assembler,
-                                                      SourceSyntax::Listing   listing)
+                                                      SourceSyntax::Listing   listing,
+                                                      bool                    isC)
 {
     std::vector<DxuiTextView::Row>  rows;
-    int                             width  = (int) std::to_wstring (lines.size()).size();
-    bool                            icons  = style.enabledIcon != nullptr;
-    bool                            arrow  = style.pcIcon != nullptr;
+    int                             width       = (int) std::to_wstring (lines.size()).size();
+    bool                            icons       = style.enabledIcon != nullptr;
+    bool                            arrow       = style.pcIcon != nullptr;
+    bool                            isInComment = false;
 
 
 
@@ -1114,7 +1122,21 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
             }
         }
 
-        if (style.syntax.mnemonic != 0)
+        //  A C block comment can run over lines, so every C line is read in
+        //  order, colored or not.
+        if (isC)
+        {
+            std::vector<SourceSyntax::Run>  runs = SourceSyntax::GetCRuns (lines[i], isInComment);
+
+            for (const SourceSyntax::Run & run : runs)
+            {
+                if (style.syntax.mnemonic != 0)
+                {
+                    row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
+                }
+            }
+        }
+        else if (style.syntax.mnemonic != 0)
         {
             for (const SourceSyntax::Run & run : SourceSyntax::GetLineRuns (lines[i], assembler, listing))
             {

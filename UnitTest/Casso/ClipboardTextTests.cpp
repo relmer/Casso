@@ -210,7 +210,7 @@ public:
 
 
     //  Inverse and flashing characters copy as the characters on screen,
-    //  not blanks or other characters (FR-199).
+    //  not blanks or other characters.
     TEST_METHOD (DecodeScreenByte_InverseAndFlashingAreTheCharactersShown)
     {
         Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0x01), L"inverse A");

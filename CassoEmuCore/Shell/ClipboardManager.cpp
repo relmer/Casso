@@ -58,11 +58,10 @@ ClipboardManager::ClipboardManager (
 //
 //  ClipboardManager::DecodeScreenByte
 //
-//  The character on screen for a text-screen byte, whatever its video
-//  (FR-199). Each $40-byte quarter of the primary set has the same 64
-//  characters, @-_ and space-?, inverse at $00-$3F, flashing at $40-$7F and
-//  normal at $80-$BF,
-//  and normal again at $C0-$FF with lowercase at $E0-$FF on a //e. The //e's
+//  The character on screen for a text-screen byte, whatever its video. Each
+//  $40-byte quarter of the primary set has the same 64 characters, @-_ and
+//  space-?, inverse at $00-$3F, flashing at $40-$7F, normal at $80-$BF, and
+//  normal again at $C0-$FF with lowercase at $E0-$FF on a //e. The //e's
 //  alternate set has MouseText at $40-$5F, which has no character to copy
 //  and copies as a space, and inverse lowercase at $60-$7F.
 //

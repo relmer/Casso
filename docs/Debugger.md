@@ -641,8 +641,12 @@ source view.
 - Source is colored with the grammar of the assembler that wrote it: as65,
   Merlin or ca65, chosen from the file's directives, labels and origin. Text
   that shows none of them, or as many of one as another, is read as as65's;
-  the file's extension plays no part. The Syntax entry on a document's tab
-  menu sets it for that document.
+  the file's extension does not affect the choice among them. The Syntax
+  entry on a document's tab menu sets it for that document.
+- A `.c` or `.h` file is colored as C: keywords in the mnemonic color, types
+  and preprocessor lines in the directive color, and numbers, strings,
+  characters and comments in their own colors. A block comment runs over as
+  many lines as it spans.
 - A Merlin or ca65 listing shown as source keeps its address and byte
   columns, colored as an address and bytes, ahead of its colored source.
 - The operand and result column shows a result after `Result: `, in the
