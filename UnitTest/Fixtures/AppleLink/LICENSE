@@ -41,7 +41,8 @@ Apple //c booted ADTPro's own client disk, with its port 2 joined to TCP port
                              server's packet for block 4 damaged in transit:
                              the client's NAKs, the server's resends and the
                              Home that ends the transfer
-    adtpro-send-ack-lost.txt the send above, with the server's replies to the
+    adtpro-send-ack-dropped.txt
+                             the send above, with the server's replies to the
                              packet for block 4 dropped in transit: the
                              client's resends about 2 s apart
 
