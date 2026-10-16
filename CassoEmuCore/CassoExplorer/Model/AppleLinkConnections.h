@@ -61,6 +61,11 @@ public:
     //  A search starts a serial link by searching the COM ports for the
     //  Apple, as a link with no port set does (FR-083a).
     HRESULT  Start     (const std::string & name, bool search = false);
+
+    //  Starts a link on an Apple with no link program, typing the loader in
+    //  first (FR-092). The completion runs when the program is running or the
+    //  Apple does not answer.
+    HRESULT  Bootstrap (const std::string & name, std::function<std::wstring (const LinkOperation & operation)> completion);
     void     Stop      (const std::string & name);
     bool     IsStarted (const std::string & name) const;
 
@@ -120,6 +125,13 @@ public:
     //  .local, and the link's TCP port (FR-083c).
     static std::wstring  DescribeDial  (const std::wstring & pcName, const AppleLinkSettings & settings);
 
+    //  The dial command itself, as the shim on a boot disk sends it to the
+    //  modem; empty for any transport but the Wi-Fi modem.
+    static std::string   MakeDialCommand (const std::wstring & pcName, const AppleLinkSettings & settings);
+
+    //  This PC's DNS host name.
+    static std::wstring  GetPcName ();
+
     static constexpr DWORD  kWaitPollMs = 20;
 
 private:
@@ -145,13 +157,13 @@ private:
     };
 
     static std::string  MakeKey (int drive, const std::string & path, bool file);
-    static std::wstring GetPcName ();
 
     Link *        FindLink (const std::string & name);
     const Link *  FindLink (const std::string & name) const;
     bool          TryGetResult (const std::string & name, int drive, const std::string & key, LinkOperationKind kind,
                                 const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
     void          Notify ();
+    HRESULT       StartLink (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
     void          Merge ();
 
     IByteStreamFactory                 & m_factory;

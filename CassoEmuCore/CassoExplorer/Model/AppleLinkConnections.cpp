@@ -195,6 +195,56 @@ void AppleLinkConnections::Merge()
 
 HRESULT AppleLinkConnections::Start (const std::string & name, bool search)
 {
+    return StartLink (name, search, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::Bootstrap
+//
+//  The link is started again, typing the loader in first; the completion
+//  runs when the program is running or the Apple does not answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkConnections::Bootstrap (const std::string & name, Completion completion)
+{
+    HRESULT                         hr        = S_OK;
+    std::shared_ptr<LinkOperation>  operation;
+
+
+
+    Stop (name);
+
+    hr = StartLink (name, false, &operation);
+    CHR (hr);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_jobs.push_back (Job { name, operation, std::move (completion) });
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::StartLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkConnections::StartLink (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap)
+{
     HRESULT                hr       = S_OK;
     std::unique_ptr<Link>  link;
     AppleLinkSettings      opening;
@@ -221,7 +271,15 @@ HRESULT AppleLinkConnections::Start (const std::string & name, bool search)
         opening.port.clear();
     }
 
-    hr = link->session->Start (opening);
+    if (outBootstrap != nullptr)
+    {
+        hr = link->session->StartWithBootstrap (opening, *outBootstrap);
+    }
+    else
+    {
+        hr = link->session->Start (opening);
+    }
+
     CHR (hr);
 
     {
@@ -673,13 +731,39 @@ std::wstring AppleLinkConnections::DescribeJobs (const std::vector<std::shared_p
 
 std::wstring AppleLinkConnections::DescribeDial (const std::wstring & pcName, const AppleLinkSettings & settings)
 {
-    std::wstring  address = TextEncoding::NarrowToWide (settings.address);
-    size_t        colon   = address.rfind (L':');
-    std::wstring  port    = colon == std::wstring::npos ? address : address.substr (colon + 1);
+    AppleLinkSettings  modem = settings;
 
 
 
-    return std::format (L"Dial ATDT {}.local:{} from the modem.", pcName, port);
+    modem.transport = LinkTransport::WifiModem;
+
+    return std::format (L"Dial {} from the modem.", TextEncoding::NarrowToWide (MakeDialCommand (pcName, modem)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::MakeDialCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleLinkConnections::MakeDialCommand (const std::wstring & pcName, const AppleLinkSettings & settings)
+{
+    size_t       colon = settings.address.rfind (':');
+    std::string  port  = colon == std::string::npos ? settings.address : settings.address.substr (colon + 1);
+    std::string  dial;
+
+
+
+    if (settings.transport == LinkTransport::WifiModem)
+    {
+        dial = std::format ("ATDT {}.local:{}", TextEncoding::WideToNarrow (pcName), port);
+    }
+
+    return dial;
 }
 
 
@@ -818,6 +902,7 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
         case LinkState::Closed:          text = L"Not connected. Select the link to connect.";               break;
         case LinkState::Opening:         text = L"Opening the connection...";                                 break;
         case LinkState::Searching:       text = L"Searching the COM ports for the Apple...";                  break;
+        case LinkState::Bootstrapping:   text = L"Typing the loader into the Apple...";                       break;
         case LinkState::WaitingForReady: text = L"Waiting for the Apple to answer...";                        break;
         case LinkState::LoadingProgram:  text = L"Loading Casso's program into the Apple...";                 break;
         case LinkState::Ready:           text = L"Connected.";                                                break;

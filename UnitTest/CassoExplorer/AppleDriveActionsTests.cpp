@@ -9,6 +9,7 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "CassoExplorer/Model/DragPayload.h"
+#include "AppleLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -420,5 +421,70 @@ public:
         Assert::AreEqual (std::wstring(), AppleLinkConnections::DescribeJobs ({}));
         Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), AppleLinkConnections::DescribeJobs ({ first }));
         Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), AppleLinkConnections::DescribeJobs ({ first, second }));
+    }
+
+
+
+    TEST_METHOD (SaveLinkToDisk_WritesTheBootDiskToTheDrive)
+    {
+        Rig                rig;
+        std::vector<Byte>  disk;
+
+        AssertSucceeded (LinkProgram::BuildBootDisk (AppleLinkSettings::kDefaultBaud, disk));
+
+        rig.Open (2);
+        AssertSucceeded (rig.actions->SaveLinkToDisk (L"C:\\Temp").hr);
+
+        //  No catalog to list afterward: the disk has no file system.
+        {
+            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+            while (!rig.links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
+            {
+                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            }
+        }
+
+        Assert::IsTrue (rig.links->RunCompletions().empty());
+
+        Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the link's boot disk");
+    }
+
+
+
+
+    TEST_METHOD (SaveLinkDiskImage_WritesTheImageOnThePc)
+    {
+        Rig                rig;
+        std::vector<Byte>  disk;
+        AppleLinkSettings  serial;
+
+        serial.baud = 9600;
+
+        AssertSucceeded (LinkProgram::BuildBootDisk (9600, disk));
+        AssertSucceeded (rig.actions->SaveLinkDiskImage (L"C:\\Disks\\link.dsk", serial).hr);
+
+        Assert::IsTrue (rig.io.files["C:\\Disks\\link.dsk"] == disk);
+    }
+
+
+
+    TEST_METHOD (AWifiModemLinksDisk_DialsThisPc)
+    {
+        Rig                rig;
+        AppleLinkSettings  modem;
+        std::vector<Byte>  disk;
+        std::vector<Byte>  shim;
+        std::string        dial;
+
+        modem.transport = LinkTransport::WifiModem;
+        modem.address   = "0.0.0.0:6400";
+        dial            = AppleLinkConnections::MakeDialCommand (L"relmer-pc", modem);
+
+        Assert::AreEqual (std::string ("ATDT relmer-pc.local:6400"), dial);
+        Assert::AreEqual (std::string(), AppleLinkConnections::MakeDialCommand (L"relmer-pc", AppleLinkSettings()), L"a serial link dials nothing");
+
+        AssertSucceeded (LinkProgram::BuildShim (115200, shim, dial));
+        Assert::AreEqual (dial, std::string (reinterpret_cast<const char *> (shim.data() + LinkProgram::kDialOffset)), L"the command, ending in a zero byte");
     }
 };

@@ -5,6 +5,7 @@
 #include "AppleLink/AppleLinkHost.h"
 #include "AppleLink/AppleLinkSettings.h"
 #include "AppleLink/LinkedDisk.h"
+#include "AppleLink/LinkBootstrap.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 #include "Seams/ByteStreamSettings.h"
@@ -31,6 +32,7 @@ enum class LinkState
 {
     Closed,
     Searching,
+    Bootstrapping,
     Opening,
     WaitingForReady,
     LoadingProgram,
@@ -153,6 +155,14 @@ public:
 
     //  How long opening waits for the Apple's Ready.
     void       SetConnectTimeout (DWORD timeoutMs) { m_connectTimeoutMs = timeoutMs; }
+
+    //  Starts the session on an Apple with no link program: the loader is
+    //  typed in first (FR-092), and the returned operation finishes when the
+    //  program is running or the Apple does not answer.
+    HRESULT    StartWithBootstrap (const AppleLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
+
+    //  The pause after each line of the loader.
+    void       SetBootstrapPause (DWORD pauseMs) { m_bootstrapPauseMs = pauseMs; }
     void       Stop   ();
 
     //  Stops the running operation; queued ones remain.
@@ -215,7 +225,8 @@ private:
     std::shared_ptr<LinkOperation>  Queue (LinkOperationKind kind, int drive, const FilePath & path, std::shared_ptr<LinkOperation> operation = nullptr);
 
     void     Run           (std::stop_token stop);
-    HRESULT  Connect       (std::stop_token stop);
+    HRESULT  Connect       (std::stop_token stop, DWORD openAt = 0);
+    HRESULT  RunBootstrap  (std::stop_token stop, LinkOperation & operation);
     HRESULT  OpenStream    (DWORD baud);
     HRESULT  AwaitProgram  (std::stop_token stop, DWORD timeoutMs, bool & outReady);
     void     Disconnect    ();
@@ -253,6 +264,8 @@ private:
     std::shared_ptr<LinkOperation>              m_running;
     uint64_t                                    m_nextId           = 1;
     DWORD                                       m_connectTimeoutMs = kConnectTimeoutMs;
+    DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
+    std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;
     std::jthread                                m_thread;
 };

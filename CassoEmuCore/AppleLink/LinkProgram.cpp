@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleLink/LinkProgram.h"
+#include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Assembler.h"
 #include "Cpu.h"
 #include "InstructionSetProvider.h"
@@ -73,17 +74,19 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)
+HRESULT LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim, const std::string & dial)
 {
     HRESULT      hr      = S_OK;
     std::string  errors;
     std::string  text    = std::to_string (baud);
     Byte         control = 0;
     bool         known   = GetSpeedControl (baud, control);
+    bool         fits    = dial.size() < kDialLength;
 
 
 
     CBREx (known, E_INVALIDARG);
+    CBREx (fits, E_INVALIDARG);
 
     hr = AssembleShim (outShim, errors);
     CHR (hr);
@@ -92,6 +95,39 @@ HRESULT LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)
 
     outShim[kSpeedOffset] = control;
     std::copy (text.begin(), text.end(), outShim.begin() + kSpeedTextOffset);
+    std::copy (dial.begin(), dial.end(), outShim.begin() + kDialOffset);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildBootDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildBootDisk (DWORD baud, std::vector<Byte> & outDisk, const std::string & dial)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  shim;
+    DirectBootSpec     spec;
+    std::string        refusal;
+
+
+
+    hr = BuildShim (baud, shim, dial);
+    CHR (hr);
+
+    spec.loadAddress  = kShimAddress;
+    spec.entryAddress = kShimAddress;
+
+    hr = DirectBootBuilder::Build (shim, spec, outDisk, refusal);
+    CHR (hr);
 
 Error:
     return hr;

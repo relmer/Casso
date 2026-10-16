@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "AppleLink/LinkProgram.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
@@ -3154,6 +3155,100 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToDisk (const std:
     }
 
     SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::SaveLinkToDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::wstring & tempFolder)
+{
+    Outcome                 outcome;
+    AppleLinkConnections  * links = m_browser.GetLinks();
+    std::string             link;
+    std::string             directory;
+    int                     drive = 0;
+    AppleLinkSettings       chosen;
+    std::vector<Byte>       disk;
+    std::string             path;
+    HRESULT                 hr    = S_OK;
+
+
+
+    if (!TryGetAppleDrive (link, drive, directory))
+    {
+        outcome.hr      = E_INVALIDARG;
+        outcome.message = L"Open a drive of an Apple link first.";
+        return outcome;
+    }
+
+    for (const AppleLinkSettings & settings : links->GetLinks())
+    {
+        if (settings.name == link)
+        {
+            chosen = settings;
+        }
+    }
+
+    path = TextEncoding::WideToNarrow (std::format (L"{}\\casso-link-{}.dsk", tempFolder, drive));
+
+    hr = LinkProgram::BuildBootDisk (chosen.baud, disk, AppleLinkConnections::MakeDialCommand (AppleLinkConnections::GetPcName(), chosen));
+
+    if (SUCCEEDED (hr))
+    {
+        hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (path, disk);
+    }
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, L"The link's boot disk could not be made.");
+        return outcome;
+    }
+
+    SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::SaveLinkDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std::wstring & imagePath, const AppleLinkSettings & settings)
+{
+    Outcome            outcome;
+    std::vector<Byte>  disk;
+    HRESULT            hr = LinkProgram::BuildBootDisk (settings.baud, disk, AppleLinkConnections::MakeDialCommand (AppleLinkConnections::GetPcName(), settings));
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
+    }
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, L"The link's boot disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
 
     return outcome;
 }

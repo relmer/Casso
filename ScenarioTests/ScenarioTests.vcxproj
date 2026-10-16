@@ -176,6 +176,7 @@
     <ClCompile Include="AppleLinkAdtProTests.cpp" />
     <ClCompile Include="AppleLinkSectorTests.cpp" />
     <ClCompile Include="AppleLinkSessionTests.cpp" />
+    <ClCompile Include="AppleLinkBootstrapTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />

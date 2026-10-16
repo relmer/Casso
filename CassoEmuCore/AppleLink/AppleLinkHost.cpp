@@ -1514,6 +1514,7 @@ HRESULT AppleLinkHost::LoadProgram()
     Byte               reply    = 0;
     bool               filled   = false;
     bool               acked    = false;
+    bool               running  = false;
 
 
 
@@ -1558,11 +1559,19 @@ HRESULT AppleLinkHost::LoadProgram()
                 CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
                 reply = m_buffer[0];
-                Consume (1);
-            }
-            while (reply != AppleLinkCodec::kAck && reply != AppleLinkCodec::kNak);
+                running = reply == AppleLinkCodec::kStart && i + 1 == pages;
 
-            acked = reply == AppleLinkCodec::kAck;
+                //  A packet in place of the last page's ACK is the program's
+                //  Ready: the program is running, and its Ready is left for
+                //  the next operation to read.
+                if (!running)
+                {
+                    Consume (1);
+                }
+            }
+            while (!running && reply != AppleLinkCodec::kAck && reply != AppleLinkCodec::kNak);
+
+            acked = running || reply == AppleLinkCodec::kAck;
         }
 
         CBREx (acked, HRESULT_FROM_WIN32 (ERROR_RETRY));

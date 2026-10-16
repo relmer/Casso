@@ -2,6 +2,7 @@
 
 #include "AppleLink/AppleLinkSession.h"
 #include "AppleLink/AppleLinkSearch.h"
+#include "AppleLink/LinkBootstrap.h"
 #include "AppleLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -535,7 +536,16 @@ void AppleLinkSession::Run (std::stop_token stop)
 
 
 
-    hr = Connect (stop);
+    if (m_bootstrap)
+    {
+        hr = RunBootstrap (stop, *m_bootstrap);
+        m_sink.OnDone (m_bootstrap);
+        m_bootstrap.reset();
+    }
+    else
+    {
+        hr = Connect (stop);
+    }
 
     while (!stop.stop_requested())
     {
@@ -639,6 +649,94 @@ void AppleLinkSession::Run (std::stop_token stop)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkSession::StartWithBootstrap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkSession::StartWithBootstrap (const AppleLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation)
+{
+    HRESULT  hr   = S_OK;
+    bool     idle = !m_thread.joinable();
+
+
+
+    CBRAEx (idle, E_UNEXPECTED);
+
+    m_bootstrap        = std::make_shared<LinkOperation>();
+    m_bootstrap->id    = m_nextId++;
+    m_bootstrap->kind  = LinkOperationKind::Bootstrap;
+    outOperation       = m_bootstrap;
+
+    hr = Start (settings);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkSession::RunBootstrap
+//
+//  The loader is typed at the bootstrap speed, and the session then waits on
+//  the same line for the shim's Ready. A serial link must have its port set, as no
+//  Apple on any port replies before the loader runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & operation)
+{
+    HRESULT                   hr      = S_OK;
+    std::vector<std::string>  lines;
+    bool                      hasPort = m_settings.transport != LinkTransport::Serial || !m_port.empty();
+
+
+
+    operation.state = LinkOperationState::Running;
+
+    if (!hasPort)
+    {
+        operation.message = "Choose the link's COM port to bootstrap the Apple.";
+    }
+
+    CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = LinkBootstrap::BuildLines (m_settings.bootstrapBaud, lines);
+    CHR (hr);
+
+    SetState (LinkState::Bootstrapping);
+
+    hr = OpenStream (m_settings.bootstrapBaud);
+    CHR (hr);
+
+    hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); });
+    CHR (hr);
+
+    hr = Connect (stop, m_settings.bootstrapBaud);
+    CHR (hr);
+
+Error:
+    operation.result = hr;
+    operation.state  = SUCCEEDED (hr) ? LinkOperationState::Done : LinkOperationState::Failed;
+
+    if (FAILED (hr) && operation.message.empty())
+    {
+        operation.message = "The Apple did not answer after the bootstrap. Check that IN#2 and Control-A 14B were typed on it.";
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkSession::Connect
 //
 //  A serial line is opened at the bootstrap speed, where a typed-in shim
@@ -650,7 +748,7 @@ void AppleLinkSession::Run (std::stop_token stop)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AppleLinkSession::Connect (std::stop_token stop)
+HRESULT AppleLinkSession::Connect (std::stop_token stop, DWORD openAt)
 {
     HRESULT             hr       = S_OK;
     std::vector<DWORD>  speeds   = { m_settings.baud };
@@ -662,14 +760,19 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
 
 
 
-    if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud)
+    //  After a bootstrap the line is open already, at the bootstrap speed.
+    if (openAt != 0)
+    {
+        speeds = { openAt };
+    }
+    else if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud)
     {
         speeds.insert (speeds.begin(), m_settings.bootstrapBaud);
     }
 
     //  A serial link with no port set finds one, once; the port found is
     //  used again when the line drops.
-    if (m_settings.transport == LinkTransport::Serial && m_port.empty())
+    if (openAt == 0 && m_settings.transport == LinkTransport::Serial && m_port.empty())
     {
         SetState (LinkState::Searching);
 
@@ -686,10 +789,13 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop)
             break;
         }
 
-        SetState (LinkState::Opening);
+        if (openAt == 0)
+        {
+            SetState (LinkState::Opening);
 
-        hr = OpenStream (speed);
-        CHR (hr);
+            hr = OpenStream (speed);
+            CHR (hr);
+        }
 
         opened = speed;
 

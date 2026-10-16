@@ -9,7 +9,10 @@
 ;
 ; The 6551 control byte for the starting speed is at $3D02 and the speed's
 ; text, six characters, at $3D06. The host writes both for the link's speed;
-; as assembled they are 9,600 baud.
+; as assembled they are 9,600 baud. At $3D0C is a Wi-Fi modem's dial
+; command, ending in a zero byte: when it is not empty, the shim sends it
+; and a carriage return, and waits for the end of the modem's reply line
+; before its first Ready.
 ;
 ; The shim draws its state on the text page: a title, then waiting for the
 ; PC, the program's loading as a percentage, and the version it starts. Each
@@ -65,6 +68,7 @@ lead     = $16                  ; putdec: nonzero once a digit is drawn
         lda #$1E                ; $3D02: 8 data bits, 1 stop bit, 9,600 baud
         jmp start
 speedtxt: .text "9600  "        ; $3D06: the speed, six characters
+dialtxt: .ds 40                  ; $3D0C: the modem's dial command, or empty
 
 start:  sta ACIACTL
         cld
@@ -73,6 +77,22 @@ start:  sta ACIACTL
         lda #$0B                ; DTR on, no parity, no interrupts
         sta ACIACMD
         jsr home
+
+        lda dialtxt
+        beq ready
+        ldx #msgdial-msgs
+        jsr drawstate
+        ldx #0
+dial:   lda dialtxt,x
+        beq dialed
+        jsr putb
+        inx
+        bne dial
+dialed: lda #$0D
+        jsr putb
+modemreply: jsr getb               ; the modem's reply line, such as CONNECT,
+        cmp #$0A               ; ends in a line feed; Ready waits for it
+        bne modemreply
 
 ready:  ldx #msgwait-msgs
         jsr drawstate
@@ -328,6 +348,8 @@ msgwait: .text "WAITING FOR THE PC ON PORT 2 AT "
 msgload: .text "LOADING PROGRAM "
         .byte 0
 msgstart: .text "STARTING VERSION "
+        .byte 0
+msgdial: .text "DIALING THE PC"
         .byte 0
 
 ; Ready with no program: version 0, the shim's version, no drives.

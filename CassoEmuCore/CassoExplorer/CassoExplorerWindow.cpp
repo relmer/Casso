@@ -2417,6 +2417,104 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::SaveLinkToDisk
+//
+//  The link's boot disk onto the open Apple drive, once the user confirms,
+//  since everything on the disk is replaced (FR-091).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SaveLinkToDisk()
+{
+    wchar_t                        temp[MAX_PATH] = {};
+    std::wstring                   message;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (!m_browser.IsAppleDriveLocation() || GetTempPathW (MAX_PATH, temp) == 0)
+    {
+        return;
+    }
+
+    message = std::format (L"Write the link's boot disk to {}?\n\nEverything on the disk is replaced. The disk then boots into the link.",
+                           m_actions.DescribeAppleDrive());
+
+    if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Save link to disk",
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
+    {
+        return;
+    }
+
+    outcome = m_actions.SaveLinkToDisk (std::wstring (temp).substr (0, wcslen (temp) - 1));
+
+    if (!outcome.Succeeded())
+    {
+        ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SaveLinkDiskImage
+//
+//  The link's boot disk as an image file on the PC, for an emulator, at the
+//  link's speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SaveLinkDiskImage (const std::string & name)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    FileDialogSpec                 spec;
+    AppleLinkSettings              link;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    {
+        if (settings.name == name)
+        {
+            link = settings;
+        }
+    }
+
+    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk)", L"*.dsk" } };
+    spec.clientGuid       = s_kLinkDiskPickerGuid;
+    spec.defaultFileName  = L"link.dsk";
+    spec.defaultExtension = L"dsk";
+    spec.title            = L"Save link disk image";
+
+    hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    outcome = m_actions.SaveLinkDiskImage (picked.wstring(), link);
+
+    if (!outcome.Succeeded())
+    {
+        ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::UpdateShellPreview
 //
 //  A shell preview is loaded once for its file and reused while the same
@@ -9616,6 +9714,9 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
                 AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
             }
 
+            AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
+            AddMenuCommand (items, L"Save link disk &image...", [this, name]() { SaveLinkDiskImage (name); });
+
             if (saved)
             {
                 AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
@@ -9626,6 +9727,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             //  A drive's whole disk, read or written from its node.
             AddMenuCommand (items, L"Read disk to &image...", [this, location]() { GoToLocation (location); ReadDiskToImage(); });
             AddMenuCommand (items, L"&Write image to disk...", [this, location]() { GoToLocation (location); WriteImageToDisk(); });
+            AddMenuCommand (items, L"Save &link to disk...",   [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
         }
     }
 
@@ -9934,6 +10036,47 @@ void CassoExplorerWindow::SearchLink (const std::string & name)
     m_context.links->Stop (name);
 
     hr = m_context.links->Start (name, true);
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+    }
+
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::BootstrapLink
+//
+//  The user readies the Apple first; the loader is then typed into it
+//  over the link (FR-092).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::BootstrapLink (const std::string & name)
+{
+    HRESULT       hr      = S_OK;
+    std::wstring  steps   = L"On the Apple, at the BASIC prompt, type IN#2 and press Return. "
+                            L"Then press Control-A and type 14B.\n\nThe loader is then typed into the Apple, which takes about 20 seconds.";
+    int           answer  = DxuiMessageBox (GetHwnd(), m_theme, steps.c_str(), L"Bootstrap the Apple",
+                                            MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
+
+
+
+    if (answer != IDOK)
+    {
+        return;
+    }
+
+    hr = m_context.links->Bootstrap (name, [] (const LinkOperation & operation) -> std::wstring
+    {
+        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+    });
 
     if (FAILED (hr))
     {

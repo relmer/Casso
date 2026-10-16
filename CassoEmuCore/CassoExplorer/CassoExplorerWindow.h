@@ -610,6 +610,8 @@ private:
     void  ExtractAll();
     void  ReadDiskToImage   (bool blankUnreadable = false, const std::wstring & imagePath = std::wstring());
     void  WriteImageToDisk  ();
+    void  SaveLinkToDisk    ();
+    void  SaveLinkDiskImage (const std::string & name);
     void  FillStatus();
     void  SetFocusPane (Pane pane);
 
@@ -703,6 +705,7 @@ private:
     void  RemoveLink          (const std::string & name);
     void  DisconnectLink      (const std::string & name);
     void  SearchLink          (const std::string & name);
+    void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
     void  ApplyLinks          ();
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);

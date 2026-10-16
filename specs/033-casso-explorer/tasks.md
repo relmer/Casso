@@ -659,18 +659,18 @@ status screen with the PC line and each operation's label (US16/AC6, AC7).
 **Purpose**: a bare //c brought up from the PC, updated from it, and the
 owner's walkthrough.
 
-- [ ] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/AppleLink/LinkBootstrap.h/.cpp`:
+- [X] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/AppleLink/LinkBootstrap.h/.cpp`:
   - the monitor text `CALL -151`, the shim as `3D00:` lines of 8 bytes with its speed byte at 9,600, then `3D00G`;
   - sent at the bootstrap speed with 250 ms after each line.
 
   Confirm the //c serial firmware's Ctrl-A `14B` speed command from the //c Technical Reference transcription. Tests of the generated text in `UnitTest/AppleLink/LinkBootstrapTests.cpp`. Per FR-092 and R23.
-- [ ] T211 [US15] Add Bootstrap to an Apple root's menu, then the shim's Ready at 9,600 baud, Load program, and Set speed to the link's speed.
+- [X] T211 [US15] Add Bootstrap to an Apple root's menu, then the shim's Ready at 9,600 baud, Load program, and Set speed to the link's speed.
   - **Speed change**: both ends switch after the ACK, so speeds that differ are corrected.
   - **Scenario test** in `ScenarioTests/AppleLinkBootstrapTests.cpp`: a //c `TestMachine` at the BASIC prompt with `IN#2` and Ctrl-A `14B` typed, bootstrapped over the bridge to the status screen.
 
   Per US15/AC1, SC-033 and the edge cases.
-- [ ] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim to `$3D00`, built by `LinkProgram::BuildShim` at the link's speed, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.
-- [ ] T213 [US14] Add the `WifiModem` transport:
+- [X] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim to `$3D00`, built by `LinkProgram::BuildShim` at the link's speed, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.
+- [X] T213 [US14] Add the `WifiModem` transport:
   - Save link to disk stores the PC's address on the disk;
   - the shim sends the modem's dial command for that address before Ready;
   - Casso Explorer accepts the connection on the network.

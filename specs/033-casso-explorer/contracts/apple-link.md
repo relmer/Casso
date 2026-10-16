@@ -94,7 +94,7 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02 (R24); the program
+The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02, the speed's text at $3D06, and a Wi-Fi modem's dial command, ending in a zero byte, at $3D0C (R24); the program
 runs from $0800 and uses $4000 to $68FF for buffers, with no DOS or ProDOS
 in memory.
 

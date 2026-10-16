@@ -257,6 +257,16 @@ public:
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable);
     Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
+    //  The link's boot disk written to the open Apple drive over the link,
+    //  through an image in tempFolder: its boot sector loads the shim at the
+    //  link's speed (FR-091).
+    Outcome  SaveLinkToDisk   (const std::wstring & tempFolder);
+
+    //  The same boot disk as an image file on the PC, for an emulator or to
+    //  write to a disk some other way. A Wi-Fi modem link's disk dials this
+    //  PC before its first Ready.
+    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const AppleLinkSettings & settings);
+
     //  The open Apple drive for the write's confirmation: its slot, drive
     //  and volume.
     std::wstring  DescribeAppleDrive () const;

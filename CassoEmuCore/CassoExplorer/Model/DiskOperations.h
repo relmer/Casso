@@ -72,6 +72,8 @@ public:
 
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
 
+    IDiskFileIo &  GetFileIo () { return m_fileIo; }
+
     //  Reads through the volume layer.
     Result  List (const std::string & imagePath, VolumeListing & outListing, VolumeKind & outKind) { return List (imagePath, std::string(), outListing, outKind); }
 
