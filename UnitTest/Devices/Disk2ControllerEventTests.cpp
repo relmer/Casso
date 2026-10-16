@@ -278,6 +278,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
 
             // Head at qt 0, energize phase 3 -> decrement direction,
             // pre-clamp delta is negative, clamped to 0 == bump.
@@ -298,6 +299,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
 
             // qt 0, rot 0. Adjacent phase 1 -> direction=+1,
             // single magnet => qtDelta=+2.
@@ -332,6 +334,7 @@ namespace Disk2ControllerEventTests
 
 
             ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
 
             ctrl.Write (0xC0E1, 0x00);      // phase 0 on: the head is there
             ctrl.Write (0xC0E3, 0x00);      // phase 1 on
@@ -360,6 +363,7 @@ namespace Disk2ControllerEventTests
 
 
 
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
             ctrl.Write (0xC0E1, 0x00);      // phase 0 on
             ctrl.Write (0xC0E3, 0x00);      // phase 1 on
             Assert::AreEqual (1, ctrl.GetQuarterTrack());

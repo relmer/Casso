@@ -313,9 +313,12 @@ void Disk2Controller::HandleSwitch (int offset)
                 m_engine[m_activeDrive].SetMotorOn (true);
                 UpdateEngineWriteMode();
 
+                //  The drive enabled now, the phases already on pull its
+                //  head.
                 if (edge)
                 {
                     m_motorSpinupRemaining = kMotorSpinupCycles;
+                    MoveHeadToPull();
                 }
 
                 if (edge && m_audioSink != nullptr)
@@ -343,6 +346,7 @@ void Disk2Controller::HandleSwitch (int offset)
         case 0xA:
             m_activeDrive = 0;
             UpdateEngineSelection();
+            MoveHeadIfEnabled();
 
             // Spec-006 FR-006: drive-select event fires after the
             // engine selection has been propagated.
@@ -355,6 +359,7 @@ void Disk2Controller::HandleSwitch (int offset)
         case 0xB:
             m_activeDrive = 1;
             UpdateEngineSelection();
+            MoveHeadIfEnabled();
 
             if (m_eventSinks.IsAny())
             {
@@ -504,10 +509,47 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 //  HandlePhase
 //
-//  Update the phase mask, move the selected drive's head to where the
-//  energized phases pull it, clamp to the legal range, then push the
-//  resulting quarter-track index into that drive's engine. The other
-//  drive's head stays where it is.
+//  Update the phase mask and, while the selected drive is enabled, move its
+//  head to where the energized phases pull it (MoveHeadToPull).
+//
+//  A DRIVE'S STEPPER WORKS ONLY WHILE THE DRIVE IS ENABLED: ENABLE' low,
+//  which is the motor running, its spin-down included (Sather, Understanding
+//  the Apple IIe, chapter 9, "The Drive ENABLE' Input": at the enabled drive
+//  "head positioning is enabled"). The controller latches the phases either
+//  way, so the ones on when the drive is next enabled pull its head then
+//  (GH #176).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::HandlePhase (int phase, bool on)
+{
+    if (on)
+    {
+        m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
+        m_phase  = phase;
+    }
+    else
+    {
+        m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
+    }
+
+    if (m_motorOn)
+    {
+        MoveHeadToPull();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveHeadToPull
+//
+//  Move the selected drive's head to where the energized phases pull it,
+//  clamp to the legal range, then push the resulting quarter-track index
+//  into that drive's engine. The other drive's head stays where it is.
 //
 //  THE HEAD FOLLOWS THE MAGNETS THAT ARE ON. Phase p's magnets sit at the
 //  quarter tracks where qt mod 8 is 2p, so each energized phase pulls the
@@ -528,7 +570,7 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::HandlePhase (int phase, bool on)
+void Disk2Controller::MoveHeadToPull()
 {
     int   & head    = m_quarterTrack[m_activeDrive];
     int     prevQt  = head;
@@ -536,16 +578,6 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     bool    bumped  = false;
 
 
-
-    if (on)
-    {
-        m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
-        m_phase  = phase;
-    }
-    else
-    {
-        m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
-    }
 
     target  = prevQt + GetPull (m_phases, prevQt);
     bumped  = target < 0 || target > kMaxQuarterTrack;
@@ -591,6 +623,27 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         {
             m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, head); });
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveHeadIfEnabled
+//
+//  A drive selected while the motor runs is enabled at once, so the phases
+//  on pull its head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::MoveHeadIfEnabled()
+{
+    if (m_motorOn)
+    {
+        MoveHeadToPull();
     }
 }
 

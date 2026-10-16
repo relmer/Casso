@@ -230,6 +230,8 @@ public:
 private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
+    void   MoveHeadToPull ();
+    void   MoveHeadIfEnabled ();
     void   UpdateEngineSelection();
     void   UpdateEngineWriteMode();
     Byte   HandleReadDispatch();

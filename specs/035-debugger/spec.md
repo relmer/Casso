@@ -1498,9 +1498,9 @@ run something, switch back to the //e: it is where it was left.
 - **Motor off**: no nibble passes the head, so the field kinds cannot stop;
   a program reading the latch with the motor off reads the same byte again,
   which is not a new nibble. A head breakpoint stops whenever Casso's model
-  moves the head, and its report includes the motor's state; a real drive's
-  stepper does not move while the drive is not enabled (Assumptions, GH #176),
-  and this spec requires neither behavior.
+  moves the head, which, as a real drive's stepper, it does only while the
+  drive is enabled (Assumptions, GH #176); its report includes the motor's
+  state.
 - **A head between two phases**: Casso's stepper moves the head in half-track
   steps, so the head reaches whole- and half-track positions only, apart from
   the outer stop at quarter track 139 and the steps back from it; there is no
@@ -3547,12 +3547,13 @@ debug channel.
   entry at the JMP's target and every call to RDADR16 on a real boot, and
   scenario 9 and the "A relocated DOS" edge case change with the owner if a
   call reaches RWTS's routines by another entry.
-- **The stepper with the motor off**: Casso's `Disk2Controller::HandlePhase`
-  moves the selected drive's head whatever the motor's state. A real drive's
-  stepper does not: per Sather's *Understanding the Apple IIe*, chapter 9
-  ("The Drive ENABLE' Input"), head positioning is enabled only at the drive
-  whose ENABLE' is low, which is while its motor runs. GH #176 tracks the
-  difference; this spec requires neither behavior.
+- **The stepper with the motor off**: per Sather's *Understanding the Apple
+  IIe*, chapter 9 ("The Drive ENABLE' Input"), head positioning is enabled
+  only at the drive whose ENABLE' is low, which is while its motor runs, its
+  spin-down included. `Disk2Controller::HandlePhase` latches the phases
+  either way and moves the selected drive's head only then; the phases on
+  when a drive is next enabled pull its head at that moment (GH #176, fixed
+  2026-10-15).
 - **The Disk ][ debug window's rows** belong to spec 006 and are not changed
   here. Its "Data read" event fires after DE AA, which the boot ROM and
   ProDOS never read for a sector they read, so its rows are mostly sectors
