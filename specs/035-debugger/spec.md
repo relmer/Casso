@@ -208,6 +208,9 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How does the Profiler pane start, stop, reset and save profiling? -> A: From a bar over its list: Profile turns profiling on and off, Reset starts the counts over, Save... writes them to a text file, and a drop-down lists them by opcode or by address. While profiling is off and nothing has been read, the pane has a note on how to start it (FR-193).
 - Q: Does profiling count while the machine runs on its own, not in a run the debugger started? -> A: Yes. While profiling is on the per-instruction hook is installed and every instruction is counted, whoever started the run, as R-026 has it; the cost is paid only while profiling is on. Trace-to-file writes lines only for runs the debugger starts, since the file is written only at a stop (FR-193).
 - Q: Is a store's read of its own target a data read in the heat map? -> A: No. The CPU reads a store's target before it writes it, except at an absolute address; that read is removed from the heat map's counts when the store writes the address, so it is neither a read nor a read before written.
+- Q: Does the profiler count cycles by routine? -> A: Yes. While profiling is on, each instruction's cycles go to the routine running it. A JSR, a BRK or an interrupt starts a routine at the address it lands on, and the routine ends when the stack pointer rises back to where it was before the call, so RTS, RTI and stack tricks such as PLA PLA RTS end it; code outside any call is Top level. The profile has a call tree (each routine under its caller, with self cycles, total cycles and calls), the routines (self, total, calls and cycles per call, each counted once per call chain) and a timeline of the last 600 video frames with each frame's cycles by routine. `PROFILE LIST ROUTINES` and `PROFILE LIST TREE` list them, `PROFILE SAVE` writes them, and the debug channel's profile reply has them (FR-243, FR-244).
+- Q: How does the Profiler pane present the routines? -> A: Its view drop-down chooses Opcodes, Addresses, Routines, Call tree or Flame graph. A timeline of frames runs across the top, each frame a bar of its cycles stacked by routine, with a tip listing the frame's routines. The flame graph draws each routine as a bar as wide as its total, under its caller, with a tip giving its self, total and calls; a click zooms into a routine and a click on Top level zooms out. Activating a routine in any view moves the disassembly to it (FR-193, FR-245).
+- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map records while any of them is shown (FR-246 to FR-248).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2850,8 +2853,9 @@ run something, switch back to the //e: it is where it was left.
   value; Clear comparison MUST end it.
 - **FR-192**: The status bar MUST show the run speed and open a popup choosing
   1x, 2x or Maximum.
-- **FR-193**: A Profiler pane MUST start, stop, reset and save profiling and
-  show its results as PROFILE does.
+- **FR-193**: A Profiler pane MUST start, stop, reset and save profiling from
+  a bar, and list its results as PROFILE does, by opcode, by address, by
+  routine, as a call tree or as a flame graph (FR-245).
 - **FR-194**: The Registers pane MUST show a Trip cycle count beside the total,
   reset from its context menu or by RCC, the total never reset.
 - **FR-195**: The Registers pane MUST show the last branch taken, from and to,
@@ -3119,6 +3123,38 @@ run something, switch back to the //e: it is where it was left.
   with `$`, `%` or a subscript MUST always be read as a BASIC variable.
 - **FR-242**: Loading a symbol file that defines a register's name MUST report
   each such name and that `@` and the name mean the register.
+- **FR-243**: While profiling is on, each instruction's cycles MUST be counted
+  to the routine running it. A JSR, a BRK or an interrupt starts a routine at
+  the address it lands on; the routine ends when the stack pointer rises back
+  to its value before the call; code outside any call is Top level. The
+  profile MUST have a call tree of routines under their callers with self
+  cycles, total cycles and calls; the routines with self, total, calls and
+  cycles per call, a routine's total counted once per call chain; and the
+  last 600 video frames' cycles by routine. `PROFILE RESET` clears them all.
+- **FR-244**: `PROFILE LIST ROUTINES` MUST list the routines and `PROFILE LIST
+  TREE` the call tree, indented under their callers; `PROFILE SAVE` MUST
+  write both after the opcode and address tables, and the debug channel's
+  profile reply MUST have the routines, the tree and the frames.
+- **FR-245**: The Profiler pane's view drop-down MUST choose Opcodes,
+  Addresses, Routines, Call tree or Flame graph. A timeline of frames MUST
+  run across the pane's top, each frame a bar of its cycles stacked by
+  routine, with a tip listing the frame's routines. The flame graph MUST draw
+  each routine as a bar as wide as its total, under its caller, with a tip
+  giving its self, total and calls; a click MUST zoom into a routine and a
+  click on Top level zoom out. Activating a routine in any view MUST move the
+  disassembly to it.
+- **FR-246**: A disassembly view MUST offer Show heat on its bar, off by
+  default and saved with its options: a strip with a block per byte of the
+  line, in the heat map's color for that byte, and `r` or `w` in place of the
+  block for a byte read or written as data.
+- **FR-247**: While Show heat is on in any disassembly view, the source view
+  MUST have the heat strip over the bytes its line assembled to, up to four
+  blocks, and the BASIC program pane over the bytes of the line's tokens, the
+  interpreter's reads of them counting as the line running.
+- **FR-248**: A memory window MUST offer Heat on its bar, which tints each
+  byte by its heat. Every heat column MUST follow the heat map's fade or
+  cumulative mode and read the CPU's address space, and the heat map MUST
+  record while any heat column is shown.
 
 ### Key Entities
 
