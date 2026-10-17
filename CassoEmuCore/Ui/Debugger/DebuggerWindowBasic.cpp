@@ -171,8 +171,9 @@ void DebuggerWindow::FollowBasicProgram()
 
 
     m_wasBasicPaused = m_snapshot->isPaused;
+    m_isBasicStop    = isStop && basic.has_value() && basic->line.has_value() && m_snapshot->pc >= kInterpreterFirst && m_snapshot->pc <= kInterpreterLast;
 
-    if (isStop && basic.has_value() && basic->line.has_value() && m_snapshot->pc >= kInterpreterFirst && m_snapshot->pc <= kInterpreterLast)
+    if (m_isBasicStop)
     {
         line = basic->line;
     }

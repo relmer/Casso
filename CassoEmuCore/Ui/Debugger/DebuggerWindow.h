@@ -1568,10 +1568,12 @@ private:
     bool                                   m_isBasicReading           = false;
 
     //  The line the program pane scrolls to once it has the program, whether
-    //  the last snapshot was of a stopped machine, and the BASIC line
-    //  breakpoints already seen; none until the first snapshot.
+    //  the last snapshot was of a stopped machine, whether this stop brought
+    //  the program pane forward, and the BASIC line breakpoints already seen;
+    //  none until the first snapshot.
     std::optional<Word>                    m_basicPendingLine;
     bool                                   m_wasBasicPaused      = false;
+    bool                                   m_isBasicStop         = false;
     std::optional<std::set<int>>           m_basicBreakpointIds;
 
     void                           CreateBasicPanes      ();

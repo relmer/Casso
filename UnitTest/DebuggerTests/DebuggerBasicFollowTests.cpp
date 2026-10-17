@@ -91,6 +91,9 @@ namespace DebuggerBasicFollowTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::IsPaneShown;
+        using DebuggerWindow::FocusControl;
+        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetPaneOfFocus;
     };
 
 
@@ -163,6 +166,29 @@ namespace DebuggerBasicFollowTests
             window.TakeSnapshot (MakeSnapshot (true, 0xD81D, 10));
 
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kBasicProgram), L"the stop opens it");
+        }
+
+
+
+        //  At a stop in the interpreter, the focus the console had moves to
+        //  the program pane, where the steps are BASIC's, not the disassembly.
+        TEST_METHOD (AStopInTheInterpreterFocusesTheProgram)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            FollowWindow       window (theme, host);
+            DxuiDpiScaler      scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.FocusControl (window.GetCommandBox());
+            window.TakeSnapshot (MakeSnapshot (true, 0xD81D, 10));
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kBasicProgram), window.GetPaneOfFocus());
         }
 
 

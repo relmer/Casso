@@ -7216,10 +7216,11 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     PlaceLateFocus();
 
     //  At a stop, focus moves from the console to the disassembly unless the
-    //  console received the last input.
+    //  console received the last input; at a stop in a running BASIC program,
+    //  to the program pane, where the steps are BASIC's.
     if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && GetPaneOfFocus() == DebuggerLayout::kConsole)
     {
-        FocusPane (DebuggerLayout::GetCodePaneId (m_activeCode));
+        FocusPane (m_isBasicStop ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (m_activeCode));
     }
 
     //  The drop-downs carry the mode and the panels they were built with, so
