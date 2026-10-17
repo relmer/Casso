@@ -46,7 +46,7 @@ namespace HeatMapRangesPaneTests
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
         std::string  GetDebuggerHeatMapRanges()                          override { return ranges; }
-        void         SetDebuggerHeatMapRanges (const std::string & text) override { ranges = text; }
+        void         SetDebuggerHeatMapRanges (const std::string & text) override { ranges = text; if (onSave) { onSave(); } }
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
 
@@ -62,6 +62,9 @@ namespace HeatMapRangesPaneTests
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
         std::string  ranges;
+
+        //  Run as the ranges are saved, as a paint the save causes runs.
+        std::function<void()>  onSave;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -592,6 +595,39 @@ namespace HeatMapRangesPaneTests
             key.vk = VK_DELETE;
             (void) window.OnKey (key);
             Assert::AreEqual (rows - 1, window.GetHeatRangeList()->GetDataRowCount(), L"Delete removes it");
+        }
+
+
+
+        //  A range added at the end of the set the heat map shows, then
+        //  deleted, leaves the set as it was, a paint during the save
+        //  included.
+        TEST_METHOD (ARangeAddedToTheShownSetIsDeleted)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            RangesHost     host;
+            RangesWindow   window (theme, host);
+            int            rows  = 0;
+
+
+
+            Build (window);
+            window.ShowPane (DebuggerLayout::kHeatRanges);
+            Relayout (window);
+
+            rows = window.GetHeatRangeList()->GetDataRowCount();
+            AddRange (window, L"$6000-$95FF");
+            Assert::AreEqual (rows + 1, window.GetHeatRangeList()->GetDataRowCount());
+
+            //  Saving can paint the window, and the toolbar's enabled state
+            //  reads the selected row's range as the paint draws it.
+            host.onSave = [&window] { (void) window.IsHeatRangeBarEnabled (HeatMapRangeBarCommands::kRemove); };
+
+            window.GetHeatRangeList()->SetSelectedRow (rows);
+            window.GetHeatRangeList()->DeleteRow (rows);
+            Relayout (window);
+
+            Assert::AreEqual (rows, window.GetHeatRangeList()->GetDataRowCount());
         }
 
 

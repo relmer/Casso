@@ -298,7 +298,8 @@ bool DebuggerWindow::IsHeatRangeBarEnabled (int id) const
     const HeatMapRangeSet  * set      = GetEditedSet();
     std::optional<size_t>    selected = GetSelectedHeatRange();
     int                      row      = m_heatRangeList->GetSelectedRow();
-    bool                     isOwn    = set != nullptr && selected.has_value() && !HeatMapRangeSets::IsBuiltIn (set->ranges[*selected]);
+    bool                     isOwn    = set != nullptr && selected.has_value() && *selected < set->ranges.size() &&
+                                        !HeatMapRangeSets::IsBuiltIn (set->ranges[*selected]);
 
 
 
@@ -494,9 +495,11 @@ void DebuggerWindow::RemoveHeatRange (int row)
         return;
     }
 
+    //  The rows are rebuilt before the save, since saving can paint the
+    //  window, and a paint reads the rows against the set.
     SetHeatRangeError ({});
-    SaveHeatRanges();
     ApplyHeatRanges();
+    SaveHeatRanges();
     Invalidate();
 }
 
