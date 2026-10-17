@@ -658,6 +658,10 @@ void CassoExplorerWindow::ConfigureWidgets()
         {
             RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
         }
+        else if (row >= 0 && (size_t) row < m_browser.GetRows().size() && m_browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
+        {
+            EditLink (std::string());
+        }
         else if (m_browser.GetSelectedRows().size() > 1)
         {
             //  Enter on several opens each, as Explorer's does.
@@ -5864,6 +5868,7 @@ void CassoExplorerWindow::Dispatch (int id)
             ReadFolderOptions();
             ReloadKnownFolders();
             m_browser.GetBrowserModel().InvalidateAllCatalogs();
+            m_browser.ForgetLinkVisit();
             hr = m_browser.Refresh();
 
             //  The list's rows are hidden for a moment and then refilled, as
@@ -6793,6 +6798,25 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
         {
             items.push_back (DxuiPopupMenuItem::ForSeparator());
         }
+
+        //  A linked machine's or drive's rows, as its node in the tree has.
+        if (location.kind == Location::Kind::AppleDrive || (location.kind == Location::Kind::Root && location.path.starts_with (TreeModel::kLinkRootTag)))
+        {
+            size_t  before = items.size();
+
+            AddLinkRows (items, true, location);
+
+            if (items.size() > before)
+            {
+                items.push_back (DxuiPopupMenuItem::ForSeparator());
+            }
+        }
+    }
+
+    if (background && shown.kind == Location::Kind::Root && shown.path == TreeModel::kCassoLinkRootId)
+    {
+        AddLinkRows (items, true, shown);
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
     for (CassoExplorerActions::Verb verb : m_actions.GetListVerbs())
@@ -9262,9 +9286,19 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                     break;
                 }
 
+                //  An item a shell folder such as Home lists may be a recent or
+                //  a cloud file with no path of its own; its own Delete
+                //  command removes it, as File Explorer's does.
                 if (TryGetSelectedShellIds (hostPaths))
                 {
-                    hr = m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+                    hr = (m_browser.GetLocation().kind == Location::Kind::ShellFolder)
+                       ? m_shellVerbs.RunItemVerb (GetHwnd(), hostPaths, "delete")
+                       : m_shellVerbs.Recycle (GetHwnd(), hostPaths);
+                }
+
+                if (FAILED (hr) && hr != HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+                {
+                    ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
                 }
 
                 if (SUCCEEDED (hr) && !hostPaths.empty() && m_browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -9940,7 +9974,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
     }
 
     //  A folder on the disk has Explorer's row of Cut, Copy and Delete.
-    if (hasLocation && location.kind == Location::Kind::HostFolder && location.path.size() > 3)
+    if (hasLocation && ((location.kind == Location::Kind::HostFolder && location.path.size() > 3) || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path);
     }
@@ -9972,6 +10006,17 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddOpenRows (items, location);
     }
 
+    //  A disk image's Casso commands, as its row in the list has them.
+    if (hasLocation && location.kind == Location::Kind::DiskImage)
+    {
+        std::wstring  image = location.path;
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { InsertIntoDrive (image, 1); });
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { InsertIntoDrive (image, 2); });
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { OpenInNewCasso (image); });
+    }
+
     if (hasFolder && m_browser.CanRemoveFromCasso (id))
     {
         AddMenuCommand (items, L"&Remove from Casso", [this, folder]() { ChangeKnownFolder (folder, false); });
@@ -9981,56 +10026,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddMenuCommand (items, L"&Add to Casso", [this, folder]() { ChangeKnownFolder (folder, true); });
     }
 
-    //  A link's root: its settings, its port, and the link itself.
-    {
-        std::wstring  link;
-        int           slot  = 0;
-        int           drive = 0;
-
-        if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && TreeModel::TryParseLinkId (location.path, link, slot, drive))
-        {
-            std::string  name = TextEncoding::WideToNarrow (link);
-
-            bool  saved = !m_context.links->IsDiscovered (name);
-
-            if (saved)
-            {
-                AddMenuCommand (items, L"&Edit machine...", [this, name]() { EditLink (name); });
-            }
-
-            if (m_context.links->IsStarted (name))
-            {
-                AddMenuCommand (items, L"&Disconnect", [this, name]() { DisconnectLink (name); });
-            }
-
-            if (IsSerialLink (name))
-            {
-                AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
-            }
-
-            AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
-            //  A Wi-Fi modem's boot disk dials this PC, so it is saved from
-            //  its machine; CassoLink.dsk serves every other link.
-            if (IsWifiModemLink (name))
-            {
-                AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
-            }
-
-            if (saved)
-            {
-                AddMenuCommand (items, L"Re&move machine", [this, name]() { RemoveLink (name); });
-            }
-        }
-        else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
-        {
-            //  A drive's whole disk, read or written from its node.
-            std::wstring  title = m_browser.GetTreeModel().GetLinkDriveTitle (location.path);
-
-            AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { GoToLocation (location); ReadDiskToImage(); });
-            AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { GoToLocation (location); WriteImageToDisk(); });
-            AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
-        }
-    }
+    AddLinkRows (items, hasLocation, location);
 
     //  The Recycle Bin's node empties it, as Explorer's does.
     if (hasLocation && location.kind == Location::Kind::RecycleBin)
@@ -10457,6 +10453,79 @@ bool CassoExplorerWindow::IsSerialLink (const std::string & name) const
     {
         return settings.name == name && settings.transport == LinkTransport::Serial;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddLinkRows
+//
+//  A linked machine's settings, its port and the machine itself; a drive's
+//  whole disk; and CassoLink's Add a CassoLink machine. The tree's node and
+//  the list's row have the same rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location)
+{
+    std::wstring  link;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && TreeModel::TryParseLinkId (location.path, link, slot, drive))
+    {
+        std::string  name = TextEncoding::WideToNarrow (link);
+
+        bool  saved = !m_context.links->IsDiscovered (name);
+
+        if (saved)
+        {
+            AddMenuCommand (items, L"&Edit machine...", [this, name]() { EditLink (name); });
+        }
+
+        if (m_context.links->IsStarted (name))
+        {
+            AddMenuCommand (items, L"&Disconnect", [this, name]() { DisconnectLink (name); });
+        }
+
+        if (IsSerialLink (name))
+        {
+            AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
+        }
+
+        AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
+
+        //  A Wi-Fi modem's boot disk dials this PC, so it is saved from
+        //  its machine; CassoLink.dsk serves every other link.
+        if (IsWifiModemLink (name))
+        {
+            AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
+        }
+
+        if (saved)
+        {
+            AddMenuCommand (items, L"Re&move machine", [this, name]() { RemoveLink (name); });
+        }
+    }
+    else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
+    {
+        //  A drive's whole disk, read or written from its node.
+        std::wstring  title = m_browser.GetTreeModel().GetLinkDriveTitle (location.path);
+
+        AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { GoToLocation (location); ReadDiskToImage(); });
+        AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { GoToLocation (location); WriteImageToDisk(); });
+        AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
+    }
+
+    if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)
+    {
+        AddMenuCommand (items, L"&Add a CassoLink machine...", [this]() { EditLink (std::string()); });
+    }
 }
 
 
@@ -10899,11 +10968,16 @@ void CassoExplorerWindow::OnLinkChanged()
         m_tree->ReplaceChildren (TreeModel::kCassoLinkRootId, m_browser.GetTreeChildren (TreeModel::kCassoLinkRootId));
     }
 
+    showing = showing || m_browser.GetLocation().path == TreeModel::kCassoLinkRootId;
+
+    //  The preview of a drive whose catalog was being read is drawn again
+    //  with the catalog.
     if (showing)
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        m_browser.RefreshPreview();
         FillList();
         FillPreview();
     }

@@ -284,6 +284,10 @@ public:
     //  The paths of the selection when every row is a CassoLink item.
     bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const;
 
+    //  The next list of a linked machine or drive reads its disks again, as
+    //  a refresh does.
+    void  ForgetLinkVisit () { m_linkVisit = Location(); }
+
     //  CassoLink's help, as the What's CassoLink item has it.
     static const wchar_t *  GetCassoLinkHelp ();
 
@@ -444,6 +448,7 @@ private:
     bool     PreviewAppleDrive (const CatalogRow & row);
     void     PreviewCassoLinkItem (const CatalogRow & row);
     void     AddCassoLinkItems ();
+    void     RevisitLink       (const Location & location);
     bool     CanListImage   (const std::wstring & imagePath);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
@@ -482,6 +487,7 @@ private:
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
+    Location                            m_linkVisit;  // the linked machine or drive last listed
     TypedPathHistory                    m_typedPaths;
     MemoryBus                           m_bus;
     PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;

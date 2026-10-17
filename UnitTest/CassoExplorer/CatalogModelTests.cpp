@@ -145,7 +145,7 @@ public:
         fileRow   = CatalogModel::FromHostEntry (file, true, 3);
         folderRow = CatalogModel::FromHostEntry (folder, false, 4);
 
-        Assert::AreEqual (std::wstring (L"DSK"),    fileRow.typeText);
+        Assert::AreEqual (std::wstring (L"Apple II disk image"), fileRow.typeText, L"a disk image by its kind");
         Assert::AreEqual ((uint64_t) 143360,        fileRow.sizeBytes);
         Assert::IsTrue   (fileRow.isDiskImage);
         Assert::IsTrue   (fileRow.hasModified);

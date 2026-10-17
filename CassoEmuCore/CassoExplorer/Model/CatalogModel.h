@@ -97,9 +97,9 @@ struct CatalogRow
     size_t        sourceIndex  = 0;
 
     //  An item CassoLink's root lists that is not on the disk until it is
-    //  opened or dragged: its boot disk, or its help. hostPath is where it
-    //  is written.
-    enum class CassoLinkItem { None, BootDisk, Help };
+    //  opened or dragged: its boot disk, or its help, with hostPath where it
+    //  is written; or the row that adds a machine, which is no file at all.
+    enum class CassoLinkItem { None, BootDisk, Help, AddMachine };
 
     CassoLinkItem  cassoLinkItem = CassoLinkItem::None;
 };
@@ -133,6 +133,10 @@ public:
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
+
+    //  The Type column's text for a disk image by its extension, as
+    //  ProDOS-order disk image, or empty for a name that is not one.
+    static std::wstring  GetDiskImageTypeName (const std::wstring & name);
 
     static void  FromListing (const VolumeListing & listing, VolumeKind kind, std::vector<CatalogRow> & outRows);
 

@@ -268,6 +268,8 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_selectedRows.clear();
     m_shellParent = Location();
 
+    RevisitLink (location);
+
     switch (location.kind)
     {
         case Location::Kind::HostFolder:
@@ -385,7 +387,8 @@ HRESULT CassoExplorerBrowser::LoadHostFolder (const std::wstring & path)
         {
             std::wstring  typeName = m_shellIcons->GetTypeName (JoinPath (path, entry.name), entry.isFolder);
 
-            if (!typeName.empty())
+            //  A disk image has Casso's type for it, by its sector order.
+            if (!typeName.empty() && CatalogModel::GetDiskImageTypeName (entry.name).empty())
             {
                 m_rows.back().typeText = std::move (typeName);
             }
@@ -479,6 +482,7 @@ HRESULT CassoExplorerBrowser::LoadShellFolder (const std::wstring & id)
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
+        row.typeText     = (row.isDiskImage && !CatalogModel::GetDiskImageTypeName (row.name).empty()) ? CatalogModel::GetDiskImageTypeName (row.name) : row.typeText;
         row.sourceIndex  = index;
         row.shellOrder   = items[index].shellOrder;
         row.iconId       = items[index].iconId;
@@ -723,6 +727,15 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         m_rows.back().hostPath  = m_rootChildren[index].location.path;
         m_rows.back().isMissing = m_rootChildren[index].missing;
 
+        if (m_rootChildren[index].kind == TreeNode::Kind::AppleLink)
+        {
+            m_rows.back().typeText = L"CassoLink machine";
+        }
+        else if (m_rootChildren[index].kind == TreeNode::Kind::AppleDrive)
+        {
+            m_rows.back().typeText = L"Apple II disk drive";
+        }
+
         //  A drive's tile has its name, its type and how full it is.
         if (m_rootChildren[index].kind == TreeNode::Kind::Drive && m_shellIcons != nullptr)
         {
@@ -756,6 +769,56 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::RevisitLink
+//
+//  A Disk II has no signal for a changed disk, so a machine's
+//  drives, or a drive, are read again each time the list goes to them, and
+//  on a refresh; a reload as a read arrives is the same visit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::RevisitLink (const Location & location)
+{
+    std::wstring   link;
+    int            slot    = 0;
+    int            drive   = 0;
+    bool           parsed  = m_links != nullptr && TreeModel::TryParseLinkId (location.path, link, slot, drive);
+    std::string    name    = TextEncoding::WideToNarrow (link);
+    VolumeListing  listing;
+    VolumeKind     kind    = VolumeKind::Unknown;
+    HRESULT        result  = S_OK;
+    std::string    message;
+    bool           revisit = parsed && location != m_linkVisit && m_links->IsStarted (name);
+
+
+
+    m_linkVisit = parsed ? location : Location();
+
+    if (!revisit)
+    {
+        return;
+    }
+
+    for (int each = 1; each <= AppleLinkSession::kDriveCount; each++)
+    {
+        if ((drive == 0 || drive == each) && !m_links->IsWritingDisk (name, each))
+        {
+            m_links->Invalidate (name, each);
+
+            if (drive == 0)
+            {
+                m_links->TryGetListing (name, each, std::string(), listing, kind, result, message);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::AddCassoLinkItems
 //
 //  CassoLink.dsk and the help, after the machines. Each has the path it is
@@ -765,21 +828,32 @@ Error:
 
 void CassoExplorerBrowser::AddCassoLinkItems()
 {
-    wchar_t  temp[MAX_PATH] = {};
-    DWORD    length         = GetTempPathW (MAX_PATH, temp);
+    wchar_t           temp[MAX_PATH] = {};
+    DWORD             length         = GetTempPathW (MAX_PATH, temp);
+    FileSystemEntry   add;
 
 
+
+    add.name = L"Add a CassoLink machine...";
+    m_rows.push_back (CatalogModel::FromHostEntry (add, false, m_rootChildren.size() + m_rows.size()));
+    m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AddMachine;
+    m_rows.back().typeText.clear();
 
     for (CatalogRow::CassoLinkItem item : { CatalogRow::CassoLinkItem::BootDisk, CatalogRow::CassoLinkItem::Help })
     {
         FileSystemEntry  entry;
         bool             disk = item == CatalogRow::CassoLinkItem::BootDisk;
 
-        entry.name = disk ? L"CassoLink.dsk" : L"What's CassoLink.txt";
+        entry.name = disk ? L"CassoLink.dsk" : L"What's CassoLink.md";
         m_rows.push_back (CatalogModel::FromHostEntry (entry, disk, m_rootChildren.size() + m_rows.size()));
         m_rows.back().cassoLinkItem = item;
         m_rows.back().sizeBytes     = disk ? NibblizationLayer::kImageByteSize : wcslen (GetCassoLinkHelp());
         m_rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
+
+        if (!disk && m_shellIcons != nullptr && !m_shellIcons->GetTypeName (m_rows.back().hostPath, false).empty())
+        {
+            m_rows.back().typeText = m_shellIcons->GetTypeName (m_rows.back().hostPath, false);
+        }
     }
 }
 
@@ -809,7 +883,7 @@ bool CassoExplorerBrowser::PrepareCassoLinkItems()
         const CatalogRow *  item  = (row >= 0 && (size_t) row < m_rows.size()) ? &m_rows[(size_t) row] : nullptr;
         bool                named = false;
 
-        if (item == nullptr || item->cassoLinkItem == CatalogRow::CassoLinkItem::None)
+        if (item == nullptr || item->cassoLinkItem == CatalogRow::CassoLinkItem::None || item->cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
         {
             continue;
         }
@@ -852,7 +926,8 @@ bool CassoExplorerBrowser::TryGetSelectedCassoLinkPaths (std::vector<std::wstrin
 
     for (int row : m_selectedRows)
     {
-        bool  item = row >= 0 && (size_t) row < m_rows.size() && m_rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::None;
+        bool  item = row >= 0 && (size_t) row < m_rows.size() && m_rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::None
+                  && m_rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
 
         if (!item)
         {
@@ -878,34 +953,35 @@ bool CassoExplorerBrowser::TryGetSelectedCassoLinkPaths (std::vector<std::wstrin
 
 const wchar_t * CassoExplorerBrowser::GetCassoLinkHelp()
 {
-    return L"What's CassoLink?\r\n"
+    return L"# What's CassoLink?\r\n"
            L"\r\n"
-           L"CassoLink moves files and whole disks between Casso Explorer and an Apple II: a real one on a serial "
-           L"cable or a Wi-Fi modem, or one running in Casso.\r\n"
+           L"CassoLink moves files and whole disks between **Casso Explorer** and an **Apple II**: a real one on a "
+           L"serial cable or a Wi-Fi modem, or one running in Casso.\r\n"
            L"\r\n"
-           L"Connecting an Apple\r\n"
+           L"## Connecting an Apple\r\n"
            L"\r\n"
-           L"1. Choose Add a CassoLink machine from See more (...) or from CassoLink's menu, and pick how the Apple "
-           L"is connected:\r\n"
-           L"   - Serial: a null modem cable from the Apple //c's port 2, or a Super Serial Card, to a COM port or a "
-           L"USB serial adapter.\r\n"
-           L"   - Wi-Fi modem: a serial Wi-Fi modem on the Apple's port 2.\r\n"
-           L"   - Emulated: an Apple running in Casso, with its serial port on TCP. A running Casso is listed under "
-           L"CassoLink without being added.\r\n"
-           L"2. Start CassoLink on the Apple, either way:\r\n"
-           L"   - Boot CassoLink.dsk, from the CassoLink folder: drag it into Casso, or write it to a floppy. For a "
-           L"Wi-Fi modem, save the disk from the machine's menu instead, so it dials this PC.\r\n"
-           L"   - With no disk, on a serial cable: at the Apple's BASIC prompt, type IN#2 and press Return, then "
-           L"choose Bootstrap the Apple from the machine's menu. The rest is typed in over the cable.\r\n"
-           L"3. Click the machine under CassoLink. Its drives are listed once the connection is made.\r\n"
+           L"1. **Add the machine.** Choose *Add a CassoLink machine* from See more (**...**), or from the CassoLink "
+           L"folder, and pick how the Apple is connected:\r\n"
+           L"   - **Serial**: a null modem cable from the Apple //c's port 2, or a Super Serial Card, to a COM port "
+           L"or a USB serial adapter.\r\n"
+           L"   - **Wi-Fi modem**: a serial Wi-Fi modem on the Apple's port 2.\r\n"
+           L"   - **Emulated**: an Apple running in Casso, with its serial port on TCP. A running Casso is listed "
+           L"under CassoLink without being added.\r\n"
+           L"2. **Start CassoLink on the Apple**, either way:\r\n"
+           L"   - Boot **CassoLink.dsk** from the CassoLink folder: drag it into Casso, or write it to a floppy. For "
+           L"a Wi-Fi modem, save the disk from the machine's menu instead, so it dials this PC.\r\n"
+           L"   - With no disk, on a serial cable: at the Apple's BASIC prompt, type `IN#2` and press Return, then "
+           L"choose *Bootstrap the Apple* from the machine's menu. The rest is typed in over the cable.\r\n"
+           L"3. **Click the machine** under CassoLink. Its drives are listed once the connection is made.\r\n"
            L"\r\n"
-           L"Once connected\r\n"
+           L"## Once connected\r\n"
            L"\r\n"
            L"- Open a drive to browse its catalog, and select a file to preview it.\r\n"
            L"- Drag files to and from a drive to copy them.\r\n"
            L"- Drag a drive to a folder to make an image of the whole disk, or drag an image onto a drive to write "
            L"it to the disk.\r\n"
-           L"- Choose Write CassoLink to disk from a drive's menu to make a boot disk on the Apple itself.\r\n";
+           L"- After changing the disk in a drive, open the drive again, or press F5, to read the new disk.\r\n"
+           L"- Choose *Write CassoLink to disk* from a drive's menu to make a boot disk on the Apple itself.\r\n";
 }
 
 
@@ -1073,10 +1149,10 @@ bool CassoExplorerBrowser::PreviewAppleDrive (const CatalogRow & row)
 
 void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 {
-    std::wstring  text = (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)
-                       ? GetCassoLinkHelp()
-                       : L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on port 2 at 115,200 baud. "
-                         L"Drag it into Casso or onto a folder, or write it to a floppy.\r\n";
+    std::wstring  text = (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)       ? std::wstring (GetCassoLinkHelp())
+                       : (row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine) ? std::wstring (L"Open it to add an Apple connected to this PC, by serial cable, Wi-Fi modem or TCP.\r\n")
+                       : std::wstring (L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on port 2 at 115,200 baud. "
+                                       L"Drag it into Casso or onto a folder, or write it to a floppy.\r\n");
     size_t        start = 0;
     size_t        end   = 0;
 
@@ -3628,6 +3704,7 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     if (m_rows[row].cassoLinkItem != CatalogRow::CassoLinkItem::None)
     {
         outPath = m_rows[row].hostPath;
+        found   = m_rows[row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
     }
     else if (!m_rootChildren.empty() && m_rows[row].sourceIndex < m_rootChildren.size())
     {
@@ -4412,9 +4489,9 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
         return icons.GetForKind (IShellIcons::Kind::DiskImage);
     }
 
-    //  A linked Apple has the apple, and CassoLink's help the icon of its
-    //  type, before it is written.
-    if (!link.empty())
+    //  A linked Apple has the apple, as does the row that adds one, and
+    //  CassoLink's help the icon of its type, before it is written.
+    if (!link.empty() || row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
     {
         return icons.GetForKind (IShellIcons::Kind::AppleMachine);
     }

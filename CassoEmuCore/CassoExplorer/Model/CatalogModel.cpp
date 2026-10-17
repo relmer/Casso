@@ -199,7 +199,11 @@ CatalogRow CatalogModel::FromHostEntry (const FileSystemEntry & entry, bool isDi
     row.isCompressed = entry.isCompressed;
     row.isEncrypted  = entry.isEncrypted;
 
-    if (entry.isFolder)
+    if (isDiskImage && !GetDiskImageTypeName (entry.name).empty())
+    {
+        row.typeText = GetDiskImageTypeName (entry.name);
+    }
+    else if (entry.isFolder)
     {
         row.typeText = L"Folder";
     }
@@ -342,4 +346,43 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
 
                           return descending ? IsBefore (b, a, column) : IsBefore (a, b, column);
                       });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetDiskImageTypeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
+{
+    static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kTypes[] =
+    {
+        { L".dsk", L"Apple II disk image"       },
+        { L".do",  L"DOS-order disk image"      },
+        { L".po",  L"ProDOS-order disk image"   },
+        { L".d13", L"13-sector disk image"      },
+        { L".nib", L"Nibble disk image"         },
+        { L".woz", L"WOZ disk image"            },
+        { L".2mg", L"2IMG disk image"           },
+        { L".hdv", L"ProDOS hard disk image"    },
+    };
+    size_t        dot       = name.rfind (L'.');
+    std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : name.substr (dot);
+
+
+
+    for (const auto & [ext, type] : s_kTypes)
+    {
+        if (_wcsicmp (extension.c_str(), ext) == 0)
+        {
+            return type;
+        }
+    }
+
+    return std::wstring();
 }
