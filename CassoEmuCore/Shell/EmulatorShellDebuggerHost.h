@@ -33,6 +33,8 @@ public:
     void                    UpdateWindowTitle   () override;
     HRESULT                 SetUiTimer          (UINT_PTR id, UINT ms) override;
     HRESULT                 KillUiTimer         (UINT_PTR id) override;
+    void                    BeginModalKeepAlive () override;
+    void                    EndModalKeepAlive   () override;
     void                    PostCommand         (WORD id, const std::string & payload) override;
     void                    DrawFrame           () override;
     void                    RedrawStoppedFrame  () override;

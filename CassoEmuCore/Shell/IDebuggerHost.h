@@ -50,6 +50,11 @@ public:
     virtual HRESULT                 SetUiTimer          (UINT_PTR id, UINT ms)   = 0;
     virtual HRESULT                 KillUiTimer         (UINT_PTR id)            = 0;
 
+    //  Draws the emulator's window on a timer while a modal dialog's message
+    //  loop runs on the UI thread, and stops. UI thread.
+    virtual void                    BeginModalKeepAlive ()                       = 0;
+    virtual void                    EndModalKeepAlive   ()                       = 0;
+
     //  Queues a command for the CPU thread, as a menu item would.
     virtual void                    PostCommand         (WORD id, const std::string & payload) = 0;
 

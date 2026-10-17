@@ -85,6 +85,8 @@ public:
         AssertParsesTo (rig, "HISTORY OFF",  DebuggerActions::GetTraceToggle      (true,  aw));
         AssertParsesTo (rig, "MODE MONITOR", DebuggerActions::GetSetMode          (CommandMode::Monitor, aw));
         AssertParsesTo (rig, "R P 30",       DebuggerActions::GetSetRegister      ("P", 0x30, aw));
+        AssertParsesTo (rig, "PROJECT MERGE", DebuggerActions::GetProject         ("MERGE", "", aw));
+        AssertParsesTo (rig, "PROJECT SAVEAS \"game.cassoproj\"", DebuggerActions::GetProject ("SAVEAS", "game.cassoproj", aw));
     }
 
 

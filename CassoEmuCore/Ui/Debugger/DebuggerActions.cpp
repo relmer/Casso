@@ -902,13 +902,14 @@ DebuggerAction DebuggerActions::GetSaveBreakpoints (const std::string & path, Co
 //
 //  DebuggerActions::GetProject
 //
-//  PROJECT with its subcommand and a file name, as `SAVEAS "file"`.
+//  PROJECT with its subcommand and a file name, as `SAVEAS "file"`, or the
+//  subcommand alone when there is no file, as `MERGE`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerAction DebuggerActions::GetProject (const std::string & subcommand, const std::string & path, CommandMode mode)
 {
-    std::string     text   = std::format ("{} \"{}\"", subcommand, path);
+    std::string     text   = path.empty() ? subcommand : std::format ("{} \"{}\"", subcommand, path);
     DebuggerAction  action = Make (DebugVerb::Project, "PROJECT " + text, mode);
 
 

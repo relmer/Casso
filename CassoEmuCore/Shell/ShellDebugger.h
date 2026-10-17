@@ -356,6 +356,7 @@ public:
     void                    SetProjectStore     (std::unique_ptr<DebugProjectStore> store) { m_projectStore = std::move (store); }
     void                    ServiceProject      ();
     void                    SaveProject         ();
+    bool                    HasMergeOffer       ();
 
 private:
 

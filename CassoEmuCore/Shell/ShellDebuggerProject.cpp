@@ -5,7 +5,6 @@
 #include "Config/DebuggerSettings.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
-#include "Debugger/DebugCommandPayload.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Shell/CpuManager.h"
@@ -416,9 +415,32 @@ void ShellDebugger::OfferProjectMerge (const DebugProject & old)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebugger::HasMergeOffer
+//
+//  Whether the old project's items are set aside for the user's answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::HasMergeOffer()
+{
+    std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+    return !m_mergeLines.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDebugger::OnConfirmProjectMerge
 //
 //  UI thread: the prompt, and on Yes, PROJECT MERGE queued for the CPU thread.
+//  The emulator's window is drawn on a timer while the prompt is up, since
+//  the prompt's message loop replaces the window's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,11 +471,13 @@ void ShellDebugger::OnConfirmProjectMerge()
         owner = m_debuggerWindow->GetHwnd();
     }
 
+    m_host.BeginModalKeepAlive();
     choice = DxuiMessageBox (owner, &m_host.GetChromeTheme(), question.c_str(), L"Debug project", MB_YESNO | MB_ICONQUESTION);
+    m_host.EndModalKeepAlive();
 
     if (choice == IDYES)
     {
-        m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, DebugCommandPayload::Encode (s_kWindowClientId, "PROJECT MERGE", CommandMode::AppleWin));
+        RunDebuggerAction (DebuggerActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
     }
 }
 

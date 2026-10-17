@@ -350,6 +350,110 @@ namespace ProjectShellTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  ALoadTheUserMakesOffersTheItems
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ALoadTheUserMakesOffersTheItems)
+        {
+            ProjectRig  rig;
+
+
+
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("BP 500");
+            rig.Detach();
+
+            rig.Attach();
+            rig.Run ("BP 300");
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+
+            Assert::IsTrue (rig.shell->GetDebugger().HasMergeOffer(), L"the machine project's breakpoint is offered");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ALoadTheProjectMakesOffersNothing
+        //
+        //  The machine project's startup BLOAD opens the binary's project as
+        //  part of restoring the machine's, so its breakpoint is not offered.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ALoadTheProjectMakesOffersNothing)
+        {
+            ProjectRig            rig;
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("BP 500");
+            rig.Detach();
+
+            rig.Attach();
+            rig.Run ("BP 300");
+            rig.shell->GetDebugger().SetDebuggerStartupCommands ({ { "BLOAD C:\\Work\\prog.bin 300", CommandMode::AppleWin } });
+            rig.shell->GetDebugger().ServiceProject();
+            rig.Detach();
+
+            rig.Attach();
+            rig.shell->GetDebugger().ServiceProject();
+            reply = rig.Run ("PROJECT");
+            data  = std::get_if<ProjectData> (&reply.data);
+
+            Assert::IsNotNull (data, L"PROJECT replies with the project");
+            Assert::AreEqual (std::string ("binary"), data->scope, L"the startup BLOAD opens the binary's project");
+            Assert::IsFalse  (rig.shell->GetDebugger().HasMergeOffer(), L"nothing is offered");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  AProjectWithOnlySettingsOffersNothing
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (AProjectWithOnlySettingsOffersNothing)
+        {
+            ProjectRig  rig;
+
+
+
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("BP 500");
+            rig.Detach();
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+
+            Assert::IsTrue  (rig.GetBreakpointAddresses() == std::vector<Word> { 0x0500 }, L"the binary's project is open");
+            Assert::IsFalse (rig.shell->GetDebugger().HasMergeOffer(), L"the machine project has no items, so nothing is offered");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  NoStoreMeansNoProject
         //
         ////////////////////////////////////////////////////////////////////////////////
