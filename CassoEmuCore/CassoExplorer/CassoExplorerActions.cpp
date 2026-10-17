@@ -1062,7 +1062,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
         }
         else
         {
-            AppendMessage (outcome, hr, L"The link could not be started.");
+            AppendMessage (outcome, hr, L"CassoLink could not be started.");
         }
     }
 
@@ -1352,7 +1352,7 @@ void CassoExplorerActions::SubmitWrite (const std::string & link, int drive, App
     }
     else
     {
-        AppendMessage (inOutOutcome, hr, L"The link could not be started.");
+        AppendMessage (inOutOutcome, hr, L"CassoLink could not be started.");
     }
 }
 
@@ -3101,7 +3101,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of an Apple link first.";
+        outcome.message = L"Open a drive of a CassoLink machine first.";
         return outcome;
     }
 
@@ -3121,7 +3121,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
 
     if (FAILED (hr))
     {
-        AppendMessage (outcome, hr, L"The link could not be started.");
+        AppendMessage (outcome, hr, L"CassoLink could not be started.");
     }
 
     return outcome;
@@ -3149,7 +3149,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToDisk (const std:
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of an Apple link first.";
+        outcome.message = L"Open a drive of a CassoLink machine first.";
         return outcome;
     }
 
@@ -3232,7 +3232,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (c
 
     if (FAILED (hr))
     {
-        AppendMessage (outcome, hr, L"The link could not be started.");
+        AppendMessage (outcome, hr, L"CassoLink could not be started.");
     }
     else
     {
@@ -3325,7 +3325,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of an Apple link first.";
+        outcome.message = L"Open a drive of a CassoLink machine first.";
         return outcome;
     }
 
@@ -3348,7 +3348,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
 
     if (FAILED (hr))
     {
-        AppendMessage (outcome, hr, L"The link's boot disk could not be made.");
+        AppendMessage (outcome, hr, L"The CassoLink disk could not be made.");
         return outcome;
     }
 
@@ -3382,7 +3382,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std
 
     if (FAILED (hr))
     {
-        AppendMessage (outcome, hr, L"The link's boot disk could not be saved.");
+        AppendMessage (outcome, hr, L"The CassoLink disk could not be saved.");
     }
     else
     {

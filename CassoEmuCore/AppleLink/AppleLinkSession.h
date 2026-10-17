@@ -218,7 +218,11 @@ public:
     static HRESULT  FromStatusError (Byte error);
 
     //  The Label text the program draws for an operation (FR-090).
-    static std::string  DescribeOperation (const LinkOperation & operation);
+    static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt);
+
+    //  A drive as the label has it: D2, and the disk's volume, as
+    //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
+    static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);
 
 private:
     //  A drive's sectors over the link, for its LinkedDisk.

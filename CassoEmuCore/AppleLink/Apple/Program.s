@@ -10,9 +10,16 @@
 ;                   with its number, ACK or NAK for another copy, and the
 ;                   host's Sector data, written and read back
 ;   Format track    drive, track, volume
+;   Write track     drive, track, volume: an Acknowledge for each of the 16
+;                   sectors as for Write sectors, then the track formatted
+;                   with their data in one revolution, read back and compared
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
+;
+; Read sectors, Write sectors, Format track and Write track end with two
+; percentages, the part of the user's whole operation the request covers, so
+; the status row has the progress of the whole operation.
 ;
 ; Every operation ends with a Status packet: operation, drive, track,
 ; progress and an error code (0, or one of the ERR values below). A sector is
@@ -70,6 +77,7 @@ CMDSPEED  = $D7
 CMDREAD   = $D5
 CMDWRITE  = $D6
 CMDFORMAT = $C8
+CMDWTRACK = $DB
 CMDSTATUS = $D4
 CMDCANCEL = $D1
 CMDLOAD   = $CF
@@ -115,11 +123,19 @@ AUXA0    = $4D00                ; sendsector: a sector's bits, 86 per third
 AUXA1    = AUXA0 + 86
 AUXA2    = AUXA1 + 86
 PENDING  = $4980                ; read: a flag per physical sector not yet read
+ENCBUF   = $7000                ; write track: each sector's 86 groups on one
+                                ; page and 256 values on the next, to $8FFF
+ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
+ENCT1    = $9100                ; the first third of a sector, shifted for the
+ENCT2    = $9200                ; second, and for the third
 FPAGES   = 25
 WSTART   = 512 - 354            ; the sector stream ends at its second page's end
 
 ; Zero page.
 slotx    = $06                  ; as the shim set it
+plo      = $07                  ; the whole operation's percentage at the
+phi      = $08                  ; request's start, and at its end
+fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -185,6 +201,7 @@ slotok: clc
         sta pcflag
         sta silent
         sta spinning
+        sta fdata
         lda #3
         sta tmolen
         jsr mktables
@@ -208,6 +225,7 @@ mreply: jsr getpayload
         lda envcmd
         cmp #CMDIDLE
         bne notidle
+        jsr clrlabel            ; the user's operation is over
         jsr motoroff
         lda #100
         jsr delayms
@@ -224,7 +242,10 @@ notread: cmp #CMDWRITE
 notwrite: cmp #CMDFORMAT
         bne notformat
         jmp doformat
-notformat: cmp #CMDLABEL
+notformat: cmp #CMDWTRACK
+        bne notwtrack
+        jmp dowtrack
+notwtrack: cmp #CMDLABEL
         bne notlabel
         jmp dolabel
 notlabel: cmp #CMDLOAD
@@ -358,6 +379,107 @@ doformat: lda PKTBUF+2
         jsr showprog
 fmtdone: jmp opdone
 
+; Write track: the 16 sectors, each requested by an Acknowledge, as for
+; Write sectors, and encoded into ENCBUF as it arrives; then the track formatted with them,
+; which writes it in one revolution, and read back and compared. Writing
+; sector by sector waits for each sector to come round twice, once to write
+; and once to read back.
+dowtrack: lda PKTBUF+2
+        sta volume
+        lda #0
+        sta PKTBUF+2            ; no sector count for begin
+        lda #OPWRITE
+        jsr begin
+        bcs wtdone
+        jsr protected
+        bcs wtdone
+        lda #16
+        sta count
+wtnext: jsr showprog
+        lda index
+        sta sector
+        lda #8
+        sta tries
+        lda #ACK
+wtask:  ldx sector
+        ldy track
+        jsr sendack
+        jsr getsector
+        bcc wtgot
+        dec tries
+        beq wtlink
+        lda #NAK
+        jmp wtask
+wtlink: lda #ERRLINK
+        sta err
+wtdone: jmp opdone
+wtgot:  jsr encpage
+        jsr encodeto
+        inc index
+        lda index
+        cmp count
+        bne wtnext
+        lda #1
+        sta fdata
+        jsr buildformat
+        lda #0
+        sta fdata
+        lda #>FSTREAM
+        ldy #0
+        ldx #FPAGES
+        jsr play
+        jsr verifytrack
+        jsr showprog
+        jmp opdone
+
+; encpage: the page of `sector`'s groups in ENCBUF in A; its values are on
+; the page after it.
+encpage: lda sector
+        asl a
+        clc
+        adc #>ENCBUF
+        rts
+
+; verifytrack: the track read back, and each sector's 6-and-2 values compared
+; with those in ENCBUF. The carry is set, with err and sector, at the first
+; that differs.
+verifytrack: ldx #15
+vtlist: txa
+        sta PKTBUF+3,x
+        dex
+        bpl vtlist
+        jsr readtrack
+        bcs vtfail
+        lda #0
+        sta sector
+vtsec:  jsr rawslot
+        jsr encpage
+        sta vtaux+2
+        clc
+        adc #1
+        sta vtpri+2
+        ldy #85
+vtcmpa: lda (dst),y
+vtaux:  cmp ENCBUF,y
+        bne vtbad
+        dey
+        bpl vtcmpa
+        ldy #0
+vtcmpp: lda (dstp),y
+vtpri:  cmp ENCBUF+256,y
+        bne vtbad
+        iny
+        bne vtcmpp
+        inc sector
+        lda sector
+        cmp #16
+        bne vtsec
+        clc
+        rts
+vtbad:  lda #ERRVERIFY
+        sta err
+vtfail: sec
+        rts
 ; begin: the operation in A; drive and track from the payload, the sector
 ; count after them. Draw them, start the motor and seek. The carry is set
 ; with err when the drive is not 1 or 2.
@@ -372,6 +494,11 @@ begin:  sta op
         sta track
         lda PKTBUF+2
         sta count
+        ldy count               ; the percentages after the sectors
+        lda PKTBUF+3,y
+        sta plo
+        lda PKTBUF+4,y
+        sta phi
         jsr showop
         jsr showdrive
         jsr showtrack
@@ -782,6 +909,21 @@ mkaux:  txa                     ; third of the sector, swapped as written
         sta AUXT2,x
         dex
         bpl mkaux
+
+        ldy #0                  ; encode's tables
+mkenc:  tya
+        and #3
+        tax
+        lda swap2,x
+        sta ENCT0,y
+        asl a
+        asl a
+        sta ENCT1,y
+        asl a
+        asl a
+        sta ENCT2,y
+        iny
+        bne mkenc
         rts
 
 ; The 6-and-2 write table: the 64 values a data nibble can have.
@@ -1177,35 +1319,23 @@ wsfail: sec
         rts
 
 ; encode: SECBUF as 6-and-2: WRAUX's 86 two-bit groups, then WRPRI's 256
-; six-bit values, as NibblizationLayer lays them out.
-encode: ldx #0
-enaux:  lda SECBUF,x
-        and #3
-        tay
-        lda swap2,y
-        sta tmp
-        lda SECBUF+86,x
-        and #3
-        tay
-        lda swap2,y
-        asl a
-        asl a
-        ora tmp
-        sta tmp
+; six-bit values, as NibblizationLayer lays them out; the last two groups
+; have no third byte. encodeto puts them on page A and the page after it.
+encode: lda #>WRAUX
+encodeto: sta enauxst+2
+        clc
+        adc #1
+        sta enprist+2
+        ldx #0
+enaux:  ldy SECBUF,x
+        lda ENCT0,y
+        ldy SECBUF+86,x
+        ora ENCT1,y
         cpx #84
-        bcs enaux2
-        lda SECBUF+172,x
-        and #3
-        tay
-        lda swap2,y
-        asl a
-        asl a
-        asl a
-        asl a
-        ora tmp
-        sta tmp
-enaux2: lda tmp
-        sta WRAUX,x
+        bcs enauxst
+        ldy SECBUF+172,x
+        ora ENCT2,y
+enauxst: sta WRAUX,x
         inx
         cpx #86
         bne enaux
@@ -1213,11 +1343,10 @@ enaux2: lda tmp
 enpri:  lda SECBUF,x
         lsr a
         lsr a
-        sta WRPRI,x
+enprist: sta WRPRI,x
         inx
         bne enpri
         rts
-
 ; buildwrite: WSTREAM from WSTART: five self-sync bytes, the data prologue,
 ; the 343 data nibbles and the epilogue, ending at the second page's end.
 buildwrite: lda #<(WSTREAM+WSTART)
@@ -1229,41 +1358,65 @@ bwsync: lda #0
         jsr putstream
         dex
         bne bwsync
-        jsr putdata
-        rts
+        lda #>WRAUX
+        jmp putdata
 
-; putdata: a data field into the stream: D5 AA AD, the 342 nibbles from WRAUX
-; and WRPRI, each the EOR of its value with the one before, the checksum and
-; DE AA EB.
-putdata: lda #$D5
+; putdata: a data field into the stream: D5 AA AD, the 342 nibbles of the
+; 86 groups on page A and the 256 values on the page after it, each the EOR
+; of its value with the one before, the checksum and DE AA EB. The nibbles
+; go through stores whose addresses are stepped in place, in less time than
+; putstream takes.
+putdata: sta pdaux+2
+        clc
+        adc #1
+        sta pdpri+2
+        lda #$D5
         jsr putstream
         lda #$AA
         jsr putstream
         lda #$AD
         jsr putstream
+        lda ptr
+        sta pdst+1
+        lda ptr+1
+        sta pdst+2
         lda #0
         sta tmp2                ; the value before
         ldx #0
 pdaux:  lda WRAUX,x
+        tay
         eor tmp2
+        sty tmp2
         tay
         lda wrtab,y
-        jsr putstream
-        lda WRAUX,x
-        sta tmp2
-        inx
+pdst:   sta $FFFF
+        inc pdst+1
+        bne pdanext
+        inc pdst+2
+pdanext: inx
         cpx #86
         bne pdaux
+        lda pdst+1
+        sta pdst2+1
+        lda pdst+2
+        sta pdst2+2
         ldx #0
 pdpri:  lda WRPRI,x
+        tay
         eor tmp2
+        sty tmp2
         tay
         lda wrtab,y
-        jsr putstream
-        lda WRPRI,x
-        sta tmp2
-        inx
+pdst2:  sta $FFFF
+        inc pdst2+1
+        bne pdpnext
+        inc pdst2+2
+pdpnext: inx
         bne pdpri
+        lda pdst2+1
+        sta ptr
+        lda pdst2+2
+        sta ptr+1
         ldy tmp2
         lda wrtab,y
         jsr putstream
@@ -1273,7 +1426,6 @@ pdpri:  lda WRPRI,x
         jsr putstream
         lda #$EB
         jmp putstream
-
 ; putstream: A at (ptr), and ptr on. X and Y are saved and restored.
 putstream: sty savex
         ldy #0
@@ -1286,7 +1438,8 @@ psdone: rts
 
 ; buildformat: FSTREAM, a whole track of 25 pages: 288 self-sync bytes, then
 ; for each sector 0 to 15 its address field, 5 self-sync bytes, a data field
-; of zeros and 14 self-sync bytes.
+; and 14 self-sync bytes. The data fields are zeros, or with fdata set, the
+; sectors in ENCBUF.
 buildformat: ldy #0
         lda #0
 bfzero: sta SECBUF,y
@@ -1336,7 +1489,11 @@ bfgap2: lda #0
         jsr putstream
         dex
         bne bfgap2
-        jsr putdata
+        lda #>WRAUX             ; zeros, or the sector's own values
+        ldx fdata
+        beq bfdata
+        jsr encpage
+bfdata: jsr putdata
         ldx #14
 bfgap3: lda #0
         jsr putstream
@@ -1356,6 +1513,10 @@ put44:  sta tmp
         lda tmp
         ora #$AA
         jmp putstream
+
+; The player's cycle counts are exact only while none of its branches crosses a
+; page, which costs a cycle more; it starts a page of its own.
+        .align 256
 
 ; play: the stream from page A, offset Y, through the end of the X-th page,
 ; written by the drive. A 0 in the stream is a self-sync byte.
@@ -1479,7 +1640,7 @@ dsdone: jsr showconn
         jmp showstatus
 
 labels: .byte <ROW0, >ROW0
-        .text "CASSO APPLE II LINK"
+        .text "CASSOLINK"
         .byte 0
         .byte <ROW2, >ROW2
         .text "CONNECTION"
@@ -1690,7 +1851,7 @@ stsector: .byte $2C
 
 optext: .word oidle, oread, owrite, oformat, ospeed
 
-oidle:   .text "WAITING"
+oidle:   .text "WAITING FOR A COMMAND"
          .byte 0
 oread:   .text "READING"
          .byte 0
@@ -1701,15 +1862,18 @@ oformat: .text "FORMATTING"
 ospeed:  .text "SETTING SPEED"
          .byte 0
 
-; percent: index * 100 / count in A, or 0 with no count. Y is overwritten.
+; percent: the whole operation's percentage in A, plo plus index / count of
+; the way from plo to phi, or plo with no count. Y is overwritten.
 percent: lda #0
         sta pcsum
         sta pcsum+1
         ldx index
         beq pcdiv
-pcmul:  clc
-        lda pcsum
-        adc #100
+pcmul:  lda phi
+        sec
+        sbc plo
+        clc
+        adc pcsum
         sta pcsum
         bcc pcmnext
         inc pcsum+1
@@ -1730,6 +1894,8 @@ pcsub:  lda pcsum
         inx
         bne pcsub
 pctdone: txa
+        clc
+        adc plo
         rts
 
 ; fullrow: scr at the row whose address is in X (low) and A (high), and the
@@ -1881,12 +2047,7 @@ edrive:   .text "NO SUCH DRIVE"
 
 ; dolabel: the host's text for the user's operation across the label row,
 ; then Ready again.
-dolabel: ldy #39
-        lda #$A0
-lbclear: sta ROWLB,y
-        dey
-        bpl lbclear
-        ldy #0
+dolabel: jsr clrlabel
 lbtext: cpy lenlo
         beq lbdone
         cpy #40
@@ -1897,3 +2058,12 @@ lbtext: cpy lenlo
         iny
         bne lbtext
 lbdone: jmp main
+
+; clrlabel: the label row cleared. Y is 0.
+clrlabel: ldy #39
+        lda #$A0
+lbclear: sta ROWLB,y
+        dey
+        bpl lbclear
+        iny
+        rts

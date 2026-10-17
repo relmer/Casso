@@ -718,7 +718,7 @@ HRESULT AppleLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     if (!hasPort)
     {
-        operation.message = "Choose the link's COM port to bootstrap the Apple.";
+        operation.message = "Choose the COM port CassoLink uses to bootstrap the Apple.";
     }
 
     CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
@@ -1061,26 +1061,55 @@ void AppleLinkSession::SetState (LinkState state)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string AppleLinkSession::DescribeOperation (const LinkOperation & operation)
+std::string AppleLinkSession::DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing)
 {
     std::string  path  = operation.path.ToString();
+    std::string  drive = DescribeDrive (operation.drive, listing);
     std::string  text;
 
 
 
     switch (operation.kind)
     {
-        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("READING THE CATALOG OF DRIVE {}", operation.drive) : "LISTING " + path; break;
-        case LinkOperationKind::ReadFile:        text = std::format ("COPYING {} FROM DRIVE {}", path, operation.drive);  break;
-        case LinkOperationKind::WriteFile:       text = std::format ("COPYING {} TO DRIVE {}", path, operation.drive);    break;
+        case LinkOperationKind::Enumerate:       text = path.empty() ? "READING THE CATALOG OF " + drive : "LISTING " + path; break;
+        case LinkOperationKind::ReadFile:        text = std::format ("COPYING {} FROM {}", path, drive);                break;
+        case LinkOperationKind::WriteFile:       text = std::format ("COPYING {} TO {}", path, drive);                  break;
         case LinkOperationKind::Delete:          text = "DELETING " + path;                                                break;
         case LinkOperationKind::Rename:          text = std::format ("RENAMING {} TO {}", path, operation.newName);        break;
         case LinkOperationKind::MakeDirectory:   text = "MAKING FOLDER " + path;                                           break;
         case LinkOperationKind::RemoveDirectory: text = "DELETING FOLDER " + path;                                         break;
-        case LinkOperationKind::ReadDisk:        text = std::format ("READING DRIVE {} TO AN IMAGE", operation.drive);     break;
-        case LinkOperationKind::WriteDisk:       text = std::format ("WRITING AN IMAGE TO DRIVE {}", operation.drive);     break;
-        case LinkOperationKind::CheckLinkDisk:   text = std::format ("CHECKING THE DISK IN DRIVE {}", operation.drive);    break;
+        case LinkOperationKind::ReadDisk:        text = std::format ("SENDING {} TO PC", drive);                        break;
+        case LinkOperationKind::WriteDisk:       text = "WRITING AN IMAGE TO " + drive;                                   break;
+        case LinkOperationKind::CheckLinkDisk:   text = "CHECKING THE DISK IN " + drive;                                  break;
         default:                                 text = "WORKING";                                                         break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkSession::DescribeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleLinkSession::DescribeDrive (int drive, const std::optional<VolumeListing> & listing)
+{
+    std::string  text = std::format ("D{}", drive);
+
+
+
+    if (listing.has_value() && listing->hasVolumeName)
+    {
+        text += std::format (" (/{})", listing->volumeName);
+    }
+    else if (listing.has_value() && listing->hasVolumeNumber)
+    {
+        text += std::format (" (VOL {})", listing->volumeNumber);
     }
 
     return text;
@@ -1110,7 +1139,7 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
 
     disk = m_disks[index].get();
 
-    hr = m_host->SendLabel (DescribeOperation (operation));
+    hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
     CHR (hr);
 
     if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk)
@@ -1178,6 +1207,7 @@ HRESULT AppleLinkSession::Execute (LinkOperation & operation)
             break;
     }
 
+    m_host->SetProgress (0, 100);
     CHR (hr);
 
 Error:
@@ -1351,6 +1381,7 @@ HRESULT AppleLinkSession::ReadWholeDisk (LinkOperation & operation)
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         Report (operation, track * 100 / NibblizationLayer::kTrackCount);
+        m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
         hr = ReadTrack (operation.drive, track, sectors, operation.unreadable);
         CHR (hr);
@@ -1505,7 +1536,6 @@ HRESULT AppleLinkSession::WriteWholeDisk (LinkOperation & operation)
     size_t              index    = (size_t) operation.drive - 1;
     std::vector<Byte>   fileBytes;
     std::vector<Byte>   sectors;
-    std::vector<Byte>   physicals;
     std::vector<Byte>   data;
     std::vector<int>    badTracks;
     std::string         list;
@@ -1551,23 +1581,13 @@ HRESULT AppleLinkSession::WriteWholeDisk (LinkOperation & operation)
         }
     }
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
-    {
-        physicals.push_back ((Byte) physical);
-    }
-
     m_disks[index]->Clear();
     m_listings[index].reset();
 
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         Report (operation, track * 100 / NibblizationLayer::kTrackCount);
-
-        hr = m_host->FormatTrack ((Byte) operation.drive, (Byte) track, volume, status);
-        CHR (hr);
-
-        hr = FromStatusError (status.error);
-        CHR (hr);
+        m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
         data.clear();
 
@@ -1578,7 +1598,7 @@ HRESULT AppleLinkSession::WriteWholeDisk (LinkOperation & operation)
             data.insert (data.end(), from, from + (ptrdiff_t) LinkedDisk::kSectorSize);
         }
 
-        hr = m_host->WriteSectors ((Byte) operation.drive, (Byte) track, physicals, data, status);
+        hr = m_host->WriteTrack ((Byte) operation.drive, (Byte) track, volume, data, status);
         CHR (hr);
 
         hr = FromStatusError (status.error);

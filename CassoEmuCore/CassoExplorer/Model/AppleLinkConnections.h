@@ -100,6 +100,9 @@ public:
     //  Operations submitted and not yet finished, in the order they run.
     std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
 
+    //  Whether an image is being written to a drive, or waits to be.
+    bool  IsWritingDisk (const std::string & name, int drive) const;
+
     //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
     //  where the target requests the bytes and nothing else can run until
     //  they arrive.

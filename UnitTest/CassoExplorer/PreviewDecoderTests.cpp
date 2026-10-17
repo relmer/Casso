@@ -530,7 +530,7 @@ public:
 
         message = "C:\\disks\\x.dsk: does not have a DOS or ProDOS file system\n"
                   "  geometry      35 tracks, 16 sectors, 256 bytes per sector\n"
-                  "  boot sector   sector 0 contains boot code, so the disk boots\n"
+                  "  boot sector   this disk is bootable (sector 0 contains boot code)\n"
                   "  requires_machine  2+\n";
 
         Assert::IsTrue   (PreviewDecoder::ParseDetails (message, details));
@@ -539,6 +539,7 @@ public:
         Assert::AreEqual (std::wstring (L"Geometry"), details[1].first);
         Assert::AreEqual (std::wstring (L"35 tracks, 16 sectors, 256 bytes per sector"), details[1].second);
         Assert::AreEqual (std::wstring (L"Boot sector"), details[2].first);
+        Assert::AreEqual (std::wstring (L"This disk is bootable (sector 0 contains boot code)"), details[2].second, L"A value starts with a capital");
         Assert::AreEqual (std::wstring (L"Requires_machine"), details[3].first, L"A label wider than the column ends at its gap");
         Assert::AreEqual (std::wstring (L"2+"), details[3].second);
 

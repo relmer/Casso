@@ -82,6 +82,7 @@ public:
     static constexpr Byte  kReadSectors  = 0xD5;
     static constexpr Byte  kWriteSectors = 0xD6;
     static constexpr Byte  kFormatTrack  = 0xC8;
+    static constexpr Byte  kWriteTrack   = 0xDB;
     static constexpr Byte  kStatus       = 0xD4;
     static constexpr Byte  kCancel       = 0xD1;
     static constexpr Byte  kLabel        = 0xCE;

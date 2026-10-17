@@ -820,6 +820,12 @@ HRESULT CassoExplorerBrowser::LoadAppleDrive (const Location & location)
         return HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);
     }
 
+    if (m_links->IsWritingDisk (TextEncoding::WideToNarrow (link), drive))
+    {
+        m_listError = L"The disk is not available because an image is being written to it. Try again after the write finishes.";
+        return S_OK;
+    }
+
     if (!m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_listing, m_kind, hr, message))
     {
         m_listError = s_kWorkingText;
@@ -4121,8 +4127,15 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
 
 std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const CatalogRow & row, const Location & at, IShellIcons & icons)
 {
-    //  A disk image has Casso's floppy wherever it is listed.
-    if (row.isDiskImage)
+    std::wstring  link;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    //  A disk image has Casso's floppy wherever it is listed, as does a
+    //  linked Apple's drive.
+    if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0))
     {
         return icons.GetForKind (IShellIcons::Kind::DiskImage);
     }

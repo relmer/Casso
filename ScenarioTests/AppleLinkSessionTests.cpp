@@ -321,7 +321,7 @@ public:
 
 
 
-    TEST_METHOD (TheScreen_ShowsTheShimWaiting_ThenThePcTheLabelAndAnError)
+    TEST_METHOD (TheScreen_ShowsTheShimWaiting_ThenThePcAndAnError_AndClearsTheLabel)
     {
         Rig  rig (false);
 
@@ -332,10 +332,13 @@ public:
         rig.Start();
         AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
 
-        Assert::AreEqual (std::string ("CONNECTED"),                      rig.Row (kRow3, kField));
-        Assert::AreEqual (std::string ("READING THE CATALOG OF DRIVE 1"), rig.Row (kRow6));
-        Assert::AreEqual (std::string(),                                  rig.Row (kRow8), L"no error row yet");
-        Assert::AreEqual (std::string ("STATUS: WAITING"),                rig.Row (kRow5));
+        //  The host's Idle once the operation is over clears the label.
+        rig.machine.RunCycles (kFrame * 30);
+
+        Assert::AreEqual (std::string ("CONNECTED"),                     rig.Row (kRow3, kField));
+        Assert::AreEqual (std::string(),                                 rig.Row (kRow6), L"no label after the operation");
+        Assert::AreEqual (std::string(),                                 rig.Row (kRow8), L"no error row yet");
+        Assert::AreEqual (std::string ("STATUS: WAITING FOR A COMMAND"), rig.Row (kRow5));
 
         //  A write to a protected disk: the error stays on the screen.
         rig.machine.GetDiskStore().GetImage (6, 0)->SetWriteProtected (true);
@@ -344,7 +347,6 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
         Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRow8), L"the disk's drive, not a track");
-        Assert::AreEqual (std::string ("COPYING FROMPC TO DRIVE 1"), rig.Row (kRow6));
     }
 
 
@@ -387,5 +389,36 @@ public:
         Logger::WriteMessage (std::format ("Read disk: {:.1f} seconds", spent / 1020484.0).c_str());
         AssertSucceeded (disk->result);
         Assert::IsTrue (spent < 30ULL * 1'020'484, L"a whole disk in under 30 seconds (SC-027)");
+    }
+
+
+
+    //  A whole disk written at 115,200 baud, at the //c's own speed: a track
+    //  at a time, each written in one revolution and read back once.
+    TEST_METHOD (WriteDisk_At115200_TakesUnderAMinute)
+    {
+        Rig       rig (true, 115200);
+        uint64_t  spent = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (1, "m.dsk", false))->result);
+
+        auto  disk    = rig.session->WriteDisk (2, "m.dsk");
+        auto  started = std::chrono::steady_clock::now();
+
+        while (!rig.sink.IsDone (disk) && spent < kBudget)
+        {
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+
+            while (std::chrono::steady_clock::now() - started < std::chrono::microseconds (spent * 1'000'000 / 1'020'484))
+            {
+                std::this_thread::sleep_for (std::chrono::milliseconds (1));
+            }
+        }
+
+        Logger::WriteMessage (std::format ("Write disk: {:.1f} seconds", spent / 1020484.0).c_str());
+        AssertSucceeded (disk->result);
+        Assert::IsTrue (rig.Sectors (2) == rig.Sectors (1), L"drive 2 is drive 1's disk");
+        Assert::IsTrue (spent < 60ULL * 1'020'484, L"a whole disk in under a minute");
     }
 };

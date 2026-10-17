@@ -19,7 +19,7 @@
 //
 //  The Apple end of a link, in C++: Casso's client as the program speaks
 //  it -- Ready, Idle, Load program, Set speed, Read and Write sectors,
-//  Format track, Status and Cancel -- over two drive images in
+//  Format and Write track, Status and Cancel -- over two drive images in
 //  DOS-logical buffers. Each connection is served on its own thread until
 //  the line closes, and the drives outlast the connection.
 //
@@ -194,6 +194,10 @@ private:
 
                 case AppleLinkCodec::kFormatTrack:
                     FormatTrack (line, packet.payload);
+                    break;
+
+                case AppleLinkCodec::kWriteTrack:
+                    WriteSectors (stop, line, { packet.payload.at (0), packet.payload.at (1), 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 });
                     break;
 
                 case AppleLinkCodec::kLabel:

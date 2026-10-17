@@ -124,15 +124,15 @@ std::wstring CassoExplorerLinkChoices::ValidateName (const std::wstring & name, 
 
     if (name.find_first_not_of (L' ') == std::wstring::npos)
     {
-        error = L"Enter a name for the link.";
+        error = L"Enter a name for the machine.";
     }
     else if (name.find_first_of (L"\\|:") != std::wstring::npos)
     {
-        error = L"A link's name cannot contain \\, | or :.";
+        error = L"A machine's name cannot contain \\, | or :.";
     }
     else if (taken)
     {
-        error = L"Another link has this name.";
+        error = L"Another machine has this name.";
     }
 
     return error;
@@ -712,7 +712,7 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
     dialog.m_otherNames = otherNames;
     dialog.m_adding     = adding;
 
-    params.title                    = adding ? L"Add an Apple link" : L"Edit the Apple link";
+    params.title                    = adding ? L"Add a CassoLink machine" : L"Edit the CassoLink machine";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 480, 130 + CassoExplorerLinkPanel::kRowCount * (CassoExplorerLinkPanel::kRowHeightDip + CassoExplorerLinkPanel::kRowGapDip) };

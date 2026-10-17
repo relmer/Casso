@@ -62,6 +62,11 @@ public:
     //  fonts checks first.
     static bool  IsFontFamilyInstalled (const wchar_t * family);
 
+    //  The height of text wrapped at a width, in DIPs, measured as DrawString
+    //  lays it out, for sizing a window before its renderer exists.
+    static HRESULT  MeasureWrappedDip (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, DxuiFontWeight weight,
+                                       float widthDip, float & outHeightDip);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);

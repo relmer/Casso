@@ -79,9 +79,11 @@ client sends first; the host's reply is the next operation.
 | Sector data | $CA `'J'` | either | track (1), sector (1), 256 bytes unencoded, CRC-16/XMODEM of the 256 bytes (2, LSB first) |
 | Load program | $CF `'O'` | host | page count (1); then Sector data packets, one per page from $0800, with the page number in the track and sector fields, each followed by the shim's bare ACK or NAK byte; the shim jumps to $0800 after the last. Sent to a running program, it returns that program to the shim, whose Ready follows |
 | Set speed | $D7 `'W'` | host | 6551 control byte (1); the client acknowledges ($CB, ACK, 0, 0) at the old speed, and both ends then switch |
-| Read sectors | $D5 `'U'` | host | drive (1), track (1), count (1), sector list (count); client replies with Sector data per sector |
-| Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count); for each sector the client sends Acknowledge ($CB: ACK, sector, track) with the number of the sector to send, or NAK for another copy of a damaged one, and the host sends its Sector data; the client writes it and reads it back before the next Acknowledge |
-| Format track | $C8 `'H'` | host | drive (1), track (1), volume (1) |
+| Read sectors | $D5 `'U'` | host | drive (1), track (1), count (1), sector list (count), progress (2); client replies with Sector data per sector |
+| Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count), progress (2); for each sector the client sends Acknowledge ($CB: ACK, sector, track) with the number of the sector to send, or NAK for another copy of a damaged one, and the host sends its Sector data; the client writes it and reads it back before the next Acknowledge |
+| Format track | $C8 `'H'` | host | drive (1), track (1), volume (1), progress (2) |
+| Write track | $DB `'[']` | host | drive (1), track (1), volume (1), progress (2); the client requests each of the 16 sectors in physical order as for Write sectors, then formats the track with their data in one revolution, reads it back and compares it; reported as a write |
+| (progress) | | | the part of the user's whole operation a request covers, as its starting and ending percentage (0-100), for the program's status row |
 | Status | $D4 `'T'` | client | operation (1: 1 read, 2 write, 3 format), drive (1), track (1), sectors done (1), error (1); ends every Read, Write and Format |
 | Label | $CE `'N'` | host | up to 38 ASCII characters, the user's operation; the program prints it and sends Ready (R24) |
 | Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |

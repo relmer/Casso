@@ -319,8 +319,8 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         }
 
         text += FormatDetailLine ("boot sector",
-                                  bootCode ? "sector 0 contains boot code, so the disk boots"
-                                           : "sector 0 is blank, so the disk does not boot");
+                                  bootCode ? "this disk is bootable (sector 0 contains boot code)"
+                                           : "this disk is not bootable (sector 0 is blank)");
     }
 
     return text;

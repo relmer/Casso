@@ -340,7 +340,7 @@ putwait: lda ACIASTAT
         rts
 
 
-title:  .text "CASSO APPLE II LINK"
+title:  .text "CASSOLINK"
         .byte 0
 msgs:
 msgwait: .text "WAITING FOR THE PC ON PORT 2 AT "

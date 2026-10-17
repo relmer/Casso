@@ -2445,13 +2445,13 @@ void CassoExplorerWindow::StartImageWrite (const Location & drive, const std::ws
         }
 
         message = linkDisk
-                ? std::format (L"{} has the link disk this Apple started from.\n\nWriting {} over it replaces the link disk. "
-                               L"This does not end the link, but the Apple cannot start the link from that disk again "
-                               L"until you choose Save link to disk.\n\nWrite {} to {} anyway?", title, file, file, title)
-                : std::format (L"Write {} to {}?\n\nEverything on that disk is replaced.", file, title);
+                ? std::format (L"{} has the CassoLink disk this Apple started from. Overwriting it does not end the connection, "
+                               L"but the Apple cannot start CassoLink from that disk again until you choose Write CassoLink to disk."
+                               L"\n\nOverwrite {} with {}?", title, title, file)
+                : std::format (L"Overwrite {} with {}?\n\nEverything on that disk is replaced.", title, file);
 
         if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Write image",
-                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
+                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
         {
             return;
         }
@@ -2466,7 +2466,7 @@ void CassoExplorerWindow::StartImageWrite (const Location & drive, const std::ws
 
     if (FAILED (hr))
     {
-        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+        ShowMessage (L"CassoLink could not be started.", MB_ICONERROR);
     }
 
     OnLinkChanged();
@@ -2478,19 +2478,19 @@ void CassoExplorerWindow::StartImageWrite (const Location & drive, const std::ws
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::BeginDriveDrag
+//  CassoExplorerWindow::BeginTreeDrag
 //
 //  The tree received the press and not the release, which the drag loop takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::BeginDriveDrag (const Location & drive)
+void CassoExplorerWindow::BeginTreeDrag (const Location & location)
 {
     HRESULT                                  hr      = S_OK;
     DWORD                                    effect  = DROPEFFECT_NONE;
     DxuiMouseEvent                           release;
     POINT                                    start   = {};
-    std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildDiskFormats (m_browser, drive.path);
+    std::vector<DxuiDragDropSource::Format>  formats;
     BOOL                                     got     = FALSE;
 
 
@@ -2498,6 +2498,18 @@ void CassoExplorerWindow::BeginDriveDrag (const Location & drive)
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_tree->OnMouse (release);
+
+    if (location.kind != Location::Kind::AppleDrive)
+    {
+        hr = m_shellVerbs.DragItems ({ location.path }, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        RefreshAfterHostChange();
+        Invalidate();
+        return;
+    }
+
+    formats = CassoExplorerDragOut::BuildDiskFormats (m_browser, location.path);
 
     if (formats.empty())
     {
@@ -2597,11 +2609,11 @@ void CassoExplorerWindow::SaveLinkToDisk()
         return;
     }
 
-    message = std::format (L"Write the link's boot disk to {}?\n\nEverything on the disk is replaced. The disk then boots into the link.",
+    message = std::format (L"Overwrite {} with CassoLink?\n\nEverything on the disk is replaced, and the Apple then starts CassoLink when it boots from the disk.",
                            m_actions.DescribeAppleDrive());
 
-    if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Save link to disk",
-                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
+    if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Write CassoLink to disk",
+                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
     {
         return;
     }
@@ -2650,9 +2662,9 @@ void CassoExplorerWindow::SaveLinkDiskImage (const std::string & name)
 
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk)", L"*.dsk" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = L"link.dsk";
+    spec.defaultFileName  = L"CassoLink.dsk";
     spec.defaultExtension = L"dsk";
-    spec.title            = L"Save link disk image";
+    spec.title            = L"Save CassoLink disk image";
 
     hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
     CHR (hr);
@@ -3817,8 +3829,8 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A press on a drive's node drags the whole drive once the pointer has
-    //  moved far enough, as a list row's press drags its selection.
+    //  A press on a drive's, a folder's or an image's node drags it once the
+    //  pointer has moved far enough, as a list row's press drags its selection.
     if (m_treeDrag.armed)
     {
         if (ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Leave)
@@ -3830,7 +3842,7 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
                || abs (point.y - m_treeDrag.start.y) > GetSystemMetrics (SM_CYDRAG)))
         {
             m_treeDrag.armed = false;
-            BeginDriveDrag (m_treeDrag.drive);
+            BeginTreeDrag (m_treeDrag.location);
             Invalidate();
             return true;
         }
@@ -3889,16 +3901,17 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (press && ev.button == DxuiMouseButton::Left)
         {
-            int                   row  = m_tree->HitTestRow (point.x, point.y);
-            const DxuiTreeNode *  node = m_tree->GetNodeAt (row);
-            Location              drive;
+            int                   row   = m_tree->HitTestRow (point.x, point.y);
+            const DxuiTreeNode  * node  = m_tree->GetNodeAt (row);
+            Location              at;
+            bool                  found = node != nullptr && !node->dimmed && m_browser.TryGetNodeLocation (node->id, at);
 
-            if (node != nullptr && m_browser.TryGetNodeLocation (node->id, drive)
-                && drive.kind == Location::Kind::AppleDrive && drive.innerPath.empty())
+            if (found && ((at.kind == Location::Kind::AppleDrive && at.innerPath.empty())
+                       || at.kind == Location::Kind::HostFolder || at.kind == Location::Kind::DiskImage))
             {
-                m_treeDrag.armed = true;
-                m_treeDrag.start = point;
-                m_treeDrag.drive = drive;
+                m_treeDrag.armed    = true;
+                m_treeDrag.start    = point;
+                m_treeDrag.location = at;
             }
         }
 
@@ -9971,7 +9984,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
 
             if (saved)
             {
-                AddMenuCommand (items, L"&Edit link...", [this, name]() { EditLink (name); });
+                AddMenuCommand (items, L"&Edit machine...", [this, name]() { EditLink (name); });
             }
 
             if (m_context.links->IsStarted (name))
@@ -9985,11 +9998,11 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             }
 
             AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
-            AddMenuCommand (items, L"Save link disk &image...", [this, name]() { SaveLinkDiskImage (name); });
+            AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
 
             if (saved)
             {
-                AddMenuCommand (items, L"Re&move link", [this, name]() { RemoveLink (name); });
+                AddMenuCommand (items, L"Re&move machine", [this, name]() { RemoveLink (name); });
             }
         }
         else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
@@ -9999,7 +10012,7 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
 
             AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { GoToLocation (location); ReadDiskToImage(); });
             AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { GoToLocation (location); WriteImageToDisk(); });
-            AddMenuCommand (items, L"Save &link to disk...",   [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
+            AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
         }
     }
 
@@ -10176,7 +10189,7 @@ void CassoExplorerWindow::ShowTreeEmptyMenu (int x, int y)
     if (m_context.links != nullptr)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        AddMenuCommand (items, L"Add an Apple &link...", [this]() { EditLink (std::string()); });
+        AddMenuCommand (items, L"Add a &CassoLink machine...", [this]() { EditLink (std::string()); });
     }
 
     DxuiContextMenu::Show (*GetPopupHost(), x, y, std::move (items));
@@ -10311,7 +10324,7 @@ void CassoExplorerWindow::SearchLink (const std::string & name)
 
     if (FAILED (hr))
     {
-        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+        ShowMessage (L"CassoLink could not be started.", MB_ICONERROR);
     }
 
     OnLinkChanged();
@@ -10352,7 +10365,7 @@ void CassoExplorerWindow::BootstrapLink (const std::string & name)
 
     if (FAILED (hr))
     {
-        ShowMessage (L"The link could not be started.", MB_ICONERROR);
+        ShowMessage (L"CassoLink could not be started.", MB_ICONERROR);
     }
 
     OnLinkChanged();

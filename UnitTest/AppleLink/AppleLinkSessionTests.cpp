@@ -581,7 +581,9 @@ public:
             labels = rig.apple.labels;
         }
 
-        Assert::IsTrue (labels == std::vector<std::string> { "READING THE CATALOG OF DRIVE 1", "COPYING NOTES TO DRIVE 1" });
+        Assert::AreEqual ((size_t) 2, labels.size());
+        Assert::AreEqual (std::string ("READING THE CATALOG OF D1"), labels[0]);
+        Assert::AreEqual (std::string ("COPYING NOTES TO D1 (VOL 254)"), labels[1]);
     }
 
 
@@ -590,6 +592,7 @@ public:
     TEST_METHOD (DescribeOperation_GivesTheProgramsLabel)
     {
         LinkOperation  operation;
+        VolumeListing  listing;
 
         operation.kind    = LinkOperationKind::Rename;
         operation.drive   = 2;
@@ -598,7 +601,17 @@ public:
         Assert::AreEqual (std::string ("RENAMING GAMES/OLD TO NEW"), AppleLinkSession::DescribeOperation (operation));
 
         operation.kind = LinkOperationKind::ReadDisk;
-        Assert::AreEqual (std::string ("READING DRIVE 2 TO AN IMAGE"), AppleLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("SENDING D2 TO PC"), AppleLinkSession::DescribeOperation (operation));
+
+        listing.hasVolumeName = true;
+        listing.volumeName    = "GAMES";
+        Assert::AreEqual (std::string ("SENDING D2 (/GAMES) TO PC"), AppleLinkSession::DescribeOperation (operation, listing));
+
+        listing.hasVolumeName   = false;
+        listing.hasVolumeNumber = true;
+        listing.volumeNumber    = 254;
+        operation.kind          = LinkOperationKind::WriteDisk;
+        Assert::AreEqual (std::string ("WRITING AN IMAGE TO D2 (VOL 254)"), AppleLinkSession::DescribeOperation (operation, listing));
     }
 
 

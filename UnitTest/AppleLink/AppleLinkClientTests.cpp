@@ -250,7 +250,7 @@ public:
 
         request = client.ReceivePacket();
         Assert::AreEqual<int> (AppleLinkCodec::kReadSectors, request.command);
-        Assert::IsTrue (request.payload == std::vector<Byte> { 1, 17, 2, 5, 9 });
+        Assert::IsTrue (request.payload == std::vector<Byte> { 1, 17, 2, 5, 9, 0, 100 });
 
         client.SendSector (17, 5, first);
         client.SendSector (17, 9, second);
@@ -325,7 +325,7 @@ public:
 
         packet = client.ReceivePacket();
         Assert::AreEqual<int> (AppleLinkCodec::kWriteSectors, packet.command);
-        Assert::IsTrue (packet.payload == std::vector<Byte> { 1, 3, 2, 2, 7 });
+        Assert::IsTrue (packet.payload == std::vector<Byte> { 1, 3, 2, 2, 7, 0, 100 });
         Assert::IsTrue (client.IsQuiet(), L"no data before the client's Acknowledge");
 
         client.SendAcknowledge (AppleLinkCodec::kAck, 2, 3);
@@ -385,7 +385,7 @@ public:
 
         packet = client.ReceivePacket();
         Assert::AreEqual<int> (AppleLinkCodec::kFormatTrack, packet.command);
-        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254 });
+        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254, 0, 100 });
 
         client.SendStatus (3, 2, 34, 1, AppleLinkHost::kErrorNone);
 

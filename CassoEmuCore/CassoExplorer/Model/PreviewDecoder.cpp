@@ -752,6 +752,7 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         if (!label.empty() && !value.empty())
         {
             label[0] = (char) toupper ((unsigned char) label[0]);
+            value[0] = (char) toupper ((unsigned char) value[0]);
             outDetails.emplace_back (TextEncoding::NarrowToWide (label), TextEncoding::NarrowToWide (value));
         }
     }

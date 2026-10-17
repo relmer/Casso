@@ -357,6 +357,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     int                       defIndex   = 0;
     int                       defaultCmd = 0;
     int                       heightDip  = 0;
+    int                       textDip    = 0;
     HRESULT                   hr         = S_OK;
     int                       choice     = 0;
     DxuiMessageBoxWindow      dlg;
@@ -407,9 +408,26 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     default:                 break;
     }
 
-    heightDip = std::clamp (s_kChromeHeightDip
-                                + (std::max) (DxuiMessageBoxWindow::EstimateTextHeightDip (body, severity != DxuiMessageSeverity::None),
-                                              (severity != DxuiMessageSeverity::None) ? s_kGlyphRowDip : 0),
+    textDip = DxuiMessageBoxWindow::EstimateTextHeightDip (body, severity != DxuiMessageSeverity::None);
+
+    //  The text's real wrap where the theme's font is known; the estimate
+    //  runs short on long words, and the last lines were cut off.
+    if (theme != nullptr)
+    {
+        DxuiFontHandle  font     = theme->BodyFont();
+        float           widthDip = (float) (s_kWidthDip - 2 * DxuiButtonRow::kEdgePadDip
+                                            - ((severity != DxuiMessageSeverity::None) ? s_kIconColDip + s_kIconTextGapDip : 0));
+        float           measured = 0.0f;
+
+        hr = DxuiTextRenderer::MeasureWrappedDip (body.c_str(), font.sizeDip, font.face, font.weight, widthDip, measured);
+
+        if (SUCCEEDED (hr))
+        {
+            textDip = (int) std::ceil (measured);
+        }
+    }
+
+    heightDip = std::clamp (s_kChromeHeightDip + (std::max) (textDip, (severity != DxuiMessageSeverity::None) ? s_kGlyphRowDip : 0),
                             s_kMinHeightDip,
                             GetMaxHeightDip (owner));
 

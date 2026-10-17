@@ -614,8 +614,9 @@ private:
     //  link disk, the user confirms, and the write is queued.
     void  StartImageWrite   (const Location & drive, const std::wstring & imagePath);
 
-    //  A drag of a linked Apple's whole drive, from its node in the tree.
-    void  BeginDriveDrag    (const Location & drive);
+    //  A drag from a node in the tree: a linked Apple's whole drive, or a
+    //  folder or disk image on the PC, which drags as Explorer's does.
+    void  BeginTreeDrag     (const Location & location);
 
     //  The linked Apple's drive a drop would land on: a drive's node or row,
     //  or the drive in the list.
@@ -936,9 +937,9 @@ private:
     //  the pointer moves far enough.
     struct TreeDrag
     {
-        bool      armed = false;
-        POINT     start = {};
-        Location  drive;
+        bool      armed    = false;
+        POINT     start    = {};
+        Location  location;
     };
 
     TreeDrag  m_treeDrag;

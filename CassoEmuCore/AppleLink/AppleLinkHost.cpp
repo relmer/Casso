@@ -1031,6 +1031,7 @@ HRESULT AppleLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte
     outStatus = {};
 
     request.insert (request.end(), sectors.begin(), sectors.end());
+    request.insert (request.end(), { m_progressStart, m_progressEnd });
 
     hr = AwaitReady();
     CHR (hr);
@@ -1078,8 +1079,56 @@ Error:
 
 HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, AppleLinkStatus & outStatus)
 {
+    std::vector<Byte>  request = { drive, track, (Byte) sectors.size() };
+
+
+
+    request.insert (request.end(), sectors.begin(), sectors.end());
+
+    return SendSectors (AppleLinkCodec::kWriteSectors, std::move (request), track, sectors, data, outStatus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::WriteTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::WriteTrack (Byte drive, Byte track, Byte volume, std::span<const Byte> data, AppleLinkStatus & outStatus)
+{
+    std::array<Byte, 16>  physicals = {};
+
+
+
+    for (size_t i = 0; i < physicals.size(); i++)
+    {
+        physicals[i] = (Byte) i;
+    }
+
+    return SendSectors (AppleLinkCodec::kWriteTrack, { drive, track, volume }, track, physicals, data, outStatus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::SendSectors
+//
+//  A write's request, then each sector the client requests by an
+//  Acknowledge, until its Status.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleLinkHost::SendSectors (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
+                                    std::span<const Byte> data, AppleLinkStatus & outStatus)
+{
     HRESULT            hr       = S_OK;
-    std::vector<Byte>  request  = { drive, track, (Byte) sectors.size() };
     std::vector<Byte>  encoded;
     AppleLinkPacket    packet;
     size_t             index    = 0;
@@ -1095,12 +1144,12 @@ HRESULT AppleLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
 
     CBRAEx (sized, E_INVALIDARG);
 
-    request.insert (request.end(), sectors.begin(), sectors.end());
+    request.insert (request.end(), { m_progressStart, m_progressEnd });
 
     hr = AwaitReady();
     CHR (hr);
 
-    hr = SendPacket (AppleLinkCodec::kWriteSectors, request);
+    hr = SendPacket (command, request);
     CHR (hr);
 
     m_writing = true;
@@ -1164,7 +1213,7 @@ Error:
 HRESULT AppleLinkHost::FormatTrack (Byte drive, Byte track, Byte volume, AppleLinkStatus & outStatus)
 {
     HRESULT          hr        = S_OK;
-    const Byte       request[] = { drive, track, volume };
+    const Byte       request[] = { drive, track, volume, m_progressStart, m_progressEnd };
     AppleLinkPacket  packet;
 
 

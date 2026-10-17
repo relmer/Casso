@@ -171,6 +171,15 @@ public:
     HRESULT  WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, AppleLinkStatus & outStatus);
     HRESULT  FormatTrack  (Byte drive, Byte track, Byte volume, AppleLinkStatus & outStatus);
 
+    //  A whole track, its 16 sectors in physical order, formatted under
+    //  `volume` with their data in one revolution and read back.
+    HRESULT  WriteTrack   (Byte drive, Byte track, Byte volume, std::span<const Byte> data, AppleLinkStatus & outStatus);
+
+    //  The part of the user's operation the requests that follow cover, as
+    //  percentages of the whole, for the program's status row; 0 and 100
+    //  until set.
+    void     SetProgress  (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
+
     //  The client acknowledges at the old speed and then switches; the
     //  caller switches the line after this returns.
     HRESULT  SetSpeed     (Byte control);
@@ -227,6 +236,8 @@ private:
     HRESULT  ReadStatus        (const AppleLinkPacket & packet, AppleLinkStatus & outStatus);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
+    HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
+                                std::span<const Byte> data, AppleLinkStatus & outStatus);
 
     HRESULT  ReceiveImage      (std::vector<Byte> & image);
     HRESULT  LoadVirtualDrive  (int drive);
@@ -257,4 +268,6 @@ private:
     std::mutex                        m_sendLock;
     bool                              m_readyPending   = false;
     std::atomic<HRESULT>              m_lastResult { S_OK };
+    Byte                              m_progressStart  = 0;
+    Byte                              m_progressEnd    = 100;
 };

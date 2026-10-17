@@ -177,7 +177,7 @@ public:
         }
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[0].starts_with ("CASSO APPLE II LINK"), L"the program's status screen");
+        Assert::IsTrue (screen[0].starts_with ("CASSOLINK"), L"the program's status screen");
     }
 
 
@@ -237,7 +237,7 @@ public:
         }
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[0].starts_with ("CASSO APPLE II LINK"));
+        Assert::IsTrue (screen[0].starts_with ("CASSOLINK"));
     }
 
 

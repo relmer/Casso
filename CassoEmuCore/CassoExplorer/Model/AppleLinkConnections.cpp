@@ -158,7 +158,7 @@ void AppleLinkConnections::Merge()
 
         if (running.serialPort != 2)
         {
-            m_unusable[settings.name] = std::format (L"Serial port {} of this Casso is on TCP, and the link program uses port 2. "
+            m_unusable[settings.name] = std::format (L"Serial port {} of this Casso is on TCP, and the CassoLink program uses port 2. "
                                                      L"Connect port 2 in Casso's Hardware settings.", running.serialPort);
         }
 
@@ -647,6 +647,31 @@ std::vector<std::shared_ptr<LinkOperation>> AppleLinkConnections::GetPendingJobs
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkConnections::IsWritingDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleLinkConnections::IsWritingDisk (const std::string & name, int drive) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return std::any_of (m_jobs.begin(), m_jobs.end(), [&] (const Job & job)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        return job.link == name && job.operation->kind == LinkOperationKind::WriteDisk && job.operation->drive == drive
+            && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkConnections::WaitForFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -915,7 +940,7 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
         case LinkState::Busy:            text = L"Connected.";                                                     break;
 
         case LinkState::Searching:
-            text = std::format (L"Searching the COM ports for {} at {} and {} baud. Boot a link disk on the Apple, "
+            text = std::format (L"Searching the COM ports for {} at {} and {} baud. Boot a CassoLink disk on the Apple, "
                                 L"or choose Bootstrap the Apple from {}'s menu.", name, FormatBaud (settings.bootstrapBaud), baud, name);
             break;
 
@@ -924,21 +949,21 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
             switch (settings.transport)
             {
                 case LinkTransport::Serial:
-                    text = std::format (L"Searching for {} on {} at {} baud. Boot a link disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
+                    text = std::format (L"Searching for {} on {} at {} baud. Boot a CassoLink disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
                                         name, port.empty() ? std::wstring (L"the COM ports") : port, baud, name);
                     break;
 
                 case LinkTransport::Emulated:
-                    text = std::format (L"Waiting for {} on {}. Boot a link disk in that Casso to connect.", name, address);
+                    text = std::format (L"Waiting for {} on {}. Boot a CassoLink disk in that Casso to connect.", name, address);
                     break;
 
                 case LinkTransport::WifiModem:
-                    text = std::format (L"Waiting for {} to dial {}.local:{}. Boot that Apple from a link disk saved from {}.",
+                    text = std::format (L"Waiting for {} to dial {}.local:{}. Boot that Apple from a CassoLink disk saved from {}.",
                                         name, pcName, address.substr (address.rfind (L':') + 1), name);
                     break;
 
                 default:
-                    text = std::format (L"Connecting to {} at {}. Start the link program on that machine.", name, address);
+                    text = std::format (L"Connecting to {} at {}. Start the CassoLink program on that machine.", name, address);
                     break;
             }
 
@@ -1108,7 +1133,7 @@ bool AppleLinkConnections::TryGetResult (const std::string & name, int drive, co
     {
         outOperation          = std::make_shared<LinkOperation>();
         outOperation->result  = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
-        outOperation->message = "The link could not be started.";
+        outOperation->message = "CassoLink could not be started.";
         return true;
     }
 

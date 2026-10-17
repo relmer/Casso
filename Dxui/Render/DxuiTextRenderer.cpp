@@ -2957,3 +2957,55 @@ bool DxuiTextRenderer::IsFontFamilyInstalled (const wchar_t * family)
 Error:
     return SUCCEEDED (hr) && found != FALSE;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextRenderer::MeasureWrappedDip
+//
+//  Through a shared factory of its own, as IsFontFamilyInstalled is. Without
+//  the symbol fallback a private-use glyph measures as the system's missing
+//  glyph, which is no taller than a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureWrappedDip (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, DxuiFontWeight weight,
+                                             float widthDip, float & outHeightDip)
+{
+    HRESULT                     hr      = S_OK;
+    ComPtr<IDWriteFactory>      factory;
+    ComPtr<IDWriteTextFormat>   format;
+    ComPtr<IDWriteTextLayout>   layout;
+    DWRITE_TEXT_METRICS         metrics = {};
+
+
+
+    outHeightDip = 0.0f;
+
+    CBRAEx (text != nullptr && fontFamily != nullptr, E_INVALIDARG);
+    CBRAEx (widthDip > 0.0f, E_INVALIDARG);
+
+    hr = DWriteCreateFactory (DWRITE_FACTORY_TYPE_SHARED, __uuidof (IDWriteFactory),
+                              reinterpret_cast<IUnknown **> (factory.GetAddressOf()));
+    CHR (hr);
+
+    hr = factory->CreateTextFormat (fontFamily, nullptr,
+                                    static_cast<DWRITE_FONT_WEIGHT> ((int) weight & 0xFFFF),
+                                    (((int) weight & 0x10000) != 0) ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                                    DWRITE_FONT_STRETCH_NORMAL, fontSizeDip, L"en-us", &format);
+    CHR (hr);
+
+    hr = factory->CreateTextLayout (text, (UINT32) wcslen (text), format.Get(), widthDip, 1.0e6f, &layout);
+    CHR (hr);
+
+    hr = layout->GetMetrics (&metrics);
+    CHR (hr);
+
+    outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
