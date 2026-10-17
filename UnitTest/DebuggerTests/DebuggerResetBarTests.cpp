@@ -123,7 +123,7 @@ namespace DebuggerResetBarTests
     //
     //  DebuggerResetBarTests
     //
-    //  Window > Reset window layout puts the command bar back in its default
+    //  View > Reset window layout puts the command bar back in its default
     //  place: the top band, at its start, under the menu bar.
     //
     ////////////////////////////////////////////////////////////////////////////////

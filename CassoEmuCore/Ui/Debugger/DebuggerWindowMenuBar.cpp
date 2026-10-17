@@ -191,9 +191,9 @@ std::wstring DebuggerWindow::GetViewMenuGroup (const std::wstring & pane)
 //
 //  DebuggerWindow::SetWindowMenus
 //
-//  File, Edit, View, Debug and Tools. View lists every debug window, Window
-//  the machine's device panels and the layout reset, and Tools the key
-//  schemes. What a pane's colors mean is behind the info button on the
+//  File, Edit, Machine, View, Debug and Tools. View has a row for every
+//  debug window, the machine's device panels and the layout reset, and
+//  Tools the key schemes. What a pane's colors mean is behind the info button on the
 //  pane's toolbar, so there is no Help menu. Rebuilt whenever what they list
 //  changes, since the rows carry the state they were built with; a menu that
 //  is open keeps its rows until it closes.

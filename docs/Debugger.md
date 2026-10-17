@@ -1444,7 +1444,7 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 ### Device panels
 
-**Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
+**View > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
 printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
