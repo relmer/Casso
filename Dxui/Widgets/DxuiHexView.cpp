@@ -3072,6 +3072,10 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         {
             FillCell (text, GetValueSelectionRect (offset, cell), GetSelectionFill (theme));
         }
+        else if (m_byteFill && m_byteFill (offset) != 0)
+        {
+            FillCell (text, GetValueSelectionRect (offset, cell), m_byteFill (offset));
+        }
 
         shown = FormatValue (value, present);
 
@@ -3105,6 +3109,10 @@ void DxuiHexView::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, 
         {
             FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), GetSelectionFill (theme));
             argb = GetSelectionInk (theme);
+        }
+        else if (m_byteFill && m_byteFill (offset) != 0)
+        {
+            FillCell (text, GetSelectionCellRect (offset, index, txtRect, false), m_byteFill (offset));
         }
 
         PutRunCells (firstCell, textCell + index, charOf, argb);

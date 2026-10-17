@@ -91,6 +91,70 @@ void MemoryPane::Configure (HWND hwnd)
     });
 
     m_view->SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
+
+    m_view->SetByteFill ([this] (uint64_t offset) -> uint32_t
+    {
+        if (!m_isHeatOn || m_heatLevels == nullptr)
+        {
+            return 0;
+        }
+
+        return GetHeatFill (*m_heatLevels, m_model.GetAddressOf (offset), m_heatPalette);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetHeat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetHeat (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const HeatMapView::Palette & palette)
+{
+    m_heatLevels  = std::move (levels);
+    m_heatPalette = palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::GetHeatFill
+//
+//  Halfway, so the byte's own ink stays readable over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette)
+{
+    constexpr float  kTint   = 0.5f;
+    Byte             execute = 0;
+    Byte             read    = 0;
+    Byte             write   = 0;
+
+
+
+    if (levels.execute.size() != 0x10000 || levels.read.size() != 0x10000 || levels.write.size() != 0x10000)
+    {
+        return 0;
+    }
+
+    execute = levels.execute[address];
+    read    = levels.read[address];
+    write   = levels.write[address];
+
+    if (execute == 0 && read == 0 && write == 0)
+    {
+        return 0;
+    }
+
+    return DxuiColor::Mix (palette.background | 0xFF000000u, HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette), kTint) | 0xFF000000u;
 }
 
 

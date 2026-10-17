@@ -711,6 +711,7 @@ void DebuggerWindow::ConfigureMemoryBar()
     handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
     handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
     handlers.isEnabled = [this] (int id) { return IsMemoryBarEnabled (id); };
+    handlers.isChecked = [this] (int id) { return id == MemoryBarCommands::kHeat && GetActiveMemoryPane() != nullptr && GetActiveMemoryPane()->IsHeatOn(); };
     handlers.getTip    = [this] (int id) { return GetMemoryBarTip (id); };
 
     m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
@@ -909,6 +910,11 @@ void DebuggerWindow::RunMemoryBarEntry (int id)
     case MemoryBarCommands::kUndo:
     case MemoryBarCommands::kRedo:
         UndoMemoryEdit (GetActiveMemoryPane(), id == MemoryBarCommands::kRedo);
+        break;
+
+    case MemoryBarCommands::kHeat:
+        GetActiveMemoryPane()->SetHeatOn (!GetActiveMemoryPane()->IsHeatOn());
+        SyncHeatMapRecording();
         break;
 
     default:
@@ -1522,6 +1528,7 @@ void DebuggerWindow::ApplyMemoryWindows()
             open[(size_t) (window.id - 1)] = true;
             m_memoryPanes[(size_t) (window.id - 1)]->SetTextColors   (GetTextColors());
             m_memoryPanes[(size_t) (window.id - 1)]->SetPaused       (m_snapshot->isPaused);
+            m_memoryPanes[(size_t) (window.id - 1)]->SetHeat         (m_snapshot->heatColumns, GetHeatPalette());
 
             //  Bytes are edited while the machine is stopped, as Visual
             //  Studio's memory window allows: a running machine would
@@ -7901,7 +7908,8 @@ void DebuggerWindow::SyncHeatMapRecording()
 
 bool DebuggerWindow::IsAnyHeatColumnOn() const
 {
-    return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat);
+    return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ||
+           std::ranges::any_of (m_memoryPanes, [] (const std::unique_ptr<MemoryPane> & pane) { return pane != nullptr && pane->IsHeatOn(); });
 }
 
 

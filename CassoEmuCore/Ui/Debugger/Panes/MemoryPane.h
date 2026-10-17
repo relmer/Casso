@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/DebuggerActions.h"
 
@@ -54,6 +55,16 @@ public:
     //  byte and an I/O byte, and the outlines' colors, from the theme's text
     //  colors.
     void  SetTextColors (const DebuggerTextColors::Set & colors);
+
+    //  Heat on the window's bar, and the levels and colors each byte is
+    //  tinted by while it is on.
+    bool  IsHeatOn  () const   { return m_isHeatOn; }
+    void  SetHeatOn (bool isOn) { m_isHeatOn = isOn; }
+    void  SetHeat   (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const HeatMapView::Palette & palette);
+
+    //  A byte's tint: its heat map color mixed halfway toward the page, or
+    //  0 for a byte nothing touched.
+    static uint32_t  GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette);
 
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
@@ -151,4 +162,9 @@ private:
     uint32_t               m_ioArgb      = 0xFF909090;
     uint32_t               m_unreadArgb  = 0xFF707070;
     uint32_t               m_differsArgb = 0xFFE8A317;
+    bool                   m_isHeatOn    = false;
+
+    //  The heat the bytes are tinted by while Heat is on.
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;
+    HeatMapView::Palette                                           m_heatPalette;
 };

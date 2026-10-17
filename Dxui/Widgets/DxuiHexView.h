@@ -140,6 +140,9 @@ public:
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
 
+    //  A fill behind a byte, by its offset, or 0 for none.
+    using ByteFillFn = std::function<uint32_t (uint64_t offset)>;
+
     //  Told the offset of a value the source would not take.
     using WriteRefusedFn = std::function<void (uint64_t offset)>;
 
@@ -245,6 +248,10 @@ public:
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
     void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
+
+    //  A byte's fill in the value and text columns, under the selection and
+    //  the caret, which are drawn over it.
+    void  SetByteFill      (ByteFillFn fn)    { m_byteFill = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     //  Outlines around the source's regions, off unless the host turns them
@@ -563,6 +570,7 @@ private:
     DxuiScrollbar                  m_horzScroll;
     int                            m_leftPx         = 0;
     MarkColorFn                    m_markColor;
+    ByteFillFn                     m_byteFill;
     ContextMenuFn                  m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;

@@ -2,6 +2,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -118,6 +119,24 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (s_kpszFullBlock) + L"r   1", rows[0].cells[1]);
             Assert::AreEqual (std::wstring (L"     2"),                  rows[1].cells[1]);
             Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.argb == kRead; }));
+        }
+
+
+
+        //  A memory window's byte is tinted halfway from the page toward its
+        //  heat map color, and a byte nothing touched is not tinted.
+        TEST_METHOD (AMemoryBytesTintIsHalfwayToItsColor)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels  = MakeLevels();
+            HeatMapView::Palette                    palette = MakePalette();
+
+
+
+            palette.background   = 0xFF000000;
+            levels.write[0x0400] = 255;
+
+            Assert::AreEqual (DxuiColor::Mix (0xFF000000, kWrite, 0.5f) | 0xFF000000u, MemoryPane::GetHeatFill (levels, 0x0400, palette));
+            Assert::AreEqual (0u, MemoryPane::GetHeatFill (levels, 0x0401, palette));
         }
 
 
