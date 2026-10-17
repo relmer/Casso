@@ -17,7 +17,7 @@ and keeps its own preferences in another. Every decision is a pure model
 class under test; the window is thin. Research and corrections to the
 spec's assumptions are in [research.md](research.md).
 
-Section H adds the Apple II link: a protocol engine that serves ADTPro's
+Section H adds CassoLink: a protocol engine that serves ADTPro's
 clients and Casso's own polling client (R15, R16), a 6502 shim and program
 assembled from source in the core (R17, R22), a paced bridge from an
 emulated 6551 to the PC (R18), COM and TCP streams behind one seam (R19),
@@ -85,7 +85,7 @@ COM-port list behind the same seam, so no unit test opens a port or a
 socket; scenario tests run the Apple program in a `TestMachine` against
 the in-process stream. V, the Apple side stays a shim and a sector server,
 and file systems stay in `IVolume` (R16, R20). VI, the link lives in
-`CassoEmuCore/AppleLink/`; no executable changes. PASS.
+`CassoEmuCore/CassoLink/`; no executable changes. PASS.
 
 ## Project Structure
 
@@ -177,14 +177,14 @@ CassoEmuCore/
 └── resource.h                         # Casso Explorer icon and PNG ids
 CassoCore/ExternalChangeIntent.h       # two intents
 
-CassoEmuCore/AppleLink/                # section H
-├── AppleLinkCodec.h/.cpp              # framing, EOR, CRC, RLE (ADTPro's, R15)
-├── AppleLinkHost.h/.cpp               # serves ADTPro's clients and Casso's (R16)
-├── AppleLinkSession.h/.cpp            # thread, queue, LinkedDisks, states
+CassoEmuCore/CassoLink/                # section H
+├── CassoLinkCodec.h/.cpp              # framing, EOR, CRC, RLE (ADTPro's, R15)
+├── CassoLinkHost.h/.cpp               # serves ADTPro's clients and Casso's (R16)
+├── CassoLinkSession.h/.cpp            # thread, queue, LinkedDisks, states
 ├── LinkedDisk.h/.cpp                  # sparse sector image, fault-in (R20)
 ├── LinkProgram.h/.cpp                 # assembles the shim and program (R22)
 ├── LinkBootstrap.h/.cpp               # monitor lines for IN#2 (R23)
-├── AppleLinkSearch.h/.cpp             # the COM search (FR-083a)
+├── CassoLinkSearch.h/.cpp             # the COM search (FR-083a)
 └── Apple/                             # AS65 source, compiled in as text
     ├── Shim.s
     └── Program.s
@@ -328,7 +328,7 @@ run time from the video ROM. Neither's code remains.
 The monitor for pictures is chosen on the options dialog's Display page;
 the command bar's Monitor drop-down was removed (FR-068).
 
-### Apple II link
+### CassoLink
 
 Section H, research R15 to R23, contract
 [contracts/cassolink.md](contracts/cassolink.md). Phases, numbered as in
@@ -341,7 +341,7 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 17. **Recordings**: ADTPro 2.1.0's host joined to its own client in an
     emulated //c over the TCP bridge; disk send, receive and a virtual
     drive captured as fixtures; the contract's *captured* values filled in.
-18. **Codec and ADTPro host**: `AppleLinkCodec` and `AppleLinkHost`
+18. **Codec and ADTPro host**: `CassoLinkCodec` and `CassoLinkHost`
     serving ADTPro's clients, tested against the recordings, then against
     ADTPro's client in an emulated //c (SC-032).
 19. **Apple program**: the shim and program in AS65, `LinkProgram`, and a

@@ -2,9 +2,9 @@
 
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
-#include "AppleLink/RunningCassoRegistry.h"
+#include "CassoLink/RunningCassoRegistry.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
@@ -929,7 +929,7 @@ void CassoExplorerWindow::ConfigureWidgets()
         return fs.EnumerateAllEntries (path, outEntries);
     });
 
-    //  The Apple links are roots after This PC; each is started when it is
+    //  The CassoLink connections are under CassoLink; each is started when it is
     //  opened, and posts here when an operation finishes or its state
     //  changes.
     if (m_context.links != nullptr)
@@ -2672,12 +2672,12 @@ void CassoExplorerWindow::SaveLinkDiskImage (const std::string & name)
     std::filesystem::path          picked;
     bool                           chosen = false;
     FileDialogSpec                 spec;
-    AppleLinkSettings              link;
+    CassoLinkSettings              link;
     CassoExplorerActions::Outcome  outcome;
 
 
 
-    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
         if (settings.name == name)
         {
@@ -10256,10 +10256,10 @@ void CassoExplorerWindow::ShowTreeEmptyMenu (int x, int y)
 
 void CassoExplorerWindow::EditLink (const std::string & name)
 {
-    AppleLinkSettings                 initial;
+    CassoLinkSettings                 initial;
     std::vector<std::wstring>         others;
     CassoExplorerLinkDialog::Outcome  outcome;
-    auto                              found = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const AppleLinkSettings & link) { return link.name == name; });
+    auto                              found = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const CassoLinkSettings & link) { return link.name == name; });
 
 
 
@@ -10272,7 +10272,7 @@ void CassoExplorerWindow::EditLink (const std::string & name)
         initial.name = "Apple II";
     }
 
-    for (const AppleLinkSettings & link : m_prefs.links)
+    for (const CassoLinkSettings & link : m_prefs.links)
     {
         if (link.name != name)
         {
@@ -10319,7 +10319,7 @@ void CassoExplorerWindow::RemoveLink (const std::string & name)
 
 
 
-    std::erase_if (m_prefs.links, [&name] (const AppleLinkSettings & settings) { return settings.name == name; });
+    std::erase_if (m_prefs.links, [&name] (const CassoLinkSettings & settings) { return settings.name == name; });
 
     if (TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive) && TextEncoding::WideToNarrow (link) == name)
     {
@@ -10406,7 +10406,7 @@ void CassoExplorerWindow::BootstrapLink (const std::string & name)
 
     hr = m_context.links->Bootstrap (name, [] (const LinkOperation & operation) -> std::wstring
     {
-        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+        return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
     });
 
     if (FAILED (hr))
@@ -10449,9 +10449,9 @@ void CassoExplorerWindow::ReleaseIdleLinks()
 
     TreeModel::TryParseLinkId (m_browser.GetLocation().path, current, slot, drive);
 
-    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
-        AppleLinkSession  * session   = m_context.links->GetSession (settings.name);
+        CassoLinkSession  * session   = m_context.links->GetSession (settings.name);
         LinkState           state     = session != nullptr ? session->GetState() : LinkState::Closed;
         bool                connected = state == LinkState::Ready || state == LinkState::Busy
                                      || state == LinkState::Bootstrapping || state == LinkState::LoadingProgram;
@@ -10480,11 +10480,11 @@ void CassoExplorerWindow::ReleaseIdleLinks()
 
 bool CassoExplorerWindow::IsSerialLink (const std::string & name) const
 {
-    const std::vector<AppleLinkSettings> &  links = m_context.links->GetLinks();
+    const std::vector<CassoLinkSettings> &  links = m_context.links->GetLinks();
 
 
 
-    return std::any_of (links.begin(), links.end(), [&name] (const AppleLinkSettings & settings)
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
     {
         return settings.name == name && settings.transport == LinkTransport::Serial;
     });
@@ -10651,7 +10651,7 @@ void CassoExplorerWindow::ApplyAdtProSettings()
         }
     }
 
-    for (const AppleLinkSettings & settings : (m_context.links != nullptr && m_prefs.emulateAdtPro) ? m_context.links->GetLinks() : std::vector<AppleLinkSettings>())
+    for (const CassoLinkSettings & settings : (m_context.links != nullptr && m_prefs.emulateAdtPro) ? m_context.links->GetLinks() : std::vector<CassoLinkSettings>())
     {
         bool  addressed = settings.transport != LinkTransport::Serial || !settings.port.empty();
 
@@ -10675,7 +10675,7 @@ void CassoExplorerWindow::ApplyAdtProSettings()
 
 bool CassoExplorerWindow::IsLinkReplying (const std::string & name) const
 {
-    AppleLinkSession  * session = m_context.links->GetSession (name);
+    CassoLinkSession  * session = m_context.links->GetSession (name);
     LinkState           state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
 
 
@@ -10695,11 +10695,11 @@ bool CassoExplorerWindow::IsLinkReplying (const std::string & name) const
 
 bool CassoExplorerWindow::IsWifiModemLink (const std::string & name) const
 {
-    const std::vector<AppleLinkSettings> &  links = m_context.links->GetLinks();
+    const std::vector<CassoLinkSettings> &  links = m_context.links->GetLinks();
 
 
 
-    return std::any_of (links.begin(), links.end(), [&name] (const AppleLinkSettings & settings)
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
     {
         return settings.name == name && settings.transport == LinkTransport::WifiModem;
     });
@@ -11062,7 +11062,7 @@ void CassoExplorerWindow::GoToLocation (const Location & location)
 //
 //  CassoExplorerWindow::OnLinkChanged
 //
-//  An Apple link finished an operation or changed state: its root's drives
+//  An CassoLink finished an operation or changed state: its root's drives
 //  are listed again where the root is in the tree, and the list and preview
 //  are refreshed when the location is on the link.
 //
@@ -11090,7 +11090,7 @@ void CassoExplorerWindow::OnLinkChanged()
 
     //  The running operation's progress and the queue after it; the status
     //  bar's own text returns once nothing is pending.
-    jobs = AppleLinkConnections::DescribeJobs (m_context.links->GetPendingJobs());
+    jobs = CassoLinkConnections::DescribeJobs (m_context.links->GetPendingJobs());
 
     if (!jobs.empty())
     {
@@ -11106,7 +11106,7 @@ void CassoExplorerWindow::OnLinkChanged()
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
     m_status->SetText (kStatusFill, GetLatestActivity());
 
-    for (const AppleLinkSettings & settings : m_context.links->GetLinks())
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
         std::wstring  id = TreeModel::MakeLinkId (TextEncoding::NarrowToWide (settings.name));
 
@@ -11194,7 +11194,7 @@ void CassoExplorerWindow::OnRunningChanged()
     m_context.links->SetRunning (running);
 
     showing = TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive);
-    gone    = showing && std::none_of (m_context.links->GetLinks().begin(), m_context.links->GetLinks().end(), [&link] (const AppleLinkSettings & settings)
+    gone    = showing && std::none_of (m_context.links->GetLinks().begin(), m_context.links->GetLinks().end(), [&link] (const CassoLinkSettings & settings)
     {
         return TextEncoding::NarrowToWide (settings.name) == link;
     });
@@ -15005,7 +15005,7 @@ void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT poin
 
 std::wstring CassoExplorerWindow::GetLatestActivity() const
 {
-    std::vector<AppleLinkConnections::Activity>  log;
+    std::vector<CassoLinkConnections::Activity>  log;
     FILETIME                                     then = {};
     FILETIME                                     now  = {};
     ULARGE_INTEGER                               a    = {};
@@ -15057,7 +15057,7 @@ std::wstring CassoExplorerWindow::GetLatestActivity() const
 
 std::wstring CassoExplorerWindow::FormatActivity (size_t lines) const
 {
-    std::vector<AppleLinkConnections::Activity>  log   = (m_context.links != nullptr) ? m_context.links->GetActivity() : std::vector<AppleLinkConnections::Activity>();
+    std::vector<CassoLinkConnections::Activity>  log   = (m_context.links != nullptr) ? m_context.links->GetActivity() : std::vector<CassoLinkConnections::Activity>();
     size_t                                       first = (lines == 0 || log.size() <= lines) ? 0 : log.size() - lines;
     std::wstring                                 text;
 
@@ -15065,7 +15065,7 @@ std::wstring CassoExplorerWindow::FormatActivity (size_t lines) const
 
     for (size_t i = first; i < log.size(); i++)
     {
-        const AppleLinkConnections::Activity &  entry = log[i];
+        const CassoLinkConnections::Activity &  entry = log[i];
 
         text += std::format (L"{}{:04}-{:02}-{:02} {:02}:{:02}:{:02}  {}: {}", text.empty() ? L"" : L"\n",
                              entry.time.wYear, entry.time.wMonth, entry.time.wDay, entry.time.wHour, entry.time.wMinute, entry.time.wSecond,

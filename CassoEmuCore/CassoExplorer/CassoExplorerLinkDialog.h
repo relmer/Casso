@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "AppleLink/AppleLinkSettings.h"
+#include "CassoLink/CassoLinkSettings.h"
 
 
 
@@ -62,7 +62,7 @@ public:
 
     //  The address row's text for a link's settings, and the reason it
     //  cannot be used for a transport, or empty.
-    static std::wstring     GetAddressText    (const AppleLinkSettings & settings);
+    static std::wstring     GetAddressText    (const CassoLinkSettings & settings);
     static std::wstring     ValidateAddressFor (LinkTransport transport, const std::wstring & text);
     //  Why a field's value cannot be used, or empty when it can. A name must
     //  be new among `otherNames`; a port is COM and a number, or empty to
@@ -74,7 +74,7 @@ public:
 
     //  The settings for the chosen values. An index out of range takes the
     //  list's first choice.
-    static AppleLinkSettings  MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
+    static CassoLinkSettings  MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
                                             int speedIndex, int bootstrapIndex, bool hardwareHandshake);
 
     static constexpr size_t  kMaxNameLength = 60;
@@ -171,12 +171,12 @@ public:
     struct Outcome
     {
         bool               confirmed = false;
-        AppleLinkSettings  settings;
+        CassoLinkSettings  settings;
     };
 
     //  Runs the dialog modally over `owner`, starting from `initial`.
     //  otherNames are the other links', which this one's must differ from.
-    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const AppleLinkSettings & initial,
+    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const CassoLinkSettings & initial,
                          const std::vector<std::wstring> & otherNames, bool adding);
 
 protected:
@@ -189,7 +189,7 @@ private:
     void  FitToContent ();
 
     const IDxuiTheme           * m_theme          = nullptr;
-    AppleLinkSettings            m_initial;
+    CassoLinkSettings            m_initial;
     std::vector<std::wstring>    m_otherNames;
     bool                         m_adding         = true;
     bool                         m_fitted         = false;

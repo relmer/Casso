@@ -4,7 +4,7 @@ Spec FR-083 to FR-098; research R15 to R23. This is the wire contract
 between Casso and an Apple-side client, and between Casso Explorer and the
 link's session. The values once marked *captured* were settled on 2026-10-15
 from traffic between ADTPro 2.1.0's own host and client (R15); the
-captures are in `UnitTest/Fixtures/AppleLink/`.
+captures are in `UnitTest/Fixtures/CassoLink/`.
 
 ## Framing (ADTPro's, unchanged)
 
@@ -115,7 +115,7 @@ own Ready has its version, and the PC replies with Idle.
 ```mermaid
 sequenceDiagram
     participant A as Apple (shim, then program)
-    participant P as PC (AppleLinkHost)
+    participant P as PC (CassoLinkHost)
     A->>P: Ready (version 0, shim version, drives)
     P->>A: Load program (page count)
     loop each page from $0800
@@ -239,7 +239,7 @@ succeeds; and the last Label.
 
 ## Session interface (Casso Explorer side)
 
-`AppleLinkSession` owns an `IByteStream`, the protocol engine, a
+`CassoLinkSession` owns an `IByteStream`, the protocol engine, a
 `LinkedDisk` per drive and a queue of `LinkOperation`s. Casso Explorer
 calls only:
 

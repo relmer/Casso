@@ -173,10 +173,10 @@
     <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
-    <ClCompile Include="AppleLinkAdtProTests.cpp" />
-    <ClCompile Include="AppleLinkSectorTests.cpp" />
-    <ClCompile Include="AppleLinkSessionTests.cpp" />
-    <ClCompile Include="AppleLinkBootstrapTests.cpp" />
+    <ClCompile Include="CassoLinkAdtProTests.cpp" />
+    <ClCompile Include="CassoLinkSectorTests.cpp" />
+    <ClCompile Include="CassoLinkSessionTests.cpp" />
+    <ClCompile Include="CassoLinkBootstrapTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />

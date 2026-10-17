@@ -385,7 +385,7 @@ private:
 public:
     DiskImageSession &  GetSession ()  { return m_session; }
 
-    //  Public so a file read or written over an Apple link converts as one
+    //  Public so a file read or written over an CassoLink converts as one
     //  in an image does.
     //  The bytes a file from the host becomes on the disk, with whatever conversion was
     //  asked for already applied. Refuses a conversion this build cannot do.

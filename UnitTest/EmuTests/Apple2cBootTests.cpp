@@ -8,7 +8,7 @@
 #include "Seams/InProcessByteStream.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Seams/IProcessProbe.h"
-#include "AppleLink/RunningCassoRegistry.h"
+#include "CassoLink/RunningCassoRegistry.h"
 #include "../EhmTestHelper.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"

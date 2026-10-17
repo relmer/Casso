@@ -264,14 +264,14 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JsonValue CassoExplorerPrefs::LinkToJson (const AppleLinkSettings & link)
+JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
 {
     std::vector<std::pair<std::string, JsonValue>>  fields;
 
 
 
     fields.emplace_back ("name",              JsonValue (link.name));
-    fields.emplace_back ("transport",         JsonValue (std::string (AppleLinkSettings::GetTransportName (link.transport))));
+    fields.emplace_back ("transport",         JsonValue (std::string (CassoLinkSettings::GetTransportName (link.transport))));
     fields.emplace_back ("port",              JsonValue (link.port));
     fields.emplace_back ("address",           JsonValue (link.address));
     fields.emplace_back ("baud",              JsonValue ((double) link.baud));
@@ -294,7 +294,7 @@ JsonValue CassoExplorerPrefs::LinkToJson (const AppleLinkSettings & link)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, AppleLinkSettings & outLink)
+bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink)
 {
     std::string  transport;
     int          baud      = 0;
@@ -302,11 +302,11 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, AppleLinkSett
 
 
 
-    outLink = AppleLinkSettings();
+    outLink = CassoLinkSettings();
 
     usable = value.GetType() == JsonType::Object
           && value.HasString ("name", outLink.name) && !outLink.name.empty()
-          && value.HasString ("transport", transport) && AppleLinkSettings::TryParseTransport (transport, outLink.transport);
+          && value.HasString ("transport", transport) && CassoLinkSettings::TryParseTransport (transport, outLink.transport);
 
     if (usable)
     {
@@ -395,7 +395,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
     }
 
-    for (const AppleLinkSettings & link : links)
+    for (const CassoLinkSettings & link : links)
     {
         linkValues.push_back (LinkToJson (link));
     }
@@ -677,10 +677,10 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
         for (i = 0; i < linkArray->GetArraySize(); i++)
         {
-            AppleLinkSettings  link;
+            CassoLinkSettings  link;
 
             if (TryLinkFromJson (linkArray->GetArrayElement (i), link)
-                && std::none_of (links.begin(), links.end(), [&link] (const AppleLinkSettings & other) { return other.name == link.name; }))
+                && std::none_of (links.begin(), links.end(), [&link] (const CassoLinkSettings & other) { return other.name == link.name; }))
             {
                 links.push_back (link);
             }

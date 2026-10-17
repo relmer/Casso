@@ -145,7 +145,7 @@ Preview-pane visibility is window-wide, in `CassoExplorerPrefs`, not here.
 | InsertDone, InsertRefused | Casso to Casso Explorer | reply id, reason UTF-8 on refusal |
 | ReloadDone, ReloadConflict, ReloadRefused | Casso to Casso Explorer | reply id, description or reason UTF-8 |
 
-## Apple II link (section H)
+## CassoLink (section H)
 
 ### Persisted: `links` in CassoExplorerPrefs.json
 
@@ -179,7 +179,7 @@ never stored in `links`.
 
 ### In memory
 
-- **AppleLinkSession**: one per open link. It owns the `IByteStream`, the
+- **CassoLinkSession**: one per open link. It owns the `IByteStream`, the
   protocol engine, a `LinkedDisk` per drive and the operation queue, and
   runs on its own thread.
   - **States**: Closed → (Searching, a serial link with no port) → Opening → Waiting for Ready → Loading program →

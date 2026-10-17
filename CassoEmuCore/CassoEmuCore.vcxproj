@@ -213,16 +213,16 @@
     <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
     <ClCompile Include="Devices\SerialPortDevice.cpp" />
     <ClCompile Include="Devices\SerialTrafficLog.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkCodec.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkFolder.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkHost.cpp" />
-    <ClCompile Include="AppleLink\LinkProgram.cpp" />
-    <ClCompile Include="AppleLink\LinkedDisk.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkSession.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkSettings.cpp" />
-    <ClCompile Include="AppleLink\AppleLinkSearch.cpp" />
-    <ClCompile Include="AppleLink\RunningCassoRegistry.cpp" />
-    <ClCompile Include="AppleLink\LinkBootstrap.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\LinkProgram.cpp" />
+    <ClCompile Include="CassoLink\LinkedDisk.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
+    <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
+    <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
     <ClCompile Include="Seams\Win32ProcessProbe.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
@@ -303,7 +303,7 @@
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
-    <ClCompile Include="CassoExplorer\Model\AppleLinkConnections.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
     <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
@@ -708,7 +708,7 @@
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
-    <ClInclude Include="CassoExplorer\Model\AppleLinkConnections.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoLinkConnections.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
@@ -806,16 +806,16 @@
     <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
     <ClInclude Include="Devices\SerialPortDevice.h" />
     <ClInclude Include="Devices\SerialTrafficLog.h" />
-    <ClInclude Include="AppleLink\AppleLinkCodec.h" />
-    <ClInclude Include="AppleLink\AppleLinkFolder.h" />
-    <ClInclude Include="AppleLink\AppleLinkHost.h" />
-    <ClInclude Include="AppleLink\LinkProgram.h" />
-    <ClInclude Include="AppleLink\LinkedDisk.h" />
-    <ClInclude Include="AppleLink\AppleLinkSession.h" />
-    <ClInclude Include="AppleLink\AppleLinkSettings.h" />
-    <ClInclude Include="AppleLink\AppleLinkSearch.h" />
-    <ClInclude Include="AppleLink\RunningCassoRegistry.h" />
-    <ClInclude Include="AppleLink\LinkBootstrap.h" />
+    <ClInclude Include="CassoLink\CassoLinkCodec.h" />
+    <ClInclude Include="CassoLink\CassoLinkFolder.h" />
+    <ClInclude Include="CassoLink\CassoLinkHost.h" />
+    <ClInclude Include="CassoLink\LinkProgram.h" />
+    <ClInclude Include="CassoLink\LinkedDisk.h" />
+    <ClInclude Include="CassoLink\CassoLinkSession.h" />
+    <ClInclude Include="CassoLink\CassoLinkSettings.h" />
+    <ClInclude Include="CassoLink\CassoLinkSearch.h" />
+    <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
+    <ClInclude Include="CassoLink\LinkBootstrap.h" />
     <ClInclude Include="Seams\IProcessProbe.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
@@ -1031,9 +1031,9 @@
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="AppleLink\Apple\Program.s" />
-    <None Include="AppleLink\Apple\Shim.s" />
-    <None Include="AppleLink\Apple\AppleSources.targets" />
+    <None Include="CassoLink\Apple\Program.s" />
+    <None Include="CassoLink\Apple\Shim.s" />
+    <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>
   <ItemGroup>
@@ -1048,7 +1048,7 @@
     </ProjectReference>
   </ItemGroup>
     <Import Project="Shaders\Shaders.targets" />
-    <Import Project="AppleLink\Apple\AppleSources.targets" />
+    <Import Project="CassoLink\Apple\AppleSources.targets" />
 <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

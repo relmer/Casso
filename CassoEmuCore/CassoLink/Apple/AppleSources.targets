@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The CassoLink's 6502 sources, compiled into the core as text.
+
+  LinkProgram assembles Shim.s and Program.s with CassoCore's assembler when a
+  link starts, so the sources themselves are what ships: each is written as a
+  byte array into a header in $(IntDir)CassoLink before the C++ is compiled.
+  A byte array rather than a string literal, because MSVC limits a literal to
+  about 16 KB and the program's source is longer. #embed would do this
+  directly, but this compiler does not have it yet.
+
+  The task runs inside MSBuild, with no process started, and only when a
+  source is newer than its header.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Shim.s">
+      <Symbol>s_kShimSource</Symbol>
+    </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Program.s">
+      <Symbol>s_kProgramSource</Symbol>
+    </CassoAppleSource>
+  </ItemGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(IntDir)CassoLink;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <UsingTask TaskName="CassoEmbedSource" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Source Required="true" />
+      <Output Required="true" />
+      <Symbol Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+          byte[]                     bytes = System.IO.File.ReadAllBytes (Source);
+          System.Text.StringBuilder  text  = new System.Text.StringBuilder ();
+
+          text.Append ("// Written at build time from " + System.IO.Path.GetFileName (Source) + ". Edit that file, not this one.\r\n");
+          text.Append ("#pragma once\r\n\r\n");
+          text.Append ("inline constexpr unsigned char " + Symbol + "[] =\r\n{\r\n");
+
+          for (int i = 0; i < bytes.Length; i += 16)
+          {
+              text.Append ("   ");
+
+              for (int j = i; j < System.Math.Min (i + 16, bytes.Length); j++)
+              {
+                  text.Append (" 0x" + bytes[j].ToString ("X2") + ",");
+              }
+
+              text.Append ("\r\n");
+          }
+
+          text.Append ("    0x00\r\n};\r\n");
+
+          System.IO.Directory.CreateDirectory (System.IO.Path.GetDirectoryName (Output));
+          System.IO.File.WriteAllText (Output, text.ToString ());
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="CassoEmbedAppleSources"
+          BeforeTargets="ClCompile"
+          Inputs="@(CassoAppleSource)"
+          Outputs="@(CassoAppleSource->'$(IntDir)CassoLink\%(Filename).s.h')">
+    <CassoEmbedSource Source="%(CassoAppleSource.FullPath)"
+                      Output="$(IntDir)CassoLink\%(CassoAppleSource.Filename).s.h"
+                      Symbol="%(CassoAppleSource.Symbol)" />
+  </Target>
+
+</Project>

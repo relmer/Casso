@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "AppleLink/LinkProgram.h"
+#include "CassoLink/LinkProgram.h"
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -727,7 +727,7 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         m_rows.back().hostPath  = m_rootChildren[index].location.path;
         m_rows.back().isMissing = m_rootChildren[index].missing;
 
-        if (m_rootChildren[index].kind == TreeNode::Kind::AppleLink)
+        if (m_rootChildren[index].kind == TreeNode::Kind::CassoLinkConnection)
         {
             m_rows.back().typeText = L"CassoLink connection";
             m_rows.back().offline  = m_rootChildren[index].offline;
@@ -805,7 +805,7 @@ void CassoExplorerBrowser::RevisitLink (const Location & location)
         return;
     }
 
-    for (int each = 1; each <= AppleLinkSession::kDriveCount; each++)
+    for (int each = 1; each <= CassoLinkSession::kDriveCount; each++)
     {
         if ((drive == 0 || drive == each) && !m_links->IsWritingDisk (name, each))
         {
@@ -4756,7 +4756,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
         case TreeNode::Kind::RecycleBinRoot: return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
-        case TreeNode::Kind::AppleLink:     return icons.GetForKind (node.offline ? IShellIcons::Kind::AppleMachineOffline : IShellIcons::Kind::AppleMachine);
+        case TreeNode::Kind::CassoLinkConnection:     return icons.GetForKind (node.offline ? IShellIcons::Kind::AppleMachineOffline : IShellIcons::Kind::AppleMachine);
         case TreeNode::Kind::CassoLinkRoot: return icons.GetForKind (IShellIcons::Kind::AppleMachine);
         case TreeNode::Kind::AddLink:       return icons.GetForKind (IShellIcons::Kind::AppleMachine);
         case TreeNode::Kind::AppleDrive:    return icons.GetForKind (IShellIcons::Kind::DiskImage);

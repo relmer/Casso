@@ -77,7 +77,7 @@
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/IProcessProbe.h"
-#include "AppleLink/RunningCassoRegistry.h"
+#include "CassoLink/RunningCassoRegistry.h"
 #include "Config/Win32FileSystem.h"
 #include "Devices/SerialTrafficLog.h"
 

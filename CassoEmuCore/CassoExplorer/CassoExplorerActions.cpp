@@ -1,8 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
-#include "AppleLink/LinkProgram.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
@@ -979,7 +979,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::CopyEntriesToAppleDrive (con
         }
 
         taken.push_back (name);
-        SubmitWrite (link, drive, [drive, path, payload] (AppleLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, outcome);
+        SubmitWrite (link, drive, [drive, path, payload] (CassoLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, outcome);
         outcome.created.push_back (path);
     }
 
@@ -1035,7 +1035,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
         }
 
         hr = m_browser.GetLinks()->Submit (link,
-            [drive, entryPath] (AppleLinkSession & session) { return session.ReadFile (drive, FilePath::Parse (entryPath)); },
+            [drive, entryPath] (CassoLinkSession & session) { return session.ReadFile (drive, FilePath::Parse (entryPath)); },
             [this, hostPath, encoding, appleSingle, single] (const LinkOperation & operation) -> std::wstring
             {
                 std::vector<Byte>  bytes;
@@ -1043,7 +1043,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
 
                 if (FAILED (hrHost))
                 {
-                    return AppleLinkConnections::DescribeFailure (operation);
+                    return CassoLinkConnections::DescribeFailure (operation);
                 }
 
                 hrHost = ToHostBytes (operation.file, encoding, appleSingle, single, bytes);
@@ -1150,7 +1150,7 @@ void CassoExplorerActions::PutItemsOnAppleDrive (const std::string & link, int d
             path = directory.empty() ? name : directory + "/" + name;
             taken.push_back (name);
 
-            SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.MakeDirectory (drive, FilePath::Parse (path)); }, inOutOutcome);
+            SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.MakeDirectory (drive, FilePath::Parse (path)); }, inOutOutcome);
 
             hr = m_fs.EnumerateAllEntries (hostPath, children);
 
@@ -1201,7 +1201,7 @@ void CassoExplorerActions::PutItemsOnAppleDrive (const std::string & link, int d
             continue;
         }
 
-        SubmitWrite (link, drive, [drive, path, payload] (AppleLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, inOutOutcome);
+        SubmitWrite (link, drive, [drive, path, payload] (CassoLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, inOutOutcome);
         inOutOutcome.created.push_back (path);
     }
 }
@@ -1239,7 +1239,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::DeleteOnAppleDrive()
         FilePath  path      = FilePath::Parse (m_browser.GetEntryPath (entry));
         bool      directory = entry.isDirectory;
 
-        SubmitWrite (link, drive, [drive, path, directory] (AppleLinkSession & session)
+        SubmitWrite (link, drive, [drive, path, directory] (CassoLinkSession & session)
         {
             return directory ? session.RemoveDirectory (drive, path) : session.Delete (drive, path);
         }, outcome);
@@ -1279,7 +1279,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::RenameOnAppleDrive (const st
     {
         FilePath  path = FilePath::Parse (m_browser.GetEntryPath (entries[0]));
 
-        SubmitWrite (link, drive, [drive, path, newName] (AppleLinkSession & session) { return session.Rename (drive, path, newName); }, outcome);
+        SubmitWrite (link, drive, [drive, path, newName] (CassoLinkSession & session) { return session.Rename (drive, path, newName); }, outcome);
     }
 
     return outcome;
@@ -1314,7 +1314,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateFolderOnAppleDrive (co
 
     path = directory.empty() ? name : directory + "/" + name;
 
-    SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.MakeDirectory (drive, FilePath::Parse (path)); }, outcome);
+    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.MakeDirectory (drive, FilePath::Parse (path)); }, outcome);
 
     return outcome;
 }
@@ -1332,9 +1332,9 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateFolderOnAppleDrive (co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerActions::SubmitWrite (const std::string & link, int drive, AppleLinkConnections::Queuer queue, Outcome & inOutOutcome)
+void CassoExplorerActions::SubmitWrite (const std::string & link, int drive, CassoLinkConnections::Queuer queue, Outcome & inOutOutcome)
 {
-    AppleLinkConnections  * links = m_browser.GetLinks();
+    CassoLinkConnections  * links = m_browser.GetLinks();
     HRESULT                 hr    = S_OK;
 
 
@@ -1343,7 +1343,7 @@ void CassoExplorerActions::SubmitWrite (const std::string & link, int drive, App
     {
         links->Invalidate (link, drive);
 
-        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+        return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
     });
 
     if (SUCCEEDED (hr))
@@ -3089,7 +3089,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteBlocks (int block, cons
 CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable)
 {
     Outcome                 outcome;
-    AppleLinkConnections  * links = m_browser.GetLinks();
+    CassoLinkConnections  * links = m_browser.GetLinks();
     std::string             link;
     std::string             directory;
     std::string             path  = TextEncoding::WideToNarrow (imagePath);
@@ -3105,7 +3105,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
         return outcome;
     }
 
-    hr = links->Submit (link, [drive, path, blankUnreadable] (AppleLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable); },
+    hr = links->Submit (link, [drive, path, blankUnreadable] (CassoLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable); },
                         [onUnreadable] (const LinkOperation & operation) -> std::wstring
     {
         bool  offer = operation.result == HRESULT_FROM_WIN32 (ERROR_CRC) && !operation.unreadable.empty() && !operation.blankUnreadable && onUnreadable;
@@ -3116,7 +3116,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
             return std::wstring();
         }
 
-        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+        return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
     });
 
     if (FAILED (hr))
@@ -3173,7 +3173,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToAppleDrive (cons
 
 
 
-    SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
 
     return outcome;
 }
@@ -3191,7 +3191,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToAppleDrive (cons
 CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder)
 {
     Outcome                 outcome;
-    AppleLinkConnections  * links   = m_browser.GetLinks();
+    CassoLinkConnections  * links   = m_browser.GetLinks();
     VolumeListing           listing;
     VolumeKind              kind    = VolumeKind::Unknown;
     HRESULT                 result  = S_OK;
@@ -3224,10 +3224,10 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (c
 
     narrow = TextEncoding::WideToNarrow (path);
 
-    hr = links->Submit (link, [drive, narrow] (AppleLinkSession & session) { return session.ReadDisk (drive, narrow, false); },
+    hr = links->Submit (link, [drive, narrow] (CassoLinkSession & session) { return session.ReadDisk (drive, narrow, false); },
                         [] (const LinkOperation & operation) -> std::wstring
     {
-        return FAILED (operation.result) ? AppleLinkConnections::DescribeFailure (operation) : std::wstring();
+        return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
     });
 
     if (FAILED (hr))
@@ -3254,7 +3254,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (c
 
 HRESULT CassoExplorerActions::CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then)
 {
-    return m_browser.GetLinks()->Submit (link, [drive] (AppleLinkSession & session) { return session.CheckLinkDisk (drive); },
+    return m_browser.GetLinks()->Submit (link, [drive] (CassoLinkSession & session) { return session.CheckLinkDisk (drive); },
                                          [then] (const LinkOperation & operation) -> std::wstring
     {
         then (operation.linkDisk, operation.result);
@@ -3311,11 +3311,11 @@ std::wstring CassoExplorerActions::MakeDriveImageName (const VolumeListing & lis
 CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::wstring & tempFolder)
 {
     Outcome                 outcome;
-    AppleLinkConnections  * links = m_browser.GetLinks();
+    CassoLinkConnections  * links = m_browser.GetLinks();
     std::string             link;
     std::string             directory;
     int                     drive = 0;
-    AppleLinkSettings       chosen;
+    CassoLinkSettings       chosen;
     std::vector<Byte>       disk;
     std::string             path;
     HRESULT                 hr    = S_OK;
@@ -3329,7 +3329,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
         return outcome;
     }
 
-    for (const AppleLinkSettings & settings : links->GetLinks())
+    for (const CassoLinkSettings & settings : links->GetLinks())
     {
         if (settings.name == link)
         {
@@ -3339,7 +3339,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
 
     path = TextEncoding::WideToNarrow (std::format (L"{}\\casso-link-{}.dsk", tempFolder, drive));
 
-    hr = LinkProgram::BuildBootDisk (chosen.baud, disk, AppleLinkConnections::MakeDialCommand (AppleLinkConnections::GetPcName(), chosen));
+    hr = LinkProgram::BuildBootDisk (chosen.baud, disk, CassoLinkConnections::MakeDialCommand (CassoLinkConnections::GetPcName(), chosen));
 
     if (SUCCEEDED (hr))
     {
@@ -3352,7 +3352,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
         return outcome;
     }
 
-    SubmitWrite (link, drive, [drive, path] (AppleLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
 
     return outcome;
 }
@@ -3367,11 +3367,11 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std::wstring & imagePath, const AppleLinkSettings & settings)
+CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings)
 {
     Outcome            outcome;
     std::vector<Byte>  disk;
-    HRESULT            hr = LinkProgram::BuildBootDisk (settings.baud, disk, AppleLinkConnections::MakeDialCommand (AppleLinkConnections::GetPcName(), settings));
+    HRESULT            hr = LinkProgram::BuildBootDisk (settings.baud, disk, CassoLinkConnections::MakeDialCommand (CassoLinkConnections::GetPcName(), settings));
 
 
 
@@ -3446,7 +3446,7 @@ void CassoExplorerActions::CancelLinkOperation()
     std::string         link;
     std::string         directory;
     int                 drive   = 0;
-    AppleLinkSession  * session = nullptr;
+    CassoLinkSession  * session = nullptr;
 
 
 

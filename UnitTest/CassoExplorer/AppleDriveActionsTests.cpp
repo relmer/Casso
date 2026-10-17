@@ -1,15 +1,15 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
-#include "../AppleLink/FakeApple.h"
-#include "../AppleLink/InMemoryAppleLinkFolder.h"
+#include "../CassoLink/FakeApple.h"
+#include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DragPayload.h"
-#include "AppleLink/LinkProgram.h"
+#include "CassoLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -42,14 +42,14 @@ public:
         FakeDiskFileIo                         io;
         FakeApple                              apple;
         FakeAppleFactory                       factory { apple };
-        InMemoryAppleLinkFolder                folder;
-        std::unique_ptr<AppleLinkConnections>  links;
+        InMemoryCassoLinkFolder                folder;
+        std::unique_ptr<CassoLinkConnections>  links;
         std::unique_ptr<CassoExplorerBrowser>  browser;
         std::unique_ptr<CassoExplorerActions>  actions;
 
         Rig()
         {
-            AppleLinkSettings  settings;
+            CassoLinkSettings  settings;
 
             apple.drives[0] = BuildDos33();
             apple.drives[1] = BuildProDos();
@@ -58,7 +58,7 @@ public:
             settings.transport = LinkTransport::Emulated;
             settings.address   = "127.0.0.1:6502";
 
-            links   = std::make_unique<AppleLinkConnections> (factory, folder, io);
+            links   = std::make_unique<CassoLinkConnections> (factory, folder, io);
             browser = std::make_unique<CassoExplorerBrowser> (fs, io);
             actions = std::make_unique<CassoExplorerActions> (*browser, fs);
 
@@ -418,9 +418,9 @@ public:
         first->drive    = 2;
         first->progress = 40;
 
-        Assert::AreEqual (std::wstring(), AppleLinkConnections::DescribeJobs ({}));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), AppleLinkConnections::DescribeJobs ({ first }));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), AppleLinkConnections::DescribeJobs ({ first, second }));
+        Assert::AreEqual (std::wstring(), CassoLinkConnections::DescribeJobs ({}));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), CassoLinkConnections::DescribeJobs ({ first }));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnections::DescribeJobs ({ first, second }));
     }
 
 
@@ -430,7 +430,7 @@ public:
         Rig                rig;
         std::vector<Byte>  disk;
 
-        AssertSucceeded (LinkProgram::BuildBootDisk (AppleLinkSettings::kDefaultBaud, disk));
+        AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, disk));
 
         rig.Open (2);
         AssertSucceeded (rig.actions->SaveLinkToDisk (L"C:\\Temp").hr);
@@ -457,7 +457,7 @@ public:
     {
         Rig                rig;
         std::vector<Byte>  disk;
-        AppleLinkSettings  serial;
+        CassoLinkSettings  serial;
 
         serial.baud = 9600;
 
@@ -472,17 +472,17 @@ public:
     TEST_METHOD (AWifiModemLinksDisk_DialsThisPc)
     {
         Rig                rig;
-        AppleLinkSettings  modem;
+        CassoLinkSettings  modem;
         std::vector<Byte>  disk;
         std::vector<Byte>  shim;
         std::string        dial;
 
         modem.transport = LinkTransport::WifiModem;
         modem.address   = "0.0.0.0:6400";
-        dial            = AppleLinkConnections::MakeDialCommand (L"relmer-pc", modem);
+        dial            = CassoLinkConnections::MakeDialCommand (L"relmer-pc", modem);
 
         Assert::AreEqual (std::string ("ATDT relmer-pc.local:6400"), dial);
-        Assert::AreEqual (std::string(), AppleLinkConnections::MakeDialCommand (L"relmer-pc", AppleLinkSettings()), L"a serial link dials nothing");
+        Assert::AreEqual (std::string(), CassoLinkConnections::MakeDialCommand (L"relmer-pc", CassoLinkSettings()), L"a serial link dials nothing");
 
         AssertSucceeded (LinkProgram::BuildShim (115200, shim, dial));
         Assert::AreEqual (dial, std::string (reinterpret_cast<const char *> (shim.data() + LinkProgram::kDialOffset)), L"the command, ending in a zero byte");
@@ -532,7 +532,7 @@ public:
         bool               dataDisk = true;
         bool               linkDisk = false;
 
-        AssertSucceeded (LinkProgram::BuildBootDisk (AppleLinkSettings::kDefaultBaud, boot));
+        AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot));
 
         {
             std::lock_guard<std::mutex>  guard (rig.apple.lock);

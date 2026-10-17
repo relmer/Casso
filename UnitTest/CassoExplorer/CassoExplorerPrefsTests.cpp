@@ -335,8 +335,8 @@ public:
         InMemoryFileSystem  fs;
         CassoExplorerPrefs  saved;
         CassoExplorerPrefs  loaded;
-        AppleLinkSettings   serial;
-        AppleLinkSettings   emulated;
+        CassoLinkSettings   serial;
+        CassoLinkSettings   emulated;
 
         serial.name              = "Apple II (COM3)";
         serial.transport         = LinkTransport::Serial;

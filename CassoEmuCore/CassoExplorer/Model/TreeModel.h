@@ -23,7 +23,7 @@
 
 struct TreeNode
 {
-    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive, CassoLinkRoot, AddLink };
+    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, CassoLinkConnection, AppleDrive, CassoLinkRoot, AddLink };
 
     std::wstring  id;
     Kind          kind         = Kind::HostFolder;
@@ -49,7 +49,7 @@ struct TreeNode
 //
 //  LinkTreeEntry
 //
-//  An Apple link as the tree lists it: a root with the link's name, and
+//  An CassoLink as the tree lists it: a root with the link's name, and
 //  under it the Apple's drives, or, while Casso's program is not replying,
 //  the link's state and the reason in their place.
 //
@@ -155,7 +155,7 @@ public:
 
     void  SetNavPaneOptions  (const NavPaneOptions & options) { m_navOptions = options; }
 
-    //  The Apple links, each a root after This PC. Their drives are listed
+    //  The CassoLink connections, each under CassoLink. Their drives are listed
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
 
@@ -208,7 +208,7 @@ public:
     //  namespace, with Home, This PC and the rest under it.
     static constexpr const wchar_t *  kDesktopRootId = L"desktop:";
 
-    //  An Apple link's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
+    //  An CassoLink's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
     static constexpr const wchar_t *  kLinkRootTag   = L"link:";
 
     //  CassoLink's root, after This PC, and its copy after Casso: every

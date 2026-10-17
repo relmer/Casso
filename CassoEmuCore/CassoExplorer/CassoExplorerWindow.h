@@ -27,8 +27,8 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
-class AppleLinkConnections;
-class AppleLinkFolder;
+class CassoLinkConnections;
+class CassoLinkFolder;
 class RunningCassoRegistry;
 
 
@@ -69,11 +69,11 @@ public:
         //  it, and a change made elsewhere is seen on the next navigation.
         IFolderWatcher * watcher    = nullptr;
 
-        //  Optional: without them, no Apple links are listed.
-        AppleLinkConnections * links = nullptr;
+        //  Optional: without them, no CassoLink connections are listed.
+        CassoLinkConnections * links = nullptr;
 
         //  The folder ADTPro's client is served from.
-        AppleLinkFolder      * linkFolder = nullptr;
+        CassoLinkFolder      * linkFolder = nullptr;
 
         //  Optional: without it, running Cassos are not listed as links.
         RunningCassoRegistry * running = nullptr;
@@ -296,7 +296,7 @@ private:
     //  Posted once the shell's New menu choices are read.
     static constexpr UINT      kNewChoicesMessage    = WM_APP + 0x3D;
 
-    //  Posted by an Apple link when an operation is done or its state changes.
+    //  Posted by an CassoLink when an operation is done or its state changes.
     static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
     static constexpr UINT      kRunningMessage       = WM_APP + 0x3F;
 
@@ -716,7 +716,7 @@ private:
     //  The menu below the tree's last node, and the pane options it sets.
     void  ShowTreeEmptyMenu   (int x, int y);
 
-    //  The Apple links: added or edited through the link dialog, removed,
+    //  The CassoLink connections: added or edited through the link dialog, removed,
     //  or disconnected, which closes the link's port. Each change is saved
     //  at once.
     void  EditLink            (const std::string & name);
@@ -964,7 +964,7 @@ private:
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;
 
-    //  Whether the status bar's detail has the Apple links' pending operations.
+    //  Whether the status bar's detail has the CassoLink connections' pending operations.
     bool  m_linkJobsShown = false;
 
     //  The list's view, and the key of the folder it was chosen for: a new

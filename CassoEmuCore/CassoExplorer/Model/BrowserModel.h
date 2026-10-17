@@ -118,7 +118,7 @@ public:
     //  which is the image's path followed by the directory's.
     static std::vector<AddressSegment>  GetAddressSegments (const Location & location, const AddressRoot & root = AddressRoot());
     static std::wstring                 FormatAddress      (const Location & location);
-    //  An Apple link's root and drives are typed under the link's name:
+    //  An CassoLink's root and drives are typed under the link's name:
     //  "name\Slot 6, Drive 1\DIR", for one of linkNames.
     static bool                         ParseAddress       (IFileSystem & fs, const std::wstring & text, Location & outLocation,
                                                             const std::vector<std::wstring> & linkNames = {});

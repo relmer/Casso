@@ -38,7 +38,7 @@ Casso Explorer began with moving files between a real Apple //c and the PC
 with ADTPro over a null modem cable. In ADTPro the Apple starts every
 exchange and the PC only replies; only whole disks or raw blocks move,
 never single files; and neither end's interface is pleasant to use. The
-Apple II link turns that around: a connected Apple's drives are a root in
+CassoLink turns that around: a connected Apple's drives are a root in
 Casso Explorer's tree, and files and whole disks move either way, started
 from the PC. The same link joins Casso's emulated machines to the PC, so
 the Apple side is written, debugged and tested in Casso before it runs on
@@ -198,7 +198,7 @@ hardware.
 
 ### Session 2026-10-14
 
-- Q: Is capturing copy-protected disks part of the Apple II link? → A: No.
+- Q: Is capturing copy-protected disks part of CassoLink? → A: No.
   A follow-on feature, built on this link, reads raw nibbles or bit streams
   and writes WOZ images.
 - Q: Which machines and transports does the link cover? → A: The //c's
@@ -1448,7 +1448,7 @@ to Casso over TCP.
   and copyable as other text previews are, the exported file even when it
   is plain ASCII.
 
-**Apple II link**
+**CassoLink**
 
 - **FR-083**: Casso Explorer MUST list a connected Apple II as a root in the
   tree, with a node per 5.25-inch drive the Apple has, labeled with the
@@ -1576,7 +1576,7 @@ to Casso over TCP.
 - **Navigation pane option**: one of the pane's five options, either
   following File Explorer's setting or holding Casso Explorer's own value;
   persisted.
-- **Apple link**: a connection to one Apple II: its transport (serial port,
+- **CassoLink**: a connection to one Apple II: its transport (serial port,
   TCP address, or an emulated machine), speed and handshaking, the machine
   at the other end, and its drives; its settings persisted.
 - **Apple drive**: one 5.25-inch drive on a linked Apple: its slot and

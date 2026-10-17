@@ -395,12 +395,12 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 
 ---
 
-# Section H: the Apple II link
+# Section H: CassoLink
 
 **Input**: spec.md section H (User Stories 14 to 16, FR-083 to FR-098 with
 FR-083a, SC-027 to SC-033), plan.md's section H phases 16 to 24, research.md R15 to
 R23, [contracts/cassolink.md](contracts/cassolink.md), data-model.md's
-Apple II link section, quickstart.md §7b.
+CassoLink section, quickstart.md §7b.
 
 **Stories**:
 
@@ -426,12 +426,12 @@ run the Apple program in a `TestMachine` over the in-process stream.
 **Purpose**: an emulated //c's serial port reachable from the PC side,
 in-process and over TCP, at real line timing.
 
-- [X] T180 Add `UnitTest/AppleLink/` to `UnitTest/UnitTest.vcxproj`. `ScenarioTests/AppleLink*.cpp` and `CassoEmuCore/AppleLink/` enter their projects with their first files, so neither has a placeholder
+- [X] T180 Add `UnitTest/CassoLink/` to `UnitTest/UnitTest.vcxproj`. `ScenarioTests/CassoLink*.cpp` and `CassoEmuCore/CassoLink/` enter their projects with their first files, so neither has a placeholder
 - [X] T181 [US16] Add the stream seam:
   - `IByteStream` in `CassoEmuCore/Seams/IByteStream.h`: open, close, write, read with a timeout in milliseconds, readable count, closed;
   - `IByteStreamFactory` in `CassoEmuCore/Seams/IByteStreamFactory.h`: list COM ports, open a COM port, listen on or connect to a TCP port;
   - `InProcessByteStream` in `CassoEmuCore/Seams/InProcessByteStream.h/.cpp`: two thread-safe linked ends over queues;
-  - tests in `UnitTest/AppleLink/InProcessByteStreamTests.cpp`.
+  - tests in `UnitTest/CassoLink/InProcessByteStreamTests.cpp`.
 
   Per R19 and FR-093.
 - [X] T182 [US16] Add `AciaBridgeEndpoint` to `CassoEmuCore/Devices/AciaEndpoints.h/.cpp`, over an `IByteStream`:
@@ -454,7 +454,7 @@ in-process and over TCP, at real line timing.
   - the port released on close;
   - the bind address chosen by `ByteStreamSettings::GetBindAddress` in `CassoEmuCore/Seams/ByteStreamSettings.h/.cpp`, a pure function from the transport, so the choice is tested without a socket.
 
-  Tests of `GetBindAddress` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 127.0.0.1 for every transport but `WifiModem`, and the network for `WifiModem`. Per FR-097, R19 and constitution II.
+  Tests of `GetBindAddress` in `UnitTest/CassoLink/ByteStreamSettingsTests.cpp`: 127.0.0.1 for every transport but `WifiModem`, and the network for `WifiModem`. Per FR-097, R19 and constitution II.
 - [X] T185 [P] [US16] Add `Win32ComPort` in `CassoEmuCore/Seams/Win32ComPort.h/.cpp`:
   - `CreateFile` on `\\.\COMn`, opened exclusively;
   - `SetCommState` for speed, data format and hardware handshake;
@@ -462,7 +462,7 @@ in-process and over TCP, at real line timing.
   - the port list from `HKLM\HARDWARE\DEVICEMAP\SERIALCOMM`, through `IByteStreamFactory`;
   - the port's settings built by `ByteStreamSettings::ToDcb`, a pure function from the speed, data format and handshake, so they are tested without a port.
 
-  Tests of `ToDcb` in `UnitTest/AppleLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
+  Tests of `ToDcb` in `UnitTest/CassoLink/ByteStreamSettingsTests.cpp`: 9,600 and 115,200 baud, eight data bits, no parity, one stop bit, with and without hardware handshake. Per FR-093, FR-094, R19 and constitution II.
 - [X] T186 [US16] Offer each emulated serial port's endpoint (loopback, a TCP listen port, or a PC COM port) on Casso's Hardware settings page, in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, saved with the machine's settings and connected while the machine runs, with no reset, as a cable is plugged in. A port is opened only while the machine runs and is released when it stops or its device changes. Per FR-095 and FR-097.
 
 ## Phase 17: ADTPro captures (US16)
@@ -475,7 +475,7 @@ own host and client, never from its source (FR-096).
   - a Directory and a Size query;
   - virtual-drive block reads, timestamped reads and writes.
 
-  Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. The owner runs this once, manually, on a machine which has ADTPro's Java host; the captures are checked in and CI only reads them. Per R15.
+  Save each capture with its direction marks in `UnitTest/Fixtures/CassoLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. The owner runs this once, manually, on a machine which has ADTPro's Java host; the captures are checked in and CI only reads them. Per R15.
 - [X] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/cassolink.md` marked *captured*, replacing the mark:
   - the length field's byte order;
   - the CRC's polynomial, initial value and bit order;
@@ -489,35 +489,35 @@ own host and client, never from its source (FR-096).
 
 **Purpose**: Casso serves an unmodified ADTPro client (FR-088).
 
-- [X] T189 [P] [US14] Add `AppleLinkCodec` in `CassoEmuCore/AppleLink/AppleLinkCodec.h/.cpp`:
+- [X] T189 [P] [US14] Add `CassoLinkCodec` in `CassoEmuCore/CassoLink/CassoLinkCodec.h/.cpp`:
   - the envelope: start `$C1`, a two-byte length, the command, and an EOR of those four bytes;
   - the payload EOR;
   - Send Image Data with T188's RLE and CRC;
   - Sector data (`$CA`): 256 bytes unencoded with CRC-16/XMODEM (polynomial `$1021`, initial value 0);
   - Acknowledgement (`$CB`) with ACK `$06` and NAK `$15`.
 
-  Tests in `UnitTest/AppleLink/AppleLinkCodecTests.cpp` decode every T187 capture, round-trip every packet kind, and fail on damaged envelopes, damaged payloads and bad CRCs. Per FR-087 and the contract.
-- [X] T190 [US14] Add `AppleLinkHost` in `CassoEmuCore/AppleLink/AppleLinkHost.h/.cpp`, serving ADTPro's clients:
+  Tests in `UnitTest/CassoLink/CassoLinkCodecTests.cpp` decode every T187 capture, round-trip every packet kind, and fail on damaged envelopes, damaged payloads and bad CRCs. Per FR-087 and the contract.
+- [X] T190 [US14] Add `CassoLinkHost` in `CassoEmuCore/CassoLink/CassoLinkHost.h/.cpp`, serving ADTPro's clients:
   - CD, Directory, Size, Get, Put, Batch, Multiple, Summary, Home and Send File;
   - virtual drives (`$C5`) over 512-byte blocks: Read, Read with timestamp, Write;
   - Nibble with ADTPro's abort reply.
 
-  Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` replay T187's client side over an `InProcessByteStream` and compare the host's replies with the captures. Per FR-088 and US14/AC7.
-- [X] T191 [US14] Set `AppleLinkHost`'s image folder from Casso Explorer (`AppleLinkFolder` in `CassoEmuCore/AppleLink/AppleLinkFolder.h/.cpp`; `AppleLinkSession`, T201, passes it the tab's location):
+  Tests in `UnitTest/CassoLink/CassoLinkHostTests.cpp` replay T187's client side over an `InProcessByteStream` and compare the host's replies with the captures. Per FR-088 and US14/AC7.
+- [X] T191 [US14] Set `CassoLinkHost`'s image folder from Casso Explorer (`CassoLinkFolder` in `CassoEmuCore/CassoLink/CassoLinkFolder.h/.cpp`; `CassoLinkSession`, T201, passes it the tab's location):
   - the host folder open in the current tab;
   - for a tab inside a disk image, the folder the image is in;
   - with no host folder open, such as This PC, each request fails with ADTPro's unable status.
 
-  Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp`. Per FR-088.
-- [X] T192 [US14] Add retries and failure handling to `AppleLinkHost`:
+  Tests in `UnitTest/CassoLink/CassoLinkHostTests.cpp`. Per FR-088.
+- [X] T192 [US14] Add retries and failure handling to `CassoLinkHost`:
   - resend on NAK up to the retry limit, then fail with the reason;
   - close the link when no byte arrives within the timeout;
   - commit an image file only after its last packet, through `IDiskFileIo`'s atomic replace, so no file exists after a failed transfer.
 
   Tests for each, including a stream closed mid-transfer followed by a second transfer that succeeds with neither end restarted. Per FR-087, SC-030 and the edge cases.
-- [X] T193 [US16] Add `ScenarioTests/AppleLinkAdtProTests.cpp`:
-  - boot ADTPro 2.1.0's client disk (a GPL fixture under `UnitTest/Fixtures/AppleLink/` with its `LICENSE` note) in a //c `TestMachine`;
-  - send a disk to `AppleLinkHost` and receive one from it over T182's bridge;
+- [X] T193 [US16] Add `ScenarioTests/CassoLinkAdtProTests.cpp`:
+  - boot ADTPro 2.1.0's client disk (a GPL fixture under `UnitTest/Fixtures/CassoLink/` with its `LICENSE` note) in a //c `TestMachine`;
+  - send a disk to `CassoLinkHost` and receive one from it over T182's bridge;
   - compare each image byte for byte with the one ADTPro's own host made in T187.
 
   Per SC-032 and US16/AC4.
@@ -527,26 +527,26 @@ own host and client, never from its source (FR-096).
 **Purpose**: Casso's own client, a shim and a sector server, built from
 source in the core (R16, R17, R22).
 
-- [X] T194 [US16] Write `CassoEmuCore/AppleLink/Apple/Shim.s` in AS65 syntax:
+- [X] T194 [US16] Write `CassoEmuCore/CassoLink/Apple/Shim.s` in AS65 syntax:
   - resident at `$0300`, under one page;
   - a polled driver for the //c's port 2 6551;
   - Ready (`$D2`) with the program version (2 bytes), the shim version (1) and the drive map (1);
   - Load program (`$CF`): Sector data pages to `$0800`, then a jump to `$0800`.
 
   Per FR-091 and R17.
-- [X] T195 [US16] Write `CassoEmuCore/AppleLink/Apple/Program.s` in AS65 syntax, linked at `$0800`:
+- [X] T195 [US16] Write `CassoEmuCore/CassoLink/Apple/Program.s` in AS65 syntax, linked at `$0800`:
   - **Poll loop**: Ready, Idle, then Ready again after 100 ms.
   - **Status screen**: on the text page, with the connection, the drive, the track, the operation and the progress.
   - **Operations**: Read sectors (`$D5`) and Write sectors (`$D6`) with a read-back, Format track (`$C8`), Set speed (`$D7`), Status (`$D4`) and Cancel (`$D1`). A write to a write-protected disk is reported with an error code.
   - **Disk II routines**, Casso's own, written from Apple's published Disk II documentation: seek by the arm's phase sequence, read and write a 6-and-2 sector, format a track with a volume number.
 
   Per FR-089, FR-090 and R16.
-- [X] T196 [US16] Add `LinkProgram` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`:
+- [X] T196 [US16] Add `LinkProgram` in `CassoEmuCore/CassoLink/LinkProgram.h/.cpp`:
   - `Shim.s` and `Program.s` compiled in as text resources and assembled with CassoCore's assembler in the AS65 dialect;
   - one version constant read by both sides.
 
-  Tests in `UnitTest/AppleLink/LinkProgramTests.cpp`: both assemble with no error on every build, the shim fits under one page, and the assembled version equals the core's. Per FR-096 and R22.
-- [X] T197 [US16] Serve Casso's client in `AppleLinkHost`:
+  Tests in `UnitTest/CassoLink/LinkProgramTests.cpp`: both assemble with no error on every build, the shim fits under one page, and the assembled version equals the core's. Per FR-096 and R22.
+- [X] T197 [US16] Serve Casso's client in `CassoLinkHost`:
   - distinguish it from ADTPro's by the first command (Ready, against ADTPro's set);
   - answer Ready with Idle or the next operation;
   - Load program when the versions differ;
@@ -554,7 +554,7 @@ source in the core (R16, R17, R22).
   - the sector, track and status operations of the contract.
 
   Tests over an `InProcessByteStream` with a scripted client. Per FR-089, FR-091 and R16.
-- [X] T198 [US16] Add `ScenarioTests/AppleLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `AppleLinkHost` over the bridge:
+- [X] T198 [US16] Add `ScenarioTests/CassoLinkSectorTests.cpp`, running a //c `TestMachine` with the shim and program loaded, against `CassoLinkHost` over the bridge:
   - read and write sectors, and format a track, on a mounted DOS 3.3 image and a ProDOS image, compared byte for byte;
   - a write-protected image reports its error;
   - during a read, the text page contains the connection, the drive, the track, the operation and the progress (FR-090, US14/AC6);
@@ -568,36 +568,36 @@ source in the core (R16, R17, R22).
 (R20), one operation at a time (FR-098).
 
 - [X] T199 [US14] Route every sector read and write in `Dos33Volume` and `ProDosVolume` (`CassoEmuCore/Machines/Apple2/Common/`) through one accessor, with no change in behavior. The existing `UnitTest/EmuTests/Dos33VolumeTests.cpp` and `ProDosVolumeTests.cpp` must pass untouched. Per R20.
-- [X] T200 [US14] Add `LinkedDisk` in `CassoEmuCore/AppleLink/LinkedDisk.h/.cpp`:
+- [X] T200 [US14] Add `LinkedDisk` in `CassoEmuCore/CassoLink/LinkedDisk.h/.cpp`:
   - a 140 KB sector image with a presence bit per sector, the volume's kind, and the miss list of the last run;
   - a read of an absent sector adds it to the miss list and returns zeros;
   - fault-in: run, fetch the misses in one request, run again, until a run adds nothing;
   - prefetch the VTOC and track 17 for DOS 3.3, and blocks 2 to 5 for ProDOS;
   - cleared when the drive's map or volume changes.
 
-  Tests in `UnitTest/AppleLink/LinkedDiskTests.cpp` over a fake sector source: a catalog and a file read in a fixed number of rounds, and a write that sends only the sectors it changed. Per FR-084, FR-085 and R20.
-- [X] T201 [US14] Add `AppleLinkSession` in `CassoEmuCore/AppleLink/AppleLinkSession.h/.cpp`, on its own thread, owning the `IByteStream`, the host engine, a `LinkedDisk` per drive and the operation queue:
+  Tests in `UnitTest/CassoLink/LinkedDiskTests.cpp` over a fake sector source: a catalog and a file read in a fixed number of rounds, and a write that sends only the sectors it changed. Per FR-084, FR-085 and R20.
+- [X] T201 [US14] Add `CassoLinkSession` in `CassoEmuCore/CassoLink/CassoLinkSession.h/.cpp`, on its own thread, owning the `IByteStream`, the host engine, a `LinkedDisk` per drive and the operation queue:
   - **States**: "Closed → Opening → Waiting for Ready → Loading program → Ready ⇄ Busy → Closed. Any state goes to Disconnected on a timeout or a closed stream; Disconnected goes to Opening on the next request."
   - **LinkOperation** kinds: enumerate, read file, write file, delete, rename, make directory, read disk, write disk, bootstrap and save link. Each has "progress (0 to 100), result HRESULT, and a message" and moves "Queued → Running → Done | Failed | Canceled"; one runs at a time, and Cancel stops the running one.
   - **Writes** re-read the catalog sectors first and fail if the volume name or catalog differs from the listing they started from.
   - Progress and results are posted, never waited on.
 
-  Tests in `UnitTest/AppleLink/AppleLinkSessionTests.cpp`. Per FR-098, data-model.md and the edge cases.
-- [X] T202 [US14] Add Read disk to image and Write image to disk to `AppleLinkSession`:
+  Tests in `UnitTest/CassoLink/CassoLinkSessionTests.cpp`. Per FR-098, data-model.md and the edge cases.
+- [X] T202 [US14] Add Read disk to image and Write image to disk to `CassoLinkSession`:
   - **Read**: every track's standard sectors, written to an image in any format Casso writes (a `.nib` or `.woz` built from the sectors), committed by atomic replace only on success. Unreadable sectors are listed, with an option to write them blank.
   - **Write**: every track formatted, written and read back, after the caller's confirmation. An image whose tracks do not decode to standard sectors fails before any track is written, with those tracks listed.
 
   Tests on the in-process stream. Per FR-086 and the edge cases.
-- [X] T202a [US14] Add `ScenarioTests/AppleLinkSessionTests.cpp`: `AppleLinkSession` against a //c `TestMachine` running the shim and program over the in-process bridge, with a DOS 3.3 image in drive 1 and a ProDOS image in drive 2. List both catalogs, copy a file out of each and one onto each, read each disk to an image and write an image back, comparing every file and image byte for byte with its source. Per SC-029 and US14/AC1 to AC5.
+- [X] T202a [US14] Add `ScenarioTests/CassoLinkSessionTests.cpp`: `CassoLinkSession` against a //c `TestMachine` running the shim and program over the in-process bridge, with a DOS 3.3 image in drive 1 and a ProDOS image in drive 2. List both catalogs, copy a file out of each and one onto each, read each disk to an image and write an image back, comparing every file and image byte for byte with its source. Per SC-029 and US14/AC1 to AC5.
 
 ## Phase 21: Casso Explorer (US14)
 
 **Purpose**: the Apple as a root in the tree, browsed and copied as an
 image is.
 
-- [X] T203 [US14] Add the Apple link to the tree:
+- [X] T203 [US14] Add CassoLink to the tree:
   - `Location::Kind::AppleDrive` in `CassoEmuCore/CassoExplorer/Model/Location.h`;
-  - `TreeNode::Kind::AppleLink` and `AppleDrive`, with ids `link:<name>` and `link:<name>|<slot>,<drive>`, in `Model/TreeModel.h/.cpp`;
+  - `TreeNode::Kind::CassoLink` and `AppleDrive`, with ids `link:<name>` and `link:<name>|<slot>,<drive>`, in `Model/TreeModel.h/.cpp`;
   - address parsing and formatting in `Model/BrowserModel.cpp`.
 
   The roots follow This PC. A drive is labeled with its slot, drive and volume; an empty drive is listed as empty; a link with no Apple replying lists its state and the reason in place of drives. Tests in `UnitTest/CassoExplorer/TreeModelTests.cpp`. Per FR-083.
@@ -611,7 +611,7 @@ image is.
   - `hardwareHandshake`, default false.
 
   Add a dialog to add and edit a link, in `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.h/.cpp`. Tests for load, save and defaults. Per FR-083, FR-094 and data-model.md.
-- [X] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `AppleLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
+- [X] T205 [US14] Wire an Apple drive's catalog, previews and Properties in `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` and `CassoExplorerBrowser.cpp` through `CassoLinkSession`, with results posted to the window and never waited on. With an ADTPro client connected instead of Casso's, the Apple root lists no drives, lists the reason that browsing and copying require Casso's own Apple program, and offers no copy or disk verbs. Per FR-084, US14/AC1 and AC2, and the edge cases.
 - [X] T206 [US14] Make copy, paste, drag out, drag in, delete, rename and new folder (ProDOS) work on an Apple drive, through `CassoExplorerActions.cpp` and `CassoExplorerDragOut.cpp`:
   - `HostFileNaming` styles and the put conversion rules;
   - a write to a write-protected disk fails with the reason.
@@ -624,7 +624,7 @@ image is.
   - queued operations listed.
 
   Per FR-086, FR-098 and US14/AC5 and AC6.
-- [X] T208 [US14] Add the COM search in `CassoEmuCore/AppleLink/AppleLinkSearch.h/.cpp`, through `IByteStreamFactory`:
+- [X] T208 [US14] Add the COM search in `CassoEmuCore/CassoLink/CassoLinkSearch.h/.cpp`, through `IByteStreamFactory`:
   - open each COM port no other program has open, at the default speed;
   - only when an Apple root with no port set is opened, or Search is chosen; never in the background;
   - stop at the first port where a link replies;
@@ -645,28 +645,28 @@ Casso Explorer with no link set up: the root for that Casso appears, the
 //c's screen displays the shim waiting, then loading, then the program's
 status screen with the PC line and each operation's label (US16/AC6, AC7).
 
-- [X] T219 [US16] Move the shim to `$3D00` in `CassoEmuCore/AppleLink/Apple/Shim.s`, with its 6551 control byte for the starting speed at `$3D02`, and its own screen on the text page: a title, `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each page arrives, and `STARTING VERSION <n>`. Point the program's `SHIM` at `$3D00` in `Program.s`, and fail the build's assembly test in `UnitTest/AppleLink/LinkProgramTests.cpp` when the program ends at or above `$3D00` or the shim ends above `$3FFF`. Per FR-090, FR-094 and R24.
-- [X] T220 [US16] Add `LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`, writing the speed byte at offset 2 from `GetSpeedControl`. `AppleLinkSession::Connect` in `CassoEmuCore/AppleLink/AppleLinkSession.cpp` opens Emulated, TCP and Wi-Fi modem links at the link's speed alone; a serial link is opened at the bootstrap speed and then the link's. Tests in `LinkProgramTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-094 and R24.
-- [X] T221 [US16] Add the Label command ($CE) to `CassoEmuCore/AppleLink/AppleLinkCodec.h` and `AppleLinkHost::SendLabel`, sent ahead of each operation the user starts with up to 38 characters, such as `COPYING HELLO TO DRIVE 2`; `AppleLinkSession` builds the text from the `LinkOperation`. Update `contracts/cassolink.md`'s table. Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-090 and R24.
-- [X] T222 [US16] Add to the program's status screen in `Program.s`: a PC line, `CONNECTED` after any packet and `NO REPLY FOR <n> S` for each unanswered second, sending Ready again each second with no reply; an error line with the last Status error's text until an operation succeeds; and the last Label on the operation's line. A scenario test in `ScenarioTests/AppleLinkSessionTests.cpp` reads the //c's text page: the shim's waiting line before the host connects, then `CONNECTED`, a label, and a write-protected error. Per FR-090, US16/AC7 and R24.
-- [X] T223 [P] [US16] Add `RunningCassoRegistry` in `CassoEmuCore/AppleLink/RunningCassoRegistry.h/.cpp` over a file-system seam: `Publish` writes `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json` with `pid`, `started` (the process's start time as a FILETIME), `machine`, `serialPort` (1 or 2) and `address` (`127.0.0.1:<port>`); `Withdraw` deletes it; `Enumerate` returns the files whose process is alive with that start time, and deletes the rest. Tests in `UnitTest/AppleLink/RunningCassoRegistryTests.cpp` with a fake process probe. Per FR-083b, R25 and data-model.md.
+- [X] T219 [US16] Move the shim to `$3D00` in `CassoEmuCore/CassoLink/Apple/Shim.s`, with its 6551 control byte for the starting speed at `$3D02`, and its own screen on the text page: a title, `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each page arrives, and `STARTING VERSION <n>`. Point the program's `SHIM` at `$3D00` in `Program.s`, and fail the build's assembly test in `UnitTest/CassoLink/LinkProgramTests.cpp` when the program ends at or above `$3D00` or the shim ends above `$3FFF`. Per FR-090, FR-094 and R24.
+- [X] T220 [US16] Add `LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)` in `CassoEmuCore/CassoLink/LinkProgram.h/.cpp`, writing the speed byte at offset 2 from `GetSpeedControl`. `CassoLinkSession::Connect` in `CassoEmuCore/CassoLink/CassoLinkSession.cpp` opens Emulated, TCP and Wi-Fi modem links at the link's speed alone; a serial link is opened at the bootstrap speed and then the link's. Tests in `LinkProgramTests.cpp` and `CassoLinkSessionTests.cpp`. Per FR-094 and R24.
+- [X] T221 [US16] Add the Label command ($CE) to `CassoEmuCore/CassoLink/CassoLinkCodec.h` and `CassoLinkHost::SendLabel`, sent ahead of each operation the user starts with up to 38 characters, such as `COPYING HELLO TO DRIVE 2`; `CassoLinkSession` builds the text from the `LinkOperation`. Update `contracts/cassolink.md`'s table. Tests in `UnitTest/CassoLink/CassoLinkHostTests.cpp` and `CassoLinkSessionTests.cpp`. Per FR-090 and R24.
+- [X] T222 [US16] Add to the program's status screen in `Program.s`: a PC line, `CONNECTED` after any packet and `NO REPLY FOR <n> S` for each unanswered second, sending Ready again each second with no reply; an error line with the last Status error's text until an operation succeeds; and the last Label on the operation's line. A scenario test in `ScenarioTests/CassoLinkSessionTests.cpp` reads the //c's text page: the shim's waiting line before the host connects, then `CONNECTED`, a label, and a write-protected error. Per FR-090, US16/AC7 and R24.
+- [X] T223 [P] [US16] Add `RunningCassoRegistry` in `CassoEmuCore/CassoLink/RunningCassoRegistry.h/.cpp` over a file-system seam: `Publish` writes `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json` with `pid`, `started` (the process's start time as a FILETIME), `machine`, `serialPort` (1 or 2) and `address` (`127.0.0.1:<port>`); `Withdraw` deletes it; `Enumerate` returns the files whose process is alive with that start time, and deletes the rest. Tests in `UnitTest/CassoLink/RunningCassoRegistryTests.cpp` with a fake process probe. Per FR-083b, R25 and data-model.md.
 - [X] T224 [US16] Call `Publish` from `MachineHost::ConnectSerialPort` in `CassoEmuCore/Shell/MachineHost.cpp` when a port is connected to TCP, and `Withdraw` when it is connected elsewhere and when the machine is torn down. Tests in `UnitTest/EmuTests/` over the fake factory. Per FR-083b.
-- [X] T225 [US16] List the running Cassos as link roots in `CassoEmuCore/CassoExplorer/Model/AppleLinkConnections.cpp` and `TreeModel`, labeled `<machine> (port <n>)`, with an Emulated link's settings never written to `links`; a record for port 1 lists its reason in place of drives. `CassoExplorerWindow` reads the folder at start and on a change notification for it, and removes a root when its Casso exits. Tests in `UnitTest/CassoExplorer/AppleLinkConnectionsTests.cpp` and `TreeModelTests.cpp`. Per FR-083b, US16/AC6 and the edge cases.
+- [X] T225 [US16] List the running Cassos as link roots in `CassoEmuCore/CassoExplorer/Model/CassoLinkConnections.cpp` and `TreeModel`, labeled `<machine> (port <n>)`, with an Emulated link's settings never written to `links`; a record for port 1 lists its reason in place of drives. `CassoExplorerWindow` reads the folder at start and on a change notification for it, and removes a root when its Casso exits. Tests in `UnitTest/CassoExplorer/CassoLinkConnectionsTests.cpp` and `TreeModelTests.cpp`. Per FR-083b, US16/AC6 and the edge cases.
 - [X] T226 [US14] In `CassoEmuCore/CassoExplorer/CassoExplorerLinkDialog.cpp`, contain only the selected transport's rows: Serial, COM port (empty to search), speed, bootstrap speed and handshaking; TCP, address; Emulated, address defaulting to `127.0.0.1:6502`; Wi-Fi modem, port, speed and handshaking. Changing the transport hides and reveals rows and resizes the dialog. A Wi-Fi modem link's root lists `ATDT <pcname>.local:<port>`. Tests in `UnitTest/CassoExplorer/CassoExplorerLinkDialogTests.cpp`. Per FR-083c, FR-094 and R26.
-- [X] T227 [US14] Open each port at the bootstrap speed and then the link's in `AppleLinkSearch::Find` and the session's search, in `CassoEmuCore/AppleLink/AppleLinkSearch.cpp`. Tests in `UnitTest/AppleLink/AppleLinkSearchTests.cpp` with a fake Apple that replies Ready only at 9,600. Per FR-083a and R26.
+- [X] T227 [US14] Open each port at the bootstrap speed and then the link's in `CassoLinkSearch::Find` and the session's search, in `CassoEmuCore/CassoLink/CassoLinkSearch.cpp`. Tests in `UnitTest/CassoLink/CassoLinkSearchTests.cpp` with a fake Apple that replies Ready only at 9,600. Per FR-083a and R26.
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 
 **Purpose**: a bare //c brought up from the PC, updated from it, and the
 owner's walkthrough.
 
-- [X] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/AppleLink/LinkBootstrap.h/.cpp`:
+- [X] T210 [US15] Add `LinkBootstrap` in `CassoEmuCore/CassoLink/LinkBootstrap.h/.cpp`:
   - the monitor text `CALL -151`, the shim as `3D00:` lines of 8 bytes with its speed byte at 9,600, then `3D00G`;
   - sent at the bootstrap speed with 250 ms after each line.
 
-  Confirm the //c serial firmware's Ctrl-A `14B` speed command from the //c Technical Reference transcription. Tests of the generated text in `UnitTest/AppleLink/LinkBootstrapTests.cpp`. Per FR-092 and R23.
+  Confirm the //c serial firmware's Ctrl-A `14B` speed command from the //c Technical Reference transcription. Tests of the generated text in `UnitTest/CassoLink/LinkBootstrapTests.cpp`. Per FR-092 and R23.
 - [X] T211 [US15] Add Bootstrap to an Apple root's menu, then the shim's Ready at 9,600 baud, Load program, and Set speed to the link's speed.
   - **Speed change**: both ends switch after the ACK, so speeds that differ are corrected.
-  - **Scenario test** in `ScenarioTests/AppleLinkBootstrapTests.cpp`: a //c `TestMachine` at the BASIC prompt with `IN#2` and Ctrl-A `14B` typed, bootstrapped over the bridge to the status screen.
+  - **Scenario test** in `ScenarioTests/CassoLinkBootstrapTests.cpp`: a //c `TestMachine` at the BASIC prompt with `IN#2` and Ctrl-A `14B` typed, bootstrapped over the bridge to the status screen.
 
   Per US15/AC1, SC-033 and the edge cases.
 - [X] T212 [US15] Add Save link to disk: a `DirectBootBuilder` boot disk whose boot sector loads the shim to `$3D00`, built by `LinkProgram::BuildShim` at the link's speed, which loads the program from the PC. A scenario test boots it in a //c `TestMachine`, and a shim reporting an older program version receives Load program. Per FR-091, US15/AC3 and AC4, and SC-031.

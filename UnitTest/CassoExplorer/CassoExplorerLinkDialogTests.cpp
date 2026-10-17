@@ -57,9 +57,9 @@ public:
 
     TEST_METHOD (MakeSettings_KeepsOnlyTheTransportsField)
     {
-        AppleLinkSettings  serial   = CassoExplorerLinkChoices::MakeSettings (L"S", CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Serial), L"COM3", L"a:1",
+        CassoLinkSettings  serial   = CassoExplorerLinkChoices::MakeSettings (L"S", CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Serial), L"COM3", L"a:1",
                                                                               CassoExplorerLinkChoices::GetSpeedIndex (19200), CassoExplorerLinkChoices::GetSpeedIndex (9600), true);
-        AppleLinkSettings  emulated = CassoExplorerLinkChoices::MakeSettings (L"E", CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Emulated), L"COM3", L"127.0.0.1:6502",
+        CassoLinkSettings  emulated = CassoExplorerLinkChoices::MakeSettings (L"E", CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Emulated), L"COM3", L"127.0.0.1:6502",
                                                                               0, 0, false);
 
         Assert::IsTrue   (serial.transport == LinkTransport::Serial);
@@ -102,8 +102,8 @@ public:
     {
         using C = CassoExplorerLinkChoices;
 
-        AppleLinkSettings  emulated = C::MakeSettings (L"//c", C::GetTransportIndex (LinkTransport::Emulated), L"COM3", L"127.0.0.1:6502", C::GetSpeedIndex (9600), C::GetSpeedIndex (1200), true);
-        AppleLinkSettings  modem    = C::MakeSettings (L"Modem", C::GetTransportIndex (LinkTransport::WifiModem), L"", L"6400", C::GetSpeedIndex (19200), C::GetSpeedIndex (1200), true);
+        CassoLinkSettings  emulated = C::MakeSettings (L"//c", C::GetTransportIndex (LinkTransport::Emulated), L"COM3", L"127.0.0.1:6502", C::GetSpeedIndex (9600), C::GetSpeedIndex (1200), true);
+        CassoLinkSettings  modem    = C::MakeSettings (L"Modem", C::GetTransportIndex (LinkTransport::WifiModem), L"", L"6400", C::GetSpeedIndex (19200), C::GetSpeedIndex (1200), true);
 
         Assert::AreEqual (std::string(),               emulated.port);
         Assert::AreEqual ((DWORD) 115200,              emulated.baud,          L"the link's speed");

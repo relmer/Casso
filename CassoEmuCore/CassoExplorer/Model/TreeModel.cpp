@@ -984,7 +984,7 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) co
         TreeNode  node;
 
         node.id        = MakeLinkId (link.name);
-        node.kind      = TreeNode::Kind::AppleLink;
+        node.kind      = TreeNode::Kind::CassoLinkConnection;
         node.label     = link.model.empty() ? link.name : std::format (L"{} ({})", link.name, link.model);
         node.location  = Location::MakeRoot (node.id);
         node.id        = copy ? kLinkCopyTag + node.id : node.id;

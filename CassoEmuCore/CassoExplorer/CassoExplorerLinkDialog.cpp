@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
 
 
@@ -273,7 +273,7 @@ std::wstring CassoExplorerLinkChoices::GetDefaultAddress (LinkTransport transpor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoExplorerLinkChoices::GetAddressText (const AppleLinkSettings & settings)
+std::wstring CassoExplorerLinkChoices::GetAddressText (const CassoLinkSettings & settings)
 {
     std::wstring  address = TextEncoding::NarrowToWide (settings.address);
     size_t        colon   = address.rfind (L':');
@@ -326,10 +326,10 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
+CassoLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
                                                           int speedIndex, int bootstrapIndex, bool hardwareHandshake)
 {
-    AppleLinkSettings  settings;
+    CassoLinkSettings  settings;
     int                transports = (int) ARRAYSIZE (kTransports);
     int                speeds     = (int) ARRAYSIZE (kSpeeds);
 
@@ -362,7 +362,7 @@ AppleLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
     //  With no name, the connection is its own name.
     if (settings.name.empty())
     {
-        settings.name = AppleLinkConnections::DescribeConnection (settings);
+        settings.name = CassoLinkConnections::DescribeConnection (settings);
     }
 
     return settings;
@@ -670,7 +670,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
     m_validator.AddField ([this]()
     {
-        AppleLinkSettings  settings = CassoExplorerLinkChoices::MakeSettings (m_name.GetText(), m_transport.GetSelectedIndex(), m_port.GetText(), m_address.GetText(),
+        CassoLinkSettings  settings = CassoExplorerLinkChoices::MakeSettings (m_name.GetText(), m_transport.GetSelectedIndex(), m_port.GetText(), m_address.GetText(),
                                                                              m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked());
 
         return CassoExplorerLinkChoices::ValidateName (TextEncoding::NarrowToWide (settings.name), m_otherNames);
@@ -707,7 +707,7 @@ void CassoExplorerLinkDialog::OnCreate()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const IDxuiTheme * theme, const AppleLinkSettings & initial,
+CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const IDxuiTheme * theme, const CassoLinkSettings & initial,
                                                                const std::vector<std::wstring> & otherNames, bool adding)
 {
     HRESULT                   hr     = S_OK;

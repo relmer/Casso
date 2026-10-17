@@ -448,7 +448,7 @@ variants, which a recording settles in minutes and without risk.
 
 **Settled (2026-10-15)**: captured with ADTPro 2.1.0's server in its
 serial-over-IP mode and its client booted in an emulated //c, the captures
-in `UnitTest/Fixtures/AppleLink/`. Each gap above is now settled in the
+in `UnitTest/Fixtures/CassoLink/`. Each gap above is now settled in the
 contract:
 
 - **Length**: LSB first; in Send Image Data it is the length after decoding.
@@ -646,12 +646,12 @@ file-system walker on the PC, which duplicates `IVolume`.
 **Decision**:
 
 - **Tree and locations.** A new `Location::Kind::AppleDrive` and
-  `TreeNode::Kind::AppleLink` / `AppleDrive`, with ids `link:<name>` and
+  `TreeNode::Kind::CassoLink` / `AppleDrive`, with ids `link:<name>` and
   `link:<name>|<slot>,<drive>`. The links are listed under This PC's
   siblings, as a root per link (FR-083).
 - **Settings.** Links are stored in `CassoExplorerPrefs.json` (name,
   transport, port or address, speed, handshaking).
-- **Background work.** An `AppleLinkSession` per open link runs on its own
+- **Background work.** An `CassoLinkSession` per open link runs on its own
   thread, and owns the `IByteStream`, the protocol engine and the
   operation queue (FR-098). It posts progress and results to the window,
   as the shell listings do. The window never waits on the line.
@@ -674,7 +674,7 @@ feed CassoEmuCore, since `CassoCli` itself links CassoEmuCore.
 **Decision**:
 
 - **Source in the tree.** The shim and the program are AS65 source under
-  `CassoEmuCore/AppleLink/Apple/`, compiled into the core as text
+  `CassoEmuCore/CassoLink/Apple/`, compiled into the core as text
   resources. The core assembles them with CassoCore's assembler when a link
   starts.
 - **The build check.** A unit test assembles both on every build and fails

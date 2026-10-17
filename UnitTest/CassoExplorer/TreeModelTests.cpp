@@ -445,7 +445,7 @@ public:
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, links));
 
         Assert::AreEqual ((size_t) 3, links.size(), L"the links, then Add a CassoLink connection");
-        Assert::IsTrue   (links[0].kind == TreeNode::Kind::AppleLink);
+        Assert::IsTrue   (links[0].kind == TreeNode::Kind::CassoLinkConnection);
         Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), links[0].id);
         Assert::IsTrue   (links[0].location == Location::MakeRoot (L"link:Apple II (COM3)"));
         Assert::AreEqual (std::wstring (L"Apple II (Casso)"), links[1].label);

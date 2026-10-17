@@ -2,18 +2,18 @@
 
 #include "Pch.h"
 
-#include "AppleLink/AppleLinkFolder.h"
+#include "CassoLink/CassoLinkFolder.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Seams/IProcessProbe.h"
-#include "AppleLink/RunningCassoRegistry.h"
+#include "CassoLink/RunningCassoRegistry.h"
 #include "Seams/Win32IntentChannel.h"
 
 
@@ -123,8 +123,8 @@ private:
     Win32FolderWatcher                    m_watcher;
     Win32IntentChannel                    m_intentChannel;
     Win32ByteStreamFactory                m_streams;
-    AppleLinkFolder                       m_linkFolder;
-    AppleLinkConnections                  m_links;
+    CassoLinkFolder                       m_linkFolder;
+    CassoLinkConnections                  m_links;
     Win32ProcessProbe                     m_processProbe;
     RunningCassoRegistry                  m_running;
     CassoExplorerBrowser                  m_browser;

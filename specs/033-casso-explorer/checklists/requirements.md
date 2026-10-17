@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain (2026-10-14: the Apple II link's command-line question resolved; Casso Explorer only)
+- [x] No [NEEDS CLARIFICATION] markers remain (2026-10-14: CassoLink's command-line question resolved; Casso Explorer only)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -42,4 +42,4 @@
 
 - 2026-10-12: User Stories 10-13 (shell previews, File Explorer's menus, archives, drop targets), FR-073 to FR-081 and SC-022 to SC-025 added. Reviewed against every item above: testable, no implementation detail, no clarification markers, scope bounded by File Explorer's own behavior.
 
-- 2026-10-14: User Stories 14-16 (the Apple II link: files and disks to and from a real Apple II, bootstrap and the self-updating Apple side, the link inside Casso), FR-083 to FR-098, SC-027 to SC-033, four key entities and seven assumptions added. Emulating the Super Serial Card and the Uthernet II are separate features, merged into this branch when the link's work on each card starts. The hardware and the protocol cited (6551, W5100, ADTPro, TCP, COM port) are what the owner asked to support, not design choices. The one clarification marker, whether the link has a command-line entry, is resolved: Casso Explorer only. Whether ADTPro's Ethernet client must work against the emulated Uthernet II is a question for the Uthernet II feature.
+- 2026-10-14: User Stories 14-16 (CassoLink: files and disks to and from a real Apple II, bootstrap and the self-updating Apple side, the link inside Casso), FR-083 to FR-098, SC-027 to SC-033, four key entities and seven assumptions added. Emulating the Super Serial Card and the Uthernet II are separate features, merged into this branch when the link's work on each card starts. The hardware and the protocol cited (6551, W5100, ADTPro, TCP, COM port) are what the owner asked to support, not design choices. The one clarification marker, whether the link has a command-line entry, is resolved: Casso Explorer only. Whether ADTPro's Ethernet client must work against the emulated Uthernet II is a question for the Uthernet II feature.

@@ -2,7 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerActions.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
@@ -308,7 +308,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
     std::string                                              directory = browser.GetLocation().innerPath;
     int                                                      slot      = 0;
     int                                                      drive     = 0;
-    AppleLinkConnections                                   * links     = browser.GetLinks();
+    CassoLinkConnections                                   * links     = browser.GetLinks();
 
 
 
@@ -374,7 +374,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
 std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (CassoExplorerBrowser & browser, const std::wstring & driveId)
 {
     std::vector<DxuiDragDropSource::Format>  formats;
-    AppleLinkConnections                   * links   = browser.GetLinks();
+    CassoLinkConnections                   * links   = browser.GetLinks();
     IDiskFileIo                            * fileIo  = &browser.GetOperations().GetFileIo();
     std::wstring                             link;
     int                                      slot    = 0;
@@ -417,7 +417,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
                              HRESULT              hr             = S_OK;
                              wchar_t              temp[MAX_PATH] = {};
                              std::string          path;
-                             AppleLinkSession   * session        = links->GetSession (link);
+                             CassoLinkSession   * session        = links->GetSession (link);
                              auto                 until          = std::chrono::steady_clock::now() + std::chrono::milliseconds (kDiskDropWaitMs);
                              std::vector<Byte>    bytes;
 
@@ -435,7 +435,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
                              while ((operation->state == LinkOperationState::Queued || operation->state == LinkOperationState::Running)
                                     && std::chrono::steady_clock::now() < until)
                              {
-                                 std::this_thread::sleep_for (std::chrono::milliseconds (AppleLinkConnections::kWaitPollMs));
+                                 std::this_thread::sleep_for (std::chrono::milliseconds (CassoLinkConnections::kWaitPollMs));
                              }
 
                              hr = operation->state == LinkOperationState::Done ? fileIo->ReadAllBytes (path, bytes) : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);

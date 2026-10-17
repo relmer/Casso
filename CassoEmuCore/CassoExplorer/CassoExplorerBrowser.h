@@ -15,7 +15,7 @@
 #include "Seams/IShellIcons.h"
 #include "Seams/IShellItemVerbs.h"
 
-class AppleLinkConnections;
+class CassoLinkConnections;
 class IDiskFileIo;
 
 
@@ -325,10 +325,10 @@ public:
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
 
-    //  The Apple links an Apple drive is listed and read through. Without
+    //  The CassoLink connections an Apple drive is listed and read through. Without
     //  them, an Apple drive lists nothing.
-    void                    SetLinks (AppleLinkConnections * links) { m_links = links; }
-    AppleLinkConnections *  GetLinks () const                       { return m_links; }
+    void                    SetLinks (CassoLinkConnections * links) { m_links = links; }
+    CassoLinkConnections *  GetLinks () const                       { return m_links; }
 
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
@@ -506,7 +506,7 @@ private:
     bool                                m_isImage        = false;
     bool                                m_writeProtected = false;
     bool                                m_isAppleDrive   = false;
-    AppleLinkConnections              * m_links          = nullptr;
+    CassoLinkConnections              * m_links          = nullptr;
     std::vector<int>                    m_selectedRows;
     PreviewContent                      m_preview;
     std::wstring                        m_listError;

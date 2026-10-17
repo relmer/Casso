@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
-#include "CassoExplorer/Model/AppleLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/AppleSingleCodec.h"
@@ -284,7 +284,7 @@ public:
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const AppleLinkSettings & settings);
+    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
 
     //  The open Apple drive as the menus and confirmations name it: its slot,
     //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
@@ -365,7 +365,7 @@ private:
     Outcome  CreateFolderOnAppleDrive (const std::string & name);
     void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
                                        const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Outcome & inOutOutcome);
-    void     SubmitWrite              (const std::string & link, int drive, AppleLinkConnections::Queuer queue, Outcome & inOutOutcome);
+    void     SubmitWrite              (const std::string & link, int drive, CassoLinkConnections::Queuer queue, Outcome & inOutOutcome);
     void  CopyEntry       (const std::string & sourceImage, VolumeKind sourceKind, const std::string & catalogPath,
                            const std::string & targetImage, VolumeKind targetKind, const std::string & directory,
                            int depth, Outcome & inOutOutcome);
