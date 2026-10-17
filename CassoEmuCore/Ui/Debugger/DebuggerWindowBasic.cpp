@@ -161,10 +161,10 @@ void DebuggerWindow::ApplyBasicPanes()
 
 void DebuggerWindow::FollowBasicProgram()
 {
-    static constexpr Word  kInterpreterFirst = 0xD000;
-    static constexpr Word  kInterpreterLast  = 0xF7FF;
-    const std::optional<DebuggerViewSnapshot::BasicState>  & basic   = m_snapshot->basic;
-    bool                                                     isStop  = m_snapshot->isPaused && !m_wasBasicPaused;
+    static constexpr Word                                    kInterpreterFirst = 0xD000;
+    static constexpr Word                                    kInterpreterLast  = 0xF7FF;
+    const std::optional<DebuggerViewSnapshot::BasicState>  & basic             = m_snapshot->basic;
+    bool                                                     isStop            = m_snapshot->isPaused && !m_wasBasicPaused;
     std::set<int>                                            ids;
     std::optional<Word>                                      line;
 
@@ -217,6 +217,7 @@ void DebuggerWindow::FollowBasicProgram()
 void DebuggerWindow::SyncBasicReading()
 {
     bool  isWanted = IsPaneShown (DebuggerLayout::kBasicProgram) && m_basicProgramList->IsVisible();
+
 
 
     if (isWanted == m_isBasicReading || m_host == nullptr)

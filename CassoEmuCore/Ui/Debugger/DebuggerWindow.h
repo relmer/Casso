@@ -1562,14 +1562,14 @@ private:
     //  opened, and the line it last scrolled to. The BASIC variables the user
     //  added to the Watches pane, and whether its BASIC variables heading is
     //  expanded.
-    DxuiListView                         * m_basicProgramList    = nullptr;
+    DxuiListView                         * m_basicProgramList         = nullptr;
     std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
     std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
     std::set<std::wstring>                 m_basicOpened;
     std::vector<std::string>               m_basicWatches;
     bool                                   m_isBasicVariablesExpanded = false;
     std::optional<Word>                    m_basicShownLine;
-    bool                                   m_isBasicReading      = false;
+    bool                                   m_isBasicReading           = false;
 
     //  The line the program pane scrolls to once it has the program, whether
     //  the last snapshot was of a stopped machine, and the BASIC line
