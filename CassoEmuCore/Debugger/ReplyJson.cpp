@@ -811,6 +811,19 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
 {
     std::vector<JsonValue>  opcodes;
     std::vector<JsonValue>  addresses;
+    std::vector<JsonValue>  routines;
+    std::vector<JsonValue>  tree;
+    std::vector<JsonValue>  frames;
+    auto                    kindName = [] (RoutineKind kind)
+    {
+        switch (kind)
+        {
+        case RoutineKind::Call:      return "call";
+        case RoutineKind::Brk:       return "brk";
+        case RoutineKind::Interrupt: return "interrupt";
+        default:                     return "top";
+        }
+    };
 
 
 
@@ -829,6 +842,41 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
                                                   { "cycles",  MakeNumber ((int64_t) entry.cycles) } }));
     }
 
+    for (const ProfileRoutineEntry & entry : data.routines)
+    {
+        routines.push_back (JsonValue (Members { { "address", MakeNumber ((int64_t) entry.address) },
+                                                 { "kind",    MakeString (kindName (entry.kind)) },
+                                                 { "name",    MakeString (entry.GetName()) },
+                                                 { "self",    MakeNumber ((int64_t) entry.self) },
+                                                 { "total",   MakeNumber ((int64_t) entry.total) },
+                                                 { "calls",   MakeNumber ((int64_t) entry.calls) } }));
+    }
+
+    for (const ProfileTreeEntry & entry : data.tree)
+    {
+        tree.push_back (JsonValue (Members { { "routine", MakeNumber ((int64_t) entry.routine) },
+                                             { "depth",   MakeNumber ((int64_t) entry.depth) },
+                                             { "self",    MakeNumber ((int64_t) entry.self) },
+                                             { "total",   MakeNumber ((int64_t) entry.total) },
+                                             { "calls",   MakeNumber ((int64_t) entry.calls) } }));
+    }
+
+    for (const ProfileFrameEntry & entry : data.frames)
+    {
+        std::vector<JsonValue>  shares;
+
+
+
+        for (const auto & [routine, cycles] : entry.shares)
+        {
+            shares.push_back (JsonValue (Members { { "routine", MakeNumber ((int64_t) routine) }, { "cycles", MakeNumber ((int64_t) cycles) } }));
+        }
+
+        frames.push_back (JsonValue (Members { { "frame",  MakeNumber ((int64_t) entry.index) },
+                                               { "shares", JsonValue (std::move (shares)) },
+                                               { "other",  MakeNumber ((int64_t) entry.other) } }));
+    }
+
     return JsonValue (Members { { "kind",         MakeString ("profile") },
                                 { "on",           JsonValue (data.isOn) },
                                 { "instructions", MakeNumber ((int64_t) data.instructions) },
@@ -837,7 +885,10 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
                                 { "penalties",    JsonValue (Members { { "pageCross",   MakeNumber ((int64_t) data.pageCross) },
                                                                        { "branchTaken", MakeNumber ((int64_t) data.branchTaken) },
                                                                        { "branchCross", MakeNumber ((int64_t) data.branchCross) } }) },
-                                { "addresses",    JsonValue (std::move (addresses)) } });
+                                { "addresses",    JsonValue (std::move (addresses)) },
+                                { "routines",     JsonValue (std::move (routines)) },
+                                { "tree",         JsonValue (std::move (tree)) },
+                                { "frames",       JsonValue (std::move (frames)) } });
 }
 
 

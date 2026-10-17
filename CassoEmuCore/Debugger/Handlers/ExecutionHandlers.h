@@ -5,6 +5,7 @@
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/ProfileTable.h"
 #include "Debugger/Reverse/ReverseCommand.h"
+#include "Debugger/RoutineProfile.h"
 
 class IDebugTarget;
 class IFileSystem;
@@ -38,8 +39,8 @@ public:
     //  as they are now, for a debug project to run again.
     std::vector<std::string>  MakeScript () const;
 
-    //  The profile as PROFILE LIST, or with isByAddress PROFILE LIST ADDR, has it.
-    void  BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const;
+    //  The profile as PROFILE LIST has it, with the list given.
+    void  BuildProfile (DebugSession & session, ProfileList list, ProfileData & data) const;
 
     //  Whether PROFILE ON is in force.
     bool  IsProfiling () const override { return m_profile.IsOn(); }
@@ -101,6 +102,7 @@ private:
 
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
+    void         BuildRoutines     (DebugSession & session, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     HRESULT      FlushTrace        (DebugSession & session);
@@ -109,8 +111,12 @@ private:
     static Byte  Peek              (IDebugTarget & target, Word address);
     static std::string  TrimSpaces (const std::string & text);
 
+    //  The list for PROFILE LIST's word: none, ADDR, ROUTINES or TREE.
+    static bool  TryGetProfileList (const std::string & word, ProfileList & list);
+
     TraceState                         m_trace;
     ProfileTable                       m_profile;
+    RoutineProfile                     m_routines;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
     std::deque<Byte>                   m_keys;

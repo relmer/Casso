@@ -4,6 +4,7 @@
 #include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/DebugCommand.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
+#include "Debugger/RoutineProfile.h"
 #include "Disassembler.h"
 
 class LineTable;
@@ -337,12 +338,60 @@ struct ProfileAddressEntry
     uint64_t     cycles  = 0;
 };
 
-// PROFILE LIST, or with isByAddress PROFILE LIST ADDR. The cycles total
-// includes the penalties.
+// One routine: where it starts and how it was entered, the cycles of its own
+// instructions, the cycles of it and every routine it called, counted once
+// per call chain, and how many times it was called.
+struct ProfileRoutineEntry
+{
+    Word         address = 0;
+    RoutineKind  kind    = RoutineKind::Top;
+    std::string  symbol;
+    uint64_t     self    = 0;
+    uint64_t     total   = 0;
+    uint64_t     calls   = 0;
+
+    //  Top level, the symbol or the address, with BRK or Interrupt ahead of
+    //  a routine entered that way.
+    std::string  GetName () const;
+};
+
+// One node of the call tree: its routine, an index in ProfileData::routines,
+// and its depth under Top level. The nodes are in depth-first order, each
+// node's callees after it by their totals.
+struct ProfileTreeEntry
+{
+    size_t       routine = 0;
+    int          depth   = 0;
+    uint64_t     self    = 0;
+    uint64_t     total   = 0;
+    uint64_t     calls   = 0;
+};
+
+// One video frame's cycles by routine, an index in ProfileData::routines, and
+// the cycles of the routines it had no room for.
+struct ProfileFrameEntry
+{
+    uint64_t                                  index = 0;
+    std::vector<std::pair<size_t, uint64_t>>  shares;
+    uint64_t                                  other = 0;
+};
+
+// The table PROFILE LIST prints: by opcode, by address (ADDR), by routine
+// (ROUTINES) or as the call tree (TREE).
+enum class ProfileList
+{
+    Opcodes,
+    Addresses,
+    Routines,
+    Tree,
+};
+
+// PROFILE LIST and its tables. The cycles total includes the penalties. The
+// routines, the call tree and the frames are there whatever the list.
 struct ProfileData
 {
     bool                              isOn         = false;
-    bool                              isByAddress  = false;
+    ProfileList                       list         = ProfileList::Opcodes;
     uint64_t                          instructions = 0;
     uint64_t                          cycles       = 0;
     uint64_t                          pageCross    = 0;
@@ -350,6 +399,9 @@ struct ProfileData
     uint64_t                          branchCross  = 0;
     std::vector<ProfileEntry>         opcodes;
     std::vector<ProfileAddressEntry>  addresses;
+    std::vector<ProfileRoutineEntry>  routines;
+    std::vector<ProfileTreeEntry>     tree;
+    std::vector<ProfileFrameEntry>    frames;
 };
 
 struct CalcData

@@ -1100,13 +1100,13 @@ void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
         return;
     }
 
-    if (data.isByAddress)
+    switch (data.list)
     {
-        FormatProfileAddresses (data, lines);
-        return;
+    case ProfileList::Addresses: FormatProfileAddresses (data, lines); break;
+    case ProfileList::Routines:  FormatProfileRoutines  (data, lines); break;
+    case ProfileList::Tree:      FormatProfileTree      (data, lines); break;
+    default:                     FormatProfileOpcodes   (data, lines); break;
     }
-
-    FormatProfileOpcodes (data, lines);
 }
 
 
@@ -1155,6 +1155,61 @@ void AppleWinFormatter::FormatProfileAddresses (const ProfileData & data, Lines 
     for (const ProfileAddressEntry & entry : data.addresses)
     {
         lines.push_back (std::format ("{:<7} {:<20} {:>10} {:>6.1f}%", std::format ("${:04X}", entry.address), entry.symbol, entry.cycles, GetShare (entry.cycles, data.cycles)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileRoutines
+//
+//  Each routine's own cycles and its total, each with its share of every
+//  cycle counted, its calls and its total per call. Top level is never
+//  called, so it has no cycles per call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileRoutines (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<24} {:>10} {:>7} {:>10} {:>7} {:>8} {:>8}", "Routine", "Self", "Percent", "Total", "Percent", "Calls", "Per call"));
+
+    for (const ProfileRoutineEntry & entry : data.routines)
+    {
+        std::string  perCall = (entry.calls != 0) ? std::to_string (entry.total / entry.calls) : std::string ("-");
+
+
+
+        lines.push_back (std::format ("{:<24} {:>10} {:>6.1f}% {:>10} {:>6.1f}% {:>8} {:>8}", entry.GetName(), entry.self, GetShare (entry.self, data.cycles),
+                                      entry.total, GetShare (entry.total, data.cycles), entry.calls, perCall));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileTree
+//
+//  Each routine under its caller, two spaces in for each level.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileTree (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<40} {:>10} {:>10} {:>7} {:>8}", "Routine", "Self", "Total", "Percent", "Calls"));
+
+    for (const ProfileTreeEntry & entry : data.tree)
+    {
+        std::string  name = std::string ((size_t) entry.depth * 2, ' ') + data.routines[entry.routine].GetName();
+
+
+
+        lines.push_back (std::format ("{:<40} {:>10} {:>10} {:>6.1f}% {:>8}", name, entry.self, entry.total, GetShare (entry.total, data.cycles), entry.calls));
     }
 }
 

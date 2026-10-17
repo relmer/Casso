@@ -92,6 +92,11 @@ void ExecutionHandlers::OnInterrupt (DebugSession & session)
 {
     FeedKeys    (session);
     BillProfile (session);
+
+    if (m_profile.IsOn())
+    {
+        m_routines.OnInterrupt();
+    }
 }
 
 
@@ -157,6 +162,7 @@ void ExecutionHandlers::OnMachineChanged (DebugSession & session)
     (void) session;
 
     m_profile.Reset();
+    m_routines.Reset();
     m_profilePending.reset();
     m_stopwatch.Reset();
 }
@@ -560,7 +566,9 @@ void ExecutionHandlers::BillProfile (DebugSession & session)
     cycles    = target.GetCycleCount() - m_profilePending->startCycles;
     penalties = target.GetLastPenalties();
 
-    m_profile.Record (m_profilePending->pc, m_profilePending->opcode, (Byte) std::min (cycles, kMaxBilledCycles), penalties);
+    m_profile.Record  (m_profilePending->pc, m_profilePending->opcode, (Byte) std::min (cycles, kMaxBilledCycles), penalties);
+    m_routines.Record (m_profilePending->pc, m_profilePending->opcode, std::min (cycles, kMaxBilledCycles), target.GetRegisters().sp,
+                       m_profilePending->startCycles, RoutineProfile::kCyclesPerFrame);
     m_profilePending.reset();
 }
 
@@ -578,7 +586,7 @@ void ExecutionHandlers::BillProfile (DebugSession & session)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const
+void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, ProfileData & data) const
 {
     using ModeKey = std::pair<std::string, std::string>;
 
@@ -590,7 +598,7 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, bool isByAddress, 
 
 
     data.isOn         = m_profile.IsOn();
-    data.isByAddress  = isByAddress;
+    data.list         = list;
     data.instructions = m_profile.GetInstructionCount();
     data.cycles       = m_profile.GetTotalCycles();
     data.pageCross    = m_profile.GetPenalties().pageCross;
@@ -626,7 +634,9 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, bool isByAddress, 
 
     std::stable_sort (data.opcodes.begin(), data.opcodes.end(), [] (const ProfileEntry & a, const ProfileEntry & b) { return a.cycles > b.cycles; });
 
-    if (!isByAddress)
+    BuildRoutines (session, data);
+
+    if (list != ProfileList::Addresses)
     {
         return;
     }
@@ -657,20 +667,154 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, bool isByAddress, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::BuildRoutines
+//
+//  The routines by their own cycles, each with its symbol; the call tree
+//  depth first, each node's callees by their totals; and the frames, oldest
+//  first. The tree's and the frames' routine indexes are places in the
+//  sorted list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & data) const
+{
+    const std::vector<RoutineProfile::Routine>  & routines     = m_routines.GetRoutines();
+    const std::vector<RoutineProfile::Node>     & nodes        = m_routines.GetNodes();
+    std::vector<uint64_t>                         nodeTotals   = m_routines.GetNodeTotals();
+    std::vector<uint64_t>                         routineTotal = m_routines.GetRoutineTotals();
+    std::vector<size_t>                           order (routines.size());
+    std::vector<size_t>                           place (routines.size());
+    std::vector<std::vector<size_t>>              children (nodes.size());
+    std::vector<std::pair<size_t, int>>           pending;
+    std::vector<ProfileRoutineEntry>              sorted;
+    SymbolTableId                                 table        = SymbolTableId::Main;
+
+
+
+    data.routines.resize (routines.size());
+
+    for (size_t i = 0; i < routines.size(); i++)
+    {
+        ProfileRoutineEntry  & entry = data.routines[i];
+
+        entry.address = routines[i].address;
+        entry.kind    = routines[i].kind;
+        entry.total   = routineTotal[i];
+
+        if (entry.kind != RoutineKind::Top)
+        {
+            session.GetSymbols().TryFindName (entry.address, entry.symbol, table);
+        }
+    }
+
+    for (size_t i = 0; i < nodes.size(); i++)
+    {
+        data.routines[nodes[i].routine].self  += nodes[i].self;
+        data.routines[nodes[i].routine].calls += nodes[i].calls;
+
+        if (i > 0)
+        {
+            children[(size_t) nodes[i].parent].push_back (i);
+        }
+    }
+
+    for (size_t i = 0; i < order.size(); i++)
+    {
+        order[i] = i;
+    }
+
+    std::stable_sort (order.begin(), order.end(), [&data] (size_t a, size_t b) { return data.routines[a].self > data.routines[b].self; });
+
+    for (size_t i = 0; i < order.size(); i++)
+    {
+        place[order[i]] = i;
+    }
+
+    for (size_t index : order)
+    {
+        sorted.push_back (data.routines[index]);
+    }
+
+    data.routines = std::move (sorted);
+
+    pending.push_back ({ (size_t) 0, 0 });
+
+    while (!pending.empty())
+    {
+        auto [node, depth] = pending.back();
+        auto &  callees    = children[node];
+
+        pending.pop_back();
+        data.tree.push_back (ProfileTreeEntry { place[nodes[node].routine], depth, nodes[node].self, nodeTotals[node], nodes[node].calls });
+
+        //  The hottest callee goes on last, so it comes off first.
+        std::stable_sort (callees.begin(), callees.end(), [&nodeTotals] (size_t a, size_t b) { return nodeTotals[a] < nodeTotals[b]; });
+
+        for (size_t callee : callees)
+        {
+            pending.push_back ({ callee, depth + 1 });
+        }
+    }
+
+    for (const RoutineProfile::Frame & frame : m_routines.GetFrames())
+    {
+        ProfileFrameEntry  entry;
+
+
+
+        entry.index = frame.index;
+        entry.other = frame.other;
+
+        for (const RoutineProfile::Share & share : frame.shares)
+        {
+            entry.shares.push_back ({ place[share.routine], share.cycles });
+        }
+
+        data.frames.push_back (std::move (entry));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::TryGetProfileList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::TryGetProfileList (const std::string & word, ProfileList & list)
+{
+    std::string  upper = SymbolTable::ToUpper (word);
+
+
+
+    if      (upper.empty())       { list = ProfileList::Opcodes;   }
+    else if (upper == "ADDR")     { list = ProfileList::Addresses; }
+    else if (upper == "ROUTINES") { list = ProfileList::Routines;  }
+    else if (upper == "TREE")     { list = ProfileList::Tree;      }
+    else                          { return false;                  }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::SaveProfile
 //
-//  The same rows PROFILE LIST and PROFILE LIST ADDR print, one after the
-//  other.
+//  The same rows PROFILE LIST, PROFILE LIST ADDR, PROFILE LIST ROUTINES and
+//  PROFILE LIST TREE print, one after the other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string & name, Reply & reply) const
 {
     IFileSystem  * files     = session.GetFileSystem();
-    Reply          byOpcode;
-    Reply          byAddress;
-    ProfileData    opcodeData;
-    ProfileData    addressData;
     std::string    text;
     HRESULT        hr        = S_OK;
 
@@ -682,16 +826,22 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
         return;
     }
 
-    BuildProfile (session, false, opcodeData);
-    BuildProfile (session, true,  addressData);
+    for (ProfileList list : { ProfileList::Opcodes, ProfileList::Addresses, ProfileList::Routines, ProfileList::Tree })
+    {
+        Reply        table;
+        ProfileData  data;
 
-    byOpcode.data  = opcodeData;
-    byAddress.data = addressData;
-    AppleWinFormatter::Format (byOpcode);
-    AppleWinFormatter::Format (byAddress);
 
-    for (const std::string & line : byOpcode.text)  { text += line + "\n"; }
-    for (const std::string & line : byAddress.text) { text += line + "\n"; }
+
+        BuildProfile (session, list, data);
+        table.data = data;
+        AppleWinFormatter::Format (table);
+
+        for (const std::string & line : table.text)
+        {
+            text += line + "\n";
+        }
+    }
 
     hr = files->WriteAllText (session.ResolvePath (name), text);
 
@@ -712,7 +862,8 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 //
 //  ExecutionHandlers::Profile
 //
-//  PROFILE ON|OFF|RESET|LIST [ADDR]|SAVE [file]. A bare PROFILE lists.
+//  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]. A bare PROFILE
+//  lists.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -724,6 +875,7 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     std::string         extra;
     std::string         rest;
     ProfileData         data;
+    ProfileList         list     = ProfileList::Opcodes;
 
 
 
@@ -760,17 +912,18 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     else if (verb == "RESET" && argument.empty())
     {
         m_profile.Reset();
+        m_routines.Reset();
         m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
     }
-    else if ((verb.empty() || verb == "LIST") && extra.empty() && (argument.empty() || SymbolTable::ToUpper (argument) == "ADDR"))
+    else if ((verb.empty() || verb == "LIST") && extra.empty() && TryGetProfileList (argument, list))
     {
-        BuildProfile (session, !argument.empty(), data);
+        BuildProfile (session, list, data);
         reply.data = data;
     }
     else
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR] or SAVE [file].");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE] or SAVE [file].");
     }
 }
 

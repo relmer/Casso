@@ -670,6 +670,41 @@ namespace DebuggerTests
 
         //  A quoted file name with a space in it is one name, as HISTORY SAVE
         //  takes it.
+        //  A JSR's cycles are its caller's and the routine's own instructions
+        //  its own, listed by routine and as the tree.
+        TEST_METHOD (PROFILE_LIST_ROUTINES_AndTREE_CountEachRoutine)
+        {
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+
+            // $0300: JSR $0310, then $0310: INX / RTS
+            rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xE8, 0x60 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("G");
+
+            lines = rig.RunOk ("PROFILE LIST ROUTINES").text;
+            Assert::AreEqual (std::string ("Instructions: 3, cycles: 14"), lines.at (0));
+            Assert::IsTrue   (lines.at (2).starts_with ("$0310                             8   57.1%          8   57.1%        1        8"), TextEncoding::NarrowToWide (lines.at (2)).c_str());
+            Assert::IsTrue   (lines.at (3).starts_with ("Top level                         6   42.9%         14  100.0%"),                   TextEncoding::NarrowToWide (lines.at (3)).c_str());
+
+            lines = rig.RunOk ("PROFILE LIST TREE").text;
+            Assert::IsTrue   (lines.at (2).starts_with ("Top level "));
+            Assert::IsTrue   (lines.at (3).starts_with ("  $0310 "));
+
+            rig.RunOk ("PROFILE RESET");
+            Assert::AreEqual ((size_t) 1, rig.RunOk ("PROFILE LIST ROUTINES").text.size(), L"nothing counted after a reset");
+            Assert::IsTrue   (rig.Run ("PROFILE LIST HOT").status == CommandStatus::Error);
+        }
+
+
+
         TEST_METHOD (PROFILE_SAVE_TakesAQuotedNameWithSpaces)
         {
             MachineRig  rig;

@@ -80,6 +80,8 @@ private:
 
     static void  FormatProfileOpcodes   (const ProfileData & data, Lines & lines);
     static void  FormatProfileAddresses (const ProfileData & data, Lines & lines);
+    static void  FormatProfileRoutines  (const ProfileData & data, Lines & lines);
+    static void  FormatProfileTree      (const ProfileData & data, Lines & lines);
     static double  GetShare             (uint64_t part, uint64_t total);
 
     static std::string  FormatCondition    (const StopEvent & stop);

@@ -2020,8 +2020,8 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
     {
         live.profile          = ProfileData();
         live.profileByAddress = ProfileData();
-        m_debugController->GetHandlers().GetExecution().BuildProfile (session, false, *live.profile);
-        m_debugController->GetHandlers().GetExecution().BuildProfile (session, true,  *live.profileByAddress);
+        m_debugController->GetHandlers().GetExecution().BuildProfile (session, ProfileList::Opcodes,   *live.profile);
+        m_debugController->GetHandlers().GetExecution().BuildProfile (session, ProfileList::Addresses, *live.profileByAddress);
     }
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
