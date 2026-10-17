@@ -152,6 +152,7 @@ void DebugViewPublisher::MergeLive (const DebuggerViewSnapshot & live, DebuggerV
     snapshot.history          = live.history;
     snapshot.profile          = live.profile;
     snapshot.profileByAddress = live.profileByAddress;
+    snapshot.isProfiling      = live.isProfiling;
     snapshot.dataBlocks       = live.dataBlocks;
     snapshot.stepFilters      = live.stepFilters;
 }

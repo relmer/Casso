@@ -2012,6 +2012,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
     live.history     = GetHistoryStatus();
     live.dataBlocks  = session.GetDataBlocks().GetAll();
     live.stepFilters = session.GetStepFilter().GetEntries();
+    live.isProfiling = m_debugController->GetHandlers().GetExecution().IsProfiling();
 
     //  The profile is the execution handlers', and a real in it is written by
     //  the ROM's own routine, so it is read only while the machine is paused.

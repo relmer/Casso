@@ -1032,9 +1032,10 @@ menu also opens these, which stay closed until first opened:
   and **Delete**. Ctrl+K, K adds or removes a bookmark on the selected
   disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the
   previous bookmark.
-- **Profiler**, the profile as `PROFILE` lists it, by opcode or by address,
-  read while the machine is paused; its menu starts, stops, resets and saves
-  profiling.
+- **Profiler**, the profile as `PROFILE` lists it, read while the machine
+  is paused. Its bar turns profiling on and off with **Profile**, starts the
+  counts over with **Reset**, writes them to a text file with **Save...**, and
+  lists them by opcode or by address.
 - **Data ranges**, each range marked as data, with **Go to** and **Delete**.
 
 **Debug > Step filters...** lists the routines a step goes over, each a

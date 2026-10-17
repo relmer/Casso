@@ -308,9 +308,11 @@ struct DebuggerViewSnapshot
     std::shared_ptr<const SymbolsState>   symbols;
 
     //  The profile, read while the machine is paused; none while it runs.
-    //  The data blocks and the step filter's entries.
+    //  Whether profiling is on, read either way. The data blocks and the
+    //  step filter's entries.
     std::optional<ProfileData>            profile;
     std::optional<ProfileData>            profileByAddress;
+    bool                                  isProfiling = false;
     std::vector<DataBlockEntry>           dataBlocks;
     std::vector<StepFilterEntry>          stepFilters;
     std::vector<AutoWatchLine>            autoWatches;

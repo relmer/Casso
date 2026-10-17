@@ -41,6 +41,9 @@ public:
     //  The profile as PROFILE LIST, or with isByAddress PROFILE LIST ADDR, has it.
     void  BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const;
 
+    //  Whether PROFILE ON is in force.
+    bool  IsProfiling () const { return m_profile.IsOn(); }
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
     void  OnInterrupt      (DebugSession & session) override;

@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Debugger/SymbolTable.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -13,12 +14,23 @@
 
 
 
+//  The profiler bar's entries.
+static constexpr int  s_kProfileOn    = 1;
+static constexpr int  s_kProfileReset = 2;
+static constexpr int  s_kProfileSave  = 3;
+static constexpr int  s_kProfileView  = 4;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerWindow::CreateToolPanes
 //
 //  The Symbols, Bookmarks, Profiler and data ranges panes (FR-182, FR-183,
-//  FR-189, FR-193), each a list.
+//  FR-189, FR-193), each a list. The profiler's bar after its list, so the
+//  bar paints over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +44,7 @@ void DebuggerWindow::CreateToolPanes()
     m_bookmarkList  = CreateChild<DxuiListView>();
     m_profilerList  = CreateChild<DxuiListView>();
     m_dataBlockList = CreateChild<DxuiListView>();
+    m_profilerBar   = CreateChild<DxuiToolbar>();
 
     m_symbolsPane    = std::make_unique<SymbolsPane>    (m_symbolList, show, [this] (const std::string & table, bool enable)
     {
@@ -58,6 +71,17 @@ void DebuggerWindow::ConfigureToolPanes()
     m_bookmarksPane->Configure();
     m_profilerPane->Configure();
     m_dataBlocksPane->Configure();
+
+    m_profilerBar->SetTextRenderer  (GetTextRenderer());
+    m_profilerBar->SetPopupHost     (GetPopupHost());
+    m_profilerBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
+    m_profilerBar->SetCompact       (true);
+    m_profilerBar->SetPaneTextInset (true);
+    m_profilerBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
+    m_profilerBar->SetVisible       (false);
+
+    SetProfilerBarEntries();
+    SetProfilerBarMenu();
 }
 
 
@@ -68,15 +92,24 @@ void DebuggerWindow::ConfigureToolPanes()
 //
 //  DebuggerWindow::AddToolPanes
 //
-//  Each is its list alone; its commands are on its rows' menus.
+//  Each is its list, with its commands on its rows' menus; the profiler's
+//  bar is in a place over its list, which PlaceProfilerBar fills.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddToolPanes()
 {
+    m_profilerSlot = std::make_unique<DebuggerPaneFrame> (L"Profiler commands");
+
     for (const std::wstring & pane : DebuggerLayout::GetToolPaneIds())
     {
         m_toolFrames[pane] = std::make_unique<DebuggerPaneFrame> (GetPaneTitle (pane));
+
+        if (pane == DebuggerLayout::kProfiler)
+        {
+            m_toolFrames[pane]->AddPart (m_profilerSlot.get(), [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (DxuiToolbar::kCompactBandDp); });
+        }
+
         m_toolFrames[pane]->AddPart (GetToolList (pane));
         m_dockSite->AddPane (pane, GetPaneTitle (pane), m_toolFrames[pane].get());
     }
@@ -135,7 +168,7 @@ void DebuggerWindow::ApplyToolPanes()
 {
     m_symbolsPane->Apply    (m_snapshot->symbols);
     m_bookmarksPane->Apply  (m_snapshot->bookmarks, m_snapshot->symbols.get());
-    m_profilerPane->Apply   (m_snapshot->profile, m_snapshot->profileByAddress);
+    m_profilerPane->Apply   (m_snapshot->profile, m_snapshot->profileByAddress, m_snapshot->isProfiling);
     m_dataBlocksPane->Apply (m_snapshot->dataBlocks);
 }
 
@@ -291,6 +324,193 @@ void DebuggerWindow::SaveProfile()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetProfilerBarEntries
+//
+//  Profile turns profiling on and off, Reset starts the counts over, Save...
+//  writes them to a text file, and the view drop-down lists them by opcode
+//  or by address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetProfilerBarEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+    auto                             add = [this, &entries] (int id, const wchar_t * label, const wchar_t * tip, DxuiToolbar::Kind kind, int group, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiToolbar::Entry            entry;
+
+        command->id       = id;
+        command->label    = label;
+        command->tip      = tip;
+        command->dispatch = std::move (dispatch);
+
+        entry.command = command;
+        entry.kind    = kind;
+        entry.group   = group;
+
+        m_profilerCommands.push_back (command);
+        entries.push_back (std::move (entry));
+
+        return command;
+    };
+    std::shared_ptr<DxuiCommand>     command;
+
+
+
+    m_profilerCommands.clear();
+
+    command            = add (s_kProfileOn, L"Profile", L"Count each instruction and its cycles as the machine runs", DxuiToolbar::Kind::Toggle, 0, [this]
+    {
+        RunAction (DebuggerActions::GetProfile (m_profilerPane->IsOn() ? "OFF" : "ON", GetMode()));
+    });
+    command->isChecked = [this] { return m_profilerPane->IsOn(); };
+
+    add (s_kProfileReset, L"Reset",   L"Start the counts over",            DxuiToolbar::Kind::Command, 0, [this] { RunAction (DebuggerActions::GetProfile ("RESET", GetMode())); });
+    add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { SaveProfile(); });
+
+    command            = add (s_kProfileView, L"By opcode", L"List the counts by opcode and addressing mode, or by address", DxuiToolbar::Kind::DropDown, 1, [] {});
+    command->labelText = [this] { return std::wstring (m_profilerPane->IsByAddress() ? L"By address" : L"By opcode"); };
+
+    m_profilerBar->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetProfilerBarMenu
+//
+//  Built again before the drop-down opens, since the rows have the checks
+//  they were built with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetProfilerBarMenu()
+{
+    std::vector<DxuiPopupMenuItem>  views;
+
+
+
+    for (bool isByAddress : { false, true })
+    {
+        views.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (isByAddress ? L"By address" : L"By opcode", m_profilerPane->IsByAddress() == isByAddress, [this, isByAddress]
+        {
+            m_profilerPane->SetByAddress (isByAddress);
+            Invalidate();
+        })));
+    }
+
+    m_profilerBar->SetDropDownItems (s_kProfileView, std::move (views));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceProfilerBar
+//
+//  The bar sits in the place at the top of its pane and goes with the pane
+//  into a floating window, as the breakpoints pane's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceProfilerBar()
+{
+    bool          shown = m_profilerBar != nullptr && m_profilerSlot != nullptr && m_profilerSlot->IsVisible();
+    DxuiWindow  * host  = nullptr;
+    RECT          slot  = {};
+
+
+
+    if (m_profilerBar == nullptr)
+    {
+        return;
+    }
+
+    m_profilerBar->SetVisible (shown);
+
+    if (!shown)
+    {
+        return;
+    }
+
+    host = GetPaneHost (DebuggerLayout::kProfiler);
+    slot = m_profilerSlot->GetBounds();
+
+    m_profilerBar->SetTextRenderer   (host->GetTextRenderer());
+    m_profilerBar->SetPopupHost      (host->GetPopupHost());
+    m_profilerBar->SetHostClientRect (host->GetBounds());
+    m_profilerBar->Layout            (GetBarStrip (DebuggerLayout::kProfiler, slot), m_scaler);
+
+    host->SetChildClip (m_profilerBar, slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteProfilerBarMouse
+//
+//  As the breakpoints pane's bar: the strip and whatever menu it has open take
+//  the left button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteProfilerBarMouse (const DxuiMouseEvent & ev)
+{
+    int   x    = ev.positionDip.x;
+    int   y    = ev.positionDip.y;
+    bool  open = m_profilerBar->IsMenuOpen();
+    bool  over = m_profilerBar->IsVisible() && DxuiDockSite::Contains (m_profilerBar->GetBounds(), POINT { x, y });
+
+
+
+    if (!over && !open)
+    {
+        m_profilerBar->OnToolbarMouseLeave();
+        return false;
+    }
+
+    if ((ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up) && ev.button != DxuiMouseButton::Left && !open)
+    {
+        return false;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        UpdateTooltip (ev.positionDip);
+        return m_profilerBar->OnToolbarMouseMove (x, y);
+
+    case DxuiMouseEventKind::Down:
+        if (!open)
+        {
+            SetProfilerBarMenu();
+        }
+
+        return m_profilerBar->OnToolbarLButtonDown (x, y);
+
+    case DxuiMouseEventKind::Up:
+        return m_profilerBar->OnToolbarLButtonUp (x, y);
+
+    default:
+        return open;
+    }
 }
 
 

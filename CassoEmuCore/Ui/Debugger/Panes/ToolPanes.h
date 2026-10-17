@@ -106,7 +106,7 @@ private:
 //  The profile as PROFILE lists it (FR-193): its totals, then each opcode's
 //  count and cycles, or with by-address on, the addresses that took the
 //  most cycles. It is read while the machine is paused, so a running
-//  machine's snapshots change nothing here.
+//  machine's snapshots change only whether profiling is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,13 +119,13 @@ public:
 
     DxuiListView *  GetList        () const { return m_list; }
     bool            IsByAddress    () const { return m_isByAddress; }
-    bool            IsOn           () const { return m_byOpcode.has_value() && m_byOpcode->isOn; }
+    bool            IsOn           () const { return m_isOn; }
     void            SetByAddress   (bool isByAddress);
 
     void  Configure ();
-    void  Apply     (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress);
+    void  Apply     (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress, bool isOn);
 
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, bool isByAddress);
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, bool isByAddress, bool isOn);
 
 private:
     void  Refresh ();
@@ -133,6 +133,7 @@ private:
     DxuiListView                 * m_list        = nullptr;
     ShowFn                         m_show;
     bool                           m_isByAddress = false;
+    bool                           m_isOn        = false;
     std::optional<ProfileData>     m_byOpcode;
     std::optional<ProfileData>     m_byAddress;
 };

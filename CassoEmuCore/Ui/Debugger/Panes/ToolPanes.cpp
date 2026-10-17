@@ -479,15 +479,21 @@ void ProfilerPane::SetByAddress (bool isByAddress)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress)
+void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress, bool isOn)
 {
-    if (!byOpcode.has_value())
+    if (!byOpcode.has_value() && isOn == m_isOn)
     {
         return;
     }
 
-    m_byOpcode  = byOpcode;
-    m_byAddress = byAddress;
+    m_isOn = isOn;
+
+    if (byOpcode.has_value())
+    {
+        m_byOpcode  = byOpcode;
+        m_byAddress = byAddress;
+    }
+
     Refresh();
 }
 
@@ -503,7 +509,7 @@ void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std
 
 void ProfilerPane::Refresh()
 {
-    m_list->SetRows (GetCells (m_isByAddress ? m_byAddress : m_byOpcode, m_isByAddress));
+    m_list->SetRows (GetCells (m_isByAddress ? m_byAddress : m_byOpcode, m_isByAddress, m_isOn));
 }
 
 
@@ -515,10 +521,12 @@ void ProfilerPane::Refresh()
 //  ProfilerPane::GetCells
 //
 //  The totals across the first row, then a row an opcode or an address.
+//  With no profile read yet, a note: how to start profiling while it is
+//  off, and that the machine must be paused while it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, bool isByAddress)
+std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, bool isByAddress, bool isOn)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
 
@@ -526,7 +534,8 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
 
     if (!profile.has_value())
     {
-        cells.push_back (MakeNote (L"Pause the machine to read the profile."));
+        cells.push_back (MakeNote (isOn ? L"Pause the machine to read the profile."
+                                        : L"Profiling is off. Turn on Profile to count each instruction as the machine runs."));
         return cells;
     }
 

@@ -4461,6 +4461,7 @@ void DebuggerWindow::LayoutWidgets()
     PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
+    PlaceProfilerBar();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -7295,7 +7296,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -7360,6 +7361,7 @@ void DebuggerWindow::RenderFrame()
     PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
+    PlaceProfilerBar();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -9635,7 +9637,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -9759,6 +9761,13 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         {
             barTip = each.bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
         }
+    }
+
+    //  And the profiler's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) &&
+        m_profilerBar != nullptr && m_profilerBar->IsVisible())
+    {
+        barTip = m_profilerBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And the console's.
@@ -12351,6 +12360,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the profiler's.
+    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) && RouteProfilerBarMouse (ev))
+    {
+        return true;
+    }
+
     //  Then the history bands, whose Go live link takes a press.
     for (const auto & [band, bandPane] : { std::pair { m_codeHistoryBand, DebuggerLayout::GetCodePaneId (0) },
                                            std::pair { m_regHistoryBand,  std::wstring (DebuggerLayout::kRegisters) } })
@@ -12704,6 +12719,11 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (DebuggerLayout::IsBasicPane (pane))
     {
         return { GetBasicList (pane) };
+    }
+
+    if (pane == DebuggerLayout::kProfiler)
+    {
+        return { m_profilerSlot.get(), m_profilerList, m_profilerBar };
     }
 
     if (GetToolList (pane) != nullptr)

@@ -94,6 +94,7 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::EditStepFilters;
         using DebuggerWindow::OnMappedCommand;
         using DebuggerWindow::IsPaneShown;
+        using DebuggerWindow::GetProfilerCommands;
 
         std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
                                                                        std::function<bool (const std::wstring &, std::wstring &)> check) override
@@ -184,17 +185,20 @@ namespace DebuggerToolPanesTests
 
 
 
-            Assert::AreEqual ((size_t) 1, ProfilerPane::GetCells (std::nullopt, false).size(), L"a note while running");
+            cells = ProfilerPane::GetCells (std::nullopt, false, false);
+            Assert::AreEqual ((size_t) 1, cells.size());
+            Assert::IsTrue   (cells[0][0].text.starts_with (L"Profiling is off."), L"how to start, while off");
+            Assert::IsTrue   (ProfilerPane::GetCells (std::nullopt, false, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
 
             profile.isOn         = true;
             profile.instructions = 10;
             profile.opcodes      = { { "LDA", "#", 4, 8 } };
             profile.addresses    = { { 0x0300, "LOOP", 20 } };
 
-            cells = ProfilerPane::GetCells (profile, false);
+            cells = ProfilerPane::GetCells (profile, false, true);
             Assert::AreEqual ((size_t) 2, cells.size());
             Assert::AreEqual (std::wstring (L"LDA"), cells[1][0].text);
-            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, true)[1][0].text);
+            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, true, true)[1][0].text);
 
             cells = DataBlocksPane::GetCells ({ { "TABLE", 0x0800, 0x080F, DataBlockKind::Words } });
             Assert::AreEqual (std::wstring (L"$0800-$080F"), cells[0][1].text);
@@ -230,6 +234,50 @@ namespace DebuggerToolPanesTests
             Assert::IsTrue (window.opened == std::vector<std::wstring> { L"F800.F8FF", L"LOOP" });
             Assert::IsTrue (window.accepted && window.rejected, L"a symbol is taken, another name is not");
             Assert::IsTrue (host.commands == std::vector<std::string> { "SKIP -F800.F8FF", "SKIP FC00.FCFF", "SKIP COUT" });
+        }
+
+
+
+        //  Profile on the bar turns profiling on, and off once the snapshot
+        //  has it on; the drop-down's label follows the view.
+        TEST_METHOD (TheProfilerBarTurnsProfilingOnAndOff)
+        {
+            CassoTheme                    theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost             host;
+            ToolWindow                    window   (theme, host);
+            DxuiDpiScaler                 scaler;
+            auto                          snapshot = std::make_shared<DebuggerViewSnapshot>();
+            std::shared_ptr<DxuiCommand>  profile;
+            std::shared_ptr<DxuiCommand>  view;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerCommands())
+            {
+                if (command->label == L"Profile")   { profile = command; }
+                if (command->label == L"By opcode") { view    = command; }
+            }
+
+            Assert::IsNotNull (profile.get());
+            Assert::IsNotNull (view.get());
+            Assert::IsFalse   (profile->isChecked());
+
+            profile->dispatch();
+            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE ON" });
+
+            snapshot              = std::make_shared<DebuggerViewSnapshot>();
+            snapshot->isProfiling = true;
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsTrue (profile->isChecked());
+            profile->dispatch();
+            Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE ON", "PROFILE OFF" });
+            Assert::AreEqual (std::wstring (L"By opcode"), view->labelText());
         }
 
 

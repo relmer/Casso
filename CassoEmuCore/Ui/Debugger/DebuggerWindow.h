@@ -618,6 +618,9 @@ protected:
     void                       ShowRangeSet           (const std::string & name);
     void                       EditRangeSet           (const std::string & name);
     void                       RunHeatRangeBarEntry   (int id);
+
+    //  The profiler bar's commands, protected so a test can work the bar.
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetProfilerCommands () const { return m_profilerCommands; }
     bool                       IsHeatRangeBarEnabled  (int id) const;
     void                       BeginHeatRangeEdit     (int row, HeatMapRangeSets::Field field);
     void                       EndHeatRangeEdit       (bool commit);
@@ -1597,11 +1600,15 @@ private:
     std::optional<std::set<int>>           m_basicBreakpointIds;
 
     //  The tool panes (DebuggerWindowTools.cpp): symbols, bookmarks, the
-    //  profiler and the data ranges, each a list in a frame.
+    //  profiler and the data ranges, each a list in a frame. The profiler's
+    //  bar is laid out in a place over its list.
     DxuiListView                                                   * m_symbolList    = nullptr;
     DxuiListView                                                   * m_bookmarkList  = nullptr;
     DxuiListView                                                   * m_profilerList  = nullptr;
     DxuiListView                                                   * m_dataBlockList = nullptr;
+    DxuiToolbar                                                    * m_profilerBar   = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>                               m_profilerSlot;
+    std::vector<std::shared_ptr<DxuiCommand>>                        m_profilerCommands;
     std::unique_ptr<SymbolsPane>                                     m_symbolsPane;
     std::unique_ptr<BookmarksPane>                                   m_bookmarksPane;
     std::unique_ptr<ProfilerPane>                                    m_profilerPane;
@@ -1617,6 +1624,10 @@ private:
     bool                 AddToolMenuItems       (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     void                 SaveSymbolTable        (const std::string & table);
     void                 SaveProfile            ();
+    void                 SetProfilerBarEntries  ();
+    void                 SetProfilerBarMenu     ();
+    void                 PlaceProfilerBar       ();
+    bool                 RouteProfilerBarMouse  (const DxuiMouseEvent & ev);
     Word                 GetCursorAddress       () const;
     void                 ToggleBookmarkAtCursor ();
     void                 GoToBookmark           (bool isBackward);
