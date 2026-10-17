@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerOptionsSheet.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptionsPage.h"
 #include "Ui/Debugger/HistoryOptionsPage.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -173,18 +174,18 @@ public:
         lda     = DisassemblyOptions::GetRowOfLine (preview->GetSampleRows(), 1);
 
         Assert::AreEqual ((size_t) 12, preview->GetSampleRows().size(),                              L"each instruction under its source line");
-        Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=C1"), preview->GetCellsOfRow (lda)[5].text, L"the default: both");
-        Assert::AreEqual (std::wstring (L"0302"),           preview->GetCellsOfRow (lda)[1].text,    L"the default: no colon");
-        Assert::AreEqual (std::wstring (L"LDA (PTR),Y"),    preview->GetCellsOfRow (lda)[4].text);
+        Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=C1"), preview->GetCellsOfRow (lda)[DisassemblyCells::kOperandColumn].text, L"the default: both");
+        Assert::AreEqual (std::wstring (L"0302"),           preview->GetCellsOfRow (lda)[DisassemblyCells::kAddressColumn].text,    L"the default: no colon");
+        Assert::AreEqual (std::wstring (L"LDA (PTR),Y"),    preview->GetCellsOfRow (lda)[DisassemblyCells::kInstructionColumn].text);
 
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::AddressColon));
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::Symbols));
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::OperandValues));
         preview = &PaintPreview (sheet, painter, theme);
 
-        Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230"), preview->GetCellsOfRow (lda)[5].text, L"the pointer, without the operand's value");
-        Assert::AreEqual (std::wstring (L"0302:"),              preview->GetCellsOfRow (lda)[1].text);
-        Assert::AreEqual (std::wstring (L"LDA ($3E),Y"),        preview->GetCellsOfRow (lda)[4].text, L"no symbols");
+        Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230"), preview->GetCellsOfRow (lda)[DisassemblyCells::kOperandColumn].text, L"the pointer, without the operand's value");
+        Assert::AreEqual (std::wstring (L"0302:"),              preview->GetCellsOfRow (lda)[DisassemblyCells::kAddressColumn].text);
+        Assert::AreEqual (std::wstring (L"LDA ($3E),Y"),        preview->GetCellsOfRow (lda)[DisassemblyCells::kInstructionColumn].text, L"no symbols");
 
         Toggle (sheet.GetDisassemblyPage()->GetCheckbox (Option::Source));
         preview = &PaintPreview (sheet, painter, theme);
@@ -225,7 +226,7 @@ public:
         options.disassembly.SetDim (dim);
         sheet.GetDisassemblyPage()->SetOptions (options.disassembly);
 
-        return PaintPreview (sheet, painter, theme).GetCellsOfRow (row)[1].argb;
+        return PaintPreview (sheet, painter, theme).GetCellsOfRow (row)[DisassemblyCells::kAddressColumn].argb;
     }
 
 

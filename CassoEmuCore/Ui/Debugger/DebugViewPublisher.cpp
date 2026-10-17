@@ -149,6 +149,7 @@ void DebugViewPublisher::MergeLive (const DebuggerViewSnapshot & live, DebuggerV
     snapshot.panels           = live.panels;
     snapshot.diagnostics      = live.diagnostics;
     snapshot.heatMap          = live.heatMap;
+    snapshot.heatColumns      = live.heatColumns;
     snapshot.history          = live.history;
     snapshot.profile          = live.profile;
     snapshot.profileByAddress = live.profileByAddress;

@@ -40,9 +40,10 @@ public:
         Pointers,
         BranchArrow,
         AddressColon,
+        Heat,
     };
 
-    static constexpr int  kOptionCount = 9;
+    static constexpr int  kOptionCount = 10;
 
     //  The rows drawn dimmed while the view has source rows, to set the other
     //  kind apart. A view with no source rows dims nothing.
@@ -119,6 +120,6 @@ public:
 private:
     static constexpr const char *   kDimPrefix = "dim=";
 
-    std::array<bool, kOptionCount>  m_on  = { true, true, true, true, true, true, true, true, false };
+    std::array<bool, kOptionCount>  m_on  = { true, true, true, true, true, true, true, true, false, false };
     Dim                             m_dim = Dim::Code;
 };

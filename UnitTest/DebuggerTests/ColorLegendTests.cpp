@@ -405,14 +405,14 @@ namespace ColorLegendTests
             //  A paint fits the columns to their text, which places the cells.
             list->Paint (painter, text, theme);
 
-            operand = GetTipOverCell (window, *list, 0, 5);
+            operand = GetTipOverCell (window, *list, 0, DisassemblyCells::kOperandColumn);
 
-            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, 1));
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, DisassemblyCells::kAddressColumn));
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcMarker)),           GetTipOverCell (window, *list, 0, 0), L"the arrow is in the glyph margin");
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::BreakpointDisabled)), GetTipOverCell (window, *list, 1, 0));
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              operand, L"the operand's colors are on its heading, not its cells");
-            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has no tip");
-            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 5).empty(), L"nor has its operand");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, DisassemblyCells::kAddressColumn).empty(), L"a plain row has no tip");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, DisassemblyCells::kOperandColumn).empty(), L"nor has its operand");
         }
 
 
@@ -445,9 +445,9 @@ namespace ColorLegendTests
 
             bounds = list->GetBounds();
 
-            Assert::IsTrue (list->GetCellTextRectPx (0, 5, cell));
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
             Assert::IsTrue (window.TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
-            Assert::AreEqual (list->GetColumnAt (5).tip, tip, L"the operand's heading");
+            Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip, L"the operand's heading");
 
             right = list->GetPaneLeadPx() - list->GetLeftPx();
 

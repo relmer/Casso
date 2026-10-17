@@ -62,6 +62,7 @@ public:
     //  Whether the heat map pane is shown, which is whether the machine
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
+    virtual void     SetDebugHeatColumnsShown (bool shown)                                      { (void) shown; }
 
     //  Whether a BASIC pane is open and visible, which is when each
     //  snapshot includes the Applesoft program.

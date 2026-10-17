@@ -363,6 +363,17 @@ struct DebuggerViewSnapshot
 
     HeatMapState                          heatMap;
 
+    //  The CPU's address space's levels for the heat columns, read while any
+    //  is shown as the heat map's are; none while none is.
+    struct HeatColumnLevels
+    {
+        std::vector<Byte>  execute;
+        std::vector<Byte>  read;
+        std::vector<Byte>  write;
+    };
+
+    std::shared_ptr<const HeatColumnLevels>  heatColumns;
+
     //  The symbols the heat map's ranges are read against. The same copy is
     //  shared from snapshot to snapshot until the symbols change.
     std::shared_ptr<const HeatMapSymbols> heatMapSymbols;
@@ -573,6 +584,11 @@ public:
     //  records nothing.
     void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; m_isHeatReadDue = true; }
     bool                 IsHeatMapShown  () const     { return m_isHeatMapShown; }
+
+    //  The heat columns: while any is shown the accesses are counted too, and
+    //  each snapshot has the CPU's address space's levels.
+    void                 SetHeatColumnsShown (bool shown) { m_isHeatColumnsShown = shown; m_isHeatReadDue = true; }
+    bool                 IsHeatColumnsShown  () const     { return m_isHeatColumnsShown; }
 
     //  Whether the levels come from the fading heat or the totals, and how
     //  long the heat takes to fade.
@@ -826,6 +842,8 @@ private:
     void  BuildPanels      (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildHeatMap     (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
     void  ReadHeatMap      (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
+
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  ReadHeatColumns (const AccessHeatMap & map) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
     static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
     static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
@@ -913,6 +931,7 @@ private:
     Word                                           m_memoryAddress          = 0x0000;
     std::optional<uint64_t>                        m_traceTop;
     bool                                           m_isHeatMapShown         = false;
+    bool                                           m_isHeatColumnsShown     = false;
     bool                                           m_isBasicShown           = false;
     HeatMapOptions                                 m_heatMapOptions;
     mutable std::shared_ptr<const HeatMapSymbols>  m_heatMapSymbols;
@@ -930,6 +949,7 @@ private:
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.
     mutable std::shared_ptr<const DebuggerViewSnapshot::HeatMapState>     m_heatRead;
+    mutable std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> m_heatColumnsRead;
     mutable uint64_t                                                      m_heatReadAt     = 0;
     mutable uint64_t                                                      m_heatSerial     = 0;
     mutable bool                                                          m_isHeatReadDue  = true;

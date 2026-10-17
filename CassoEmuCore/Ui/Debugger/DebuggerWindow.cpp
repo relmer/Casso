@@ -29,6 +29,7 @@
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
@@ -2457,6 +2458,8 @@ void DebuggerWindow::ToggleCodeOption (DisassemblyOptions::Option option)
     {
         m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
     }
+
+    SyncHeatMapRecording();
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {
@@ -7473,10 +7476,16 @@ void DebuggerWindow::ApplyCodeView (int view)
                                                                          IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
     bool                                                 hasSourceRows = false;
     std::wstring                                         text;
+    std::optional<HeatMapView::Palette>                  heatPalette;
 
 
 
     DisassemblyCells::ShowColumns (*list, m_codeOptions);
+
+    if (m_codeOptions.IsOn (DisassemblyOptions::Option::Heat))
+    {
+        heatPalette = GetHeatPalette();
+    }
 
     for (const DebuggerViewSnapshot::CodeLine & line : lines)
     {
@@ -7557,6 +7566,11 @@ void DebuggerWindow::ApplyCodeView (int view)
         }
 
         (void) DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
+
+        if (heatPalette.has_value() && m_snapshot->heatColumns != nullptr)
+        {
+            cells[kCodeHeatColumn] = HeatStrip::GetCell (*m_snapshot->heatColumns, line->address, std::max<size_t> (1, HeatStrip::CountBytes (line->bytes)), *heatPalette, false);
+        }
 
         if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, false, line->isCurrent))
         {
@@ -7846,17 +7860,47 @@ void DebuggerWindow::ShowHeatMapAddress (Word address)
 
 void DebuggerWindow::SyncHeatMapRecording()
 {
-    bool  isWanted = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapView->IsVisible();
+    bool  isWanted        = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapView->IsVisible();
+    bool  isColumnsWanted = IsAnyHeatColumnOn();
 
 
 
-    if (isWanted == m_isHeatMapRecording || m_host == nullptr)
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    if (isColumnsWanted != m_isHeatColumnsRecording)
+    {
+        m_isHeatColumnsRecording = isColumnsWanted;
+        m_host->SetDebuggerHeatColumnsShown (isColumnsWanted);
+    }
+
+    if (isWanted == m_isHeatMapRecording)
     {
         return;
     }
 
     m_isHeatMapRecording = isWanted;
     m_host->SetDebuggerHeatMapShown (isWanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsAnyHeatColumnOn
+//
+//  Show heat in the disassembly views, which the source and BASIC views
+//  follow, or Heat in a memory window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsAnyHeatColumnOn() const
+{
+    return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat);
 }
 
 
@@ -7932,13 +7976,10 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ApplyHeatMap()
+HeatMapView::Palette DebuggerWindow::GetHeatPalette() const
 {
-    const DebuggerViewSnapshot::HeatMapState  & state      = m_snapshot->heatMap;
-    DebuggerTextColors::Set                     colors     = GetTextColors();
-    HeatMapView::Palette                        palette;
-    std::vector<HeatMapView::Breakpoint>        breakpoints;
-    bool                                        isNewHover = false;
+    DebuggerTextColors::Set  colors  = GetTextColors();
+    HeatMapView::Palette     palette;
 
 
 
@@ -7956,6 +7997,28 @@ void DebuggerWindow::ApplyHeatMap()
     palette.selfModifying = colors.heatSelfModifying;
     palette.unwritten     = colors.heatUnwritten;
     palette.changed       = colors.heatChanged;
+
+    return palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyHeatMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHeatMap()
+{
+    const DebuggerViewSnapshot::HeatMapState  & state      = m_snapshot->heatMap;
+    HeatMapView::Palette                        palette    = GetHeatPalette();
+    std::vector<HeatMapView::Breakpoint>        breakpoints;
+    bool                                        isNewHover = false;
+
+
 
     for (const DebuggerViewSnapshot::BreakpointLine & line : m_snapshot->breakpoints)
     {

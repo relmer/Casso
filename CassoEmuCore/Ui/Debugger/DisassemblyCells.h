@@ -27,18 +27,19 @@ public:
     static constexpr float   kGlyphCenterDip    = 8.4f;
     static constexpr int     kGutterColumnDip   = 17;
     static constexpr size_t  kGutterColumn      = 0;
-    static constexpr size_t  kAddressColumn     = 1;
-    static constexpr size_t  kBytesColumn       = 2;
-    static constexpr size_t  kLabelColumn       = 3;
-    static constexpr size_t  kInstructionColumn = 4;
-    static constexpr size_t  kOperandColumn     = 5;
-    static constexpr size_t  kColumnCount       = 6;
+    static constexpr size_t  kHeatColumn        = 1;
+    static constexpr size_t  kAddressColumn     = 2;
+    static constexpr size_t  kBytesColumn       = 3;
+    static constexpr size_t  kLabelColumn       = 4;
+    static constexpr size_t  kInstructionColumn = 5;
+    static constexpr size_t  kOperandColumn     = 6;
+    static constexpr size_t  kColumnCount       = 7;
     static constexpr float   kDimMix            = 0.75f;
 
     //  The columns, the glyph margin and the text view's background.
     static void  Configure (DxuiListView & list);
 
-    //  The address, bytes and label columns, as the options choose.
+    //  The heat, address, bytes and label columns, as the options choose.
     static void  ShowColumns (DxuiListView & list, const DisassemblyOptions & options);
 
     //  A source line's row: its number when withNumber is set, then its text

@@ -653,6 +653,10 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
     {
         target.SetDebugBasicShown (isShown);
     }
+    else if (view == "heatcolumns" && TryGetHeatMapShown (where, isShown))
+    {
+        target.SetDebugHeatColumnsShown (isShown);
+    }
     else if (view == "heatmap")
     {
         if (TryGetHeatMapShown (where, isShown))

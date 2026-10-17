@@ -1,0 +1,121 @@
+#include "Pch.h"
+
+#include "Core/UnicodeSymbols.h"
+#include "Ui/Debugger/HeatStrip.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatColumnTests
+//
+//  The heat columns' strip: a block per byte in the heat map's colors, r or
+//  w for a byte read or written as data, and for a BASIC line's tokens a
+//  read drawn as the line running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace DebuggerTests
+{
+    TEST_CLASS (HeatColumnTests)
+    {
+    public:
+
+        static constexpr uint32_t  kCold    = 0xFF404040;
+        static constexpr uint32_t  kExecute = 0xFF0000FF;
+        static constexpr uint32_t  kRead    = 0xFF00FF00;
+        static constexpr uint32_t  kWrite   = 0xFFFF0000;
+
+        static HeatMapView::Palette MakePalette()
+        {
+            HeatMapView::Palette  palette;
+
+
+
+            palette.cold    = kCold;
+            palette.execute = kExecute;
+            palette.read    = kRead;
+            palette.write   = kWrite;
+            return palette;
+        }
+
+        static DebuggerViewSnapshot::HeatColumnLevels MakeLevels()
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels;
+
+
+
+            levels.execute.assign (0x10000, 0);
+            levels.read.assign    (0x10000, 0);
+            levels.write.assign   (0x10000, 0);
+            return levels;
+        }
+
+
+
+        TEST_METHOD (EachByteIsABlockOrALetterForData)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            HeatStrip::Strip                        strip;
+            std::wstring                            block  = s_kpszFullBlock;
+
+
+
+            levels.execute[0x0300] = 255;
+            levels.read[0x0301]    = 255;
+            levels.write[0x0302]   = 255;
+
+            strip = HeatStrip::Get (levels, 0x0300, 4, MakePalette(), false);
+
+            Assert::AreEqual (block + L"rw" + block, strip.text, L"run, read, written, untouched");
+            Assert::AreEqual ((size_t) 4, strip.colors.size());
+            Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]), L"the hottest is the hue itself");
+            Assert::AreEqual (kRead,    std::get<2> (strip.colors[1]));
+            Assert::AreEqual (kWrite,   std::get<2> (strip.colors[2]));
+            Assert::AreEqual (kCold,    std::get<2> (strip.colors[3]), L"an untouched byte is the cold gray");
+        }
+
+
+
+        TEST_METHOD (ALongRunIsFourBlocksEachItsHottest)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            HeatStrip::Strip                        strip;
+
+
+
+            levels.write[0x2005] = 10;
+
+            strip = HeatStrip::Get (levels, 0x2000, 16, MakePalette(), false);
+
+            Assert::AreEqual ((size_t) HeatStrip::kMaxBlocks, strip.text.size());
+            Assert::AreEqual (L'w', strip.text[1], L"$2005 is in the second block of four bytes");
+        }
+
+
+
+        //  The interpreter reads a line's tokens as it runs it, so a read is a
+        //  block in the code color, and only a write is a letter.
+        TEST_METHOD (ATokensReadIsTheLineRunning)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            HeatStrip::Strip                        strip;
+
+
+
+            levels.read[0x0801] = 255;
+
+            strip = HeatStrip::Get (levels, 0x0801, 1, MakePalette(), true);
+
+            Assert::AreEqual (std::wstring (s_kpszFullBlock), strip.text);
+            Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]));
+            Assert::AreEqual ((size_t) 0, HeatStrip::Get (DebuggerViewSnapshot::HeatColumnLevels(), 0x0801, 1, MakePalette(), true).text.size(),
+                              L"no levels, no strip");
+            Assert::AreEqual ((size_t) 3, HeatStrip::CountBytes ("BD 9A 1C"));
+        }
+    };
+}

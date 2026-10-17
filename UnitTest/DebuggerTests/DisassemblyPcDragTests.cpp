@@ -178,7 +178,7 @@ namespace DisassemblyPcDragTests
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
 
             list  = window.GetCodeList (0);
-            pcRow = list->GetCellsOfRow (0)[1].background;
+            pcRow = list->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background;
 
             down.kind        = DxuiMouseEventKind::Down;
             down.button      = DxuiMouseButton::Left;
@@ -189,8 +189,8 @@ namespace DisassemblyPcDragTests
 
             Assert::IsTrue    (list->GetCellsOfRow (1)[0].icon != nullptr, L"the arrow shows on the row under the pointer");
             Assert::IsTrue    (list->GetCellsOfRow (0)[0].icon == nullptr, L"and leaves the PC's row");
-            Assert::AreEqual  (pcRow, list->GetCellsOfRow (1)[1].background, L"the PC's row color moves with it");
-            Assert::AreNotEqual (pcRow, list->GetCellsOfRow (0)[1].background, L"and leaves the PC's row");
+            Assert::AreEqual  (pcRow, list->GetCellsOfRow (1)[DisassemblyCells::kAddressColumn].background, L"the PC's row color moves with it");
+            Assert::AreNotEqual (pcRow, list->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background, L"and leaves the PC's row");
 
             up.kind        = DxuiMouseEventKind::Up;
             up.button      = DxuiMouseButton::Left;
@@ -346,7 +346,7 @@ namespace DisassemblyPcDragTests
                 Assert::AreEqual (20.0f, icon.width, L"in a 20-pixel icon, so the dot is 14 pixels across");
             }
 
-            Assert::IsTrue   (list->GetCellTextRectPx (0, 1, address), L"the address has a cell, the column after the margin");
+            Assert::IsTrue   (list->GetCellTextRectPx (0, DisassemblyCells::kAddressColumn, address), L"the address has a cell, the column after the margin");
             Assert::AreEqual ((LONG) (scaler120.ToPx (17) + scaler120.ToPx (4)), address.left,
                               L"the address after the 17-DIP glyph column and its padding");
         }
@@ -382,8 +382,9 @@ namespace DisassemblyPcDragTests
             list  = window.GetCodeList (0);
             arrow = list->GetCellsOfRow (0)[0].icon;
 
-            Assert::AreEqual ((size_t) 6, list->GetColumnCount(), L"the margin, address, bytes, label, instruction and operand");
-            Assert::AreEqual (std::wstring (L"Address"), list->GetColumnAt (1).title, L"the address follows the margin");
+            Assert::AreEqual ((size_t) 7, list->GetColumnCount(), L"the margin, heat, address, bytes, label, instruction and operand");
+            Assert::IsFalse  (list->IsColumnVisible (DisassemblyCells::kHeatColumn), L"with Show heat off, the address follows the margin");
+            Assert::AreEqual (std::wstring (L"Address"), list->GetColumnAt (DisassemblyCells::kAddressColumn).title);
             Assert::IsTrue   (arrow != nullptr, L"the PC's line shows its arrow in the margin");
             Assert::IsTrue   (list->GetCellsOfRow (0)[0].text.empty(), L"as an image, not text");
             Assert::IsTrue   (list->GetCellsOfRow (1)[0].icon == nullptr, L"and no other line does");

@@ -23,6 +23,7 @@
 void DisassemblyCells::Configure (DxuiListView & list)
 {
     std::vector<DxuiListView::Column>  columns = { { L"",                   kGutterColumnDip, false, DxuiTextHAlign::Left },
+                                                   { L"Heat",               0,                false, DxuiTextHAlign::Left },
                                                    { L"Address",            0,                false, DxuiTextHAlign::Left },
                                                    { L"Bytes",              0,                false, DxuiTextHAlign::Left },
                                                    { L"Label",              0,                false, DxuiTextHAlign::Left },
@@ -31,7 +32,8 @@ void DisassemblyCells::Configure (DxuiListView & list)
 
 
 
-    columns.back().tip = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
+    columns.back().tip         = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
+    columns[kHeatColumn].tip   = L"How hot each byte of the line is in the heat map's colors: a block for a byte run as code, r or w for one read or written as data";
 
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);
@@ -50,6 +52,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
 
 void DisassemblyCells::ShowColumns (DxuiListView & list, const DisassemblyOptions & options)
 {
+    list.SetColumnVisible (kHeatColumn,    options.IsOn (DisassemblyOptions::Option::Heat));
     list.SetColumnVisible (kAddressColumn, options.IsOn (DisassemblyOptions::Option::Addresses));
     list.SetColumnVisible (kBytesColumn,   options.IsOn (DisassemblyOptions::Option::CodeBytes));
     list.SetColumnVisible (kLabelColumn,   options.IsOn (DisassemblyOptions::Option::Symbols));

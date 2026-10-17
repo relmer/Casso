@@ -131,6 +131,7 @@ public:
     //  Whether the heat map pane is shown; the machine records its accesses
     //  only while it is. A host with no machine, as a test's is, records none.
     virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
+    virtual void  SetDebuggerHeatColumnsShown (bool shown)                 { (void) shown; }
 
     //  Whether a BASIC pane is visible; the Applesoft program is read for
     //  the snapshots only while one is.
@@ -567,6 +568,11 @@ protected:
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
 
+    //  The heat map's colors in the theme in force, for the map and the heat
+    //  columns; and whether any heat column is on.
+    HeatMapView::Palette       GetHeatPalette       () const;
+    bool                       IsAnyHeatColumnOn    () const;
+
     //  The BASIC panes: whether the last request to the host turned the
     //  reading of the program on, and the step that updates it.
     bool                       IsBasicReading       () const { return m_isBasicReading; }
@@ -894,6 +900,7 @@ private:
     static constexpr float  kGlyphCenterDip        = DisassemblyCells::kGlyphCenterDip;
     static constexpr int    kGutterColumnDip       = DisassemblyCells::kGutterColumnDip;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
+static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr size_t kCodeAddressColumn     = DisassemblyCells::kAddressColumn;
     static constexpr size_t kCodeBytesColumn       = DisassemblyCells::kBytesColumn;
     static constexpr size_t kCodeLabelColumn       = DisassemblyCells::kLabelColumn;
@@ -1487,6 +1494,7 @@ private:
     HeatMapView                                                                    * m_heatMapView        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_heatMapFrame;
     bool                                                                             m_isHeatMapRecording = false;
+    bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
     uint64_t                                                                         m_heatAppliedSerial  = 0;
     std::optional<POINT>                                                             m_heatMapTipAt;

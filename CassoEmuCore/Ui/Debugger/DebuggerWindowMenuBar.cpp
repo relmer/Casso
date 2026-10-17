@@ -1522,7 +1522,8 @@ void DebuggerWindow::ConfigureCodeBars()
                                                        DisassemblyOptions::Option::CodeBytes,
                                                        DisassemblyOptions::Option::Source,
                                                        DisassemblyOptions::Option::Symbols,
-                                                       DisassemblyOptions::Option::LineNumbers };
+                                                       DisassemblyOptions::Option::LineNumbers,
+                                                       DisassemblyOptions::Option::Heat };
 
 
 

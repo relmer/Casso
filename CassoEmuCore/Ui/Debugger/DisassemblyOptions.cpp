@@ -109,6 +109,7 @@ const wchar_t * DisassemblyOptions::GetLabel (Option option)
     case Option::Pointers:      return L"Show pointers";
     case Option::BranchArrow:   return L"Show branch arrow";
     case Option::AddressColon:  return L"Show colon after address";
+    case Option::Heat:          return L"Show heat";
     }
 
     return L"";
@@ -137,6 +138,7 @@ const char * DisassemblyOptions::GetKey (Option option)
     case Option::Pointers:      return "pointers";
     case Option::BranchArrow:   return "arrow";
     case Option::AddressColon:  return "colon";
+    case Option::Heat:          return "heat";
     }
 
     return "";

@@ -549,7 +549,7 @@ namespace OperandResultTipTests
 
 
 
-            Assert::IsTrue (list->GetCellTextRectPx (row, 5, cell), L"the row's operand is in view");
+            Assert::IsTrue (list->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, cell), L"the row's operand is in view");
 
             return POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 };
         }
@@ -578,7 +578,7 @@ namespace OperandResultTipTests
 
 
 
-            Assert::IsTrue (window.GetCodeList (0)->GetCellTextRectPx (row, 5, cell), L"the row's operand is in view");
+            Assert::IsTrue (window.GetCodeList (0)->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, cell), L"the row's operand is in view");
 
             return cell;
         }
@@ -653,7 +653,7 @@ namespace OperandResultTipTests
             list   = window.GetCodeList (0);
             bounds = list->GetBounds();
 
-            Assert::IsTrue (list->GetCellTextRectPx (0, 5, cell), L"the long row's operand is in view");
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell), L"the long row's operand is in view");
             Assert::IsTrue (window.TryGetOperandTip (GetOperandPoint (window, 0), scaler, text, MakeScreen(), layout, tipCell),
                             L"the pane cuts the long operand off");
 
@@ -770,7 +770,7 @@ namespace OperandResultTipTests
             Assert::AreEqual (2, window.GetOperandTipCell().row);
             Assert::IsFalse  (OperandResultTip::IsSame (first, window.GetOperandTipLayout()), L"the tip still shows the first row's");
 
-            Assert::IsTrue   (list->GetCellTextRectPx (2, 5, cell));
+            Assert::IsTrue   (list->GetCellTextRectPx (2, DisassemblyCells::kOperandColumn, cell));
             Assert::AreEqual (list->GetBounds().top + cell.top, window.GetOperandTipLayout().textOrigin.y, L"over the third row");
         }
 
@@ -831,7 +831,7 @@ namespace OperandResultTipTests
             Assert::AreNotEqual (theme.ContentSelection(), theme.ContentBackground());
 
             Send (window, DxuiMouseEventKind::Move, at);
-            cellFill = list->GetCellsOfRow (2)[5].background;
+            cellFill = list->GetCellsOfRow (2)[DisassemblyCells::kOperandColumn].background;
 
             Assert::IsTrue   (window.HasOperandTip());
             Assert::AreEqual (DxuiColor::Composite (cellFill, DxuiColor::Composite (theme.ContentSelection(), theme.ContentBackground())),
@@ -865,7 +865,7 @@ namespace OperandResultTipTests
             Build (window, theme, text);
             list     = window.GetCodeList (0);
             at       = GetOperandPoint (window, 2);
-            cellFill = list->GetCellsOfRow (2)[5].background;
+            cellFill = list->GetCellsOfRow (2)[DisassemblyCells::kOperandColumn].background;
 
             Assert::IsTrue   (TryGetTip (window, at, text, layout), L"the pane cuts the third row's operand off");
             Assert::AreEqual (DxuiColor::Composite (cellFill, kTextView), layout.fill, L"a row at rest shows the text view's fill");
@@ -1296,7 +1296,7 @@ namespace OperandResultTipTests
             //  A row whose tip lies under where the popup opens.
             for (int row = 0; row < kManyRows && !isFound; row++)
             {
-                if (list->GetCellTextRectPx (row, 5, cell))
+                if (list->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, cell))
                 {
                     at      = GetOperandPoint (window, row);
                     isFound = TryGetTip (window, at, text, layout) && IntersectRect (&both, &zoom, &layout.rect) != FALSE;

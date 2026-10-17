@@ -261,6 +261,7 @@
     <ClCompile Include="DebuggerTests\InputObservedAtReadTests.cpp" />
     <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
     <ClCompile Include="DebuggerTests\RoutineProfileTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatColumnTests.cpp" />
     <ClCompile Include="DebuggerTests\CycleStopwatchTests.cpp" />
     <ClCompile Include="DebuggerTests\IoEventLogTests.cpp" />
     <ClCompile Include="DebuggerTests\LogCommandsTests.cpp" />

@@ -3,6 +3,7 @@
 #include "CaptureTests/FakeHostDialogs.h"
 #include "ControllerRig.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -55,6 +56,7 @@ namespace DisassemblyOptionsTests
         void  SetDebuggerMemoryWindow  (int, std::optional<Word>)                override {}
         void  RunDebuggerCommandInMode (const std::string &, CommandMode)        override {}
         void  SetDebuggerDisassemblyOptions (const std::string & text)           override { options = text; }
+        void  SetDebuggerHeatColumnsShown   (bool shown)                         override { isHeatShown = shown; }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -77,6 +79,7 @@ namespace DisassemblyOptionsTests
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
         std::string  options;
+        bool         isHeatShown = false;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -206,7 +209,7 @@ namespace DisassemblyOptionsTests
 
             options.Toggle (Option::CodeBytes);
             options.Toggle (Option::LineNumbers);
-            Assert::AreEqual (std::string ("address -bytes source symbols -lines values pointers arrow -colon dim=code"), options.ToText());
+            Assert::AreEqual (std::string ("address -bytes source symbols -lines values pointers arrow -colon -heat dim=code"), options.ToText());
             Assert::IsTrue   (DisassemblyOptions::FromText (options.ToText()) == options);
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
@@ -322,14 +325,55 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
 
-            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (1), L"the saved options are read");
-            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (2));
+            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kAddressColumn), L"the saved options are read");
+            Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kBytesColumn));
 
             window.ToggleCodeOption (Option::Addresses);
 
-            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (1), L"no address column");
-            Assert::AreEqual (std::string ("-address bytes -source symbols -lines values pointers arrow -colon dim=code"), host.options, L"the choice is saved");
+            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kAddressColumn), L"no address column");
+            Assert::AreEqual (std::string ("-address bytes -source symbols -lines values pointers arrow -colon -heat dim=code"), host.options, L"the choice is saved");
             Assert::IsNotNull (window.GetCodeBar (0), L"each view has its options bar");
+        }
+
+
+
+        //  With Show heat on, the heat column is visible with a block or a
+        //  letter per byte of each line, and the heat map is on.
+        TEST_METHOD (ShowHeatAddsAStripPerByteAndRecordsTheHeat)
+        {
+            CassoTheme     theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost    host;
+            DxuiDpiScaler  scaler;
+            OptionsWindow  window   (theme, host);
+            auto           snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot (false));
+            auto           levels   = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels>();
+
+
+
+            levels->execute.assign (0x10000, 0);
+            levels->read.assign    (0x10000, 0);
+            levels->write.assign   (0x10000, 0);
+            levels->execute[0x0300] = 200;
+            levels->read[0x0301]    = 100;
+            levels->write[0x0302]   = 50;
+            snapshot->heatColumns   = levels;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            Assert::IsFalse (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn), L"off by default");
+
+            window.ToggleCodeOption (Option::Heat);
+
+            Assert::IsTrue   (host.isHeatShown, L"the heat map is on");
+            Assert::IsTrue   (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn));
+            Assert::AreEqual (std::wstring (s_kpszFullBlock) + L"r", window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].text, L"LDA #$41: run, and its operand read");
+            Assert::AreEqual (std::wstring (L"w"),                    window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].text, L"RTS: written");
+
+            window.ToggleCodeOption (Option::Heat);
+            Assert::IsFalse  (host.isHeatShown);
         }
 
 
@@ -504,13 +548,13 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeIndirectSnapshot(), 0);
 
-            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text, L"the default: both");
+            Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text, L"the default: both");
 
             window.ToggleCodeOption (Option::Pointers);
-            Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+            Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text);
 
             window.ToggleCodeOption (Option::OperandValues);
-            Assert::AreEqual (std::wstring (L"Y=05"), window.GetCodeList (0)->GetCellsOfRow (0)[5].text);
+            Assert::AreEqual (std::wstring (L"Y=05"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text);
         }
 
 
@@ -530,11 +574,11 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
 
-            Assert::AreEqual (std::wstring (L"0300"), window.GetCodeList (0)->GetCellsOfRow (0)[1].text, L"the default: no colon");
+            Assert::AreEqual (std::wstring (L"0300"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text, L"the default: no colon");
 
             window.ToggleCodeOption (Option::AddressColon);
-            Assert::AreEqual (std::wstring (L"0300:"), window.GetCodeList (0)->GetCellsOfRow (0)[1].text);
-            Assert::AreEqual (std::wstring (L"0302:"), window.GetCodeList (0)->GetCellsOfRow (1)[1].text);
+            Assert::AreEqual (std::wstring (L"0300:"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text);
+            Assert::AreEqual (std::wstring (L"0302:"), window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kAddressColumn].text);
         }
 
 

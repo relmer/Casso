@@ -459,11 +459,11 @@ void DebuggerViewState::BuildMemoryPanes (DebugSession & session, DebuggerViewSn
 //
 //  DebuggerViewState::BuildHeatMap
 //
-//  The map records only while its pane is shown, so the build that first
-//  sees the pane hidden turns it off; the one that sees it shown turns it on
-//  and puts what it has counted in the snapshot (ReadHeatMap). The map stays
-//  on while BRKUNINIT is, pane or no pane, since only it sees a read before
-//  written.
+//  The map is on only while its pane or a heat column is shown: a build with
+//  them all hidden turns it off, and a build with one shown turns it on and
+//  puts the counts in the snapshot (ReadHeatMap, ReadHeatColumns). The map
+//  stays on while BRKUNINIT is, pane or no pane, since a read before written
+//  is counted by the map alone.
 //
 //  A running machine's map is read every kHeatIntervalMs, and the snapshots
 //  between hold that reading; reading all 64K addresses at every snapshot
@@ -482,29 +482,46 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     uint64_t                                               now    = m_clock();
     std::shared_ptr<DebuggerViewSnapshot::HeatMapState>    read;
     HeatSpace                                              space  = HeatSpace::Cpu;
+    bool                                                   isDue  = isPaused || m_isHeatReadDue || now - m_heatReadAt >= kHeatIntervalMs;
 
 
 
-    target.SetHeatMapOn         (m_isHeatMapShown || session.HasUnwrittenBreak());
+    target.SetHeatMapOn         (m_isHeatMapShown || m_isHeatColumnsShown || session.HasUnwrittenBreak());
     target.SetHeatMapFade       ((double) m_heatMapOptions.fadeSeconds);
     target.SetHeatMapCumulative (m_heatMapOptions.cumulative);
     map = target.FoldHeatMap();
 
-    if (map == nullptr || !m_isHeatMapShown)
+    if (map == nullptr || (!m_isHeatMapShown && !m_isHeatColumnsShown))
     {
         m_isHeatReadDue = true;
         return;
     }
 
-    if (m_heatRead == nullptr || isPaused || m_isHeatReadDue || now - m_heatReadAt >= kHeatIntervalMs)
+    if (m_isHeatColumnsShown && (m_heatColumnsRead == nullptr || isDue))
+    {
+        m_heatColumnsRead = ReadHeatColumns (*map);
+    }
+
+    if (m_isHeatMapShown && (m_heatRead == nullptr || isDue))
     {
         read = std::make_shared<DebuggerViewSnapshot::HeatMapState>();
         ReadHeatMap (session, *map, *read);
 
-        read->serial    = ++m_heatSerial;
-        m_heatRead      = read;
+        read->serial = ++m_heatSerial;
+        m_heatRead   = read;
+    }
+
+    if (isDue)
+    {
         m_heatReadAt    = now;
         m_isHeatReadDue = false;
+    }
+
+    snapshot.heatColumns = m_isHeatColumnsShown ? m_heatColumnsRead : nullptr;
+
+    if (!m_isHeatMapShown)
+    {
+        return;
     }
 
     state = *m_heatRead;
@@ -522,6 +539,43 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
                                                                                  GetHeatAccess (session, space, true,  *m_heatMapHover),
                                                                                  GetHeatAccess (session, space, false, *m_heatMapHover) });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadHeatColumns
+//
+//  The CPU's address space's levels, as fading heat or as totals as the
+//  heat map's options choose, with same-value writes left out under Skip
+//  unchanged writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> DebuggerViewState::ReadHeatColumns (const AccessHeatMap & map) const
+{
+    auto        levels = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels>();
+    HeatKind    write  = m_heatMapOptions.ignoreSameWrites ? HeatKind::ChangedWrite : HeatKind::Write;
+
+
+
+    if (m_heatMapOptions.cumulative)
+    {
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
+        map.GetTotalLevels (HeatSpace::Cpu, write,             levels->write);
+    }
+    else
+    {
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
+        map.GetLevels (HeatSpace::Cpu, write,             levels->write);
+    }
+
+    return levels;
 }
 
 
