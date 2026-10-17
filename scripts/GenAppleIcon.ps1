@@ -4,11 +4,11 @@
     and packs every size into one .ico.
 
 .DESCRIPTION
-    A red apple, the fruit: a body of two rounded lobes with a dip at the
-    top and a smaller one at the bottom, shaded darker toward the lower
-    right, a brown stem and a green leaf above it, and a soft highlight on
-    the upper left from 32 px up. A dark outline sets the apple apart from a dark
-    background. It is not Apple's logo: no bite, no stripes.
+    The classic six-stripe apple of the 1980s: a body of two rounded lobes
+    with a dip at the top and a smaller one at the bottom, a bite out of
+    the right side, green, yellow, orange, red, purple and blue bands from
+    top to bottom, and a green leaf above it. A dark outline sets the apple
+    apart from a dark background.
 
     Every size is drawn at its own pixel size, never scaled down from 256.
 
@@ -61,13 +61,16 @@ $bodyCurves = @(
 )
 
 $colors = @{
-    BodyLight = [System.Drawing.Color]::FromArgb(255, 0xE8, 0x3A, 0x30)
-    BodyDark  = [System.Drawing.Color]::FromArgb(255, 0x9E, 0x14, 0x14)
-    Outline   = [System.Drawing.Color]::FromArgb(255, 0x5A, 0x0C, 0x0C)
-    Stem      = [System.Drawing.Color]::FromArgb(255, 0x6B, 0x45, 0x23)
-    Leaf      = [System.Drawing.Color]::FromArgb(255, 0x4C, 0xA8, 0x3A)
+    Outline   = [System.Drawing.Color]::FromArgb(255, 0x2A, 0x2A, 0x2A)
+    Leaf      = [System.Drawing.Color]::FromArgb(255, 0x61, 0xBB, 0x46)
     LeafEdge  = [System.Drawing.Color]::FromArgb(255, 0x2B, 0x6B, 0x1F)
-    Highlight = [System.Drawing.Color]::FromArgb(110, 0xFF, 0xFF, 0xFF)
+    Stripes   = @(
+        [System.Drawing.Color]::FromArgb(255, 0x61, 0xBB, 0x46),
+        [System.Drawing.Color]::FromArgb(255, 0xFD, 0xB8, 0x27),
+        [System.Drawing.Color]::FromArgb(255, 0xF5, 0x82, 0x1F),
+        [System.Drawing.Color]::FromArgb(255, 0xE0, 0x3A, 0x3E),
+        [System.Drawing.Color]::FromArgb(255, 0x96, 0x3D, 0x97),
+        [System.Drawing.Color]::FromArgb(255, 0x00, 0x9D, 0xDC))
 }
 
 
@@ -89,7 +92,7 @@ function New-AppleIcon
         $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
         $graphics.Clear([System.Drawing.Color]::Transparent)
 
-        $outlineWidth = [single] [Math]::Max(1.0, $size / 28.0)
+        $outlineWidth = [single] [Math]::Max(1.0, $size / 44.0)
 
         # The leaf, behind the stem: an ellipse turned up to the right.
         $leaf  = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -103,13 +106,7 @@ function New-AppleIcon
         $graphics.FillPath($leafBrush, $leaf)
         $graphics.DrawPath($leafPen, $leaf)
 
-        # The stem.
-        $stemPen = New-Object System.Drawing.Pen($colors.Stem, [single] [Math]::Max(1.5, $size / 14.0))
-        $stemPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-        $stemPen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
-        $graphics.DrawLine($stemPen, [single] (0.50 * $s), [single] (0.34 * $s), [single] (0.47 * $s), [single] (0.13 * $s))
-
-        # The body, shaded from the upper left.
+        # The body, with a bite out of its right side.
         $body = New-Object System.Drawing.Drawing2D.GraphicsPath
         $x    = $bodyStart[0] * $s
         $y    = $bodyStart[1] * $s
@@ -126,25 +123,41 @@ function New-AppleIcon
 
         $body.CloseFigure()
 
-        $shade = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-            (New-Object System.Drawing.PointF([single] (0.15 * $s), [single] (0.30 * $s))),
-            (New-Object System.Drawing.PointF([single] (0.85 * $s), [single] (0.98 * $s))),
-            $colors.BodyLight, $colors.BodyDark)
-        $outline = New-Object System.Drawing.Pen($colors.Outline, $outlineWidth)
+        $bite = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $bite.AddEllipse([single] (0.80 * $s), [single] (0.44 * $s), [single] (0.26 * $s), [single] (0.26 * $s))
 
-        $graphics.FillPath($shade, $body)
-        $graphics.DrawPath($outline, $body)
+        $shape = New-Object System.Drawing.Region($body)
+        $shape.Exclude($bite)
 
-        # The highlight, from 32 px up, where it reads as shine and not a smudge.
-        if ($size -ge 32)
+        # The bands, drawn through the body less the bite.
+        $top    = 0.26
+        $bottom = 0.98
+        $band   = ($bottom - $top) / $colors.Stripes.Count
+
+        $graphics.SetClip($shape, [System.Drawing.Drawing2D.CombineMode]::Replace)
+
+        for ($i = 0; $i -lt $colors.Stripes.Count; $i++)
         {
-            $shine = New-Object System.Drawing.SolidBrush($colors.Highlight)
-            $graphics.FillEllipse($shine, [single] (0.20 * $s), [single] (0.38 * $s), [single] (0.13 * $s), [single] (0.22 * $s))
-            $shine.Dispose()
+            $brush = New-Object System.Drawing.SolidBrush($colors.Stripes[$i])
+            $graphics.FillRectangle($brush, [single] 0, [single] (($top + $i * $band) * $s), $s, [single] ($band * $s + 1))
+            $brush.Dispose()
         }
 
+        $graphics.ResetClip()
+
+        # The outline of the body less the bite.
+        $outline = New-Object System.Drawing.Pen($colors.Outline, $outlineWidth)
+        $edge    = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $edge.AddPath($body, $false)
+        $graphics.SetClip($bite, [System.Drawing.Drawing2D.CombineMode]::Exclude)
+        $graphics.DrawPath($outline, $edge)
+        $graphics.ResetClip()
+        $graphics.SetClip($body, [System.Drawing.Drawing2D.CombineMode]::Replace)
+        $graphics.DrawPath($outline, $bite)
+        $graphics.ResetClip()
+
         $leaf.Dispose(); $turn.Dispose(); $leafBrush.Dispose(); $leafPen.Dispose()
-        $stemPen.Dispose(); $body.Dispose(); $shade.Dispose(); $outline.Dispose()
+        $body.Dispose(); $bite.Dispose(); $shape.Dispose(); $edge.Dispose(); $outline.Dispose()
 
         $stream = New-Object System.IO.MemoryStream
         $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
