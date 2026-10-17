@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Builds the Casso solution using MSBuild.
 
@@ -41,6 +41,15 @@
     single-configuration run can pass while CI fails on one it did not
     compile, and ARM64 is build-only here, so nothing else exercises it.
 
+.PARAMETER Sanitize
+    Build the AddressSanitizer flavor (-p:CassoSanitize=Address) into
+    x64\DebugAsan\ or x64\ReleaseAsan\, beside the plain build rather than over
+    it. x64 only, with -Target Build, Clean or Rebuild. With -Configuration All
+    it builds DebugAsan and ReleaseAsan, and not the plain builds. It builds the
+    whole solution, so Casso.exe and CassoCli.exe land beside UnitTest.dll,
+    which the suite runs. Run it with RunTests.ps1 -Build -Sanitize. See
+    docs/testing.md.
+
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
     no foreground to protect.
@@ -75,6 +84,8 @@ param(
 
     [switch]$RunCodeAnalysis,
 
+    [switch]$Sanitize,
+
     [switch]$NormalPriority,
 
     [switch]$LowPriority
@@ -89,6 +100,14 @@ if ($Platform -eq 'Auto') {
 }
 
 $ErrorActionPreference = 'Stop'
+
+if ($Sanitize -and $Platform -ne 'x64') {
+    throw '-Sanitize builds x64 only.'
+}
+
+if ($Sanitize -and $Target -notin @('Build', 'Clean', 'Rebuild')) {
+    throw '-Sanitize takes a single-configuration target: Build, Clean or Rebuild.'
+}
 
 $repoRoot     = Split-Path $PSScriptRoot -Parent
 $solutionPath = Join-Path $repoRoot 'Casso.sln'
@@ -288,7 +307,13 @@ foreach ($config in $configsToBuild) {
             $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
         }
 
-        Write-Host "Building: $solutionPath ($config|$platformToBuild) Target=$msbuildTarget" -ForegroundColor Cyan
+        if ($Sanitize) {
+            $msbuildArgs += '-p:CassoSanitize=Address'
+        }
+
+        $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }
+
+        Write-Host "Building: $solutionPath ($config|$platformToBuild$flavorText) Target=$msbuildTarget" -ForegroundColor Cyan
 
         & $msbuildPath @msbuildArgs
 

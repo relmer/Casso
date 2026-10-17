@@ -270,7 +270,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img);
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         // Poke the payload nibble table into RAM at $7000.
         for (size_t i = 0; i < s_kPayload.size(); i++)

@@ -165,4 +165,28 @@
     IntDir and overwrite each other's objects and tlogs.
   -->
 
+  <!--
+    AddressSanitizer flavor of Debug or Release x64, opt-in with
+    -p:CassoSanitize=Address (scripts\Build.ps1 -Sanitize). It builds into
+    x64\DebugAsan\ or x64\ReleaseAsan\ so its objects never mix with the
+    plain build's. /RTC is off because it is incompatible with
+    /fsanitize=address. See docs/testing.md.
+
+    MeshCreator is a build tool, not code under test, and runs during the
+    build. Instrumented, it loads the sanitizer runtime from the output folder
+    while UnitTest copies the same DLL there, and the copy fails on the lock.
+  -->
+  <PropertyGroup Condition="'$(CassoSanitize)' == 'Address'">
+    <CassoBuildFlavor>Asan</CassoBuildFlavor>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CassoSanitize)' == 'Address' and '$(MSBuildProjectName)' != 'MeshCreator'">
+    <EnableASAN>true</EnableASAN>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(CassoSanitize)' == 'Address' and '$(MSBuildProjectName)' != 'MeshCreator'">
+    <ClCompile>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <PreprocessorDefinitions>CASSO_SANITIZE_ADDRESS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 </Project>
