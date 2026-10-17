@@ -6716,7 +6716,7 @@ bool DebuggerWindow::TryGetCodeBytes (int view, Word first, Word last, std::vect
 
 void DebuggerWindow::EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line)
 {
-    static constexpr Byte  kNop = 0xEA;
+    static constexpr Byte        kNop    = 0xEA;
     std::optional<std::wstring>  typed;
     std::vector<Byte>            bytes;
     std::vector<Byte>            before;
@@ -6831,7 +6831,7 @@ void DebuggerWindow::EditInstruction (int view, const DebuggerViewSnapshot::Code
 
 void DebuggerWindow::ReplaceWithNops (int view, std::pair<Word, Word> range)
 {
-    static constexpr Byte  kNop = 0xEA;
+    static constexpr Byte  kNop  = 0xEA;
     std::vector<Byte>      before;
     std::vector<Byte>      after;
     bool                   isRom = false;
