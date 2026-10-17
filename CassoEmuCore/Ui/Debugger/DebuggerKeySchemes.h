@@ -70,6 +70,12 @@ public:
         StepBackOut,
         ReverseRun,
 
+        //  The bookmark at the selected line toggled, and the disassembly
+        //  moved to the next or the previous bookmark.
+        ToggleBookmark,
+        NextBookmark,
+        PreviousBookmark,
+
         //  Each opens its pane, or brings it forward, and focuses it.
         ShowDisassembly,
         ShowBreakpoints,

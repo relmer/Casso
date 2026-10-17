@@ -4,6 +4,7 @@
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 
 struct DebuggerViewSnapshot;
+struct StepFilterEntry;
 
 
 
@@ -162,10 +163,22 @@ public:
     static DebuggerAction  GetClearData      (Word first, Word last, CommandMode mode);
     static DebuggerAction  GetAddSymbol      (const std::string & name, Word address, CommandMode mode);
     static DebuggerAction  GetSkipRoutine    (const std::string & name, Word address, CommandMode mode);
+    static DebuggerAction  GetSkipRange      (Word first, Word last, CommandMode mode);
     static DebuggerAction  GetAddBookmark    (Word address, CommandMode mode);
     static DebuggerAction  GetClearBookmark  (int id, CommandMode mode);
     static DebuggerAction  GetStopwatch      (Word start, Word stop, CommandMode mode);
     static DebuggerAction  GetCallSubroutine (Word address, CommandMode mode);
+
+    //  The Symbols, Profiler and step filter views: a table on or off,
+    //  cleared, saved, or one of its symbols removed, where the table is its
+    //  name as SYM writes it after SYM (USER, MAIN); PROFILE with its words;
+    //  and a step filter removed by its name or range.
+    static DebuggerAction  GetEnableSymbols  (const std::string & table, bool enable, CommandMode mode);
+    static DebuggerAction  GetClearSymbols   (const std::string & table, CommandMode mode);
+    static DebuggerAction  GetSaveSymbols    (const std::string & table, const std::string & path, CommandMode mode);
+    static DebuggerAction  GetRemoveSymbol   (const std::string & table, const std::string & name, CommandMode mode);
+    static DebuggerAction  GetProfile        (const std::string & words, CommandMode mode);
+    static DebuggerAction  GetRemoveSkip     (const StepFilterEntry & entry, CommandMode mode);
 
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
     //  OPEN or SAVEAS, each on a file the user picked.

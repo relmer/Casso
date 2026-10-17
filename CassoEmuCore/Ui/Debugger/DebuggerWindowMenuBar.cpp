@@ -363,6 +363,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
+    add (debug, MakeMenuCommand (L"Step filters...", false, [this] { EditStepFilters(); }));
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.

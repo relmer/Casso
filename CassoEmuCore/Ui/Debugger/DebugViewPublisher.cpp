@@ -146,8 +146,12 @@ void DebugViewPublisher::BuildPending()
 
 void DebugViewPublisher::MergeLive (const DebuggerViewSnapshot & live, DebuggerViewSnapshot & snapshot)
 {
-    snapshot.panels      = live.panels;
-    snapshot.diagnostics = live.diagnostics;
-    snapshot.heatMap     = live.heatMap;
-    snapshot.history     = live.history;
+    snapshot.panels           = live.panels;
+    snapshot.diagnostics      = live.diagnostics;
+    snapshot.heatMap          = live.heatMap;
+    snapshot.history          = live.history;
+    snapshot.profile          = live.profile;
+    snapshot.profileByAddress = live.profileByAddress;
+    snapshot.dataBlocks       = live.dataBlocks;
+    snapshot.stepFilters      = live.stepFilters;
 }

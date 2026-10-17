@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kBasicProgram };
+                                       kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
 
 
 
@@ -353,6 +353,16 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kCode;
     }
 
+    if (pane == kProfiler && layout.Contains (kConsole))
+    {
+        return kConsole;
+    }
+
+    if ((pane == kSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
+    {
+        return kBreakpoints;
+    }
+
     return L"";
 }
 
@@ -377,6 +387,40 @@ bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerLayout::GetToolPaneIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
+{
+    return { kSymbols, kBookmarks, kProfiler, kDataBlocks };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::IsOpenedLater
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerLayout::IsOpenedLater (const std::wstring & pane)
+{
+    std::vector<std::wstring>  tools = GetToolPaneIds();
+
+
+
+    return IsBasicPane (pane) || std::ranges::find (tools, pane) != tools.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerLayout::FormatBasicOpened
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -389,7 +433,7 @@ std::string DebuggerLayout::FormatBasicOpened (const std::set<std::wstring> & op
 
     for (const std::wstring & pane : opened)
     {
-        if (IsBasicPane (pane))
+        if (IsOpenedLater (pane))
         {
             text += " open=" + TextEncoding::WideToNarrow (pane);
         }
@@ -424,7 +468,7 @@ std::set<std::wstring> DebuggerLayout::ParseBasicOpened (const std::string & tex
 
 
 
-        if (IsBasicPane (pane))
+        if (IsOpenedLater (pane))
         {
             opened.insert (pane);
         }
@@ -491,8 +535,14 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kDiskLog,  kConsole);
     layout.Add (kInputLog, kConsole);
 
-    //  The BASIC program is a tab of the disassembly.
+    //  The BASIC program is a tab of the disassembly, the profiler of the
+    //  console, and the symbols, bookmarks and data ranges of the
+    //  breakpoints.
     layout.Add (kBasicProgram, kCode);
+    layout.Add (kProfiler,     kConsole);
+    layout.Add (kSymbols,      kBreakpoints);
+    layout.Add (kBookmarks,    kBreakpoints);
+    layout.Add (kDataBlocks,   kBreakpoints);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

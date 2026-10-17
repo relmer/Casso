@@ -2009,7 +2009,19 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 
 
     m_debugViewState.BuildLive (session, live, isPaused);
-    live.history = GetHistoryStatus();
+    live.history     = GetHistoryStatus();
+    live.dataBlocks  = session.GetDataBlocks().GetAll();
+    live.stepFilters = session.GetStepFilter().GetEntries();
+
+    //  The profile is the execution handlers', and a real in it is written by
+    //  the ROM's own routine, so it is read only while the machine is paused.
+    if (isPaused)
+    {
+        live.profile          = ProfileData();
+        live.profileByAddress = ProfileData();
+        m_debugController->GetHandlers().GetExecution().BuildProfile (session, false, *live.profile);
+        m_debugController->GetHandlers().GetExecution().BuildProfile (session, true,  *live.profileByAddress);
+    }
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
 

@@ -248,6 +248,26 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         snapshot.bookmarks.push_back ({ entry.id, entry.address, std::string(), entry.enabled });
     }
 
+    //  The symbols are read again only when they have changed.
+    if (m_symbols == nullptr || m_symbolsRevision != session.GetSymbols().GetRevision())
+    {
+        auto  state = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+
+
+
+        for (int table = 0; table < SymbolTable::kTableCount; table++)
+        {
+            state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
+                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table });
+            session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
+        }
+
+        m_symbols         = state;
+        m_symbolsRevision = session.GetSymbols().GetRevision();
+    }
+
+    snapshot.symbols = m_symbols;
+
     if (isPaused)
     {
         BuildAutoWatches (session, snapshot);

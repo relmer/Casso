@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatMapOptions.h"
@@ -286,6 +287,32 @@ struct DebuggerViewSnapshot
 
     //  The bookmarks, each its id and address.
     std::vector<WatchLine>                bookmarks;
+
+    //  The symbol tables, each its name, count and whether it is on, and
+    //  every symbol in them; one object until the symbols change, so a pane
+    //  rebuilds its rows only then.
+    struct SymbolTableRow
+    {
+        std::string    name;
+        size_t         count   = 0;
+        bool           enabled = true;
+        SymbolTableId  id      = SymbolTableId::Main;
+    };
+
+    struct SymbolsState
+    {
+        std::vector<SymbolTableRow>  tables;
+        std::vector<SymbolInfo>      symbols;
+    };
+
+    std::shared_ptr<const SymbolsState>   symbols;
+
+    //  The profile, read while the machine is paused; none while it runs.
+    //  The data blocks and the step filter's entries.
+    std::optional<ProfileData>            profile;
+    std::optional<ProfileData>            profileByAddress;
+    std::vector<DataBlockEntry>           dataBlocks;
+    std::vector<StepFilterEntry>          stepFilters;
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;
@@ -893,6 +920,8 @@ private:
     //  Every opcode's form, and the instruction set they were made for.
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+    mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;
+    mutable uint64_t                                                    m_symbolsRevision = 0;
 
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.

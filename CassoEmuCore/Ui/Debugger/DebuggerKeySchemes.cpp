@@ -19,6 +19,9 @@ static constexpr DxuiKeyStroke  s_kMemoryPrefix = { 'M', true, true, false };
 static constexpr DxuiKeyStroke  s_kLogPrefix    = { 'L', true, true, false };
 static constexpr DxuiKeyStroke  s_kBasicPrefix  = { 'P', true, true, false };
 
+//  Visual Studio's bookmark chords start with Ctrl+K.
+static constexpr DxuiKeyStroke  s_kBookmarkPrefix = { 'K', true, false, false };
+
 //  The pane keys, the same in every scheme: Visual Studio's for the windows
 //  it has (Ctrl+Alt+I is its Immediate window, the console's nearest), and
 //  Ctrl+Alt keys and chords of the same kind for the panes it lacks.
@@ -42,6 +45,9 @@ static constexpr DxuiKeyChord  s_kPaneKeys[] =
     { 'D',      false, false, false, (int) Action::ShowDiskLog,        s_kLogPrefix    },
     { 'I',      false, false, false, (int) Action::ShowInputLog,       s_kLogPrefix    },
     { 'P',      false, false, false, (int) Action::ShowBasicProgram,   s_kBasicPrefix  },
+    { 'K',      false, false, false, (int) Action::ToggleBookmark,     s_kBookmarkPrefix },
+    { 'N',      false, false, false, (int) Action::NextBookmark,       s_kBookmarkPrefix },
+    { 'P',      false, false, false, (int) Action::PreviousBookmark,   s_kBookmarkPrefix },
 };
 
 //  Each pane action's pane, in the actions' order from ShowDisassembly.

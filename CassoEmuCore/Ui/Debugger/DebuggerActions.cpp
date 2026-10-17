@@ -1036,6 +1036,29 @@ DebuggerAction DebuggerActions::GetSkipRoutine (const std::string & name, Word a
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetSkipRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSkipRange (Word first, Word last, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddStepFilter, (first == last) ? std::format ("SKIP {:04X}", first) : std::format ("SKIP {:04X}.{:04X}", first, last), mode);
+
+
+
+    action.command.a1    = first;
+    action.command.a2    = last;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetAddBookmark
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1109,6 +1132,136 @@ DebuggerAction DebuggerActions::GetCallSubroutine (Word address, CommandMode mod
 
     action.command.a1    = address;
     action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetEnableSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetEnableSymbols (const std::string & table, bool enable, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::EnableSymbols, std::format ("SYM{} {}", table, enable ? "ON" : "OFF"), mode);
+
+
+
+    action.command.count       = enable ? 1 : 0;
+    action.command.symbolTable = table;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetClearSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetClearSymbols (const std::string & table, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::ClearSymbols, std::format ("SYM{} CLEAR", table), mode);
+
+
+
+    action.command.symbolTable = table;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveSymbols (const std::string & table, const std::string & path, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::SaveSymbols, std::format ("SYM{} SAVE \"{}\"", table, path), mode);
+
+
+
+    action.command.text        = std::format ("\"{}\"", path);
+    action.command.symbolTable = table;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetRemoveSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetRemoveSymbol (const std::string & table, const std::string & name, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::RemoveSymbol, std::format ("SYM{} ! {}", table, name), mode);
+
+
+
+    action.command.text        = name;
+    action.command.symbolTable = table;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetProfile (const std::string & words, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::Profile, "PROFILE " + words, mode);
+
+
+
+    action.command.text = words;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetRemoveSkip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetRemoveSkip (const StepFilterEntry & entry, CommandMode mode)
+{
+    std::string     text   = !entry.name.empty()         ? entry.name
+                           : (entry.first == entry.last) ? std::format ("{:04X}", entry.first)
+                           :                               std::format ("{:04X}.{:04X}", entry.first, entry.last);
+    DebuggerAction  action = Make (DebugVerb::RemoveStepFilter, "SKIP -" + text, mode);
+
+
+
+    action.command.text  = text;
+    action.command.a1    = entry.first;
+    action.command.a2    = entry.last;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
     return action;
 }
 

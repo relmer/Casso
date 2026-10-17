@@ -96,6 +96,13 @@ public:
         AssertParsesTo (rig, "STOPWATCH 0300 0310", DebuggerActions::GetStopwatch (0x0300, 0x0310, aw));
         AssertParsesTo (rig, "JSR 0300",      DebuggerActions::GetCallSubroutine (0x0300, aw));
         AssertParsesTo (rig, "SKIP 0300",     DebuggerActions::GetSkipRoutine    ("", 0x0300, aw));
+        AssertParsesTo (rig, "SYMUSER ON",    DebuggerActions::GetEnableSymbols  ("USER", true, aw));
+        AssertParsesTo (rig, "SYMMAIN OFF",   DebuggerActions::GetEnableSymbols  ("MAIN", false, aw));
+        AssertParsesTo (rig, "SYMUSER CLEAR", DebuggerActions::GetClearSymbols   ("USER", aw));
+        AssertParsesTo (rig, "SYMUSER SAVE \"out.sym\"", DebuggerActions::GetSaveSymbols ("USER", "out.sym", aw));
+        AssertParsesTo (rig, "SYMUSER ! LOOP", DebuggerActions::GetRemoveSymbol  ("USER", "LOOP", aw));
+        AssertParsesTo (rig, "PROFILE ON",    DebuggerActions::GetProfile        ("ON", aw));
+        AssertParsesTo (rig, "SKIP -0300",    DebuggerActions::GetRemoveSkip     ({ "", 0x0300, 0x0300 }, aw));
     }
 
 

@@ -38,6 +38,9 @@ public:
     //  as they are now, for a debug project to run again.
     std::vector<std::string>  MakeScript () const;
 
+    //  The profile as PROFILE LIST, or with isByAddress PROFILE LIST ADDR, has it.
+    void  BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const;
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
     void  OnInterrupt      (DebugSession & session) override;
@@ -95,7 +98,6 @@ private:
 
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
-    void         BuildProfile      (DebugSession & session, bool isByAddress, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     HRESULT      FlushTrace        (DebugSession & session);

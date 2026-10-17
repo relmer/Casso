@@ -59,6 +59,10 @@ class ToolbarCheckEntry;
 class ToolbarLabelEntry;
 class HistoryBand;
 class BasicProgramPane;
+class BookmarksPane;
+class DataBlocksPane;
+class ProfilerPane;
+class SymbolsPane;
 class CallStackPane;
 class DiagnosticsPane;
 class MemoryPane;
@@ -637,6 +641,12 @@ protected:
                                                         TextDialog::CheckFn check);
 
     virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
+
+    //  The step filters after Debug > Step filters..., none when canceled;
+    //  a test overrides it.
+    virtual std::optional<std::vector<std::wstring>>  RunStepFiltersDialog (const std::vector<std::wstring> & filters,
+                                                                            std::function<bool (const std::wstring &, std::wstring &)> check);
+    void                       EditStepFilters        ();
     bool                       ConfirmDeleteRangeSet  ();
 
     //  Whether a frame repaints the window: when it took an update, while
@@ -1585,6 +1595,31 @@ private:
     bool                                   m_wasBasicPaused      = false;
     bool                                   m_isBasicStop         = false;
     std::optional<std::set<int>>           m_basicBreakpointIds;
+
+    //  The tool panes (DebuggerWindowTools.cpp): symbols, bookmarks, the
+    //  profiler and the data ranges, each a list in a frame.
+    DxuiListView                                                   * m_symbolList    = nullptr;
+    DxuiListView                                                   * m_bookmarkList  = nullptr;
+    DxuiListView                                                   * m_profilerList  = nullptr;
+    DxuiListView                                                   * m_dataBlockList = nullptr;
+    std::unique_ptr<SymbolsPane>                                     m_symbolsPane;
+    std::unique_ptr<BookmarksPane>                                   m_bookmarksPane;
+    std::unique_ptr<ProfilerPane>                                    m_profilerPane;
+    std::unique_ptr<DataBlocksPane>                                  m_dataBlocksPane;
+    std::map<std::wstring, std::unique_ptr<DebuggerPaneFrame>>       m_toolFrames;
+
+    void                 CreateToolPanes        ();
+    void                 ConfigureToolPanes     ();
+    void                 AddToolPanes           ();
+    void                 ApplyToolPanes         ();
+    DebuggerPaneFrame  * GetToolFrame           (const std::wstring & pane) const;
+    DxuiListView       * GetToolList            (const std::wstring & pane) const;
+    bool                 AddToolMenuItems       (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void                 SaveSymbolTable        (const std::string & table);
+    void                 SaveProfile            ();
+    Word                 GetCursorAddress       () const;
+    void                 ToggleBookmarkAtCursor ();
+    void                 GoToBookmark           (bool isBackward);
 
     void                           CreateBasicPanes      ();
     void                           ConfigureBasicPanes   ();

@@ -1021,7 +1021,25 @@ sessions.
 
 The panes are the disassembly, the source, the console, registers,
 breakpoints, watches, the stack, the call stack, the trace, the heat map, up to
-four memory windows, and one panel for each device the machine has.
+four memory windows, and one panel for each device the machine has. The View
+menu also opens these, which stay closed until first opened:
+
+- **Symbols**, each symbol table under a heading with its count and a check
+  box that runs `SYM<table> ON` or `OFF`, and its symbols under it. A
+  symbol's menu has **Go to** and **Remove**, and any row's has **Clear
+  table** and **Save table...**; Find searches the symbols.
+- **Bookmarks**, each bookmark's number, address and symbol, with **Go to**
+  and **Delete**. Ctrl+K, K adds or removes a bookmark on the selected
+  disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the
+  previous bookmark.
+- **Profiler**, the profile as `PROFILE` lists it, by opcode or by address,
+  read while the machine is paused; its menu starts, stops, resets and saves
+  profiling.
+- **Data ranges**, each range marked as data, with **Go to** and **Delete**.
+
+**Debug > Step filters...** lists the routines a step goes over, each a
+symbol, an address or a range as `SKIP` takes it; one is added on the last
+row and deleted with Delete or its row's menu.
 
 Under the registers, **Cycles** is the CPU's count since power-on and **Trip**
 the count since the trip count was last reset, by **Reset trip count** on
