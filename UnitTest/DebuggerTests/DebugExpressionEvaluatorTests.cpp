@@ -229,6 +229,44 @@ namespace DebuggerTests
 
 
 
+        //  A defined symbol comes before a register and a hex number, and @
+        //  and a register's name is the register in every syntax.
+        TEST_METHOD (SymbolsBeforeRegistersAndNumbers)
+        {
+            MockExpressionContext  appleWin;
+            MockExpressionContext  winDbg;
+
+
+
+            winDbg.syntax = NumberSyntax::WinDbg;
+
+            appleWin.symbols["X"]   = 0x1234;
+            appleWin.symbols["BAD"] = 0x0800;
+            winDbg.symbols["X"]     = 0x1234;
+
+            Expect      (appleWin, "X",    0x1234);
+            Expect      (appleWin, "@X",   0x01);
+            Expect      (appleWin, "@x+1", 0x02);
+            Expect      (appleWin, "BAD",  0x0800);
+            Expect      (appleWin, "$BAD", 0x0BAD);
+            Expect      (appleWin, "Y",    0x02);
+            Expect      (appleWin, "@P",   0x30);
+            Expect      (appleWin, "@S",   0xFF);
+            Expect      (appleWin, "@PC",  0x0300);
+            ExpectError (appleWin, "@Q",   "@A, @X, @Y, @P, @S and @PC");
+
+            Expect      (winDbg,   "X",    0x1234);
+            Expect      (winDbg,   "@x",   0x01);
+            Expect      (winDbg,   "a",    0x0A);
+            Expect      (winDbg,   "@a",   0x41);
+            Expect      (winDbg,   "@sp",  0xFF);
+            Expect      (winDbg,   "@s",   0xFF);
+            Expect      (winDbg,   "@fl",  0x30);
+            ExpectError (winDbg,   "@q",   "@a, @x, @y, @sp, @pc and @fl");
+        }
+
+
+
         TEST_METHOD (Errors)
         {
             MockExpressionContext context;

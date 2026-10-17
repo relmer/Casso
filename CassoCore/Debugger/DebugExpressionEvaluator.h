@@ -48,6 +48,11 @@ enum class ExpressionOperator
 //
 //  ExpressionToken
 //
+//  A Name is a bare word, read when the expression is evaluated as a symbol
+//  first, then as a register when isRegisterName is set, then as the hex
+//  number in value when isHexNumber is set. isNumberFirst puts the number
+//  ahead of the register.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ExpressionToken
@@ -57,13 +62,17 @@ struct ExpressionToken
         Number,
         Register,
         Symbol,
+        Name,
         Operator,
     };
 
-    Kind                kind  = Kind::Number;
-    int32_t             value = 0;
+    Kind                kind           = Kind::Number;
+    int32_t             value          = 0;
     std::string         name;
-    ExpressionOperator  op    = ExpressionOperator::Add;
+    ExpressionOperator  op             = ExpressionOperator::Add;
+    bool                isRegisterName = false;
+    bool                isHexNumber    = false;
+    bool                isNumberFirst  = false;
 };
 
 
@@ -151,13 +160,14 @@ private:
     static bool  TryReadOperand           (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
     static bool  TryReadOperator          (const std::string & text, size_t & pos, std::span<const OperatorSpelling> table, ExpressionOperator & op);
     static bool  TryParseNumber           (const std::string & digits, int base, int32_t & value);
-    static bool  TryReadWinDbgRegister    (const std::string & text, size_t & pos, ExpressionToken & token, std::string & error);
+    static bool  TryReadAtRegister        (const std::string & text, size_t & pos, NumberSyntax syntax, ExpressionToken & token, std::string & error);
     static bool  IsRegisterName           (const std::string & upperName);
     static bool  IsUnary                  (ExpressionOperator op);
     static int   GetPrecedence            (ExpressionOperator op);
     static void  EmitOperator             (ExpressionOperator op, Expression & expression);
     static bool  TryApplyToken            (const ExpressionToken & token, const IDebugExpressionContext & context, EvaluationMode mode, std::vector<int32_t> & values, std::string & error);
     static bool  TryResolveOperand        (const ExpressionToken & token, const IDebugExpressionContext & context, int32_t & value, std::string & error);
+    static bool  TryResolveName           (const ExpressionToken & token, const IDebugExpressionContext & context, int32_t & value);
     static bool  TryApplyUnary            (ExpressionOperator op, int32_t operand, const IDebugExpressionContext & context, int32_t & result, std::string & error);
     static bool  TryApplyBinary           (ExpressionOperator op, int32_t lhs, int32_t rhs, EvaluationMode mode, int32_t & result, std::string & error);
 };

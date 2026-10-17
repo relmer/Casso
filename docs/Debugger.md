@@ -22,7 +22,10 @@ The debugger reads each line in one of five modes.
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols. A
   bare number is hex; `$` also marks hex, and `#` or `0n` marks decimal, as in
-  `0n192`. Casso mode reads numbers the same way.
+  `0n192`. A name is a loaded symbol first, as in AppleWin, then a register,
+  then a hex number, so with Applesoft's symbols loaded `FADD` is the routine
+  and `$FADD` the number. `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` are always
+  the register. A name resolves the same way in Casso and GSSquared modes.
 - **Monitor** uses the Apple II Monitor's own syntax: `300.30F`,
   `300: A9 41`, `300L`, `300G`, `^E`. Values are plain hex digits; there are
   no expressions or symbols. Control-key commands are typed as `^` and a letter.
@@ -103,7 +106,9 @@ Each command has the effect of the AppleWin command beside it.
 | `l+s`, `l-s`, `lsa` | step by source line on, off; the line at PC | `SRC` |
 
 - A bare number is hex; `0x300` and `$300` are the same, and `0n10` is
-  decimal. A length is `l` and a count in the command's own units.
+  decimal. A loaded symbol comes before a number, and `@a`, `@x`, `@y`, `@sp`,
+  `@pc` and `@fl` are the registers. A length is `l` and a count in the
+  command's own units.
 - The prompt is `0:000>`. A stop prints AppleWin's stop line, then `r`'s.
 - Threads, modules, exceptions, the kernel, dump files, types and scripting
   (`~`, `lm`, `sxe`, `!pte`, `.dump`, `dt`, `.foreach` and the like) reply
