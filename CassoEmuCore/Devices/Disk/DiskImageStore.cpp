@@ -237,6 +237,9 @@ HRESULT DiskImageStore::MountFromBytes (
 //  many bytes arrived and which container the name promised, and the WOZ
 //  loader knows whether its header was ever there.
 //
+//  A mount that succeeds calls the bay-change sink with Inserted, as Mount
+//  does, so a controller attached by that sink reads the new image.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::MountFromBytes (
@@ -251,6 +254,46 @@ HRESULT DiskImageStore::MountFromBytes (
 
 
 
+    hr = LoadIntoBay (slot, drive, virtualPath, fmt, bytes, outDiagnosis);
+    CHR (hr);
+
+    EmitBayChange (slot, drive, BayChange::Inserted);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadIntoBay
+//
+//  Replaces a bay's image with one loaded from bytes, flushing the old one
+//  first. When the loader cannot load the bytes, the bay ends empty.
+//
+//  THE OLD IMAGE IS FREED BEFORE THE LOAD, so a bay that had a disk and ends
+//  empty calls the bay-change sink with Ejected. Without that call, a
+//  controller attached to the old image reads freed memory after a failed
+//  remount.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::LoadIntoBay (
+    int                    slot,
+    int                    drive,
+    const string        &  virtualPath,
+    DiskFormat             fmt,
+    const vector<Byte>  &  bytes,
+    MountDiagnosis      &  outDiagnosis)
+{
+    HRESULT   hr         = S_OK;
+    bool      wasMounted = false;
+
+
+
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.format       = fmt;
     outDiagnosis.fileByteSize = bytes.size();
@@ -260,7 +303,9 @@ HRESULT DiskImageStore::MountFromBytes (
     {
         Entry &   entry = GetEntry (slot, drive);
 
-        if (entry.mounted)
+        wasMounted = entry.mounted;
+
+        if (wasMounted)
         {
             hr = FlushEntry (entry, FlushMoment::Running);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -285,6 +330,11 @@ HRESULT DiskImageStore::MountFromBytes (
             entry.salvageOffered = false;
             outDiagnosis         = ClassifyLoadFailure (fmt, bytes);
             hr = E_FAIL;
+
+            if (wasMounted)
+            {
+                EmitBayChange (slot, drive, BayChange::Ejected);
+            }
         }
         else
         {
@@ -616,7 +666,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     hr = ReadImageFile (path, bytes);
     CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
-    hr = MountFromBytes (slot, drive, path, fmt, bytes, outDiagnosis);
+    hr = LoadIntoBay (slot, drive, path, fmt, bytes, outDiagnosis);
     CHR (hr);
 
     //  Recorded AFTER the read and only on success, matching the command

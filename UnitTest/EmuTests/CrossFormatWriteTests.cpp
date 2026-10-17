@@ -812,7 +812,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"the mounted image must be present");
-        machine.GetRefs().diskController->SetExternalDisk (0, img);
 
         machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
         machine.GetCpu()->SetPC (kBootRomEntry);

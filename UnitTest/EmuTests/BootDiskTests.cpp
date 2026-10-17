@@ -481,7 +481,6 @@ public:
 
             img = machine.GetDiskStore().GetImage (6, 0);
             Assert::IsNotNull (img);
-            machine.GetRefs().diskController->SetExternalDisk (0, img);
 
             // The cheap questions, asked of the container the drive is
             // actually holding and before a processor is involved. The demo's

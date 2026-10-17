@@ -560,10 +560,8 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
     //  Re-point the controller at what the store now holds -- the new image on
     //  an insert or a swap, null on an eject, which restores the internal disk.
-    if (controller != nullptr)
-    {
-        controller->SetExternalDisk (drive, image);
-    }
+    //  This sink replaces MachineHost's, so it makes the same call.
+    m_machine.ConnectDiskToController (slot, drive);
 
     //  Re-assert the effective write protection on a disk that just arrived:
     //  the user's per-drive preference plus the backing file's read-only state.

@@ -119,15 +119,69 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
 //
 //  StripComments
 //
+//  A ';' inside a quoted string or a character literal is data, so the
+//  comment starts at the first one outside them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string Parser::StripComments (const std::string & line)
 {
-    size_t  pos = line.find (';');
+    size_t  pos = FindUnquoted (line, ';');
 
 
 
     return (pos == std::string::npos) ? line : line.substr (0, pos);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindUnquoted
+//
+//  The first `target` outside a double-quoted string or a 'c' character
+//  literal, or npos. A backslash inside a string escapes the next character,
+//  so `\"` does not end the string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t Parser::FindUnquoted (const std::string & text, char target)
+{
+    size_t  found    = std::string::npos;
+    size_t  i        = 0;
+    bool    inString = false;
+
+
+
+    for (i = 0; i < text.size() && found == std::string::npos; i++)
+    {
+        char  c = text[i];
+
+        if (inString && c == '\\')
+        {
+            i++;
+        }
+        else if (c == '"')
+        {
+            inString = !inString;
+        }
+        else if (inString)
+        {
+            continue;
+        }
+        else if (c == '\'' && i + 2 < text.size() && text[i + 2] == '\'')
+        {
+            i += 2;
+        }
+        else if (c == target)
+        {
+            found = i;
+        }
+    }
+
+    return found;
 }
 
 

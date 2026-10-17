@@ -165,7 +165,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"mounted image must be retrievable");
-        machine.GetRefs().diskController->SetExternalDisk (0, img);   // drive 1 = internal
 
         // Cold-boot: memory test (~14M cycles) then the IWM boot read. 20M is
         // ample -- ColdBootsToCheckDiskDrive reaches the post-read state in 15M.
@@ -210,7 +209,6 @@ public:
         AssertSucceeded (hrMount, L"external MountFromBytes must succeed");
         img = machine.GetDiskStore().GetImage (6, 1);
         Assert::IsNotNull (img, L"external image must be retrievable");
-        machine.GetRefs().diskController->SetExternalDisk (1, img);   // drive 2 = external
 
         // Pump the engine via Tick(N) rather than CPU cycles (the read path's
         // catch-up needs a live, advancing CPU counter we are not providing).

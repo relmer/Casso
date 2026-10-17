@@ -707,9 +707,9 @@ int Disk2Controller::GetPull (uint8_t phases, int quarterTrack)
 //  UpdateEngineSelection
 //
 //  Drive select changes which engine sees motor-on. The non-selected
-//  engine freezes; the selected engine takes the controller's motor state.
-//  Each engine's track is its own drive's head, which only that drive's
-//  steps move.
+//  engine freezes; the selected engine is set to the controller's motor
+//  state and to its own drive's head position. Each Disk II drive has its
+//  own stepper, so selecting a drive moves neither head.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,6 +721,7 @@ void Disk2Controller::UpdateEngineSelection()
 
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack[m_activeDrive]);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
     UpdateEngineWriteMode();
 }

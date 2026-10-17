@@ -388,6 +388,11 @@ public:
     static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
     static constexpr uint16_t  kStateVersion       = 2;
     static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
+    //  Points the slot 6 controller's drive at the image the disk store has
+    //  in that bay, or at the controller's own empty disk when the bay is
+    //  empty. The store's default bay-change sink; a shell that installs its
+    //  own sink calls this from it.
+    void  ConnectDiskToController (int slot, int drive);
 
     //  Stops the recorder at the current cycle; the tape stays inserted. Reset,
     //  power cycle and a machine switch all do this.

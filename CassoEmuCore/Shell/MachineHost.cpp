@@ -48,6 +48,13 @@ MachineHost::MachineHost() :
     // a boundary in reverse execution's history.
     m_diskStore->SetPositionSource (&m_position);
     m_diskStore->SetMediaChangeListener ([this] () { OnMediaChanged(); });
+
+    //  The store frees an image on an eject or a remount, so the controller
+    //  is re-pointed on every bay change rather than by each caller.
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    {
+        ConnectDiskToController (slot, drive);
+    });
 }
 
 
@@ -2062,6 +2069,34 @@ void MachineHost::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
         video.rows.push_back (MakeTextRow ("Cycle in frame", std::format ("{}", m_videoTiming->GetCycleInFrame())));
         snapshot.groups.push_back (std::move (video));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ConnectDiskToController
+//
+//  Points the slot 6 controller's drive at the store's image for that bay. A
+//  null image, on an eject, selects the controller's own empty disk. Only
+//  slot 6 has a controller in the machine references.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ConnectDiskToController (int slot, int drive)
+{
+    Disk2Controller  *  controller = m_refs.diskController;
+
+
+
+    if (slot != 6 || controller == nullptr)
+    {
+        return;
+    }
+
+    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
 }
 
 
