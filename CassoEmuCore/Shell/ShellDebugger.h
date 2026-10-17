@@ -458,6 +458,9 @@ private:
     void            OfferProjectMerge   (const DebugProject & old);
     static bool     HasMergeItems       (const DebugProject & project);
     void            RunMergeLines       ();
+
+    static std::optional<int>  GetMergedId (const Reply & reply);
+
     void            RunProjectRequest   (const std::string & text, Reply & reply);
     void            CaptureProject      (DebugProject & project);
     void            AddConsoleLines     (const std::vector<std::string> & lines);

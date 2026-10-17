@@ -7,6 +7,8 @@
 #include "Core/TextEncoding.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/WatchHandlers.h"
 #include "Shell/CpuManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/IDebuggerHost.h"
@@ -369,26 +371,32 @@ void ShellDebugger::RunStartupCommands()
 //
 //  ShellDebugger::OfferProjectMerge
 //
-//  The lines that add the old project's items, without the ones that
-//  clear, saved for PROJECT MERGE; the prompt is posted to the UI thread.
+//  The old project's breakpoint, watch, zero-page pointer and bookmark
+//  lines, each section after the line that clears it, saved for PROJECT
+//  MERGE; its settings, after SKIP CLEAR, are not offered. The prompt is
+//  posted to the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OfferProjectMerge (const DebugProject & old)
 {
     std::vector<std::string>  lines;
+    bool                      hasItem = false;
 
 
 
     for (const std::string & line : old.engineScript)
     {
-        if (std::ranges::find (s_kClearLines, line) == std::end (s_kClearLines))
+        if (line == "SKIP CLEAR")
         {
-            lines.push_back (line);
+            break;
         }
+
+        lines.push_back (line);
+        hasItem = hasItem || std::ranges::find (s_kClearLines, line) == std::end (s_kClearLines);
     }
 
-    if (lines.empty())
+    if (!hasItem)
     {
         return;
     }
@@ -489,14 +497,23 @@ void ShellDebugger::OnConfirmProjectMerge()
 //
 //  ShellDebugger::RunMergeLines
 //
-//  CPU thread: the old project's items added to the open one's.
+//  CPU thread: the old project's items added to the open one's. An item the
+//  open project has, by the same line, is not added again. A disable or
+//  flag line refers to the item by its place in the old project's list, so it
+//  is run for the id the item was given here, and not at all for an item
+//  that was not added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::RunMergeLines()
 {
-    std::vector<std::string>  merge;
-    std::vector<std::string>  lines;
+    static constexpr std::string_view  kFlagVerbs[] = { "BPD ", "BPCHANGE ", "WD ", "ZPD " };
+    std::vector<std::string>           merge;
+    std::vector<std::string>           lines;
+    std::set<std::string>              present;
+    std::map<size_t, int>              mergedIds;
+    std::string                        section;
+    size_t                             place     = 0;
 
 
 
@@ -510,24 +527,111 @@ void ShellDebugger::RunMergeLines()
 
     {
         std::lock_guard<std::mutex>  viewLock (m_debugViewStateLock);
+        DebugSession               & session = m_debugController->GetSession();
+        std::string                  script  = BreakpointHandlers::MakeScript (session) +
+                                               WatchHandlers::MakeScript (session, WatchListKind::Watch) +
+                                               WatchHandlers::MakeScript (session, WatchListKind::ZeroPage) +
+                                               WatchHandlers::MakeScript (session, WatchListKind::Bookmark);
+        std::istringstream           in (script);
+        std::string                  each;
 
 
+
+        while (std::getline (in, each))
+        {
+            present.insert (each);
+        }
 
         for (const std::string & line : merge)
         {
-            Reply  reply = m_debugController->GetSession().ExecuteLine (line, CommandMode::AppleWin);
+            auto         verb = std::ranges::find_if (kFlagVerbs, [&line] (std::string_view v) { return line.starts_with (v); });
+            std::string  run  = line;
+            Reply        reply;
 
 
+
+            if (std::ranges::find (s_kClearLines, line) != std::end (s_kClearLines))
+            {
+                section = line;
+                place   = 0;
+                mergedIds.clear();
+                continue;
+            }
+
+            //  A zero-page pointer's slot is its id in both projects.
+            if (verb != std::end (kFlagVerbs) && section != "ZPC *")
+            {
+                size_t  numberAt = verb->size();
+                size_t  numberTo = line.find (' ', numberAt);
+                size_t  index    = (size_t) std::strtoul (line.c_str() + numberAt, nullptr, 10);
+
+
+
+                if (!mergedIds.contains (index))
+                {
+                    continue;
+                }
+
+                run = std::format ("{}{}{}", *verb, mergedIds[index], numberTo == std::string::npos ? std::string() : line.substr (numberTo));
+            }
+            else if (verb == std::end (kFlagVerbs) && line != "BRKUNINIT ON" && present.contains (line))
+            {
+                place++;
+                continue;
+            }
+
+            reply = session.ExecuteLine (run, CommandMode::AppleWin);
 
             if (reply.status != CommandStatus::Ok)
             {
                 lines.push_back ("Not added: " + line);
+            }
+
+            if (verb == std::end (kFlagVerbs) && line != "BRKUNINIT ON")
+            {
+                std::optional<int>  id = (reply.status == CommandStatus::Ok) ? GetMergedId (reply) : std::nullopt;
+
+
+
+                if (id.has_value())
+                {
+                    mergedIds[place] = *id;
+                }
+
+                place++;
             }
         }
     }
 
     AddConsoleLines (lines);
     m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetMergedId
+//
+//  The id a breakpoint, watch or bookmark line was given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> ShellDebugger::GetMergedId (const Reply & reply)
+{
+    if (const BreakpointSetData * set = std::get_if<BreakpointSetData> (&reply.data))
+    {
+        return set->breakpoint.id;
+    }
+
+    if (const WatchListData * list = std::get_if<WatchListData> (&reply.data); list != nullptr && list->entries.size() == 1)
+    {
+        return list->entries.front().id;
+    }
+
+    return std::nullopt;
 }
 
 

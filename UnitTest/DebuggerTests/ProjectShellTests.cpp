@@ -350,6 +350,57 @@ namespace ProjectShellTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  MergeSkipsAnItemTheProjectHas
+        //
+        //  A breakpoint in both projects is listed once after the merge, and
+        //  a disabled one merged is disabled under the id it was given; the
+        //  machine project's mode is a setting, and is not merged.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (MergeSkipsAnItemTheProjectHas)
+        {
+            ProjectRig                  rig;
+            Reply                       reply;
+            const BreakpointListData  * list  = nullptr;
+
+
+
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("BP 500");
+            rig.Detach();
+
+            rig.Attach();
+            rig.Run ("BPC *");
+            rig.Run ("BP 500");
+            rig.Run ("BP 300");
+            rig.Run ("BP 400");
+            rig.Run ("BPD 2");
+            rig.Run ("MODE CASSO");
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("MODE APPLEWIN");
+            rig.Run ("PROJECT MERGE");
+
+            Assert::IsTrue (rig.GetBreakpointAddresses() == std::vector<Word> { 0x0500, 0x0300, 0x0400 }, L"$0500 is not added twice");
+
+            reply = rig.debugger->GetSession().ExecuteLine ("BPL", CommandMode::AppleWin);
+            list  = std::get_if<BreakpointListData> (&reply.data);
+
+            Assert::IsNotNull (list);
+            Assert::IsTrue    (list->breakpoints[0].enabled && list->breakpoints[1].enabled, L"the BPD of the machine project's third is not run on the binary's");
+            Assert::IsFalse   (list->breakpoints[2].enabled, L"the merged $0400 is disabled");
+            Assert::IsTrue    (rig.debugger->GetSession().GetMode() == CommandMode::AppleWin, L"the machine project's mode is not merged");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  ALoadTheUserMakesOffersTheItems
         //
         ////////////////////////////////////////////////////////////////////////////////
