@@ -220,7 +220,7 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual ((size_t) 2, roots.size(), L"Casso and This PC; the bin needs all folders shown");
+        Assert::AreEqual ((size_t) 3, roots.size(), L"Casso, CassoLink and This PC; the bin only with all folders on");
         Assert::IsFalse  (roots[0].expanded);
         Assert::IsFalse  (roots[0].childrenLoaded);
     }
@@ -495,14 +495,14 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"This PC", L"Network" }),
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"This PC", L"Network" }),
                         L"As File Explorer's pane: libraries hidden there, and the bin only with all folders shown");
-        Assert::IsTrue (roots[3].dividerAbove, L"A line above the pinned folders");
-        Assert::IsTrue (roots[4].dividerAbove, L"and one below them");
-        Assert::IsTrue (roots[4].id == TreeModel::kThisPcRootId, L"Casso's own This PC, with its drives");
+        Assert::IsTrue (roots[4].dividerAbove, L"A line above the pinned folders");
+        Assert::IsTrue (roots[5].dividerAbove, L"and one below them");
+        Assert::IsTrue (roots[5].id == TreeModel::kThisPcRootId, L"Casso's own This PC, with its drives");
         Assert::IsTrue (host.browser.IsPinnedToQuickAccess (pin.path), L"a pinned folder offers Unpin");
-        Assert::IsTrue (roots[1].childrenLoaded, L"Home has no folders under it");
-        Assert::IsFalse (roots[5].childrenLoaded, L"Network does");
+        Assert::IsTrue (roots[2].childrenLoaded, L"Home has no folders under it");
+        Assert::IsFalse (roots[6].childrenLoaded, L"Network does");
 
         //  The pane's own menu turns each root on and off, apart from File
         //  Explorer's choice once set.
@@ -518,8 +518,8 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"Home", L"OneDrive", L"Disks", L"Libraries" }));
-        Assert::IsTrue (roots[4].dividerAbove, L"The line moves to the first root left");
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"Libraries" }));
+        Assert::IsTrue (roots[5].dividerAbove, L"The line moves to the first root left");
     }
 
 
@@ -556,9 +556,9 @@ public:
         host.browser.GetTreeModel().SetNavPaneOptions (options);
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual ((size_t) 2, roots.size());
-        Assert::AreEqual (std::wstring (TreeModel::kDesktopRootId), roots[1].id);
-        Assert::AreEqual (std::wstring (L"Desktop"), roots[1].label);
+        Assert::AreEqual ((size_t) 3, roots.size());
+        Assert::AreEqual (std::wstring (TreeModel::kDesktopRootId), roots[2].id);
+        Assert::AreEqual (std::wstring (L"Desktop"), roots[2].label);
 
         children = host.browser.GetTreeChildren (TreeModel::kDesktopRootId);
 

@@ -277,6 +277,16 @@ public:
     //  folder; empty otherwise.
     void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
 
+    //  The selected CassoLink items written to their files, so they open and
+    //  drag as files; false when any could not be written.
+    bool  PrepareCassoLinkItems ();
+
+    //  The paths of the selection when every row is a CassoLink item.
+    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const;
+
+    //  CassoLink's help, as the What's CassoLink item has it.
+    static const wchar_t *  GetCassoLinkHelp ();
+
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
 
@@ -431,6 +441,9 @@ private:
     HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
     HRESULT  LoadAppleDrive (const Location & location);
     void     PreviewAppleEntry (const std::string & entryPath, const FileEntry & entry);
+    bool     PreviewAppleDrive (const CatalogRow & row);
+    void     PreviewCassoLinkItem (const CatalogRow & row);
+    void     AddCassoLinkItems ();
     bool     CanListImage   (const std::wstring & imagePath);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);

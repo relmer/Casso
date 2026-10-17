@@ -89,22 +89,23 @@ public:
 
         //  Explorer's pane shows the bin only with all folders shown.
         model.GetRoots (roots);
-        Assert::AreEqual ((size_t) 2, roots.size());
+        Assert::AreEqual ((size_t) 3, roots.size());
+        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::CassoLinkRoot, L"CassoLink, with no machines yet");
 
         options.showAllFolders = true;
         model.SetNavPaneOptions (options);
         model.GetRoots (roots);
 
-        Assert::AreEqual ((size_t) 3, roots.size());
+        Assert::AreEqual ((size_t) 4, roots.size());
         Assert::IsTrue   (roots[0].kind == TreeNode::Kind::CassoRoot);
-        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::ThisPcRoot);
-        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::RecycleBinRoot);
+        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::ThisPcRoot);
+        Assert::IsTrue   (roots[3].kind == TreeNode::Kind::RecycleBinRoot);
         Assert::AreEqual (std::wstring (TreeModel::kCassoRootId),  roots[0].id);
-        Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), roots[1].id);
-        Assert::IsTrue   (roots[2].location == Location::MakeRecycleBin());
-        Assert::IsFalse  (roots[2].canExpand, L"The Recycle Bin has no folders under it in the tree");
+        Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), roots[2].id);
+        Assert::IsTrue   (roots[3].location == Location::MakeRecycleBin());
+        Assert::IsFalse  (roots[3].canExpand, L"The Recycle Bin has no folders under it in the tree");
 
-        AssertSucceeded (model.GetChildren (roots[2].id, binChildren));
+        AssertSucceeded (model.GetChildren (roots[3].id, binChildren));
         Assert::IsTrue  (binChildren.empty());
     }
 
@@ -390,7 +391,7 @@ public:
 
 
 
-    TEST_METHOD (Links_FollowCassoAndThisPc_AsRoots)
+    TEST_METHOD (Links_FollowThisPc_AsRoots_AfterCassoLink)
     {
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
@@ -399,19 +400,34 @@ public:
         model.SetLinks (TwoLinks());
         model.GetRoots (roots);
 
-        Assert::AreEqual ((size_t) 6, roots.size());
-        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::AppleLink);
-        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), roots[1].label);
-        Assert::AreEqual (std::wstring (L"top:link:Apple II (COM3)"), roots[1].id);
-        Assert::IsTrue   (roots[1].location == Location::MakeRoot (L"link:Apple II (COM3)"), L"both copies open the same link");
-        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[2].label);
-        Assert::IsTrue   (roots[3].kind == TreeNode::Kind::ThisPcRoot);
-        Assert::IsTrue   (roots[3].dividerAbove);
-        Assert::IsTrue   (roots[4].kind == TreeNode::Kind::AppleLink);
-        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), roots[4].id);
-        Assert::IsTrue   (roots[4].location == Location::MakeRoot (L"link:Apple II (COM3)"));
-        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[5].label);
-        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), TreeModel::GetRootLabel (roots[4].id));
+        Assert::AreEqual ((size_t) 5, roots.size());
+        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::CassoLinkRoot);
+        Assert::AreEqual (std::wstring (L"CassoLink"), roots[1].label);
+        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::ThisPcRoot);
+        Assert::IsTrue   (roots[2].dividerAbove);
+        Assert::IsTrue   (roots[3].kind == TreeNode::Kind::AppleLink);
+        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), roots[3].id);
+        Assert::IsTrue   (roots[3].location == Location::MakeRoot (L"link:Apple II (COM3)"));
+        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[4].label);
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), TreeModel::GetRootLabel (roots[3].id));
+    }
+
+
+
+    TEST_METHOD (CassoLink_ListsEveryLink_UnderIdsOfItsOwn)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  links;
+
+        model.SetLinks (TwoLinks());
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, links));
+
+        Assert::AreEqual ((size_t) 2, links.size());
+        Assert::IsTrue   (links[0].kind == TreeNode::Kind::AppleLink);
+        Assert::AreEqual (std::wstring (L"top:link:Apple II (COM3)"), links[0].id);
+        Assert::IsTrue   (links[0].location == Location::MakeRoot (L"link:Apple II (COM3)"), L"both copies open the same link");
+        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), links[1].label);
     }
 
 

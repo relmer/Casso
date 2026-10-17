@@ -95,6 +95,13 @@ struct CatalogRow
     //  Where the row came from in the listing it was built from, so a sort
     //  can be undone by the consumer and a selection can find its entry.
     size_t        sourceIndex  = 0;
+
+    //  An item CassoLink's root lists that is not on the disk until it is
+    //  opened or dragged: its boot disk, or its help. hostPath is where it
+    //  is written.
+    enum class CassoLinkItem { None, BootDisk, Help };
+
+    CassoLinkItem  cassoLinkItem = CassoLinkItem::None;
 };
 
 

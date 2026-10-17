@@ -23,7 +23,7 @@
 
 struct TreeNode
 {
-    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive };
+    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive, CassoLinkRoot };
 
     std::wstring  id;
     Kind          kind         = Kind::HostFolder;
@@ -205,7 +205,11 @@ public:
     //  An Apple link's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
     static constexpr const wchar_t *  kLinkRootTag   = L"link:";
 
-    //  The second copy of a link's root and its drives, listed after Casso:
+    //  CassoLink's root, after Casso: every linked Apple, with CassoLink.dsk
+    //  and its help beside them in the list.
+    static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
+
+    //  The second copy of a link's root and its drives, under CassoLink:
     //  top:link:<name>, at the same location as the first.
     static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
 

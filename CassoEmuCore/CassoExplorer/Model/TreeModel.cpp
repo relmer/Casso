@@ -393,7 +393,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
     outNodes.clear();
     outNodes.push_back (casso);
-    AppendLinkRoots (outNodes, true);
+    outNodes.push_back (MakeRootNode (kCassoLinkRootId));
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
     //  everything else under it.
@@ -418,9 +418,9 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (bin);
         }
 
-        if (outNodes.size() > 1 + m_links.size())
+        if (outNodes.size() > 2)
         {
-            outNodes[1 + m_links.size()].dividerAbove = true;
+            outNodes[2].dividerAbove = true;
         }
 
         return;
@@ -506,6 +506,11 @@ TreeNode TreeModel::MakeRootNode (const std::wstring & id) const
     {
         node.kind     = TreeNode::Kind::ThisPcRoot;
         node.location = Location::MakeRoot (kThisPcRootId);
+    }
+    else if (id == kCassoLinkRootId)
+    {
+        node.kind     = TreeNode::Kind::CassoLinkRoot;
+        node.location = Location::MakeRoot (kCassoLinkRootId);
     }
     else if (id == Location::kRecycleBinId)
     {
@@ -775,6 +780,11 @@ std::wstring TreeModel::GetRootLabel (const std::wstring & id)
         return L"This PC";
     }
 
+    if (id == kCassoLinkRootId)
+    {
+        return L"CassoLink";
+    }
+
     if (id == Location::kRecycleBinId)
     {
         return L"Recycle Bin";
@@ -805,6 +815,7 @@ void TreeModel::SetLinks (std::vector<LinkTreeEntry> links)
         m_children.erase (MakeLinkId (link.name));
     }
 
+    m_children.erase (kCassoLinkRootId);
     m_links = std::move (links);
 }
 
@@ -1675,6 +1686,10 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kThisPcRootId)
     {
         hr = ListRoot (false, outNodes);
+    }
+    else if (id == kCassoLinkRootId)
+    {
+        AppendLinkRoots (outNodes, true);
     }
     else if (id.starts_with (kLinkRootTag))
     {

@@ -684,11 +684,12 @@ void CassoExplorerWindow::ConfigureWidgets()
         }
         else
         {
-            //  Any other file on the disk opens as Explorer opens it.
+            //  Any other file on the disk opens as Explorer opens it, and a
+            //  CassoLink item from the file it is written to.
             std::wstring  path;
             HRESULT       hr = S_OK;
 
-            if (m_browser.TryGetRowPath (row, path))
+            if (m_browser.PrepareCassoLinkItems() && m_browser.TryGetRowPath (row, path))
             {
                 hr = m_shellVerbs.Open (GetHwnd(), path);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -5968,6 +5969,10 @@ void CassoExplorerWindow::Dispatch (int id)
             ShowAbout();
             break;
 
+        case CassoExplorerCommands::kAddLink:
+            EditLink (std::string());
+            break;
+
         case CassoExplorerCommands::kNewTab:
             m_browser.NewTab();
             refill = true;
@@ -7567,6 +7572,12 @@ bool CassoExplorerWindow::TryGetSelectedShellIds (std::vector<std::wstring> & ou
     {
         m_browser.GetSelectedHostPaths (outIds);
         return !outIds.empty();
+    }
+
+    //  CassoLink's items drag as the files they are written to.
+    if (m_browser.TryGetSelectedCassoLinkPaths (outIds))
+    {
+        return true;
     }
 
     if (m_browser.GetLocation().kind != Location::Kind::ShellFolder)
@@ -9998,7 +10009,12 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
             }
 
             AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
-            AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
+            //  A Wi-Fi modem's boot disk dials this PC, so it is saved from
+            //  its machine; CassoLink.dsk serves every other link.
+            if (IsWifiModemLink (name))
+            {
+                AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
+            }
 
             if (saved)
             {
@@ -10449,6 +10465,28 @@ bool CassoExplorerWindow::IsSerialLink (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::IsWifiModemLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsWifiModemLink (const std::string & name) const
+{
+    const std::vector<AppleLinkSettings> &  links = m_context.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const AppleLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::WifiModem;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ApplyLinks
 //
 //  The preferences' links to the connections and the tree, and saved.
@@ -10854,6 +10892,11 @@ void CassoExplorerWindow::OnLinkChanged()
                 m_tree->ReplaceChildren (node, m_browser.GetTreeChildren (node));
             }
         }
+    }
+
+    if (m_tree->FindRowById (TreeModel::kCassoLinkRootId) >= 0)
+    {
+        m_tree->ReplaceChildren (TreeModel::kCassoLinkRootId, m_browser.GetTreeChildren (TreeModel::kCassoLinkRootId));
     }
 
     if (showing)
@@ -11419,11 +11462,12 @@ void CassoExplorerWindow::OpenSelectedEntries()
 
 void CassoExplorerWindow::OpenEachSelected()
 {
-    HRESULT                    hr = S_OK;
+    HRESULT                    hr      = S_OK;
     std::vector<Location>      places;
     std::vector<std::wstring>  files;
     Location                   place;
     std::wstring               path;
+    bool                       written = m_browser.PrepareCassoLinkItems();
 
 
 
@@ -11433,7 +11477,7 @@ void CassoExplorerWindow::OpenEachSelected()
         {
             places.push_back (place);
         }
-        else if (!m_browser.IsImageLocation() && m_browser.TryGetRowPath (row, path))
+        else if (written && !m_browser.IsImageLocation() && m_browser.TryGetRowPath (row, path))
         {
             files.push_back (path);
         }
@@ -13672,7 +13716,7 @@ void CassoExplorerWindow::FillTabs()
         switch (location.kind)
         {
             case Location::Kind::None:          tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
-            case Location::Kind::Root:          tab.icon = m_shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::Root:          tab.icon = m_shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : (location.path == TreeModel::kCassoLinkRootId || location.path.starts_with (TreeModel::kLinkRootTag)) ? IShellIcons::Kind::AppleMachine : IShellIcons::Kind::ThisPc); break;
             case Location::Kind::RecycleBin:    tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
             case Location::Kind::DiskDirectory: tab.icon = m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
             case Location::Kind::DiskImage:     tab.icon = m_shellIcons.GetForPath (location.path, false);     break;
@@ -13755,6 +13799,11 @@ void CassoExplorerWindow::BeginDragOut()
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_list->OnMouse (release);
+
+    if (!m_browser.PrepareCassoLinkItems())
+    {
+        return;
+    }
 
     //  Files on the disk, and items the shell lists, drag as File Explorer's
     //  do: the shell's own data object, with its thumbnails, its drop words,

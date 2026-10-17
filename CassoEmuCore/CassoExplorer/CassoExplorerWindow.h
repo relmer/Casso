@@ -719,6 +719,7 @@ private:
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    bool  IsWifiModemLink        (const std::string & name) const;
     void  ReleaseIdleLinks    ();
     void  ApplyLinks          ();
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
