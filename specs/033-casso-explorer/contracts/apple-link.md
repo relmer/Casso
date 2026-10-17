@@ -74,7 +74,7 @@ client sends first; the host's reply is the next operation.
 
 | Command | Byte | From | Payload |
 |---|---|---|---|
-| Ready | $D2 `'R'` | client | program version (2), shim version (1), drive map (1: bit per slot 6 drive 1/2, //c internal and external) |
+| Ready | $D2 `'R'` | client | program version (2), shim version (1), drive map (1: bit per slot 6 drive 1/2, //c internal and external); the program adds the ROM's identification bytes $FBB3, $FBC0, $FBBF and $FB1E, and 1 for a IIgs (5), from which the host has the model |
 | Idle | $C9 `'I'` | host | none; client sends Ready again after 100 ms |
 | Sector data | $CA `'J'` | either | track (1), sector (1), 256 bytes unencoded, CRC-16/XMODEM of the 256 bytes (2, LSB first) |
 | Load program | $CF `'O'` | host | page count (1); then Sector data packets, one per page from $0800, with the page number in the track and sector fields, each followed by the shim's bare ACK or NAK byte; the shim jumps to $0800 after the last. Sent to a running program, it returns that program to the shim, whose Ready follows |
@@ -97,8 +97,132 @@ differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
 The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02, the speed's text at $3D06, and a Wi-Fi modem's dial command, ending in a zero byte, at $3D0C (R24); the program
-runs from $0800 and uses $4000 to $68FF for buffers, with no DOS or ProDOS
+runs from $0800 and uses $4000 to $92FF for buffers, with no DOS or ProDOS
 in memory.
+
+## Sequences
+
+Each diagram has the Apple on the left and the PC on the right, with time
+running down. The Apple always speaks first; every reply from the PC is the
+answer to the Apple's last packet.
+
+### Connecting, and loading the program
+
+The shim's Ready has program version 0, so the PC sends the program a page
+at a time; a page whose CRC fails is sent again after a NAK. The program's
+own Ready has its version, and the PC replies with Idle.
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (shim, then program)
+    participant P as PC (AppleLinkHost)
+    A->>P: Ready (version 0, shim version, drives)
+    P->>A: Load program (page count)
+    loop each page from $0800
+        P->>A: Sector data (page, 256 bytes, CRC)
+        A-->>P: ACK, or NAK for the page again
+    end
+    Note over A: jumps to $0800, reads the ROM's ID bytes
+    A->>P: Ready (program version, drives, ROM ID)
+    P->>A: Set speed (6551 control byte)
+    A->>P: Acknowledge (ACK), at the old speed
+    Note over A,P: both ends switch speed
+    A->>P: Ready
+    P->>A: Idle
+```
+
+### Idle, and a dropped Apple
+
+While nothing is queued the Apple sends Ready about every 100 ms, and each
+Idle clears its label row. Three seconds with no byte, or DSR dropping on
+a serial cable wired to the Apple's DTR, is the Apple gone: a reset, a
+power-off or a pulled cable. The PC closes the line and opens it again
+every five seconds.
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (program)
+    participant P as PC
+    loop while nothing is queued
+        A->>P: Ready
+        P->>A: Idle
+        Note over A: waits 100 ms, clears the label row
+    end
+    Note over A: reset, or turned off
+    Note over P: 3 s with no byte, or DSR off
+    Note over P: Disconnected; the line opens again after 5 s
+```
+
+### Reading a track
+
+The label goes first, then one request per track. The Apple reads the
+requested sectors as they pass under the head, then sends each in the
+order requested, and ends with Status.
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (program)
+    participant P as PC
+    A->>P: Ready
+    P->>A: Label ("SENDING D1 (/GAMES) TO PC")
+    A->>P: Ready
+    P->>A: Read sectors (drive, track, count, sectors, progress)
+    Note over A: seeks, reads the sectors as they pass
+    loop each requested sector
+        A->>P: Sector data (track, sector, 256 bytes, CRC)
+    end
+    A->>P: Status (read, drive, track, sectors done, error)
+    A->>P: Ready
+    P->>A: Read sectors for the next track, or Idle
+```
+
+### Writing a whole track
+
+Each sector is requested by an Acknowledge with its number, and encoded
+as it arrives; the track is then written in one revolution and read back.
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (program)
+    participant P as PC
+    A->>P: Ready
+    P->>A: Write track (drive, track, volume, progress)
+    loop sectors 0 to 15
+        A->>P: Acknowledge (ACK, sector, track)
+        P->>A: Sector data (track, sector, 256 bytes, CRC)
+        Note over A: a bad CRC is requested again with NAK
+    end
+    Note over A: formats the track with the data, reads it back, compares
+    A->>P: Status (write, drive, track, 16, error)
+```
+
+### Canceling
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (program)
+    participant P as PC
+    P->>A: Read sectors
+    A->>P: Sector data
+    P->>A: Cancel (any byte, during a read)
+    Note over A: stops where it is
+    A->>P: Ready
+```
+
+### ADTPro's client
+
+ADTPro's client also speaks first, with one of its own commands rather than
+Ready; the PC serves it in ADTPro's protocol until the line drops, and
+then waits to see which client is there next.
+
+```mermaid
+sequenceDiagram
+    participant A as Apple (ADTPro)
+    participant P as PC
+    A->>P: an ADTPro command (DIR, CD, GET, PUT, ...)
+    Note over P: ADTPro mode until the line drops
+    P->>A: ADTPro's reply
+```
 
 ## Bootstrap (R23)
 

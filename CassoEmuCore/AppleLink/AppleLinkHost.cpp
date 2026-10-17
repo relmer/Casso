@@ -1370,16 +1370,13 @@ Error:
 HRESULT AppleLinkHost::ServeReady (const AppleLinkPacket & packet)
 {
     HRESULT  hr    = S_OK;
-    bool     whole = packet.payload.size() == 4;
+    bool     whole = packet.payload.size() == 4 || packet.payload.size() == 9;
 
 
 
     CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
-    m_client.shimVersion    = packet.payload[2];
-    m_client.driveMap       = packet.payload[3];
-    m_hasClient             = true;
+    ReadClient (packet);
 
     if (m_client.programVersion == LinkProgram::kProgramVersion)
     {
@@ -1394,6 +1391,33 @@ HRESULT AppleLinkHost::ServeReady (const AppleLinkPacket & packet)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ReadClient
+//
+//  A Ready's versions and drives, and the program's ROM identification;
+//  the payload is 4 or 9 bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleLinkHost::ReadClient (const AppleLinkPacket & packet)
+{
+    m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
+    m_client.shimVersion    = packet.payload[2];
+    m_client.driveMap       = packet.payload[3];
+    m_client.hasRomId       = packet.payload.size() == 9;
+    m_hasClient             = true;
+
+    if (m_client.hasRomId)
+    {
+        std::copy_n (packet.payload.begin() + 4, m_client.romId.size(), m_client.romId.begin());
+    }
 }
 
 
@@ -1441,14 +1465,11 @@ HRESULT AppleLinkHost::AwaitReady()
             continue;
         }
 
-        current = packet.payload.size() == 4 && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
+        current = (packet.payload.size() == 4 || packet.payload.size() == 9) && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
 
         if (current)
         {
-            m_client.programVersion = LinkProgram::kProgramVersion;
-            m_client.shimVersion    = packet.payload[2];
-            m_client.driveMap       = packet.payload[3];
-            m_hasClient             = true;
+            ReadClient (packet);
         }
         else
         {
@@ -1644,4 +1665,61 @@ HRESULT AppleLinkHost::LoadProgram()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkClient::GetModelName
+//
+//  From the identification bytes Apple's technical notes list for each
+//  model.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleLinkClient::GetModelName() const
+{
+    Byte  family  = romId[0];
+    Byte  version = romId[1];
+    Byte  release = romId[2];
+
+
+
+    if (!hasRomId)
+    {
+        return std::wstring();
+    }
+
+    if (family == 0x38)
+    {
+        return (romId[3] == 0xAD) ? L"Apple ][" : L"Apple ][+";
+    }
+
+    if (family != 0x06)
+    {
+        return L"Apple II";
+    }
+
+    if (version == 0xEA)
+    {
+        return L"Apple //e";
+    }
+
+    if (version == 0xE0)
+    {
+        return (romId[4] != 0) ? L"Apple IIgs" : L"Apple //e enhanced";
+    }
+
+    switch (release)
+    {
+        case 0xFF:  return L"Apple //c";
+        case 0x00:  return L"Apple //c (ROM 0)";
+        case 0x03:  return L"Apple //c (ROM 3)";
+        case 0x04:  return L"Apple //c (ROM 4)";
+        case 0x05:  return L"Apple //c Plus";
+        default:    return L"Apple //c";
+    }
 }

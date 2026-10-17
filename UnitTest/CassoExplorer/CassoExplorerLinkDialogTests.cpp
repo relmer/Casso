@@ -23,8 +23,8 @@ public:
     TEST_METHOD (Name_MustBeNewAndUsable)
     {
         Assert::IsTrue  (CassoExplorerLinkChoices::ValidateName (L"Apple II", { L"Other" }).empty());
-        Assert::IsFalse (CassoExplorerLinkChoices::ValidateName (L"", {}).empty());
-        Assert::IsFalse (CassoExplorerLinkChoices::ValidateName (L"   ", {}).empty());
+        Assert::IsTrue  (CassoExplorerLinkChoices::ValidateName (L"COM3", {}).empty(), L"a blank name is the connection's");
+        Assert::IsFalse (CassoExplorerLinkChoices::ValidateName (L"COM3", { L"COM3" }).empty(), L"and is new too");
         Assert::IsFalse (CassoExplorerLinkChoices::ValidateName (L"apple ii", { L"Apple II" }).empty(), L"names differ in more than case");
         Assert::IsFalse (CassoExplorerLinkChoices::ValidateName (L"A|B", {}).empty(), L"the id's separator");
     }

@@ -221,13 +221,13 @@ public:
 
         Assert::AreEqual ((size_t) 3, entries.size(), L"the saved link, then two running Cassos; the one at the saved link's address is left out");
         Assert::AreEqual (std::wstring (L"Test"),                    entries[0].name);
-        Assert::AreEqual (std::wstring (L"Apple //c (port 6600)"),   entries[1].name);
-        Assert::AreEqual (std::wstring (L"Apple //c (port 6700)"),   entries[2].name);
+        Assert::AreEqual (std::wstring (L"Casso on port 6600"),   entries[1].name);
+        Assert::AreEqual (std::wstring (L"Casso on port 6700"),   entries[2].name);
         Assert::IsTrue   (entries[2].status.find (L"port 2") != std::wstring::npos, L"port 1 is listed with the reason");
 
-        Assert::IsTrue  (rig.links->IsDiscovered ("Apple //c (port 6600)"));
+        Assert::IsTrue  (rig.links->IsDiscovered ("Casso on port 6600"));
         Assert::IsFalse (rig.links->IsDiscovered ("Test"));
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), rig.links->Start ("Apple //c (port 6700)"));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), rig.links->Start ("Casso on port 6700"));
     }
 
 
@@ -244,11 +244,11 @@ public:
         running.address    = "127.0.0.1:6600";
 
         rig.links->SetRunning ({ running });
-        AssertSucceeded (rig.links->Start ("Apple //c (port 6600)"));
-        Assert::IsTrue (rig.links->IsStarted ("Apple //c (port 6600)"));
+        AssertSucceeded (rig.links->Start ("Casso on port 6600"));
+        Assert::IsTrue (rig.links->IsStarted ("Casso on port 6600"));
 
         rig.links->SetRunning ({});
-        Assert::IsFalse (rig.links->IsStarted ("Apple //c (port 6600)"));
+        Assert::IsFalse (rig.links->IsStarted ("Casso on port 6600"));
         Assert::AreEqual ((size_t) 1, rig.links->GetLinks().size());
     }
 

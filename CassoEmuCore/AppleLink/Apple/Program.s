@@ -206,6 +206,7 @@ slotok: clc
         lda #3
         sta tmolen
         jsr mktables
+        jsr readid
         jsr drawscreen
 
 main:   lda #OPIDLE
@@ -532,10 +533,45 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $04, $00, CMDREADY, $C1 ^ $04 ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $09, $00, CMDREADY, $C1 ^ $09 ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, SHIMVER, $03
-          .byte <PROGVER ^ >PROGVER ^ SHIMVER ^ $03
+readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
+readychk: .byte 0
 readyend:
+
+; readid: the ROM's identification bytes into Ready, as Apple's technical
+; notes list them, and Ready's EOR. A IIgs and an enhanced //e have the same
+; bytes; the IIgs's ID call at $FE1F clears the carry, where on a //e that address
+; is an RTS. Earlier machines have other code there, so it is called only
+; on an enhanced //e's bytes.
+readid: lda $FBB3
+        sta readyrom
+        lda $FBC0
+        sta readyrom+1
+        lda $FBBF
+        sta readyrom+2
+        lda $FB1E
+        sta readyrom+3
+        lda #0
+        sta readyrom+4
+        lda readyrom
+        cmp #$06
+        bne ridsum
+        lda readyrom+1
+        cmp #$E0
+        bne ridsum
+        sec
+        jsr $FE1F
+        bcs ridsum
+        lda #1
+        sta readyrom+4
+ridsum: lda #<PROGVER ^ >PROGVER ^ SHIMVER ^ $03
+        ldx #4
+ridnext: eor readyrom,x
+        dex
+        bpl ridnext
+        sta readychk
+        rts
 
 ; sendack: Acknowledge with the kind in A, then X and Y.
 sendack: sta tmp

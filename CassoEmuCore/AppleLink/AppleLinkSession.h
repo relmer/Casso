@@ -189,6 +189,10 @@ public:
     bool       IsServingAdtPro () const { return m_adtPro; }
     Byte       GetDriveMap () const { return m_driveMap; }
 
+    //  The Apple's model, as its program reported it on connecting; empty
+    //  before then.
+    std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_lock); return m_modelName; }
+
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
     std::shared_ptr<LinkOperation>  ReadFile      (int drive, const FilePath & path);
     std::shared_ptr<LinkOperation>  WriteFile     (int drive, const FilePath & path, const FilePayload & payload);
@@ -281,7 +285,7 @@ private:
     std::atomic<LinkState>                        m_state    { LinkState::Closed };
     std::atomic<Byte>                             m_driveMap { 0 };
     std::atomic<bool>                             m_adtPro   { false };
-    std::mutex                                  m_lock;
+    mutable std::mutex                          m_lock;
     std::condition_variable_any                 m_wake;
     std::deque<std::shared_ptr<LinkOperation>>  m_queue;
     std::shared_ptr<LinkOperation>              m_running;
@@ -290,6 +294,7 @@ private:
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
     DWORD                                       m_retryMs          = kRetryMs;
     bool                                        m_peerSeen         = false;
+    std::wstring                                m_modelName;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;
     std::jthread                                m_thread;

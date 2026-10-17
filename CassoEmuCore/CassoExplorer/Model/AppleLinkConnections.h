@@ -135,6 +135,10 @@ public:
     //  modem; empty for any transport but the Wi-Fi modem.
     static std::string   MakeDialCommand (const std::wstring & pcName, const AppleLinkSettings & settings);
 
+    //  A connection's name when none is given: COM3, Casso on port 6502,
+    //  Wi-Fi modem on port 6400, or TCP and the address, with no colon.
+    static std::string   DescribeConnection (const AppleLinkSettings & settings);
+
     //  This PC's DNS host name.
     static std::wstring  GetPcName ();
 

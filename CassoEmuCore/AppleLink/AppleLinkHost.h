@@ -58,6 +58,14 @@ struct AppleLinkClient
     Word  programVersion = 0;
     Byte  shimVersion    = 0;
     Byte  driveMap       = 0;
+
+    //  The program's Ready has the ROM's identification bytes: $FBB3,
+    //  $FBC0, $FBBF, $FB1E, and 1 for a IIgs. The shim's has none.
+    bool                 hasRomId = false;
+    std::array<Byte, 5>  romId    = {};
+
+    //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
+    std::wstring  GetModelName () const;
 };
 
 struct AppleLinkStatus
@@ -233,6 +241,7 @@ private:
     HRESULT  ServePut          (const AppleLinkPacket & packet, bool batch);
     HRESULT  ServeVirtualDrive ();
     HRESULT  ServeReady        (const AppleLinkPacket & packet);
+    void     ReadClient        (const AppleLinkPacket & packet);
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (AppleLinkPacket & outPacket);

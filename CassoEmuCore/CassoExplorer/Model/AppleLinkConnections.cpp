@@ -110,7 +110,36 @@ std::string AppleLinkConnections::MakeRunningName (const RunningCasso & running)
 
 
 
-    return std::format ("{} (port {})", machine, port);
+    UNREFERENCED_PARAMETER (machine);
+
+    return std::format ("Casso on port {}", port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::DescribeConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleLinkConnections::DescribeConnection (const AppleLinkSettings & settings)
+{
+    size_t       colon = settings.address.rfind (':');
+    std::string  host  = (colon == std::string::npos) ? settings.address : settings.address.substr (0, colon);
+    std::string  port  = (colon == std::string::npos) ? std::string() : settings.address.substr (colon + 1);
+
+
+
+    switch (settings.transport)
+    {
+        case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : settings.port;
+        case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
+        case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
+        default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);
+    }
 }
 
 
@@ -411,6 +440,7 @@ std::vector<LinkTreeEntry> AppleLinkConnections::BuildTreeEntries() const
             LinkState  state = (*found)->session->GetState();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
             entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro(), settings, GetPcName());
         }
 

@@ -848,6 +848,12 @@ HRESULT AppleLinkSession::Connect (std::stop_token stop, DWORD openAt)
         m_driveMap = driveMap;
     }
 
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_modelName = m_host->GetClient().GetModelName();
+    }
+
     SetState (LinkState::Ready);
 
 Error:

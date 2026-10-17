@@ -10485,7 +10485,7 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
 
         if (saved)
         {
-            AddMenuCommand (items, L"&Edit machine...", [this, name]() { EditLink (name); });
+            AddMenuCommand (items, L"&Edit connection...", [this, name]() { EditLink (name); });
         }
 
         if (m_context.links->IsStarted (name))
@@ -10509,7 +10509,7 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
 
         if (saved)
         {
-            AddMenuCommand (items, L"Re&move machine", [this, name]() { RemoveLink (name); });
+            AddMenuCommand (items, L"Re&move connection", [this, name]() { RemoveLink (name); });
         }
     }
     else if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
@@ -10524,7 +10524,7 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
 
     if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)
     {
-        AddMenuCommand (items, L"&Add a CassoLink machine...", [this]() { EditLink (std::string()); });
+        AddMenuCommand (items, L"&Add a CassoLink connection...", [this]() { EditLink (std::string()); });
     }
 }
 

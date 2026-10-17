@@ -124,7 +124,7 @@ public:
         kWriteImageToDisk,
         kCancelLinkOperation,
 
-        //  A CassoLink machine added, from See more as well as the tree.
+        //  A CassoLink connection added, from See more as well as the tree.
         kAddLink,
 
         //  kSortByColumn + the column's index, one per list column.
@@ -342,7 +342,7 @@ private:
         { kReadDiskToImage,   Menu::Count, L"Create image...",     nullptr,     false },
         { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
-        { kAddLink,           Menu::Count, L"Add a CassoLink machine...", nullptr, false },
+        { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -383,7 +383,7 @@ private:
         { kDeleteItems,   DxuiToolbar::Kind::Command, 2, s_kpszMdl2Delete,  L"Delete",  L"Delete",                 true  },
         { kSort,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2Sort,   L"Sort",    L"Sort",                   false },
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
-        { kAddLink,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Add,     L"Add a CassoLink machine...", L"Add a CassoLink machine", false, false, true },
+        { kAddLink,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Add,     L"Add a CassoLink connection...", L"Add a CassoLink connection", false, false, true },
         { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },

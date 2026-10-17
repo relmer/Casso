@@ -69,6 +69,7 @@ struct LinkTreeEntry
     };
 
     std::wstring        name;
+    std::wstring        model;   // the Apple's model once connected, as Apple //c
     bool                replying = false;
     std::wstring        status;
     std::vector<Drive>  drives;

@@ -3101,7 +3101,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of a CassoLink machine first.";
+        outcome.message = L"Open a drive of a CassoLink connection first.";
         return outcome;
     }
 
@@ -3149,7 +3149,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteImageToDisk (const std:
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of a CassoLink machine first.";
+        outcome.message = L"Open a drive of a CassoLink connection first.";
         return outcome;
     }
 
@@ -3325,7 +3325,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
     if (!TryGetAppleDrive (link, drive, directory))
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of a CassoLink machine first.";
+        outcome.message = L"Open a drive of a CassoLink connection first.";
         return outcome;
     }
 

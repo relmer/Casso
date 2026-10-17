@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
+#include "CassoExplorer/Model/AppleLinkConnections.h"
 #include "Core/TextEncoding.h"
 
 
@@ -122,17 +123,13 @@ std::wstring CassoExplorerLinkChoices::ValidateName (const std::wstring & name, 
 
 
 
-    if (name.find_first_not_of (L' ') == std::wstring::npos)
+    if (name.find_first_of (L"\\|:") != std::wstring::npos)
     {
-        error = L"Enter a name for the machine.";
-    }
-    else if (name.find_first_of (L"\\|:") != std::wstring::npos)
-    {
-        error = L"A machine's name cannot contain \\, | or :.";
+        error = L"A connection's name cannot contain \\, | or :.";
     }
     else if (taken)
     {
-        error = L"Another machine has this name.";
+        error = L"Another connection has this name.";
     }
 
     return error;
@@ -338,7 +335,7 @@ AppleLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
 
 
 
-    settings.name              = TextEncoding::WideToNarrow (name);
+    settings.name              = TextEncoding::WideToNarrow (name.substr (std::min (name.find_first_not_of (L' '), name.size())));
     settings.transport         = kTransports[(transportIndex >= 0 && transportIndex < transports) ? transportIndex : 0].transport;
     settings.port              = UsesPort (settings.transport) ? TextEncoding::WideToNarrow (port) : std::string();
     settings.address           = UsesAddress (settings.transport) ? TextEncoding::WideToNarrow (address) : std::string();
@@ -361,6 +358,12 @@ AppleLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
     }
 
     settings.hardwareHandshake = UsesHandshake (settings.transport) && hardwareHandshake;
+
+    //  With no name, the connection is its own name.
+    if (settings.name.empty())
+    {
+        settings.name = AppleLinkConnections::DescribeConnection (settings);
+    }
 
     return settings;
 }
@@ -592,7 +595,7 @@ void CassoExplorerLinkDialog::OnCreate()
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
-    m_nameLabel.SetText      (L"Name:");
+    m_nameLabel.SetText      (L"Name (optional):");
     m_transportLabel.SetText (L"Connection:");
     m_portLabel.SetText      (L"Port:");
     m_addressLabel.SetText   (L"Address:");
@@ -665,7 +668,13 @@ void CassoExplorerLinkDialog::OnCreate()
         EndDialog (IDOK);
     });
 
-    m_validator.AddField ([this]() { return CassoExplorerLinkChoices::ValidateName (m_name.GetText(), m_otherNames); }, &m_nameError);
+    m_validator.AddField ([this]()
+    {
+        AppleLinkSettings  settings = CassoExplorerLinkChoices::MakeSettings (m_name.GetText(), m_transport.GetSelectedIndex(), m_port.GetText(), m_address.GetText(),
+                                                                             m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked());
+
+        return CassoExplorerLinkChoices::ValidateName (TextEncoding::NarrowToWide (settings.name), m_otherNames);
+    }, &m_nameError);
 
     m_validator.AddField ([this]()
     {
@@ -712,7 +721,7 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
     dialog.m_otherNames = otherNames;
     dialog.m_adding     = adding;
 
-    params.title                    = adding ? L"Add a CassoLink machine" : L"Edit the CassoLink machine";
+    params.title                    = adding ? L"Add a CassoLink connection" : L"Edit the CassoLink connection";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 480, 130 + CassoExplorerLinkPanel::kRowCount * (CassoExplorerLinkPanel::kRowHeightDip + CassoExplorerLinkPanel::kRowGapDip) };

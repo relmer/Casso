@@ -729,7 +729,7 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
 
         if (m_rootChildren[index].kind == TreeNode::Kind::AppleLink)
         {
-            m_rows.back().typeText = L"CassoLink machine";
+            m_rows.back().typeText = L"CassoLink connection";
             m_rows.back().offline  = m_rootChildren[index].offline;
         }
         else if (m_rootChildren[index].kind == TreeNode::Kind::AppleDrive)
@@ -835,7 +835,7 @@ void CassoExplorerBrowser::AddCassoLinkItems()
 
 
 
-    add.name = L"Add a CassoLink machine...";
+    add.name = L"Add a CassoLink connection...";
     m_rows.push_back (CatalogModel::FromHostEntry (add, false, m_rootChildren.size() + m_rows.size()));
     m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AddMachine;
     m_rows.back().isDirectory   = true;            // no size, and listed with the machines
@@ -962,7 +962,7 @@ const wchar_t * CassoExplorerBrowser::GetCassoLinkHelp()
            L"\r\n"
            L"## Connecting an Apple\r\n"
            L"\r\n"
-           L"1. **Add the machine.** Choose *Add a CassoLink machine* from See more (**...**), or from the CassoLink "
+           L"1. **Add the connection.** Choose *Add a CassoLink connection* from See more (**...**), or from the CassoLink "
            L"folder, and pick how the Apple is connected:\r\n"
            L"   - **Serial**: a null modem cable from the Apple //c's port 2, or a Super Serial Card, to a COM port "
            L"or a USB serial adapter.\r\n"
@@ -971,10 +971,10 @@ const wchar_t * CassoExplorerBrowser::GetCassoLinkHelp()
            L"under CassoLink without being added.\r\n"
            L"2. **Start CassoLink on the Apple**, either way:\r\n"
            L"   - Boot **CassoLink.dsk** from the CassoLink folder: drag it into Casso, or write it to a floppy. For "
-           L"a Wi-Fi modem, save the disk from the machine's menu instead, so it dials this PC.\r\n"
+           L"a Wi-Fi modem, save the disk from the connection's menu instead, so it dials this PC.\r\n"
            L"   - With no disk, on a serial cable: at the Apple's BASIC prompt, type `IN#2` and press Return, then "
-           L"choose *Bootstrap the Apple* from the machine's menu. The rest is typed in over the cable.\r\n"
-           L"3. **Click the machine** under CassoLink. Its drives are listed once the connection is made.\r\n"
+           L"choose *Bootstrap the Apple* from the connection's menu. The rest is typed in over the cable.\r\n"
+           L"3. **Click the connection** under CassoLink. Its drives are listed once the connection is made.\r\n"
            L"\r\n"
            L"## Once connected\r\n"
            L"\r\n"
@@ -1152,7 +1152,7 @@ bool CassoExplorerBrowser::PreviewAppleDrive (const CatalogRow & row)
 void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 {
     std::wstring  text = (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)       ? std::wstring (GetCassoLinkHelp())
-                       : (row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine) ? std::wstring (L"Open it to add an Apple connected to this PC, by serial cable, Wi-Fi modem or TCP.\r\n")
+                       : (row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine) ? std::wstring (L"Open it to add a connection to an Apple: a serial cable, a Wi-Fi modem, or a Casso on TCP.\r\n")
                        : std::wstring (L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on port 2 at 115,200 baud. "
                                        L"Drag it into Casso or onto a folder, or write it to a floppy.\r\n");
     size_t        start = 0;

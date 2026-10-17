@@ -374,6 +374,29 @@ public:
 
 
 
+    TEST_METHOD (ModelName_ComesFromTheRomsIdBytes)
+    {
+        AppleLinkClient  client;
+
+        Assert::IsTrue (client.GetModelName().empty(), L"the shim's Ready has no ROM identification");
+
+        client.hasRomId = true;
+        client.romId    = { 0x38, 0x00, 0x00, 0xEA, 0 };
+        Assert::AreEqual (std::wstring (L"Apple ][+"),          client.GetModelName());
+        client.romId    = { 0x06, 0xEA, 0x00, 0x00, 0 };
+        Assert::AreEqual (std::wstring (L"Apple //e"),          client.GetModelName());
+        client.romId    = { 0x06, 0xE0, 0x00, 0x00, 0 };
+        Assert::AreEqual (std::wstring (L"Apple //e enhanced"), client.GetModelName());
+        client.romId    = { 0x06, 0xE0, 0x00, 0x00, 1 };
+        Assert::AreEqual (std::wstring (L"Apple IIgs"),         client.GetModelName());
+        client.romId    = { 0x06, 0x00, 0x04, 0x00, 0 };
+        Assert::AreEqual (std::wstring (L"Apple //c (ROM 4)"),  client.GetModelName());
+        client.romId    = { 0x06, 0x00, 0x05, 0x00, 0 };
+        Assert::AreEqual (std::wstring (L"Apple //c Plus"),     client.GetModelName());
+    }
+
+
+
     TEST_METHOD (FormatTrack_SendsDriveTrackAndVolume)
     {
         Client           client;

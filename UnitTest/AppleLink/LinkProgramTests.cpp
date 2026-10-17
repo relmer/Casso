@@ -27,9 +27,9 @@ public:
 
     //  The Ready packet in an assembled image: the envelope, then the program
     //  version, the shim version and the drive map.
-    static size_t  FindReady (const std::vector<Byte> & image)
+    static size_t  FindReady (const std::vector<Byte> & image, Byte length = 0x04)
     {
-        const Byte  header[] = { AppleLinkCodec::kStart, 0x04, 0x00, 0xD2 };
+        const Byte  header[] = { AppleLinkCodec::kStart, length, 0x00, 0xD2 };
         auto        it       = std::search (image.begin(), image.end(), std::begin (header), std::end (header));
 
         return (size_t) (it - image.begin());
@@ -101,12 +101,12 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr));
 
-        at = FindReady (bytes);
+        at = FindReady (bytes, 0x09);
         Assert::IsTrue (at + 10 <= bytes.size());
         Assert::AreEqual<int> (LinkProgram::kProgramVersion & 0xFF, bytes[at + 5]);
         Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[at + 6]);
         Assert::AreEqual<int> (LinkProgram::kShimVersion,           bytes[at + 7]);
-        Assert::AreEqual<int> (AppleLinkCodec::ComputeEor (std::span<const Byte> (bytes).subspan (at + 5, 4)), bytes[at + 9]);
+        Assert::AreEqual<int> (9, bytes[at + 1], L"versions, the drives, and the ROM's five identification bytes, set at startup with the EOR");
     }
 
 
