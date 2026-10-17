@@ -214,6 +214,29 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (SYM_Load_ReportsSymbolsWithRegisterNames)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\one.dbg",  "x=$0300\nloop=$0310\n");
+            rig.files.WriteAllText (L"C:\\Work\\many.dbg", "A=$0300\nPC=$0310\nS=$0320\n");
+            rig.files.WriteAllText (L"C:\\Work\\none.dbg", "loop=$0310\n");
+
+            lines = rig.RunOk ("SYMUSER LOAD one.dbg").text;
+            Assert::AreEqual (std::string ("The file defines X, a register's name. X is now the symbol; @X is the register."), lines.at (1));
+
+            lines = rig.RunOk ("SYMUSER2 LOAD many.dbg").text;
+            Assert::AreEqual (std::string ("The file defines A, S and PC, the names of registers. Each is now the symbol; @A, @S and @PC are the registers."), lines.at (1));
+
+            lines = rig.RunOk ("SYMSRC LOAD none.dbg").text;
+            Assert::AreEqual ((size_t) 1, lines.size(), L"no register names, no note");
+        }
+
+
+
         //  A cc65 debug file with one label and one equate. WIDTH is 40, the
         //  width of the text screen, and never an address.
         static constexpr const char * kEquateDebugFile =

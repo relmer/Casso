@@ -338,6 +338,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
     lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
+    AddRegisterNameNote (session, table, lines);
     BreakpointHandlers::FollowSymbols (session, lines);
 
     reply.data = MessageData { lines };
@@ -418,9 +419,62 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
                                     loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
+    AddRegisterNameNote (session, table, message);
     BreakpointHandlers::FollowSymbols (session, message);
 
     reply.data = MessageData { message };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::AddRegisterNameNote
+//
+//  A symbol with a register's name comes before the register in an
+//  expression, so the load reports each one and that @ and the name is the
+//  register.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolHandlers::AddRegisterNameNote (DebugSession & session, SymbolTableId table, std::vector<std::string> & lines)
+{
+    static constexpr const char * s_kpszRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
+    std::vector<std::string>  found;
+    std::string               names;
+    std::string               ats;
+    Word                      address = 0;
+
+
+
+    for (const char * pszRegister : s_kpszRegisters)
+    {
+        if (session.GetSymbols().TryResolveIn (table, pszRegister, address))
+        {
+            found.push_back (pszRegister);
+        }
+    }
+
+    if (found.empty())
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < found.size(); ++i)
+    {
+        std::string_view  separator = (i == 0) ? "" : (i + 1 == found.size()) ? " and " : ", ";
+
+
+
+        names += std::format ("{}{}", separator, found[i]);
+        ats   += std::format ("{}@{}", separator, found[i]);
+    }
+
+    lines.push_back (found.size() == 1
+                         ? std::format ("The file defines {0}, a register's name. {0} is now the symbol; {1} is the register.", names, ats)
+                         : std::format ("The file defines {0}, the names of registers. Each is now the symbol; {1} are the registers.", names, ats));
 }
 
 
