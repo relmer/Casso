@@ -302,7 +302,8 @@ void DebuggerWindow::OnCreate()
     m_callStackPane = std::make_unique<CallStackPane> (
         m_callStackList, m_callStackButton,
         [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
-        [this] (Word address)             { ShowCode (address); });
+        [this] (Word address)             { ShowCode (address); },
+        [this] (Word line)                { ShowBasicLine (line); });
 
     CreateBasicPanes();
 
@@ -1126,7 +1127,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList, m_basicVariableList, m_basicStackList };
+                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
 
@@ -1155,7 +1156,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
     std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
-                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList, m_basicVariableList, m_basicStackList };
+                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
 
@@ -5792,8 +5793,6 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     panes.push_back (DebuggerLayout::kDiskLog);
     panes.push_back (DebuggerLayout::kInputLog);
     panes.push_back (DebuggerLayout::kBasicProgram);
-    panes.push_back (DebuggerLayout::kBasicVariables);
-    panes.push_back (DebuggerLayout::kBasicStack);
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)
@@ -6640,6 +6639,10 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         {
             items.push_back ({ L"Remove", [this, slot = what.index] { RunAction (DebuggerActions::GetClearZeroPagePointer (slot, GetMode())); } });
         }
+        else if (what.kind == WatchRowKind::BasicManual)
+        {
+            items.push_back ({ L"Remove", [this, index = what.index] { RemoveBasicWatch (index); } });
+        }
         else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
                  s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
         {
@@ -6648,7 +6651,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             AddShowInMemory (L"$" + Widen (hex), hex, items);
         }
 
-        if (what.kind != WatchRowKind::Heading)
+        if (what.kind != WatchRowKind::Heading && what.kind != WatchRowKind::BasicHeading)
         {
             items.push_back ({ L"Copy", copy });
         }
@@ -7707,118 +7710,7 @@ void DebuggerWindow::ApplySnapshot()
 
     ApplyBreakpoints();
 
-    rows.clear();
-
-    //  What the instruction at the PC and the one just executed touch, then
-    //  the watches the user added, each section under a heading of its own
-    //  (FR-095). A value that changed since the last stop is drawn in the
-    //  changed color (FR-098); one the instruction touched and left as it was
-    //  is shown plainly, since it was still an input or an output.
-    m_watchRows.clear();
-
-    if (!m_snapshot->autoWatches.empty())
-    {
-        rows.push_back (MakeWatchHeading (L"Automatic"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-
-        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
-        {
-            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
-            DxuiListView::Cell                          name  = { Widen (line.label) };
-            DxuiListView::Cell                          value = { Widen (line.value) };
-
-            //  What the previous instruction touched is in italics, apart
-            //  from a disabled watch's muted text.
-            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
-            value.weight = name.weight;
-            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
-
-            //  A memory watch's symbol and address in the colors the code
-            //  pane draws them in.
-            if (line.key.starts_with ("M:"))
-            {
-                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
-            }
-
-            if (m_stopChanges.IsChanged ("A:" + line.key))
-            {
-                value.argb = GetChangedArgb();
-                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            }
-
-            rows.push_back ({ name, value });
-            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
-        }
-
-        rows.push_back (MakeWatchHeading (L"Watches"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-    }
-
-    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-    {
-        DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
-        DxuiListView::Cell  value = { Widen (watch.value) };
-
-        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
-        //  one's address is in the color the code pane draws addresses in.
-        name.dim  = !watch.enabled;
-        value.dim = !watch.enabled;
-        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
-
-        if (watch.enabled)
-        {
-            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
-
-            //  The #n before it is the watch's number, not an immediate.
-            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
-        }
-
-        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
-        {
-            value.argb = GetChangedArgb();
-        }
-
-        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
-                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
-
-        name.check = watch.enabled;
-        rows.push_back ({ name, value });
-        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
-    }
-
-    //  The zero-page pointers under their own heading: each the zero-page
-    //  address, then the address its two bytes form and the bytes there.
-    if (!m_snapshot->zeroPagePointers.empty())
-    {
-        rows.push_back (MakeWatchHeading (L"Zero-page pointers"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-
-        for (const DebuggerViewSnapshot::WatchLine & pointer : m_snapshot->zeroPagePointers)
-        {
-            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
-            DxuiListView::Cell  value = { Widen (pointer.value) };
-
-            name.check = pointer.enabled;
-            name.dim   = !pointer.enabled;
-            value.dim  = !pointer.enabled;
-            rows.push_back ({ name, value });
-            m_watchRows.push_back ({ WatchRowKind::ZeroPage, pointer.id });
-        }
-    }
-
-    //  As in Visual Studio, the last row adds a watch: an expression typed
-    //  into it in place becomes one.
-    {
-        DxuiListView::Cell  prompt = { L"Add item to watch" };
-
-        prompt.dim    = true;
-        prompt.face   = DxuiTheme::kBodyFace;
-        prompt.weight = DxuiFontWeight::Italic;
-        rows.push_back ({ prompt, { L"" } });
-        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
-    }
-
-    m_watchList->SetRows (std::move (rows));
+    ApplyWatches();
 
     rows.clear();
 
@@ -7839,7 +7731,7 @@ void DebuggerWindow::ApplySnapshot()
 
     m_stackList->SetRows (std::move (rows));
     m_callStackPane->SetColors (GetTextColors());
-    m_callStackPane->Apply     (m_snapshot->callStack);
+    m_callStackPane->Apply     (m_snapshot->callStack, BasicWatches::IsStoppedInProgram (m_snapshot->basic) ? m_snapshot->basic->frames : std::vector<BasicFrame>());
 
     FollowBasicProgram();
     ApplyBasicPanes();
@@ -7914,6 +7806,200 @@ void DebuggerWindow::AddChangedFlagRanges (uint32_t changedBits, DxuiListView::C
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyWatches
+//
+//  What the instruction at the PC and the one just executed touch, then
+//  the watches the user added, each section under a heading of its own
+//  (FR-095), and while the machine is stopped in a running Applesoft
+//  program, its variables (FR-176).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyWatches()
+{
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    bool                                          isInProgram = BasicWatches::IsStoppedInProgram (m_snapshot->basic);
+    std::vector<BasicWatches::Item>               basicAutos  = isInProgram ? BasicWatches::GetStatementItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>();
+
+
+
+    //  What the instruction at the PC and the one just executed touch, then
+    //  the watches the user added, each section under a heading of its own
+    //  (FR-095). A value that changed since the last stop is drawn in the
+    //  changed color (FR-098); one the instruction touched and left as it was
+    //  is shown plainly, since it was still an input or an output.
+    m_watchRows.clear();
+
+    if (!m_snapshot->autoWatches.empty() || !basicAutos.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Automatic"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
+        {
+            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
+            DxuiListView::Cell                          name  = { Widen (line.label) };
+            DxuiListView::Cell                          value = { Widen (line.value) };
+
+            //  What the previous instruction touched is in italics, apart
+            //  from a disabled watch's muted text.
+            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
+            value.weight = name.weight;
+            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
+
+            //  A memory watch's symbol and address in the colors the code
+            //  pane draws them in.
+            if (line.key.starts_with ("M:"))
+            {
+                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+            }
+
+            if (m_stopChanges.IsChanged ("A:" + line.key))
+            {
+                value.argb = GetChangedArgb();
+                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+            }
+
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
+        }
+
+        //  The BASIC variables the statement being run uses.
+        for (const BasicWatches::Item & item : basicAutos)
+        {
+            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
+            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
+        }
+
+        rows.push_back (MakeWatchHeading (L"Watches"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+    {
+        DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
+        DxuiListView::Cell  value = { Widen (watch.value) };
+
+        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
+        //  one's address is in the color the code pane draws addresses in.
+        name.dim  = !watch.enabled;
+        value.dim = !watch.enabled;
+        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
+
+        if (watch.enabled)
+        {
+            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+
+            //  The #n before it is the watch's number, not an immediate.
+            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
+        }
+
+        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
+        {
+            value.argb = GetChangedArgb();
+        }
+
+        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
+                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
+
+        name.check = watch.enabled;
+        rows.push_back ({ name, value });
+        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
+    }
+
+    //  The BASIC variables the user added, with a value only while the
+    //  machine is stopped in the program.
+    for (size_t i = 0; i < m_basicWatches.size(); i++)
+    {
+        std::optional<std::string>  shown = isInProgram ? BasicWatches::TryGetValue (*m_snapshot->basic, m_basicWatches[i]) : std::nullopt;
+        DxuiListView::Cell          value = { Widen (shown.value_or ("--")) };
+
+
+
+        value.dim = !shown.has_value();
+        rows.push_back ({ BasicWatches::MakeNameCell (m_basicWatches[i]), value });
+        m_watchRows.push_back ({ WatchRowKind::BasicManual, (int) i });
+    }
+
+    //  The zero-page pointers under their own heading: each the zero-page
+    //  address, then the address its two bytes form and the bytes there.
+    if (!m_snapshot->zeroPagePointers.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Zero-page pointers"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (const DebuggerViewSnapshot::WatchLine & pointer : m_snapshot->zeroPagePointers)
+        {
+            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
+            DxuiListView::Cell  value = { Widen (pointer.value) };
+
+            name.check = pointer.enabled;
+            name.dim   = !pointer.enabled;
+            value.dim  = !pointer.enabled;
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::ZeroPage, pointer.id });
+        }
+    }
+
+    //  Every BASIC variable and array element, under a heading a click
+    //  expands or collapses.
+    if (isInProgram)
+    {
+        std::vector<DxuiListView::Cell>  heading = MakeWatchHeading (std::format (L"{} BASIC variables",
+                                                                                 m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight));
+
+
+
+        rows.push_back (heading);
+        m_watchRows.push_back ({ WatchRowKind::BasicHeading, 0 });
+
+        for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>())
+        {
+            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
+            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
+        }
+    }
+
+    //  As in Visual Studio, the last row adds a watch: an expression typed
+    //  into it in place becomes one.
+    {
+        DxuiListView::Cell  prompt = { L"Add item to watch" };
+
+        prompt.dim    = true;
+        prompt.face   = DxuiTheme::kBodyFace;
+        prompt.weight = DxuiFontWeight::Italic;
+        rows.push_back ({ prompt, { L"" } });
+        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
+    }
+
+    m_watchList->SetRows (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RemoveBasicWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RemoveBasicWatch (int index)
+{
+    if (index >= 0 && index < (int) m_basicWatches.size())
+    {
+        m_basicWatches.erase (m_basicWatches.begin() + index);
+        ApplyWatches();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::MakeWatchHeading
 //
 //  A row that divides the watch pane rather than holding a watch: its title
@@ -7972,7 +8058,15 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
 
     what = m_watchRows[(size_t) row];
 
-    if (what.kind == WatchRowKind::Heading || (what.kind == WatchRowKind::Automatic && column == 0))
+    if (what.kind == WatchRowKind::BasicHeading)
+    {
+        m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
+        ApplyWatches();
+        return;
+    }
+
+    if (what.kind == WatchRowKind::Heading || what.kind == WatchRowKind::BasicItem || what.kind == WatchRowKind::BasicManual ||
+        (what.kind == WatchRowKind::Automatic && column == 0))
     {
         return;
     }
@@ -8055,7 +8149,14 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
         expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
 
-        if (!expression.empty())
+        expression.erase (expression.find_last_not_of (" \t") + 1);
+
+        if (!expression.empty() && m_snapshot != nullptr && BasicWatches::IsBasicName (m_snapshot->basic, expression))
+        {
+            m_basicWatches.push_back (expression);
+            ApplyWatches();
+        }
+        else if (!expression.empty())
         {
             actions.push_back (DebuggerActions::GetAddWatch (expression, GetMode()));
         }
@@ -8124,6 +8225,10 @@ void DebuggerWindow::RemoveSelectedWatch()
     if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
     {
         RunAction (DebuggerActions::GetClearWatch (m_watchRows[(size_t) row].index, GetMode()));
+    }
+    else if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::BasicManual)
+    {
+        RemoveBasicWatch (m_watchRows[(size_t) row].index);
     }
 }
 
@@ -8297,6 +8402,7 @@ void DebuggerWindow::KeepOpenViews()
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
     text += BreakpointColumns::FormatShown (m_breakpointShown);
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
+    text += DebuggerLayout::FormatBasicWatches (m_basicWatches);
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -8312,6 +8418,7 @@ void DebuggerWindow::KeepOpenViews()
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
         m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
         m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
+        m_basicWatches      = DebuggerLayout::ParseBasicWatches (m_openViewsSaved);
 
         SetBreakpointColumns();
 
@@ -12313,8 +12420,6 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
     if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
     if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
-    if (pane == DebuggerLayout::kBasicVariables) { return L"BASIC variables"; }
-    if (pane == DebuggerLayout::kBasicStack)     { return L"BASIC stack";     }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {

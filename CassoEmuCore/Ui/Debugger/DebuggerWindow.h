@@ -59,8 +59,6 @@ class ToolbarCheckEntry;
 class ToolbarLabelEntry;
 class HistoryBand;
 class BasicProgramPane;
-class BasicStackPane;
-class BasicVariablesPane;
 class CallStackPane;
 class DiagnosticsPane;
 class MemoryPane;
@@ -902,6 +900,8 @@ private:
     void     UpdateChanges    ();
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
+    void     ApplyWatches        ();
+    void     RemoveBasicWatch    (int index);
     void     UndoWatchEdit    (bool redo);
     void     UndoRegisterEdit (bool redo);
     void     UndoStackEdit    (bool redo);
@@ -1261,9 +1261,11 @@ private:
     ByteChanges                             m_codeChanges;
 
     //  What each row of the watch pane is, since the list mixes headings,
-    //  automatic watches and the user's own: an automatic row carries its
-    //  index into the snapshot, a manual one its watch id.
-    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add };
+    //  automatic watches and the user's own: an automatic row has its index
+    //  into the snapshot, a manual one its watch id, and a BASIC watch the
+    //  user added its index into m_basicWatches. A BASIC variable listed
+    //  under a heading or as an automatic watch is a BasicItem.
+    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add, BasicHeading, BasicItem, BasicManual };
 
     struct WatchRow
     {
@@ -1556,19 +1558,16 @@ private:
     std::unique_ptr<ToolbarBoxEntry>             m_diskTrackEntry;
     std::unique_ptr<ToolbarBoxEntry>             m_diskSectorEntry;
 
-    //  The BASIC panes (DebuggerWindowBasic.cpp): the program, its variables
-    //  and its stack, which are opened, and the line the program pane last
-    //  scrolled to.
+    //  The BASIC program pane (DebuggerWindowBasic.cpp), whether it was
+    //  opened, and the line it last scrolled to. The BASIC variables the user
+    //  added to the Watches pane, and whether its BASIC variables heading is
+    //  expanded.
     DxuiListView                         * m_basicProgramList    = nullptr;
-    DxuiListView                         * m_basicVariableList   = nullptr;
-    DxuiListView                         * m_basicStackList      = nullptr;
     std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
-    std::unique_ptr<BasicVariablesPane>    m_basicVariablesPane;
-    std::unique_ptr<BasicStackPane>        m_basicStackPane;
     std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
-    std::unique_ptr<DebuggerPaneFrame>     m_basicVariablesFrame;
-    std::unique_ptr<DebuggerPaneFrame>     m_basicStackFrame;
     std::set<std::wstring>                 m_basicOpened;
+    std::vector<std::string>               m_basicWatches;
+    bool                                   m_isBasicVariablesExpanded = false;
     std::optional<Word>                    m_basicShownLine;
     bool                                   m_isBasicReading      = false;
 

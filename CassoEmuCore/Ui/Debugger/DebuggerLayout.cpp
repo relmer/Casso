@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kBasicProgram, kBasicVariables, kBasicStack };
+                                       kBasicProgram };
 
 
 
@@ -353,16 +353,6 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kCode;
     }
 
-    if (pane == kBasicVariables && layout.Contains (kWatches))
-    {
-        return kWatches;
-    }
-
-    if (pane == kBasicStack && layout.Contains (kCallStack))
-    {
-        return kCallStack;
-    }
-
     return L"";
 }
 
@@ -378,7 +368,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
 
 bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
 {
-    return pane == kBasicProgram || pane == kBasicVariables || pane == kBasicStack;
+    return pane == kBasicProgram;
 }
 
 
@@ -406,6 +396,60 @@ std::string DebuggerLayout::FormatBasicOpened (const std::set<std::wstring> & op
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::FormatBasicWatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerLayout::FormatBasicWatches (const std::vector<std::string> & names)
+{
+    std::string  text;
+
+
+
+    for (const std::string & name : names)
+    {
+        text += " basicwatch=" + name;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::ParseBasicWatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebuggerLayout::ParseBasicWatches (const std::string & text)
+{
+    static constexpr std::string_view  kPrefix = "basicwatch=";
+    std::vector<std::string>           names;
+    std::istringstream                 in (text);
+    std::string                        token;
+
+
+
+    while (in >> token)
+    {
+        if (token.starts_with (kPrefix) && token.size() > kPrefix.size())
+        {
+            names.push_back (token.substr (kPrefix.size()));
+        }
+    }
+
+    return names;
 }
 
 
@@ -501,11 +545,8 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kDiskLog,  kConsole);
     layout.Add (kInputLog, kConsole);
 
-    //  The BASIC program is a tab of the disassembly, its variables of the
-    //  watches and its stack of the call stack.
-    layout.Add (kBasicProgram,   kCode);
-    layout.Add (kBasicVariables, kWatches);
-    layout.Add (kBasicStack,     kCallStack);
+    //  The BASIC program is a tab of the disassembly.
+    layout.Add (kBasicProgram, kCode);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

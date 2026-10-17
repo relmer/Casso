@@ -96,66 +96,53 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicVariablesPane
+//  BasicWatches
 //
-//  The program's simple variables and every array element, each value as
-//  PRINT writes it and a string in quotes (FR-176). The values are read only
-//  while the machine is paused; while it runs, the pane has a note to
-//  pause it.
+//  The BASIC variables the Watches pane lists while the machine is stopped
+//  in a running Applesoft program (FR-176): the ones the statement being run
+//  uses, the ones the user added as Applesoft writes them, and every simple
+//  variable and array element. Applesoft reads only a name's first two
+//  characters, so the rest are dimmed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BasicVariablesPane
+class BasicWatches
 {
 public:
-    explicit BasicVariablesPane (DxuiListView * list) : m_list (list) {}
+    //  One variable or element: its name as written and its value as PRINT
+    //  writes it, a string in quotes.
+    struct Item
+    {
+        std::string  name;
+        std::string  value;
+    };
 
-    DxuiListView *  GetList () const { return m_list; }
+    //  Whether the machine is stopped in a running program, so the values can
+    //  be read.
+    static bool  IsStoppedInProgram (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
 
-    void  Configure ();
-    void  Apply     (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
+    //  Whether the text is a BASIC variable: one with $, % or subscripts
+    //  always is, and a plain name is one the stopped program has.
+    static bool  IsBasicName (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::string & text);
 
-    //  Name and value, or one note across the row.
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
+    //  The value, as Applesoft reads it: 0 or "" for a variable not set yet;
+    //  none for text that is not a variable or an element out of range.
+    static std::optional<std::string>  TryGetValue (const DebuggerViewSnapshot::BasicState & basic, const std::string & text);
+
+    //  The simple variables the statement being run uses, each once, in the
+    //  order they appear.
+    static std::vector<Item>  GetStatementItems (const DebuggerViewSnapshot::BasicState & basic);
+
+    //  Every simple variable, then every array element.
+    static std::vector<Item>  GetAllItems (const DebuggerViewSnapshot::BasicState & basic);
 
     //  An element's name: the array's, then its subscripts, the first varying
     //  fastest.
-    static std::wstring  GetElementName (const BasicArray & array, size_t index);
+    static std::string  GetElementName (const BasicArray & array, size_t index);
+
+    //  A name's cell, the letters past the second dimmed.
+    static DxuiListView::Cell  MakeNameCell (const std::string & name);
 
 private:
-    DxuiListView  * m_list = nullptr;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BasicStackPane
-//
-//  The active GOSUB returns and FOR loops, newest first, each with the line
-//  it was made on (FR-177). Activating a row brings that line into view in
-//  the BASIC program pane.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class BasicStackPane
-{
-public:
-    using ShowLineFn = std::function<void (Word line)>;
-
-    BasicStackPane (DxuiListView * list, ShowLineFn showLine) : m_list (list), m_showLine (std::move (showLine)) {}
-
-    DxuiListView *  GetList () const { return m_list; }
-
-    void  Configure ();
-    void  Apply     (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
-
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
-
-private:
-    DxuiListView          * m_list = nullptr;
-    ShowLineFn              m_showLine;
-    std::vector<Word>       m_lines;
+    static std::string  Quote (BasicType type, const std::string & value);
 };

@@ -8,6 +8,7 @@
 #include "EmuTests/MachineIdle.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -19,9 +20,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BasicPanesTests
 //
-//  The BASIC program, variables and stack panes' rows, from lines and
-//  values made here and from a program typed into an enhanced //e and
-//  stopped at a breakpoint.
+//  The BASIC program pane's rows, the BASIC variables in the Watches pane
+//  and the BASIC frames in the Call stack pane, from lines and values made
+//  here and from a program typed into an enhanced //e and stopped at a
+//  breakpoint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,75 +234,143 @@ namespace DebuggerTests
             Assert::IsFalse (DebuggerViewState::ReadBasic (rig.session, true).line.has_value(), L"nothing marked at the prompt");
         }
 
-        TEST_METHOD (VariablesAndElementsAreListed)
+        static DebuggerViewSnapshot::BasicState MakeValues()
         {
-            DebuggerViewSnapshot::BasicState               state = MakeState ({}, std::nullopt, 0);
-            BasicArray                                     array;
-            std::vector<std::vector<DxuiListView::Cell>>   cells;
+            DebuggerViewSnapshot::BasicState  state = MakeState ({}, 10, 0);
+            BasicArray                        array;
 
 
 
             state.hasValues = true;
-            state.variables = { { "A", BasicType::Real, 0, "1.5" }, { "S$", BasicType::String, 0, "HI" } };
+            state.variables = { { "A", BasicType::Real, 0, "1.5" }, { "S$", BasicType::String, 0, "HI" }, { "HI", BasicType::Real, 0, "7" } };
             array.name      = "X";
             array.sizes     = { 2, 3 };
             array.values    = { "0", "1", "2", "3", "4", "5" };
             state.arrays    = { array };
-
-            cells = BasicVariablesPane::GetCells (state);
-
-            Assert::AreEqual ((size_t) 8, cells.size());
-            Assert::AreEqual (std::wstring (L"1.5"),      cells[0][1].text);
-            Assert::AreEqual (std::wstring (L"\"HI\""),   cells[1][1].text);
-            Assert::AreEqual (std::wstring (L"X(0,0)"),   cells[2][0].text);
-            Assert::AreEqual (std::wstring (L"X(1,0)"),   cells[3][0].text, L"the first subscript varies fastest");
-            Assert::AreEqual (std::wstring (L"X(1,2)"),   cells[7][0].text);
-
-            state.hasValues = false;
-            cells           = BasicVariablesPane::GetCells (state);
-            Assert::AreEqual ((size_t) 1, cells.size());
-            Assert::IsTrue   (cells[0][0].spansRow && cells[0][0].dim, L"one note while running");
+            return state;
         }
 
-        TEST_METHOD (FramesAreListedNewestFirst)
+        //  Every variable, then every element, the first subscript varying
+        //  fastest; a string in quotes.
+        TEST_METHOD (EveryVariableAndElementIsListed)
         {
-            DebuggerViewSnapshot::BasicState               state = MakeState ({}, std::nullopt, 0);
-            std::vector<std::vector<DxuiListView::Cell>>   cells;
+            std::vector<BasicWatches::Item>  items = BasicWatches::GetAllItems (MakeValues());
 
 
 
-            state.hasValues = true;
-            state.frames    = { { BasicFrameKind::Gosub, 0x01F0, 20 }, { BasicFrameKind::For, 0x01F7, 10, "I", "10", "2" } };
-            cells           = BasicStackPane::GetCells (state);
-
-            Assert::AreEqual (std::wstring (L"GOSUB"),             cells[0][0].text);
-            Assert::AreEqual (std::wstring (L"20"),                cells[0][1].text);
-            Assert::AreEqual (std::wstring (L"FOR I TO 10 STEP 2"), cells[1][0].text);
-
-            state.frames.clear();
-            Assert::AreEqual (std::wstring (L"No GOSUB or FOR is active."), BasicStackPane::GetCells (state)[0][0].text);
-
-            state.isApplesoft = false;
-            Assert::AreEqual (std::wstring (L"Applesoft is not in memory."), BasicStackPane::GetCells (state)[0][0].text);
+            Assert::AreEqual ((size_t) 9, items.size());
+            Assert::AreEqual (std::string ("1.5"),    items[0].value);
+            Assert::AreEqual (std::string ("\"HI\""), items[1].value);
+            Assert::AreEqual (std::string ("X(0,0)"), items[3].name);
+            Assert::AreEqual (std::string ("X(1,0)"), items[4].name, L"the first subscript varies fastest");
+            Assert::AreEqual (std::string ("X(1,2)"), items[8].name);
         }
 
-        //  The panes opened are written to the open-views text and read back;
-        //  the default layout has each, as a tab of its neighbor.
-        TEST_METHOD (TheOpenedPanesAreKept)
+        //  A variable as Applesoft writes it, matched on its first two
+        //  characters; an unset one reads 0 or "", and an element past the
+        //  array's size is none.
+        TEST_METHOD (AWatchReadsTheVariableApplesoftReads)
         {
-            std::set<std::wstring>  opened = { DebuggerLayout::kBasicProgram, DebuggerLayout::kBasicStack, L"heatmap" };
+            DebuggerViewSnapshot::BasicState  state = MakeValues();
+
+
+
+            Assert::AreEqual (std::string ("7"),      BasicWatches::TryGetValue (state, "HIGH").value_or ("?"), L"HIGH is HI");
+            Assert::AreEqual (std::string ("\"HI\""), BasicWatches::TryGetValue (state, "s$").value_or ("?"));
+            Assert::AreEqual (std::string ("0"),      BasicWatches::TryGetValue (state, "N%").value_or ("?"));
+            Assert::AreEqual (std::string ("\"\""),   BasicWatches::TryGetValue (state, "T$").value_or ("?"));
+            Assert::AreEqual (std::string ("5"),      BasicWatches::TryGetValue (state, "X(1,2)").value_or ("?"));
+            Assert::IsFalse  (BasicWatches::TryGetValue (state, "X(2,0)").has_value(), L"past the first subscript's size");
+            Assert::IsFalse  (BasicWatches::TryGetValue (state, "3A").has_value());
+        }
+
+        //  $, % or subscripts always make a BASIC variable; a plain name does
+        //  only when the stopped program has it.
+        TEST_METHOD (APlainNameIsBasicOnlyWhenTheProgramHasIt)
+        {
+            std::optional<DebuggerViewSnapshot::BasicState>  state = MakeValues();
+
+
+
+            Assert::IsTrue  (BasicWatches::IsBasicName (state, "N%"));
+            Assert::IsTrue  (BasicWatches::IsBasicName (state, "X(1,2)"));
+            Assert::IsTrue  (BasicWatches::IsBasicName (state, "A"));
+            Assert::IsFalse (BasicWatches::IsBasicName (state, "COUT"), L"the program has no CO");
+            Assert::IsFalse (BasicWatches::IsBasicName (state, "300"));
+
+            state->line.reset();
+            Assert::IsFalse (BasicWatches::IsBasicName (state, "A"), L"not stopped in the program");
+            Assert::IsTrue  (BasicWatches::IsBasicName (state, "N%"));
+        }
+
+        //  The statement being run's simple variables, each once; a keyword,
+        //  text in quotes and an array are not listed.
+        TEST_METHOD (TheStatementsVariablesAreTheAutomaticWatches)
+        {
+            BasicLine                         line  = MakeLine (0x0801, 10, { "A", "=", "H", "I", "G", "H", "+", "A", ":", " PRINT ", "S", "$", ";", "\"", "B", "\"", ";", "X", "(", "1", ")" });
+            DebuggerViewSnapshot::BasicState  state = MakeValues();
+            std::vector<BasicWatches::Item>   items;
+
+
+
+            state.lines       = { line };
+            state.textPointer = (Word) (line.address + kBodyOffset);
+            items             = BasicWatches::GetStatementItems (state);
+
+            Assert::AreEqual ((size_t) 2, items.size(), L"A and HIGH");
+            Assert::AreEqual (std::string ("HIGH"), items[1].name);
+            Assert::AreEqual (std::string ("7"),    items[1].value);
+
+            state.textPointer = (Word) (line.address + kBodyOffset + 9);
+            items             = BasicWatches::GetStatementItems (state);
+
+            Assert::AreEqual ((size_t) 1, items.size(), L"S$ only: B is in quotes and X is an array");
+            Assert::AreEqual (std::string ("S$"), items[0].name);
+        }
+
+        //  The characters past the second are dimmed, up to the type's sign.
+        TEST_METHOD (TheCharactersPastTheSecondAreDimmed)
+        {
+            Assert::IsTrue (BasicWatches::MakeNameCell ("HIGH$").dimRanges == std::vector<std::pair<int, int>> { { 2, 4 } });
+            Assert::IsTrue (BasicWatches::MakeNameCell ("SCORE(3)").dimRanges == std::vector<std::pair<int, int>> { { 2, 5 } });
+            Assert::IsTrue (BasicWatches::MakeNameCell ("HI").dimRanges.empty());
+        }
+
+        //  The GOSUB and FOR frames come first in the call stack, each on its
+        //  line, and activating one goes to the line.
+        TEST_METHOD (BasicFramesAreCallStackRows)
+        {
+            std::vector<BasicFrame>          frames = { { BasicFrameKind::Gosub, 0x01F0, 20 }, { BasicFrameKind::For, 0x01F7, 10, "I", "10", "2" } };
+            std::vector<CallStackPane::Row>  rows   = CallStackPane::GetBasicRows (frames);
+
+
+
+            Assert::AreEqual ((size_t) 2, rows.size());
+            Assert::AreEqual (std::wstring (L"Line 20"),            rows[0].site);
+            Assert::AreEqual (std::wstring (L"GOSUB"),              rows[0].routine);
+            Assert::AreEqual (std::wstring (L"FOR I TO 10 STEP 2"), rows[1].routine);
+            Assert::AreEqual ((Word) 10, rows[1].basicLine.value_or (0));
+        }
+
+        //  The program pane opened is written to the open-views text and read
+        //  back, and the default layout has it as a tab of the disassembly;
+        //  an old text's other BASIC panes are passed over. The BASIC watches
+        //  are written and read back the same way.
+        TEST_METHOD (TheOpenedPaneAndTheWatchesAreKept)
+        {
+            std::set<std::wstring>  opened = { DebuggerLayout::kBasicProgram, L"heatmap" };
             DxuiPaneLayout          layout = DebuggerLayout::MakeDefault();
 
 
 
-            Assert::AreEqual (std::string (" open=basicprogram open=basicstack"), DebuggerLayout::FormatBasicOpened (opened));
+            Assert::AreEqual (std::string (" open=basicprogram"), DebuggerLayout::FormatBasicOpened (opened));
             Assert::IsTrue   (DebuggerLayout::ParseBasicOpened ("code2=0300 open=basicstack bpcols=3 open=basicprogram") ==
-                              std::set<std::wstring> ({ DebuggerLayout::kBasicProgram, DebuggerLayout::kBasicStack }));
+                              std::set<std::wstring> ({ DebuggerLayout::kBasicProgram }));
+            Assert::IsTrue   (layout.Contains (DebuggerLayout::kBasicProgram));
 
-            for (const wchar_t * pane : { DebuggerLayout::kBasicProgram, DebuggerLayout::kBasicVariables, DebuggerLayout::kBasicStack })
-            {
-                Assert::IsTrue (layout.Contains (pane), pane);
-            }
+            Assert::AreEqual (std::string (" basicwatch=A$ basicwatch=X(1,2)"), DebuggerLayout::FormatBasicWatches ({ "A$", "X(1,2)" }));
+            Assert::IsTrue   (DebuggerLayout::ParseBasicWatches ("open=basicprogram basicwatch=A$ bpcols=3 basicwatch=X(1,2)") ==
+                              std::vector<std::string> ({ "A$", "X(1,2)" }));
         }
     };
 }

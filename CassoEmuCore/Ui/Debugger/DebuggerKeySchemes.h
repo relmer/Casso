@@ -88,11 +88,9 @@ public:
         ShowDiskLog,
         ShowInputLog,
         ShowBasicProgram,
-        ShowBasicVariables,
-        ShowBasicStack,
 
         First = Run,
-        Last  = ShowBasicStack,
+        Last  = ShowBasicProgram,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;

@@ -15,20 +15,15 @@
 //
 //  DebuggerWindow::CreateBasicPanes
 //
-//  The Applesoft program, its variables and its stack (FR-173, FR-176,
-//  FR-177), each a list.
+//  The Applesoft program (FR-173), a list. Its variables are in the Watches
+//  pane and its frames in the Call stack pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::CreateBasicPanes()
 {
-    m_basicProgramList  = CreateChild<DxuiListView>();
-    m_basicVariableList = CreateChild<DxuiListView>();
-    m_basicStackList    = CreateChild<DxuiListView>();
-
-    m_basicProgramPane   = std::make_unique<BasicProgramPane>   (m_basicProgramList, [this] (Word line) { ToggleBasicBreakpoint (line); });
-    m_basicVariablesPane = std::make_unique<BasicVariablesPane> (m_basicVariableList);
-    m_basicStackPane     = std::make_unique<BasicStackPane>     (m_basicStackList, [this] (Word line) { ShowBasicLine (line); });
+    m_basicProgramList = CreateChild<DxuiListView>();
+    m_basicProgramPane = std::make_unique<BasicProgramPane> (m_basicProgramList, [this] (Word line) { ToggleBasicBreakpoint (line); });
 }
 
 
@@ -44,8 +39,6 @@ void DebuggerWindow::CreateBasicPanes()
 void DebuggerWindow::ConfigureBasicPanes()
 {
     m_basicProgramPane->Configure (kGutterColumnDip);
-    m_basicVariablesPane->Configure();
-    m_basicStackPane->Configure();
 }
 
 
@@ -56,24 +49,16 @@ void DebuggerWindow::ConfigureBasicPanes()
 //
 //  DebuggerWindow::AddBasicPanes
 //
-//  Each is its list alone, with no toolbar: the program's breakpoints are
-//  set by activating a row, and the steps are the window's own.
+//  The list alone, with no toolbar: the program's breakpoints are set by
+//  activating a row, and the steps are the window's own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddBasicPanes()
 {
-    m_basicProgramFrame   = std::make_unique<DebuggerPaneFrame> (L"BASIC program");
-    m_basicVariablesFrame = std::make_unique<DebuggerPaneFrame> (L"BASIC variables");
-    m_basicStackFrame     = std::make_unique<DebuggerPaneFrame> (L"BASIC stack");
-
-    m_basicProgramFrame->AddPart   (m_basicProgramList);
-    m_basicVariablesFrame->AddPart (m_basicVariableList);
-    m_basicStackFrame->AddPart     (m_basicStackList);
-
-    m_dockSite->AddPane (DebuggerLayout::kBasicProgram,   L"BASIC program",   m_basicProgramFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kBasicVariables, L"BASIC variables", m_basicVariablesFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kBasicStack,     L"BASIC stack",     m_basicStackFrame.get());
+    m_basicProgramFrame = std::make_unique<DebuggerPaneFrame> (L"BASIC program");
+    m_basicProgramFrame->AddPart (m_basicProgramList);
+    m_dockSite->AddPane (DebuggerLayout::kBasicProgram, L"BASIC program", m_basicProgramFrame.get());
 }
 
 
@@ -88,11 +73,7 @@ void DebuggerWindow::AddBasicPanes()
 
 DebuggerPaneFrame * DebuggerWindow::GetBasicFrame (const std::wstring & pane) const
 {
-    if (pane == DebuggerLayout::kBasicProgram)   { return m_basicProgramFrame.get();   }
-    if (pane == DebuggerLayout::kBasicVariables) { return m_basicVariablesFrame.get(); }
-    if (pane == DebuggerLayout::kBasicStack)     { return m_basicStackFrame.get();     }
-
-    return nullptr;
+    return (pane == DebuggerLayout::kBasicProgram) ? m_basicProgramFrame.get() : nullptr;
 }
 
 
@@ -107,11 +88,7 @@ DebuggerPaneFrame * DebuggerWindow::GetBasicFrame (const std::wstring & pane) co
 
 DxuiListView * DebuggerWindow::GetBasicList (const std::wstring & pane) const
 {
-    if (pane == DebuggerLayout::kBasicProgram)   { return m_basicProgramList;  }
-    if (pane == DebuggerLayout::kBasicVariables) { return m_basicVariableList; }
-    if (pane == DebuggerLayout::kBasicStack)     { return m_basicStackList;    }
-
-    return nullptr;
+    return (pane == DebuggerLayout::kBasicProgram) ? m_basicProgramList : nullptr;
 }
 
 
@@ -123,7 +100,7 @@ DxuiListView * DebuggerWindow::GetBasicList (const std::wstring & pane) const
 //  DebuggerWindow::ApplyBasicPanes
 //
 //  The program pane follows the line being run, a new line scrolled into
-//  view; while the machine runs the value panes have a note to pause it.
+//  view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,9 +142,6 @@ void DebuggerWindow::ApplyBasicPanes()
             m_basicProgramPane->ShowLine (*m_basicShownLine);
         }
     }
-
-    m_basicVariablesPane->Apply (basic);
-    m_basicStackPane->Apply     (basic);
 }
 
 
@@ -234,21 +208,16 @@ void DebuggerWindow::FollowBasicProgram()
 //
 //  DebuggerWindow::SyncBasicReading
 //
-//  The machine's thread reads the program for the snapshots only while a
-//  BASIC pane is open and on screen; each change is sent to the host.
+//  While the machine runs, its thread reads the program for the snapshots
+//  only while the program pane is open and on screen; each change is sent
+//  to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::SyncBasicReading()
 {
-    bool  isWanted = false;
+    bool  isWanted = IsPaneShown (DebuggerLayout::kBasicProgram) && m_basicProgramList->IsVisible();
 
-
-
-    for (const wchar_t * pane : { DebuggerLayout::kBasicProgram, DebuggerLayout::kBasicVariables, DebuggerLayout::kBasicStack })
-    {
-        isWanted = isWanted || (IsPaneShown (pane) && GetBasicList (pane)->IsVisible());
-    }
 
     if (isWanted == m_isBasicReading || m_host == nullptr)
     {

@@ -42,8 +42,6 @@ static constexpr DxuiKeyChord  s_kPaneKeys[] =
     { 'D',      false, false, false, (int) Action::ShowDiskLog,        s_kLogPrefix    },
     { 'I',      false, false, false, (int) Action::ShowInputLog,       s_kLogPrefix    },
     { 'P',      false, false, false, (int) Action::ShowBasicProgram,   s_kBasicPrefix  },
-    { 'V',      false, false, false, (int) Action::ShowBasicVariables, s_kBasicPrefix  },
-    { 'S',      false, false, false, (int) Action::ShowBasicStack,     s_kBasicPrefix  },
 };
 
 //  Each pane action's pane, in the actions' order from ShowDisassembly.
@@ -53,7 +51,7 @@ static constexpr const wchar_t *  s_kpszPanes[] =
     L"memory1", L"memory2", L"memory3", L"memory4",
     DebuggerLayout::kRegisters, DebuggerLayout::kConsole, DebuggerLayout::kStack, DebuggerLayout::kTrace,
     DebuggerLayout::kHeatMap, DebuggerLayout::kHeatRanges, DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog,
-    DebuggerLayout::kBasicProgram, DebuggerLayout::kBasicVariables, DebuggerLayout::kBasicStack,
+    DebuggerLayout::kBasicProgram,
 };
 
 static constexpr DxuiKeyChord  s_kVisualStudioKeys[] =

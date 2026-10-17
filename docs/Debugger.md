@@ -608,8 +608,10 @@ BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
 - With none set, nothing is tested: the interpreter's pages are watched only
   while a BASIC breakpoint or step is active.
 
-**In the window.** View > BASIC program, BASIC variables and BASIC stack open
-three panes, which stay open across restarts until closed:
+**In the window.** View > BASIC program opens the program in a pane, which
+stays open across restarts until closed. The pane also opens by itself at the
+line when the machine stops in the interpreter while a program runs, and when
+a BASIC line breakpoint is set.
 
 - **BASIC program**, a tab beside the disassembly, lists the program as LIST
   prints it, colored, read from memory as the program changes. The line being
@@ -617,14 +619,20 @@ three panes, which stay open across restarts until closed:
   line's other statements are muted. Enter or a double-click on a row sets a
   line breakpoint there, or clears the one there. With the keys in this pane,
   Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
-- **BASIC variables**, a tab beside the watches, lists every simple variable
-  and every array element, each value as `PRINT` writes it.
-- **BASIC stack**, a tab beside the call stack, lists the active `GOSUB`
-  returns and `FOR` loops, newest first; Enter or a double-click brings the
-  line into view in the program pane.
+- **Watches** lists the variables while the machine is stopped in a running
+  program. The Automatic section has the ones the statement being run uses. A
+  variable or array element typed in the add row as Applesoft writes it, such
+  as `A$`, `N%` or `X(2,3)`, is watched there, as is a plain name the program
+  has; a plain name the program does not have is watched as an address. The
+  BASIC variables heading expands to every simple variable and array element,
+  each value as `PRINT` writes it. Applesoft reads only a name's first two
+  characters, so `HIGH` and `HI` are one variable, and the characters past the
+  second are dimmed.
+- **Call stack** lists the active `GOSUB` returns and `FOR` loops first,
+  newest first, each with its line; Enter or a double-click brings the line
+  into view in the program pane.
 
-The values are read while the machine is paused; while it runs, the two value
-panes have a note to pause it. At the `]` prompt no line is marked.
+At the `]` prompt no line is marked.
 
 ## Source-level debugging
 
@@ -928,7 +936,7 @@ second key may be pressed with the first key's Ctrl and Alt down.
 | Heat map | Ctrl+Alt+H |
 | Heat map ranges | Ctrl+Alt+R |
 | Disk II log, Input log | Ctrl+Alt+L, D and Ctrl+Alt+L, I |
-| BASIC program, variables, stack | Ctrl+Alt+P, P and V and S |
+| BASIC program | Ctrl+Alt+P, P |
 
 Keys and the mouse button let go of while the machine is behind live are
 released in the machine when it goes live again; a key still held stays down.

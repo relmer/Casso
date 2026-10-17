@@ -10,8 +10,6 @@
 
 static constexpr const wchar_t * s_kpszNoApplesoft = L"Applesoft is not in memory.";
 static constexpr const wchar_t * s_kpszNoProgram   = L"No Applesoft program is in memory.";
-static constexpr const wchar_t * s_kpszRunning     = L"Pause the machine to read the values.";
-static constexpr const wchar_t * s_kpszQuote       = L"\"";
 
 
 
@@ -414,14 +412,13 @@ void BasicProgramPane::AddSyntaxColors (const BasicLine & line, const Row & row,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicVariablesPane::Configure
+//  BasicWatches::IsStoppedInProgram
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BasicVariablesPane::Configure()
+bool BasicWatches::IsStoppedInProgram (const std::optional<DebuggerViewSnapshot::BasicState> & basic)
 {
-    m_list->SetColumns ({ { L"Name",  0, false, DxuiTextHAlign::Left },
-                          { L"Value", 0, true,  DxuiTextHAlign::Left } });
+    return basic.has_value() && basic->isApplesoft && basic->hasValues && basic->line.has_value();
 }
 
 
@@ -430,124 +427,30 @@ void BasicVariablesPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicVariablesPane::Apply
+//  BasicWatches::IsBasicName
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BasicVariablesPane::Apply (const std::optional<DebuggerViewSnapshot::BasicState> & basic)
+bool BasicWatches::IsBasicName (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::string & text)
 {
-    m_list->SetRows (GetCells (basic));
-}
+    BasicReference  reference;
+    bool            isMarked = text.find_first_of ("$%(") != std::string::npos;
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BasicVariablesPane::GetCells
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::vector<DxuiListView::Cell>> BasicVariablesPane::GetCells (const std::optional<DebuggerViewSnapshot::BasicState> & basic)
-{
-    std::vector<std::vector<DxuiListView::Cell>>  cells;
-    auto                                          shown = [] (BasicType type, const std::string & value)
+    if (!ApplesoftProgram::TryParseReference (text, reference))
     {
-        std::wstring  text = TextEncoding::NarrowToWide (value);
-
-
-
-        return (type == BasicType::String) ? s_kpszQuote + text + s_kpszQuote : text;
-    };
-
-
-
-    if (!basic.has_value())
-    {
-        return cells;
+        return false;
     }
 
-    if (!basic->isApplesoft || !basic->hasValues)
+    if (isMarked)
     {
-        cells.push_back (MakeNote (!basic->isApplesoft ? s_kpszNoApplesoft : s_kpszRunning));
-        return cells;
+        return true;
     }
 
-    for (const BasicVariable & variable : basic->variables)
+    return IsStoppedInProgram (basic) && std::ranges::any_of (basic->variables, [&reference] (const BasicVariable & variable)
     {
-        cells.push_back ({ { TextEncoding::NarrowToWide (variable.name) }, { shown (variable.type, variable.value) } });
-    }
-
-    for (const BasicArray & array : basic->arrays)
-    {
-        for (size_t index = 0; index < array.values.size(); index++)
-        {
-            cells.push_back ({ { GetElementName (array, index) }, { shown (array.type, array.values[index]) } });
-        }
-    }
-
-    if (cells.empty())
-    {
-        cells.push_back (MakeNote (L"No variables."));
-    }
-
-    return cells;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BasicVariablesPane::GetElementName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BasicVariablesPane::GetElementName (const BasicArray & array, size_t index)
-{
-    std::wstring  subscripts;
-    size_t        rest       = index;
-
-
-
-    for (int size : array.sizes)
-    {
-        size_t  count = (size_t) std::max (size, 1);
-
-
-
-        subscripts += std::format (L"{}{}", subscripts.empty() ? L"" : L",", rest % count);
-        rest       /= count;
-    }
-
-    return TextEncoding::NarrowToWide (array.name) + L"(" + subscripts + L")";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BasicStackPane::Configure
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BasicStackPane::Configure()
-{
-    m_list->SetColumns ({ { L"Frame", 0, false, DxuiTextHAlign::Left },
-                          { L"Line",  0, true,  DxuiTextHAlign::Left } });
-
-    m_list->SetActivateOnDoubleClick (true);
-
-    m_list->SetOnActivateRow ([this] (int row)
-    {
-        if (row >= 0 && row < (int) m_lines.size())
-        {
-            m_showLine (m_lines[(size_t) row]);
-        }
+        return variable.name == reference.name;
     });
 }
 
@@ -557,23 +460,58 @@ void BasicStackPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicStackPane::Apply
+//  BasicWatches::TryGetValue
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BasicStackPane::Apply (const std::optional<DebuggerViewSnapshot::BasicState> & basic)
+std::optional<std::string> BasicWatches::TryGetValue (const DebuggerViewSnapshot::BasicState & basic, const std::string & text)
 {
-    m_lines.clear();
+    BasicReference  reference;
+    size_t          index     = 0;
+    size_t          stride    = 1;
 
-    if (basic.has_value() && basic->hasValues)
+
+
+    if (!ApplesoftProgram::TryParseReference (text, reference))
     {
-        for (const BasicFrame & frame : basic->frames)
-        {
-            m_lines.push_back (frame.line);
-        }
+        return std::nullopt;
     }
 
-    m_list->SetRows (GetCells (basic));
+    if (reference.subscripts.empty())
+    {
+        for (const BasicVariable & variable : basic.variables)
+        {
+            if (variable.name == reference.name)
+            {
+                return Quote (variable.type, variable.value);
+            }
+        }
+
+        return Quote (reference.type, reference.type == BasicType::String ? std::string() : std::string ("0"));
+    }
+
+    for (const BasicArray & array : basic.arrays)
+    {
+        if (array.name != reference.name || array.sizes.size() != reference.subscripts.size())
+        {
+            continue;
+        }
+
+        for (size_t at = 0; at < array.sizes.size(); at++)
+        {
+            if (reference.subscripts[at] >= array.sizes[at])
+            {
+                return std::nullopt;
+            }
+
+            index  += (size_t) reference.subscripts[at] * stride;
+            stride *= (size_t) std::max (array.sizes[at], 1);
+        }
+
+        return (index < array.values.size()) ? std::optional<std::string> (Quote (array.type, array.values[index])) : std::nullopt;
+    }
+
+    return std::nullopt;
 }
 
 
@@ -582,42 +520,192 @@ void BasicStackPane::Apply (const std::optional<DebuggerViewSnapshot::BasicState
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicStackPane::GetCells
+//  BasicWatches::GetStatementItems
+//
+//  A variable is a run of single letters and digits starting with a letter,
+//  with a $ or % after it; a keyword is one piece of its own. Text in quotes,
+//  a REM and a DATA's items are not variables, and an array is left out,
+//  since its subscripts are expressions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> BasicStackPane::GetCells (const std::optional<DebuggerViewSnapshot::BasicState> & basic)
+std::vector<BasicWatches::Item> BasicWatches::GetStatementItems (const DebuggerViewSnapshot::BasicState & basic)
 {
-    std::vector<std::vector<DxuiListView::Cell>>  cells;
-
-
-
-    if (!basic.has_value())
+    std::vector<Item>         items;
+    std::vector<std::string>  seen;
+    const BasicLine         * line      = nullptr;
+    int                       piece     = 0;
+    std::pair<int, int>       statement;
+    bool                      isQuoted  = false;
+    bool                      isSkipped = false;
+    std::string               name;
+    auto                      isNamePiece = [] (const std::string & text, bool isFirst)
     {
-        return cells;
+        return text.size() == 1 && (std::isupper ((unsigned char) text[0]) || (!isFirst && std::isdigit ((unsigned char) text[0])));
+    };
+
+
+
+    if (!basic.line.has_value())
+    {
+        return items;
     }
 
-    if (!basic->isApplesoft || !basic->hasValues)
+    for (const BasicLine & each : basic.lines)
     {
-        cells.push_back (MakeNote (!basic->isApplesoft ? s_kpszNoApplesoft : s_kpszRunning));
-        return cells;
+        line = (each.number == *basic.line) ? &each : line;
     }
 
-    for (const BasicFrame & frame : basic->frames)
+    if (line == nullptr)
     {
-        std::wstring  text = (frame.kind == BasicFrameKind::Gosub)
-                           ? std::wstring (L"GOSUB")
-                           : TextEncoding::NarrowToWide (std::format ("FOR {} TO {} STEP {}", frame.variable, frame.limit, frame.step));
-
-
-
-        cells.push_back ({ { text }, { std::to_wstring (frame.line) } });
+        return items;
     }
 
-    if (cells.empty())
+    piece     = std::clamp ((int) basic.textPointer - (int) (line->address + 4), 0, std::max ((int) line->pieces.size() - 1, 0));
+    statement = BasicProgramPane::GetStatement (*line, piece);
+
+    for (int at = statement.first; at < statement.second; at++)
     {
-        cells.push_back (MakeNote (L"No GOSUB or FOR is active."));
+        const std::string  & text = line->pieces[(size_t) at];
+
+
+
+        isQuoted  = (text == "\"") ? !isQuoted : isQuoted;
+        isSkipped = isSkipped || (!isQuoted && (text == " REM " || text == " DATA "));
+
+        if (isQuoted || isSkipped || !isNamePiece (text, true))
+        {
+            continue;
+        }
+
+        name = text;
+
+        while (at + 1 < statement.second && isNamePiece (line->pieces[(size_t) at + 1], false))
+        {
+            name += line->pieces[(size_t) ++at];
+        }
+
+        if (at + 1 < statement.second && (line->pieces[(size_t) at + 1] == "$" || line->pieces[(size_t) at + 1] == "%"))
+        {
+            name += line->pieces[(size_t) ++at];
+        }
+
+        if (at + 1 < statement.second && line->pieces[(size_t) at + 1] == "(")
+        {
+            continue;
+        }
+
+        if (std::ranges::find (seen, name) == seen.end())
+        {
+            seen.push_back (name);
+            items.push_back ({ name, TryGetValue (basic, name).value_or ("") });
+        }
     }
 
-    return cells;
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicWatches::GetAllItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<BasicWatches::Item> BasicWatches::GetAllItems (const DebuggerViewSnapshot::BasicState & basic)
+{
+    std::vector<Item>  items;
+
+
+
+    for (const BasicVariable & variable : basic.variables)
+    {
+        items.push_back ({ variable.name, Quote (variable.type, variable.value) });
+    }
+
+    for (const BasicArray & array : basic.arrays)
+    {
+        for (size_t index = 0; index < array.values.size(); index++)
+        {
+            items.push_back ({ GetElementName (array, index), Quote (array.type, array.values[index]) });
+        }
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicWatches::GetElementName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BasicWatches::GetElementName (const BasicArray & array, size_t index)
+{
+    std::string  subscripts;
+    size_t       rest       = index;
+
+
+
+    for (int size : array.sizes)
+    {
+        size_t  count = (size_t) std::max (size, 1);
+
+
+
+        subscripts += std::format ("{}{}", subscripts.empty() ? "" : ",", rest % count);
+        rest       /= count;
+    }
+
+    return array.name + "(" + subscripts + ")";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicWatches::MakeNameCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell BasicWatches::MakeNameCell (const std::string & name)
+{
+    static constexpr int  kReadLength = 2;
+    DxuiListView::Cell    cell        = { TextEncoding::NarrowToWide (name) };
+    size_t                letters     = name.find_first_of ("$%(");
+
+
+
+    letters = (letters == std::string::npos) ? name.size() : letters;
+
+    if ((int) letters > kReadLength)
+    {
+        cell.dimRanges.push_back ({ kReadLength, (int) letters });
+    }
+
+    return cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicWatches::Quote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BasicWatches::Quote (BasicType type, const std::string & value)
+{
+    return (type == BasicType::String) ? "\"" + value + "\"" : value;
 }

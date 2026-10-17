@@ -16,11 +16,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CallStackPane::CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode) :
-    m_list       (list),
-    m_modeButton (modeButton),
-    m_run        (std::move (run)),
-    m_showCode   (std::move (showCode))
+CallStackPane::CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode, ShowFn showBasicLine) :
+    m_list          (list),
+    m_modeButton    (modeButton),
+    m_run           (std::move (run)),
+    m_showCode      (std::move (showCode)),
+    m_showBasicLine (std::move (showBasicLine))
 {
 }
 
@@ -44,7 +45,16 @@ void CallStackPane::Configure()
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        if (row >= 0 && row < (int) m_rows.size())
+        if (row < 0 || row >= (int) m_rows.size())
+        {
+            return;
+        }
+
+        if (m_rows[(size_t) row].basicLine.has_value())
+        {
+            m_showBasicLine (*m_rows[(size_t) row].basicLine);
+        }
+        else
         {
             m_showCode (m_rows[(size_t) row].address);
         }
@@ -68,15 +78,21 @@ void CallStackPane::Configure()
 //  CallStackPane::Apply
 //
 //  The columns fit the frames shown whenever they change, as the machine
-//  pauses or steps.
+//  pauses or steps. The BASIC frames come before the machine's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackPane::Apply (const CallStackData & data)
+void CallStackPane::Apply (const CallStackData & data, const std::vector<BasicFrame> & basicFrames)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
-    std::vector<Row>                              rows    = GetRows (data);
-    bool                                          changed = !IsSameText (rows, m_rows);
+    std::vector<Row>                              rows    = GetBasicRows (basicFrames);
+    std::vector<Row>                              machine = GetRows (data);
+    bool                                          changed = false;
+
+
+
+    rows.insert (rows.end(), machine.begin(), machine.end());
+    changed = !IsSameText (rows, m_rows);
 
 
 
@@ -152,7 +168,7 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
         cells.pop_back();
     }
 
-    if (row.isDim || row.isBreak || colors.syntax.address == 0)
+    if (row.isDim || row.isBreak || row.basicLine.has_value() || colors.syntax.address == 0)
     {
         return cells;
     }
@@ -161,6 +177,43 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
     cells[1].colorRanges = DebuggerTextColors::GetInstructionRanges (row.routine, colors);
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetBasicRows
+//
+//  A GOSUB or a FOR loop with its limit and step, on the line it was made
+//  on, as the stack has them, newest first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CallStackPane::Row> CallStackPane::GetBasicRows (const std::vector<BasicFrame> & frames)
+{
+    std::vector<Row>  rows;
+
+
+
+    for (const BasicFrame & frame : frames)
+    {
+        Row  row;
+
+
+
+        row.site      = std::format (L"Line {}", frame.line);
+        row.routine   = (frame.kind == BasicFrameKind::Gosub)
+                      ? std::wstring (L"GOSUB")
+                      : TextEncoding::NarrowToWide (std::format ("FOR {} TO {} STEP {}", frame.variable, frame.limit, frame.step));
+        row.foundBy   = L"Applesoft's stack";
+        row.basicLine = frame.line;
+        rows.push_back (row);
+    }
+
+    return rows;
 }
 
 
