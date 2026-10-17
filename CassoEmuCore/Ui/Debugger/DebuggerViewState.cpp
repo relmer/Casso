@@ -1353,6 +1353,7 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     if (m_lineAddresses == nullptr || key != m_lineAddressesKey)
     {
         auto  addresses = std::make_shared<std::map<std::pair<int, int>, Word>>();
+        auto  ranges    = std::make_shared<std::map<std::pair<int, int>, std::pair<Word, Word>>>();
 
         for (const DebugLine & line : file.lines)
         {
@@ -1363,11 +1364,13 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
                 if (found == addresses->end() || range.first < found->second)
                 {
                     (*addresses)[{ line.file, line.line }] = range.first;
+                    (*ranges)[{ line.file, line.line }]    = range;
                 }
             }
         }
 
         m_lineAddresses    = addresses;
+        m_lineRanges       = ranges;
         m_lineAddressesKey = key;
     }
 
@@ -1376,6 +1379,7 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.files         = file.files;
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
+    state.lineRanges    = m_lineRanges;
 
     if (!atPc.empty())
     {

@@ -2,6 +2,7 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Ui/Debugger/Panes/SourcePane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,6 +95,29 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) HeatStrip::kMaxBlocks, strip.text.size());
             Assert::AreEqual (L'w', strip.text[1], L"$2005 is in the second block of four bytes");
+        }
+
+
+
+        //  A source line's number has the strip of the first range it
+        //  produced ahead of it, and a line with no code spaces, so the
+        //  numbers stay in a column.
+        TEST_METHOD (ASourceLinesNumberHasItsBytesStripAheadOfIt)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels                levels = MakeLevels();
+            std::vector<DxuiTextView::Row>                        rows   = SourcePane::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
+            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+
+
+
+            levels.execute[0x0300] = 255;
+            levels.read[0x0301]    = 255;
+
+            SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
+
+            Assert::AreEqual (std::wstring (s_kpszFullBlock) + L"r   1", rows[0].cells[1]);
+            Assert::AreEqual (std::wstring (L"     2"),                  rows[1].cells[1]);
+            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.argb == kRead; }));
         }
 
 

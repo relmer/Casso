@@ -203,6 +203,11 @@ struct DebuggerViewSnapshot
         //  The same map is shared until another debug file is loaded.
         std::shared_ptr<const std::map<std::pair<int, int>, Word>>  lineAddresses;
 
+        //  Every line that produced code, to the first range of addresses it
+        //  produced, first and last; the same map is shared as the first
+        //  addresses' map is.
+        std::shared_ptr<const std::map<std::pair<int, int>, std::pair<Word, Word>>>  lineRanges;
+
         //  What each line in the PC's files reads, as the disassembly pane's
         //  operand column has it, and for the line at PC what it leaves too:
         //  the operand first, the result second. Built while the machine is
@@ -990,5 +995,8 @@ private:
     //  The line-to-address map for the loaded debug file, built once per load.
     mutable std::string                                                        m_lineAddressesKey;
     mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>         m_lineAddresses;
+
+    //  The first range each line produced, built with m_lineAddresses.
+    mutable std::shared_ptr<const std::map<std::pair<int, int>, std::pair<Word, Word>>>  m_lineRanges;
     mutable std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_lineOperands;
 };

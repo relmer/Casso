@@ -125,6 +125,7 @@ void DebuggerWindow::ApplyBasicPanes()
     style.syntax           = GetSyntaxColors();
 
     m_basicProgramPane->SetStyle (style);
+    m_basicProgramPane->SetHeat  (m_snapshot->heatColumns, m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ? std::optional<HeatMapView::Palette> (GetHeatPalette()) : std::nullopt);
     m_basicProgramPane->Apply    (basic, m_snapshot->breakpoints);
 
     if (m_basicPendingLine.has_value() && basic.has_value() && basic->hasProgram)

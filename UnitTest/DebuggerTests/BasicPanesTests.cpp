@@ -103,6 +103,36 @@ namespace DebuggerTests
             Assert::IsTrue (BasicProgramPane::GetStatement (line, 14) == std::pair<int, int> (11, 15));
         }
 
+        //  The heat column's strip is over each line's tokens, on its first
+        //  row: the interpreter's reads of them are the line running.
+        TEST_METHOD (TheHeatColumnIsOverEachLinesTokens)
+        {
+            BasicLine                                  first  = MakeLine (0x0801, 10, { "A", "=", "1" });
+            BasicLine                                  second = MakeLine (0x0809, 20, { "B", "=", "2" });
+            DebuggerViewSnapshot::BasicState              state  = MakeState ({ first, second }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows   = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat;
+            HeatMapView::Palette                          palette;
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+            heat.execute.assign (0x10000, 0);
+            heat.read.assign    (0x10000, 0);
+            heat.write.assign   (0x10000, 0);
+            heat.read[0x0805]  = 255;
+            palette.execute    = 0xFF0000FF;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
+
+            Assert::AreEqual ((size_t) 4, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"four bytes of tokens, a block each");
+            Assert::AreEqual (0xFF0000FFu, std::get<2> (cells[0][BasicProgramPane::kHeatColumn].colorRanges[0]), L"the token read is the line running");
+            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line: its first eight bytes in four blocks");
+            Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
+        }
+
+
+
         //  The line being run has the PC's row color; its statement is in
         //  full color and the rest muted, with the PC's arrow on the row the
         //  statement starts on; a line breakpoint's dot is on its first row.
@@ -128,15 +158,15 @@ namespace DebuggerTests
             cells = BasicProgramPane::GetCells (state, rows, { MakeLineBreakpoint (3, 20, true) }, style);
 
             Assert::AreEqual ((size_t) 2, cells.size());
-            Assert::AreEqual (std::wstring (L" 10 A=1"),     cells[0][1].text);
-            Assert::AreEqual (std::wstring (L" 20 B=2:C=3"), cells[1][1].text);
-            Assert::AreEqual (0u, cells[0][1].background, L"line 10 is not being run");
+            Assert::AreEqual (std::wstring (L" 10 A=1"),     cells[0][BasicProgramPane::kListingColumn].text);
+            Assert::AreEqual (std::wstring (L" 20 B=2:C=3"), cells[1][BasicProgramPane::kListingColumn].text);
+            Assert::AreEqual (0u, cells[0][BasicProgramPane::kListingColumn].background, L"line 10 is not being run");
             Assert::IsTrue   (cells[0][0].icon == nullptr);
-            Assert::AreEqual (style.pcRowArgb, cells[1][1].background);
+            Assert::AreEqual (style.pcRowArgb, cells[1][BasicProgramPane::kListingColumn].background);
             Assert::IsTrue   (cells[1][0].icon == style.pcOnEnabledIcon, L"the arrow over the breakpoint's dot");
-            Assert::AreEqual ((size_t) 4, cells[1][1].dimRanges.size(), L"B, =, 2 and the colon muted");
-            Assert::IsTrue   (cells[1][1].dimRanges.front() == std::pair<int, int> (4, 5));
-            Assert::IsTrue   (cells[1][1].dimRanges.back()  == std::pair<int, int> (7, 8));
+            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kListingColumn].dimRanges.size(), L"B, =, 2 and the colon muted");
+            Assert::IsTrue   (cells[1][BasicProgramPane::kListingColumn].dimRanges.front() == std::pair<int, int> (4, 5));
+            Assert::IsTrue   (cells[1][BasicProgramPane::kListingColumn].dimRanges.back()  == std::pair<int, int> (7, 8));
         }
 
         //  A line LIST continues on a second row has its pieces' places,

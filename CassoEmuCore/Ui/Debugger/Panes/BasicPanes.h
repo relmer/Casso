@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 
 
@@ -52,12 +53,20 @@ public:
         std::vector<std::pair<int, int>>  pieces;   // piece index, offset in text
     };
 
+    static constexpr size_t  kGutterColumn  = 0;
+    static constexpr size_t  kHeatColumn    = 1;
+    static constexpr size_t  kListingColumn = 2;
+
     BasicProgramPane (DxuiListView * list, ToggleFn toggle);
 
     DxuiListView *  GetList () const { return m_list; }
 
     void  Configure (int gutterDip);
     void  SetStyle  (const Style & style) { m_style = style; }
+
+    //  The heat column's levels and colors while Show heat is on; the column
+    //  is visible while there are colors.
+    void  SetHeat   (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const std::optional<HeatMapView::Palette> & palette);
     void  Apply     (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints);
 
     //  Scrolls to a line's first row and selects it.
@@ -71,11 +80,14 @@ public:
     //  and a REM runs to the end of the line.
     static std::pair<int, int>  GetStatement (const BasicLine & line, int piece);
 
-    //  Each row's cells: the gutter's icon and the text, colored.
+    //  Each row's cells: the gutter's icon, the heat strip over the line's
+    //  tokens on its first row when there are levels, and the text, colored.
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::BasicState                & basic,
                                                                     const std::vector<Row>                                 & rows,
                                                                     const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints,
-                                                                    const Style                                            & style);
+                                                                    const Style                                            & style,
+                                                                    const DebuggerViewSnapshot::HeatColumnLevels           * heat    = nullptr,
+                                                                    const HeatMapView::Palette                             * palette = nullptr);
 
     //  The note in place of the listing, empty when there is a listing.
     static std::wstring  GetNote (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
@@ -88,6 +100,10 @@ private:
     Style               m_style;
     std::vector<Row>    m_rows;
     std::vector<Word>   m_rowLines;
+
+    //  The heat column's levels and colors, none while it is hidden.
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heat;
+    std::optional<HeatMapView::Palette>                            m_heatPalette;
 };
 
 

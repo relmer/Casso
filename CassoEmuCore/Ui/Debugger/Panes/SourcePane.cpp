@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/GutterGlyph.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "CLexer.h"
@@ -79,6 +80,82 @@ void SourcePane::SetStyle (const Style & style)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::SetHeat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
+{
+    if (palette.has_value() != m_heatPalette.has_value())
+    {
+        m_isStyleStale = true;
+    }
+
+    m_heatPalette = palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::AddHeatStrips
+//
+//  A line that produced no code gets spaces in the strip's place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
+                                const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
+                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette)
+{
+    constexpr int  kNumberCell = 1;
+
+
+
+    for (size_t i = 0; i < rows.size(); i++)
+    {
+        DxuiTextView::Row  & row   = rows[i];
+        auto                 found = lineRanges.find ({ fileId, (int) i + 1 });
+        HeatStrip::Strip     strip;
+        std::wstring         prefix;
+
+        if (row.cells.size() <= (size_t) kNumberCell)
+        {
+            continue;
+        }
+
+        if (found != lineRanges.end())
+        {
+            strip = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false);
+        }
+
+        prefix = strip.text + std::wstring (HeatStrip::kMaxBlocks + 1 - strip.text.size(), L' ');
+
+        for (DxuiTextView::Span & span : row.spans)
+        {
+            if (span.cell == kNumberCell)
+            {
+                span.start += (int) prefix.size();
+            }
+        }
+
+        for (const auto & [start, end, argb] : strip.colors)
+        {
+            row.spans.push_back ({ kNumberCell, start, end - start, argb });
+        }
+
+        row.cells[kNumberCell] = prefix + row.cells[kNumberCell];
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::SetAssembler
 //
 //  The user's choice of whose grammar colors this document, or Any to go by
@@ -134,6 +211,8 @@ void SourcePane::Apply (const DebuggerViewSnapshot & snapshot)
     bool          keepDrop  = false;
 
 
+
+    m_heatLevels = snapshot.heatColumns;
 
     //  A loose file keeps its text whatever debug file comes and goes.
     if (m_isLoose)
@@ -356,6 +435,8 @@ void SourcePane::Rebuild()
     std::string                           invokedName;
     std::wstring                          bannerText;
     std::wstring                          elsewhere;
+    std::vector<DxuiTextView::Row>        rows;
+    auto                                  heat         = (m_heatPalette.has_value() && !m_isLoose && m_state->lineRanges != nullptr) ? m_heatLevels : nullptr;
 
 
 
@@ -382,7 +463,7 @@ void SourcePane::Rebuild()
     }
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
-                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands;
+                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat;
 
     if (isRowsStale)
     {
@@ -401,7 +482,15 @@ void SourcePane::Rebuild()
             }
         }
 
-        m_view->SetRows  (BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC));
+        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC);
+
+        if (heat != nullptr)
+        {
+            AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette);
+        }
+
+        m_view->SetRows  (std::move (rows));
+        m_rowsHeatLevels   = heat;
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;

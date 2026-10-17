@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/BasicPanes.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/HeatStrip.h"
 
 
 
@@ -62,7 +63,10 @@ BasicProgramPane::BasicProgramPane (DxuiListView * list, ToggleFn toggle) :
 void BasicProgramPane::Configure (int gutterDip)
 {
     m_list->SetColumns ({ { L"",        gutterDip, false, DxuiTextHAlign::Left },
+                          { L"Heat",    0,         false, DxuiTextHAlign::Left },
                           { L"Listing", 0,         true,  DxuiTextHAlign::Left } });
+
+    m_list->SetColumnVisible (kHeatColumn, false);
 
     m_list->SetActivateOnDoubleClick (true);
 
@@ -105,7 +109,8 @@ void BasicProgramPane::Apply (
     }
 
     m_rows = GetRows (basic->lines);
-    cells  = GetCells (*basic, m_rows, breakpoints, m_style);
+    cells  = GetCells (*basic, m_rows, breakpoints, m_style, m_heatPalette.has_value() ? m_heat.get() : nullptr,
+                       m_heatPalette.has_value() ? &*m_heatPalette : nullptr);
 
     for (const Row & row : m_rows)
     {
@@ -113,6 +118,24 @@ void BasicProgramPane::Apply (
     }
 
     m_list->SetRows (std::move (cells));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::SetHeat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramPane::SetHeat (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const std::optional<HeatMapView::Palette> & palette)
+{
+    m_heat        = std::move (levels);
+    m_heatPalette = palette;
+
+    m_list->SetColumnVisible (kHeatColumn, palette.has_value());
 }
 
 
@@ -276,7 +299,9 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
     const DebuggerViewSnapshot::BasicState                  & basic,
     const std::vector<Row>                                  & rows,
     const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints,
-    const Style                                             & style)
+    const Style                                             & style,
+    const DebuggerViewSnapshot::HeatColumnLevels            * heat,
+    const HeatMapView::Palette                              * palette)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
 
@@ -285,7 +310,7 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
     for (const Row & row : rows)
     {
         const BasicLine                  & line       = basic.lines[row.lineIndex];
-        std::vector<DxuiListView::Cell>    rowCells (2);
+        std::vector<DxuiListView::Cell>    rowCells (3);
         bool                               isCurrent  = basic.line == line.number;
         int                                piece      = (int) basic.textPointer - (int) (line.address + 4);
         bool                               isInLine   = isCurrent && piece >= 0 && piece < (int) line.pieces.size();
@@ -302,12 +327,23 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
 
         hasArrow = hasArrow || (isCurrent && row.isFirst && line.pieces.empty());
 
-        rowCells[1].text = row.text;
-        rowCells[0].icon = hasArrow ? (!hasDot ? style.pcIcon : isEnabled ? style.pcOnEnabledIcon : style.pcOnDisabledIcon)
+        rowCells[kListingColumn].text = row.text;
+        rowCells[kGutterColumn].icon = hasArrow ? (!hasDot ? style.pcIcon : isEnabled ? style.pcOnEnabledIcon : style.pcOnDisabledIcon)
                          : hasDot   ? (isEnabled ? style.enabledIcon : style.disabledIcon)
                          :            nullptr;
 
-        AddSyntaxColors (line, row, style.syntax, rowCells[1]);
+        AddSyntaxColors (line, row, style.syntax, rowCells[kListingColumn]);
+
+        //  The tokens run from past the link and the line number to the next
+        //  line's link; the last line's end is not known, so its first eight.
+        if (heat != nullptr && palette != nullptr && row.isFirst)
+        {
+            Word    first = (Word) (line.address + 4);
+            size_t  count = (row.lineIndex + 1 < basic.lines.size() && basic.lines[row.lineIndex + 1].address > first)
+                          ? (size_t) (basic.lines[row.lineIndex + 1].address - first) : 8;
+
+            rowCells[kHeatColumn] = HeatStrip::GetCell (*heat, first, count, *palette, true);
+        }
 
         if (isCurrent)
         {
@@ -326,7 +362,7 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
 
                 if (index < statement.first || index >= statement.second)
                 {
-                    rowCells[1].dimRanges.push_back ({ start, end });
+                    rowCells[kListingColumn].dimRanges.push_back ({ start, end });
                 }
             }
         }

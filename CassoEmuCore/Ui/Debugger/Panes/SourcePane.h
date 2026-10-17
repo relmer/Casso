@@ -3,6 +3,7 @@
 #include "Debugger/Source/SourceService.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/DebuggerActions.h"
 
@@ -81,6 +82,17 @@ public:
 
     //  Rows are rebuilt with the next Apply when the style changes.
     void  SetStyle      (const Style & style);
+
+    //  The heat map's colors while the heat option is on, none while it is
+    //  off: each line's number has the heat strip of the first range of
+    //  bytes the line produced ahead of it.
+    void  SetHeat       (const std::optional<HeatMapView::Palette> & palette);
+
+    //  The heat strips ahead of the rows' numbers, the rows one a line from
+    //  line 1, padded so the numbers stay in a column.
+    static void  AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
+                                const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
+                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette);
 
     //  Whose grammar colors the text: Any goes by what the file shows. Rows
     //  are rebuilt with the next Apply when it changes.
@@ -236,6 +248,9 @@ private:
     std::vector<int>                                                   m_rowLines;
     std::set<int>                                                      m_disabledIds;
     Style                                                              m_style;
+    std::optional<HeatMapView::Palette>                                m_heatPalette;
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>      m_heatLevels;
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>      m_rowsHeatLevels;
     bool                                                               m_isStyleStale    = false;
     bool                                                               m_isLoose         = false;
     bool                                                               m_isLooseSource   = false;

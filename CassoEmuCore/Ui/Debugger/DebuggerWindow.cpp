@@ -1620,6 +1620,7 @@ void DebuggerWindow::ApplySource()
                                        GetResultArgb(), GetPcIcon (nullptr) });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
+        document.pane->SetHeat     (m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ? std::optional<HeatMapView::Palette> (GetHeatPalette()) : std::nullopt);
         document.pane->Apply       (*m_snapshot);
 
         //  Each document's tab is titled with its file's name.
