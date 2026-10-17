@@ -924,6 +924,200 @@ DebuggerAction DebuggerActions::GetProject (const std::string & subcommand, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetMarkData
+//
+//  The directive's name is the session's, whatever the mode: the handler
+//  reads the data's kind from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetMarkData (const std::string & directive, Word first, Word last, CommandMode mode)
+{
+    static constexpr std::pair<const char *, DebugVerb>  kVerbs[] =
+    {
+        { "DB", DebugVerb::DefineBytes }, { "DW", DebugVerb::DefineWords }, { "DA", DebugVerb::DefineAddress },
+        { "ASC", DebugVerb::DefineText }, { "DF", DebugVerb::DefineFloat },
+    };
+    DebugVerb       verb   = DebugVerb::DefineBytes;
+    DebuggerAction  action;
+
+
+
+    for (const auto & [name, each] : kVerbs)
+    {
+        verb = (directive == name) ? each : verb;
+    }
+
+    action = Make (verb, std::format ("{} {:04X}:{:04X}", directive, first, last), mode);
+
+    action.command.sourceName = directive;
+    action.command.a1         = first;
+    action.command.a2         = last;
+    action.command.hasA1      = true;
+    action.command.hasA2      = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetClearData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetClearData (Word first, Word last, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::RemoveData, std::format ("X {:04X}:{:04X}", first, last), mode);
+
+
+
+    action.command.a1    = first;
+    action.command.a2    = last;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetAddSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddSymbol (const std::string & name, Word address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddSymbol, std::format ("SYM {} = {:04X}", name, address), mode);
+
+
+
+    action.command.text  = name;
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSkipRoutine
+//
+//  By the routine's symbol where it has one, so the filter follows the
+//  symbol, and otherwise by its address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSkipRoutine (const std::string & name, Word address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddStepFilter, name.empty() ? std::format ("SKIP {:04X}", address) : "SKIP " + name, mode);
+
+
+
+    action.command.text  = name;
+    action.command.a1    = address;
+    action.command.a2    = address;
+    action.command.hasA1 = true;
+    action.command.hasA2 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetAddBookmark
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddBookmark (Word address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddBookmark, std::format ("BMA {:04X}", address), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetClearBookmark
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetClearBookmark (int id, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::ClearBookmark, std::format ("BMC {}", id), mode);
+
+
+
+    action.command.count = (uint32_t) id;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetStopwatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetStopwatch (Word start, Word stop, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::Stopwatch, std::format ("STOPWATCH {:04X} {:04X}", start, stop), mode);
+
+
+
+    action.command.text = std::format ("{:04X} {:04X}", start, stop);
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetCallSubroutine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetCallSubroutine (Word address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::CallSubroutine, std::format ("JSR {:04X}", address), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetCompareMemory
 //
 ////////////////////////////////////////////////////////////////////////////////

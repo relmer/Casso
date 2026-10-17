@@ -275,6 +275,9 @@ struct DebuggerViewSnapshot
     //  The zero-page pointers, each the address its two bytes form and the
     //  first bytes there, as "$0300: A9 41 8D 00"; "--" for one disabled.
     std::vector<WatchLine>                zeroPagePointers;
+
+    //  The bookmarks, each its id and address.
+    std::vector<WatchLine>                bookmarks;
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;

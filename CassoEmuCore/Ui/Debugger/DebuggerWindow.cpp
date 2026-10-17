@@ -6521,6 +6521,163 @@ void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetCodeSelection
+//
+//  The first address of the first selected line through the last byte of
+//  the last, or the clicked line's bytes when it is not among the selected;
+//  none when no row is a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<Word, Word>> DebuggerWindow::GetCodeSelection (int view, int row) const
+{
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
+    const std::vector<int>                             & selected = GetCodeList (view)->GetSelectedRows();
+    std::vector<int>                                     rows     = std::ranges::find (selected, row) != selected.end() ? selected : std::vector<int> { row };
+    std::optional<Word>                                  first;
+    Word                                                 last     = 0;
+
+
+
+    for (int each : rows)
+    {
+        int  index = GetCodeLineOfRow (view, each);
+
+
+
+        if (index < 0)
+        {
+            continue;
+        }
+
+        const DebuggerViewSnapshot::CodeLine  & line  = lines[(size_t) index];
+        Word                                    count = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
+
+
+
+        first = first.has_value() ? std::min (*first, line.address) : line.address;
+        last  = std::max (last, (Word) (line.address + count - 1));
+    }
+
+    if (!first.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return std::pair<Word, Word> { *first, std::max (last, *first) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddCodeEditItems
+//
+//  The code pane's menu entries that change the session's records of a
+//  line: data marking (FR-182), a symbol (FR-183), a routine never stepped
+//  into (FR-184), a bookmark (FR-189), the stopwatch and a call (FR-197).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row,
+                                       std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    static constexpr std::pair<const wchar_t *, const char *>  kMarks[] =
+    {
+        { L"Mark as bytes", "DB" }, { L"Mark as words", "DW" }, { L"Mark as addresses", "DA" }, { L"Mark as text", "ASC" }, { L"Mark as floats", "DF" },
+    };
+    Word                   at       = line.address;
+    Word                   count    = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
+    std::pair<Word, Word>  range    = GetCodeSelection (view, row).value_or (std::pair<Word, Word> { at, (Word) (at + count - 1) });
+    bool                   isCall   = line.instruction.starts_with ("JSR") && line.target.has_value();
+    Word                   routine  = isCall ? *line.target : at;
+    std::string            name     = isCall ? line.shownOperand : line.label;
+    auto                   bookmark = std::ranges::find_if (m_snapshot->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
+
+
+
+    //  The routine is skipped by its symbol, not by an address written in hex.
+    if (name.starts_with ('$') || name.empty() || !std::isalpha ((unsigned char) name[0]))
+    {
+        name.clear();
+    }
+
+    for (const auto & [label, directive] : kMarks)
+    {
+        items.push_back ({ label, [this, range, directive] { RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, GetMode())); } });
+    }
+
+    items.push_back ({ L"Clear data marking", [this, range] { RunAction (DebuggerActions::GetClearData (range.first, range.second, GetMode())); } });
+    items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolAt (at); } });
+    items.push_back ({ L"Never step into this routine", [this, name, routine] { RunAction (DebuggerActions::GetSkipRoutine (name, routine, GetMode())); } });
+
+    if (bookmark != m_snapshot->bookmarks.end())
+    {
+        items.push_back ({ L"Remove bookmark", [this, id = bookmark->id] { RunAction (DebuggerActions::GetClearBookmark (id, GetMode())); } });
+    }
+    else
+    {
+        items.push_back ({ L"Add bookmark", [this, at] { RunAction (DebuggerActions::GetAddBookmark (at, GetMode())); } });
+    }
+
+    items.push_back ({ L"Start stopwatch here", [this, at] { m_stopwatchStart = at; } });
+
+    if (m_stopwatchStart.has_value())
+    {
+        items.push_back ({ L"Stop stopwatch here", [this, at]
+        {
+            RunAction (DebuggerActions::GetStopwatch (*m_stopwatchStart, at, GetMode()));
+            m_stopwatchStart.reset();
+        } });
+    }
+
+    if (m_snapshot->isPaused)
+    {
+        items.push_back ({ L"Call subroutine here", [this, at] { RunAction (DebuggerActions::GetCallSubroutine (at, GetMode())); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddSymbolAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddSymbolAt (Word address)
+{
+    std::optional<std::wstring>  typed;
+
+
+
+    typed = RunTextDialog (L"Add symbol", L"Name", L"LOOP", [] (const std::wstring & text, std::wstring & error)
+    {
+        bool  isName = !text.empty() && iswalpha (text[0]) &&
+                       std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
+
+
+
+        error = isName ? std::wstring() : std::wstring (L"A symbol name starts with a letter and has letters, digits, _ and . after it.");
+        return isName;
+    });
+
+    if (typed.has_value())
+    {
+        RunAction (DebuggerActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::AddListMenuItems
 //
 //  A list pane's menu, for the row under the pointer where there is one.
@@ -6563,6 +6720,8 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
         items.push_back ({ L"Copy",                copy });
+
+        AddCodeEditItems (view, line, row, items);
 
         if (view > 0)
         {
@@ -6699,12 +6858,25 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ GetUndoLabel (true, m_stackHistory.GetRedoText()), [this] { UndoStackEdit (true); } });
         }
     }
-    else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
+    else if (list == m_callStackList && row >= 0 && row < (int) m_callStackPane->GetShownRows().size())
     {
-        Word  at = CallStackPane::GetRows (s.callStack)[(size_t) row].address;
+        //  The pane's own rows: the BASIC frames come before the machine's.
+        const CallStackPane::Row  frame = m_callStackPane->GetShownRows()[(size_t) row];
 
-        items.push_back ({ L"Show call site", [this, at] { ShowCode (at); } });
-        items.push_back ({ L"Copy",           copy });
+        if (!frame.basicLine.has_value())
+        {
+            items.push_back ({ L"Show call site", [this, at = frame.address] { ShowCode (at); } });
+        }
+
+        if (frame.routineAddress.has_value())
+        {
+            items.push_back ({ L"Never step into this routine", [this, frame]
+            {
+                RunAction (DebuggerActions::GetSkipRoutine (frame.routineSymbol, *frame.routineAddress, GetMode()));
+            } });
+        }
+
+        items.push_back ({ L"Copy", copy });
     }
     else if (list == m_registerList && row >= 0 && row < (int) s.registers.size())
     {

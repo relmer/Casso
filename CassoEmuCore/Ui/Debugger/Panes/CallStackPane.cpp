@@ -261,11 +261,13 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     {
         Row  made;
 
-        made.site    = std::format (L"${:04X}", frame.callSite);
-        made.routine = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
-        made.foundBy = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
-        made.isDim   = !frame.isVerified;
-        made.address = frame.callSite;
+        made.site           = std::format (L"${:04X}", frame.callSite);
+        made.routine        = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
+        made.foundBy        = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
+        made.isDim          = !frame.isVerified;
+        made.address        = frame.callSite;
+        made.routineAddress = frame.target;
+        made.routineSymbol  = frame.symbol;
 
         if (!frame.symbol.empty())
         {

@@ -54,6 +54,8 @@ public:
         bool                 isReturn  = false;
         Word                 address   = 0;
         std::optional<Word>  basicLine;
+        std::optional<Word>  routineAddress;
+        std::string          routineSymbol;
 
         //  An unverified frame's: why the call may already be over.
         std::wstring         tip;
@@ -62,6 +64,9 @@ public:
     CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode, ShowFn showBasicLine);
 
     DxuiListView *  GetList       () const { return m_list; }
+
+    //  The rows in the list, the BASIC frames first.
+    const std::vector<Row> &  GetShownRows () const { return m_rows; }
     DxuiButton *    GetModeButton () const { return m_modeButton; }
 
     void  Configure ();

@@ -87,6 +87,15 @@ public:
         AssertParsesTo (rig, "R P 30",       DebuggerActions::GetSetRegister      ("P", 0x30, aw));
         AssertParsesTo (rig, "PROJECT MERGE", DebuggerActions::GetProject         ("MERGE", "", aw));
         AssertParsesTo (rig, "PROJECT SAVEAS \"game.cassoproj\"", DebuggerActions::GetProject ("SAVEAS", "game.cassoproj", aw));
+        AssertParsesTo (rig, "DB 0300:030F",  DebuggerActions::GetMarkData       ("DB", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "ASC 0300:030F", DebuggerActions::GetMarkData       ("ASC", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "X 0300:030F",   DebuggerActions::GetClearData      (0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "SYM LOOP = 0300", DebuggerActions::GetAddSymbol    ("LOOP", 0x0300, aw));
+        AssertParsesTo (rig, "BMA 0300",      DebuggerActions::GetAddBookmark    (0x0300, aw));
+        AssertParsesTo (rig, "BMC 2",         DebuggerActions::GetClearBookmark  (2, aw));
+        AssertParsesTo (rig, "STOPWATCH 0300 0310", DebuggerActions::GetStopwatch (0x0300, 0x0310, aw));
+        AssertParsesTo (rig, "JSR 0300",      DebuggerActions::GetCallSubroutine (0x0300, aw));
+        AssertParsesTo (rig, "SKIP 0300",     DebuggerActions::GetSkipRoutine    ("", 0x0300, aw));
     }
 
 

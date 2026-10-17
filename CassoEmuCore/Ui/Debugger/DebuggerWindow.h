@@ -475,6 +475,11 @@ protected:
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
 
+    //  Protected so a test can read and run a code row's menu entries.
+    std::optional<std::pair<Word, Word>>  GetCodeSelection (int view, int row) const;
+    void                   AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row,
+                                             std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+
     //  Protected so a test can switch a disassembly viewing option as its
     //  check box does, read the rows a view shows, and hover its gutter.
     void                         ToggleCodeOption    (DisassemblyOptions::Option option);
@@ -1110,6 +1115,7 @@ private:
     int      GetCodeViewOf    (const IDxuiControl * control) const;
     int      GetOpenCodeViewCount () const;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
+    void                                                 AddSymbolAt  (Word address);
     void     ApplyCodeView    (int view);
     void     EditRegister     (int row, bool onFlags);
     void     ClickRegister    (POINT clientPx);
@@ -1725,6 +1731,9 @@ private:
     //  menu opened that comes forward once the next snapshot shows it.
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
+
+    //  Where Start stopwatch here was chosen, until Stop stopwatch here.
+    std::optional<Word>                                                              m_stopwatchStart;
 
     //  The command bar and the history timeline, laid out together in bands
     //  along the window's edges. Declared ahead of their hosts, which leave

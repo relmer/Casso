@@ -114,6 +114,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
     const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch, false);
     const WatchListData           pointers       = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
+    const WatchListData           bookmarks      = WatchHandlers::MakeList (session, WatchListKind::Bookmark);
     BreakpointListData            breakpoints;
     DebugDiskState                diskState;
     InlineParallelRunner          inlineRunner;
@@ -239,6 +240,11 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         }
 
         snapshot.zeroPagePointers.push_back ({ entry.id, entry.address, text, entry.enabled });
+    }
+
+    for (const WatchEntry & entry : bookmarks.entries)
+    {
+        snapshot.bookmarks.push_back ({ entry.id, entry.address, std::string(), entry.enabled });
     }
 
     if (isPaused)

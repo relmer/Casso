@@ -154,6 +154,19 @@ public:
     static DebuggerAction  GetMoveMemory     (Word destination, Word first, Word last, CommandMode mode);
     static DebuggerAction  GetCompareMemory  (Word other, Word first, Word last, CommandMode mode);
 
+    //  The code pane's menu: a range marked as data of a directive's kind
+    //  (DB, DW, DA, ASC or DF) or as code again, a symbol, a routine never
+    //  stepped into, a bookmark added or removed, the stopwatch between two
+    //  addresses, and a routine run as JSR runs it.
+    static DebuggerAction  GetMarkData       (const std::string & directive, Word first, Word last, CommandMode mode);
+    static DebuggerAction  GetClearData      (Word first, Word last, CommandMode mode);
+    static DebuggerAction  GetAddSymbol      (const std::string & name, Word address, CommandMode mode);
+    static DebuggerAction  GetSkipRoutine    (const std::string & name, Word address, CommandMode mode);
+    static DebuggerAction  GetAddBookmark    (Word address, CommandMode mode);
+    static DebuggerAction  GetClearBookmark  (int id, CommandMode mode);
+    static DebuggerAction  GetStopwatch      (Word start, Word stop, CommandMode mode);
+    static DebuggerAction  GetCallSubroutine (Word address, CommandMode mode);
+
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
     //  OPEN or SAVEAS, each on a file the user picked.
     static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
