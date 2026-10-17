@@ -412,6 +412,10 @@ public:
     //  Set when a COM port was opened while another was open.
     std::atomic<bool>             comOverlapped { false };
 
+    //  The Apple's DTR as every line's DSR: 1 on, 0 off, -1 a cable without
+    //  the line.
+    std::atomic<int>              peerReady     { -1 };
+
     bool  ArePortsClosed() const
     {
         return std::all_of (m_ends.begin(), m_ends.end(), [] (const std::shared_ptr<InProcessByteStream> & end) { return end->IsClosed(); });
@@ -464,7 +468,7 @@ public:
             m_silent.push_back (appleEnd);
         }
 
-        outStream = std::make_unique<SharedStream> (pcEnd);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady);
         return S_OK;
     }
 
@@ -482,7 +486,7 @@ public:
         m_ends.push_back (pcEnd);
         m_silent.push_back (appleEnd);
 
-        outStream = std::make_unique<SharedStream> (pcEnd);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady);
         return S_OK;
     }
 
@@ -500,7 +504,7 @@ public:
         }
 
         m_unanswered = appleEnd;
-        outStream    = std::make_unique<SharedStream> (pcEnd);
+        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady);
         return S_OK;
     }
 
@@ -509,16 +513,18 @@ private:
     class SharedStream : public IByteStream
     {
     public:
-        explicit SharedStream (std::shared_ptr<InProcessByteStream> end) : m_end (std::move (end)) {}
+        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady) : m_end (std::move (end)), m_peerReady (peerReady) {}
 
         HRESULT  Write            (const Byte * data, size_t count) override                          { return m_end->Write (data, count); }
         HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return m_end->Read (buffer, capacity, timeoutMs, outRead); }
         size_t   GetReadableCount () override                                                           { return m_end->GetReadableCount(); }
         bool     IsClosed         () const override                                                     { return m_end->IsClosed(); }
         void     Close            () override                                                           { m_end->Close(); }
+        bool     TryGetPeerReady  (bool & outReady) override                                            { outReady = m_peerReady == 1; return m_peerReady >= 0; }
 
     private:
         std::shared_ptr<InProcessByteStream>  m_end;
+        const std::atomic<int>              & m_peerReady;
     };
 
     FakeApple                                          & m_apple;

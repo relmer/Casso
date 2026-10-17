@@ -33,6 +33,7 @@ public:
     HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override;
     size_t   GetReadableCount () override;
     bool     IsClosed         () const override { return m_handle == INVALID_HANDLE_VALUE; }
+    bool     TryGetPeerReady  (bool & outReady) override;
     void     Close            () override;
 
 private:

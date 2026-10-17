@@ -416,6 +416,23 @@ public:
 
 
 
+    TEST_METHOD (DsrDropping_Disconnects_WhileTheLineIsOpen)
+    {
+        Rig  rig;
+
+        rig.factory.peerReady = 1;
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+
+        //  An Apple reset turns its DTR off at once.
+        rig.factory.peerReady = 0;
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"well before the silence counts");
+    }
+
+
+
     TEST_METHOD (ReadDisk_WritesTheImage_InEachFormat)
     {
         Rig  rig;

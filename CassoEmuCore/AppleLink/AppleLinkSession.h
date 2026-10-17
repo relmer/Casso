@@ -251,6 +251,7 @@ private:
     HRESULT  OpenStream    (DWORD baud);
     HRESULT  AwaitProgram  (std::stop_token stop, DWORD timeoutMs, bool & outReady);
     void     Disconnect    ();
+    bool     IsPeerGone    ();
     void     SetState      (LinkState state);
 
     HRESULT  Execute       (LinkOperation & operation);
@@ -288,6 +289,7 @@ private:
     DWORD                                       m_connectTimeoutMs = kConnectTimeoutMs;
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
     DWORD                                       m_retryMs          = kRetryMs;
+    bool                                        m_peerSeen         = false;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;
     std::jthread                                m_thread;

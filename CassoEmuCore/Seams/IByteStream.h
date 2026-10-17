@@ -31,4 +31,9 @@ public:
     virtual size_t   GetReadableCount () = 0;
     virtual bool     IsClosed         () const = 0;
     virtual void     Close            () = 0;
+
+    //  Whether the far end reports itself ready, as DSR on a serial port that
+    //  a null modem cable connects to the Apple's DTR; false when the stream
+    //  has no such line.
+    virtual bool     TryGetPeerReady  (bool & outReady) { outReady = false; return false; }
 };

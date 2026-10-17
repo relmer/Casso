@@ -605,7 +605,7 @@ void AppleLinkSession::Run (std::stop_token stop)
         {
             hr = m_host->ServeOne (kIdlePollMs);
 
-            if (FAILED (hr) || m_host->GetSilenceMs() > kSilenceMs)
+            if (FAILED (hr) || m_host->GetSilenceMs() > kSilenceMs || IsPeerGone())
             {
                 Disconnect();
                 hr = S_OK;
@@ -1011,12 +1011,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleLinkSession::IsPeerGone
+//
+//  A serial line whose DSR was on, as the Apple's DTR is while its 6551 is
+//  set up, and is now off: the Apple was reset or turned off. A cable that
+//  does not wire the line has it off throughout, and only silence
+//  counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleLinkSession::IsPeerGone()
+{
+    bool  ready = false;
+    bool  known = m_stream && m_stream->TryGetPeerReady (ready);
+
+
+
+    m_peerSeen = m_peerSeen || (known && ready);
+
+    return known && m_peerSeen && !ready;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleLinkSession::Disconnect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleLinkSession::Disconnect()
 {
+    m_peerSeen = false;
+
     {
         std::lock_guard<std::mutex>  lock (m_lock);
 

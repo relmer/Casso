@@ -244,3 +244,25 @@ HRESULT Win32ComPort::SetReadTimeout (DWORD timeoutMs)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ComPort::TryGetPeerReady
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ComPort::TryGetPeerReady (bool & outReady)
+{
+    DWORD  lines = 0;
+    BOOL   read  = m_handle != INVALID_HANDLE_VALUE && GetCommModemStatus (m_handle, &lines);
+
+
+
+    outReady = read && (lines & MS_DSR_ON) != 0;
+
+    return read != FALSE;
+}
