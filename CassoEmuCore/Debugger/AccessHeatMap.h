@@ -300,6 +300,8 @@ private:
     void           RecordLast       (bool isWrite, Word address, const Landing & landing);
     void           OnWrite          (Word address, Byte value);
     void           OnRead           (Word address, Byte value);
+    void           TakeBackLastRead (Word address);
+    static bool    IsStore          (Microcode::Operation operation);
 
     //  The written bit of a landing, and whether the landing has one; and
     //  the edited bit of an address of a space, and whether it has one.
@@ -348,8 +350,10 @@ private:
     Word                                 m_nextOperand    = 0;
     int                                  m_operandsLeft   = 0;
 
-    //  The instruction running: the one whose fetch came last.
+    //  The instruction running: the one whose fetch came last, and whether
+    //  it is a store.
     std::optional<HeatLastAccess>        m_instruction;
+    bool                                 m_isStore        = false;
 
     //  Which RAM has been written, main's bits then aux's, and which bytes
     //  the debugger edited; whether the map started with the written bits
