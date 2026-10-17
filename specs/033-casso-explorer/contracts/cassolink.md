@@ -1,4 +1,4 @@
-# Contract: the Apple II link
+# Contract: CassoLink
 
 Spec FR-083 to FR-098; research R15 to R23. This is the wire contract
 between Casso and an Apple-side client, and between Casso Explorer and the

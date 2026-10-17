@@ -23,7 +23,7 @@ assembled from source in the core (R17, R22), a paced bridge from an
 emulated 6551 to the PC (R18), COM and TCP streams behind one seam (R19),
 sparse sector images the volume classes fault in over the line (R20), and
 an Apple root in Casso Explorer's tree (R21). The wire contract is
-[contracts/apple-link.md](contracts/apple-link.md).
+[contracts/cassolink.md](contracts/cassolink.md).
 
 ## Technical Context
 
@@ -101,7 +101,7 @@ specs/033-cassque/
 │   ├── intent-channel.md
 │   ├── host-file-names.md
 │   ├── dxui-additions.md
-│   └── apple-link.md        # section H wire contract and session interface
+│   └── cassolink.md        # section H wire contract and session interface
 ├── tasks.md              # /speckit-tasks output
 └── validation.md         # quickstart outcomes, written during the last phase
 ```
@@ -331,7 +331,7 @@ the command bar's Monitor drop-down was removed (FR-068).
 ### Apple II link
 
 Section H, research R15 to R23, contract
-[contracts/apple-link.md](contracts/apple-link.md). Phases, numbered as in
+[contracts/cassolink.md](contracts/cassolink.md). Phases, numbered as in
 tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 16. **Bridge and streams**: `IByteStream` with the in-process pair,

@@ -504,7 +504,7 @@ The host distinguishes the two kinds of client by the first command:
 - anything in ADTPro's set means ADTPro's client, served as ADTPro's host
   serves it.
 
-The contract is in [contracts/apple-link.md](contracts/apple-link.md).
+The contract is in [contracts/cassolink.md](contracts/cassolink.md).
 
 **Alternatives considered**:
 

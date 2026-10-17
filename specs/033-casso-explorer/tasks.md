@@ -399,7 +399,7 @@ After each phase commit, merge `origin/master`; the tree takes sweeping renames 
 
 **Input**: spec.md section H (User Stories 14 to 16, FR-083 to FR-098 with
 FR-083a, SC-027 to SC-033), plan.md's section H phases 16 to 24, research.md R15 to
-R23, [contracts/apple-link.md](contracts/apple-link.md), data-model.md's
+R23, [contracts/cassolink.md](contracts/cassolink.md), data-model.md's
 Apple II link section, quickstart.md §7b.
 
 **Stories**:
@@ -476,7 +476,7 @@ own host and client, never from its source (FR-096).
   - virtual-drive block reads, timestamped reads and writes.
 
   Save each capture with its direction marks in `UnitTest/Fixtures/AppleLink/`, with a `LICENSE` note stating that ADTPro is GPL and the captures are test fixtures that ship in nothing. The owner runs this once, manually, on a machine which has ADTPro's Java host; the captures are checked in and CI only reads them. Per R15.
-- [X] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/apple-link.md` marked *captured*, replacing the mark:
+- [X] T188 [US16] From T187's captures, settle each value in `specs/033-casso-explorer/contracts/cassolink.md` marked *captured*, replacing the mark:
   - the length field's byte order;
   - the CRC's polynomial, initial value and bit order;
   - the RLE encoding of image pages;
@@ -647,7 +647,7 @@ status screen with the PC line and each operation's label (US16/AC6, AC7).
 
 - [X] T219 [US16] Move the shim to `$3D00` in `CassoEmuCore/AppleLink/Apple/Shim.s`, with its 6551 control byte for the starting speed at `$3D02`, and its own screen on the text page: a title, `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each page arrives, and `STARTING VERSION <n>`. Point the program's `SHIM` at `$3D00` in `Program.s`, and fail the build's assembly test in `UnitTest/AppleLink/LinkProgramTests.cpp` when the program ends at or above `$3D00` or the shim ends above `$3FFF`. Per FR-090, FR-094 and R24.
 - [X] T220 [US16] Add `LinkProgram::BuildShim (DWORD baud, std::vector<Byte> & outShim)` in `CassoEmuCore/AppleLink/LinkProgram.h/.cpp`, writing the speed byte at offset 2 from `GetSpeedControl`. `AppleLinkSession::Connect` in `CassoEmuCore/AppleLink/AppleLinkSession.cpp` opens Emulated, TCP and Wi-Fi modem links at the link's speed alone; a serial link is opened at the bootstrap speed and then the link's. Tests in `LinkProgramTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-094 and R24.
-- [X] T221 [US16] Add the Label command ($CE) to `CassoEmuCore/AppleLink/AppleLinkCodec.h` and `AppleLinkHost::SendLabel`, sent ahead of each operation the user starts with up to 38 characters, such as `COPYING HELLO TO DRIVE 2`; `AppleLinkSession` builds the text from the `LinkOperation`. Update `contracts/apple-link.md`'s table. Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-090 and R24.
+- [X] T221 [US16] Add the Label command ($CE) to `CassoEmuCore/AppleLink/AppleLinkCodec.h` and `AppleLinkHost::SendLabel`, sent ahead of each operation the user starts with up to 38 characters, such as `COPYING HELLO TO DRIVE 2`; `AppleLinkSession` builds the text from the `LinkOperation`. Update `contracts/cassolink.md`'s table. Tests in `UnitTest/AppleLink/AppleLinkHostTests.cpp` and `AppleLinkSessionTests.cpp`. Per FR-090 and R24.
 - [X] T222 [US16] Add to the program's status screen in `Program.s`: a PC line, `CONNECTED` after any packet and `NO REPLY FOR <n> S` for each unanswered second, sending Ready again each second with no reply; an error line with the last Status error's text until an operation succeeds; and the last Label on the operation's line. A scenario test in `ScenarioTests/AppleLinkSessionTests.cpp` reads the //c's text page: the shim's waiting line before the host connects, then `CONNECTED`, a label, and a write-protected error. Per FR-090, US16/AC7 and R24.
 - [X] T223 [P] [US16] Add `RunningCassoRegistry` in `CassoEmuCore/AppleLink/RunningCassoRegistry.h/.cpp` over a file-system seam: `Publish` writes `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json` with `pid`, `started` (the process's start time as a FILETIME), `machine`, `serialPort` (1 or 2) and `address` (`127.0.0.1:<port>`); `Withdraw` deletes it; `Enumerate` returns the files whose process is alive with that start time, and deletes the rest. Tests in `UnitTest/AppleLink/RunningCassoRegistryTests.cpp` with a fake process probe. Per FR-083b, R25 and data-model.md.
 - [X] T224 [US16] Call `Publish` from `MachineHost::ConnectSerialPort` in `CassoEmuCore/Shell/MachineHost.cpp` when a port is connected to TCP, and `Withdraw` when it is connected elsewhere and when the machine is torn down. Tests in `UnitTest/EmuTests/` over the fake factory. Per FR-083b.

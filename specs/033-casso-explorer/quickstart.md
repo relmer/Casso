@@ -162,7 +162,7 @@ claim, so the preview is its bytes.
 
 ## 7b. The Apple II link (stories 14 to 16, FR-083 to FR-098)
 
-Contract: [contracts/apple-link.md](contracts/apple-link.md). Steps 1 to 4
+Contract: [contracts/cassolink.md](contracts/cassolink.md). Steps 1 to 4
 run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
 
 1. **Emulated //c, over TCP.** Start Casso on a //c with the link disk
