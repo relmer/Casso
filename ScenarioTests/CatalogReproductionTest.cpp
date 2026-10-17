@@ -159,7 +159,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *img, raw, L"the master this gate boots");
@@ -249,7 +248,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *img, raw, L"the master this gate boots");
@@ -343,7 +341,6 @@ public:
 
         masterImg = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg, L"Mounted master DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, masterImg);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *masterImg, raw, L"the master this gate boots");
@@ -359,7 +356,6 @@ public:
 
         blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg, L"Mounted blank DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
         // Capture the eject-time auto-flush in memory instead of letting it
         // touch the host filesystem.
@@ -412,7 +408,6 @@ public:
 
         // Eject (auto-flush serializes the dirty image into the sink), then
         // remount the serialized bytes fresh and read the file again.
-        machine.GetRefs().diskController->SetExternalDisk (kDrive2, nullptr);
         machine.GetDiskStore().Eject (kSlot6, kDrive2);
 
         Assert::IsFalse (flushedWoz.empty(),
@@ -424,7 +419,6 @@ public:
 
         blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg, L"Remounted DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
         KeystrokeInjector::InjectLine (machine, "NEW", kCatalogCycles);
         KeystrokeInjector::InjectLine (machine, "LOAD TEST,D2", kCatalogCycles);
@@ -474,7 +468,6 @@ public:
 
         masterImg = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (masterImg);
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, masterImg);
 
         GuestSession::AssertTheDrivePresentsWhatWasMounted (
             *masterImg, raw, L"the master this gate boots");
@@ -488,7 +481,6 @@ public:
 
         blankImg = machine.GetDiskStore().GetImage (kSlot6, kDrive2);
         Assert::IsNotNull (blankImg);
-        machine.GetRefs().diskController->SetExternalDisk (kDrive2, blankImg);
 
         // Protected first: the guest must refuse the write.
         blankImg->SetImageWriteProtected (true);
@@ -570,7 +562,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         GuestSession::AssertTheDriveCanReadTheBootSector (
             *img, L"the disk this gate built");
@@ -637,7 +628,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, img);
 
         // The ProDOS half stops at the boot sector: this file's only
         // filesystem reader is the DOS 3.3 one, and pulling ProDosVolume in

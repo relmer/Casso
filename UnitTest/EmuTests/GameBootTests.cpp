@@ -202,8 +202,6 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
-
         GuestSession::AssertTheDriveHoldsWrittenTracks (*external, minTracks, label);
 
         machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
@@ -286,8 +284,6 @@ public:
 
             internal = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
             Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
-
-            machine.GetRefs().diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
 
             GuestSession::AssertTheDriveHoldsWrittenTracks (*internal, minTracks, label);
 
