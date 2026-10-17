@@ -10534,6 +10534,26 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::IsLinkReplying
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsLinkReplying (const std::string & name) const
+{
+    AppleLinkSession  * session = m_context.links->GetSession (name);
+    LinkState           state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
+
+
+
+    return state == LinkState::Ready || state == LinkState::Busy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::IsWifiModemLink
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -10966,6 +10986,13 @@ void CassoExplorerWindow::OnLinkChanged()
     if (m_tree->FindRowById (TreeModel::kCassoLinkRootId) >= 0)
     {
         m_tree->ReplaceChildren (TreeModel::kCassoLinkRootId, m_browser.GetTreeChildren (TreeModel::kCassoLinkRootId));
+    }
+
+    //  A drive of a machine that stopped answering has nothing to list, so
+    //  the list goes up to the machine, which has the reason.
+    if (showing && drive != 0 && !IsLinkReplying (TextEncoding::WideToNarrow (link)))
+    {
+        GoToLocation (Location::MakeRoot (TreeModel::MakeLinkId (link)));
     }
 
     showing = showing || m_browser.GetLocation().path == TreeModel::kCassoLinkRootId;

@@ -255,6 +255,7 @@ HRESULT AppleLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
         CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
         BAIL_OUT_IF (got == 0, S_OK);
 
+        m_lastHeardMs = GetTickCount64();
         m_buffer.insert (m_buffer.end(), chunk, chunk + got);
     }
 
@@ -262,6 +263,21 @@ HRESULT AppleLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::GetSilenceMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD AppleLinkHost::GetSilenceMs() const
+{
+    return (DWORD) std::min<uint64_t> (GetTickCount64() - m_lastHeardMs, MAXDWORD);
 }
 
 

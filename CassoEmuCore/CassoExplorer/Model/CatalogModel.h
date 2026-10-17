@@ -102,6 +102,9 @@ struct CatalogRow
     enum class CassoLinkItem { None, BootDisk, Help, AddMachine };
 
     CassoLinkItem  cassoLinkItem = CassoLinkItem::None;
+
+    //  A linked machine that is not connected, whose apple is drawn in grays.
+    bool           offline       = false;
 };
 
 

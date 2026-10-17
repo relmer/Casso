@@ -940,7 +940,7 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
         case LinkState::Busy:            text = L"Connected.";                                                     break;
 
         case LinkState::Searching:
-            text = std::format (L"Searching the COM ports for {} at {} and {} baud. Boot a CassoLink disk on the Apple, "
+            text = std::format (L"Searching the COM ports for {} at {} and {} baud.\nBoot a CassoLink disk on the Apple, "
                                 L"or choose Bootstrap the Apple from {}'s menu.", name, FormatBaud (settings.bootstrapBaud), baud, name);
             break;
 
@@ -949,21 +949,21 @@ std::wstring AppleLinkConnections::DescribeState (LinkState state, bool servingA
             switch (settings.transport)
             {
                 case LinkTransport::Serial:
-                    text = std::format (L"Searching for {} on {} at {} baud. Boot a CassoLink disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
+                    text = std::format (L"Searching for {} on {} at {} baud.\nBoot a CassoLink disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
                                         name, port.empty() ? std::wstring (L"the COM ports") : port, baud, name);
                     break;
 
                 case LinkTransport::Emulated:
-                    text = std::format (L"Waiting for {} on {}. Boot a CassoLink disk in that Casso to connect.", name, address);
+                    text = std::format (L"Waiting for {} on {}.\nBoot a CassoLink disk in that Casso to connect.", name, address);
                     break;
 
                 case LinkTransport::WifiModem:
-                    text = std::format (L"Waiting for {} to dial {}.local:{}. Boot that Apple from a CassoLink disk saved from {}.",
+                    text = std::format (L"Waiting for {} to dial {}.local:{}.\nBoot that Apple from a CassoLink disk saved from {}.",
                                         name, pcName, address.substr (address.rfind (L':') + 1), name);
                     break;
 
                 default:
-                    text = std::format (L"Connecting to {} at {}. Start the CassoLink program on that machine.", name, address);
+                    text = std::format (L"Connecting to {} at {}.\nStart the CassoLink program on that machine.", name, address);
                     break;
             }
 

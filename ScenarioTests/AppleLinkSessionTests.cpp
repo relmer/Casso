@@ -351,6 +351,31 @@ public:
 
 
 
+    //  A drive with no disk has no address fields to find: the catalog read
+    //  fails within a few revolutions of each read rather than waiting out
+    //  all of its tries, and the other drive is free again soon after.
+    TEST_METHOD (AnEmptyDrive_FailsInSeconds)
+    {
+        Rig       rig (true, 115200);
+        uint64_t  spent = 0;
+
+        rig.machine.GetDiskStore().Eject (6, 1);
+
+        auto  empty = rig.session->Enumerate (2, FilePath());
+
+        while (!rig.sink.IsDone (empty) && spent < kBudget)
+        {
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+        }
+
+        Logger::WriteMessage (std::format ("Empty drive: {:.1f} seconds", spent / 1020484.0).c_str());
+        Assert::IsTrue (FAILED (empty->result), L"no disk, no catalog");
+        Assert::IsTrue (spent < 10ULL * 1'020'484, L"in seconds, not minutes");
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+    }
+
+
     TEST_METHOD (AShimAtTheLinksSpeed_Connects)
     {
         Rig  rig (true, 115200);

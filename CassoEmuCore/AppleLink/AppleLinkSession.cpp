@@ -605,9 +605,10 @@ void AppleLinkSession::Run (std::stop_token stop)
         {
             hr = m_host->ServeOne (kIdlePollMs);
 
-            if (FAILED (hr))
+            if (FAILED (hr) || m_host->GetSilenceMs() > kSilenceMs)
             {
                 Disconnect();
+                hr = S_OK;
             }
 
             continue;

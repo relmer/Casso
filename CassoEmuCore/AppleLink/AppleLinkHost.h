@@ -160,6 +160,9 @@ public:
     bool             HasAdtProClient () const { return m_adtProClient; }
     AppleLinkClient  GetClient () const { return m_client; }
 
+    //  How long since the last byte arrived from the Apple.
+    DWORD    GetSilenceMs () const;
+
     //  How the last request ended: S_OK, or why its transfer failed.
     HRESULT  GetLastResult () const { return m_lastResult; }
 
@@ -268,6 +271,7 @@ private:
     std::mutex                        m_sendLock;
     bool                              m_readyPending   = false;
     std::atomic<HRESULT>              m_lastResult { S_OK };
+    std::atomic<uint64_t>             m_lastHeardMs { GetTickCount64() };
     Byte                              m_progressStart  = 0;
     Byte                              m_progressEnd    = 100;
 };

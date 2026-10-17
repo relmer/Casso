@@ -719,6 +719,7 @@ private:
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    bool  IsLinkReplying        (const std::string & name) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool  IsWifiModemLink        (const std::string & name) const;
     void  ReleaseIdleLinks    ();

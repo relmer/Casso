@@ -971,6 +971,7 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) co
         node.label     = link.name;
         node.location  = Location::MakeRoot (node.id);
         node.id        = copy ? kLinkCopyTag + node.id : node.id;
+        node.offline   = !link.replying;
         node.canExpand = link.replying && !link.drives.empty();
 
         outNodes.push_back (node);

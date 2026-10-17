@@ -1027,10 +1027,12 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
         return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_DISK_IMAGE), IMAGE_ICON, m_sizePx, m_sizePx, 0));
     }
 
-    //  An Apple II on a link is an apple, from this program's resources.
-    if (kind == Kind::AppleMachine)
+    //  An Apple II on a link is an apple, from this program's resources, in
+    //  grays while it is not connected.
+    if (kind == Kind::AppleMachine || kind == Kind::AppleMachineOffline)
     {
-        return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_APPLE_MACHINE), IMAGE_ICON, m_sizePx, m_sizePx, 0));
+        return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW ((kind == Kind::AppleMachine) ? IDI_APPLE_MACHINE : IDI_APPLE_MACHINE_OFFLINE),
+                                                  IMAGE_ICON, m_sizePx, m_sizePx, 0));
     }
 
     //  An Applesoft program is an Apple II monitor with BASIC on its screen.

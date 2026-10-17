@@ -273,17 +273,17 @@ public:
         link.name = "My //c";
         link.port = "COM3";
 
-        Assert::AreEqual (std::wstring (L"Searching for My //c on COM3 at 115,200 baud. Boot a CassoLink disk on the Apple, or choose Bootstrap the Apple from My //c's menu."),
+        Assert::AreEqual (std::wstring (L"Searching for My //c on COM3 at 115,200 baud.\nBoot a CassoLink disk on the Apple, or choose Bootstrap the Apple from My //c's menu."),
                           AppleLinkConnections::DescribeState (LinkState::Disconnected, false, link, L"pc"));
 
         link.transport = LinkTransport::Emulated;
         link.address   = "127.0.0.1:6502";
-        Assert::AreEqual (std::wstring (L"Waiting for My //c on 127.0.0.1:6502. Boot a CassoLink disk in that Casso to connect."),
+        Assert::AreEqual (std::wstring (L"Waiting for My //c on 127.0.0.1:6502.\nBoot a CassoLink disk in that Casso to connect."),
                           AppleLinkConnections::DescribeState (LinkState::WaitingForReady, false, link, L"pc"));
 
         link.transport = LinkTransport::WifiModem;
         link.address   = "0.0.0.0:6400";
-        Assert::AreEqual (std::wstring (L"Waiting for My //c to dial relmer-pc.local:6400. Boot that Apple from a CassoLink disk saved from My //c."),
+        Assert::AreEqual (std::wstring (L"Waiting for My //c to dial relmer-pc.local:6400.\nBoot that Apple from a CassoLink disk saved from My //c."),
                           AppleLinkConnections::DescribeState (LinkState::Opening, false, link, L"relmer-pc"));
 
         Assert::AreEqual (std::wstring (L"Click My //c to connect."), AppleLinkConnections::DescribeState (LinkState::Closed, false, link, L"pc"));

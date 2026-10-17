@@ -730,6 +730,7 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         if (m_rootChildren[index].kind == TreeNode::Kind::AppleLink)
         {
             m_rows.back().typeText = L"CassoLink machine";
+            m_rows.back().offline  = m_rootChildren[index].offline;
         }
         else if (m_rootChildren[index].kind == TreeNode::Kind::AppleDrive)
         {
@@ -1159,8 +1160,27 @@ void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 
 
 
+    std::string   help = TextEncoding::WideToNarrow (GetCassoLinkHelp());
+    HRESULT       hr   = S_OK;
+
+
+
     m_preview      = PreviewContent();
     m_preview.kind = PreviewContent::Kind::Text;
+
+    //  The help is written out for Windows' own Markdown preview, where one
+    //  is installed; otherwise the preview has the text as it is.
+    if (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help && m_shellVerbs != nullptr && !row.hostPath.empty())
+    {
+        hr = m_operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (row.hostPath), std::vector<Byte> (help.begin(), help.end()));
+
+        if (SUCCEEDED (hr) && m_shellVerbs->HasShellPreview (row.hostPath))
+        {
+            m_preview.kind     = PreviewContent::Kind::Shell;
+            m_preview.hostPath = row.hostPath;
+            return;
+        }
+    }
 
     while (start < text.size())
     {
@@ -1569,6 +1589,13 @@ std::wstring CassoExplorerBrowser::GetSelectionKey (size_t row) const
     size_t  occurrence = 0;
 
 
+
+    //  A linked machine's or drive's row is renamed once its disk is read,
+    //  so it is found again by its id.
+    if (m_rows[row].hostPath.starts_with (TreeModel::kLinkRootTag))
+    {
+        return m_rows[row].hostPath;
+    }
 
     for (const CatalogRow & other : m_rows)
     {
@@ -4494,7 +4521,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
     //  CassoLink's help the icon of its type, before it is written.
     if (!link.empty() || row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
     {
-        return icons.GetForKind (IShellIcons::Kind::AppleMachine);
+        return icons.GetForKind (row.offline ? IShellIcons::Kind::AppleMachineOffline : IShellIcons::Kind::AppleMachine);
     }
 
     if (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)
@@ -4685,7 +4712,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetNodeIcon (const Tr
         case TreeNode::Kind::ThisPcRoot:    return icons.GetForKind (IShellIcons::Kind::ThisPc);
         case TreeNode::Kind::RecycleBinRoot: return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case TreeNode::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
-        case TreeNode::Kind::AppleLink:     return icons.GetForKind (IShellIcons::Kind::AppleMachine);
+        case TreeNode::Kind::AppleLink:     return icons.GetForKind (node.offline ? IShellIcons::Kind::AppleMachineOffline : IShellIcons::Kind::AppleMachine);
         case TreeNode::Kind::CassoLinkRoot: return icons.GetForKind (IShellIcons::Kind::AppleMachine);
         case TreeNode::Kind::AppleDrive:    return icons.GetForKind (IShellIcons::Kind::DiskImage);
         //  Every remaining node is a drive or a host folder; a disk image node

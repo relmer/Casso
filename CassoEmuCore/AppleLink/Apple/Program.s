@@ -136,6 +136,7 @@ slotx    = $06                  ; as the shim set it
 plo      = $07                  ; the whole operation's percentage at the
 phi      = $08                  ; request's start, and at its end
 fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
+misses   = $0A                  ; revolutions in a row with no address field
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -1065,8 +1066,15 @@ wpok:   clc
 ; with err, after enough tries to have passed it several times over.
 findsector: lda #48
         sta tries
+        lda #0
+        sta misses
 fsloop: jsr rdaddr
-        bcs fsnext
+        bcc fshit
+        jsr missed
+        bcs fsnone
+        bcc fsnext
+fshit:  lda #0
+        sta misses
         lda atrk
         cmp track
         bne fsnext
@@ -1077,7 +1085,7 @@ fsloop: jsr rdaddr
         rts
 fsnext: dec tries
         bne fsloop
-        lda #ERRNOTFND
+fsnone: lda #ERRNOTFND
         sta err
         sec
         rts
@@ -1261,8 +1269,15 @@ rtmark: lda PKTBUF+3,y
         sta left
         lda #96                 ; address fields to look at: six revolutions
         sta tries
+        lda #0
+        sta misses
 rtloop: jsr rdaddr
-        bcs rtnext
+        bcc rthit
+        jsr missed
+        bcs rtnone
+        bcc rtnext
+rthit:  lda #0
+        sta misses
         lda atrk
         cmp track
         bne rtnext
@@ -1282,11 +1297,24 @@ rtloop: jsr rdaddr
         beq rtdone
 rtnext: dec tries
         bne rtloop
-        lda #ERRNOTFND
+rtnone: lda #ERRNOTFND
         sta err
         sec
         rts
 rtdone: clc
+        rts
+
+; missed: after rdaddr failed. A whole revolution with no address field,
+; after which tmp2 is zero, counts in misses; the carry is set at eight
+; in a row, which is no disk or an unformatted one, rather than going on
+; through all 96 tries. Eight is past a motor coming up to speed.
+missed: lda tmp2
+        bne mskeep
+        inc misses
+        lda misses
+        cmp #8
+        rts
+mskeep: clc
         rts
 
 ; rawslot: dst and dstp at `sector`'s two pages in RAWBUF, its 86 groups and

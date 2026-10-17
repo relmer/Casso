@@ -12,6 +12,7 @@ IDI_DISK_IMAGE                      ICON "..\\Resources\\Icons\\Casso-disk-image
 // An Applesoft BASIC file's icon inside a disk image.
 IDI_APPLESOFT_FILE                  ICON "..\\Resources\\Icons\\Casso-applesoft.ico"
 IDI_APPLE_MACHINE                   ICON "..\\Resources\\Icons\\Casso-apple-machine.ico"
+IDI_APPLE_MACHINE_OFFLINE           ICON "..\\Resources\\Icons\\Casso-apple-machine-offline.ico"
 
 // The application's icon, which the About box shows beside what it is.
 IDR_CASSO_EXPLORER_PICTURE_PNG      RCDATA "Assets\\CassoExplorer.png"

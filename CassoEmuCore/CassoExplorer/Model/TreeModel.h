@@ -37,6 +37,7 @@ struct TreeNode
     std::wstring  loadError;   // an image that failed to parse: the tooltip and the list-area message
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system
     bool          dividerAbove = false;   // a line above it, as between Explorer's navigation groups
+    bool          offline      = false;   // a linked machine that is not connected, drawn in grays
     std::wstring  iconId;                 // the shell's name for the entry whose icon it shows
 };
 

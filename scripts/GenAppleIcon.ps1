@@ -22,12 +22,17 @@
 .PARAMETER Sheet
     Optional preview PNG: every size at 1:1 on a dark and a light background.
 
+.PARAMETER Gray
+    The apple in grays, for a machine that is not connected, written by
+    default to Resources/Icons/Casso-apple-machine-offline.ico.
+
 .OUTPUTS
     One line per file written. Exit code 0 on success.
 #>
 param(
     [string] $Out   = "",
-    [string] $Sheet = ""
+    [string] $Sheet = "",
+    [switch] $Gray
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,7 +42,7 @@ $iconDir  = Join-Path $repoRoot 'Resources/Icons'
 
 if ([string]::IsNullOrEmpty($Out))
 {
-    $Out = Join-Path $iconDir 'Casso-apple-machine.ico'
+    $Out = Join-Path $iconDir ($(if ($Gray) { 'Casso-apple-machine-offline.ico' } else { 'Casso-apple-machine.ico' }))
 }
 
 Add-Type -AssemblyName System.Drawing
@@ -73,6 +78,25 @@ $colors = @{
         [System.Drawing.Color]::FromArgb(255, 0x00, 0x9D, 0xDC))
 }
 
+# The grays: each color's luminance, lifted toward the middle so the stripes
+# stay apart without reading as color.
+if ($Gray)
+{
+    function ConvertTo-Gray ([System.Drawing.Color] $color)
+    {
+        $level = [int] (0.299 * $color.R + 0.587 * $color.G + 0.114 * $color.B)
+        $level = [int] (64 + $level * 0.6)
+
+        return [System.Drawing.Color]::FromArgb($color.A, $level, $level, $level)
+    }
+
+    foreach ($key in @('Outline', 'Leaf', 'LeafEdge'))
+    {
+        $colors[$key] = ConvertTo-Gray $colors[$key]
+    }
+
+    $colors.Stripes = @($colors.Stripes | ForEach-Object { ConvertTo-Gray $_ })
+}
 
 
 

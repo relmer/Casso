@@ -150,6 +150,10 @@ public:
     static constexpr DWORD  kIdlePollMs       = 100;
     static constexpr DWORD  kPromptMs         = 2000;
     static constexpr DWORD  kRetryMs          = 5000;
+
+    //  The program sends Ready every 100 ms while idle; this long with no
+    //  byte from it is an Apple that was reset, turned off or unplugged.
+    static constexpr DWORD  kSilenceMs        = 3000;
     static constexpr int    kDriveCount       = 2;
 
     //  The folder is the one ADTPro's own clients are served from, between
