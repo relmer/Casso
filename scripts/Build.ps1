@@ -44,10 +44,11 @@
 .PARAMETER Sanitize
     Build the AddressSanitizer flavor (-p:CassoSanitize=Address) into
     x64\DebugAsan\ or x64\ReleaseAsan\, beside the plain build rather than over
-    it. x64 and a single-configuration target only; -Configuration All builds
-    both flavors. It builds the whole solution, so Casso.exe and CassoCli.exe
-    land beside UnitTest.dll, which the suite needs. Run it with RunTests.ps1
-    -Build -Sanitize. See docs/testing.md.
+    it. x64 only, with -Target Build, Clean or Rebuild. With -Configuration All
+    it builds DebugAsan and ReleaseAsan, and not the plain builds. It builds the
+    whole solution, so Casso.exe and CassoCli.exe land beside UnitTest.dll,
+    which the suite runs. Run it with RunTests.ps1 -Build -Sanitize. See
+    docs/testing.md.
 
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
