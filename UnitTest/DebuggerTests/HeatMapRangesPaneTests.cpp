@@ -599,9 +599,8 @@ namespace HeatMapRangesPaneTests
 
 
 
-        //  A range added at the end of the set the heat map shows, then
-        //  deleted, leaves the set as it was, a paint during the save
-        //  included.
+        //  A range added at the end of the set in the heat map, then deleted,
+        //  is gone from the set, a paint during the save included.
         TEST_METHOD (ARangeAddedToTheShownSetIsDeleted)
         {
             CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
