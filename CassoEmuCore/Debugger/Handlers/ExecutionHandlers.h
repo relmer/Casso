@@ -42,7 +42,7 @@ public:
     void  BuildProfile (DebugSession & session, bool isByAddress, ProfileData & data) const;
 
     //  Whether PROFILE ON is in force.
-    bool  IsProfiling () const { return m_profile.IsOn(); }
+    bool  IsProfiling () const override { return m_profile.IsOn(); }
 
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;

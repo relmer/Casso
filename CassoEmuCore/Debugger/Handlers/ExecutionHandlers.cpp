@@ -747,12 +747,14 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     if (verb == "ON" && argument.empty())
     {
         m_profile.SetOn (true);
+        session.OnStopConditionsChanged();
         reply.data = MessageData { { "Profiling on." } };
     }
     else if (verb == "OFF" && argument.empty())
     {
         m_profile.SetOn (false);
         m_profilePending.reset();
+        session.OnStopConditionsChanged();
         reply.data = MessageData { { "Profiling off." } };
     }
     else if (verb == "RESET" && argument.empty())

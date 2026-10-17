@@ -461,6 +461,7 @@ private:
     Byte   PeekByte              (Word address) const;
     Word   FindStoreInProgress   () const;
     bool   HasStopConditions     () const;
+    bool   IsProfiling           () const;
 
     //  A read before written's stop is reported under this id, which no
     //  breakpoint or watchpoint has.

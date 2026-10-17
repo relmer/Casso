@@ -1187,13 +1187,14 @@ void DebugSession::ClearAllBreakpoints()
 //  during the instruction reports as its access PC: recorded here rather
 //  than only in ShouldStopBefore, because the first instruction of a run is
 //  never asked whether to stop, and a read it makes was reported from $0000.
-//  Recording runs only during a run the debugger started.
+//  Recording runs only during a run the debugger started, and profiling in
+//  any run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::OnInstruction (Word pc)
 {
-    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling();
 
 
 
@@ -1227,7 +1228,7 @@ void DebugSession::OnInstruction (Word pc)
 
 void DebugSession::OnInterrupt (Word pc)
 {
-    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling();
 
 
 
@@ -3490,15 +3491,16 @@ Byte DebugSession::PeekByte (Word address) const
 //  DebugSession::UpdateHookInstalled
 //
 //  The hook is installed while the debugger is attached and any enabled stop
-//  condition exists or a run is active, and removed otherwise, so a machine with no debugger interest pays
-//  only the null test. The call record does not need it: the CPU reports the
-//  instructions it needs (OnWatchedFetch).
+//  condition exists, a run is active or profiling is on, and removed
+//  otherwise, so a machine with no debugger interest pays only the null test.
+//  The call record is fed without it: the CPU reports the instructions the
+//  record uses (OnWatchedFetch).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping);
+    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling());
 
 
 
@@ -3522,8 +3524,9 @@ void DebugSession::UpdateHookInstalled()
 //  DebugSession::RefreshHookFilter
 //
 //  The instructions the session needs to see. Every one during a run the
-//  debugger started, and while a watchpoint, a value breakpoint, a video
-//  break or a breakpoint on anything but an address or an opcode is armed:
+//  debugger started or while profiling is on, and while a watchpoint, a value
+//  breakpoint, a video break or a breakpoint on anything but an address or
+//  an opcode is armed:
 //  those are tested before or during any instruction, and a watchpoint hit
 //  reports the address of the instruction that made it. Otherwise only the
 //  pages holding an address breakpoint or the Monitor's return, and the
@@ -3534,7 +3537,7 @@ void DebugSession::UpdateHookInstalled()
 void DebugSession::RefreshHookFilter()
 {
     bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() ||
-                    m_isUnwrittenBreak;
+                    m_isUnwrittenBreak || IsProfiling();
 
 
 
@@ -3607,6 +3610,21 @@ void DebugSession::RefreshHookFilter()
     {
         m_hookFilter.pages = DebugHookFilter::s_kAllMarked;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::HasStopConditions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsProfiling() const
+{
+    return m_instructionObserver != nullptr && m_instructionObserver->IsProfiling();
 }
 
 

@@ -203,6 +203,12 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How is the user warned that a symbol hides a register? -> A: Loading a symbol file that defines a register's name reports each such name, and that `@` and the name mean the register (FR-242).
 - Q: When is the earlier project's items offered on a switch to a more specific project? -> A: Only when the user loads the symbol file, debug file or binary that brings the switch, not when restoring a project loads it, and only when the earlier project has a breakpoint, watch, bookmark or zero-page pointer (FR-169).
 
+### Session 2026-10-17 (owner review: the Profiler pane, the heat map)
+
+- Q: How does the Profiler pane start, stop, reset and save profiling? -> A: From a bar over its list: Profile turns profiling on and off, Reset starts the counts over, Save... writes them to a text file, and a drop-down lists them by opcode or by address. While profiling is off and nothing has been read, the pane has a note on how to start it (FR-193).
+- Q: Does profiling count while the machine runs on its own, not in a run the debugger started? -> A: Yes. While profiling is on the per-instruction hook is installed and every instruction is counted, whoever started the run, as R-026 has it; the cost is paid only while profiling is on. Trace-to-file writes lines only for runs the debugger starts, since the file is written only at a stop (FR-193).
+- Q: Is a store's read of its own target a data read in the heat map? -> A: No. The CPU reads a store's target before it writes it, except at an absolute address; that read is removed from the heat map's counts when the store writes the address, so it is neither a read nor a read before written.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)

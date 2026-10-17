@@ -15,9 +15,10 @@ class DebugSession;
 //
 //  Told of each instruction a debugger-driven run is about to execute, before
 //  it executes, of every stop and of a machine switch. The session forwards
-//  the hook's report only while a run it started is in progress, so a machine
-//  running freely with a breakpoint set pays nothing for tracing, profiling
-//  or the branch record.
+//  the hook's report only while a run it started is in progress, or while
+//  the observer is profiling, so a machine running freely with a breakpoint
+//  set pays nothing for tracing or the branch record, and pays for profiling
+//  only while it is on.
 //
 //  OnInterrupt stands in for OnInstruction when an interrupt is dispatched in
 //  place of the instruction at the PC, which then runs only after the return.
@@ -35,4 +36,5 @@ public:
     virtual void  OnFreeRunSlice   (DebugSession &) {}
     virtual void  OnRunStopped     (DebugSession &, const StopEvent &) {}
     virtual void  OnMachineChanged (DebugSession &) {}
+    virtual bool  IsProfiling      () const { return false; }
 };

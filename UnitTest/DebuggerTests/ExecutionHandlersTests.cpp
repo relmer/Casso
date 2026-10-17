@@ -622,7 +622,7 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (PROFILE_CountsWhileOnDuringDebuggerRuns_ResetAndSave)
+        TEST_METHOD (PROFILE_CountsWhileOn_ResetAndSave)
         {
             MachineRig                rig;
             std::vector<std::string>  lines;
@@ -642,7 +642,8 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
             rig.machine.RunCycles (20);
-            Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is not profiled");
+            Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is profiled too");
+            rig.RunOk ("PROFILE RESET");
 
             rig.RunOk ("= 300");
             rig.RunOk ("G");
@@ -736,17 +737,21 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (PROFILE_InstallsNoHook)
+        //  Profiling installs the hook while it is on, so a machine running on
+        //  its own is profiled too, and removes it again when it is off.
+        TEST_METHOD (PROFILE_InstallsTheHookWhileOn)
         {
             Rig  rig;
-            int  changes = rig.target.hookChanges;
 
 
+
+            rig.session.SetInstructionObserver (&rig.handlers);
 
             rig.RunOk ("PROFILE ON");
+            Assert::IsTrue  (rig.target.hookInstalled);
+
             rig.RunOk ("PROFILE OFF");
-            Assert::AreEqual (changes, rig.target.hookChanges, L"profiling rides the debugger's own runs");
-            Assert::IsFalse  (rig.target.hookInstalled);
+            Assert::IsFalse (rig.target.hookInstalled);
         }
 
 

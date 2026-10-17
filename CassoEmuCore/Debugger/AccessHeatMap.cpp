@@ -878,8 +878,8 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
 //  A write, a change too when the byte it replaced, read just before, held
 //  something else or could not be read. The byte it lands on is written
 //  from here on. A store reads its target before it writes it, except at an
-//  absolute address; that read is the bus's, not the program's, so the write
-//  takes it back.
+//  absolute address; that read is the bus's, not the program's, so it is
+//  taken back when the store writes the address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1558,9 +1558,9 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
 //
 //  AccessHeatMap::TakeBackLastRead
 //
-//  The last read was not data: its counts go, the instruction that read the
-//  address before is its last reader again, and a read before written it
-//  counted, or the stop it raised, goes with it.
+//  The last read was not data: its counts are removed, the instruction that
+//  read the address before is its last reader again, and the read before
+//  written counted for it, and the stop for that, are removed too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

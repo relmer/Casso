@@ -805,12 +805,13 @@ instruction may have changed the flags for.
 
 ## Profiling
 
-`PROFILE ON` counts every instruction a debugger-driven run executes, and
-`PROFILE OFF` stops. `PROFILE LIST` shows the count, cycles and share for each
-mnemonic and addressing mode, and the penalty cycles apart: page crossings on
-indexed reads, taken branches, and branches that cross a page. `PROFILE LIST
-ADDR` shows the twenty hottest addresses; `PROFILE SAVE file` writes both
-tables; `PROFILE RESET` clears them.
+`PROFILE ON` counts every instruction the machine executes, in a run the
+debugger starts or one the machine makes on its own, and `PROFILE OFF` stops.
+The machine runs slower while profiling is on. `PROFILE LIST` lists the
+count, cycles and share for each mnemonic and addressing mode, and the penalty
+cycles apart: page crossings on indexed reads, taken branches, and branches
+that cross a page. `PROFILE LIST ADDR` lists the twenty hottest addresses;
+`PROFILE SAVE file` writes both tables; `PROFILE RESET` clears them.
 ## The stopwatch
 
 `STOPWATCH start [stop]` times every pass from one address to another in runs
