@@ -1061,7 +1061,11 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
         members.emplace_back ("variable", MakeString (breakpoint.basicName));
     }
 
-    members.emplace_back ("name",      MakeString (breakpoint.name));
+    if (!breakpoint.name.empty())
+    {
+        members.emplace_back ("name", MakeString (breakpoint.name));
+    }
+
     members.emplace_back ("enabled",   JsonValue (breakpoint.enabled));
     members.emplace_back ("temporary", JsonValue (breakpoint.temporary));
     members.emplace_back ("stops",     JsonValue (breakpoint.stops));
