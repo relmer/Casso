@@ -920,6 +920,8 @@ private:
     //  Every opcode's form, and the instruction set they were made for.
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+
+    //  The symbols as last read, and the symbol revision they were read at.
     mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;
     mutable uint64_t                                                    m_symbolsRevision = 0;
 

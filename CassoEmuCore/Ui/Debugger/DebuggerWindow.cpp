@@ -5822,6 +5822,7 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     {
         panes.push_back (tool);
     }
+
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)

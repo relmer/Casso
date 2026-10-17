@@ -47,11 +47,11 @@ public:
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows);
 
 private:
-    DxuiListView                                          * m_list = nullptr;
-    ShowFn                                                  m_show;
-    EnableFn                                                m_enable;
-    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>  m_symbols;
-    std::vector<Row>                                        m_rows;
+    DxuiListView                                               * m_list = nullptr;
+    ShowFn                                                       m_show;
+    EnableFn                                                     m_enable;
+    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
+    std::vector<Row>                                             m_rows;
 };
 
 
