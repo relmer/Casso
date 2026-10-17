@@ -1572,10 +1572,18 @@ private:
     std::optional<Word>                    m_basicShownLine;
     bool                                   m_isBasicReading      = false;
 
+    //  The line the program pane scrolls to once it has the program, whether
+    //  the last snapshot was of a stopped machine, and the BASIC line
+    //  breakpoints already seen; none until the first snapshot.
+    std::optional<Word>                    m_basicPendingLine;
+    bool                                   m_wasBasicPaused      = false;
+    std::optional<std::set<int>>           m_basicBreakpointIds;
+
     void                           CreateBasicPanes      ();
     void                           ConfigureBasicPanes   ();
     void                           AddBasicPanes         ();
     void                           ApplyBasicPanes       ();
+    void                           FollowBasicProgram    ();
     void                           ToggleBasicBreakpoint (Word line);
     void                           ShowBasicLine         (Word line);
     std::optional<DebuggerAction>  GetBasicStep          (DebuggerKeySchemes::Action action) const;

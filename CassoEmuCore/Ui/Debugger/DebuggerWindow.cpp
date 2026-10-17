@@ -7841,6 +7841,7 @@ void DebuggerWindow::ApplySnapshot()
     m_callStackPane->SetColors (GetTextColors());
     m_callStackPane->Apply     (m_snapshot->callStack);
 
+    FollowBasicProgram();
     ApplyBasicPanes();
 
     ApplyMemoryWindows();

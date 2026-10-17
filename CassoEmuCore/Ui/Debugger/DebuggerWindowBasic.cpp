@@ -150,6 +150,12 @@ void DebuggerWindow::ApplyBasicPanes()
     m_basicProgramPane->SetStyle (style);
     m_basicProgramPane->Apply    (basic, m_snapshot->breakpoints);
 
+    if (m_basicPendingLine.has_value() && basic.has_value() && basic->hasProgram)
+    {
+        m_basicProgramPane->ShowLine (*m_basicPendingLine);
+        m_basicPendingLine.reset();
+    }
+
     if (basic.has_value() && basic->line != m_basicShownLine)
     {
         m_basicShownLine = basic->line;
@@ -162,6 +168,62 @@ void DebuggerWindow::ApplyBasicPanes()
 
     m_basicVariablesPane->Apply (basic);
     m_basicStackPane->Apply     (basic);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FollowBasicProgram
+//
+//  The program pane comes forward at the line when the machine stops in the
+//  interpreter while a program runs, and at a BASIC line breakpoint's line
+//  when one is set. At a stop in machine code the program called, the code
+//  view stays in front.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FollowBasicProgram()
+{
+    static constexpr Word  kInterpreterFirst = 0xD000;
+    static constexpr Word  kInterpreterLast  = 0xF7FF;
+    const std::optional<DebuggerViewSnapshot::BasicState>  & basic   = m_snapshot->basic;
+    bool                                                     isStop  = m_snapshot->isPaused && !m_wasBasicPaused;
+    std::set<int>                                            ids;
+    std::optional<Word>                                      line;
+
+
+
+    m_wasBasicPaused = m_snapshot->isPaused;
+
+    if (isStop && basic.has_value() && basic->line.has_value() && m_snapshot->pc >= kInterpreterFirst && m_snapshot->pc <= kInterpreterLast)
+    {
+        line = basic->line;
+    }
+
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : m_snapshot->breakpoints)
+    {
+        if (bp.info.kind != BreakpointKind::BasicLine)
+        {
+            continue;
+        }
+
+        ids.insert (bp.id);
+
+        if (m_basicBreakpointIds.has_value() && !m_basicBreakpointIds->contains (bp.id))
+        {
+            line = bp.info.address;
+        }
+    }
+
+    m_basicBreakpointIds = std::move (ids);
+
+    if (line.has_value())
+    {
+        ShowBasicLine (*line);
+    }
 }
 
 
@@ -242,7 +304,8 @@ void DebuggerWindow::ToggleBasicBreakpoint (Word line)
 //
 //  DebuggerWindow::ShowBasicLine
 //
-//  A stack row's line, brought forward in the program pane.
+//  The line, brought forward in the program pane, and scrolled to again once
+//  the pane has the program.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,6 +313,7 @@ void DebuggerWindow::ShowBasicLine (Word line)
 {
     ShowPane (DebuggerLayout::kBasicProgram);
     m_basicProgramPane->ShowLine (line);
+    m_basicPendingLine = line;
 }
 
 

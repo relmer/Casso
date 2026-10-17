@@ -248,7 +248,9 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     BuildSource (session, snapshot);
 
-    if (m_isBasicShown)
+    //  A stopped machine's program is read whatever is on screen: its
+    //  variables are in the Watches pane and its frames in the Call stack.
+    if (m_isBasicShown || isPaused)
     {
         snapshot.basic = ReadBasic (session, isPaused);
     }
