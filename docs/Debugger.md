@@ -810,8 +810,18 @@ debugger starts or one the machine makes on its own, and `PROFILE OFF` stops.
 The machine runs slower while profiling is on. `PROFILE LIST` lists the
 count, cycles and share for each mnemonic and addressing mode, and the penalty
 cycles apart: page crossings on indexed reads, taken branches, and branches
-that cross a page. `PROFILE LIST ADDR` lists the twenty hottest addresses;
-`PROFILE SAVE file` writes both tables; `PROFILE RESET` clears them.
+that cross a page. `PROFILE LIST ADDR` lists the twenty hottest addresses.
+
+Profiling also counts the cycles of each routine. A JSR, a BRK or an interrupt
+starts a routine at the address it lands on, and the routine ends when the
+stack pointer rises back to where it was before the call, so RTS, RTI and a
+routine that pulls its own return address all end it. Code outside any call
+is Top level. `PROFILE LIST ROUTINES` lists each routine's own cycles, its
+total with every routine it called, its calls and its cycles per call; a
+routine that calls itself is counted once in its own total. `PROFILE LIST
+TREE` lists the call tree, each routine under its caller. `PROFILE SAVE file`
+writes every table; `PROFILE RESET` clears them.
+
 ## The stopwatch
 
 `STOPWATCH start [stop]` times every pass from one address to another in runs
@@ -1036,7 +1046,14 @@ menu also opens these, which stay closed until first opened:
 - **Profiler**, the profile as `PROFILE` lists it, read while the machine
   is paused. Its bar turns profiling on and off with **Profile**, starts the
   counts over with **Reset**, writes them to a text file with **Save...**, and
-  lists them by opcode or by address.
+  chooses **Opcodes**, **Addresses**, **Routines**, **Call tree** or **Flame
+  graph**. A timeline of the last 600 frames runs across the top, each frame a
+  bar of its cycles by routine, the eight hottest in color and the rest in
+  gray; resting the pointer on a frame lists its routines. The flame graph
+  draws Top level across the top and each routine under its caller, as wide as
+  its total: a click zooms into a routine, a click on Top level or a caller
+  above zooms back out, and a double-click goes to the routine's code. In
+  every view, activating a routine moves the disassembly to it.
 - **Data ranges**, each range marked as data, with **Go to** and **Delete**.
 
 **Debug > Step filters...** lists the routines a step goes over, each a
@@ -1397,6 +1414,20 @@ memory while the pane is open (or `BRKUNINIT` is on), and 35 MB more while
 fading heat is rebuilt; none while it is closed. Which RAM was written adds
 little to history: kept whole, with the edited and opcode marks, only at
 the keyframes where any of them changed, it packs to about 64 bytes each.
+
+### Heat columns
+
+**Show heat** on a disassembly view's bar adds a column after the margin with
+a block for each byte of the line, in the heat map's colors: a byte run as
+code is a block in the code color, and a byte read or written as data more
+than it is run is `r` or `w` in the read or write color. With **Show heat**
+on, the source view has the same strip ahead of each line's number, over the
+first range of bytes the line assembled to, and the BASIC program pane has a
+**Heat** column over each line's tokens, where the interpreter's reads of them
+count as the line running. **Heat** on a memory window's bar tints each byte
+by its heat. The columns follow the heat map's fade or cumulative choice and
+read the CPU's address space, and the heat is counted while any of them is
+on, as it is while the heat map is shown.
 
 ### Memory windows
 
