@@ -272,10 +272,10 @@ public:
 
     //  Text selection, for a list that reads as text rather than as rows, as
     //  a disassembly does: a drag selects characters across cells and rows,
-    //  a double-click selects the word under the pointer, and Copy takes the
-    //  characters rather than whole rows. Off by default. A click still
-    //  selects its row either way, and a selection clears when the rows under
-    //  it change.
+    //  a Ctrl+drag only in the column it began in, a double-click selects the
+    //  word under the pointer, and Copy takes the characters rather than
+    //  whole rows. Off by default. A click selects its row either way, and a
+    //  selection clears when the rows under it change.
     void                      SetTextSelection   (bool enabled);
     bool                      HasTextSelection   () const   { return m_hasTextSel; }
     void                      ClearTextSelection ();
@@ -876,6 +876,7 @@ private:
     bool      m_textSelect  = false;
     bool      m_textPressed = false;
     bool      m_hasTextSel  = false;
+    bool      m_isColumnSel = false;
     TextPos   m_textAnchor;
     TextPos   m_textFocus;
     POINT     m_textPressPx = {};

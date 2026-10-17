@@ -92,6 +92,10 @@ struct DebuggerViewSnapshot
         //  debug file is loaded and one did.
         int          sourceFileId  = -1;
         int          sourceLine    = 0;
+
+        //  Whether the line is in ROM, which an edit of the instruction does
+        //  not change.
+        bool         isRom         = false;
     };
 
     struct RegisterRow
@@ -240,6 +244,10 @@ struct DebuggerViewSnapshot
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
+
+    //  The CPU's instruction set, which the code pane assembles an edited
+    //  instruction with.
+    const Microcode            * instructionSet = nullptr;
 
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;

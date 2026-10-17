@@ -21,6 +21,8 @@
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Debugger/LineAssembler.h"
+#include "OpcodeTable.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
@@ -6575,7 +6577,7 @@ std::optional<std::pair<Word, Word>> DebuggerWindow::GetCodeSelection (int view,
 //
 //  DebuggerWindow::AddCodeEditItems
 //
-//  The code pane's menu entries that change the session's records of a
+//  The code pane's menu entries that change the session's tables for a
 //  line: data marking (FR-182), a symbol (FR-183), a routine never stepped
 //  into (FR-184), a bookmark (FR-189), the stopwatch and a call (FR-197).
 //
@@ -6636,7 +6638,260 @@ void DebuggerWindow::AddCodeEditItems (int view, const DebuggerViewSnapshot::Cod
     if (m_snapshot->isPaused)
     {
         items.push_back ({ L"Call subroutine here", [this, at] { RunAction (DebuggerActions::GetCallSubroutine (at, GetMode())); } });
+        items.push_back ({ L"Edit instruction...",  [this, view, line]  { EditInstruction (view, line); } });
+        items.push_back ({ L"Replace with NOPs",    [this, view, range] { ReplaceWithNops (view, range); } });
     }
+
+    if (!m_codeUndo.empty())
+    {
+        items.push_back ({ L"Undo " + m_codeUndo.back().text, [this] { UndoCodeEdit (false); } });
+    }
+
+    if (!m_codeRedo.empty())
+    {
+        items.push_back ({ L"Redo " + m_codeRedo.back().text, [this] { UndoCodeEdit (true); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetCodeBytes
+//
+//  The bytes from first through last, as the view's lines have them; false
+//  where the lines do not cover the range without a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetCodeBytes (int view, Word first, Word last, std::vector<Byte> & bytes) const
+{
+    uint32_t  next = first;
+
+
+
+    bytes.clear();
+
+    for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+    {
+        std::vector<Byte>  lineBytes;
+
+
+
+        if (line.address != next || next > last || !TextDialog::TryParseBytes (Widen (line.bytes), lineBytes))
+        {
+            continue;
+        }
+
+        bytes.insert (bytes.end(), lineBytes.begin(), lineBytes.end());
+        next += (uint32_t) lineBytes.size();
+    }
+
+    if (next <= last)
+    {
+        return false;
+    }
+
+    bytes.resize ((size_t) (last - first + 1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditInstruction
+//
+//  The typed instruction assembled over the line's (FR-185): a shorter one
+//  padded with NOP to the line's end, and a longer one written only after
+//  Yes to a question listing the instructions it covers, padded to the last
+//  one's end. ROM is not changed. The write requires the bytes that
+//  were there, and the edit can be undone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line)
+{
+    static constexpr Byte  kNop = 0xEA;
+    std::optional<std::wstring>  typed;
+    std::vector<Byte>            bytes;
+    std::vector<Byte>            before;
+    std::vector<std::string>     covered;
+    std::string                  error;
+    uint32_t                     end     = 0;
+
+
+
+    if (line.isRom)
+    {
+        ShowMessageBox (GetHwnd(), std::format (L"${:04X} is in ROM, which an instruction edit does not change.", line.address),
+                        L"Edit instruction", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (m_snapshot == nullptr || m_snapshot->instructionSet == nullptr)
+    {
+        return;
+    }
+
+    OpcodeTable    opcodes   (m_snapshot->instructionSet);
+    LineAssembler  assembler (opcodes);
+
+
+
+    typed = RunTextDialog (L"Edit instruction", L"Instruction", Widen (line.instruction), [&assembler, &line] (const std::wstring & text, std::wstring & message)
+    {
+        std::vector<Byte>  trial;
+        std::string        problem;
+        bool               isOk    = assembler.TryAssemble (line.address, TextEncoding::WideToNarrow (text), trial, problem) == LineAssemblyStatus::Ok;
+
+
+
+        message = Widen (problem);
+        return isOk;
+    });
+
+    if (!typed.has_value() || assembler.TryAssemble (line.address, TextEncoding::WideToNarrow (*typed), bytes, error) != LineAssemblyStatus::Ok)
+    {
+        return;
+    }
+
+    //  The lines the new instruction covers, its own first.
+    end = line.address;
+
+    for (const DebuggerViewSnapshot::CodeLine & each : GetCodeLines (view))
+    {
+        std::vector<Byte>  lineBytes;
+
+
+
+        if (each.address != end || end >= (uint32_t) line.address + std::max<size_t> (bytes.size(), 1) || !TextDialog::TryParseBytes (Widen (each.bytes), lineBytes))
+        {
+            continue;
+        }
+
+        if (each.address != line.address)
+        {
+            covered.push_back (each.instruction);
+        }
+
+        end += (uint32_t) lineBytes.size();
+    }
+
+    if (end > 0x10000 || end < (uint32_t) line.address + bytes.size())
+    {
+        return;
+    }
+
+    if (!covered.empty())
+    {
+        std::wstring  list;
+
+
+
+        for (size_t i = 0; i < covered.size(); i++)
+        {
+            list += std::format (L"{}{}", (i == 0) ? L"" : (i + 1 == covered.size()) ? L" and " : L", ", Widen (covered[i]));
+        }
+
+        if (ShowMessageBox (GetHwnd(), std::format (L"{} is longer than {}, and also overwrites {}. Write it?", *typed, Widen (line.instruction), list),
+                            L"Edit instruction", MB_YESNO | MB_ICONQUESTION) != IDYES)
+        {
+            return;
+        }
+    }
+
+    bytes.resize ((size_t) (end - line.address), kNop);
+
+    if (!TryGetCodeBytes (view, line.address, (Word) (end - 1), before))
+    {
+        return;
+    }
+
+    m_codeUndo.push_back ({ line.address, before, bytes, std::format (L"edit at ${:04X}", line.address) });
+    m_codeRedo.clear();
+    RunAction (DebuggerActions::GetPatch (line.address, bytes, GetMode(), before));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ReplaceWithNops
+//
+//  Every byte of the selected lines (FR-186), undoably; nothing in ROM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ReplaceWithNops (int view, std::pair<Word, Word> range)
+{
+    static constexpr Byte  kNop = 0xEA;
+    std::vector<Byte>      before;
+    std::vector<Byte>      after;
+    bool                   isRom = false;
+
+
+
+    for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+    {
+        isRom = isRom || (line.isRom && line.address >= range.first && line.address <= range.second);
+    }
+
+    if (isRom)
+    {
+        ShowMessageBox (GetHwnd(), L"The selection is in ROM, which Replace with NOPs does not change.", L"Replace with NOPs", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (!TryGetCodeBytes (view, range.first, range.second, before))
+    {
+        return;
+    }
+
+    after.assign (before.size(), kNop);
+    m_codeUndo.push_back ({ range.first, before, after, std::format (L"NOPs at ${:04X}", range.first) });
+    m_codeRedo.clear();
+    RunAction (DebuggerActions::GetPatch (range.first, after, GetMode(), before));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoCodeEdit
+//
+//  The bytes put back, or written again, only over the bytes the step left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoCodeEdit (bool redo)
+{
+    std::vector<CodeEdit>  & from = redo ? m_codeRedo : m_codeUndo;
+    std::vector<CodeEdit>  & to   = redo ? m_codeUndo : m_codeRedo;
+
+
+
+    if (from.empty())
+    {
+        return;
+    }
+
+    CodeEdit  edit = from.back();
+
+
+
+    from.pop_back();
+    RunAction (redo ? DebuggerActions::GetPatch (edit.address, edit.after, GetMode(), edit.before)
+                    : DebuggerActions::GetPatch (edit.address, edit.before, GetMode(), edit.after));
+    to.push_back (std::move (edit));
 }
 
 

@@ -209,7 +209,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         snapshot.stack.push_back ({ entry.address, entry.value });
     }
 
-    snapshot.callStack = session.GetCallStack();
+    snapshot.callStack      = session.GetCallStack();
+    snapshot.instructionSet = session.GetTarget().GetInstructionSet();
 
     snapshot.searchHits    = session.GetSearchResults();
     snapshot.searchSerial  = session.GetSearchSerial();
@@ -3093,6 +3094,8 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
         row.label         = line.label;
         row.isCurrent     = row.address == snapshot.pc;
         row.isBranchedFrom = snapshot.branchedFrom == row.address;
+        row.isRom          = session.GetTarget().GetRegion (row.address) == MemoryRegion::Rom ||
+                             session.GetTarget().GetRegion (row.address) == MemoryRegion::SlotRom;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
         //  is somewhere else by the time these are drawn.

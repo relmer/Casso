@@ -4060,6 +4060,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         {
             m_hasTextSel  = false;
             m_textPressed = true;
+            m_isColumnSel = ev.ctrl;
             m_textPressPx = POINT { lx, ly };
             m_textAnchor  = HitTestText (lx, ly);
             m_textFocus   = m_textAnchor;
@@ -4175,6 +4176,15 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
         if (m_hasTextSel || abs (lx - m_textPressPx.x) > slop || abs (ly - m_textPressPx.y) > slop)
         {
             m_textFocus  = HitTestText (lx, ly);
+
+            //  A Ctrl+drag stays in its column: the pointer's row, and the
+            //  character under it as the column's cell has it.
+            if (m_isColumnSel && m_textFocus.row >= 0)
+            {
+                m_textFocus.col = m_textAnchor.col;
+                m_textFocus.ch  = HitTestCharInCell (m_textFocus.row, (size_t) m_textAnchor.col, lx);
+            }
+
             m_hasTextSel = m_textFocus != m_textAnchor;
         }
     }
@@ -5325,7 +5335,7 @@ bool DxuiListView::GetCellTextSelection (int row, size_t col, int length, int & 
 
 
 
-    if (!m_hasTextSel || to < lo || from > hi)
+    if (!m_hasTextSel || to < lo || from > hi || (m_isColumnSel && (int) col != m_textAnchor.col))
     {
         return false;
     }

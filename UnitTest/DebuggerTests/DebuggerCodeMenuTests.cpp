@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "TestHelpers.h"
 
 #include "CppUnitTest.h"
 
@@ -93,6 +94,27 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeSelection;
         using DebuggerWindow::AddCodeEditItems;
+
+        std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
+        {
+            std::wstring  error;
+
+
+
+            shownPlaceholder = placeholder;
+            return check (typed, error) ? std::optional<std::wstring> (typed) : std::nullopt;
+        }
+
+        int ShowMessageBox (HWND, const std::wstring & text, const wchar_t *, UINT) override
+        {
+            messages.push_back (text);
+            return answer;
+        }
+
+        std::wstring               typed;
+        std::wstring               shownPlaceholder;
+        std::vector<std::wstring>  messages;
+        int                        answer   = IDYES;
     };
 
 
@@ -198,6 +220,90 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue (Has (items, L"Remove bookmark"), L"the RTS has a bookmark");
             Run (items, L"Stop stopwatch here");
             Assert::AreEqual (std::string ("STOPWATCH 0302 0305"), host.commands.back());
+        }
+
+
+
+        //  A shorter instruction is padded with NOP to the line's end; a
+        //  longer one is written after a question and padded to the end of the last line it
+        //  covers; each writes only over the bytes that were there, and Undo
+        //  puts them back (FR-185).
+        TEST_METHOD (AnEditedInstructionIsPaddedAndUndone)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            TestCpu            cpu;
+            auto               snapshot = MakeSnapshot();
+            Items              items;
+
+
+
+            cpu.InitForTest();
+            snapshot->instructionSet = cpu.GetInstructionSet();
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            window.typed = L"INX";
+            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            Run (items, L"Edit instruction...");
+
+            Assert::AreEqual (std::wstring (L"LDA #$41"), window.shownPlaceholder, L"the line's instruction is shown");
+            Assert::AreEqual (std::string ("PATCH 0300 E8 EA"), host.commands.back());
+            Assert::IsTrue   (window.messages.empty(), L"nothing covered, nothing asked");
+
+            window.typed = L"JMP $1234";
+            items.clear();
+            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            Run (items, L"Edit instruction...");
+
+            Assert::AreEqual ((size_t) 1, window.messages.size(), L"the JSR it covers is named first");
+            Assert::IsTrue   (window.messages[0].find (L"JSR COUT") != std::wstring::npos, window.messages[0].c_str());
+            Assert::AreEqual (std::string ("PATCH 0300 4C 34 12 EA EA"), host.commands.back(), L"padded to the JSR's end");
+
+            items.clear();
+            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            Run (items, L"Undo edit at $0300");
+
+            Assert::AreEqual (std::string ("PATCH 0300 A9 41 20 ED FD"), host.commands.back(), L"the bytes that were there");
+        }
+
+
+
+        TEST_METHOD (ROMIsNotEditedAndNopsReplaceASelection)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               snapshot = MakeSnapshot();
+            Items              items;
+
+
+
+            snapshot->code[2].isRom         = true;
+            snapshot->codeViews[0][2].isRom = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            window.AddCodeEditItems (0, snapshot->code[2], 2, items);
+            Run (items, L"Edit instruction...");
+
+            Assert::IsTrue (host.commands.empty(), L"ROM is not written");
+            Assert::AreEqual ((size_t) 1, window.messages.size());
+
+            items.clear();
+            window.AddCodeEditItems (0, snapshot->code[1], 1, items);
+            Run (items, L"Replace with NOPs");
+
+            Assert::AreEqual (std::string ("PATCH 0302 EA EA EA"), host.commands.back());
         }
 
 

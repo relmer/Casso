@@ -1032,6 +1032,30 @@ call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
 pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
 `PUSH`, `POP` and `PPOP`.
 
+A disassembly row's menu also has these, each on the row, or on the selected
+rows when it is among them:
+
+- **Mark as bytes**, **words**, **addresses**, **text** or **floats** and
+  **Clear data marking**, which run `DB`, `DW`, `DA`, `ASC`, `DF` and `X`
+  over the rows' bytes.
+- **Add symbol here...**, which runs `SYM name = addr`.
+- **Never step into this routine**, which runs `SKIP` on the routine a `JSR`
+  row calls, or on the row's own address; the call stack's menu has it for a
+  frame's routine.
+- **Add bookmark** or **Remove bookmark**, which run `BMA` and `BMC`.
+- **Start stopwatch here**, then **Stop stopwatch here** on another row,
+  which runs `STOPWATCH start stop`.
+- While the machine is stopped, **Call subroutine here**, which runs `JSR`;
+  **Edit instruction...**, which assembles an instruction over the row's,
+  padded with NOP when it is shorter and, when it is longer, written only
+  after a question that lists the instructions it covers; and **Replace with
+  NOPs**. Neither changes ROM, both write only over the bytes in the rows,
+  and **Undo** and **Redo** on the menu put the bytes back and write them
+  again.
+
+A drag selects text across the columns; a Ctrl+drag selects only in the
+column it began in.
+
 The Breakpoints pane's **New** drop-down also has **Read of memory never
 written...**, **Video line...**, **Beam position...** and **Execute and
 watch...**, which run `BRKUNINIT ON`, `BPV`, `BPBEAM` and `BPA`. The first

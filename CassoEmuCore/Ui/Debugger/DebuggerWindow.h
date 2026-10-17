@@ -479,6 +479,10 @@ protected:
     std::optional<std::pair<Word, Word>>  GetCodeSelection (int view, int row) const;
     void                   AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row,
                                              std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void                   EditInstruction  (int view, const DebuggerViewSnapshot::CodeLine & line);
+    void                   ReplaceWithNops  (int view, std::pair<Word, Word> range);
+    void                   UndoCodeEdit     (bool redo);
+    bool                   TryGetCodeBytes  (int view, Word first, Word last, std::vector<Byte> & bytes) const;
 
     //  Protected so a test can switch a disassembly viewing option as its
     //  check box does, read the rows a view shows, and hover its gutter.
@@ -1734,6 +1738,19 @@ private:
 
     //  Where Start stopwatch here was chosen, until Stop stopwatch here.
     std::optional<Word>                                                              m_stopwatchStart;
+
+    //  The code pane's edits of instructions, each the bytes before and
+    //  after, to undo and redo (FR-185, FR-186).
+    struct CodeEdit
+    {
+        Word               address = 0;
+        std::vector<Byte>  before;
+        std::vector<Byte>  after;
+        std::wstring       text;
+    };
+
+    std::vector<CodeEdit>                                                            m_codeUndo;
+    std::vector<CodeEdit>                                                            m_codeRedo;
 
     //  The command bar and the history timeline, laid out together in bands
     //  along the window's edges. Declared ahead of their hosts, which leave
