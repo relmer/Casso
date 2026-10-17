@@ -939,7 +939,7 @@ namespace DebuggerViewStateTests
             //  ids existed, so the new one can be found then.
             undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0, CommandMode::AppleWin);
             Assert::IsTrue   (undo->actions.empty());
-            Assert::IsTrue   (undo->restoreAddress == std::optional<Word> (0x0400));
+            Assert::IsTrue   (undo->restoreText == std::optional<std::string> ("0400"));
             Assert::AreEqual ((size_t) 2, undo->movedFromIds.size());
 
             //  A value that could not be read has nothing to put back.

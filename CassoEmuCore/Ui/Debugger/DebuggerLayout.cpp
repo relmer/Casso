@@ -404,60 +404,6 @@ std::string DebuggerLayout::FormatBasicOpened (const std::set<std::wstring> & op
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerLayout::FormatBasicWatches
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerLayout::FormatBasicWatches (const std::vector<std::string> & names)
-{
-    std::string  text;
-
-
-
-    for (const std::string & name : names)
-    {
-        text += " basicwatch=" + name;
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerLayout::ParseBasicWatches
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::string> DebuggerLayout::ParseBasicWatches (const std::string & text)
-{
-    static constexpr std::string_view  kPrefix = "basicwatch=";
-    std::vector<std::string>           names;
-    std::istringstream                 in (text);
-    std::string                        token;
-
-
-
-    while (in >> token)
-    {
-        if (token.starts_with (kPrefix) && token.size() > kPrefix.size())
-        {
-            names.push_back (token.substr (kPrefix.size()));
-        }
-    }
-
-    return names;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerLayout::ParseBasicOpened
 //
 //  Any other token is passed over, as ParseOpenViews passes over this one.

@@ -3,6 +3,9 @@
 #include "Debugger/Handlers/WatchHandlers.h"
 
 #include "Config/IFileSystem.h"
+#include "Debugger/AppleWinParser.h"
+#include "Debugger/Basic/ApplesoftProgram.h"
+#include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 
@@ -70,9 +73,9 @@ std::string WatchHandlers::MakeScript (DebugSession & session, WatchListKind kin
 
     for (const WatchItem & item : table.GetAll())
     {
-        script += (kind == WatchListKind::ZeroPage)
-                ? std::format ("{}{} {:04X}\n", kAdd[(int) kind], item.id, item.address)
-                : std::format ("{} {:04X}\n",   kAdd[(int) kind], item.address);
+        script += (kind == WatchListKind::ZeroPage) ? std::format ("{}{} {:04X}\n", kAdd[(int) kind], item.id, item.address)
+                : !item.basicName.empty()           ? std::format ("{} BASIC {}\n", kAdd[(int) kind], item.basicName)
+                :                                     std::format ("{} {:04X}\n",   kAdd[(int) kind], item.address);
     }
 
     for (const WatchItem & item : table.GetAll())
@@ -98,7 +101,7 @@ std::string WatchHandlers::MakeScript (DebugSession & session, WatchListKind kin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kind)
+WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kind, bool isReadingBasic)
 {
     WatchListData  data;
 
@@ -112,11 +115,16 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 
 
 
-        entry.id      = item.id;
-        entry.address = item.address;
-        entry.enabled = item.enabled;
+        entry.id        = item.id;
+        entry.address   = item.address;
+        entry.enabled   = item.enabled;
+        entry.basicName = item.basicName;
 
-        if (kind != WatchListKind::Bookmark)
+        if (!item.basicName.empty())
+        {
+            entry.basicValue = isReadingBasic ? ReadBasicValue (session, item.basicName) : std::nullopt;
+        }
+        else if (kind != WatchListKind::Bookmark)
         {
             entry.value = PeekWord (session, item.address, kind);
         }
@@ -145,11 +153,14 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 
 void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply)
 {
-    WatchTable     & table = GetTable (session, kind);
-    WatchListData    list  = MakeList (session, kind);
+    WatchTable     & table   = GetTable (session, kind);
+    WatchListData    list    = MakeList (session, kind);
     WatchListData    one;
-    int              slot  = 0;
-    int              id    = 0;
+    int              slot    = 0;
+    int              id      = 0;
+    Word             address = command.a1;
+    std::string      name;
+    std::string      error;
 
 
 
@@ -164,17 +175,28 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
         return;
     }
 
-    if (TryGetSlot (command.sourceName, slot))
+    //  A watch's text is resolved here, where the symbols and the program
+    //  are: a BASIC variable, or the address the text evaluates to.
+    if (kind == WatchListKind::Watch && !command.text.empty() && TryGetBasicName (session, command.text, name))
     {
-        id = table.AddAt (slot, command.a1);
+        id = table.AddBasic (name);
+    }
+    else if (kind == WatchListKind::Watch && !command.text.empty() && !AppleWinParser::TryEvaluate (command.text, session, address, error))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", error);
+        return;
+    }
+    else if (TryGetSlot (command.sourceName, slot))
+    {
+        id = table.AddAt (slot, address);
     }
     else if (kind != WatchListKind::ZeroPage)
     {
-        id = table.Add (command.a1);
+        id = table.Add (address);
     }
     else if (TryGetFreeSlot (table, slot))
     {
-        id = table.AddAt (slot, command.a1);
+        id = table.AddAt (slot, address);
     }
     else
     {
@@ -194,6 +216,101 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
     }
 
     reply.data = one;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::TryGetBasicName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::TryGetBasicName (DebugSession & session, const std::string & text, std::string & name)
+{
+    static constexpr std::string_view  kBasic   = "BASIC ";
+    BasicReference                     reference;
+    std::string                        trimmed  = text;
+    Word                               address  = 0;
+    bool                               isForced = false;
+    bool                               isMarked = false;
+    ApplesoftProgram                   program ([&session] (Word at) { Byte value = 0; session.TryPeek (at, value); return value; });
+
+
+
+    trimmed.erase (0, std::min (trimmed.size(), trimmed.find_first_not_of (" \t")));
+    trimmed.erase (trimmed.find_last_not_of (" \t") + 1);
+
+    isForced = trimmed.size() > kBasic.size() && _strnicmp (trimmed.c_str(), kBasic.data(), kBasic.size()) == 0;
+    name     = isForced ? trimmed.substr (kBasic.size()) : trimmed;
+    name.erase (0, std::min (name.size(), name.find_first_not_of (" \t")));
+    std::erase (name, ' ');
+
+    if (!ApplesoftProgram::TryParseReference (name, reference))
+    {
+        return false;
+    }
+
+    std::ranges::transform (name, name.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
+
+    if (isForced)
+    {
+        return true;
+    }
+
+    if (session.TryResolveSymbol (name, address))
+    {
+        return false;
+    }
+
+    isMarked = name.find_first_of ("$%(") != std::string::npos;
+
+    return isMarked || (IsProgramRunning (session, program) && program.HasValue (reference));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::ReadBasicValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> WatchHandlers::ReadBasicValue (DebugSession & session, const std::string & name)
+{
+    BasicReference    reference;
+    std::string       value;
+    ApplesoftProgram  program ([&session] (Word at) { Byte peeked = 0; session.TryPeek (at, peeked); return peeked; });
+
+
+
+    if (!ApplesoftProgram::TryParseReference (name, reference) || !IsProgramRunning (session, program))
+    {
+        return std::nullopt;
+    }
+
+    value = program.GetValueText (reference);
+    return (reference.type == BasicType::String) ? "\"" + value + "\"" : value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::IsProgramRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::IsProgramRunning (DebugSession & session, const ApplesoftProgram & program)
+{
+    return BasicStopMonitor::IsApplesoftVisible (session) && program.GetCurrentLine().has_value() &&
+           !program.IsAtPrompt (session.GetTarget().GetRegisters().sp);
 }
 
 
@@ -227,7 +344,8 @@ void WatchHandlers::Clear (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    reply.data = MessageData { { std::format ("Removed {} {} ({:04X})", GetNoun (kind), id, item.address) } };
+    reply.data = MessageData { { item.basicName.empty() ? std::format ("Removed {} {} ({:04X})", GetNoun (kind), id, item.address)
+                                                        : std::format ("Removed {} {} ({})", GetNoun (kind), id, item.basicName) } };
 }
 
 

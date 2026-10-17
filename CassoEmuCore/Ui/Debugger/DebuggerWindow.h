@@ -901,7 +901,6 @@ private:
     std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
     void     RemoveSelectedWatch ();
     void     ApplyWatches        ();
-    void     RemoveBasicWatch    (int index);
     void     UndoWatchEdit    (bool redo);
     void     UndoRegisterEdit (bool redo);
     void     UndoStackEdit    (bool redo);
@@ -1262,10 +1261,9 @@ private:
 
     //  What each row of the watch pane is, since the list mixes headings,
     //  automatic watches and the user's own: an automatic row has its index
-    //  into the snapshot, a manual one its watch id, and a BASIC watch the
-    //  user added its index into m_basicWatches. A BASIC variable listed
-    //  under a heading or as an automatic watch is a BasicItem.
-    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add, BasicHeading, BasicItem, BasicManual };
+    //  into the snapshot and a manual one its watch id. A BASIC variable
+    //  listed under its heading or as an automatic watch is a BasicItem.
+    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add, BasicHeading, BasicItem };
 
     struct WatchRow
     {
@@ -1559,14 +1557,12 @@ private:
     std::unique_ptr<ToolbarBoxEntry>             m_diskSectorEntry;
 
     //  The BASIC program pane (DebuggerWindowBasic.cpp), whether it was
-    //  opened, and the line it last scrolled to. The BASIC variables the user
-    //  added to the Watches pane, and whether its BASIC variables heading is
-    //  expanded.
+    //  opened, and the line it last scrolled to, and whether the Watches
+    //  pane's BASIC variables heading is expanded.
     DxuiListView                         * m_basicProgramList         = nullptr;
     std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
     std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
     std::set<std::wstring>                 m_basicOpened;
-    std::vector<std::string>               m_basicWatches;
     bool                                   m_isBasicVariablesExpanded = false;
     std::optional<Word>                    m_basicShownLine;
     bool                                   m_isBasicReading           = false;

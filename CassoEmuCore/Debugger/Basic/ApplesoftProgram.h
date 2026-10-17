@@ -141,6 +141,9 @@ public:
     //  The value as PRINT prints it, 0 or empty for one that does not exist.
     std::string          GetValueText  (const BasicReference & reference) const;
 
+    //  Whether the variable or array element exists.
+    bool                 HasValue      (const BasicReference & reference) const { return FindValue (reference).has_value(); }
+
     //  A real as PRINT prints it, from its five bytes as Applesoft stores a
     //  variable: the exponent, then the mantissa with the sign in its top bit.
     //  FormatReal approximates PRINT in host arithmetic; a reader with the

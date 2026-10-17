@@ -143,12 +143,14 @@ struct DebuggerViewSnapshot
         std::string     label;
     };
 
+    //  basicName is a BASIC watch's variable, empty for an address.
     struct WatchLine
     {
         int          id      = 0;
         Word         address = 0;
         std::string  value;
         bool         enabled = true;
+        std::string  basicName;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or
@@ -604,10 +606,11 @@ public:
     {
         std::vector<DebuggerAction>  actions;
 
-        //  For a moved watch: the id before the edit, and the address to put
-        //  back. `movedFromIds` is every watch id there was, so the one the
-        //  edit made is the one not among them.
-        std::optional<Word>          restoreAddress;
+        //  For a moved watch: the id before the edit, and what to watch again,
+        //  an address in hex or BASIC and a variable's name. `movedFromIds` is
+        //  every watch id there was, so the one the edit made is the one not
+        //  among them.
+        std::optional<std::string>   restoreText;
         std::vector<int>             movedFromIds;
 
         //  The watch the move made, once a snapshot shows it.

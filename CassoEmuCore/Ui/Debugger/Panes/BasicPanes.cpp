@@ -427,39 +427,6 @@ bool BasicWatches::IsStoppedInProgram (const std::optional<DebuggerViewSnapshot:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicWatches::IsBasicName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BasicWatches::IsBasicName (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::string & text)
-{
-    BasicReference  reference;
-    bool            isMarked = text.find_first_of ("$%(") != std::string::npos;
-
-
-
-    if (!ApplesoftProgram::TryParseReference (text, reference))
-    {
-        return false;
-    }
-
-    if (isMarked)
-    {
-        return true;
-    }
-
-    return IsStoppedInProgram (basic) && std::ranges::any_of (basic->variables, [&reference] (const BasicVariable & variable)
-    {
-        return variable.name == reference.name;
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BasicWatches::TryGetValue
 //
 ////////////////////////////////////////////////////////////////////////////////

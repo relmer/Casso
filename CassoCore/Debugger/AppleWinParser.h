@@ -129,6 +129,7 @@ private:
     static bool    TryParseCallsArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseHistoryArguments  (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDecimal           (const std::string & text, uint64_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool    IsBasicReferenceForm      (const std::string & text, std::string & error);
     static bool    TryParseCount             (const std::string & text, uint32_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
     static bool    IsNumberOrRange           (const std::string & text, NumberSyntax syntax);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);

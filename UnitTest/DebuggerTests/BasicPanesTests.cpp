@@ -3,6 +3,8 @@
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BasicHandlers.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
+#include "Debugger/Handlers/WatchHandlers.h"
 #include "EmuTests/GuestSession.h"
 #include "EmuTests/KeystrokeInjector.h"
 #include "EmuTests/MachineIdle.h"
@@ -284,23 +286,53 @@ namespace DebuggerTests
             Assert::IsFalse  (BasicWatches::TryGetValue (state, "3A").has_value());
         }
 
-        //  $, % or subscripts always make a BASIC variable; a plain name does
-        //  only when the stopped program has it.
-        TEST_METHOD (APlainNameIsBasicOnlyWhenTheProgramHasIt)
+        //  A watch's text is read by the session as FR-241 has it: a symbol
+        //  first; then a name with $, % or subscripts, or a plain name the
+        //  stopped program has, as a BASIC variable; BASIC and a name always.
+        //  WL lists each with its value, and the project script has each as
+        //  BASIC and the name.
+        TEST_METHOD (TheSessionReadsAWatchAsABasicVariable)
         {
-            std::optional<DebuggerViewSnapshot::BasicState>  state = MakeValues();
+            MachineHandlerRig<BasicHandlers>  rig { "Apple2eEnhanced", TestMachine::Slots::Empty };
+            BreakpointHandlers                breakpoints;
+            WatchHandlers                     watches;
+            SymbolHandlers                    symbols;
+            std::vector<std::string>          listed;
 
 
 
-            Assert::IsTrue  (BasicWatches::IsBasicName (state, "N%"));
-            Assert::IsTrue  (BasicWatches::IsBasicName (state, "X(1,2)"));
-            Assert::IsTrue  (BasicWatches::IsBasicName (state, "A"));
-            Assert::IsFalse (BasicWatches::IsBasicName (state, "COUT"), L"the program has no CO");
-            Assert::IsFalse (BasicWatches::IsBasicName (state, "300"));
+            rig.session.AddHandler (&breakpoints);
+            rig.session.AddHandler (&watches);
+            rig.session.AddHandler (&symbols);
+            MachineIdle::RunUntilIdle (rig.machine, 20'000'000);
 
-            state->line.reset();
-            Assert::IsFalse (BasicWatches::IsBasicName (state, "A"), L"not stopped in the program");
-            Assert::IsTrue  (BasicWatches::IsBasicName (state, "N%"));
+            for (const char * text : { "10 HIGH = 7: S$ = \"AB\": DIM X(2): X(1) = 5: SCUD = 3", "20 END" })
+            {
+                GuestSession::TypeAndCollect (rig.machine, text);
+            }
+
+            Assert::AreEqual ((size_t) 3, KeystrokeInjector::InjectString (rig.machine, "RUN"));
+            rig.RunOk ("BUDGET 5000000");
+            rig.RunOk ("BPBASIC 20");
+            rig.machine.GetRefs().keyboard->PressKey (KeystrokeInjector::kAppleReturn);
+            rig.RunOk ("G");
+
+            rig.RunOk ("SYM SC = 300");
+            rig.RunOk ("W HI");
+            rig.RunOk ("W S$");
+            rig.RunOk ("W X(1)");
+            rig.RunOk ("W SC");
+            rig.RunOk ("W BASIC Q");
+            listed = rig.RunOk ("WL").text;
+
+            Assert::AreEqual ((size_t) 5, listed.size());
+            Assert::AreEqual (std::string ("#0 HI = 7"),        listed[0], L"a plain name the program has");
+            Assert::AreEqual (std::string ("#1 S$ = \"AB\""),   listed[1]);
+            Assert::AreEqual (std::string ("#2 X(1) = 5"),      listed[2]);
+            Assert::IsTrue   (listed[3].starts_with ("#3 $0300"), L"the symbol SC comes before SCUD's SC");
+            Assert::AreEqual (std::string ("#4 Q = 0"),         listed[4], L"BASIC makes any name one");
+
+            Assert::IsTrue (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA BASIC S$\n") != std::string::npos);
         }
 
         //  The statement being run's simple variables, each once; a keyword,
@@ -354,9 +386,8 @@ namespace DebuggerTests
 
         //  The program pane opened is written to the open-views text and read
         //  back, and the default layout has it as a tab of the disassembly;
-        //  an old text's other BASIC panes are passed over. The BASIC watches
-        //  are written and read back the same way.
-        TEST_METHOD (TheOpenedPaneAndTheWatchesAreKept)
+        //  an old text's other BASIC panes are passed over.
+        TEST_METHOD (TheOpenedPaneIsWrittenAndReadBack)
         {
             std::set<std::wstring>  opened = { DebuggerLayout::kBasicProgram, L"heatmap" };
             DxuiPaneLayout          layout = DebuggerLayout::MakeDefault();
@@ -367,10 +398,6 @@ namespace DebuggerTests
             Assert::IsTrue   (DebuggerLayout::ParseBasicOpened ("code2=0300 open=basicstack bpcols=3 open=basicprogram") ==
                               std::set<std::wstring> ({ DebuggerLayout::kBasicProgram }));
             Assert::IsTrue   (layout.Contains (DebuggerLayout::kBasicProgram));
-
-            Assert::AreEqual (std::string (" basicwatch=A$ basicwatch=X(1,2)"), DebuggerLayout::FormatBasicWatches ({ "A$", "X(1,2)" }));
-            Assert::IsTrue   (DebuggerLayout::ParseBasicWatches ("open=basicprogram basicwatch=A$ bpcols=3 basicwatch=X(1,2)") ==
-                              std::vector<std::string> ({ "A$", "X(1,2)" }));
         }
     };
 }

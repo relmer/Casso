@@ -1354,6 +1354,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
         }
 
         command.hasA1 = !args.tokens.empty();
+
+        //  A watch's text also goes to the session, which reads it as a BASIC
+        //  variable where it is one; text that is not an address may be one.
+        if (command.verb == DebugVerb::AddWatch && !args.tokens.empty())
+        {
+            command.text = args.rest;
+            return TryEvaluate (args.tokens[0], *args.context, command.a1, error) || IsBasicReferenceForm (args.rest, error);
+        }
+
         return args.tokens.empty() || TryEvaluate (args.tokens[0], *args.context, command.a1, error);
 
     case DebugVerb::ClearWatch:
@@ -1763,6 +1772,35 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value, 
     }
 
     value = (uint32_t) wide;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::IsBasicReferenceForm
+//
+//  BASIC and a name, or a name written as an Applesoft variable or array
+//  element: letters and digits after a letter, a $ or %, and subscripts.
+//  The error is cleared for one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsBasicReferenceForm (const std::string & text, std::string & error)
+{
+    static const std::regex  s_kForm (R"(^\s*(BASIC\s+)?[A-Za-z][A-Za-z0-9]*[$%]?(\(\s*\d+(\s*,\s*\d+)*\s*\))?\s*$)", std::regex::icase);
+
+
+
+    if (!std::regex_match (text, s_kForm))
+    {
+        return false;
+    }
+
+    error.clear();
     return true;
 }
 

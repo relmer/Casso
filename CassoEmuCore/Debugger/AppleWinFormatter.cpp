@@ -590,11 +590,16 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
 
     for (const WatchEntry & entry : data.entries)
     {
-        std::string  text = std::format ("#{} ${:04X}", entry.id, entry.address);
+        std::string  text = entry.basicName.empty() ? std::format ("#{} ${:04X}", entry.id, entry.address)
+                                                    : std::format ("#{} {}", entry.id, entry.basicName);
 
 
 
-        if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
+        if (!entry.basicName.empty())
+        {
+            text += " = " + entry.basicValue.value_or ("--");
+        }
+        else if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
         {
             text += std::format (" -> ${:04X}", *entry.value);
         }

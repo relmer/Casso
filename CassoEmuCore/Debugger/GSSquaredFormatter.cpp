@@ -337,7 +337,7 @@ void GSSquaredFormatter::FormatWatchList (const WatchListData & data, bool isAdd
 
     for (const WatchEntry & entry : data.entries)
     {
-        lines.push_back (std::format ("[{}] {}", entry.id, FormatAddress (entry.address)));
+        lines.push_back (std::format ("[{}] {}", entry.id, entry.basicName.empty() ? FormatAddress (entry.address) : entry.basicName));
     }
 }
 

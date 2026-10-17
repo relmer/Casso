@@ -69,7 +69,7 @@ std::optional<std::vector<DebuggerAction>> WatchHistory::TryUndo (const Debugger
         return std::nullopt;
     }
 
-    if (!m_undo.back().undo.restoreAddress.has_value())
+    if (!m_undo.back().undo.restoreText.has_value())
     {
         m_redo.push_back (std::move (m_undo.back()));
     }
@@ -188,7 +188,7 @@ std::string WatchHistory::ToText() const
 //
 //  WatchHistory::FormatStep
 //
-//  The undo's actions, the address a move puts back, the watch ids before
+//  The undo's actions, the text of what a move watches again, the watch ids before
 //  the move, the id of the watch it made, the edit's actions, and the text
 //  for the menu, apart at colons; an absent value is empty.
 //
@@ -206,7 +206,7 @@ std::string WatchHistory::FormatStep (const Step & step)
     }
 
     return std::format ("{}:{}:{}:{}:{}:{}", FormatActions (step.undo.actions),
-                        step.undo.restoreAddress.has_value() ? std::format ("{:X}", *step.undo.restoreAddress) : std::string(),
+                        step.undo.restoreText.has_value() ? UndoText::FormatText (*step.undo.restoreText) : std::string(),
                         ids,
                         step.undo.movedToId.has_value() ? std::format ("{:X}", *step.undo.movedToId) : std::string(),
                         FormatActions (step.edit), UndoText::FormatText (TextEncoding::WideToUtf8 (step.text)));
@@ -305,12 +305,12 @@ bool WatchHistory::TryParseStep (const std::string & text, Step & step)
 
     if (!fields[1].empty())
     {
-        if (!UndoText::TryParseHex (fields[1], value) || value > 0xFFFF)
+        step.undo.restoreText = std::string();
+
+        if (!UndoText::TryParseText (fields[1], *step.undo.restoreText))
         {
             return false;
         }
-
-        step.undo.restoreAddress = (Word) value;
     }
 
     for (const std::string & id : UndoText::Split (fields[2], '+'))

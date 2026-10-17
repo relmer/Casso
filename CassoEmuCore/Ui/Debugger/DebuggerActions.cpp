@@ -980,6 +980,7 @@ DebuggerAction DebuggerActions::GetAddWatch (Word address, CommandMode mode)
 
     action.command.a1    = address;
     action.command.hasA1 = true;
+    action.command.text  = std::format ("{:04X}", address);
     return action;
 }
 

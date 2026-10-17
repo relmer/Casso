@@ -133,8 +133,8 @@ namespace PaneUndoHistoryTests
 
 
 
-            undo.restoreAddress = 0x0300;
-            undo.movedFromIds   = { 1 };
+            undo.restoreText  = "0300";
+            undo.movedFromIds = { 1 };
             history.Record (undo, {});
 
             Assert::IsFalse (history.TryUndo (now, CommandMode::AppleWin).has_value(), L"no snapshot shows the moved watch yet");
@@ -161,9 +161,9 @@ namespace PaneUndoHistoryTests
 
 
 
-            moved.restoreAddress = 0x0300;
-            moved.movedFromIds   = { 1, 3 };
-            moved.movedToId      = 4;
+            moved.restoreText  = "0300";
+            moved.movedFromIds = { 1, 3 };
+            moved.movedToId    = 4;
             history.Record (moved, { DebuggerActions::GetClearWatch (3, CommandMode::AppleWin), DebuggerActions::GetAddWatch ("A:B", CommandMode::AppleWin) },
                             L"moved watch 3");
 
@@ -191,7 +191,7 @@ namespace PaneUndoHistoryTests
             Assert::IsTrue   (actions.has_value() && actions->size() == 2, L"the move is undone");
             Assert::IsTrue   ((*actions)[0].command.verb == DebugVerb::ClearWatch);
             Assert::AreEqual (4u, (*actions)[0].command.count);
-            Assert::AreEqual ((int) 0x0300, (int) (*actions)[1].command.a1);
+            Assert::AreEqual (std::string ("0300"), (*actions)[1].operand);
         }
 
 

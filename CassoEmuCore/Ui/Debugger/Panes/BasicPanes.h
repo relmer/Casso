@@ -100,8 +100,8 @@ private:
 //
 //  The BASIC variables the Watches pane lists while the machine is stopped
 //  in a running Applesoft program (FR-176): the ones the statement being run
-//  uses, the ones the user added as Applesoft writes them, and every simple
-//  variable and array element. Applesoft reads only a name's first two
+//  uses and every simple variable and array element. The ones the user adds
+//  are watches in the session. Applesoft reads only a name's first two
 //  characters, so the rest are dimmed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,10 +120,6 @@ public:
     //  Whether the machine is stopped in a running program, so the values can
     //  be read.
     static bool  IsStoppedInProgram (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
-
-    //  Whether the text is a BASIC variable: one with $, % or subscripts
-    //  always is, and a plain name is one the stopped program has.
-    static bool  IsBasicName (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::string & text);
 
     //  The value, as Applesoft reads it: 0 or "" for a variable not set yet;
     //  none for text that is not a variable or an element out of range.

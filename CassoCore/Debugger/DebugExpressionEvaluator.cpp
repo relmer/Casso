@@ -319,7 +319,7 @@ bool DebugExpressionEvaluator::TryParseOperatorPosition (
 //
 //  DebugExpressionEvaluator::TryReadOperand
 //
-//  A character literal, $hex, #hex, or a name. Leaves error empty when
+//  A character literal, $hex, #hex, or a name. The error is empty when
 //  nothing at pos can start a value.
 //
 ////////////////////////////////////////////////////////////////////////////////

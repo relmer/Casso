@@ -112,7 +112,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     const Cpu6502Registers        r              = session.GetTarget().GetRegisters();
     const VideoPosition           video          = session.GetTarget().GetVideoPosition();
     const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
-    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
+    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch, false);
     const WatchListData           pointers       = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
     BreakpointListData            breakpoints;
     DebugDiskState                diskState;
@@ -219,7 +219,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     {
         snapshot.watches.push_back ({ entry.id, entry.address,
                                       entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                      entry.enabled });
+                                      entry.enabled, entry.basicName });
     }
 
     for (const WatchEntry & entry : pointers.entries)
@@ -253,6 +253,17 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     if (m_isBasicShown || isPaused)
     {
         snapshot.basic = ReadBasic (session, isPaused);
+    }
+
+    //  A BASIC watch's value is read with the program's, once the machine is
+    //  stopped in it.
+    for (DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (!watch.basicName.empty())
+        {
+            watch.value = (snapshot.basic.has_value() && snapshot.basic->hasValues) ? WatchHandlers::ReadBasicValue (session, watch.basicName).value_or ("--")
+                                                                                    : std::string ("--");
+        }
     }
 
     return snapshot;
@@ -1812,8 +1823,10 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
         {
             if (watch.id == *watchId)
             {
-                return (column == 0) ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
-                                     : std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
+                //  A BASIC watch's value is the program's to change.
+                return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
+                     : !watch.basicName.empty()    ? std::vector<DebuggerAction> {}
+                     :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
             }
         }
 
@@ -1899,7 +1912,7 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
 
             if (column == 0)
             {
-                undo.restoreAddress = watch.address;
+                undo.restoreText = watch.basicName.empty() ? std::format ("{:04X}", watch.address) : "BASIC " + watch.basicName;
 
                 for (const DebuggerViewSnapshot::WatchLine & other : before.watches)
                 {
@@ -2008,7 +2021,7 @@ bool DebuggerViewState::TryParseHexWord (const std::string & text, Word & value)
 
 void DebuggerViewState::NoteMovedWatch (const DebuggerViewSnapshot & now, WatchUndo & undo)
 {
-    if (!undo.restoreAddress.has_value() || undo.movedToId.has_value())
+    if (!undo.restoreText.has_value() || undo.movedToId.has_value())
     {
         return;
     }
@@ -2040,7 +2053,7 @@ void DebuggerViewState::NoteMovedWatch (const DebuggerViewSnapshot & now, WatchU
 
 std::optional<std::vector<DebuggerAction>> DebuggerViewState::GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode)
 {
-    if (!undo.restoreAddress.has_value())
+    if (!undo.restoreText.has_value())
     {
         return undo.actions;
     }
@@ -2056,7 +2069,7 @@ std::optional<std::vector<DebuggerAction>> DebuggerViewState::GetWatchUndoAction
     {
         if (watch.id == *undo.movedToId)
         {
-            return std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (*undo.restoreAddress, mode) };
+            return std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (*undo.restoreText, mode) };
         }
     }
 
@@ -2472,6 +2485,14 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     if (action.operand.empty())
     {
+        return true;
+    }
+
+    //  A watch's text goes to the session as typed, which reads it as a BASIC
+    //  variable where it is one, and otherwise evaluates it.
+    if (command.verb == DebugVerb::AddWatch)
+    {
+        command.text = action.operand;
         return true;
     }
 

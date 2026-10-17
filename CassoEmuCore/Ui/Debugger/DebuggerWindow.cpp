@@ -6639,10 +6639,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         {
             items.push_back ({ L"Remove", [this, slot = what.index] { RunAction (DebuggerActions::GetClearZeroPagePointer (slot, GetMode())); } });
         }
-        else if (what.kind == WatchRowKind::BasicManual)
-        {
-            items.push_back ({ L"Remove", [this, index = what.index] { RemoveBasicWatch (index); } });
-        }
+
         else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
                  s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
         {
@@ -7877,7 +7874,8 @@ void DebuggerWindow::ApplyWatches()
 
     for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
     {
-        DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
+        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"#{} ${:04X}", watch.id, watch.address) }
+                                                            : BasicWatches::MakeNameCell (watch.basicName);
         DxuiListView::Cell  value = { Widen (watch.value) };
 
         //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
@@ -7886,7 +7884,7 @@ void DebuggerWindow::ApplyWatches()
         value.dim = !watch.enabled;
         name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
 
-        if (watch.enabled)
+        if (watch.enabled && watch.basicName.empty())
         {
             name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
 
@@ -7907,19 +7905,6 @@ void DebuggerWindow::ApplyWatches()
         m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
     }
 
-    //  The BASIC variables the user added, with a value only while the
-    //  machine is stopped in the program.
-    for (size_t i = 0; i < m_basicWatches.size(); i++)
-    {
-        std::optional<std::string>  shown = isInProgram ? BasicWatches::TryGetValue (*m_snapshot->basic, m_basicWatches[i]) : std::nullopt;
-        DxuiListView::Cell          value = { Widen (shown.value_or ("--")) };
-
-
-
-        value.dim = !shown.has_value();
-        rows.push_back ({ BasicWatches::MakeNameCell (m_basicWatches[i]), value });
-        m_watchRows.push_back ({ WatchRowKind::BasicManual, (int) i });
-    }
 
     //  The zero-page pointers under their own heading: each the zero-page
     //  address, then the address its two bytes form and the bytes there.
@@ -7973,25 +7958,6 @@ void DebuggerWindow::ApplyWatches()
     }
 
     m_watchList->SetRows (std::move (rows));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RemoveBasicWatch
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RemoveBasicWatch (int index)
-{
-    if (index >= 0 && index < (int) m_basicWatches.size())
-    {
-        m_basicWatches.erase (m_basicWatches.begin() + index);
-        ApplyWatches();
-    }
 }
 
 
@@ -8065,8 +8031,7 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
         return;
     }
 
-    if (what.kind == WatchRowKind::Heading || what.kind == WatchRowKind::BasicItem || what.kind == WatchRowKind::BasicManual ||
-        (what.kind == WatchRowKind::Automatic && column == 0))
+    if (what.kind == WatchRowKind::Heading || what.kind == WatchRowKind::BasicItem || (what.kind == WatchRowKind::Automatic && column == 0))
     {
         return;
     }
@@ -8090,9 +8055,17 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
     {
         for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
         {
+            //  A BASIC watch's value is the program's to change.
+            if (watch.id == what.index && column != 0 && !watch.basicName.empty())
+            {
+                return;
+            }
+
             if (watch.id == what.index)
             {
-                text = (column == 0) ? std::format (L"{:04X}", watch.address) : Widen (watch.value);
+                text = (column != 0)              ? Widen (watch.value)
+                     : watch.basicName.empty()    ? std::format (L"{:04X}", watch.address)
+                     :                              Widen (watch.basicName);
             }
         }
     }
@@ -8151,12 +8124,7 @@ void DebuggerWindow::EndWatchEdit (bool commit)
 
         expression.erase (expression.find_last_not_of (" \t") + 1);
 
-        if (!expression.empty() && m_snapshot != nullptr && BasicWatches::IsBasicName (m_snapshot->basic, expression))
-        {
-            m_basicWatches.push_back (expression);
-            ApplyWatches();
-        }
-        else if (!expression.empty())
+        if (!expression.empty())
         {
             actions.push_back (DebuggerActions::GetAddWatch (expression, GetMode()));
         }
@@ -8225,10 +8193,6 @@ void DebuggerWindow::RemoveSelectedWatch()
     if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
     {
         RunAction (DebuggerActions::GetClearWatch (m_watchRows[(size_t) row].index, GetMode()));
-    }
-    else if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::BasicManual)
-    {
-        RemoveBasicWatch (m_watchRows[(size_t) row].index);
     }
 }
 
@@ -8402,7 +8366,6 @@ void DebuggerWindow::KeepOpenViews()
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
     text += BreakpointColumns::FormatShown (m_breakpointShown);
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
-    text += DebuggerLayout::FormatBasicWatches (m_basicWatches);
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -8418,7 +8381,6 @@ void DebuggerWindow::KeepOpenViews()
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
         m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
         m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
-        m_basicWatches      = DebuggerLayout::ParseBasicWatches (m_openViewsSaved);
 
         SetBreakpointColumns();
 

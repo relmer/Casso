@@ -1092,10 +1092,21 @@ JsonValue ReplyJson::MakeWatchList (const WatchListData & data)
 
     for (const WatchEntry & entry : data.entries)
     {
-        entries.push_back (JsonValue (Members { { "id",      MakeNumber (entry.id) },
-                                                { "address", MakeNumber (entry.address) },
-                                                { "enabled", JsonValue (entry.enabled) },
-                                                { "value",   entry.value.has_value() ? MakeNumber (*entry.value) : JsonValue (nullptr) } }));
+        Members  members = { { "id",      MakeNumber (entry.id) },
+                             { "address", MakeNumber (entry.address) },
+                             { "enabled", JsonValue (entry.enabled) },
+                             { "value",   entry.value.has_value() ? MakeNumber (*entry.value) : JsonValue (nullptr) } };
+
+
+
+        //  A BASIC watch has its variable and the value as PRINT writes it.
+        if (!entry.basicName.empty())
+        {
+            members.emplace_back ("basic",      MakeString (entry.basicName));
+            members.emplace_back ("basicValue", entry.basicValue.has_value() ? MakeString (*entry.basicValue) : JsonValue (nullptr));
+        }
+
+        entries.push_back (JsonValue (std::move (members)));
     }
 
     return JsonValue (Members { { "kind", MakeString (kKinds[(int) data.kind]) }, { "entries", JsonValue (std::move (entries)) } });

@@ -185,12 +185,16 @@ struct BreakpointListData
     std::optional<std::pair<uint32_t, uint32_t>>  videoBreak;
 };
 
+//  A BASIC watch has its variable's name, and its value as PRINT writes it,
+//  a string in quotes, while the machine is stopped in a running program.
 struct WatchEntry
 {
-    int                   id      = 0;
-    Word                  address = 0;
-    bool                  enabled = true;
-    std::optional<Word>   value;
+    int                         id      = 0;
+    Word                        address = 0;
+    bool                        enabled = true;
+    std::optional<Word>         value;
+    std::string                 basicName;
+    std::optional<std::string>  basicValue;
 };
 
 struct WatchListData

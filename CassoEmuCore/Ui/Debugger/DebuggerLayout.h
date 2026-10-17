@@ -42,13 +42,10 @@ public:
     static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
 
     //  The BASIC program pane stays closed until it is first opened; the
-    //  open-views text has " open=" and the pane once it is. The BASIC
-    //  variables added to the Watches pane are " basicwatch=" and the name.
+    //  open-views text has " open=" and the pane once it is.
     static bool         IsBasicPane       (const std::wstring & pane);
     static std::string  FormatBasicOpened (const std::set<std::wstring> & opened);
     static std::set<std::wstring>  ParseBasicOpened (const std::string & text);
-    static std::string  FormatBasicWatches (const std::vector<std::string> & names);
-    static std::vector<std::string>  ParseBasicWatches (const std::string & text);
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);

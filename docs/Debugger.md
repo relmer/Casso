@@ -620,12 +620,15 @@ a BASIC line breakpoint is set.
   line breakpoint there, or clears the one there. With the keys in this pane,
   Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
 - **Watches** lists the variables while the machine is stopped in a running
-  program. The Automatic section has the ones the statement being run uses. A
-  variable or array element typed in the add row as Applesoft writes it, such
-  as `A$`, `N%` or `X(2,3)`, is watched there, as is a plain name the program
-  has; a plain name the program does not have is watched as an address. The
-  BASIC variables heading expands to every simple variable and array element,
-  each value as `PRINT` writes it. Applesoft reads only a name's first two
+  program. The Automatic section has the ones the statement being run uses.
+  `W` with a variable or array element as Applesoft writes it, such as `A$`,
+  `N%` or `X(2,3)`, watches it, as it does a plain name the stopped program
+  has, unless a symbol has the name; text typed in the add row is read the
+  same way.
+  `W BASIC name` always watches the variable. `WL` lists each with its value,
+  and the debug project saves them as `WA BASIC name`. The BASIC variables
+  heading expands to every simple variable and array element, each value as
+  `PRINT` writes it. Applesoft reads only a name's first two
   characters, so `HIGH` and `HI` are one variable, and the characters past the
   second are dimmed.
 - **Call stack** lists the active `GOSUB` returns and `FOR` loops first,
