@@ -44,6 +44,11 @@ struct CassoExplorerPrefs
     bool                   previewVisible  = true;
     std::string            hostNaming      = kNamingDescriptive;
 
+    //  Whether CassoLink serves ADTPro's own Apple client too, from the ADTPro
+    //  folder; an empty folder is Documents\ADTPro.
+    bool                   emulateAdtPro   = true;
+    std::string            adtProFolder;
+
     //  Each folder's view as last chosen, most recent first. A folder with
     //  none opens in its type's view, as Explorer's do; the single listView
     //  of earlier builds is not read.

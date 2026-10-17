@@ -159,6 +159,10 @@ public:
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
 
+    //  The ADTPro folder listed under CassoLink, or none.
+    void  SetAdtProFolder (const std::wstring & folder);
+    const std::wstring &  GetAdtProFolder () const { return m_adtProFolder; }
+
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
@@ -211,6 +215,9 @@ public:
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
+    //  The ADTPro folder's node under CassoLink, which opens the folder.
+    static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
+
     //  The copy of CassoLink's root after Casso, and of the links and drives
     //  under it: top:<id>, at the same location as the first.
     static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
@@ -244,6 +251,7 @@ private:
     HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;
+    std::wstring             m_adtProFolder;
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
     HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
     TreeNode  MakeRootNode    (const std::wstring & id) const;

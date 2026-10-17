@@ -38,6 +38,9 @@ public:
 
     void         SetLocation     (const Location & location);
 
+    //  The folder served, as the ADTPro setting has it; empty serves none.
+    void         SetFolder       (const std::wstring & folder);
+
     bool         IsOpen          () const override;
     std::string  GetPath         () const override;
     HRESULT      List            (std::vector<std::string> & outNames) override;

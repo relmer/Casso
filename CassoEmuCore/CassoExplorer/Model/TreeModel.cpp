@@ -826,6 +826,22 @@ void TreeModel::SetLinks (std::vector<LinkTreeEntry> links)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::SetAdtProFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetAdtProFolder (const std::wstring & folder)
+{
+    m_adtProFolder = folder;
+    m_children.erase (kCassoLinkRootId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeLinkId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1692,6 +1708,17 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kCassoLinkRootId)
     {
         AppendLinkRoots (outNodes, false);
+
+        if (!m_adtProFolder.empty())
+        {
+            TreeNode  adtPro;
+
+            adtPro.id       = kAdtProId;
+            adtPro.kind     = TreeNode::Kind::HostFolder;
+            adtPro.label    = L"ADTPro";
+            adtPro.location = Location::MakeHostFolder (m_adtProFolder);
+            outNodes.push_back (adtPro);
+        }
     }
     else if (id.starts_with (kLinkRootTag))
     {

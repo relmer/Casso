@@ -510,6 +510,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
         context.newWindow   = m_options.newWindow;
         context.watcher     = &m_watcher;
     context.links       = &m_links;
+    context.linkFolder  = &m_linkFolder;
     context.running     = &m_running;
 
         m_window = std::make_unique<CassoExplorerWindow> (m_browser, m_actions, m_prefs, context);

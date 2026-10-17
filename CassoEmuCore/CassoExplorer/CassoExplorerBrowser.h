@@ -291,6 +291,9 @@ public:
     //  CassoLink's help, as the What's CassoLink item has it.
     static const wchar_t *  GetCassoLinkHelp ();
 
+    //  ADTPro mode's help, written into the ADTPro folder.
+    static const wchar_t *  GetAdtProHelp ();
+
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
 

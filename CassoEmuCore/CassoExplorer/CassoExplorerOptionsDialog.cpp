@@ -83,6 +83,76 @@ bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerCassoLinkPage::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCassoLinkPage::Init (DxuiCheckbox & emulate, DxuiLabel & folderLabel, DxuiTextInput & folder, DxuiLabel & note)
+{
+    m_emulate     = &emulate;
+    m_folderLabel = &folderLabel;
+    m_folder      = &folder;
+    m_note        = &note;
+
+    Adopt (emulate);
+    Adopt (folderLabel);
+    Adopt (folder);
+    Adopt (note);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCassoLinkPage::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCassoLinkPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  checkBottom = boundsDip.top + scaler.ToPx (CassoExplorerGeneralPage::kFieldHeightDip);
+    int  labelTop    = checkBottom + scaler.ToPx (CassoExplorerGeneralPage::kGapDip * 3);
+    int  labelBottom = labelTop + scaler.ToPx (CassoExplorerGeneralPage::kLabelHeightDip);
+    int  fieldTop    = labelBottom + scaler.ToPx (CassoExplorerGeneralPage::kGapDip);
+    int  fieldBottom = fieldTop + scaler.ToPx (CassoExplorerGeneralPage::kFieldHeightDip);
+    int  noteTop     = fieldBottom + scaler.ToPx (CassoExplorerGeneralPage::kGapDip);
+    int  noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
+
+
+
+    SetBounds (boundsDip);
+
+    m_emulate->Layout     (RECT { boundsDip.left, boundsDip.top, boundsDip.right, checkBottom }, scaler);
+    m_folderLabel->Layout (RECT { boundsDip.left, labelTop, boundsDip.right, labelBottom }, scaler);
+    m_folder->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldBottom }, scaler);
+    m_note->Layout        (RECT { boundsDip.left, noteTop, boundsDip.right, noteBottom }, scaler);
+
+    SetContentHeightPx (noteBottom - boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCassoLinkPage::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerCassoLinkPage::OnMouse (const DxuiMouseEvent & ev)
+{
+    return m_emulate->OnMouse (ev) || m_folder->OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog::GetNamingLabels
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +191,24 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
     m_general->Init (m_namingLabel, m_naming, m_register);
+
+    m_emulateAdtPro.SetLabel   (L"Serve ADTPro's own Apple client");
+    m_emulateAdtPro.SetChecked (m_choices.emulateAdtPro);
+
+    m_adtProLabel.SetText      (L"ADTPro folder");
+    m_adtProLabel.SetTextRole  (DxuiTextRole::Body);
+    m_adtProLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
+    m_adtProFolder.SetText (m_choices.adtProFolder);
+
+    m_adtProNote.SetText      (L"ADTPro's disks and files are read from and written to this folder. Leave it blank for "
+                               L"Documents\\ADTPro. With the client served, each CassoLink connection is open while Casso Explorer runs, "
+                               L"so an Apple that starts ADTPro finds it.");
+    m_adtProNote.SetTextRole  (DxuiTextRole::Muted);
+    m_adtProNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+    m_linkPage = CreatePage<CassoExplorerCassoLinkPage> (L"CassoLink");
+    m_linkPage->Init (m_emulateAdtPro, m_adtProLabel, m_adtProFolder, m_adtProNote);
 
     m_displayPage = CreatePage<DisplayPage> (L"Display");
     m_displayPage->SetPopupHost     (GetPopupHost());
@@ -316,8 +404,10 @@ void CassoExplorerOptionsDialog::PreviewChoices()
 
 HRESULT CassoExplorerOptionsDialog::OnOk()
 {
-    m_choices.registered = m_register.IsChecked();
-    m_choices.hostNaming = m_naming.GetSelectedIndex();
+    m_choices.registered    = m_register.IsChecked();
+    m_choices.hostNaming    = m_naming.GetSelectedIndex();
+    m_choices.emulateAdtPro = m_emulateAdtPro.IsChecked();
+    m_choices.adtProFolder  = m_adtProFolder.GetText();
     m_confirmed          = true;
 
     return DxuiPropertySheet::OnOk();

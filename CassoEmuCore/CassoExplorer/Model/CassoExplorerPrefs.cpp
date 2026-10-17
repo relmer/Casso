@@ -428,6 +428,8 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
+    root.emplace_back ("emulateAdtPro",  JsonValue (emulateAdtPro));
+    root.emplace_back ("adtProFolder",   JsonValue (adtProFolder));
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
@@ -629,6 +631,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     {
         hostNaming = text;
     }
+
+    root.HasBool   ("emulateAdtPro", emulateAdtPro);
+    root.HasString ("adtProFolder",  adtProFolder);
 
     if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))
     {

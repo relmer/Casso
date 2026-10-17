@@ -928,6 +928,7 @@ void CassoExplorerWindow::ConfigureWidgets()
         m_context.links->SetLinks (m_prefs.links);
         m_browser.SetLinks (m_context.links);
         m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+        ApplyAdtProSettings();
         RefreshTree();
     }
 
@@ -8688,6 +8689,8 @@ void CassoExplorerWindow::ShowOptions()
 
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
+    choices.emulateAdtPro = m_prefs.emulateAdtPro;
+    choices.adtProFolder  = TextEncoding::NarrowToWide (m_prefs.adtProFolder);
     choices.monitor      = (int) GetPreviewMonitor();
     choices.customArgb   = m_prefs.previewCustomArgb;
     choices.crtOverrides = m_prefs.crtOverrides;
@@ -8713,6 +8716,10 @@ void CassoExplorerWindow::ShowOptions()
     {
         m_prefs.hostNaming = kNamings[choices.hostNaming];
     }
+
+    m_prefs.emulateAdtPro = choices.emulateAdtPro;
+    m_prefs.adtProFolder  = TextEncoding::WideToNarrow (choices.adtProFolder);
+    ApplyAdtProSettings();
 
     //  The user's file types change only when the box was changed.
     if (choices.registered != wasRegistered)
@@ -10407,7 +10414,8 @@ void CassoExplorerWindow::ReleaseIdleLinks()
 
 
 
-    if (m_context.links == nullptr)
+    //  ADTPro's client speaks first, so each connection stays open for it.
+    if (m_context.links == nullptr || m_prefs.emulateAdtPro)
     {
         return;
     }
@@ -10525,6 +10533,105 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
     if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)
     {
         AddMenuCommand (items, L"&Add a CassoLink connection...", [this]() { EditLink (std::string()); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetAdtProFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetAdtProFolder() const
+{
+    PWSTR         documents = nullptr;
+    std::wstring  folder    = TextEncoding::NarrowToWide (m_prefs.adtProFolder);
+    HRESULT       hr        = S_OK;
+
+
+
+    if (folder.empty())
+    {
+        hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
+
+        if (SUCCEEDED (hr))
+        {
+            folder = std::wstring (documents) + L"\\ADTPro";
+        }
+
+        CoTaskMemFree (documents);
+    }
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ApplyAdtProSettings
+//
+//  With ADTPro's client served, its folder is made if it is missing, with
+//  its help, and listed under CassoLink; every saved connection with a port
+//  or an address is opened, so an Apple that starts ADTPro finds the PC.
+//  A serial connection with no port is left alone: opening it searches
+//  every COM port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ApplyAdtProSettings()
+{
+    HRESULT       hr      = S_OK;
+    std::wstring  folder  = m_prefs.emulateAdtPro ? GetAdtProFolder() : std::wstring();
+    std::string   help    = TextEncoding::WideToNarrow (CassoExplorerBrowser::GetAdtProHelp());
+    std::string   helpPath;
+    int           made    = 0;
+
+
+
+    if (!folder.empty())
+    {
+        made     = SHCreateDirectoryExW (nullptr, folder.c_str(), nullptr);
+        helpPath = TextEncoding::WideToNarrow (folder + L"\\What's ADTPro mode.md");
+
+        if ((made == ERROR_SUCCESS || made == ERROR_ALREADY_EXISTS || made == ERROR_FILE_EXISTS)
+            && !m_browser.GetOperations().GetFileIo().Exists (helpPath))
+        {
+            hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (helpPath, std::vector<Byte> (help.begin(), help.end()));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    if (m_context.linkFolder != nullptr)
+    {
+        m_context.linkFolder->SetFolder (folder);
+    }
+
+    m_browser.GetTreeModel().SetAdtProFolder (folder);
+
+    for (const std::wstring & node : { std::wstring (TreeModel::kCassoLinkRootId), TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId) })
+    {
+        if (m_tree != nullptr && m_tree->FindRowById (node) >= 0)
+        {
+            m_tree->ReplaceChildren (node, m_browser.GetTreeChildren (node));
+        }
+    }
+
+    for (const AppleLinkSettings & settings : (m_context.links != nullptr && m_prefs.emulateAdtPro) ? m_context.links->GetLinks() : std::vector<AppleLinkSettings>())
+    {
+        bool  addressed = settings.transport != LinkTransport::Serial || !settings.port.empty();
+
+        if (addressed && !m_context.links->IsDiscovered (settings.name) && !m_context.links->IsStarted (settings.name))
+        {
+            hr = m_context.links->Start (settings.name);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 }
 
@@ -14673,7 +14780,11 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
         node = m_tree->GetNodeAt (row);
     }
 
-    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed))
+    bool  adtPro = node != nullptr && TreeModel::StripLinkCopy (node->id) == TreeModel::kAdtProId;
+
+
+
+    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro))
     {
         HideHoverTip (TipOwner::Tree);
         return;
@@ -14684,7 +14795,8 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
-    ShowHoverTip (TipOwner::Tree, anchor, node->dimmed ? kMissingNodeTip : kCassoNodeTip);
+    ShowHoverTip (TipOwner::Tree, anchor, adtPro      ? m_browser.GetTreeModel().GetAdtProFolder().c_str()
+                                        : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }
 
 

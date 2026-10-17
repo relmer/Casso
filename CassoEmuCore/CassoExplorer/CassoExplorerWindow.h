@@ -28,6 +28,7 @@
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
 class AppleLinkConnections;
+class AppleLinkFolder;
 class RunningCassoRegistry;
 
 
@@ -70,6 +71,9 @@ public:
 
         //  Optional: without them, no Apple links are listed.
         AppleLinkConnections * links = nullptr;
+
+        //  The folder ADTPro's client is served from.
+        AppleLinkFolder      * linkFolder = nullptr;
 
         //  Optional: without it, running Cassos are not listed as links.
         RunningCassoRegistry * running = nullptr;
@@ -719,6 +723,8 @@ private:
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    void  ApplyAdtProSettings ();
+    std::wstring  GetAdtProFolder () const;
     bool  IsLinkReplying        (const std::string & name) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool  IsWifiModemLink        (const std::string & name) const;

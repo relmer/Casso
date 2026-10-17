@@ -949,6 +949,45 @@ bool CassoExplorerBrowser::TryGetSelectedCassoLinkPaths (std::vector<std::wstrin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::GetAdtProHelp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerBrowser::GetAdtProHelp()
+{
+    return L"# What's ADTPro mode?\r\n"
+           L"\r\n"
+           L"[ADTPro](https://adtpro.com) is a program for an Apple II that sends and receives whole disks, "
+           L"and files, over a serial cable. CassoLink serves ADTPro's own Apple program as ADTPro's server does, "
+           L"from this folder.\r\n"
+           L"\r\n"
+           L"## Using it\r\n"
+           L"\r\n"
+           L"1. Add a CassoLink connection for the Apple's serial cable, with its COM port, in Casso Explorer.\r\n"
+           L"2. Start ADTPro on the Apple, set to the same speed.\r\n"
+           L"3. Use ADTPro's menu on the Apple as with its own server:\r\n"
+           L"   - **Send** puts a disk from the Apple into this folder as an image.\r\n"
+           L"   - **Receive** writes an image from this folder onto a disk in the Apple.\r\n"
+           L"   - **Dir** lists this folder, and **CD** moves into a folder inside it.\r\n"
+           L"   - **VSDrive** serves Virtual.po and Virtual2.po from this folder as drives the Apple can open.\r\n"
+           L"\r\n"
+           L"## Notes\r\n"
+           L"\r\n"
+           L"- Files dropped onto the ADTPro node in Casso Explorer land here, ready for **Receive**.\r\n"
+           L"- While ADTPro mode is on, each CassoLink connection with a COM port or an address stays open, so the "
+           L"PC is there when the Apple starts ADTPro. Turn it off in Options, on the CassoLink page.\r\n"
+           L"- The PC distinguishes ADTPro's program from CassoLink's by the first request each sends, and serves each in "
+           L"its own way until the connection drops.\r\n"
+           L"- CassoLink's own program can do more: browse catalogs, copy single files, and read or write whole "
+           L"disks from Casso Explorer. Boot CassoLink.dsk on the Apple for it.\r\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::GetCassoLinkHelp
 //
 ////////////////////////////////////////////////////////////////////////////////

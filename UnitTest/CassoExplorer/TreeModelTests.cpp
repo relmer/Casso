@@ -413,6 +413,27 @@ public:
 
 
 
+    TEST_METHOD (CassoLink_ListsTheAdtProFolder_AfterTheLinks)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+
+        model.SetLinks (TwoLinks());
+        model.SetAdtProFolder (L"C:\\Users\\me\\Documents\\ADTPro");
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
+
+        Assert::AreEqual ((size_t) 3, nodes.size());
+        Assert::AreEqual (std::wstring (TreeModel::kAdtProId), nodes[2].id);
+        Assert::AreEqual (std::wstring (L"ADTPro"), nodes[2].label);
+        Assert::IsTrue   (nodes[2].location == Location::MakeHostFolder (L"C:\\Users\\me\\Documents\\ADTPro"));
+
+        model.SetAdtProFolder (std::wstring());
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
+        Assert::AreEqual ((size_t) 2, nodes.size(), L"none with ADTPro's client not served");
+    }
+
+
     TEST_METHOD (CassoLink_ListsEveryLink_UnderIdsOfItsOwn)
     {
         InMemoryFileSystem     fs;
