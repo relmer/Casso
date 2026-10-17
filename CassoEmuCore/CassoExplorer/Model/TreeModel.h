@@ -205,6 +205,12 @@ public:
     //  An Apple link's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
     static constexpr const wchar_t *  kLinkRootTag   = L"link:";
 
+    //  The second copy of a link's root and its drives, listed after Casso:
+    //  top:link:<name>, at the same location as the first.
+    static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
+
+    static std::wstring  StripLinkCopy    (const std::wstring & id);
+
     static std::wstring  MakeLinkId       (const std::wstring & name);
     static std::wstring  MakeLinkDriveId  (const std::wstring & name, int slot, int drive);
     static bool          TryParseLinkId   (const std::wstring & id, std::wstring & outName, int & outSlot, int & outDrive);
@@ -231,7 +237,7 @@ private:
     HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
     HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
-    void     AppendLinkRoots (std::vector<TreeNode> & outNodes) const;
+    void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
     HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
     TreeNode  MakeRootNode    (const std::wstring & id) const;

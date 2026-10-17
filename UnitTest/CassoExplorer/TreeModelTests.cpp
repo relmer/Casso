@@ -390,7 +390,7 @@ public:
 
 
 
-    TEST_METHOD (Links_FollowThisPc_AsRoots)
+    TEST_METHOD (Links_FollowCassoAndThisPc_AsRoots)
     {
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
@@ -399,14 +399,42 @@ public:
         model.SetLinks (TwoLinks());
         model.GetRoots (roots);
 
-        Assert::AreEqual ((size_t) 4, roots.size());
-        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::ThisPcRoot);
-        Assert::IsTrue   (roots[2].kind == TreeNode::Kind::AppleLink);
-        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), roots[2].label);
-        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), roots[2].id);
-        Assert::IsTrue   (roots[2].location == Location::MakeRoot (L"link:Apple II (COM3)"));
-        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[3].label);
-        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), TreeModel::GetRootLabel (roots[2].id));
+        Assert::AreEqual ((size_t) 6, roots.size());
+        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::AppleLink);
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), roots[1].label);
+        Assert::AreEqual (std::wstring (L"top:link:Apple II (COM3)"), roots[1].id);
+        Assert::IsTrue   (roots[1].location == Location::MakeRoot (L"link:Apple II (COM3)"), L"both copies open the same link");
+        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[2].label);
+        Assert::IsTrue   (roots[3].kind == TreeNode::Kind::ThisPcRoot);
+        Assert::IsTrue   (roots[3].dividerAbove);
+        Assert::IsTrue   (roots[4].kind == TreeNode::Kind::AppleLink);
+        Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), roots[4].id);
+        Assert::IsTrue   (roots[4].location == Location::MakeRoot (L"link:Apple II (COM3)"));
+        Assert::AreEqual (std::wstring (L"Apple II (Casso)"), roots[5].label);
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), TreeModel::GetRootLabel (roots[4].id));
+    }
+
+
+
+    TEST_METHOD (LinkCopies_ListTheSameDrives_UnderTheirOwnIds)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  drives;
+        std::wstring           name;
+        int                    slot  = 0;
+        int                    drive = 0;
+
+        model.SetLinks (TwoLinks());
+        AssertSucceeded (model.GetChildren (L"top:link:Apple II (COM3)", drives));
+
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::AreEqual (std::wstring (L"top:link:Apple II (COM3)|6,1"), drives[0].id);
+        Assert::IsTrue   (drives[0].location == Location::MakeAppleDrive (L"link:Apple II (COM3)|6,1", std::string()));
+        Assert::IsTrue   (TreeModel::TryParseLinkId (drives[0].id, name, slot, drive));
+        Assert::AreEqual (std::wstring (L"Apple II (COM3)"), name);
+        Assert::AreEqual (6, slot);
+        Assert::AreEqual (1, drive);
     }
 
 

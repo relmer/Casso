@@ -393,6 +393,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
     outNodes.clear();
     outNodes.push_back (casso);
+    AppendLinkRoots (outNodes, true);
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
     //  everything else under it.
@@ -410,16 +411,16 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (pc);
         }
 
-        AppendLinkRoots (outNodes);
+        AppendLinkRoots (outNodes, false);
 
         if (m_navOptions.showAllFolders)
         {
             outNodes.push_back (bin);
         }
 
-        if (outNodes.size() > 1)
+        if (outNodes.size() > 1 + m_links.size())
         {
-            outNodes[1].dividerAbove = true;
+            outNodes[1 + m_links.size()].dividerAbove = true;
         }
 
         return;
@@ -463,7 +464,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
         if (root.isThisPc)
         {
-            AppendLinkRoots (outNodes);
+            AppendLinkRoots (outNodes, false);
         }
     }
 
@@ -849,11 +850,12 @@ std::wstring TreeModel::MakeLinkDriveId (const std::wstring & name, int slot, in
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TreeModel::TryParseLinkId (const std::wstring & id, std::wstring & outName, int & outSlot, int & outDrive)
+bool TreeModel::TryParseLinkId (const std::wstring & copyOrId, std::wstring & outName, int & outSlot, int & outDrive)
 {
-    size_t  bar   = id.find (kSeparator);
-    size_t  comma = std::wstring::npos;
-    bool    link  = id.starts_with (kLinkRootTag) && id.size() > wcslen (kLinkRootTag);
+    std::wstring  id    = StripLinkCopy (copyOrId);
+    size_t        bar   = id.find (kSeparator);
+    size_t        comma = std::wstring::npos;
+    bool          link  = id.starts_with (kLinkRootTag) && id.size() > wcslen (kLinkRootTag);
 
 
 
@@ -875,6 +877,23 @@ bool TreeModel::TryParseLinkId (const std::wstring & id, std::wstring & outName,
     }
 
     return link;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::StripLinkCopy
+//
+//  The id of the node a link's second copy repeats, or the id itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::StripLinkCopy (const std::wstring & id)
+{
+    return id.starts_with (kLinkCopyTag) ? id.substr (wcslen (kLinkCopyTag)) : id;
 }
 
 
@@ -930,7 +949,7 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes) const
+void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const
 {
     for (const LinkTreeEntry & link : m_links)
     {
@@ -940,6 +959,7 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes) const
         node.kind      = TreeNode::Kind::AppleLink;
         node.label     = link.name;
         node.location  = Location::MakeRoot (node.id);
+        node.id        = copy ? kLinkCopyTag + node.id : node.id;
         node.canExpand = link.replying && !link.drives.empty();
 
         outNodes.push_back (node);
@@ -1613,6 +1633,19 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
 
 
     outNodes.clear();
+
+    //  A copy's children are the first's, under copy ids of their own.
+    if (id.starts_with (kLinkCopyTag))
+    {
+        hr = GetChildren (StripLinkCopy (id), outNodes);
+
+        for (TreeNode & node : outNodes)
+        {
+            node.id = kLinkCopyTag + node.id;
+        }
+
+        return hr;
+    }
 
     if (cached != m_children.end())
     {

@@ -1424,7 +1424,7 @@ void CassoExplorerWindow::RevealLocationInTree()
     {
         row = m_tree->FindRowById (location.path);
 
-        if (row >= 0 && current != location.path)
+        if (row >= 0 && TreeModel::StripLinkCopy (current) != location.path)
         {
             m_tree->HighlightRow (row);
         }
@@ -10834,9 +10834,12 @@ void CassoExplorerWindow::OnLinkChanged()
     {
         std::wstring  id = TreeModel::MakeLinkId (TextEncoding::NarrowToWide (settings.name));
 
-        if (m_tree->FindRowById (id) >= 0)
+        for (const std::wstring & node : { id, TreeModel::kLinkCopyTag + id })
         {
-            m_tree->ReplaceChildren (id, m_browser.GetTreeChildren (id));
+            if (m_tree->FindRowById (node) >= 0)
+            {
+                m_tree->ReplaceChildren (node, m_browser.GetTreeChildren (node));
+            }
         }
     }
 
