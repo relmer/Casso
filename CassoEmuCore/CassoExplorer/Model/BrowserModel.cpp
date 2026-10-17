@@ -486,6 +486,28 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
 
 
+    bool  inAdtPro = location.kind == Location::Kind::HostFolder && !root.adtProPath.empty()
+                  && location.path.size() >= root.adtProPath.size()
+                  && _wcsnicmp (location.path.c_str(), root.adtProPath.c_str(), root.adtProPath.size()) == 0
+                  && (location.path.size() == root.adtProPath.size() || location.path[root.adtProPath.size()] == L'\\');
+
+
+
+    if (inAdtPro)
+    {
+        segments.push_back (AddressSegment { TreeModel::GetRootLabel (TreeModel::kCassoLinkRootId), Location::MakeRoot (TreeModel::kCassoLinkRootId) });
+        segments.push_back (AddressSegment { L"ADTPro", Location::MakeHostFolder (root.adtProPath) });
+
+        for (start = root.adtProPath.size() + 1; start < location.path.size(); start = slash + 1)
+        {
+            slash = location.path.find (L'\\', start);
+            slash = (slash == std::wstring::npos) ? location.path.size() : slash;
+            segments.push_back (AddressSegment { location.path.substr (start, slash - start), Location::MakeHostFolder (location.path.substr (0, slash)) });
+        }
+
+        return segments;
+    }
+
     switch (location.kind)
     {
         case Location::Kind::HostFolder:

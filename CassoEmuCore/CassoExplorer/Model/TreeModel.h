@@ -23,7 +23,7 @@
 
 struct TreeNode
 {
-    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive, CassoLinkRoot };
+    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, AppleLink, AppleDrive, CassoLinkRoot, AddLink };
 
     std::wstring  id;
     Kind          kind         = Kind::HostFolder;
@@ -215,8 +215,13 @@ public:
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
-    //  The ADTPro folder's node under CassoLink, which opens the folder.
+    //  The ADTPro folder's node under CassoLink, adtpro:<path>, which lists
+    //  the folder under CassoLink rather than where the folder is.
     static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
+
+    //  The node that adds a CassoLink connection; selecting it opens the
+    //  dialog, and the list stays where it was.
+    static constexpr const wchar_t *  kAddLinkId       = L"addlink:";
 
     //  The copy of CassoLink's root after Casso, and of the links and drives
     //  under it: top:<id>, at the same location as the first.

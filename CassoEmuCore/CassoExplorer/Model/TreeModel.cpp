@@ -1713,12 +1713,19 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
         {
             TreeNode  adtPro;
 
-            adtPro.id       = kAdtProId;
+            adtPro.id       = kAdtProId + m_adtProFolder;
             adtPro.kind     = TreeNode::Kind::HostFolder;
             adtPro.label    = L"ADTPro";
             adtPro.location = Location::MakeHostFolder (m_adtProFolder);
             outNodes.push_back (adtPro);
         }
+
+        TreeNode  add;
+
+        add.id    = kAddLinkId;
+        add.kind  = TreeNode::Kind::AddLink;
+        add.label = L"Add a CassoLink connection...";
+        outNodes.push_back (add);
     }
     else if (id.starts_with (kLinkRootTag))
     {

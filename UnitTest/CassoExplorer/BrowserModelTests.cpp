@@ -80,6 +80,27 @@ public:
 
 
 
+    TEST_METHOD (Address_TheAdtProFolder_IsUnderCassoLink)
+    {
+        BrowserModel::AddressRoot                  root;
+        std::vector<BrowserModel::AddressSegment>  segments;
+
+        root.adtProPath = L"C:\\Users\\me\\Documents\\ADTPro";
+        segments        = BrowserModel::GetAddressSegments (Folder (L"C:\\Users\\me\\Documents\\ADTPro\\Games"), root);
+
+        Assert::AreEqual ((size_t) 3, segments.size());
+        Assert::AreEqual (std::wstring (L"CassoLink"), segments[0].label);
+        Assert::IsTrue   (segments[0].location == Location::MakeRoot (TreeModel::kCassoLinkRootId));
+        Assert::AreEqual (std::wstring (L"ADTPro"),    segments[1].label);
+        Assert::IsTrue   (segments[1].location == Folder (L"C:\\Users\\me\\Documents\\ADTPro"));
+        Assert::AreEqual (std::wstring (L"Games"),     segments[2].label);
+        Assert::IsTrue   (segments[2].location == Folder (L"C:\\Users\\me\\Documents\\ADTPro\\Games"));
+
+        segments = BrowserModel::GetAddressSegments (Folder (L"C:\\Users\\me\\Documents\\ADTProOld"), root);
+        Assert::AreNotEqual (std::wstring (L"CassoLink"), segments[0].label, L"a folder that only starts with the name is not inside it");
+    }
+
+
     TEST_METHOD (Address_SegmentsFromTheDriveDown)
     {
         Location                                   inner    = Location::MakeDiskDirectory (L"C:\\Disks\\work.po", "SUB/INNER");

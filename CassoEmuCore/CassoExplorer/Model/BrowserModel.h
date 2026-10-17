@@ -68,6 +68,10 @@ public:
         std::wstring  path;
         std::wstring  label;
 
+        //  The ADTPro folder, whose paths read CassoLink > ADTPro > ... as its
+        //  node in the tree is; empty for none.
+        std::wstring  adtProPath;
+
         //  Whether a path is a folder on a disk, which splits a path inside a
         //  zip into the folders that hold the zip and the zip's own folders.
         //  None: a shell folder is one segment.

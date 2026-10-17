@@ -423,14 +423,15 @@ public:
         model.SetAdtProFolder (L"C:\\Users\\me\\Documents\\ADTPro");
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
 
-        Assert::AreEqual ((size_t) 3, nodes.size());
-        Assert::AreEqual (std::wstring (TreeModel::kAdtProId), nodes[2].id);
+        Assert::AreEqual ((size_t) 4, nodes.size(), L"the links, ADTPro, and Add a CassoLink connection");
+        Assert::AreEqual (std::wstring (L"adtpro:C:\\Users\\me\\Documents\\ADTPro"), nodes[2].id, L"its id ends in its path");
+        Assert::IsTrue   (nodes[3].kind == TreeNode::Kind::AddLink);
         Assert::AreEqual (std::wstring (L"ADTPro"), nodes[2].label);
         Assert::IsTrue   (nodes[2].location == Location::MakeHostFolder (L"C:\\Users\\me\\Documents\\ADTPro"));
 
         model.SetAdtProFolder (std::wstring());
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
-        Assert::AreEqual ((size_t) 2, nodes.size(), L"none with ADTPro's client not served");
+        Assert::AreEqual ((size_t) 3, nodes.size(), L"no ADTPro with its client not served");
     }
 
 
@@ -443,7 +444,7 @@ public:
         model.SetLinks (TwoLinks());
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, links));
 
-        Assert::AreEqual ((size_t) 2, links.size());
+        Assert::AreEqual ((size_t) 3, links.size(), L"the links, then Add a CassoLink connection");
         Assert::IsTrue   (links[0].kind == TreeNode::Kind::AppleLink);
         Assert::AreEqual (std::wstring (L"link:Apple II (COM3)"), links[0].id);
         Assert::IsTrue   (links[0].location == Location::MakeRoot (L"link:Apple II (COM3)"));
@@ -451,7 +452,7 @@ public:
 
         AssertSucceeded (model.GetChildren (TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId), links));
 
-        Assert::AreEqual ((size_t) 2, links.size());
+        Assert::AreEqual ((size_t) 3, links.size());
         Assert::AreEqual (std::wstring (L"top:link:Apple II (COM3)"), links[0].id);
         Assert::IsTrue   (links[0].location == Location::MakeRoot (L"link:Apple II (COM3)"), L"both copies open the same link");
         Assert::AreEqual (std::wstring (L"Apple II (Casso)"), links[1].label);

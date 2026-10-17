@@ -542,6 +542,16 @@ void CassoExplorerWindow::ConfigureWidgets()
             return;
         }
 
+        //  Add a CassoLink connection opens its dialog, and the tree goes back
+        //  to where the list is.
+        if (TreeModel::StripLinkCopy (id) == TreeModel::kAddLinkId)
+        {
+            EditLink (std::string());
+            RevealLocationInTree();
+            Invalidate();
+            return;
+        }
+
         hr = m_browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
         FillList();
@@ -1449,6 +1459,15 @@ void CassoExplorerWindow::RevealLocationInTree()
     if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
         m_tree->SetRowExpanded (m_tree->GetHighlight(), true);
+        ScrollTreeToRow (m_tree->GetHighlight());
+        return;
+    }
+
+    //  The ADTPro node is where the folder and everything in it are, under
+    //  CassoLink.
+    if (m_addressRoot.adtProPath.size() > 0 && TreeModel::StripLinkCopy (current).starts_with (TreeModel::kAdtProId)
+        && path.size() >= m_addressRoot.adtProPath.size() && _wcsnicmp (path.c_str(), m_addressRoot.adtProPath.c_str(), m_addressRoot.adtProPath.size()) == 0)
+    {
         ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
@@ -10622,6 +10641,7 @@ void CassoExplorerWindow::ApplyAdtProSettings()
     }
 
     m_browser.GetTreeModel().SetAdtProFolder (folder);
+    m_addressRoot.adtProPath = folder;
 
     for (const std::wstring & node : { std::wstring (TreeModel::kCassoLinkRootId), TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId) })
     {
@@ -14789,7 +14809,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
         node = m_tree->GetNodeAt (row);
     }
 
-    bool  adtPro = node != nullptr && TreeModel::StripLinkCopy (node->id) == TreeModel::kAdtProId;
+    bool  adtPro = node != nullptr && TreeModel::StripLinkCopy (node->id).starts_with (TreeModel::kAdtProId);
 
 
 
