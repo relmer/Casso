@@ -535,7 +535,7 @@ namespace DebuggerTests
             Store (rig, 0x0310, { 0x41, 0x42 });
 
             Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF $41").text.at (0));
-            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF #65").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF 0n65").text.at (0));
             Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF 041").text.at (0));
         }
 

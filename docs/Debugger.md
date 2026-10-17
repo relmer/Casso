@@ -21,8 +21,8 @@ The debugger reads each line in one of five modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols. A
-  bare number is hex; `$` also marks hex, and `#` or `0n` marks decimal, as in
-  `0n192`. A name is a loaded symbol first, as in AppleWin, then a register,
+  bare number is hex; `$` or `#` also marks hex, as in AppleWin, and `0n`
+  marks decimal, as in `0n192`. A name is a loaded symbol first, as in AppleWin, then a register,
   then a hex number, so with Applesoft's symbols loaded `FADD` is the routine
   and `$FADD` the number. `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` are always
   the register. A name resolves the same way in Casso and GSSquared modes.

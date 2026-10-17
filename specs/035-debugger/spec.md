@@ -198,6 +198,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: How is a variable name longer than two characters drawn, since Applesoft reads only the first two? -> A: The characters past the second are dimmed, so in `HIGH` only `HI` is drawn at full strength (FR-176).
 - Q: Do the BASIC views come forward without the user opening them? -> A: Yes: when the machine stops inside a running Applesoft program, and as soon as a BASIC line breakpoint is set, the BASIC program pane comes forward at the line, with the variables in Watches and the frames in the Call stack (FR-173).
 - Q: How is a name in an expression read when it could be a symbol, a register or a hex number? -> A: In every mode whose commands take symbols, a defined symbol first, as AppleWin does, then a register, then a hex number; `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` always mean the register, in every mode including WinDbg. A BASIC variable is read by name only in the Watches pane while the machine is stopped in a running Applesoft program and no symbol has the name; a name with `$`, `%` or a subscript is always a BASIC variable (FR-241).
+- Q: What does `#` before a value mean? -> A: What it means in AppleWin: a hex number, with no register or symbol lookup, so `#A` is $0A. AppleWin has no decimal prefix; `0n` marks decimal in every mode (FR-241).
 - Q: How is the user warned that a symbol hides a register? -> A: Loading a symbol file that defines a register's name reports each such name, and that `@` and the name mean the register (FR-242).
 - Q: When is the earlier project's items offered on a switch to a more specific project? -> A: Only when the user loads the symbol file, debug file or binary that brings the switch, not when restoring a project loads it, and only when the earlier project has a breakpoint, watch, bookmark or zero-page pointer (FR-169).
 
@@ -3103,7 +3104,9 @@ run something, switch back to the //e: it is where it was left.
 - **FR-241**: In every command mode whose commands take symbols, a name in an
   expression MUST be read as a defined symbol first, as AppleWin reads it,
   then as a register, then as a hex number. `@A`, `@X`, `@Y`, `@P`, `@S` and
-  `@PC` MUST mean the register in every mode, WinDbg's included. A BASIC
+  `@PC` MUST mean the register in every mode, WinDbg's included. `#` before a
+  value MUST mean a hex number with no register or symbol lookup, as in
+  AppleWin, and `0n` a decimal number. A BASIC
   variable MUST be read by name only in the Watches pane while the machine is
   stopped in a running Applesoft program and no symbol has the name; a name
   with `$`, `%` or a subscript MUST always be read as a BASIC variable.

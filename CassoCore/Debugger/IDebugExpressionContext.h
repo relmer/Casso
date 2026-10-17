@@ -8,9 +8,8 @@
 //
 //  NumberSyntax
 //
-//  How a number is written. AppleWin marks hex with $ and decimal with #;
-//  WinDbg also takes 0x for hex and 0n for decimal. A bare number is hex in
-//  both.
+//  How a number is written. AppleWin marks hex with $ or #, and decimal
+//  with 0n; WinDbg also takes 0x for hex. A bare number is hex in both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

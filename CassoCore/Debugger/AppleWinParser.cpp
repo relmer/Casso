@@ -1774,7 +1774,8 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value, 
 //
 //  AppleWinParser::TryParseDecimal
 //
-//  Digits, with or without the # or 0n that marks a decimal number elsewhere.
+//  Digits, with or without the # an id is listed with, or the 0n that marks a
+//  decimal number in an expression.
 //  In WinDbg's syntax 0x or $ marks hex.
 //
 ////////////////////////////////////////////////////////////////////////////////

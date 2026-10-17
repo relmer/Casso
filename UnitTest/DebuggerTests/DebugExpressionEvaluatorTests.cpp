@@ -78,7 +78,9 @@ namespace DebuggerTests
             Expect (context, "$300",      0x300);
             Expect (context, "$a",        0xA);
             Expect (context, "0A",        0xA);
-            Expect (context, "#10",       10);
+            Expect (context, "#10",       0x10);
+            Expect (context, "#A",        0x0A);
+            Expect (context, "0n10",      10);
             Expect (context, "'A'",       0x41);
             Expect (context, "  1FF  ",   0x1FF);
             Expect (context, "FFFFFFFF",  -1);
@@ -316,7 +318,7 @@ namespace DebuggerTests
             ExpectError (context, "10/0",     "divides by zero");
             ExpectError (context, "10%0",     "divides by zero");
             ExpectError (context, "$",        "column");
-            ExpectError (context, "#12A",     "decimal");
+            ExpectError (context, "#12G",     "hex");
             ExpectError (context, "3G",       "hex");
             ExpectError (context, "3 4",      "operator");
             ExpectError (context, "'A",       "'c'");

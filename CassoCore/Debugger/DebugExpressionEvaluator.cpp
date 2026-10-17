@@ -61,8 +61,9 @@ const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUn
 //
 //  Converts infix text to postfix. A bare name is read when the expression is
 //  evaluated: a defined symbol first, then a register, then a hex number. @
-//  and a register's name is always the register. $ forces hex and # or 0n
-//  forces decimal; in WinDbg's syntax 0x also forces hex.
+//  and a register's name is always the register. $ forces hex, and so does
+//  #, as in AppleWin; 0n forces decimal, and in WinDbg's syntax 0x also
+//  forces hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,7 +319,7 @@ bool DebugExpressionEvaluator::TryParseOperatorPosition (
 //
 //  DebugExpressionEvaluator::TryReadOperand
 //
-//  A character literal, $hex, #decimal, or a name. Leaves error empty when
+//  A character literal, $hex, #hex, or a name. Leaves error empty when
 //  nothing at pos can start a value.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,11 +400,11 @@ bool DebugExpressionEvaluator::TryReadOperand (
 
     if (lead == '#' || lead == '$')
     {
-        isNumber = TryParseNumber (word, lead == '#' ? 10 : 16, token.value);
+        isNumber = TryParseNumber (word, 16, token.value);
 
         if (!isNumber)
         {
-            error = std::format ("{} is not a {} number.", text.substr (start, pos - start), lead == '#' ? "decimal" : "hex");
+            error = std::format ("{} is not a hex number.", text.substr (start, pos - start));
         }
 
         return isNumber;

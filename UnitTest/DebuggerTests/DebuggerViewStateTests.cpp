@@ -385,8 +385,8 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (go ("BASL,X")        == std::optional<Word> (0x002A), L"a symbol, indexed");
             Assert::IsTrue (go ("home+3")        == std::optional<Word> (0xFC5B), L"symbol arithmetic");
             Assert::IsTrue (go ("PC+2")          == std::optional<Word> (0x0302), L"register arithmetic");
-            Assert::IsTrue (go ("#1024")         == std::optional<Word> (0x0400), L"decimal");
-            Assert::IsTrue (go ("(#40),Y")       == std::optional<Word> (0x0405), L"a decimal pointer");
+            Assert::IsTrue (go ("0n1024")        == std::optional<Word> (0x0400), L"decimal");
+            Assert::IsTrue (go ("(0n40),Y")      == std::optional<Word> (0x0405), L"a decimal pointer");
 
             Assert::IsFalse (go ("(NOSUCH),Y").has_value());
             Assert::IsTrue  (error.find ("NOSUCH") != std::string::npos, L"the evaluator's own reason is kept");
@@ -2366,7 +2366,7 @@ namespace DebuggerViewStateTests
             rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
 
             for (const auto & [line, expected] : { std::pair<const char *, Byte> { "MEB 0400 $41", 0x41 },
-                                                   std::pair<const char *, Byte> { "MEB 0400 #66", 0x42 },
+                                                   std::pair<const char *, Byte> { "MEB 0400 0n66", 0x42 },
                                                    std::pair<const char *, Byte> { "MEB 0400 A",   0x0A },
                                                    std::pair<const char *, Byte> { "MEB 0400 44",  0x44 } })
             {

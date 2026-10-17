@@ -125,7 +125,7 @@ namespace DebuggerTests
         {
             Assert::AreEqual ((Word) 0x0302, ParseOk ("BP PC+2").command.a1);
             Assert::AreEqual ((Word) 0xFC58, ParseOk ("BP HOME").command.a1);
-            Assert::AreEqual ((Word) 10,     ParseOk ("BP #10").command.a1);
+            Assert::AreEqual ((Word) 10,     ParseOk ("BP 0n10").command.a1);
         }
 
 
@@ -170,7 +170,7 @@ namespace DebuggerTests
         {
             AppleWinParseResult  set  = ParseOk ("R A=41");
             AppleWinParseResult  pc   = ParseOk ("r pc = FA62");
-            AppleWinParseResult  hash = ParseOk ("R A #10");
+            AppleWinParseResult  dec  = ParseOk ("R A 0n10");
 
 
 
@@ -180,7 +180,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x41,        set.command.a1);
             Assert::AreEqual (std::string ("PC"), pc.command.text);
             Assert::AreEqual ((Word) 0xFA62,      pc.command.a1);
-            Assert::AreEqual ((Word) 10,          hash.command.a1);
+            Assert::AreEqual ((Word) 10,          dec.command.a1);
             ParseFails ("R Q 1", ParseStatus::Invalid);
         }
 
@@ -382,11 +382,11 @@ namespace DebuggerTests
 
 
 
-        //  A $ or # prefix is not a digit: $41 and #65 search for one byte.
+        //  A $ or # prefix is not a digit: $41 and #41 search for one byte.
         TEST_METHOD (Search_PrefixedByteIsOneByte)
         {
             Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 $41").command.values);
-            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 #65").command.values);
+            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 #41").command.values);
             Assert::IsTrue (std::vector<Byte> ({ 0x41, 0x01 }) == ParseOk ("S 300,100 $141").command.values);
         }
 
