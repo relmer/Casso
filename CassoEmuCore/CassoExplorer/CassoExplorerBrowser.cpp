@@ -837,6 +837,7 @@ void CassoExplorerBrowser::AddCassoLinkItems()
     add.name = L"Add a CassoLink machine...";
     m_rows.push_back (CatalogModel::FromHostEntry (add, false, m_rootChildren.size() + m_rows.size()));
     m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AddMachine;
+    m_rows.back().isDirectory   = true;            // no size, and listed with the machines
     m_rows.back().typeText.clear();
 
     for (CatalogRow::CassoLinkItem item : { CatalogRow::CassoLinkItem::BootDisk, CatalogRow::CassoLinkItem::Help })
