@@ -59,7 +59,6 @@ public:
             machine.PowerCycle();
 
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, std::vector<Byte> (client.begin(), client.end())));
-            machine.GetRefs().diskController->SetExternalDisk (0, machine.GetDiskStore().GetImage (6, 0));
 
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));

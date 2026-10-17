@@ -73,8 +73,6 @@ public:
 
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, dos));
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, prodos));
-            machine.GetRefs().diskController->SetExternalDisk (0, machine.GetDiskStore().GetImage (6, 0));
-            machine.GetRefs().diskController->SetExternalDisk (1, machine.GetDiskStore().GetImage (6, 1));
 
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));

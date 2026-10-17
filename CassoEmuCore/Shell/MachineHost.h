@@ -247,6 +247,12 @@ public:
     //  one would hold rather than the contents it just had.
     void  PowerCycle();
 
+    //  Points the slot 6 controller's drive at the image the disk store has
+    //  in that bay, or at the controller's own empty disk when the bay is
+    //  empty. The store's default bay-change sink; a shell that installs its
+    //  own sink calls this from it.
+    void  ConnectDiskToController (int slot, int drive);
+
     //  Stops the recorder at the current cycle; the tape stays inserted. Reset,
     //  power cycle and a machine switch all do this.
     void  StopTape();

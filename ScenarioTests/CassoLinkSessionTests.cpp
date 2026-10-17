@@ -127,8 +127,6 @@ public:
 
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, dosFile));
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, prodosFile));
-            machine.GetRefs().diskController->SetExternalDisk (0, machine.GetDiskStore().GetImage (6, 0));
-            machine.GetRefs().diskController->SetExternalDisk (1, machine.GetDiskStore().GetImage (6, 1));
 
             InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
@@ -193,14 +191,6 @@ public:
 
             Assert::IsTrue (sink.IsDone (operation), L"the operation finishes");
             return operation;
-        }
-
-        //  Empties a drive. The store frees the image, so the controller is
-        //  pointed back at its own empty disk first, as DiskManager does.
-        void  Eject (int drive)
-        {
-            machine.GetRefs().diskController->SetExternalDisk (drive - 1, nullptr);
-            machine.GetDiskStore().Eject (6, drive - 1);
         }
 
         //  A drive's disk, as DOS-logical sectors.
@@ -367,7 +357,7 @@ public:
         Rig       rig (true, 115200);
         uint64_t  spent = 0;
 
-        rig.Eject (2);
+        rig.machine.GetDiskStore().Eject (6, 1);
 
         auto  empty = rig.session->Enumerate (2, FilePath());
 
@@ -396,7 +386,7 @@ public:
 
         AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
 
-        rig.Eject (2);
+        rig.machine.GetDiskStore().Eject (6, 1);
 
         auto  empty = rig.session->Enumerate (2, FilePath());
 

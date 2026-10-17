@@ -40,6 +40,13 @@ MachineHost::MachineHost() :
     m_tapeDeck  (std::make_unique<TapeDeck>())
 {
     m_memoryBus->SetFloatingBusSource ([this]() { return ReadFloatingBus(); });
+
+    //  The store frees an image on an eject or a remount, so the controller
+    //  is re-pointed on every bay change rather than by each caller.
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    {
+        ConnectDiskToController (slot, drive);
+    });
 }
 
 
@@ -735,6 +742,34 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
     {
         m_refs.gamePort->SetInputEventSink (observers.input);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ConnectDiskToController
+//
+//  Points the slot 6 controller's drive at the store's image for that bay. A
+//  null image, on an eject, selects the controller's own empty disk. Only
+//  slot 6 has a controller in the machine references.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ConnectDiskToController (int slot, int drive)
+{
+    Disk2Controller  *  controller = m_refs.diskController;
+
+
+
+    if (slot != 6 || controller == nullptr)
+    {
+        return;
+    }
+
+    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
 }
 
 

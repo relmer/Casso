@@ -140,7 +140,6 @@ public:
         Type (machine, "\x01" "14B");
 
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-        machine.GetRefs().diskController->SetExternalDisk (1, machine.GetDiskStore().GetImage (6, 1));
 
         settings.name      = "//c";
         settings.transport = LinkTransport::Emulated;
@@ -340,7 +339,6 @@ public:
 
         GuestSession::Mount (machine, boot);
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
-        machine.GetRefs().diskController->SetExternalDisk (1, machine.GetDiskStore().GetImage (6, 1));
 
         InProcessByteStream::CreatePair (machineEnd, modem.serial);
         InProcessByteStream::CreatePair (modem.network, factory.pcEnd);

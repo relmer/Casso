@@ -178,7 +178,6 @@ public:
 
         mounted = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (mounted, L"the nibble image must mount");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, mounted);
 
         machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
         machine.GetCpu()->SetPC (kBootRomEntry);
