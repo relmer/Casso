@@ -1059,7 +1059,7 @@ namespace OperandResultTipTests
             list = window.GetCodeList (0);
 
             DragAlong (window, 0);
-            Assert::IsTrue (list->IsCellTextSelected (0, 5), L"the drag selects part of the operand");
+            Assert::IsTrue (list->IsCellTextSelected (0, DisassemblyCells::kOperandColumn), L"the drag selects part of the operand");
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             Assert::IsFalse (window.HasOperandTip(), L"the tip lies over the selection");
@@ -1085,7 +1085,7 @@ namespace OperandResultTipTests
 
             //  The short row under the first, whose tip wraps over it.
             DragAlong (window, 1);
-            Assert::IsTrue (list->IsCellTextSelected (1, 5), L"the drag selects part of the operand");
+            Assert::IsTrue (list->IsCellTextSelected (1, DisassemblyCells::kOperandColumn), L"the drag selects part of the operand");
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             Assert::IsFalse (window.HasOperandTip(), L"the tip of the row above lies over the selection");
