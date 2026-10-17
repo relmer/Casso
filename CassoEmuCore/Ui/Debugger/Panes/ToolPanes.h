@@ -103,9 +103,11 @@ private:
 //
 //  ProfilerPane
 //
-//  The profile as PROFILE lists it (FR-193): its totals, then each opcode's
-//  count and cycles, or with by-address on, the addresses that took the
-//  most cycles. It is read while the machine is paused, so a running
+//  The profile as PROFILE lists it (FR-193, FR-245): its totals, then each
+//  opcode's count and cycles, the addresses that took the most cycles, the
+//  routines, or the call tree, a routine two spaces in under its caller per
+//  level. In the flame graph view the window's flame graph is drawn in place
+//  of the list. It is read while the machine is paused, so a running
 //  machine's snapshots change only whether profiling is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,24 +117,43 @@ class ProfilerPane
 public:
     using ShowFn = std::function<void (Word address)>;
 
+    enum class View
+    {
+        Opcodes,
+        Addresses,
+        Routines,
+        Tree,
+        Flame,
+    };
+
+    static constexpr int  kViewCount = 5;
+
     ProfilerPane (DxuiListView * list, ShowFn show);
 
-    DxuiListView *  GetList        () const { return m_list; }
-    bool            IsByAddress    () const { return m_isByAddress; }
-    bool            IsOn           () const { return m_isOn; }
-    void            SetByAddress   (bool isByAddress);
+    DxuiListView *                      GetList    () const { return m_list; }
+    View                                GetView    () const { return m_view; }
+    bool                                IsOn       () const { return m_isOn; }
+    const std::optional<ProfileData> &  GetProfile () const { return m_byOpcode; }
+    void                                SetView    (View view);
 
     void  Configure ();
     void  Apply     (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress, bool isOn);
 
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, bool isByAddress, bool isOn);
+    //  The drop-down's words for a view.
+    static const wchar_t *  GetViewLabel (View view);
+
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
+
+    //  The address a row's activation moves the disassembly to: an address
+    //  row's, or a routine's start other than Top level's.
+    static std::optional<Word>  GetRowAddress (const std::optional<ProfileData> & profile, View view, int row);
 
 private:
     void  Refresh ();
 
     DxuiListView                 * m_list        = nullptr;
     ShowFn                         m_show;
-    bool                           m_isByAddress = false;
+    View                           m_view        = View::Opcodes;
     bool                           m_isOn        = false;
     std::optional<ProfileData>     m_byOpcode;
     std::optional<ProfileData>     m_byAddress;

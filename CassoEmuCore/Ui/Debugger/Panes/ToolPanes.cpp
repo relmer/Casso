@@ -426,14 +426,17 @@ void ProfilerPane::Configure()
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        //  The first row has the totals; an address row after it, its address.
-        if (m_isByAddress && m_byAddress.has_value() && row >= 1 && row <= (int) m_byAddress->addresses.size())
+        std::optional<Word>  address = GetRowAddress ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, row);
+
+
+
+        if (address.has_value())
         {
-            m_show (m_byAddress->addresses[(size_t) (row - 1)].address);
+            m_show (*address);
         }
     });
 
-    SetByAddress (false);
+    SetView (View::Opcodes);
 }
 
 
@@ -442,29 +445,122 @@ void ProfilerPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProfilerPane::SetByAddress
+//  ProfilerPane::SetView
+//
+//  The flame graph view has no list, so the columns are left as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfilerPane::SetByAddress (bool isByAddress)
+void ProfilerPane::SetView (View view)
 {
-    m_isByAddress = isByAddress;
+    m_view = view;
 
-    if (isByAddress)
+    switch (view)
     {
+    case View::Addresses:
         m_list->SetColumns ({ { L"Address", 0, false, DxuiTextHAlign::Left },
                               { L"Symbol",  0, false, DxuiTextHAlign::Left },
                               { L"Cycles",  0, true,  DxuiTextHAlign::Right } });
-    }
-    else
-    {
+        break;
+
+    case View::Routines:
+        m_list->SetColumns ({ { L"Routine",  0, false, DxuiTextHAlign::Left },
+                              { L"Self",     0, false, DxuiTextHAlign::Right },
+                              { L"Percent",  0, false, DxuiTextHAlign::Right },
+                              { L"Total",    0, false, DxuiTextHAlign::Right },
+                              { L"Percent",  0, false, DxuiTextHAlign::Right },
+                              { L"Calls",    0, false, DxuiTextHAlign::Right },
+                              { L"Per call", 0, true,  DxuiTextHAlign::Right } });
+        break;
+
+    case View::Tree:
+        m_list->SetColumns ({ { L"Routine", 0, false, DxuiTextHAlign::Left },
+                              { L"Self",    0, false, DxuiTextHAlign::Right },
+                              { L"Total",   0, false, DxuiTextHAlign::Right },
+                              { L"Percent", 0, false, DxuiTextHAlign::Right },
+                              { L"Calls",   0, true,  DxuiTextHAlign::Right } });
+        break;
+
+    case View::Flame:
+        break;
+
+    default:
         m_list->SetColumns ({ { L"Opcode", 0, false, DxuiTextHAlign::Left },
                               { L"Mode",   0, false, DxuiTextHAlign::Left },
                               { L"Count",  0, false, DxuiTextHAlign::Right },
                               { L"Cycles", 0, true,  DxuiTextHAlign::Right } });
+        break;
     }
 
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetViewLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ProfilerPane::GetViewLabel (View view)
+{
+    switch (view)
+    {
+    case View::Addresses: return L"Addresses";
+    case View::Routines:  return L"Routines";
+    case View::Tree:      return L"Call tree";
+    case View::Flame:     return L"Flame graph";
+    default:              return L"Opcodes";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetRowAddress
+//
+//  The first row has the totals; each row after it is one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData> & profile, View view, int row)
+{
+    size_t                       entry   = (size_t) (row - 1);
+    const ProfileRoutineEntry  * routine = nullptr;
+
+
+
+    if (!profile.has_value() || row < 1)
+    {
+        return std::nullopt;
+    }
+
+    if (view == View::Addresses)
+    {
+        return (entry < profile->addresses.size()) ? std::optional<Word> (profile->addresses[entry].address) : std::nullopt;
+    }
+
+    if (view == View::Routines && entry < profile->routines.size())
+    {
+        routine = &profile->routines[entry];
+    }
+    else if (view == View::Tree && entry < profile->tree.size())
+    {
+        routine = &profile->routines[profile->tree[entry].routine];
+    }
+
+    if (routine == nullptr || routine->kind == RoutineKind::Top)
+    {
+        return std::nullopt;
+    }
+
+    return routine->address;
 }
 
 
@@ -509,7 +605,7 @@ void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std
 
 void ProfilerPane::Refresh()
 {
-    m_list->SetRows (GetCells (m_isByAddress ? m_byAddress : m_byOpcode, m_isByAddress, m_isOn));
+    m_list->SetRows (GetCells ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, m_isOn));
 }
 
 
@@ -520,15 +616,20 @@ void ProfilerPane::Refresh()
 //
 //  ProfilerPane::GetCells
 //
-//  The totals across the first row, then a row an opcode or an address.
+//  The totals across the first row, then a row an opcode, an address, a
+//  routine or a node of the call tree.
 //  With no profile read yet, a note: how to start profiling while it is
 //  off, and that the machine must be paused while it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, bool isByAddress, bool isOn)
+std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, View view, bool isOn)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
+    auto                                          share = [&profile] (uint64_t cycles)
+    {
+        return std::format (L"{:.1f}%", 100.0 * (double) cycles / (double) std::max<uint64_t> (profile->cycles, 1));
+    };
 
 
 
@@ -543,14 +644,31 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
                                             profile->isOn ? L"on" : L"off", profile->instructions, profile->cycles,
                                             profile->pageCross, profile->branchTaken)));
 
-    if (isByAddress)
+    if (view == View::Addresses)
     {
         for (const ProfileAddressEntry & entry : profile->addresses)
         {
             cells.push_back ({ { std::format (L"${:04X}", entry.address) }, { TextEncoding::NarrowToWide (entry.symbol) }, { std::to_wstring (entry.cycles) } });
         }
     }
-    else
+    else if (view == View::Routines)
+    {
+        for (const ProfileRoutineEntry & entry : profile->routines)
+        {
+            cells.push_back ({ { TextEncoding::NarrowToWide (entry.GetName()) }, { std::to_wstring (entry.self) }, { share (entry.self) },
+                               { std::to_wstring (entry.total) }, { share (entry.total) }, { std::to_wstring (entry.calls) },
+                               { (entry.calls != 0) ? std::to_wstring (entry.total / entry.calls) : std::wstring (L"-") } });
+        }
+    }
+    else if (view == View::Tree)
+    {
+        for (const ProfileTreeEntry & entry : profile->tree)
+        {
+            cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
+                               { std::to_wstring (entry.self) }, { std::to_wstring (entry.total) }, { share (entry.total) }, { std::to_wstring (entry.calls) } });
+        }
+    }
+    else if (view == View::Opcodes)
     {
         for (const ProfileEntry & entry : profile->opcodes)
         {

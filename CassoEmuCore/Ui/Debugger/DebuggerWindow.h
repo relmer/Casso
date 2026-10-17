@@ -62,6 +62,8 @@ class BasicProgramPane;
 class BookmarksPane;
 class DataBlocksPane;
 class ProfilerPane;
+class ProfileTimeline;
+class FlameGraphView;
 class SymbolsPane;
 class CallStackPane;
 class DiagnosticsPane;
@@ -1601,12 +1603,15 @@ private:
 
     //  The tool panes (DebuggerWindowTools.cpp): symbols, bookmarks, the
     //  profiler and the data ranges, each a list in a frame. The profiler's
-    //  bar is laid out in a place over its list.
+    //  bar is laid out in a place over its timeline, and its flame graph
+    //  takes the list's place in that view.
     DxuiListView                                                   * m_symbolList    = nullptr;
     DxuiListView                                                   * m_bookmarkList  = nullptr;
     DxuiListView                                                   * m_profilerList  = nullptr;
     DxuiListView                                                   * m_dataBlockList = nullptr;
     DxuiToolbar                                                    * m_profilerBar   = nullptr;
+    ProfileTimeline                                                * m_profileTimeline = nullptr;
+    FlameGraphView                                                 * m_flameGraph    = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                               m_profilerSlot;
     std::vector<std::shared_ptr<DxuiCommand>>                        m_profilerCommands;
     std::unique_ptr<SymbolsPane>                                     m_symbolsPane;
@@ -1628,6 +1633,9 @@ private:
     void                 SetProfilerBarMenu     ();
     void                 PlaceProfilerBar       ();
     bool                 RouteProfilerBarMouse  (const DxuiMouseEvent & ev);
+    bool                 RouteFlameGraphMouse   (const DxuiMouseEvent & ev);
+    bool                 TryGetProfilerTip      (POINT clientPx, std::wstring & text) const;
+    void                 SetProfilerView        (int view);
     Word                 GetCursorAddress       () const;
     void                 ToggleBookmarkAtCursor ();
     void                 GoToBookmark           (bool isBackward);

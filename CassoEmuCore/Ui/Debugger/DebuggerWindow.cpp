@@ -29,7 +29,9 @@
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/ProfileTimeline.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
@@ -9898,6 +9900,15 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  Over the profiler's timeline or flame graph, the frame or the routine
+    //  there, at once and following the pointer.
+    if (TryGetProfilerTip (clientPx, text))
+    {
+        tip.SetMonospace   (false);
+        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
+        return;
+    }
+
     //  Over a memory map's strips, the run of pages there and what it is, at
     //  once and following the pointer, as a memory window's byte does.
     if (TryGetMemoryMapTip (clientPx, text))
@@ -12360,8 +12371,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Then the profiler's.
+    //  Then the profiler's, and its flame graph.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) && RouteProfilerBarMouse (ev))
+    {
+        return true;
+    }
+
+    if (RouteFlameGraphMouse (ev))
     {
         return true;
     }
@@ -12723,7 +12739,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
 
     if (pane == DebuggerLayout::kProfiler)
     {
-        return { m_profilerSlot.get(), m_profilerList, m_profilerBar };
+        return { m_profilerSlot.get(), m_profileTimeline, m_profilerList, m_flameGraph, m_profilerBar };
     }
 
     if (GetToolList (pane) != nullptr)

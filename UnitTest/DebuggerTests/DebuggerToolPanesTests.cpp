@@ -4,6 +4,8 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "Ui/Debugger/Panes/ProfileTimeline.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 
 #include "CppUnitTest.h"
@@ -185,20 +187,20 @@ namespace DebuggerToolPanesTests
 
 
 
-            cells = ProfilerPane::GetCells (std::nullopt, false, false);
+            cells = ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, false);
             Assert::AreEqual ((size_t) 1, cells.size());
             Assert::IsTrue   (cells[0][0].text.starts_with (L"Profiling is off."), L"how to start, while off");
-            Assert::IsTrue   (ProfilerPane::GetCells (std::nullopt, false, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
+            Assert::IsTrue   (ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
 
             profile.isOn         = true;
             profile.instructions = 10;
             profile.opcodes      = { { "LDA", "#", 4, 8 } };
             profile.addresses    = { { 0x0300, "LOOP", 20 } };
 
-            cells = ProfilerPane::GetCells (profile, false, true);
+            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Opcodes, true);
             Assert::AreEqual ((size_t) 2, cells.size());
             Assert::AreEqual (std::wstring (L"LDA"), cells[1][0].text);
-            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, true, true)[1][0].text);
+            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, ProfilerPane::View::Addresses, true)[1][0].text);
 
             cells = DataBlocksPane::GetCells ({ { "TABLE", 0x0800, 0x080F, DataBlockKind::Words } });
             Assert::AreEqual (std::wstring (L"$0800-$080F"), cells[0][1].text);
@@ -260,7 +262,7 @@ namespace DebuggerToolPanesTests
             for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerCommands())
             {
                 if (command->label == L"Profile")   { profile = command; }
-                if (command->label == L"By opcode") { view    = command; }
+                if (command->label == L"Opcodes")   { view    = command; }
             }
 
             Assert::IsNotNull (profile.get());
@@ -277,7 +279,95 @@ namespace DebuggerToolPanesTests
             Assert::IsTrue (profile->isChecked());
             profile->dispatch();
             Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE ON", "PROFILE OFF" });
-            Assert::AreEqual (std::wstring (L"By opcode"), view->labelText());
+            Assert::AreEqual (std::wstring (L"Opcodes"), view->labelText());
+        }
+
+
+
+        //  A profile of Top level calling DRAW, which calls PLOT twice as hot
+        //  as FILL.
+        static ProfileData MakeRoutineProfile()
+        {
+            ProfileData  profile;
+
+
+
+            profile.isOn         = true;
+            profile.instructions = 50;
+            profile.cycles       = 100;
+            profile.routines     = { { 0x6000, RoutineKind::Call, "PLOT", 40, 40, 8 }, { 0x6100, RoutineKind::Call, "FILL", 20, 20, 2 },
+                                     { 0, RoutineKind::Top, "", 30, 100, 0 }, { 0x6200, RoutineKind::Call, "DRAW", 10, 70, 1 } };
+            profile.tree         = { { 2, 0, 30, 100, 0 }, { 3, 1, 10, 70, 1 }, { 0, 2, 40, 40, 8 }, { 1, 2, 20, 20, 2 } };
+            profile.frames       = { { 9, { { 2, 1000 }, { 0, 3000 } }, 30 } };
+            return profile;
+        }
+
+
+
+        TEST_METHOD (TheRoutinesAndTheTreeListEachRoutineAndGoToIt)
+        {
+            ProfileData                                   profile = MakeRoutineProfile();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Routines, true);
+            Assert::AreEqual ((size_t) 5, cells.size());
+            Assert::AreEqual (std::wstring (L"PLOT"),  cells[1][0].text);
+            Assert::AreEqual (std::wstring (L"40.0%"), cells[1][2].text);
+            Assert::AreEqual (std::wstring (L"5"),     cells[1][6].text, L"40 cycles over 8 calls");
+            Assert::AreEqual (std::wstring (L"-"),     cells[3][6].text, L"Top level is never called");
+
+            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Tree, true);
+            Assert::AreEqual (std::wstring (L"Top level"),  cells[1][0].text);
+            Assert::AreEqual (std::wstring (L"    PLOT"),   cells[3][0].text, L"two levels in");
+            Assert::AreEqual (std::wstring (L"70.0%"),      cells[2][3].text);
+
+            Assert::AreEqual ((Word) 0x6000, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 1).value_or (0));
+            Assert::AreEqual ((Word) 0x6200, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 2).value_or (0));
+            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 1).has_value(), L"Top level has no code to go to");
+            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 0).has_value(), L"the totals row");
+        }
+
+
+
+        //  Each bar is as wide as its total's share of its caller's; zoomed,
+        //  the routine spans the width under its callers.
+        TEST_METHOD (TheFlameGraphLaysOutEachRoutineUnderItsCaller)
+        {
+            ProfileData                         profile = MakeRoutineProfile();
+            std::vector<FlameGraphView::Bar>    bars    = FlameGraphView::LayoutBars (profile.tree, 0, 0.0f, 1000.0f);
+            auto                                find    = [] (const std::vector<FlameGraphView::Bar> & all, size_t node)
+            {
+                return *std::ranges::find_if (all, [node] (const FlameGraphView::Bar & bar) { return bar.node == node; });
+            };
+
+
+
+            Assert::AreEqual ((size_t) 4, bars.size());
+            Assert::AreEqual (700.0f, find (bars, 1).width, 0.01f, L"DRAW: 70 of 100");
+            Assert::AreEqual (1,      find (bars, 1).row);
+            Assert::AreEqual (400.0f, find (bars, 2).width, 0.01f, L"PLOT: 40 of 100");
+            Assert::AreEqual (400.0f, find (bars, 3).x,     0.01f, L"FILL after PLOT");
+
+            bars = FlameGraphView::LayoutBars (profile.tree, 1, 0.0f, 1000.0f);
+            Assert::AreEqual (1000.0f, find (bars, 0).width, 0.01f, L"Top level above, full width");
+            Assert::AreEqual (1000.0f, find (bars, 1).width, 0.01f, L"DRAW zoomed");
+            Assert::AreEqual (571.43f, find (bars, 2).width, 0.01f, L"PLOT: 40 of DRAW's 70");
+            Assert::AreEqual (2,       find (bars, 2).row);
+        }
+
+
+
+        TEST_METHOD (AFramesTipListsItsRoutinesByCycles)
+        {
+            ProfileData   profile = MakeRoutineProfile();
+            std::wstring  tip     = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines);
+
+
+
+            Assert::IsTrue (tip.starts_with (L"Frame 9: 4030 cycles\nPLOT: 3000 cycles (74.4%)\nTop level: 1000 cycles"), tip.c_str());
+            Assert::IsTrue (tip.ends_with   (L"Other routines: 30 cycles"), tip.c_str());
         }
 
 

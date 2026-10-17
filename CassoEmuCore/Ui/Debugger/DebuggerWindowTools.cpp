@@ -7,6 +7,8 @@
 #include "Debugger/SymbolTable.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "Ui/Debugger/Panes/ProfileTimeline.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
@@ -29,8 +31,8 @@ static constexpr int  s_kProfileView  = 4;
 //  DebuggerWindow::CreateToolPanes
 //
 //  The Symbols, Bookmarks, Profiler and data ranges panes (FR-182, FR-183,
-//  FR-189, FR-193), each a list. The profiler's bar after its list, so the
-//  bar paints over it.
+//  FR-189, FR-193), each a list. The profiler's timeline and flame graph,
+//  then its bar, which paints over them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +46,11 @@ void DebuggerWindow::CreateToolPanes()
     m_bookmarkList  = CreateChild<DxuiListView>();
     m_profilerList  = CreateChild<DxuiListView>();
     m_dataBlockList = CreateChild<DxuiListView>();
+    m_profileTimeline = CreateChild<ProfileTimeline>();
+    m_flameGraph    = CreateChild<FlameGraphView>();
     m_profilerBar   = CreateChild<DxuiToolbar>();
+
+    m_flameGraph->SetOnActivate (show);
 
     m_symbolsPane    = std::make_unique<SymbolsPane>    (m_symbolList, show, [this] (const std::string & table, bool enable)
     {
@@ -92,25 +98,37 @@ void DebuggerWindow::ConfigureToolPanes()
 //
 //  DebuggerWindow::AddToolPanes
 //
-//  Each is its list, with its commands on its rows' menus; the profiler's
-//  bar is in a place over its list, which PlaceProfilerBar fills.
+//  Each is its list, with its commands on its rows' menus. The profiler is
+//  its bar, in a place PlaceProfilerBar fills, over its timeline, over its
+//  list or, in the flame graph view, its flame graph.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AddToolPanes()
 {
+    auto  isFlame = [this] { return m_profilerPane->GetView() == ProfilerPane::View::Flame; };
+
+
+
     m_profilerSlot = std::make_unique<DebuggerPaneFrame> (L"Profiler commands");
 
     for (const std::wstring & pane : DebuggerLayout::GetToolPaneIds())
     {
         m_toolFrames[pane] = std::make_unique<DebuggerPaneFrame> (GetPaneTitle (pane));
 
-        if (pane == DebuggerLayout::kProfiler)
+        if (pane != DebuggerLayout::kProfiler)
         {
-            m_toolFrames[pane]->AddPart (m_profilerSlot.get(), [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (DxuiToolbar::kCompactBandDp); });
+            m_toolFrames[pane]->AddPart (GetToolList (pane));
+        }
+        else
+        {
+            m_toolFrames[pane]->AddPart (m_profilerSlot.get(),    [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (DxuiToolbar::kCompactBandDp); });
+            m_toolFrames[pane]->AddPart (m_profileTimeline,       [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileTimeline::kHeightDip); });
+            m_toolFrames[pane]->AddPart (m_profilerList,          nullptr, [isFlame] { return !isFlame(); });
+            m_toolFrames[pane]->AddPart (m_flameGraph,            nullptr, isFlame);
+            m_toolFrames[pane]->SetPartInsetDip (m_profileTimeline, 4);
         }
 
-        m_toolFrames[pane]->AddPart (GetToolList (pane));
         m_dockSite->AddPane (pane, GetPaneTitle (pane), m_toolFrames[pane].get());
     }
 }
@@ -170,6 +188,9 @@ void DebuggerWindow::ApplyToolPanes()
     m_bookmarksPane->Apply  (m_snapshot->bookmarks, m_snapshot->symbols.get());
     m_profilerPane->Apply   (m_snapshot->profile, m_snapshot->profileByAddress, m_snapshot->isProfiling);
     m_dataBlocksPane->Apply (m_snapshot->dataBlocks);
+
+    m_profileTimeline->SetData (m_profilerPane->GetProfile());
+    m_flameGraph->SetData      (m_profilerPane->GetProfile());
 }
 
 
@@ -231,8 +252,6 @@ bool DebuggerWindow::AddToolMenuItems (DxuiListView * list, int row, std::vector
                            [this, on = m_profilerPane->IsOn()] { RunAction (DebuggerActions::GetProfile (on ? "OFF" : "ON", GetMode())); } });
         items.push_back ({ L"Reset",   [this] { RunAction (DebuggerActions::GetProfile ("RESET", GetMode())); } });
         items.push_back ({ L"Save...", [this] { SaveProfile(); } });
-        items.push_back ({ m_profilerPane->IsByAddress() ? L"Show by opcode" : L"Show by address",
-                           [this] { m_profilerPane->SetByAddress (!m_profilerPane->IsByAddress()); } });
         return true;
     }
 
@@ -335,8 +354,8 @@ Error:
 //  DebuggerWindow::SetProfilerBarEntries
 //
 //  Profile turns profiling on and off, Reset starts the counts over, Save...
-//  writes them to a text file, and the view drop-down lists them by opcode
-//  or by address.
+//  writes them to a text file, and the view drop-down chooses opcodes,
+//  addresses, routines, the call tree or the flame graph.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,8 +396,8 @@ void DebuggerWindow::SetProfilerBarEntries()
     add (s_kProfileReset, L"Reset",   L"Start the counts over",            DxuiToolbar::Kind::Command, 0, [this] { RunAction (DebuggerActions::GetProfile ("RESET", GetMode())); });
     add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { SaveProfile(); });
 
-    command            = add (s_kProfileView, L"By opcode", L"List the counts by opcode and addressing mode, or by address", DxuiToolbar::Kind::DropDown, 1, [] {});
-    command->labelText = [this] { return std::wstring (m_profilerPane->IsByAddress() ? L"By address" : L"By opcode"); };
+    command            = add (s_kProfileView, L"Opcodes", L"Choose the profile's view: opcodes, addresses, routines, the call tree or a flame graph", DxuiToolbar::Kind::DropDown, 1, [] {});
+    command->labelText = [this] { return std::wstring (ProfilerPane::GetViewLabel (m_profilerPane->GetView())); };
 
     m_profilerBar->SetEntries (std::move (entries));
 }
@@ -402,13 +421,10 @@ void DebuggerWindow::SetProfilerBarMenu()
 
 
 
-    for (bool isByAddress : { false, true })
+    for (int view = 0; view < ProfilerPane::kViewCount; view++)
     {
-        views.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (isByAddress ? L"By address" : L"By opcode", m_profilerPane->IsByAddress() == isByAddress, [this, isByAddress]
-        {
-            m_profilerPane->SetByAddress (isByAddress);
-            Invalidate();
-        })));
+        views.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (ProfilerPane::GetViewLabel ((ProfilerPane::View) view),
+                                                                         (int) m_profilerPane->GetView() == view, [this, view] { SetProfilerView (view); })));
     }
 
     m_profilerBar->SetDropDownItems (s_kProfileView, std::move (views));
@@ -707,4 +723,84 @@ void DebuggerWindow::GoToBookmark (bool isBackward)
     {
         ShowCode (*next);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetProfilerView
+//
+//  The flame graph and the list take turns in the pane, so it is laid out
+//  again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetProfilerView (int view)
+{
+    m_profilerPane->SetView ((ProfilerPane::View) view);
+
+    if (GetToolFrame (DebuggerLayout::kProfiler) != nullptr)
+    {
+        GetToolFrame (DebuggerLayout::kProfiler)->Relayout();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteFlameGraphMouse
+//
+//  The flame graph takes a click on a bar, to zoom or to go to its routine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteFlameGraphMouse (const DxuiMouseEvent & ev)
+{
+    bool  isUsed = false;
+
+
+
+    if (!IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !DxuiDockSite::Contains (m_flameGraph->GetBounds(), ev.positionDip))
+    {
+        return false;
+    }
+
+    isUsed = m_flameGraph->OnMouse (ev);
+
+    if (isUsed)
+    {
+        Invalidate();
+    }
+
+    return isUsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetProfilerTip
+//
+//  Over the timeline, the frame there; over the flame graph, the routine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetProfilerTip (POINT clientPx, std::wstring & text) const
+{
+    if (IsRoutable (m_profileTimeline) && m_profileTimeline->TryGetTipAt (clientPx, text))
+    {
+        return true;
+    }
+
+    return IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, text);
 }
