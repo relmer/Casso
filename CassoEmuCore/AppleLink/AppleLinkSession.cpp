@@ -628,6 +628,12 @@ void AppleLinkSession::Run (std::stop_token stop)
 
         operation->result   = hr;
         operation->progress = 100;
+
+        if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
+        {
+            m_sink.OnActivity (std::format ("{}{}", DescribeOperation (*operation), SUCCEEDED (hr) ? "" : ": failed"));
+        }
+
         operation->state    = SUCCEEDED (hr)                              ? LinkOperationState::Done
                             : hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED)  ? LinkOperationState::Canceled
                                                                           : LinkOperationState::Failed;
@@ -942,6 +948,8 @@ HRESULT AppleLinkSession::OpenStream (DWORD baud)
             GetLocalTime (&now);
             return AppleLinkHost::GetProDosDateTime (now);
         });
+
+        m_host->SetActivitySink ([this] (const std::string & text) { m_sink.OnActivity (text); });
     }
 
 Error:
@@ -1079,10 +1087,25 @@ void AppleLinkSession::Disconnect()
 
 void AppleLinkSession::SetState (LinkState state)
 {
-    if (m_state.exchange (state) != state)
+    LinkState  before = m_state.exchange (state);
+
+
+
+    if (before == state)
     {
-        m_sink.OnStateChanged (state);
+        return;
     }
+
+    if (state == LinkState::Ready && before != LinkState::Busy)
+    {
+        m_sink.OnActivity (std::format ("Connected to {}", TextEncoding::WideToNarrow (GetModelName().empty() ? std::wstring (L"the Apple") : GetModelName())));
+    }
+    else if (state == LinkState::Disconnected && (before == LinkState::Ready || before == LinkState::Busy))
+    {
+        m_sink.OnActivity ("The Apple stopped answering");
+    }
+
+    m_sink.OnStateChanged (state);
 }
 
 

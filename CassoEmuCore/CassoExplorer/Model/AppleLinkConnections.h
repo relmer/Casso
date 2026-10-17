@@ -100,6 +100,19 @@ public:
     //  Operations submitted and not yet finished, in the order they run.
     std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
 
+    //  The activity log: each connection's connects and drops, its finished
+    //  operations, and ADTPro's requests, oldest first, the latest kLogLength.
+    struct Activity
+    {
+        SYSTEMTIME    time = {};
+        std::wstring  connection;
+        std::wstring  text;
+    };
+
+    std::vector<Activity>  GetActivity () const;
+
+    static constexpr size_t  kLogLength = 500;
+
     //  Whether an image is being written to a drive, or waits to be.
     bool  IsWritingDisk (const std::string & name, int drive) const;
 
@@ -148,14 +161,16 @@ private:
     class Sink : public IAppleLinkSessionSink
     {
     public:
-        explicit Sink (AppleLinkConnections & owner) : m_owner (owner) {}
+        Sink (AppleLinkConnections & owner, std::string name) : m_owner (owner), m_name (std::move (name)) {}
 
         void  OnStateChanged (LinkState state) override;
         void  OnProgress     (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone         (const std::shared_ptr<LinkOperation> & operation) override;
+        void  OnActivity     (const std::string & text) override;
 
     private:
         AppleLinkConnections  & m_owner;
+        std::string             m_name;
     };
 
     struct Link
@@ -193,6 +208,7 @@ private:
     };
 
     std::vector<Job>                     m_jobs;
+    std::deque<Activity>                 m_activity;
     mutable std::mutex                   m_lock;
     std::atomic<bool>                    m_changed { false };
     HWND                                 m_hwnd    = nullptr;

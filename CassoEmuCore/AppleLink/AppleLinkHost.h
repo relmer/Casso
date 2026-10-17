@@ -171,6 +171,11 @@ public:
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
 
+    //  Where each of ADTPro's requests is reported, as a line of text, once
+    //  it is served.
+    using ActivityFn = std::function<void (const std::string & text)>;
+    void     SetActivitySink (ActivityFn sink) { m_activity = std::move (sink); }
+
     //  How the last request ended: S_OK, or why its transfer failed.
     HRESULT  GetLastResult () const { return m_lastResult; }
 
@@ -242,6 +247,7 @@ private:
     HRESULT  ServeVirtualDrive ();
     HRESULT  ServeReady        (const AppleLinkPacket & packet);
     void     ReadClient        (const AppleLinkPacket & packet);
+    void     ReportRequest     (const AppleLinkPacket & packet, HRESULT result);
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (AppleLinkPacket & outPacket);
@@ -281,6 +287,7 @@ private:
     bool                              m_readyPending   = false;
     std::atomic<HRESULT>              m_lastResult { S_OK };
     std::atomic<uint64_t>             m_lastHeardMs { GetTickCount64() };
+    ActivityFn                        m_activity;
     Byte                              m_progressStart  = 0;
     Byte                              m_progressEnd    = 100;
 };

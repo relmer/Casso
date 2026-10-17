@@ -3023,6 +3023,7 @@ void CassoExplorerWindow::FillStatus()
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_prefs.previewZoom));
+    m_status->SetText (kStatusFill,     GetLatestActivity());
 }
 
 
@@ -3873,6 +3874,13 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
     UpdateTreeTip   (ev, point);
     UpdateStatusTip (ev, point);
     UpdateListTip   (ev, point);
+
+    //  The status bar's CassoLink line opens the whole activity log.
+    if (press && ev.button == DxuiMouseButton::Left && Contains (m_status->GetFieldRect (kStatusFill), point) && !GetLatestActivity().empty())
+    {
+        ShowActivityLog();
+        return true;
+    }
 
     if (Contains (m_tree->GetBounds(), point))
     {
@@ -11076,6 +11084,7 @@ void CassoExplorerWindow::OnLinkChanged()
     }
 
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
+    m_status->SetText (kStatusFill, GetLatestActivity());
 
     for (const AppleLinkSettings & settings : m_context.links->GetLinks())
     {
@@ -14938,10 +14947,19 @@ void CassoExplorerWindow::RefreshListTip()
 
 void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT point)
 {
-    const std::wstring &  tip    = m_browser.GetStatus().freeSpaceTip;
-    RECT                  anchor = m_status->GetFieldRect (kStatusFree);
+    const std::wstring &  tip      = m_browser.GetStatus().freeSpaceTip;
+    RECT                  anchor   = m_status->GetFieldRect (kStatusFree);
+    RECT                  activity = m_status->GetFieldRect (kStatusFill);
 
 
+
+    //  The CassoLink line's tip has the latest entries of the log.
+    if (ev.kind == DxuiMouseEventKind::Move && Contains (activity, point) && !GetLatestActivity().empty())
+    {
+        m_activityTip = FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
+        ShowHoverTip (TipOwner::Status, activity, m_activityTip.c_str());
+        return;
+    }
 
     if (ev.kind != DxuiMouseEventKind::Move || tip.empty() || !Contains (anchor, point))
     {
@@ -14950,6 +14968,110 @@ void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT poin
     }
 
     ShowHoverTip (TipOwner::Status, anchor, tip.c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetLatestActivity
+//
+//  The status bar's CassoLink line: the log's latest entry, for a quarter
+//  of an hour after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::GetLatestActivity() const
+{
+    std::vector<AppleLinkConnections::Activity>  log;
+    FILETIME                                     then = {};
+    FILETIME                                     now  = {};
+    ULARGE_INTEGER                               a    = {};
+    ULARGE_INTEGER                               b    = {};
+
+
+
+    if (m_context.links == nullptr)
+    {
+        return std::wstring();
+    }
+
+    log = m_context.links->GetActivity();
+
+    if (log.empty())
+    {
+        return std::wstring();
+    }
+
+    GetSystemTimeAsFileTime (&now);
+    SystemTimeToFileTime (&log.back().time, &then);
+    LocalFileTimeToFileTime (&then, &then);
+
+    a.LowPart  = then.dwLowDateTime;
+    a.HighPart = then.dwHighDateTime;
+    b.LowPart  = now.dwLowDateTime;
+    b.HighPart = now.dwHighDateTime;
+
+    if (b.QuadPart > a.QuadPart + kActivityShownMinutes * 60ULL * 10'000'000ULL)
+    {
+        return std::wstring();
+    }
+
+    return std::format (L"CassoLink: {}: {}", log.back().connection, log.back().text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FormatActivity
+//
+//  The log's last `lines` entries, or every one for 0, oldest first, each
+//  with its time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerWindow::FormatActivity (size_t lines) const
+{
+    std::vector<AppleLinkConnections::Activity>  log   = (m_context.links != nullptr) ? m_context.links->GetActivity() : std::vector<AppleLinkConnections::Activity>();
+    size_t                                       first = (lines == 0 || log.size() <= lines) ? 0 : log.size() - lines;
+    std::wstring                                 text;
+
+
+
+    for (size_t i = first; i < log.size(); i++)
+    {
+        const AppleLinkConnections::Activity &  entry = log[i];
+
+        text += std::format (L"{}{:04}-{:02}-{:02} {:02}:{:02}:{:02}  {}: {}", text.empty() ? L"" : L"\n",
+                             entry.time.wYear, entry.time.wMonth, entry.time.wDay, entry.time.wHour, entry.time.wMinute, entry.time.wSecond,
+                             entry.connection, entry.text);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowActivityLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowActivityLog()
+{
+    std::wstring  text = FormatActivity (0);
+
+
+
+    DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"CassoLink activity", MB_OK);
 }
 
 

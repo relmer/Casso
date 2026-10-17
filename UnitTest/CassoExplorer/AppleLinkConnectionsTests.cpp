@@ -200,6 +200,33 @@ public:
         Assert::IsTrue  (served, L"the reason names ADTPro's client");
         Assert::IsFalse (entries[0].replying);
         Assert::IsTrue  (entries[0].drives.empty());
+
+        while (rig.links->GetActivity().empty() && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
+        Assert::IsFalse  (rig.links->GetActivity().empty(), L"the request is in the activity log");
+        Assert::AreEqual (std::wstring (L"Test"), rig.links->GetActivity().back().connection);
+        Assert::IsTrue   (rig.links->GetActivity().back().text.starts_with (L"ADTPro: listed the folder"));
+    }
+
+
+
+    TEST_METHOD (Connecting_IsInTheActivityLog)
+    {
+        Rig   rig;
+        auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (10);
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        while (rig.links->GetActivity().empty() && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
+        Assert::IsFalse (rig.links->GetActivity().empty());
+        Assert::IsTrue  (rig.links->GetActivity().front().text.starts_with (L"Connected to"));
     }
 
 

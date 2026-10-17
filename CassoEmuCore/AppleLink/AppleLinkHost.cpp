@@ -443,10 +443,69 @@ HRESULT AppleLinkHost::ServePacket (const AppleLinkPacket & packet)
             break;
     }
 
+    ReportRequest (packet, hr);
     CHR (hr);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkHost::ReportRequest
+//
+//  ADTPro's requests that move or list files; a directory's later pages and
+//  CassoLink's own packets are not reported.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleLinkHost::ReportRequest (const AppleLinkPacket & packet, HRESULT result)
+{
+    size_t       end    = 0;
+    std::string  name;
+    std::string  text;
+
+
+
+    if (!m_activity)
+    {
+        return;
+    }
+
+    switch (packet.command)
+    {
+        case AppleLinkCodec::kCd:
+            name = ReadName (packet.payload, end);
+            text = std::format ("ADTPro: changed to the folder {}", name);
+            break;
+
+        case AppleLinkCodec::kDirectory:
+            text = (packet.payload.empty() || packet.payload[0] == 0) ? std::string ("ADTPro: listed the folder") : std::string();
+            break;
+
+        case AppleLinkCodec::kGet:
+            name = ReadName (packet.payload, end);
+            text = std::format ("ADTPro: sent {} to the Apple", name);
+            break;
+
+        case AppleLinkCodec::kPut:
+        case AppleLinkCodec::kBatch:
+            name = ReadName (packet.payload, end);
+            text = std::format ("ADTPro: received {} from the Apple", name);
+            break;
+
+        default:
+            break;
+    }
+
+    if (!text.empty())
+    {
+        m_activity (FAILED (result) ? text + " (failed)" : text);
+    }
 }
 
 

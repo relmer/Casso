@@ -248,11 +248,13 @@ public:
 
     //  Status bar field widths: free space, and the preview's detail and zoom
     //  when the preview is hidden and they cannot follow its edge.
-    static constexpr int    kStatusBandDip       = 26;    // Explorer's status bar, measured at 150%
-    static constexpr float  kStatusLeadDip       = 14.67f; // its item count, from the band's left edge
-    static constexpr int    kStatusFreeDip       = 140;
-    static constexpr int    kStatusDetailDip     = 280;
-    static constexpr int    kStatusZoomDip       = 64;
+    static constexpr int     kStatusBandDip        = 26;   // Explorer's status bar, measured at 150%
+    static constexpr float   kStatusLeadDip        = 14.67f;   // its item count, from the band's left edge
+    static constexpr int     kStatusFreeDip        = 140;
+    static constexpr int     kStatusDetailDip      = 280;
+    static constexpr int     kStatusZoomDip        = 64;
+    static constexpr size_t  kActivityTipLines     = 10;
+    static constexpr int     kActivityShownMinutes = 15;
 
     //  The private message that holds a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
@@ -723,6 +725,9 @@ private:
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    std::wstring  GetLatestActivity () const;
+    std::wstring  FormatActivity (size_t lines) const;
+    void  ShowActivityLog ();
     void  ApplyAdtProSettings ();
     std::wstring  GetAdtProFolder () const;
     bool  IsLinkReplying        (const std::string & name) const;
@@ -952,6 +957,9 @@ private:
     };
 
     TreeDrag  m_treeDrag;
+
+    //  The text of the CassoLink line's tip, for as long as the tip is up.
+    std::wstring  m_activityTip;
 
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;

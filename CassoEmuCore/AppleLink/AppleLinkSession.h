@@ -116,6 +116,10 @@ public:
     virtual void  OnStateChanged (LinkState state)                                    = 0;
     virtual void  OnProgress     (const std::shared_ptr<LinkOperation> & operation)   = 0;
     virtual void  OnDone         (const std::shared_ptr<LinkOperation> & operation)   = 0;
+
+    //  A line for the activity log: a connection made or dropped, an
+    //  operation finished, or a request of ADTPro's served.
+    virtual void  OnActivity     (const std::string & text)                            { UNREFERENCED_PARAMETER (text); }
 };
 
 

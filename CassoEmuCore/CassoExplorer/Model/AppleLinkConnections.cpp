@@ -289,7 +289,7 @@ HRESULT AppleLinkConnections::StartLink (const std::string & name, bool search, 
 
     link           = std::make_unique<Link>();
     link->settings = *settings;
-    link->sink     = std::make_unique<Sink> (*this);
+    link->sink     = std::make_unique<Sink> (*this, name);
     link->session  = std::make_unique<AppleLinkSession> (m_factory, m_folder, m_fileIo, *link->sink);
 
     //  A search opens the ports in turn even when the link has one set.
@@ -1070,6 +1070,59 @@ void AppleLinkConnections::Sink::OnProgress (const std::shared_ptr<LinkOperation
 void AppleLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
 {
     m_owner.Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::Sink::OnActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleLinkConnections::Sink::OnActivity (const std::string & text)
+{
+    Activity  entry;
+
+
+
+    GetLocalTime (&entry.time);
+    entry.connection = TextEncoding::NarrowToWide (m_name);
+    entry.text       = TextEncoding::NarrowToWide (text);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+
+        m_owner.m_activity.push_back (std::move (entry));
+
+        while (m_owner.m_activity.size() > kLogLength)
+        {
+            m_owner.m_activity.pop_front();
+        }
+    }
+
+    m_owner.Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleLinkConnections::GetActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<AppleLinkConnections::Activity> AppleLinkConnections::GetActivity() const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return std::vector<Activity> (m_activity.begin(), m_activity.end());
 }
 
 
