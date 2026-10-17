@@ -176,3 +176,25 @@ bool ConditionContext::TryResolveSymbol (const std::string & name, Word & addres
 
     return m_inner.TryResolveSymbol (name, address);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConditionContext::GetSymbolRevision
+//
+//  ACCESS and VALUE change at every hit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ConditionContext::GetSymbolRevision (const std::string & name) const
+{
+    if (_stricmp (name.c_str(), "ACCESS") == 0 || _stricmp (name.c_str(), "VALUE") == 0)
+    {
+        return 0;
+    }
+
+    return m_inner.GetSymbolRevision (name);
+}

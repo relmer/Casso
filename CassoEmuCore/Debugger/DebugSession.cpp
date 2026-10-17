@@ -2546,6 +2546,29 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::GetSymbolRevision
+//
+//  A disk value or a search result is worked out at each lookup; any other
+//  name changes only with the symbol tables.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DebugSession::GetSymbolRevision (const std::string & name) const
+{
+    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@'))
+    {
+        return 0;
+    }
+
+    return m_symbols.GetRevision();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::TryExecuteEngineCommand
 //
 //  The commands that change the session itself: mode, budget, pause, and

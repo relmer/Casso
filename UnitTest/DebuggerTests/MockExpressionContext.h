@@ -23,10 +23,17 @@ public:
     std::vector<Byte>            memory     = std::vector<Byte> (0x10000, 0);
     std::set<Word>               unreadable = { 0xC000 };
     NumberSyntax                 syntax     = NumberSyntax::AppleWin;
+    uint64_t                     revision   = 0;
 
     NumberSyntax GetNumberSyntax() const override
     {
         return syntax;
+    }
+
+    uint64_t GetSymbolRevision (const std::string & name) const override
+    {
+        (void) name;
+        return revision;
     }
 
     bool TryGetRegister (const std::string & name, Word & value) const override

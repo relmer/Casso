@@ -51,7 +51,8 @@ enum class ExpressionOperator
 //  A Name is a bare word, read when the expression is evaluated as a symbol
 //  first, then as a register when isRegisterName is set, then as the hex
 //  number in value when isHexNumber is set. isNumberFirst puts the number
-//  ahead of the register.
+//  ahead of the register. notSymbolRevision is the context's symbol revision
+//  when the name was last found not to be a symbol.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,13 +67,14 @@ struct ExpressionToken
         Operator,
     };
 
-    Kind                kind           = Kind::Number;
-    int32_t             value          = 0;
+    Kind                kind              = Kind::Number;
+    int32_t             value             = 0;
     std::string         name;
-    ExpressionOperator  op             = ExpressionOperator::Add;
-    bool                isRegisterName = false;
-    bool                isHexNumber    = false;
-    bool                isNumberFirst  = false;
+    ExpressionOperator  op                = ExpressionOperator::Add;
+    bool                isRegisterName    = false;
+    bool                isHexNumber       = false;
+    bool                isNumberFirst     = false;
+    mutable uint64_t    notSymbolRevision = 0;
 };
 
 

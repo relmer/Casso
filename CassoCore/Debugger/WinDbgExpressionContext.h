@@ -20,10 +20,11 @@ class WinDbgExpressionContext : public IDebugExpressionContext
 public:
     explicit WinDbgExpressionContext (const IDebugExpressionContext & inner);
 
-    bool          TryGetRegister   (const std::string & name, Word & value) const override;
-    bool          TryPeek          (Word address, Byte & value) const override;
-    bool          TryResolveSymbol (const std::string & name, Word & address) const override;
-    NumberSyntax  GetNumberSyntax  () const override;
+    bool          TryGetRegister    (const std::string & name, Word & value) const override;
+    bool          TryPeek           (Word address, Byte & value) const override;
+    bool          TryResolveSymbol  (const std::string & name, Word & address) const override;
+    NumberSyntax  GetNumberSyntax   () const override;
+    uint64_t      GetSymbolRevision (const std::string & name) const override;
 
 private:
     const IDebugExpressionContext  & m_inner;

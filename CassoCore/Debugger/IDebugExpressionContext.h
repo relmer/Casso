@@ -48,4 +48,10 @@ public:
     virtual bool          TryPeekIo        (Word address, Byte & value) const                { (void) address; value = 0; return false; }
     virtual bool          TryResolveSymbol (const std::string & name, Word & address) const  = 0;
     virtual NumberSyntax  GetNumberSyntax  () const                                          { return NumberSyntax::AppleWin; }
+
+    //  A number that changes whenever the symbols the name could resolve to
+    //  change, so an expression can skip looking up a name already found not
+    //  to be a symbol. Zero, the default, is for a name whose value is worked
+    //  out at each lookup.
+    virtual uint64_t      GetSymbolRevision (const std::string & name) const                 { (void) name; return 0; }
 };

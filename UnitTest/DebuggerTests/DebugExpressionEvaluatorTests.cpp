@@ -267,6 +267,42 @@ namespace DebuggerTests
 
 
 
+        //  A name not found among the symbols is not looked up again until
+        //  the symbol revision changes.
+        TEST_METHOD (ANameNotASymbolIsLookedUpAgainOnlyAfterTheSymbolsChange)
+        {
+            MockExpressionContext  context;
+            Expression             expression;
+            std::string            error;
+            int32_t                value = 0;
+            HRESULT                hr    = S_OK;
+
+
+
+            context.revision = 1;
+
+            hr = DebugExpressionEvaluator::Parse ("X", expression, error);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x01, value, L"no symbol X, so the register");
+
+            context.symbols["X"] = 0x1234;
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x01, value, L"the same revision, so no lookup");
+
+            context.revision = 2;
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x1234, value, L"a new revision, so the symbol");
+        }
+
+
+
         TEST_METHOD (Errors)
         {
             MockExpressionContext context;

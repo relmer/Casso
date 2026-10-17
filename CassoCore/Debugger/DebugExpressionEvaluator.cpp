@@ -779,6 +779,9 @@ bool DebugExpressionEvaluator::TryResolveOperand (
 //  DebugExpressionEvaluator::TryResolveName
 //
 //  A defined symbol, then the register or the number in the token's order.
+//  A register breakpoint's condition is evaluated at every instruction, so
+//  the symbol lookup is skipped while the symbols are those the name was
+//  last not found in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -789,13 +792,19 @@ bool DebugExpressionEvaluator::TryResolveName (
 {
     Word         resolved = 0;
     std::string  upper    = token.name;
+    uint64_t     revision = context.GetSymbolRevision (token.name);
 
 
 
-    if (context.TryResolveSymbol (token.name, resolved))
+    if (revision == 0 || revision != token.notSymbolRevision)
     {
-        value = resolved;
-        return true;
+        if (context.TryResolveSymbol (token.name, resolved))
+        {
+            value = resolved;
+            return true;
+        }
+
+        token.notSymbolRevision = revision;
     }
 
     if (token.isHexNumber && token.isNumberFirst)

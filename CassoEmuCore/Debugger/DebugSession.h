@@ -414,10 +414,11 @@ public:
     void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
 
     // IDebugExpressionContext
-    bool   TryGetRegister        (const std::string & name, Word & value) const override;
-    bool   TryPeek               (Word address, Byte & value) const override;
-    bool   TryPeekIo             (Word address, Byte & value) const override;
-    bool   TryResolveSymbol      (const std::string & name, Word & address) const override;
+    bool      TryGetRegister     (const std::string & name, Word & value) const override;
+    bool      TryPeek            (Word address, Byte & value) const override;
+    bool      TryPeekIo          (Word address, Byte & value) const override;
+    bool      TryResolveSymbol   (const std::string & name, Word & address) const override;
+    uint64_t  GetSymbolRevision  (const std::string & name) const override;
 
 private:
     struct VideoBreak
