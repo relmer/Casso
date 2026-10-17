@@ -254,7 +254,7 @@ public:
     TEST_METHOD (WithNoFolderOpenRequestsAreRefused)
     {
         InMemoryCassoLinkFolder  folder;
-        std::vector<Byte>        put = Name ("NEW.DSK");
+        std::vector<Byte>        put = Name ("NEW.PO");
         std::vector<Byte>        wire;
 
         folder.open = false;
@@ -292,32 +292,149 @@ public:
     }
 
 
-    TEST_METHOD (NibbleIsRefusedAndHomeIsAnswered)
+    //  ADTPro's Nibble send: each track's capture, an ACK for each packet and
+    //  one for the track, then the Summary; the image is a .nib of one
+    //  revolution per track, from its first address field.
+    TEST_METHOD (ANibbleSend_IsWrittenAsANibImage)
+    {
+        InMemoryCassoLinkFolder  folder;
+        Session                  session (folder);
+        std::vector<Byte>        capture (CassoLinkHost::kNibbleCapture, 0xFF);
+        std::vector<Byte>        wire;
+        static constexpr size_t  s_kPeriod = 6400;
+
+        //  A revolution of 6,400 nibbles, its address field 100 nibbles in,
+        //  captured twice over.
+        for (size_t i = 0; i < capture.size(); i++)
+        {
+            capture[i] = (Byte) (0x96 + (i % s_kPeriod) % 0x60);
+        }
+
+        for (size_t start = 100; start < capture.size(); start += s_kPeriod)
+        {
+            capture[start] = 0xD5; capture[start + 1] = 0xAA; capture[start + 2] = 0x96;
+        }
+
+        session.Send (Packet (CassoLinkCodec::kNibble, { 0xC7, 0xC1, 0xCD, 0xC5, 0x00, 0x00, 0x00 }));
+        Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyOk }));
+
+        for (size_t track = 0; track < CassoLinkHost::kNibbleTracks; track++)
+        {
+            wire.clear();
+            AssertSucceeded (CassoLinkCodec::EncodeImageData (0, capture, wire));
+            session.Send (wire);
+            Assert::IsTrue (session.Receive (2) == std::vector<Byte> ({ CassoLinkCodec::kAck, CassoLinkCodec::kAck }), L"the packet's, then the track's");
+        }
+
+        session.Send (Packet (CassoLinkCodec::kSummary, { 0x00 }));
+        Assert::IsTrue (session.IsQuiet (500));
+
+        Assert::AreEqual ((size_t) CassoLinkHost::kNibbleTracks * CassoLinkHost::kNibbleTrackSize, folder.files["GAME.nib"].size());
+        Assert::IsTrue (std::equal (capture.begin() + 100, capture.begin() + 100 + s_kPeriod, folder.files["GAME.nib"].begin()), L"one revolution from the address field");
+        Assert::AreEqual<Byte> (0xFF, folder.files["GAME.nib"][s_kPeriod], L"then sync bytes to the track's length");
+    }
+
+
+
+    TEST_METHOD (Home_HasNoReply)
     {
         InMemoryCassoLinkFolder  folder;
         Session                  session (folder);
 
-        session.Send (Packet (CassoLinkCodec::kNibble, { 0xC1, 0x00, 0x30, 0x02 }));
-        Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyNotFound }));
-
         session.Send (Packet (CassoLinkCodec::kHome, {}));
-        Assert::IsTrue (session.Receive (5) == std::vector<Byte> ({ 0xC1, 0x00, 0x00, 0xD8, 0x19 }));
+        Assert::IsTrue (session.IsQuiet (500), L"ADTPro's server sends nothing back");
     }
 
 
-    TEST_METHOD (DirectoryPagesHoldFifteenNamesAndFlagTheNext)
+    TEST_METHOD (DirectoryPagesHoldEighteenNames_AndFlagTheNextAfterTheText)
     {
         std::vector<std::string>  names;
 
         for (int i = 0; i < 20; i++) { names.push_back (std::format ("DISK{:02}.DSK", i)); }
 
-        std::vector<Byte>  first  = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 0);
-        std::vector<Byte>  second = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 1);
-        std::string        text (second.begin(), std::find (second.begin(), second.end(), (Byte) 0));
+        std::vector<Byte>  first   = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 0);
+        std::vector<Byte>  second  = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 1);
+        std::string        text    (first.begin(), std::find (first.begin(), first.end(), (Byte) 0));
+        std::string        later   (second.begin(), std::find (second.begin(), second.end(), (Byte) 0));
 
-        Assert::AreEqual<Byte> (1, first.back(), L"another page follows");
-        Assert::AreEqual<Byte> (0, second.back());
-        Assert::IsTrue (text.find ("DISK15.DSK") != std::string::npos && text.find ("DISK14.DSK") == std::string::npos);
+        Assert::IsTrue (text.starts_with ("DIRECTORY OF: C:\\X\\\r\r" + std::string (40, '-')), L"a one-line header has a second return, so the names start on row 3");
+        Assert::IsTrue (text.find ("DISK17.DSK") != std::string::npos && text.find ("DISK18.DSK") == std::string::npos);
+        Assert::AreEqual<Byte> (1, first[text.size() + 1], L"another page follows, in the byte after the text's 0");
+        Assert::IsTrue (later.find ("DISK18.DSK") != std::string::npos);
+        Assert::AreEqual<Byte> (0, second[later.size() + 1]);
+    }
+
+
+
+    TEST_METHOD (DirectoryPages_ShortenLongNames_AndListNoFiles)
+    {
+        std::string        longName (45, 'A');
+        std::vector<Byte>  page  = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", { longName }, 0);
+        std::vector<Byte>  empty = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", {}, 0);
+        std::string        text  (page.begin(), std::find (page.begin(), page.end(), (Byte) 0));
+        std::string        none  (empty.begin(), std::find (empty.begin(), empty.end(), (Byte) 0));
+
+        Assert::IsTrue (text.ends_with (std::string (38, 'A') + ".."), L"cut to fill its line, so no return follows");
+        Assert::IsTrue (none.ends_with ("NO FILES"));
+    }
+
+
+
+    TEST_METHOD (Filespec_MatchesStarAndQuestionMarkWithoutCase)
+    {
+        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", ""));
+        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*.dsk"));
+        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "G?MES*"));
+        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES.PO",  "*.DSK"));
+    }
+
+
+
+    //  Receive's file list: Return on a name sends its page and row in place
+    //  of the name, from the last listing, which a DIR's filespec narrowed.
+    TEST_METHOD (TheFileChoosersToken_PicksFromTheLastListing)
+    {
+        InMemoryCassoLinkFolder  folder;
+        Session                  session (folder);
+
+        folder.path = "C:\\Disks\\";
+        folder.files["A.DSK"]  = std::vector<Byte> (512, 0);
+        folder.files["B.PO"]   = std::vector<Byte> (1024, 0);
+        folder.files["C.PO"]   = std::vector<Byte> (2048, 0);
+
+        //  DIR *.PO, page 0: B.PO on row 3, C.PO on row 4.
+        session.Send (Packet (CassoLinkCodec::kDirectory, { 0xAA, 0xAE, 0xD0, 0xCF, 0x00, 0x00 }));
+        Assert::IsFalse (session.Receive (2000, 1000).empty());
+
+        session.Send (Packet (CassoLinkCodec::kSize, { 0x01, 0x01, 0x04, 0x00 }));
+        Assert::IsTrue (session.Receive (3) == std::vector<Byte> ({ 0x04, 0x00, CassoLinkHost::kReplyOk }), L"C.PO's 4 blocks");
+    }
+
+
+
+    TEST_METHOD (Batch_NamesCountOnFromThePrefix_WithTheImagesKind)
+    {
+        InMemoryCassoLinkFolder  folder;
+        std::vector<Byte>        image (CassoLinkHost::kDosImageSize, 0);
+        std::vector<Byte>        wire;
+        Session                  session (folder);
+
+        folder.files["DISK0001.dsk"] = image;
+
+        session.Send (Packet (CassoLinkCodec::kBatch, { 0xC4, 0xC9, 0xD3, 0xCB, 0x00, 0x18, 0x01 }));
+        Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyOk }));
+
+        for (size_t block = 0; block < image.size() / 512; block += 2)
+        {
+            wire.clear();
+            AssertSucceeded (CassoLinkCodec::EncodeImageData ((Word) block, std::span<const Byte> (image).subspan (block * 512, 1024), wire));
+            session.Send (wire);
+            Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkCodec::kAck }));
+        }
+
+        session.Send (Packet (CassoLinkCodec::kSummary, { 0x00 }));
+        Assert::IsTrue (session.IsQuiet (500));
+        Assert::IsTrue (folder.files.contains ("DISK0002.dsk"), L"the next free number, then .dsk for a 140 KB disk");
     }
 
 
@@ -431,11 +548,11 @@ public:
         {
             Session  session (folder);
 
-            PutImage (session, "NEW.DSK", image);
+            PutImage (session, "NEW.PO", image);
             Assert::IsTrue (session.IsQuiet());
         }
 
-        Assert::IsTrue (fileIo.files["C:\\Disks\\NEW.DSK"] == image);
+        Assert::IsTrue (fileIo.files["C:\\Disks\\NEW.PO"] == image);
         Assert::AreEqual<size_t> (1, fileIo.files.size(), L"no temporary left behind");
     }
 
@@ -444,7 +561,7 @@ public:
     {
         InMemoryCassoLinkFolder  folder;
         std::vector<Byte>        image   = TestImage (2);
-        std::vector<Byte>        payload = Name ("NEW.DSK");
+        std::vector<Byte>        payload = Name ("NEW.PO");
         std::vector<Byte>        wire;
         Session                  session (folder);
 
@@ -466,7 +583,7 @@ public:
 
         session.Send (Packet (CassoLinkCodec::kSummary, { 0x00 }));
         Assert::IsTrue (session.IsQuiet());
-        Assert::IsTrue (folder.files["NEW.DSK"] == image);
+        Assert::IsTrue (folder.files["NEW.PO"] == image);
     }
 
 
@@ -511,7 +628,7 @@ public:
     {
         InMemoryCassoLinkFolder  folder;
         std::vector<Byte>        image   = TestImage (8);
-        std::vector<Byte>        payload = Name ("FIRST.DSK");
+        std::vector<Byte>        payload = Name ("FIRST.PO");
         std::vector<Byte>        wire;
         Session                  session (folder);
 
@@ -533,10 +650,10 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT), session.host->GetLastResult());
         Assert::AreEqual (0, folder.writes, L"a failed transfer writes nothing");
 
-        PutImage (session, "SECOND.DSK", image);
+        PutImage (session, "SECOND.PO", image);
         Assert::IsTrue (session.IsQuiet());
-        Assert::IsTrue (folder.files["SECOND.DSK"] == image);
-        Assert::IsFalse (folder.files.contains ("FIRST.DSK"));
+        Assert::IsTrue (folder.files["SECOND.PO"] == image);
+        Assert::IsFalse (folder.files.contains ("FIRST.PO"));
     }
 
 
@@ -573,7 +690,7 @@ public:
         InMemoryCassoLinkFolder  folder;
         std::vector<Byte>        image   = TestImage (4);
         std::vector<Byte>        wrong (1024, 0xEE);
-        std::vector<Byte>        payload = Name ("DUP.DSK");
+        std::vector<Byte>        payload = Name ("DUP.PO");
         std::vector<Byte>        wire;
         Session                  session (folder);
 
@@ -598,7 +715,7 @@ public:
 
         session.Send (Packet (CassoLinkCodec::kSummary, { 0x00 }));
         Assert::IsTrue (session.IsQuiet());
-        Assert::IsTrue (folder.files["DUP.DSK"] == image);
+        Assert::IsTrue (folder.files["DUP.PO"] == image);
     }
 
 

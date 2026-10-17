@@ -132,24 +132,114 @@ std::array<Byte, 4> CassoLinkHost::GetProDosDateTime (const SYSTEMTIME & time)
 
 std::vector<Byte> CassoLinkHost::BuildDirectoryPage (const std::string & path, const std::vector<std::string> & names, size_t page)
 {
-    std::string        text  = "DIRECTORY OF: " + path + "\r" + std::string (40, '-');
+    std::string        header = (path.size() <= 66) ? "DIRECTORY OF: " + path : path;
+    std::string        text;
     std::vector<Byte>  bytes (kDirectoryPage, 0);
-    size_t             first = page * kNamesPerPage;
-    size_t             last  = std::min (names.size(), first + kNamesPerPage);
+    size_t             first  = page * kNamesPerPage;
+    size_t             last   = std::min (names.size(), first + kNamesPerPage);
+    bool               more   = last < names.size();
 
 
 
+    //  The header fills at most the first two of the client's 40-column
+    //  lines, keeping its end when it is longer. A return ends it when it
+    //  stops short of a line's end, and a second one follows a one-line
+    //  header, so the names start on the screen's fourth row, where the
+    //  client's file chooser counts from.
+    header = (header.size() > 80) ? header.substr (header.size() - 80) : header;
+    header = (header.size() < 80) ? header + "\r" : header;
+    header = (header.size() <= 40) ? header + "\r" : header;
+
+    text = header + std::string (40, '-');
+
+    if (names.empty())
+    {
+        text += "NO FILES";
+        more  = false;
+    }
+
+    //  A name that fills its line has no return after it; a longer one is
+    //  cut to 38 characters and "..".
     for (size_t i = first; i < last; i++)
     {
-        text += names[i] + "\r";
+        std::string  name = (names[i].size() > 40) ? names[i].substr (0, 38) + ".." : names[i];
+
+        text += (name.size() < 40) ? name + "\r" : name;
     }
 
     text.resize (std::min (text.size(), kDirectoryPage - 2));
     std::copy (text.begin(), text.end(), bytes.begin());
 
-    bytes[kDirectoryPage - 1] = last < names.size() ? 1 : 0;
+    //  The text's 0, then whether another page follows.
+    bytes[text.size() + 1] = more ? 1 : 0;
 
     return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::MatchesFilespec
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkHost::MatchesFilespec (const std::string & name, const std::string & filespec)
+{
+    std::function<bool (size_t, size_t)>  match;
+
+
+
+    match = [&] (size_t n, size_t f) -> bool
+    {
+        if (f == filespec.size())
+        {
+            return n == name.size();
+        }
+
+        if (filespec[f] == '*')
+        {
+            return match (n, f + 1) || (n < name.size() && match (n + 1, f));
+        }
+
+        return n < name.size() && (filespec[f] == '?' || toupper ((unsigned char) filespec[f]) == toupper ((unsigned char) name[n])) && match (n + 1, f + 1);
+    };
+
+    return filespec.empty() || match (0, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ResolveName
+//
+//  A name, or the token ADTPro's file chooser sends for the name picked
+//  from the last listing: 1, the page counted from 1, and the screen row,
+//  the first name being on row 3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkHost::ResolveName (const std::vector<Byte> & payload, size_t & outEnd) const
+{
+    std::string  name  = ReadName (payload, outEnd);
+    size_t       index = 0;
+    bool         token = payload.size() >= 3 && payload[0] == 0x01 && payload[1] >= 1 && payload[2] >= 3;
+
+
+
+    if (!token)
+    {
+        return name;
+    }
+
+    index = kNamesPerPage * ((size_t) payload[1] - 1) + ((size_t) payload[2] - 3);
+
+    return (index < m_listing.size()) ? m_listing[index] : std::string();
 }
 
 
@@ -424,15 +514,14 @@ HRESULT CassoLinkHost::ServePacket (const CassoLinkPacket & packet)
         case CassoLinkCodec::kGet:       hr = ServeGet (packet);             break;
         case CassoLinkCodec::kPut:       hr = ServePut (packet, false);      break;
         case CassoLinkCodec::kBatch:     hr = ServePut (packet, true);       break;
+        case CassoLinkCodec::kNibble:    hr = ServeNibblePut (packet, false); break;
+        case CassoLinkCodec::kMultiple:  hr = ServeNibblePut (packet, true);  break;
 
-        case CassoLinkCodec::kNibble:
-        case CassoLinkCodec::kMultiple:
-            hr = SendByte (kReplyNotFound);
-            break;
-
+        //  ADTPro's server has no reply to the client's Home, which the client
+        //  sends at its start and after an abort; Send File loads ADTPro's
+        //  own bootstrap, which Casso does not serve.
         case CassoLinkCodec::kHome:
         case CassoLinkCodec::kSendFile:
-            hr = SendHome();
             break;
 
         case CassoLinkCodec::kReady:
@@ -494,6 +583,8 @@ void CassoLinkHost::ReportRequest (const CassoLinkPacket & packet, HRESULT resul
 
         case CassoLinkCodec::kPut:
         case CassoLinkCodec::kBatch:
+        case CassoLinkCodec::kNibble:
+        case CassoLinkCodec::kMultiple:
             name = ReadName (packet.payload, end);
             text = std::format ("ADTPro: received {} from the Apple", name);
             break;
@@ -550,13 +641,19 @@ Error:
 
 HRESULT CassoLinkHost::ServeDirectory (const CassoLinkPacket & packet)
 {
-    HRESULT                   hr    = S_OK;
-    size_t                    page  = packet.payload.empty() ? 0 : packet.payload[0];
+    HRESULT                   hr       = S_OK;
+    size_t                    page     = packet.payload.empty() ? 0 : packet.payload.back();
+    size_t                    end      = 0;
+    std::string               filespec = ReadName (packet.payload, end);
     std::string               path;
     std::vector<std::string>  names;
     std::vector<Byte>         wire;
 
 
+
+    //  The filespec, ending in a 0, comes first, and the page is the last
+    //  byte; a request with only the page has no filespec.
+    filespec = (packet.payload.size() < 2) ? std::string() : filespec;
 
     if (m_folder.IsOpen())
     {
@@ -565,7 +662,10 @@ HRESULT CassoLinkHost::ServeDirectory (const CassoLinkPacket & packet)
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    std::erase_if (names, [&filespec] (const std::string & name) { return !MatchesFilespec (name, filespec); });
     std::ranges::sort (names, [] (const std::string & a, const std::string & b) { return _stricmp (a.c_str(), b.c_str()) < 0; });
+
+    m_listing = names;
 
     hr = CassoLinkCodec::EncodeImageData ((Word) page, BuildDirectoryPage (path, names, page), wire);
     CHR (hr);
@@ -594,7 +694,7 @@ HRESULT CassoLinkHost::ServeSize (const CassoLinkPacket & packet)
 {
     HRESULT            hr     = S_OK;
     size_t             end    = 0;
-    std::string        name   = ReadName (packet.payload, end);
+    std::string        name   = ResolveName (packet.payload, end);
     std::vector<Byte>  image;
     Byte               status = kReplyNotFound;
     size_t             blocks = 0;
@@ -637,7 +737,7 @@ HRESULT CassoLinkHost::ServeGet (const CassoLinkPacket & packet)
 {
     HRESULT            hr        = S_OK;
     size_t             end       = 0;
-    std::string        name      = ReadName (packet.payload, end);
+    std::string        name      = ResolveName (packet.payload, end);
     size_t             perPacket = (end < packet.payload.size() && packet.payload[end] != 0) ? packet.payload[end] : 1;
     std::vector<Byte>  file;
     std::vector<Byte>  image;
@@ -734,10 +834,8 @@ HRESULT CassoLinkHost::ServePut (const CassoLinkPacket & packet, bool batch)
     CHR (hr);
     BAIL_OUT_IF (!open, S_OK);
 
-    if (batch)
-    {
-        name = GetBatchName (name);
-    }
+    name = batch ? GetBatchName (name, (blocks * kBlockSize == kDosImageSize) ? ".dsk" : ".po")
+                 : AddImageExtension (name, blocks * kBlockSize);
 
     image.assign (blocks * kBlockSize, 0);
 
@@ -751,6 +849,114 @@ HRESULT CassoLinkHost::ServePut (const CassoLinkPacket & packet, bool batch)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ServeNibblePut
+//
+//  A whole disk's nibbles, as ADTPro's Nibble send has them: each track's
+//  capture as its blocks, then an ACK of the whole track, which the client
+//  waits for before reading the next; the Summary ends it. The image is
+//  written as a .nib once every track is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ServeNibblePut (const CassoLinkPacket & packet, bool batch)
+{
+    HRESULT            hr      = S_OK;
+    size_t             end     = 0;
+    std::string        name    = ReadName (packet.payload, end);
+    bool               open    = m_folder.IsOpen();
+    std::vector<Byte>  capture (kNibbleCapture, 0);
+    std::vector<Byte>  file;
+    std::vector<Byte>  track;
+    CassoLinkPacket    summary;
+    bool               nib     = false;
+
+
+
+    hr = SendByte (open ? kReplyOk : kReplyNotFound);
+    CHR (hr);
+    BAIL_OUT_IF (!open, S_OK);
+
+    nib  = name.size() >= 4 && _stricmp (name.c_str() + name.size() - 4, ".nib") == 0;
+    name = batch ? GetBatchName (name, ".nib") : (nib ? name : name + ".nib");
+
+    for (size_t t = 0; t < kNibbleTracks; t++)
+    {
+        std::fill (capture.begin(), capture.end(), (Byte) 0);
+
+        hr = ReceiveImage (capture, false);
+        CHR (hr);
+
+        track = ToNibbleTrack (capture);
+        file.insert (file.end(), track.begin(), track.end());
+
+        hr = SendByte (CassoLinkCodec::kAck);
+        CHR (hr);
+    }
+
+    do
+    {
+        hr = ReadPacket (m_replyTimeoutMs, summary);
+    }
+    while (SUCCEEDED (hr) && summary.command != CassoLinkCodec::kSummary && summary.command != CassoLinkCodec::kHome);
+
+    hr = m_folder.Write (name, file);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ToNibbleTrack
+//
+//  The track's period is where its first address field comes round again;
+//  without one, as on an unformatted track, the capture's first
+//  kNibbleTrackSize bytes are the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> CassoLinkHost::ToNibbleTrack (std::span<const Byte> capture)
+{
+    static constexpr size_t  s_kMatchLength = 64;
+    static constexpr size_t  s_kMinPeriod   = 5800;
+    const Byte               prologue[]     = { 0xD5, 0xAA, 0x96 };
+    std::vector<Byte>   track (kNibbleTrackSize, 0xFF);
+    auto                found      = std::search (capture.begin(), capture.end(), std::begin (prologue), std::end (prologue));
+    size_t              start      = (size_t) (found - capture.begin());
+    size_t              period     = kNibbleTrackSize;
+
+
+
+    if (start >= capture.size() || start + kNibbleTrackSize + s_kMatchLength > capture.size())
+    {
+        std::copy_n (capture.begin(), std::min (capture.size(), kNibbleTrackSize), track.begin());
+        return track;
+    }
+
+    for (size_t p = s_kMinPeriod; p <= kNibbleTrackSize; p++)
+    {
+        if (std::equal (capture.begin() + (ptrdiff_t) start, capture.begin() + (ptrdiff_t) (start + s_kMatchLength), capture.begin() + (ptrdiff_t) (start + p)))
+        {
+            period = p;
+            break;
+        }
+    }
+
+    std::copy_n (capture.begin() + (ptrdiff_t) start, period, track.begin());
+    return track;
 }
 
 
@@ -877,7 +1083,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::ReceiveImage (std::vector<Byte> & image)
+HRESULT CassoLinkHost::ReceiveImage (std::vector<Byte> & image, bool untilSummary)
 {
     HRESULT            hr       = S_OK;
     size_t             blocks   = image.size() / kBlockSize;
@@ -951,6 +1157,10 @@ HRESULT CassoLinkHost::ReceiveImage (std::vector<Byte> & image)
 
         hr = SendByte (CassoLinkCodec::kAck);
         CHR (hr);
+
+        //  A nibble track ends when its blocks are in, with no Summary.
+        complete = std::ranges::all_of (received, [] (bool b) { return b; });
+        BAIL_OUT_IF (!untilSummary && complete, S_OK);
     }
 
 Error:
@@ -1028,18 +1238,15 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkHost::GetBatchName (const std::string & prefix)
+std::string CassoLinkHost::GetBatchName (const std::string & prefix, const std::string & extension)
 {
-    size_t       dot       = prefix.find_last_of ('.');
-    std::string  stem      = (dot == std::string::npos) ? prefix : prefix.substr (0, dot);
-    std::string  extension = (dot == std::string::npos) ? std::string() : prefix.substr (dot);
-    std::string  name      = prefix;
+    std::string  name = prefix + "0001" + extension;
 
 
 
-    for (int n = 0; n < 10000; n++)
+    for (int n = 1; n < 10000; n++)
     {
-        name = std::format ("{}{:04}{}", stem, n, extension);
+        name = std::format ("{}{:04}{}", prefix, n, extension);
 
         if (!m_folder.Exists (name))
         {
@@ -1048,6 +1255,31 @@ std::string CassoLinkHost::GetBatchName (const std::string & prefix)
     }
 
     return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::AddImageExtension
+//
+//  A 140 KB disk gets .dsk unless it ends in .dsk or .do already, and any
+//  other gets .po unless it ends in .po or .hdv, as from ADTPro's server.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkHost::AddImageExtension (const std::string & name, size_t bytes)
+{
+    std::string  extension = std::filesystem::path (name).extension().string();
+    bool         dos       = bytes == kDosImageSize;
+    bool         suffixed  = dos ? (_stricmp (extension.c_str(), ".dsk") == 0 || _stricmp (extension.c_str(), ".do") == 0)
+                                 : (_stricmp (extension.c_str(), ".po") == 0 || _stricmp (extension.c_str(), ".hdv") == 0);
+
+
+
+    return suffixed ? name : name + (dos ? ".dsk" : ".po");
 }
 
 

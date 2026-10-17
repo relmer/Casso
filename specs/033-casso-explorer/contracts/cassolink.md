@@ -33,8 +33,10 @@ replies with one unframed byte, ACK $06 or NAK $15. A client receiving one
 (Get) replies with Acknowledgement ($CB), whose payload is ACK or NAK and
 the two-byte number of the next block to send.
 
-A side that receives a damaged envelope or packet sends NAK. Casso resends
-up to five times (FR-087). ADTPro's own peers, as captured:
+A side that receives a damaged data packet sends NAK. A damaged command
+envelope has no reply, as from ADTPro's host: the client sends the command
+again once its wait for a reply runs out. Casso resends up to five times
+(FR-087). ADTPro's own peers, as captured:
 
 - Its host resends a packet the client NAKs after 0.26 s, then after
   0.52 s, and stops after the third NAK. When the client next sends, the
@@ -52,12 +54,42 @@ that its resends arrive first, the link closes and the operation fails
 
 ## ADTPro's client (served unchanged, FR-088)
 
-Casso serves CD, Directory, Size, Get, Put, Batch, Multiple, Summary,
-Home and Send File as ADTPro's host does, and serves virtual drives
-(`'E'`, $C5) over 512-byte blocks. Image files are those in the folder open
-in Casso Explorer's current tab, or the folder an open image is in; with
-none, each request fails with ADTPro's "unable" status. Nibble ($CD) is
-met with ADTPro's abort reply; raw tracks are the protected-disk follow-on's.
+Casso serves CD, Directory, Size, Get, Put, Batch, Nibble ($CE), Multiple
+nibble ($CD) and Summary as ADTPro's host does, and serves virtual drives
+(`'E'`, $C5) over 512-byte blocks. Image files are those in the ADTPro
+folder set in Options. Home has no reply, as from ADTPro's host. Send File
+and ADTPro's older commands are not served.
+
+- **Directory** ($C4): the payload is an optional filespec (`*` and `?`,
+  without regard to case) ending in a 0, then the page number as its last
+  byte. A page has a header of at most two 40-column lines,
+  `DIRECTORY OF: ` and the path when the path has at most 66 characters,
+  keeping the end of a longer one; a return ends a header shorter than 80
+  characters and a second follows one of at most 40, so the names start on
+  the screen's fourth row. 40 dashes follow, then up to 18 names, each
+  ending in a return unless it fills its line; a name longer than 40 is cut
+  to 38 characters and `..`. An empty folder lists `NO FILES`. The text
+  ends in a 0, and the byte after it is 1 when another page follows.
+- **File chooser token**: in place of a file name, Size and Get accept
+  the client's token for a name picked from the last listing: $01, the page
+  counted from 1, and the screen row, the first name being on row 3. It
+  resolves to name 18 × (page − 1) + (row − 3) of that listing, after the
+  filespec.
+- **Received files**: Put adds `.dsk` to a 140 KB image unless it ends in `.dsk` or
+  `.do`, and `.po` to any other unless it ends in `.po` or `.hdv`. Each image a
+  Batch receives is the prefix and the next free 4-digit number from 0001,
+  with `.dsk` for 140 KB and `.po` otherwise.
+- **Nibble send**: the reply to the command is a status byte, then 35
+  tracks, each a 13,312-byte capture sent as Image data packets, each
+  packet ACKed, and then an ACK for the track, which the client waits for
+  before reading the next. The Summary ($D9) follows the last track, as it
+  follows every Put and Batch. The image is written as a `.nib` of 6,656
+  bytes a track: one revolution from the track's first address field,
+  padded with $FF, or the capture's first 6,656 bytes for a track with no
+  address field.
+- **No keepalive**: an idle ADTPro client sends nothing, and before each
+  byte it waits for DSR, so any ADTPro-compatible cable connects the
+  handshake line that Casso monitors to detect a machine dropping.
 
 The virtual-drive packets are unframed. ADTPro's VSDRIVE driver reads with
 Read3 ($03 for drive 1, $05 for drive 2), whose reply has the host's ProDOS
@@ -85,7 +117,7 @@ client sends first; the host's reply is the next operation.
 | Write track | $DB `'[']` | host | drive (1), track (1), volume (1), progress (2); the client requests each of the 16 sectors in physical order as for Write sectors, then formats the track with their data in one revolution, reads it back and compares it; reported as a write |
 | (progress) | | | the part of the user's whole operation a request covers, as its starting and ending percentage (0-100), for the program's status row |
 | Status | $D4 `'T'` | client | operation (1: 1 read, 2 write, 3 format), drive (1), track (1), sectors done (1), error (1); ends every Read, Write and Format |
-| Label | $CE `'N'` | host | up to 38 ASCII characters, the user's operation; the program prints it and sends Ready (R24) |
+| Label | $DC `'\'` | host | up to 38 ASCII characters, the user's operation; the program prints it and sends Ready (R24) |
 | Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |
 
 The host distinguishes clients by the first command it receives: Ready is

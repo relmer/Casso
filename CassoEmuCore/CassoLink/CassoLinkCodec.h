@@ -63,8 +63,8 @@ public:
     static constexpr Byte  kGet          = 0xC7;
     static constexpr Byte  kPut          = 0xD0;
     static constexpr Byte  kBatch        = 0xC2;
-    static constexpr Byte  kNibble       = 0xCD;
-    static constexpr Byte  kMultiple     = 0xCC;
+    static constexpr Byte  kNibble       = 0xCE;
+    static constexpr Byte  kMultiple     = 0xCD;
     static constexpr Byte  kSize         = 0xDA;
     static constexpr Byte  kImageData    = 0xD3;
     static constexpr Byte  kAcknowledge  = 0xCB;
@@ -85,7 +85,7 @@ public:
     static constexpr Byte  kWriteTrack   = 0xDB;
     static constexpr Byte  kStatus       = 0xD4;
     static constexpr Byte  kCancel       = 0xD1;
-    static constexpr Byte  kLabel        = 0xCE;
+    static constexpr Byte  kLabel        = 0xDC;
 
     //  The longest Label text the program draws.
     static constexpr size_t  kLabelLength = 38;
