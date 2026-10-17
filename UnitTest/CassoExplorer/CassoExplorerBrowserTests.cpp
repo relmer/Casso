@@ -220,7 +220,7 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual ((size_t) 3, roots.size(), L"Casso, CassoLink and This PC; the bin only with all folders on");
+        Assert::AreEqual ((size_t) 4, roots.size(), L"Casso, CassoLink, This PC and CassoLink again; the bin only with all folders on");
         Assert::IsFalse  (roots[0].expanded);
         Assert::IsFalse  (roots[0].childrenLoaded);
     }
@@ -495,14 +495,14 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"This PC", L"Network" }),
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"This PC", L"CassoLink", L"Network" }),
                         L"As File Explorer's pane: libraries hidden there, and the bin only with all folders shown");
         Assert::IsTrue (roots[4].dividerAbove, L"A line above the pinned folders");
         Assert::IsTrue (roots[5].dividerAbove, L"and one below them");
         Assert::IsTrue (roots[5].id == TreeModel::kThisPcRootId, L"Casso's own This PC, with its drives");
         Assert::IsTrue (host.browser.IsPinnedToQuickAccess (pin.path), L"a pinned folder offers Unpin");
         Assert::IsTrue (roots[2].childrenLoaded, L"Home has no folders under it");
-        Assert::IsFalse (roots[6].childrenLoaded, L"Network does");
+        Assert::IsFalse (roots[7].childrenLoaded, L"Network does");
 
         //  The pane's own menu turns each root on and off, apart from File
         //  Explorer's choice once set.

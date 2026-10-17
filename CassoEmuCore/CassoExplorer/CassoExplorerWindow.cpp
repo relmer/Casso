@@ -10983,9 +10983,12 @@ void CassoExplorerWindow::OnLinkChanged()
         }
     }
 
-    if (m_tree->FindRowById (TreeModel::kCassoLinkRootId) >= 0)
+    for (const std::wstring & node : { std::wstring (TreeModel::kCassoLinkRootId), TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId) })
     {
-        m_tree->ReplaceChildren (TreeModel::kCassoLinkRootId, m_browser.GetTreeChildren (TreeModel::kCassoLinkRootId));
+        if (m_tree->FindRowById (node) >= 0)
+        {
+            m_tree->ReplaceChildren (node, m_browser.GetTreeChildren (node));
+        }
     }
 
     //  A drive of a machine that stopped answering has nothing to list, so

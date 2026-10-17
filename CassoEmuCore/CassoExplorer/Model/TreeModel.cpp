@@ -394,6 +394,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
     outNodes.clear();
     outNodes.push_back (casso);
     outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+    outNodes.back().id = kLinkCopyTag + outNodes.back().id;
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
     //  everything else under it.
@@ -411,7 +412,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (pc);
         }
 
-        AppendLinkRoots (outNodes, false);
+        outNodes.push_back (MakeRootNode (kCassoLinkRootId));
 
         if (m_navOptions.showAllFolders)
         {
@@ -464,7 +465,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
         if (root.isThisPc)
         {
-            AppendLinkRoots (outNodes, false);
+            outNodes.push_back (MakeRootNode (kCassoLinkRootId));
         }
     }
 
@@ -1690,7 +1691,7 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     }
     else if (id == kCassoLinkRootId)
     {
-        AppendLinkRoots (outNodes, true);
+        AppendLinkRoots (outNodes, false);
     }
     else if (id.starts_with (kLinkRootTag))
     {

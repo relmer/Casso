@@ -206,12 +206,12 @@ public:
     //  An Apple link's root, link:<name>, and its drives, link:<name>|<slot>,<drive>.
     static constexpr const wchar_t *  kLinkRootTag   = L"link:";
 
-    //  CassoLink's root, after Casso: every linked Apple, with CassoLink.dsk
-    //  and its help beside them in the list.
+    //  CassoLink's root, after This PC, and its copy after Casso: every
+    //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
-    //  The second copy of a link's root and its drives, under CassoLink:
-    //  top:link:<name>, at the same location as the first.
+    //  The copy of CassoLink's root after Casso, and of the links and drives
+    //  under it: top:<id>, at the same location as the first.
     static constexpr const wchar_t *  kLinkCopyTag   = L"top:";
 
     static std::wstring  StripLinkCopy    (const std::wstring & id);
