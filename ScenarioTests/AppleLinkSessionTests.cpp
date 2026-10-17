@@ -195,6 +195,14 @@ public:
             return operation;
         }
 
+        //  Empties a drive. The store frees the image, so the controller is
+        //  pointed back at its own empty disk first, as DiskManager does.
+        void  Eject (int drive)
+        {
+            machine.GetRefs().diskController->SetExternalDisk (drive - 1, nullptr);
+            machine.GetDiskStore().Eject (6, drive - 1);
+        }
+
         //  A drive's disk, as DOS-logical sectors.
         std::vector<Byte>  Sectors (int drive)
         {
@@ -359,7 +367,7 @@ public:
         Rig       rig (true, 115200);
         uint64_t  spent = 0;
 
-        rig.machine.GetDiskStore().Eject (6, 1);
+        rig.Eject (2);
 
         auto  empty = rig.session->Enumerate (2, FilePath());
 
@@ -373,6 +381,37 @@ public:
         Assert::IsTrue (FAILED (empty->result), L"no disk, no catalog");
         Assert::IsTrue (spent < 10ULL * 1'020'484, L"in seconds, not minutes");
         AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+    }
+
+
+
+    //  Drive 1's catalog, then a failed read of an emptied drive 2, then drive
+    //  1's catalog again. The drive 2 read steps drive 2's head to track 0;
+    //  drive 1's head stays on the track of the first read, the position in
+    //  the program's curhalf for drive 1.
+    TEST_METHOD (AnEmptyDriveAfterARead_LeavesTheOtherDriveReadable)
+    {
+        Rig       rig (true, 115200);
+        uint64_t  spent = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+
+        rig.Eject (2);
+
+        auto  empty = rig.session->Enumerate (2, FilePath());
+
+        while (!rig.sink.IsDone (empty) && spent < kBudget)
+        {
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+        }
+
+        Assert::IsTrue (FAILED (empty->result), L"no disk, no catalog");
+
+        auto  again = rig.Finish (rig.session->Enumerate (1, FilePath()));
+
+        AssertSucceeded (again->result);
+        Assert::AreEqual (std::string(), rig.Row (kRow8), L"no error row");
     }
 
 
