@@ -126,15 +126,15 @@ function New-AppleIcon
         $bite = New-Object System.Drawing.Drawing2D.GraphicsPath
         $bite.AddEllipse([single] (0.80 * $s), [single] (0.44 * $s), [single] (0.26 * $s), [single] (0.26 * $s))
 
-        $shape = New-Object System.Drawing.Region($body)
-        $shape.Exclude($bite)
+        $bitten = New-Object System.Drawing.Region($body)
+        $bitten.Exclude($bite)
 
         # The bands, drawn through the body less the bite.
         $top    = 0.26
         $bottom = 0.98
         $band   = ($bottom - $top) / $colors.Stripes.Count
 
-        $graphics.SetClip($shape, [System.Drawing.Drawing2D.CombineMode]::Replace)
+        $graphics.SetClip($bitten, [System.Drawing.Drawing2D.CombineMode]::Replace)
 
         for ($i = 0; $i -lt $colors.Stripes.Count; $i++)
         {
@@ -157,7 +157,7 @@ function New-AppleIcon
         $graphics.ResetClip()
 
         $leaf.Dispose(); $turn.Dispose(); $leafBrush.Dispose(); $leafPen.Dispose()
-        $body.Dispose(); $bite.Dispose(); $shape.Dispose(); $edge.Dispose(); $outline.Dispose()
+        $body.Dispose(); $bite.Dispose(); $bitten.Dispose(); $edge.Dispose(); $outline.Dispose()
 
         $stream = New-Object System.IO.MemoryStream
         $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
