@@ -127,6 +127,7 @@ void DebuggerWindow::AddToolPanes()
             m_toolFrames[pane]->AddPart (m_profilerList,          nullptr, [isFlame] { return !isFlame(); });
             m_toolFrames[pane]->AddPart (m_flameGraph,            nullptr, isFlame);
             m_toolFrames[pane]->SetPartInsetDip (m_profileTimeline, 4);
+            m_toolFrames[pane]->SetPartInsetDip (m_flameGraph,      4);
         }
 
         m_dockSite->AddPane (pane, GetPaneTitle (pane), m_toolFrames[pane].get());

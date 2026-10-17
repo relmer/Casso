@@ -13,8 +13,9 @@
 //
 //  The profile's last frames across the width, newest at the right, each a
 //  bar as tall as its share of a frame's cycles, stacked by routine in the
-//  flame graph's colors, the rest of its cycles in the divider color. A
-//  frame's tip lists its routines.
+//  flame graph's colors for the kColoredRoutines hottest routines, the rest
+//  of its cycles together in the divider color. A frame's tip lists its
+//  routines.
 //
 //  Bounds are pixels, like every Dxui control.
 //
@@ -23,7 +24,8 @@
 class ProfileTimeline : public IDxuiControl
 {
 public:
-    static constexpr int  kHeightDip = 40;
+    static constexpr int     kHeightDip       = 40;
+    static constexpr size_t  kColoredRoutines = 8;
 
     void  SetData (const std::optional<ProfileData> & profile);
 

@@ -181,7 +181,8 @@ void ProfileTimeline::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 //  ProfileTimeline::Paint
 //
 //  A frame's routines are stacked from the bottom in their order in the
-//  routines, so a routine sits at the same height in frame after frame.
+//  routines, hottest first, so a routine sits at the same height in frame
+//  after frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,9 +209,16 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         float                                     x      = GetSlotX (first + i);
         float                                     width  = std::max (1.0f, GetSlotX (first + i + 1) - x);
         float                                     y      = bottom;
+        uint64_t                                  rest   = m_frames[i].other;
 
+        for (const auto & [routine, cycles] : shares)
+        {
+            rest += (routine >= kColoredRoutines) ? cycles : 0;
+        }
+
+        std::erase_if    (shares, [] (const auto & share) { return share.first >= kColoredRoutines; });
         std::stable_sort (shares.begin(), shares.end(), [] (const auto & a, const auto & b) { return a.first < b.first; });
-        shares.push_back ({ SIZE_MAX, m_frames[i].other });
+        shares.push_back ({ SIZE_MAX, rest });
 
         for (const auto & [routine, cycles] : shares)
         {

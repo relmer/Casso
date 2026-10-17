@@ -36,7 +36,7 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
         Byte      read    = 0;
         Byte      write   = 0;
         uint32_t  color   = 0;
-        wchar_t   glyph   = s_kpszFullBlock[0];
+        wchar_t   glyph   = s_kpszHeatBlock[0];
 
         for (size_t i = block * count / blocks; i < (block + 1) * count / blocks; i++)
         {
@@ -47,7 +47,7 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
             write   = std::max (write,   levels.write[address]);
         }
 
-        if (write != 0)
+        if (isTokens && write > read)
         {
             glyph = L'w';
             color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, write, palette);
@@ -56,14 +56,19 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
         {
             color = HeatMapView::GetColor (HeatMapView::Mode::Code, read, 0, 0, palette);
         }
-        else if (read != 0)
+        else if (execute >= std::max (read, write))
         {
-            glyph = L'r';
-            color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, read, 0, palette);
+            color = HeatMapView::GetColor (HeatMapView::Mode::Code, execute, 0, 0, palette);
+        }
+        else if (write >= read)
+        {
+            glyph = L'w';
+            color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, write, palette);
         }
         else
         {
-            color = HeatMapView::GetColor (HeatMapView::Mode::Code, execute, 0, 0, palette);
+            glyph = L'r';
+            color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, read, 0, palette);
         }
 
         strip.colors.push_back ({ (int) strip.text.size(), (int) strip.text.size() + 1, color });

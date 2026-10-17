@@ -14,12 +14,13 @@
 //
 //  The heat columns' strip over a run of bytes in the CPU's address space: a
 //  block per byte, or for a longer run up to kMaxBlocks blocks, each the
-//  hottest of its bytes, in the heat map's colors. A block of a byte read or
-//  written as data is r or w, in the read or write color.
+//  hottest of its bytes, in the heat map's colors. A byte read or written as
+//  data more than it is run is r or w, in the read or write color, as the
+//  heat map colors a byte by the kind that touched it most.
 //
 //  A BASIC line's bytes are its tokens, which the interpreter reads as the
 //  line runs, so for tokens a read is drawn as the line running, a block in
-//  the code color; only a write is a letter.
+//  the code color; only a write hotter than the reads is a letter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
