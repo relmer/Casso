@@ -123,6 +123,13 @@ private:
 
     static bool  IsFromFolder (IDataObject * data, const std::wstring & folder);
 
+    //  Virtual files, a descriptor and each file's contents with no file on
+    //  disk, as from Casso Explorer's own copy out of a disk or a CassoLink
+    //  drive, are pasted through the folder's drop target, as Explorer pastes
+    //  them; IFileOperation takes only real items.
+    static bool     HasOnlyVirtualFiles (IDataObject * data);
+    static HRESULT  DropVirtualFiles    (IDataObject * data, IShellItem * target, const std::wstring & folder, PasteResult & outResult);
+
     //  Hears a file operation out: each item copied or moved and the item it
     //  made. Lives on the caller's stack for the one operation it is advised
     //  to, so its reference count does nothing.

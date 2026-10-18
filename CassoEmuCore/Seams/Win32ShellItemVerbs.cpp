@@ -3192,7 +3192,95 @@ bool Win32ShellItemVerbs::ClipboardHasFiles() const
     //  Files copied from inside a zip come as the shell's item list alone,
     //  with no file list; the shell's paste takes either.
     return IsClipboardFormatAvailable (CF_HDROP) != FALSE
-        || IsClipboardFormatAvailable (RegisterClipboardFormatW (CFSTR_SHELLIDLIST)) != FALSE;
+        || IsClipboardFormatAvailable (RegisterClipboardFormatW (CFSTR_SHELLIDLIST)) != FALSE
+        || IsClipboardFormatAvailable (RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW)) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::HasOnlyVirtualFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellItemVerbs::HasOnlyVirtualFiles (IDataObject * data)
+{
+    FORMATETC  drop        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  items       = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_SHELLIDLIST), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  descriptor  = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+
+
+
+    return data->QueryGetData (&drop) != S_OK && data->QueryGetData (&items) != S_OK && data->QueryGetData (&descriptor) == S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellItemVerbs::DropVirtualFiles
+//
+//  The names made are the descriptor's, in the folder, for the paste's
+//  undo; one the folder had already is renamed by the drop target, and its
+//  new name is not known here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::DropVirtualFiles (IDataObject * data, IShellItem * target, const std::wstring & folder, PasteResult & outResult)
+{
+    HRESULT                      hr      = S_OK;
+    ComPtr<IDropTarget>          drop;
+    FORMATETC                    format  = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                    medium  = {};
+    FILEGROUPDESCRIPTORW       * group   = nullptr;
+    std::vector<bool>            existed;
+    std::vector<std::wstring>    names;
+    POINTL                       point   = {};
+    DWORD                        effect  = DROPEFFECT_COPY;
+
+
+
+    hr = data->GetData (&format, &medium);
+    CHR (hr);
+
+    group = (FILEGROUPDESCRIPTORW *) GlobalLock (medium.hGlobal);
+
+    for (UINT i = 0; group != nullptr && i < group->cItems; i++)
+    {
+        names.push_back ((std::filesystem::path (folder) / group->fgd[i].cFileName).wstring());
+        existed.push_back (std::filesystem::exists (names.back()));
+    }
+
+    GlobalUnlock (medium.hGlobal);
+    ReleaseStgMedium (&medium);
+
+    hr = target->BindToHandler (nullptr, BHID_SFUIObject, IID_PPV_ARGS (&drop));
+    CHR (hr);
+
+    hr = drop->DragEnter (data, MK_LBUTTON, point, &effect);
+    CHR (hr);
+
+    effect = DROPEFFECT_COPY;
+
+    hr = drop->Drop (data, MK_LBUTTON, point, &effect);
+    CHR (hr);
+
+    for (size_t i = 0; i < names.size(); i++)
+    {
+        if (!existed[i] && std::filesystem::exists (names[i]))
+        {
+            outResult.created.push_back (names[i]);
+            outResult.sources.push_back (std::wstring());
+        }
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -3295,6 +3383,13 @@ HRESULT Win32ShellItemVerbs::PasteInto (HWND owner, const std::wstring & folder,
 
     hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&target));
     CHR (hr);
+
+    if (HasOnlyVirtualFiles (data.Get()))
+    {
+        hr = DropVirtualFiles (data.Get(), target.Get(), folder, outResult);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = CreateOperation (owner, &operation);
     CHR (hr);
