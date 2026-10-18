@@ -299,6 +299,57 @@ the same items, and both were captured from the screen.
 | SC-025: a drive | Both: the tree node lit, `Copy to Micron 2TB SSD (F:)`. File Explorer opened the collapsed node after the drag rested on it 970 to 1,086 ms; Casso Explorer did not, and now opens one after a second, measured at 900 to 1,017 ms |
 | SC-025: a disk image | Casso Explorer: the tree node lit, `Copy to dos33.dsk`. Not compared: the File Explorer pass had no disk image among its targets |
 | Tabs | A drag over a tab opens it in both programs |
+### Quickstart 2 to 6 on x64 Release, 2026-10-18
+
+x64 Release after commit `9a37b6ee`, driven with real mouse and key input. The
+images are copies of `UnitTest/Fixtures/CassoExplorer/dos33.dsk` (`a.dsk`,
+`b.dsk`, and `ro.dsk` marked read-only) and `prodos.po` (`p.po`), with a 24-byte
+text file called `broken.dsk`, a text file `plain.txt`, and 8192 random bytes in
+`rand.bin`. Casso was a Release //c of the walk's own, and Casso Explorer was
+opened from its Storage menu. Five defects were found, each fixed and checked
+again on the rebuilt Release, and are listed below the table.
+
+| Check | Result |
+|---|---|
+| §2 The tree | `a.dsk` and `b.dsk` have no expand affordance, `p.po` has one with SUBDIR under it, `broken.dsk` has the broken badge and none |
+| §2 `broken.dsk` | Its tree node's tooltip and the list area both contain `broken.dsk is not a valid .dsk image. File size is 24 bytes but should be 143,360 bytes.` |
+| §2 Lists against `disk list` | `a.dsk`: the same seven entries and types, 94.7 KB free. `p.po`: the same seven entries, SUBDIR among them, 107 KB free |
+| §2 Previews | NOTES as text; ODD, 777 bytes at $0803, as a hex dump, and with Disassemble as 6502 instructions from `ORA $FB66,Y` on, then as the hex dump again; `a.dsk` selected in its folder as its catalog, matching `disk list` |
+| §2 Rename, DOS 3.3 | F2 on HELLO, NOTES typed: `a.dsk: NOTES: is already the name of another file on this volume`. HELLO2 typed: HELLO2 is in `disk list` |
+| §2 Rename, ProDOS | The same on `p.po`: the same refusal, then HELLO2 in `disk list` |
+| §3 Browse, then insert | Browsing `C:\LinkTest\walk` and previewing in it left it out of `KnownFolders.json`. Insert into drive 1 on `a.dsk` put the disk in Casso's drive 1, added the folder to `KnownFolders.json` and to the Casso root |
+| §3 Casso's picker | Insert drive 2 lists `a.dsk`, `p.po` and `broken.dsk` from that folder |
+| §3 Add and Remove | Add to Casso on `out` added it to the file, and Remove from Casso took it out |
+| §4 Between two tabs | ODD dragged from `a.dsk` onto the tab showing `b.dsk`, which opened, and into its list: `ODD (2)`, B at $0803, unlocked, as ODD is; the two read back by `disk get`, `fc /b` no differences |
+| §4 To File Explorer | HELLO2 dropped into a File Explorer window as `HELLO2.Applesoft BASIC.txt`, `fc /b` against `disk get --basic` no differences; PICTURE as `PICTURE.Binary.$2000.bin` |
+| §4 Back onto an image | `PICTURE.Binary.$2000.bin` dropped on `b.dsk`, with `Copy to b.dsk` under the pointer: `PICTURE (2)`, loads at $2000, 8192 bytes, no dialog; read back, `fc /b` no differences |
+| §4 A text file, then random bytes | `plain.txt` on `a.dsk`: PLAIN, type T, no dialog. `rand.bin`: the load address prompt with `$2000` filled in, then RAND, type B |
+| §4 Onto Casso | `b.dsk` dropped on Casso's drive 2 replaced `x.dsk` there |
+| §4 Read-only | Over `ro.dsk`, the no-drop pointer |
+| §5 From Casso's menu | Browse disks in Casso Explorer opened Casso Explorer; chosen again, no second process, and the window came to the front |
+| §5 Insert, Open in new Casso | Insert into drive 1 as in §3. Open in new Casso on `b.dsk`: a second Casso with `b.dsk` in drive 1, the first one's title and disks as they were |
+| §5 A put onto a mounted disk | Paste onto `a.dsk` in drive 1: Casso reloaded it, with `Casso Explorer modified a.dsk and inserted it into Drive 1.` |
+| §6 Keyboard | Ctrl+T, Ctrl+L and a typed path, Down to select, Ctrl+Tab to a tab whose list and selection were as left, Shift+F10 for the menu, Delete moving a file to the Recycle Bin, Ctrl+W closing the tab, F2 and Enter for the renames above |
+
+Not checked on this pass:
+
+- §5 with no Casso running: the only other Casso on the machine belonged to
+  another session, and Insert into Drive 1 would have gone to it.
+- §5 Insert into Drive 2 with a single-drive machine as Casso's default,
+  which means changing the default machine.
+- §6 Windows dark mode under Follow system, a system setting.
+
+Defects found and fixed:
+
+- A broken image in the tree had no tooltip; the node's location is an image,
+  and the lookup used accepted only folders.
+- Disassemble binary was in no menu or toolbar. It is now a toggle on the hex
+  preview's toolbar, which remains visible over the disassembly.
+- A file dropped on a disk image's row from the folder with that image had
+  no effect: the row resolved to the folder, and a drop into the folder its
+  files came from is no drop.
+- A disk changed by Casso Explorer was reported as `CassoCli modified`.
+- The load address prompt's title was in title case.
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
