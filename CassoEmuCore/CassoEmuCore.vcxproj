@@ -243,6 +243,7 @@
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyViews.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgets.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ConsolePanes.cpp" />
+    <ClCompile Include="Ui\Debugger\ViewMenuRows.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
@@ -902,6 +903,7 @@
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyViews.h" />
     <ClInclude Include="Ui\Debugger\Panes\FindWidgets.h" />
     <ClInclude Include="Ui\Debugger\Panes\ConsolePanes.h" />
+    <ClInclude Include="Ui\Debugger\ViewMenuRows.h" />
     <ClInclude Include="Ui\Debugger\Panes\ICodeViews.h" />
     <ClInclude Include="Ui\Debugger\Panes\UndoListPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\WatchesPane.h" />

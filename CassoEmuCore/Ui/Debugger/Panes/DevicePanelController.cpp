@@ -133,6 +133,37 @@ bool DevicePanelController::RequestClose()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DevicePanelController::GetViewMenuRank
+//
+//  A panel has a row while its device is in the machine, in the order the
+//  snapshot lists the machine's panels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> DevicePanelController::GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const
+{
+    if (snapshot == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    for (size_t i = 0; i < snapshot->panels.size(); i++)
+    {
+        if (snapshot->panels[i].id == m_panelId)
+        {
+            return DebuggerLayout::kDevicePanelRank + (int) i;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DevicePanelController::AddToDock
 //
 ////////////////////////////////////////////////////////////////////////////////

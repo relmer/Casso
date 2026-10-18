@@ -420,7 +420,6 @@ protected:
 
     void                                  SetWindowMenus     ();
     void                                  Detach             ();
-    static std::wstring                   GetViewMenuGroup   (const std::wstring & pane);
     void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }

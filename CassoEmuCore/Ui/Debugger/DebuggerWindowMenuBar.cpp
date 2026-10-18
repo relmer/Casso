@@ -16,6 +16,7 @@
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/ViewMenuRows.h"
 
 
 
@@ -150,50 +151,6 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeEditMenuCommand (DxuiStandardCo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetViewMenuGroup
-//
-//  The cascade of the View menu a window's row goes in: the Disassembly
-//  views, the memory windows and the device panels each share one. Empty
-//  for a window that is a row of View itself.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetViewMenuGroup (const std::wstring & pane)
-{
-    std::string  diagnosticsId;
-
-
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        if (pane == DebuggerLayout::GetCodePaneId (view))
-        {
-            return L"Disassembly";
-        }
-    }
-
-    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (window))
-        {
-            return L"Memory";
-        }
-    }
-
-    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
-    {
-        return L"Device panels";
-    }
-
-    return {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::SetWindowMenus
 //
 //  File, Edit, Machine, View, Debug and Tools. View has a row for every
@@ -216,9 +173,6 @@ void DebuggerWindow::SetWindowMenus()
     std::vector<DxuiPopupMenuItem>               schemes;
     std::vector<DxuiPopupMenuItem>               themes;
     std::shared_ptr<DxuiCommand>                 row;
-    std::vector<std::wstring>                    cascades;
-    std::vector<std::vector<DxuiPopupMenuItem>>  cascadeRows;
-    std::vector<size_t>                          cascadeAt;
     auto  add = [this] (std::vector<DxuiPopupMenuItem> & menu, std::shared_ptr<DxuiCommand> command)
     {
         m_menuCommands.push_back (command);
@@ -268,56 +222,17 @@ void DebuggerWindow::SetWindowMenus()
     add (edit, MakeKeyedMenuCommand ((int) DebuggerKeySchemes::Action::FindNext,     L"Find next"));
     add (edit, MakeKeyedMenuCommand ((int) DebuggerKeySchemes::Action::FindPrevious, L"Find previous"));
 
-    //  View: every debug window, the shown ones checked. The windows that
-    //  come in several instances, and the device panels, fold into a cascade
-    //  each, placed where the first of them would have been.
-    for (const std::wstring & pane : GetViewMenuPanes())
-    {
-        std::wstring  group = GetViewMenuGroup (pane);
-        std::wstring  title = GetPaneTitle (pane);
-        size_t        index = 0;
+    //  View: every debug window, the shown ones checked.
+    view = ViewMenuRows::Build (m_panes, m_snapshot.get(),
+                                [this] (const std::wstring & pane)
+                                {
+                                    std::optional<DebuggerKeySchemes::Action>  action = DebuggerKeySchemes::GetActionOfPane (pane);
 
-        //  Among its siblings the first view carries its number too.
-        if (pane == DebuggerLayout::kCode)
-        {
-            title += L" 1";
-        }
-
-        row            = DebuggerMenuCommand::Make (title, false, [this, pane] { ShowPane (pane); });
-        row->isChecked = [this, pane] { return IsPaneShown (pane); };
-
-        //  The pane's key in the scheme in force, as the Debug menu's rows
-        //  have theirs.
-        if (DebuggerKeySchemes::GetActionOfPane (pane).has_value())
-        {
-            row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *DebuggerKeySchemes::GetActionOfPane (pane));
-        }
-
-        if (group.empty())
-        {
-            add (view, row);
-            continue;
-        }
-
-        index = (size_t) (std::find (cascades.begin(), cascades.end(), group) - cascades.begin());
-
-        if (index == cascades.size())
-        {
-            cascades.push_back    (group);
-            cascadeRows.push_back ({});
-            cascadeAt.push_back   (view.size());
-            view.push_back        (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        add (cascadeRows[index], row);
-    }
-
-    for (size_t i = 0; i < cascades.size(); i++)
-    {
-        row = DebuggerMenuCommand::Make (cascades[i], false, [] {});
-        m_menuCommands.push_back (row);
-        view[cascadeAt[i]] = DxuiPopupMenuItem::ForSubmenu (row, std::move (cascadeRows[i]));
-    }
+                                    return action.has_value() ? DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *action) : std::wstring();
+                                },
+                                [this] (const std::wstring & pane) { ShowPane (pane); },
+                                [this] (const std::wstring & pane) { return IsPaneShown (pane); },
+                                m_menuCommands);
 
     //  View ends with the arrangement put back as it first was.
     view.push_back (DxuiPopupMenuItem::ForSeparator());

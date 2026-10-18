@@ -34,6 +34,7 @@ public:
     bool                             RequestOpen    () override;
     bool                             RequestClose   () override;
     bool                             IsFixed        () const override { return false; }
+    std::optional<int>               GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
     void                             AddToDock      (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent     () const override;
     std::vector<IDxuiControl *>      GetControls    () const override;

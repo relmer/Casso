@@ -402,6 +402,126 @@ std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerLayout::GetViewMenuRank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
+{
+    static const std::pair<const wchar_t *, int>  kFixed[] =
+    {
+        { kRegisters,    100 },
+        { kStack,        101 },
+        { kCallStack,    102 },
+        { kBreakpoints,  120 },
+        { kWatches,      121 },
+        { kTrace,        122 },
+        { kHeatMap,      123 },
+        { kHeatRanges,   124 },
+        { kDiskLog,      125 },
+        { kInputLog,     126 },
+        { kBasicProgram, 127 },
+        { kConsole,      150 },
+    };
+    std::vector<std::wstring>  tools = GetToolPaneIds();
+    std::string                diagnosticsId;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == GetCodePaneId (view))
+        {
+            return view;
+        }
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (pane == GetSourcePaneId (slot))
+        {
+            return 10 + slot;
+        }
+    }
+
+    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        if (pane == GetMemoryPaneId (window))
+        {
+            return 110 + window;
+        }
+    }
+
+    for (const auto & [id, rank] : kFixed)
+    {
+        if (pane == id)
+        {
+            return rank;
+        }
+    }
+
+    for (size_t i = 0; i < tools.size(); i++)
+    {
+        if (pane == tools[i])
+        {
+            return 130 + (int) i;
+        }
+    }
+
+    if (TryGetDiagnosticsId (pane, diagnosticsId))
+    {
+        return kDevicePanelRank;
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetViewMenuGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerLayout::GetViewMenuGroup (const std::wstring & pane)
+{
+    std::string  diagnosticsId;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        if (pane == GetCodePaneId (view))
+        {
+            return L"Disassembly";
+        }
+    }
+
+    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    {
+        if (pane == GetMemoryPaneId (window))
+        {
+            return L"Memory";
+        }
+    }
+
+    if (TryGetDiagnosticsId (pane, diagnosticsId))
+    {
+        return L"Device panels";
+    }
+
+    return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerLayout::IsOpenedLater
 //
 ////////////////////////////////////////////////////////////////////////////////

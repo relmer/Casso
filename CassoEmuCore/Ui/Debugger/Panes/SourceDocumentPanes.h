@@ -50,6 +50,7 @@ public:
     void                             Configure      () override;
     bool                             TryGetOpened   (bool & isOpened) const override { isOpened = m_isShown; return true; }
     bool                             IsFixed        () const override { return false; }
+    std::optional<int>               GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
     void                             AddToDock      (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent     () const override;
     std::vector<IDxuiControl *>      GetControls    () const override;

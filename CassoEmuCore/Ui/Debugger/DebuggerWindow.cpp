@@ -26,6 +26,7 @@
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/ConsolePanes.h"
+#include "Ui/Debugger/ViewMenuRows.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
@@ -2336,65 +2337,13 @@ bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
 //
 //  DebuggerWindow::GetViewMenuPanes
 //
-//  What the View menu lists, in its order: the Disassembly views and the
-//  open source documents, then the tool windows, then the device panels of
-//  the machine's devices.
+//  What the View menu lists, in its order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 {
-    std::vector<std::wstring>  panes;
-
-
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        panes.push_back (DebuggerLayout::GetCodePaneId (view));
-    }
-
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        if (m_sources->IsOpen (slot))
-        {
-            panes.push_back (DebuggerLayout::GetSourcePaneId (slot));
-        }
-    }
-
-    panes.push_back (DebuggerLayout::kRegisters);
-    panes.push_back (DebuggerLayout::kStack);
-    panes.push_back (DebuggerLayout::kCallStack);
-
-    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
-    {
-        panes.push_back (DebuggerLayout::GetMemoryPaneId (window));
-    }
-
-    panes.push_back (DebuggerLayout::kBreakpoints);
-    panes.push_back (DebuggerLayout::kWatches);
-    panes.push_back (DebuggerLayout::kTrace);
-    panes.push_back (DebuggerLayout::kHeatMap);
-    panes.push_back (DebuggerLayout::kHeatRanges);
-    panes.push_back (DebuggerLayout::kDiskLog);
-    panes.push_back (DebuggerLayout::kInputLog);
-    panes.push_back (DebuggerLayout::kBasicProgram);
-
-    for (const std::wstring & tool : DebuggerLayout::GetToolPaneIds())
-    {
-        panes.push_back (tool);
-    }
-
-    panes.push_back (DebuggerLayout::kConsole);
-
-    if (m_snapshot != nullptr)
-    {
-        for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
-        {
-            panes.push_back (DebuggerLayout::GetDiagnosticsPaneId (panel.id));
-        }
-    }
-
-    return panes;
+    return ViewMenuRows::GetPanes (m_panes, m_snapshot.get());
 }
 
 
@@ -5172,27 +5121,12 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
 
 std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
 {
-    if (pane == DebuggerLayout::kCode)        { return L"Disassembly"; }
-    if (pane == DebuggerLayout::kConsole)     { return L"Console";     }
-    if (pane == DebuggerLayout::kRegisters)   { return L"Registers";   }
-    if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }
-    if (pane == DebuggerLayout::kWatches)     { return L"Watches";     }
-    if (pane == DebuggerLayout::kStack)       { return L"Stack";       }
-    if (pane == DebuggerLayout::kCallStack)   { return L"Call stack";  }
-    if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
-    if (pane == DebuggerLayout::kHeatMap)     { return L"Heat map";    }
-    if (pane == DebuggerLayout::kHeatRanges)  { return L"Heat map ranges"; }
-    if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
-    if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
-    if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
-    if (FindPane (pane) != nullptr)              { return FindPane (pane)->GetTitle(); }
-
-    if (pane.starts_with (L"code"))
+    if (pane == DebuggerLayout::kCode)
     {
-        return L"Disassembly " + pane.substr (4);
+        return L"Disassembly";
     }
 
-    return pane.starts_with (L"memory") ? L"Memory " + pane.substr (6) : pane;
+    return (FindPane (pane) != nullptr) ? FindPane (pane)->GetTitle() : pane;
 }
 
 

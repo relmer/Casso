@@ -3,6 +3,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
@@ -323,6 +324,11 @@ public:
     //  The pane's layout id, as DebuggerLayout has it, and its tab's title.
     virtual std::wstring                 GetId          () const = 0;
     virtual std::wstring                 GetTitle       () const = 0;
+
+    //  Where the pane's row is on the View menu, none while it has no row;
+    //  and the cascade the row goes in, empty for a row of View itself.
+    virtual std::optional<int>           GetViewMenuRank  (const DebuggerViewSnapshot * snapshot) const { (void) snapshot; return DebuggerLayout::GetViewMenuRank (GetId()); }
+    virtual std::wstring                 GetViewMenuGroup () const { return DebuggerLayout::GetViewMenuGroup (GetId()); }
 
     //  The boxes the pane lays over its cells, which stay the window's last
     //  children so they paint over the dock.

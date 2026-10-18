@@ -126,6 +126,25 @@ void SourceDocumentPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceDocumentPane::GetViewMenuRank
+//
+//  A document has a row only while it has a file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> SourceDocumentPane::GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const
+{
+    (void) snapshot;
+
+    return m_group.IsOpen (m_slot) ? DebuggerLayout::GetViewMenuRank (GetId()) : std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceDocumentPane::AddToDock
 //
 //  The toolbar, a place PlaceBar fills, and the banner over the text. Its
