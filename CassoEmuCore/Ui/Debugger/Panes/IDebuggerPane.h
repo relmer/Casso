@@ -141,6 +141,15 @@ public:
     virtual void                   UpdateTooltip    (POINT clientPx) = 0;
     virtual bool                   IsTooltipVisible () const = 0;
 
+    //  Whether a pane is open and not closed from its close button, as the
+    //  View menu's check has it.
+    virtual bool                   IsPaneOpen       (const std::wstring & pane) const = 0;
+
+    //  The control with the keyboard focus, and the step that moves it to the
+    //  command line, for a pane whose focused control is hidden.
+    virtual IDxuiControl         * GetFocusedControl () const = 0;
+    virtual void                   FocusDefault     () = 0;
+
     //  Paints the window again at its next frame, or once the messages
     //  waiting are handled, so a burst of input is taken before the paint.
     virtual void                   Repaint          () = 0;
@@ -206,6 +215,15 @@ public:
     virtual std::vector<DxuiListView *>  GetLists       () const { return {}; }
     virtual std::vector<DxuiToolbar *>   GetBars        () const { return {}; }
 
+    //  The pane's controls a press is offered to ahead of the lists, and its
+    //  text boxes, which follow the pointer and type the characters typed.
+    virtual std::vector<IDxuiControl *>  GetPressTargets () const { return {}; }
+    virtual std::vector<DxuiTextInput *> GetTextBoxes   () const { return {}; }
+
+    //  Whether the pane saves its lists' column widths in its own settings,
+    //  in place of the debug project's.
+    virtual bool                         HasOwnColumnWidths () const { return false; }
+
     //  The pane's info button, none for a pane without one.
     virtual std::optional<PaneColorKeySpec>  GetColorKey () const { return std::nullopt; }
 
@@ -214,8 +232,13 @@ public:
     //  Moves what moves between snapshots; true while something does.
     virtual bool                         Tick           (int64_t nowMs) { (void) nowMs; return false; }
 
-    //  Reads the pane's settings again after another debug project opens.
+    //  Reads the pane's settings again after another debug project opens,
+    //  and saves what it has to as the window closes.
     virtual void                         OnProjectSwitched () {}
+    virtual void                         OnWindowClose  () {}
+
+    //  The machine's log events sent since the last frame, each frame.
+    virtual void                         ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) { (void) deltas; (void) isWindowVisible; }
 
     //  Lays the pane's bar out in its slot, in the window the pane is in.
     virtual void                         PlaceBar       () {}
@@ -238,11 +261,17 @@ public:
     virtual const wchar_t              * GetBarTip      (POINT clientPx, RECT & anchor) const { (void) clientPx; (void) anchor; return nullptr; }
     virtual bool                         TryGetTip      (POINT clientPx, PaneTip & tip) { (void) clientPx; (void) tip; return false; }
 
+    //  Whether a cell's tip at a point lines up in columns.
+    virtual bool                         IsMonospaceTipAt (POINT clientPx) const { (void) clientPx; return false; }
+
     //  A list row's context menu, Copy among its rows where the list copies,
     //  false for a list not the pane's; and the menu on what the pane draws
     //  under a point.
     virtual bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) { (void) list; (void) row; (void) items; return false; }
     virtual void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) { (void) clientPx; (void) items; }
+
+    //  A list's menu on its headings, false for a list not the pane's.
+    virtual bool                         AddColumnMenuItems  (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) { (void) list; (void) commands; return false; }
 
 protected:
     IDebuggerPaneHost  & m_host;

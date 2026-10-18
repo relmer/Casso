@@ -343,7 +343,7 @@
     <ClCompile Include="Ui\Debugger\Panes\InputLogPane.cpp" />
     <ClCompile Include="Ui\Debugger\TrackSectorPredicate.cpp" />
     <ClCompile Include="Ui\Debugger\ToolbarBoxEntry.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowEventLogs.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\EventLogControllers.cpp" />
     <ClCompile Include="Debugger\SymbolTable.cpp" />
     <ClCompile Include="Debugger\Source\SourcePathList.cpp" />
     <ClCompile Include="Debugger\Source\SourceService.cpp" />
@@ -876,6 +876,7 @@
     <ClInclude Include="Ui\Debugger\Panes\IDebuggerPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatRangesPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\EventLogControllers.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
     <ClInclude Include="Ui\Debugger\Panes\ProfileTimeline.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />

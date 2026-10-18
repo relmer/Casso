@@ -3,6 +3,8 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
@@ -40,6 +42,8 @@ void DebuggerWindow::CreatePanes()
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
+    m_panes.push_back (std::make_unique<DiskLogController>  (host));
+    m_panes.push_back (std::make_unique<InputLogController> (host));
     m_panes.push_back (std::make_unique<SymbolsPane>    (host));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
@@ -74,6 +78,116 @@ IDebuggerPane * DebuggerWindow::FindPane (const std::wstring & pane) const
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenEventLog
+//
+//  The pane in front, opened for good: it comes back open with the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenEventLog (DebugLogKind kind)
+{
+    ShowPane ((kind == DebugLogKind::Disk) ? DebuggerLayout::kDiskLog : DebuggerLayout::kInputLog);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyLogDeltas
+//
+//  Each frame, the log events the machine's thread sent, to every pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyLogDeltas()
+{
+    DebugLogDeltas  deltas;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    m_host->TakeDebuggerEventLogs (deltas);
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->ApplyLogDeltas (deltas, IsVisible());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HasOwnColumnWidths
+//
+//  Whether a list is a pane's whose column widths are saved in its own
+//  settings, as an event log's are, not with the debug project.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::HasOwnColumnWidths (const DxuiListView * list) const
+{
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        if (pane->HasOwnColumnWidths() && std::ranges::count (pane->GetLists(), list) > 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTextBox
+//
+//  Whether a control is a box that types: the command line, the Address box
+//  or a pane's own box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTextBox (const IDxuiControl * control) const
+{
+    if (control == nullptr)
+    {
+        return false;
+    }
+
+    if (control == m_commandBox || control == m_memoryBox)
+    {
+        return true;
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        if (std::ranges::count (pane->GetTextBoxes(), control) > 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

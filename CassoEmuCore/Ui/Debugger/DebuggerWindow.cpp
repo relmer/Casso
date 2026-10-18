@@ -323,7 +323,6 @@ void DebuggerWindow::OnCreate()
         list->SetVisible (false);
     }
 
-    CreateEventLogs();
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -403,7 +402,6 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureMemoryBar();
     ConfigureBreakpointBar();
     ConfigureUndoBars();
-    ConfigureEventLogs();
     ConfigureBasicPanes();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -606,7 +604,7 @@ void DebuggerWindow::ConfigureWidgets()
     //  project; the event logs' are in their own options.
     for (DxuiListView * list : GetLists())
     {
-        if (list != m_diskLog.list && list != m_inputLog.list)
+        if (!HasOwnColumnWidths (list))
         {
             list->SetOnColumnResized ([this, list] (int, int)
             {
@@ -1122,7 +1120,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
+                                           m_traceList, m_basicProgramList };
 
 
 
@@ -1156,7 +1154,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
     std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
-                                           m_diskLog.list, m_inputLog.list, m_basicProgramList };
+                                           m_basicProgramList };
 
 
 
@@ -1357,7 +1355,12 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetPressTargets(), std::back_inserter (targets));
+    }
 
     //  Every pane's find widget, open or not, its buttons before its box: the
     //  option toggles lie inside the box, and a press on one is the toggle's.
@@ -2696,11 +2699,22 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
         if (focused != nullptr && focused == box)
         {
             return box;
+        }
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (DxuiTextInput * box : pane->GetTextBoxes())
+        {
+            if (focused != nullptr && focused == box)
+            {
+                return box;
+            }
         }
     }
 
@@ -4326,14 +4340,9 @@ void DebuggerWindow::OnWindowClose()
     SavePlacementIfMoved();
     SaveFocusedPane();
 
-    //  The logs' column widths, which a drag changes without telling; and
-    //  the machine's thread stops sending deltas until the window opens.
-    if (m_diskLogPane != nullptr)
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        SaveEventLogOptions (DebugLogKind::Disk);
-        SaveEventLogOptions (DebugLogKind::Input);
-        m_diskLogPane->SetShown  (false);
-        m_inputLogPane->SetShown (false);
+        pane->OnWindowClose();
     }
 
     Hide();
@@ -4459,7 +4468,6 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceBreakpointBar();
-    PlaceEventLogBars();
     PlaceUndoBars();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -5255,30 +5263,6 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
-    //  The event logs are each their bar over their rows; between them, the
-    //  Disk II log has a line listing the filter tokens not taken, only when
-    //  there are any.
-    for (EventLogWidgets * log : { &m_diskLog, &m_inputLog })
-    {
-        bool  isDisk = log == &m_diskLog;
-
-        log->slot  = std::make_unique<DebuggerPaneFrame> (L"Event log commands");
-        log->frame = std::make_unique<DebuggerPaneFrame> (isDisk ? L"Disk II log" : L"Input log");
-        log->frame->AddPart (log->slot.get(), barHeight);
-
-        if (isDisk)
-        {
-            log->frame->AddPart (m_diskLogError, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); },
-                                 [this] { return !m_diskLogError->GetText().empty(); });
-            log->frame->SetPartTextAligned (m_diskLogError);
-        }
-
-        log->frame->AddPart (log->list);
-    }
-
-    m_dockSite->AddPane (DebuggerLayout::kDiskLog,  L"Disk II log", m_diskLog.frame.get());
-    m_dockSite->AddPane (DebuggerLayout::kInputLog, L"Input log",   m_inputLog.frame.get());
-
     AddBasicPanes();
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -5394,10 +5378,6 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
         return m_basicOpened.contains (pane);
     }
 
-    if (GetEventLogOf (pane) != nullptr)
-    {
-        return GetEventLogOf (pane)->isOpened;
-    }
 
     if (GetSourceSlotOf (pane) >= 0)
     {
@@ -5865,13 +5845,6 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     if (DebuggerLayout::IsOpenedLater (pane))
     {
         m_basicOpened.insert (pane);
-    }
-
-    //  The event logs the same, with their options.
-    if (GetEventLogOf (pane) != nullptr && !GetEventLogOf (pane)->isOpened)
-    {
-        GetEventLogOf (pane)->isOpened = true;
-        SaveEventLogOptions ((pane == DebuggerLayout::kDiskLog) ? DebugLogKind::Disk : DebugLogKind::Input);
     }
 
     if (!IsPaneShown (pane))
@@ -6384,22 +6357,23 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
         return false;
     }
 
-    if (list != m_breakpointList && list != m_diskLog.list && list != m_inputLog.list)
+    if (list == m_breakpointList)
+    {
+        AddBreakpointColumnItems (commands);
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        (void) pane->AddColumnMenuItems (list, commands);
+    }
+
+    if (commands.empty())
     {
         return false;
     }
 
     m_menuCommands.clear();
     SetWindowMenus();
-
-    if (list == m_breakpointList)
-    {
-        AddBreakpointColumnItems (commands);
-    }
-    else
-    {
-        AddEventLogColumnItems (list, commands);
-    }
 
     for (const std::shared_ptr<DxuiCommand> & command : commands)
     {
@@ -7004,10 +6978,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
     }
-    else if (list == m_diskLog.list || list == m_inputLog.list)
-    {
-        AddEventLogMenuItems (list, row, items);
-    }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
         const DebuggerViewSnapshot::BreakpointLine  bp     = *GetBreakpointOfRow (row);
@@ -7278,7 +7248,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -7340,7 +7310,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     m_tracePane->FollowScroll();
-    ApplyEventLogs();
+    ApplyLogDeltas();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -7356,7 +7326,6 @@ void DebuggerWindow::RenderFrame()
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
-    PlaceEventLogBars();
     PlaceUndoBars();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -9485,7 +9454,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -9577,16 +9546,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
     {
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  And the event logs'.
-    for (auto [log, logPane] : { std::pair { &m_diskLog, DebuggerLayout::kDiskLog }, std::pair { &m_inputLog, DebuggerLayout::kInputLog } })
-    {
-        if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (logPane) &&
-            log->bar != nullptr && log->bar->IsVisible())
-        {
-            barTip = log->bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-        }
     }
 
     //  And the registers, stack and watch panes'.
@@ -9754,7 +9713,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_operandColorTip = m_hasOperandTip ? &tip : nullptr;
 
         //  A sector's hex dump in the Disk II log lines up in columns.
-        tip.SetMonospace (m_diskLog.list->IsVisible() && DxuiDockSite::Contains (m_diskLog.list->GetBounds(), clientPx));
+        tip.SetMonospace (std::ranges::any_of (m_panes, [clientPx] (const std::unique_ptr<IDebuggerPane> & pane) { return pane->IsMonospaceTipAt (clientPx); }));
 
         //  Under the operand tip when there is one, so the two stack.
         if (m_hasOperandTip)
@@ -12183,12 +12142,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Then the event logs'.
-    if (RouteEventLogBarMouse (ev))
-    {
-        return true;
-    }
-
     //  Then the registers, stack and watch panes' Undo and Redo.
     if (RouteUndoBarMouse (ev))
     {
@@ -12329,11 +12282,22 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         HoverGutter   (ev.positionDip);
         DragPcMarker  (ev.positionDip);
 
-        for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
+        for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
         {
             if (IsRoutable (box))
             {
                 box->SetMouseHover (x, y);
+            }
+        }
+
+        for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+        {
+            for (DxuiTextInput * box : each->GetTextBoxes())
+            {
+                if (IsRoutable (box))
+                {
+                    box->SetMouseHover (x, y);
+                }
             }
         }
 
@@ -12553,8 +12517,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
-    if (pane == DebuggerLayout::kDiskLog)     { return { m_diskLog.slot.get(), m_diskLogError, m_diskLog.list, m_diskLog.bar, m_diskTrackBox, m_diskSectorBox }; }
-    if (pane == DebuggerLayout::kInputLog)    { return { m_inputLog.slot.get(), m_inputLog.list, m_inputLog.bar }; }
 
     if (DebuggerLayout::IsBasicPane (pane))
     {
@@ -12624,11 +12586,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kTrace)
     {
         return m_traceFrame.get();
-    }
-
-    if (GetEventLogOf (pane) != nullptr)
-    {
-        return GetEventLogOf (pane)->frame.get();
     }
 
     if (DebuggerLayout::IsBasicPane (pane))
@@ -14562,12 +14519,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  Ctrl+C in an event log copies its selected rows.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'C' && CopyEventLog (focused, false))
-    {
-        return true;
-    }
-
     //  Ctrl+C with nothing selected in the command line copies what is
     //  selected in the output above it, where a click leaves the focus.
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && ev.ctrl && !ev.alt && ev.vk == 'C' &&
@@ -14640,7 +14591,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  floating window keeps its own focused flag after a click back here.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return (focused == m_commandBox || focused == m_memoryBox || focused == m_diskTrackBox || focused == m_diskSectorBox) && focused->OnKey (ev);
+        return IsTextBox (focused) && focused->OnKey (ev);
     }
 
     //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).

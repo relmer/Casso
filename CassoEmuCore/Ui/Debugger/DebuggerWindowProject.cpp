@@ -325,10 +325,6 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         pane->OnProjectSwitched();
     }
 
-    m_diskLogPane->SetOptionsText  (m_host->GetDebuggerEventLogOptions (DebugLogKind::Disk));
-    m_inputLogPane->SetOptionsText (m_host->GetDebuggerEventLogOptions (DebugLogKind::Input));
-    m_diskLog.isOpened  = m_host->GetDebuggerEventLogOptions (DebugLogKind::Disk).find ("open=1")  != std::string::npos;
-    m_inputLog.isOpened = m_host->GetDebuggerEventLogOptions (DebugLogKind::Input).find ("open=1") != std::string::npos;
 
     if (!GetSavedFocusPane().empty())
     {

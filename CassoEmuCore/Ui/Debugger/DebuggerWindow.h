@@ -1212,33 +1212,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
 
-    //  The Disk II event log and the input log, each its bar over its list.
-    //  The Disk II log's bar has its track and sector boxes, and a line under
-    //  it lists the tokens not taken. Each pane is closed until the user
-    //  first opens it; its options text then has "open=1".
-    struct EventLogWidgets
-    {
-        DxuiListView                               * list     = nullptr;
-        DxuiToolbar                                * bar      = nullptr;
-        std::unique_ptr<DebuggerPaneFrame>           frame;
-        std::unique_ptr<DebuggerPaneFrame>           slot;
-        std::vector<std::shared_ptr<DxuiCommand>>    commands;
-        bool                                         isOpened = false;
-    };
-
-    static constexpr int                         kEventLogBoxDip    = 90;
-    static constexpr int                         kTrackLabelDip     = 48;
-    static constexpr int                         kSectorLabelDip    = 56;
-    EventLogWidgets                              m_diskLog;
-    EventLogWidgets                              m_inputLog;
-    std::unique_ptr<DiskLogPane>                 m_diskLogPane;
-    std::unique_ptr<InputLogPane>                m_inputLogPane;
-    DxuiLabel                                  * m_diskLogError     = nullptr;
-    DxuiTextInput                              * m_diskTrackBox     = nullptr;
-    DxuiTextInput                              * m_diskSectorBox    = nullptr;
-    std::unique_ptr<ToolbarBoxEntry>             m_diskTrackEntry;
-    std::unique_ptr<ToolbarBoxEntry>             m_diskSectorEntry;
-
     //  The BASIC program pane (DebuggerWindowBasic.cpp), whether it was
     //  opened, and the line it last scrolled to, and whether the Watches
     //  pane's BASIC variables heading is expanded.
@@ -1274,6 +1247,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiPanel          & GetControlParent       () override { return *this; }
     void                 GoToCode               (Word address) override { ShowCode (address); }
     IDebuggerWindowHost * GetWindowHost         () override { return m_host; }
+    bool                 IsPaneOpen             (const std::wstring & pane) const override { return IsPaneShown (pane); }
+    IDxuiControl       * GetFocusedControl      () const override { return m_focusMgr.GetFocusedControl(); }
+    void                 FocusDefault           () override { m_focusMgr.SetFocused (m_commandBox); }
     const DxuiTheme    * GetTheme               () const override { return m_theme; }
     void                 OpenPane               (const std::wstring & pane) override { ShowPane (pane); }
     void                 ShowMemoryAddress      (Word address) override;
@@ -1303,24 +1279,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DebuggerPaneFrame            * GetBasicFrame         (const std::wstring & pane) const;
     DxuiListView                 * GetBasicList          (const std::wstring & pane) const;
 
-    void                     CreateEventLogs          ();
-    void                     ConfigureEventLogs       ();
-    void                     SetEventLogBarEntries    ();
-    void                     SetEventLogMenus         ();
-    void                     PlaceEventLogBars        ();
-    void                     PlaceEventLogBar         (EventLogWidgets & log, const std::wstring & pane);
-    bool                     RouteEventLogBarMouse    (const DxuiMouseEvent & ev);
-    void                     ApplyEventLogs           ();
-    void                     ReadEventLogBoxes        ();
-    void                     SaveEventLogOptions      (DebugLogKind kind);
-    bool                     CopyEventLog             (IDxuiControl * focused, bool isAll);
-
-    EventLogWidgets        * GetEventLogOf            (const std::wstring & pane);
-    const EventLogWidgets  * GetEventLogOf            (const std::wstring & pane) const;
-    void                     AddEventLogMenuItems     (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    void                     AddEventLogColumnItems   (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands);
     void                     AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands);
     bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);
+    bool                     HasOwnColumnWidths       (const DxuiListView * list) const;
+    bool                     IsTextBox                (const IDxuiControl * control) const;
+    void                     ApplyLogDeltas           ();
 
     std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>           m_memoryPanes;
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryFrames;
