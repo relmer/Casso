@@ -92,7 +92,8 @@ DebuggerWindow::DebuggerWindow() :
     m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
     m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); })),
-    m_floating    (std::make_unique<FloatingPanes> (static_cast<IFloatingPanesHost &> (*this)))
+    m_floating    (std::make_unique<FloatingPanes> (static_cast<IFloatingPanesHost &> (*this))),
+    m_colorKeys   (std::make_unique<PaneColorKeys> (static_cast<IColorKeysHost &> (*this)))
 {
 }
 
@@ -205,7 +206,7 @@ void DebuggerWindow::OnCreate()
 
     ConfigureWidgets();
     ConfigureDockSite();
-    CreateColorKeys();
+    m_colorKeys->Create (m_panes);
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -1518,7 +1519,7 @@ void DebuggerWindow::LayoutWidgets()
         pane->PlaceBar();
     }
 
-    PlaceColorKeys();
+    m_colorKeys->Place();
     m_finds->Place();
     ClipPaneControls();
 
@@ -1828,7 +1829,7 @@ std::wstring DebuggerWindow::GetBarRoutingPane (const std::wstring & pane) const
 //
 //  Each pane's controls paint inside the pane, so nothing a control draws
 //  past its edge lands on a neighbor. The pane's info button is left out:
-//  it sits in the pane's title bar, outside the body, and PlaceColorKeys
+//  it is in the pane's title bar, outside the body, and PaneColorKeys::Place
 //  clips it to its own place.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3024,7 +3025,7 @@ void DebuggerWindow::RenderFrame()
         pane->PlaceBar();
     }
 
-    PlaceColorKeys();
+    m_colorKeys->Place();
     m_finds->Place();
     ClipPaneControls();
 
@@ -3745,6 +3746,7 @@ bool DebuggerWindow::IsOperandTipCovered (
 {
     bool  isMain    = m_floating->GetRoutingPane().empty();
     bool  isCovered = false;
+    RECT  pinned    = {};
 
 
 
@@ -3755,9 +3757,7 @@ bool DebuggerWindow::IsOperandTipCovered (
                               m_dockSite->GetSlidPane() != DebuggerLayout::GetCodePaneId (view) &&
                               Meets (m_dockSite->GetSlidRect(), clientPx, tipRect));
 
-    isCovered = isCovered || (m_colorKeyOwner != nullptr && m_colorKeyPopup.IsShown() && m_colorKeyPopup.IsHeld() &&
-                              GetBarRoutingPane (m_colorKeyOwner->GetPane()) == m_floating->GetRoutingPane() &&
-                              Meets (m_colorKeyPopup.GetRect(), clientPx, tipRect));
+    isCovered = isCovered || (m_colorKeys->TryGetPinnedRect (pinned) && Meets (pinned, clientPx, tipRect));
 
     isCovered = isCovered || m_finds->Overlaps (clientPx, tipRect);
 
@@ -4523,7 +4523,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     //  The panes' info buttons first: they sit at the ends of the toolbars.
-    if (RouteColorKeyMouse (ev))
+    if (m_colorKeys->RouteMouse (ev))
     {
         return true;
     }
@@ -5492,9 +5492,9 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     //  A pane's color key, while it is up, closes on Escape.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && m_colorKeyPopup.IsShown())
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && m_colorKeys->IsShown())
     {
-        HideColorKey();
+        m_colorKeys->Hide();
         return true;
     }
 

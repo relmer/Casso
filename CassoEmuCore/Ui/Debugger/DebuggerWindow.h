@@ -51,6 +51,7 @@
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/FloatingPanes.h"
+#include "Ui/Debugger/PaneColorKeys.h"
 #include "Ui/Debugger/TooltipCoordinator.h"
 #include "Ui/Chrome/CassoTheme.h"
 
@@ -109,7 +110,7 @@ class TracePaneController;
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
-                       private IFloatingPanesHost
+                       private IFloatingPanesHost, private IColorKeysHost
 {
 public:
     DebuggerWindow();
@@ -443,8 +444,8 @@ protected:
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
 
     //  A pane's info button, and the color key it opens.
-    ColorKeyButton *       GetColorKey      (const std::wstring & pane) const;
-    const ColorKeyPopup &  GetColorKeyPopup () const { return m_colorKeyPopup; }
+    ColorKeyButton *       GetColorKey      (const std::wstring & pane) const { return m_colorKeys->Find (pane); }
+    const ColorKeyPopup &  GetColorKeyPopup () const { return m_colorKeys->GetPopup(); }
     bool                 IsAnyMenuOpen () const override;
 
     //  Protected so a test can read the status bar as a frame leaves it, and
@@ -469,7 +470,7 @@ protected:
     bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const { return m_tips->TryGetCellTip (clientPx, anchor, text); }
     bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
     bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const override;
-    ColorLegend::Palette  GetColorPalette  () const;
+    ColorLegend::Palette  GetColorPalette  () const override;
 
     //  Protected so a test can lay out the tip over a disassembly row's
     //  operand and result where the pane cuts them off, measured by a
@@ -968,34 +969,15 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::vector<IDxuiControl *>  GetLastChildren      () const;
     void                     ApplyLogDeltas           ();
 
-    //  Each pane whose colors mean something has an info button at the end of
-    //  its toolbar, in a band of its own where the pane has no toolbar (the
-    //  call stack, a device panel with a memory map or a disk head), and one
-    //  popup shows the key of the button the pointer rests on or that was
-    //  pressed. A legend function gives the key of a pane whose colors depend
-    //  on what it shows, or none to hide the button.
-    struct PaneColorKey
-    {
-        ColorKeyButton                                     * button = nullptr;
-        DebuggerPaneFrame                                  * slot   = nullptr;
-        std::function<std::optional<ColorLegend::Pane> ()>   legend;
-    };
+    //  The panes' info buttons and the color key they open, and the window's
+    //  calls for them (IColorKeysHost).
+    std::unique_ptr<PaneColorKeys>  m_colorKeys;
 
-    std::vector<PaneColorKey>              m_colorKeys;
-    ColorKeyPopup                          m_colorKeyPopup;
-    ColorKeyButton                       * m_colorKeyOwner = nullptr;
-    ColorKeyButton                       * m_colorKeyHover = nullptr;
+    ColorKeyButton  * CreateColorKeyButton (const std::wstring & pane, ColorLegend::Pane legend) override { return CreateChild<ColorKeyButton> (pane, legend); }
+    DxuiDockSite    * FindDockSiteOf       (const std::wstring & pane) const override { return m_floating->Contains (pane) ? m_floating->FindSite (pane) : m_dockSite; }
+    void              HideRoutedTip        () override { GetRoutedTooltip().HideImmediate(); }
+    RECT              GetBarStrip          (const std::wstring & pane, const RECT & slot) override { return m_colorKeys->GetBarStrip (pane, slot); }
 
-    void  CreateColorKeys     ();
-    void  AddColorKey         (const std::wstring & pane, DebuggerPaneFrame * slot, ColorLegend::Pane legend,
-                               std::function<std::optional<ColorLegend::Pane> ()> dynamic = nullptr);
-    void  PlaceColorKeys      ();
-    bool  TryGetColorKeyTitleRect (const std::wstring & pane, bool keep, RECT * rect = nullptr);
-    RECT  GetBarStrip         (const std::wstring & pane, const RECT & slot) override;
-    bool  RouteColorKeyMouse  (const DxuiMouseEvent & ev);
-    void  ShowColorKey        (ColorKeyButton * button, bool hold);
-    void  ToggleColorKey      (ColorKeyButton * button);
-    void  HideColorKey        ();
     std::string                                                   m_machine;
     std::wstring                                                  m_slidPane;
     std::unique_ptr<SourceDocumentGroup>                          m_sources;
