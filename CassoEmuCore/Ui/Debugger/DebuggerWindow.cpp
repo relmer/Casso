@@ -30,6 +30,8 @@
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/HeatStrip.h"
@@ -185,19 +187,14 @@ void DebuggerWindow::OnCreate()
 
     m_codeOptions = DisassemblyOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerDisassemblyOptions() : std::string());
 
-    m_registerList      = CreateChild<DxuiListView>  ();
     m_breakpointList    = CreateChild<DxuiListView>  ();
-    m_watchList         = CreateChild<DxuiListView>  ();
-    m_stackList         = CreateChild<DxuiListView>  ();
     m_callStackList     = CreateChild<DxuiListView>  ();
     m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<KeyHintLine>   ();
     m_codeHistoryBand   = CreateChild<HistoryBand>   ();
-    m_regHistoryBand    = CreateChild<HistoryBand>   ();
     m_codeHistoryBand->SetOnGoLive ([this] { GoLiveFromBand(); });
-    m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
@@ -261,36 +258,18 @@ void DebuggerWindow::OnCreate()
     m_dockSite = CreateChild<DxuiDockSite>();
     m_dockSite->SetPaneGap (DxuiDockSite::kPaneGapDip, DxuiDockSite::kPaneMarginDip);
 
-    //  After even the site, so a watch being edited is drawn over its row.
-    m_watchEditor = CreateChild<DxuiTextInput>();
-    m_watchEditor->SetVisible      (false);
-    m_watchEditor->SetOverText     (true);
-    m_watchEditor->SetHwnd         (GetHwnd());
-    m_watchEditor->SetMaxLength    (64);
-
+    //  After even the site, so a box being edited in place is drawn over its
+    //  row.
     m_nameEditor = CreateChild<DxuiTextInput>();
     m_nameEditor->SetVisible       (false);
     m_nameEditor->SetOverText      (true);
     m_nameEditor->SetHwnd          (GetHwnd());
     m_nameEditor->SetMaxLength     (64);
 
-    //  The stack's and the registers' value boxes, drawn over their rows the
-    //  same way.
-    m_stackEditor    = CreateChild<DxuiTextInput>();
-    m_registerEditor = CreateChild<DxuiTextInput>();
-
     //  And each pane's own, such as a heat map range's or its set's name.
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->CreateOverlays();
-    }
-
-    for (DxuiTextInput * editor : { m_stackEditor, m_registerEditor })
-    {
-        editor->SetVisible   (false);
-        editor->SetOverText  (true);
-        editor->SetHwnd      (GetHwnd());
-        editor->SetMaxLength (kValueEditMaxChars);
     }
 
     ConfigureWidgets();
@@ -333,7 +312,6 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     ConfigureBreakpointBar();
-    ConfigureUndoBars();
     ConfigureBasicPanes();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -355,70 +333,8 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     m_breakpointList->SetActivateOnDoubleClick (true);
-    m_registerList->SetActivateOnDoubleClick   (true);
-    m_stackList->SetActivateOnDoubleClick      (true);
-    m_watchList->SetActivateOnDoubleClick      (true);
 
-    //  Double-clicking a watch edits the cell under the pointer in place: the
-    //  expression on the left, the value on the right (FR-096).
-    m_watchList->SetOnActivateRow ([this] (int row)
-    {
-        RECT  value  = {};
-        RECT  list   = m_watchList->GetBounds();
-        int   column = 0;
-
-        if (m_watchList->GetCellTextRectPx (row, 1, value))
-        {
-            column = (m_lastPressPx.x - list.left >= value.left) ? 1 : 0;
-        }
-
-        BeginWatchEdit (row, column);
-    });
-
-    //  Double-clicking a stack byte's value edits it in place; double-clicking
-    //  its address shows it in memory. The pane lists the stack newest first,
-    //  so its rows run backwards through STACK's.
-    m_stackList->SetOnActivateRow ([this] (int row)
-    {
-        RECT  value = {};
-        RECT  list  = m_stackList->GetBounds();
-
-        if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->stack.size())
-        {
-            return;
-        }
-
-        if (m_stackList->GetCellTextRectPx (row, 1, value) && m_lastPressPx.x - list.left >= value.left)
-        {
-            BeginValueEdit (m_stackList, row);
-            return;
-        }
-
-        m_memoryGroup->GetActive()->GetModel().GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
-    });
-
-    //  Double-clicking PC shows the PC, as Show Next Statement does; on P's
-    //  flags it opens their editor, and on any other value it edits the
-    //  value in place, as a single click on it does.
-    m_registerList->SetOnActivateRow ([this] (int row)
-    {
-        RECT  flags = {};
-        RECT  list  = m_registerList->GetBounds();
-        bool  over  = m_registerList->GetCellTextRectPx (row, 2, flags) && m_lastPressPx.x - list.left >= flags.left;
-
-        EditRegister (row, over);
-    });
-
-    m_registerList->SetColumns   ({ { L"Reg",         0, false, DxuiTextHAlign::Left },
-                                    { L"Value",       0, false, DxuiTextHAlign::Left },
-                                    { L"",            0, false, DxuiTextHAlign::Left } });
     SetBreakpointColumns();
-    //  The value runs to the pane's edge, as Visual Studio's does, so the
-    //  Automatic and Watches headings span the pane rather than the columns.
-    m_watchList->SetColumns      ({ { L"Watch",       0, false, DxuiTextHAlign::Left },
-                                    { L"Value",       0, true,  DxuiTextHAlign::Left } });
-    m_stackList->SetColumns      ({ { L"Stack",       0, false, DxuiTextHAlign::Left },
-                                    { L"Value",       0, false, DxuiTextHAlign::Left } });
     //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
     //  selection that runs through the text as an editor's does, and Ctrl+C
     //  to copy it.
@@ -458,24 +374,6 @@ void DebuggerWindow::ConfigureWidgets()
         }
     });
 
-    //  A watch's or a zero-page pointer's check enables or disables it.
-    m_watchList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
-    {
-        if (row < 0 || row >= (int) m_watchRows.size())
-        {
-            return;
-        }
-
-        if (m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
-        {
-            RunAction (DebuggerActions::GetEnableWatch (m_watchRows[(size_t) row].index, checked, GetMode()));
-        }
-        else if (m_watchRows[(size_t) row].kind == WatchRowKind::ZeroPage)
-        {
-            RunAction (DebuggerActions::GetEnableZeroPagePointer (m_watchRows[(size_t) row].index, checked, GetMode()));
-        }
-    });
-
     //  A click on a heading sorts by that column, and a second click on the
     //  same one turns the order around.
     m_breakpointList->SetOnSortColumn ([this] (int column) { SortBreakpoints ((BreakpointColumns::Column) column); });
@@ -502,9 +400,6 @@ void DebuggerWindow::ConfigureWidgets()
     {
         code->SetPaneTextInset (false);
     }
-
-    //  The registers need no headings: each row says what it is.
-    m_registerList->SetShowHeader (false);
 
     m_tracePane->Configure();
     m_traceHint->SetPairs  (TracePane::GetKeyPairs());
@@ -739,7 +634,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
+    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_breakpointList, m_callStackList,
                                            m_traceList, m_basicProgramList };
 
 
@@ -773,7 +668,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
+    std::vector<DxuiListView *>  lists = { m_callStackList, m_breakpointList, m_traceList,
                                            m_basicProgramList };
 
 
@@ -1003,19 +898,15 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 //
 //  DebuggerWindow::ApplyUndoHistories
 //
-//  The registers' and the stack's undo, cleared when the machine moves on
-//  from the stop the edits were made at. A different machine clears every
-//  memory window's undo and the watch pane's, since the addresses they would
-//  restore belonged to the old one, unless the histories were restored for
-//  the new machine since the last change.
+//  A different machine clears every memory window's undo and the watch
+//  pane's, since the addresses they would restore belonged to the old one,
+//  unless the histories were restored for the new machine since the last
+//  change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyUndoHistories()
 {
-    m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
-    m_stackHistory.OnSnapshot    (m_snapshot->isPaused, m_snapshot->pc);
-
     if (m_snapshot->machine != m_machine)
     {
         m_machine = m_snapshot->machine;
@@ -1023,7 +914,7 @@ void DebuggerWindow::ApplyUndoHistories()
         if (!m_isHistoryRestored)
         {
             m_memoryGroup->ClearHistories();
-            m_watchHistory.Clear();
+            m_watchesPane->GetHistory().Clear();
         }
 
         m_isHistoryRestored = false;
@@ -2724,7 +2615,7 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
 
     //  The site's strips and drop zones paint over the panes, and a watch
     //  being edited over the site, so both stay last.
-    for (IDxuiControl * last : { (IDxuiControl *) m_dockSite, (IDxuiControl *) m_watchEditor, (IDxuiControl *) m_stackEditor, (IDxuiControl *) m_registerEditor })
+    for (IDxuiControl * last : GetLastChildren())
     {
         std::unique_ptr<IDxuiControl>  owned = (last != nullptr) ? DetachChild (last) : nullptr;
 
@@ -3866,7 +3757,6 @@ void DebuggerWindow::LayoutWidgets()
 
     UpdateCodeLines();
     PlaceBreakpointBar();
-    PlaceUndoBars();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -4467,22 +4357,6 @@ void DebuggerWindow::ConfigureDockSite()
     m_breakpointFrame->AddPart (m_breakpointSlot.get(), barHeight);
     m_breakpointFrame->AddPart (m_breakpointList);
 
-    //  The registers, stack and watch panes are each their Undo and Redo bar
-    //  over their list, the bar a place PlaceUndoBars fills.
-    for (PaneUndoBar & each : m_undoBars)
-    {
-        each.slot  = std::make_unique<DebuggerPaneFrame> (L"Undo commands");
-        each.frame = std::make_unique<DebuggerPaneFrame> (GetPaneTitle (each.pane));
-        each.frame->AddPart (each.slot.get(), barHeight);
-
-        if (each.pane == DebuggerLayout::kRegisters)
-        {
-            each.frame->AddPart (m_regHistoryBand, bandHeight, [this] { return HistoryBand::IsShown (m_regHistoryBand->GetStatus()); });
-        }
-
-        each.frame->AddPart (each.list);
-    }
-
     //  A disassembly view is its toolbar over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -4507,10 +4381,7 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kRegisters,   L"Registers",   m_undoBars[kRegisterUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kWatches,     L"Watches",     m_undoBars[kWatchUndoBar].frame.get());
-    m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_undoBars[kStackUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
@@ -6090,7 +5961,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     {
         if (pane->AddMenuItems (list, row, items))
         {
-            items.push_back ({ L"Copy", copy });
             return;
         }
     }
@@ -6170,90 +6040,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             }
         } });
     }
-    else if (list == m_watchList && row >= 0 && row < (int) m_watchRows.size())
-    {
-        //  The row map says what the row is: the pane mixes headings,
-        //  automatic watches and the user's own, so a row number is not an
-        //  index into any one of them.
-        const WatchRow  what = m_watchRows[(size_t) row];
-
-        if (what.kind == WatchRowKind::Manual)
-        {
-            auto  found = std::find_if (s.watches.begin(), s.watches.end(),
-                                        [&what] (const DebuggerViewSnapshot::WatchLine & w) { return w.id == what.index; });
-
-            if (found != s.watches.end())
-            {
-                const DebuggerViewSnapshot::WatchLine  watch = *found;
-
-                AddShowInMemory (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
-                items.push_back ({ L"Remove", [this, watch] { RunAction (DebuggerActions::GetClearWatch (watch.id, GetMode())); } });
-            }
-        }
-        else if (what.kind == WatchRowKind::ZeroPage)
-        {
-            items.push_back ({ L"Remove", [this, slot = what.index] { RunAction (DebuggerActions::GetClearZeroPagePointer (slot, GetMode())); } });
-        }
-
-        else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
-                 s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
-        {
-            std::string  hex = s.autoWatches[(size_t) what.index].key.substr (2);
-
-            AddShowInMemory (L"$" + Widen (hex), hex, items);
-        }
-
-        if (what.kind != WatchRowKind::Heading && what.kind != WatchRowKind::BasicHeading)
-        {
-            items.push_back ({ L"Copy", copy });
-        }
-
-        items.push_back ({ L"Add zero-page pointer...", [this] { AddZeroPagePointer(); } });
-
-        if (m_watchHistory.CanUndo())
-        {
-            items.push_back ({ GetUndoLabel (false, m_watchHistory.GetUndoText()), [this] { UndoWatchEdit (false); } });
-        }
-
-        if (m_watchHistory.CanRedo())
-        {
-            items.push_back ({ GetUndoLabel (true, m_watchHistory.GetRedoText()), [this] { UndoWatchEdit (true); } });
-        }
-    }
-    else if (list == m_stackList)
-    {
-        if (row >= 0 && row < (int) s.stack.size())
-        {
-            Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
-
-            AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
-            items.push_back ({ L"Copy", copy });
-
-            if (s.isPaused)
-            {
-                items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
-            }
-        }
-
-        //  PUSH, POP and PPOP, which write the machine, so only while it is
-        //  stopped.
-        if (s.isPaused)
-        {
-            items.push_back ({ L"Push byte...", [this] { PushStackByte(); } });
-            items.push_back ({ L"Pop byte",     [this] { RunAction (DebuggerActions::GetPopByte (GetMode())); } });
-            items.push_back ({ L"Pop word",     [this] { RunAction (DebuggerActions::GetPopWord (GetMode())); } });
-        }
-
-        if (m_stackHistory.CanUndo())
-        {
-            items.push_back ({ GetUndoLabel (false, m_stackHistory.GetUndoText()), [this] { UndoStackEdit (false); } });
-        }
-
-        if (m_stackHistory.CanRedo())
-        {
-            items.push_back ({ GetUndoLabel (true, m_stackHistory.GetRedoText()), [this] { UndoStackEdit (true); } });
-        }
-    }
     else if (list == m_callStackList && row >= 0 && row < (int) m_callStackPane->GetShownRows().size())
     {
         //  The pane's own rows: the BASIC frames come before the machine's.
@@ -6273,49 +6059,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         }
 
         items.push_back ({ L"Copy", copy });
-    }
-    else if (list == m_registerList && row >= 0 && row < (int) s.registers.size())
-    {
-        std::string  name = s.registers[(size_t) row].name;
-
-        if (name == "PC")
-        {
-            items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
-        }
-
-        if (!DebuggerViewState::IsReadOnlyRegister (name))
-        {
-            AddShowInMemory (Widen (name), name, items);
-        }
-
-        //  The trip count starts again from here, as RCC starts it; the
-        //  total never does.
-        if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
-        {
-            items.push_back ({ L"Reset trip count", [this] { RunAction (DebuggerActions::GetResetCycles (GetMode())); } });
-        }
-
-        if (name == DebuggerViewState::kLastBranchRegister && s.lastBranchFrom.has_value())
-        {
-            items.push_back ({ L"Go to branch", [this, at = *s.lastBranchFrom] { ShowCode (at); } });
-
-            if (s.lastBranchTo.has_value())
-            {
-                items.push_back ({ L"Go to target", [this, at = *s.lastBranchTo] { ShowCode (at); } });
-            }
-        }
-
-        items.push_back ({ L"Copy",           copy });
-
-        if (m_registerHistory.CanUndo())
-        {
-            items.push_back ({ GetUndoLabel (false, m_registerHistory.GetUndoText()), [this] { UndoRegisterEdit (false); } });
-        }
-
-        if (m_registerHistory.CanRedo())
-        {
-            items.push_back ({ GetUndoLabel (true, m_registerHistory.GetRedoText()), [this] { UndoRegisterEdit (true); } });
-        }
     }
     else if (list == m_traceList)
     {
@@ -6402,7 +6145,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_breakpointBar, m_consoleBar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6473,7 +6216,6 @@ void DebuggerWindow::RenderFrame()
     SyncTimeline();
     CarryTornOffPane();
     PlaceBreakpointBar();
-    PlaceUndoBars();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -6755,8 +6497,8 @@ void DebuggerWindow::ApplyCodeView (int view)
 //
 //  DebuggerWindow::ApplyHistory
 //
-//  The history bands follow the snapshot's place in history, and the panes
-//  that hold them are laid out again when the bands appear or go.
+//  The first disassembly view's history band follows the snapshot's place in
+//  history, and the view is laid out again when the band appears or goes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6769,19 +6511,10 @@ void DebuggerWindow::ApplyHistory()
 
 
     m_codeHistoryBand->SetStatus (status);
-    m_regHistoryBand->SetStatus  (status);
 
     if (wasShown != isShown)
     {
         m_codeFrames[0]->Relayout();
-
-        for (PaneUndoBar & each : m_undoBars)
-        {
-            if (each.frame != nullptr)
-            {
-                each.frame->Relayout();
-            }
-        }
     }
 }
 
@@ -6802,8 +6535,6 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     m_snapshot = std::move (snapshot);
     ApplySnapshot();
     ApplyHistory();
-
-    m_watchHistory.OnSnapshot (*m_snapshot);
 
     PlaceLateFocus();
 
@@ -7047,69 +6778,6 @@ void DebuggerWindow::ApplySnapshot()
 
     UpdateChanges();
 
-    //  THE FLAGS ARE THE P REGISTER written so a person can read it, so they
-    //  sit on P's row beside the byte they come from, in the same monospace
-    //  face -- where a bit changing moves nothing else. A register that
-    //  changed since the last stop is drawn in the changed color (FR-098).
-    //  The cycle count's row runs across the pane, its digits grouped, with
-    //  how far it moved since the stop before after it, signed, so a step
-    //  back reads as one. Spanning, it sets no column's width, so a long
-    //  count never pushes the flags along.
-    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
-    {
-        bool                isCycles = reg.name == DebuggerViewState::kCyclesRegister;
-        bool                isCount  = isCycles || reg.name == DebuggerViewState::kTripRegister;
-        bool                isBranch = reg.name == DebuggerViewState::kLastBranchRegister;
-        DxuiListView::Cell  value    = { Widen (reg.value) };
-        DxuiListView::Cell  flags    = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
-        std::wstring        delta;
-        uint64_t            count    = 0;
-
-        //  The flags in the fixed-width face, so each letter and dot has a
-        //  column of its own in a list otherwise in the proportional face.
-        flags.face = DxuiTheme::kMonoFace;
-
-        if (isCount)
-        {
-            delta = isCycles ? Widen (m_stopChanges.GetDelta ("R:" + reg.name)) : std::wstring();
-
-            if (std::from_chars (reg.value.data(), reg.value.data() + reg.value.size(), count).ec == std::errc())
-            {
-                value.text = DebuggerStatusText::FormatCount (count, LOCALE_NAME_USER_DEFAULT);
-            }
-
-            value.text     += delta.empty() ? std::wstring() : L"  (" + delta + L")";
-            value.spansRow  = true;
-        }
-
-        //  From and to, as Visual Studio's Registers window has its last
-        //  branch; Go to is on the row's menu.
-        if (isBranch)
-        {
-            value.text     = !m_snapshot->lastBranchFrom.has_value() ? L"None" :
-                             std::format (L"${:04X} {} {}", *m_snapshot->lastBranchFrom, s_kpszRightArrow,
-                                          m_snapshot->lastBranchTo.has_value() ? std::format (L"${:04X}", *m_snapshot->lastBranchTo) : std::wstring (L"?"));
-            value.spansRow = true;
-        }
-
-        //  On P's row only the flags that changed are in the changed color.
-        if (!isCount && !isBranch && m_stopChanges.IsChanged ("R:" + reg.name))
-        {
-            value.argb = GetChangedArgb();
-            value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            flags.tip  = value.tip;
-        }
-
-        if (reg.name == "P")
-        {
-            AddChangedFlagRanges (m_stopChanges.GetChangedBits ("R:P"), flags);
-        }
-
-        rows.push_back ({ { Widen (reg.name) }, value, flags });
-    }
-
-    m_registerList->SetRows (std::move (rows));
-
     //  The console reads as a command prompt in the dialect in force, with
     //  that dialect's own help command in its hint.
     m_commandBox->SetPrompt      (GetPromptText (m_snapshot->mode));
@@ -7131,26 +6799,6 @@ void DebuggerWindow::ApplySnapshot()
 
     ApplyBreakpoints();
 
-    ApplyWatches();
-
-    rows.clear();
-
-    //  Newest first, as the call stack lists its frames: STACK reads from
-    //  $01FF down, so the pane turns it over.
-    for (auto it = m_snapshot->stack.rbegin(); it != m_snapshot->stack.rend(); ++it)
-    {
-        DxuiListView::Cell  value = { std::format (L"{:02X}", it->value) };
-
-        if (m_stopChanges.IsChanged (std::format ("S:{:04X}", it->address)))
-        {
-            value.argb = GetChangedArgb();
-            value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-        }
-
-        rows.push_back ({ { std::format (L"${:04X}", it->address) }, value });
-    }
-
-    m_stackList->SetRows (std::move (rows));
     m_callStackPane->SetColors (GetTextColors());
     m_callStackPane->Apply     (m_snapshot->callStack, BasicWatches::IsStoppedInProgram (m_snapshot->basic) ? m_snapshot->basic->frames : std::vector<BasicFrame>());
 
@@ -7186,530 +6834,6 @@ void DebuggerWindow::ApplySnapshot()
         {
             SetFocusedControl (m_commandBox);
         }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::AddChangedFlagRanges
-//
-//  The flags are the last eight letters of the cell, N first, so bit 7 is
-//  the first of them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const
-{
-    static constexpr int  kFlagCount = 8;
-    int                   start      = (int) flags.text.size() - kFlagCount;
-    int                   at         = 0;
-
-
-
-    if (start < 0)
-    {
-        return;
-    }
-
-    for (int bit = kFlagCount - 1; bit >= 0; bit--)
-    {
-        at = start + (kFlagCount - 1 - bit);
-
-        if (((changedBits >> bit) & 1u) != 0)
-        {
-            flags.colorRanges.push_back ({ at, at + 1, GetChangedArgb() });
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplyWatches
-//
-//  What the instruction at the PC and the one just executed touch, then
-//  the watches the user added, each section under a heading of its own
-//  (FR-095), and while the machine is stopped in a running Applesoft
-//  program, its variables (FR-176).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyWatches()
-{
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
-    bool                                          isInProgram = BasicWatches::IsStoppedInProgram (m_snapshot->basic);
-    std::vector<BasicWatches::Item>               basicAutos  = isInProgram ? BasicWatches::GetStatementItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>();
-
-
-
-    //  What the instruction at the PC and the one just executed touch, then
-    //  the watches the user added, each section under a heading of its own
-    //  (FR-095). A value that changed since the last stop is drawn in the
-    //  changed color (FR-098); one the instruction touched and left as it was
-    //  is shown plainly, since it was still an input or an output.
-    m_watchRows.clear();
-
-    if (!m_snapshot->autoWatches.empty() || !basicAutos.empty())
-    {
-        rows.push_back (MakeWatchHeading (L"Automatic"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-
-        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
-        {
-            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
-            DxuiListView::Cell                          name  = { Widen (line.label) };
-            DxuiListView::Cell                          value = { Widen (line.value) };
-
-            //  What the previous instruction touched is in italics, apart
-            //  from a disabled watch's muted text.
-            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
-            value.weight = name.weight;
-            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
-
-            //  A memory watch's symbol and address in the colors the code
-            //  pane draws them in.
-            if (line.key.starts_with ("M:"))
-            {
-                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
-            }
-
-            if (m_stopChanges.IsChanged ("A:" + line.key))
-            {
-                value.argb = GetChangedArgb();
-                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            }
-
-            rows.push_back ({ name, value });
-            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
-        }
-
-        //  The BASIC variables the statement being run uses.
-        for (const BasicWatches::Item & item : basicAutos)
-        {
-            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
-            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
-        }
-
-        rows.push_back (MakeWatchHeading (L"Watches"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-    }
-
-    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-    {
-        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"#{} ${:04X}", watch.id, watch.address) }
-                                                            : BasicWatches::MakeNameCell (watch.basicName);
-        DxuiListView::Cell  value = { Widen (watch.value) };
-
-        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
-        //  one's address is in the color the code pane draws addresses in.
-        name.dim  = !watch.enabled;
-        value.dim = !watch.enabled;
-        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
-
-        if (watch.enabled && watch.basicName.empty())
-        {
-            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
-
-            //  The #n before it is the watch's number, not an immediate.
-            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
-        }
-
-        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
-        {
-            value.argb = GetChangedArgb();
-        }
-
-        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
-                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
-
-        name.check = watch.enabled;
-        rows.push_back ({ name, value });
-        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
-    }
-
-
-    //  The zero-page pointers under their own heading: each the zero-page
-    //  address, then the address its two bytes form and the bytes there.
-    if (!m_snapshot->zeroPagePointers.empty())
-    {
-        rows.push_back (MakeWatchHeading (L"Zero-page pointers"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-
-        for (const DebuggerViewSnapshot::WatchLine & pointer : m_snapshot->zeroPagePointers)
-        {
-            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
-            DxuiListView::Cell  value = { Widen (pointer.value) };
-
-            name.check = pointer.enabled;
-            name.dim   = !pointer.enabled;
-            value.dim  = !pointer.enabled;
-            rows.push_back ({ name, value });
-            m_watchRows.push_back ({ WatchRowKind::ZeroPage, pointer.id });
-        }
-    }
-
-    //  Every BASIC variable and array element, under a heading a click
-    //  expands or collapses.
-    if (isInProgram)
-    {
-        std::vector<DxuiListView::Cell>  heading = MakeWatchHeading (std::format (L"{} BASIC variables",
-                                                                                 m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight));
-
-
-
-        rows.push_back (heading);
-        m_watchRows.push_back ({ WatchRowKind::BasicHeading, 0 });
-
-        for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>())
-        {
-            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
-            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
-        }
-    }
-
-    //  As in Visual Studio, the last row adds a watch: an expression typed
-    //  into it in place becomes one.
-    {
-        DxuiListView::Cell  prompt = { L"Add item to watch" };
-
-        prompt.dim    = true;
-        prompt.face   = DxuiTheme::kBodyFace;
-        prompt.weight = DxuiFontWeight::Italic;
-        rows.push_back ({ prompt, { L"" } });
-        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
-    }
-
-    m_watchList->SetRows (std::move (rows));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::MakeWatchHeading
-//
-//  A row that divides the watch pane rather than holding a watch: its title
-//  in the heading color and the proportional face of a list's column
-//  headings, on a fill a little way from the pane's background toward the
-//  hover color, enough to mark the row without a strong band.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiListView::Cell> DebuggerWindow::MakeWatchHeading (const std::wstring & title) const
-{
-    constexpr float     kTint = 0.35f;
-    DxuiListView::Cell  label = { title };
-    DxuiListView::Cell  blank = { L"" };
-    uint32_t            fill  = DxuiColor::Mix (m_theme->ContentBackground(), m_theme->HoverBackground(), kTint);
-
-
-
-    label.argb       = m_theme->HeadingForeground();
-    label.face       = DxuiTheme::kBodyFace;
-    label.background = fill;
-    blank.background = fill;
-
-    return { label, blank };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::BeginWatchEdit
-//
-//  A box over the cell, holding what the cell shows, all of it selected so
-//  typing replaces it -- as Visual Studio's watch window opens one. A heading
-//  edits nothing, an automatic watch's expression is what the instruction
-//  touches, so only its value edits, and the add row opens empty for an
-//  expression.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::BeginWatchEdit (int row, int column)
-{
-    RECT          cell = {};
-    RECT          list = m_watchList->GetBounds();
-    WatchRow      what;
-    std::wstring  text;
-
-
-
-    if (m_snapshot == nullptr || row < 0 || row >= (int) m_watchRows.size())
-    {
-        return;
-    }
-
-    what = m_watchRows[(size_t) row];
-
-    if (what.kind == WatchRowKind::BasicHeading)
-    {
-        m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
-        ApplyWatches();
-        return;
-    }
-
-    if (what.kind == WatchRowKind::Heading || what.kind == WatchRowKind::BasicItem || (what.kind == WatchRowKind::Automatic && column == 0))
-    {
-        return;
-    }
-
-    //  The add row has only an expression to type, wherever it was opened.
-    if (what.kind == WatchRowKind::Add)
-    {
-        column = 0;
-    }
-
-    if (!m_watchList->GetCellTextRectPx (row, (size_t) column, cell))
-    {
-        return;
-    }
-
-    if (what.kind == WatchRowKind::Automatic)
-    {
-        text = Widen (m_snapshot->autoWatches[(size_t) what.index].value);
-    }
-    else if (what.kind == WatchRowKind::Manual)
-    {
-        for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-        {
-            //  A BASIC watch's value is the program's to change.
-            if (watch.id == what.index && column != 0 && !watch.basicName.empty())
-            {
-                return;
-            }
-
-            if (watch.id == what.index)
-            {
-                text = (column != 0)              ? Widen (watch.value)
-                     : watch.basicName.empty()    ? std::format (L"{:04X}", watch.address)
-                     :                              Widen (watch.basicName);
-            }
-        }
-    }
-
-    OffsetRect (&cell, list.left, list.top);
-
-    m_watchEdit = WatchEdit { row, column, what, {} };
-
-    if (what.kind == WatchRowKind::Automatic)
-    {
-        m_watchEdit.autoKey = m_snapshot->autoWatches[(size_t) what.index].key;
-    }
-
-    //  In the list's own face and size, so the text does not jump when the
-    //  box opens over it.
-    m_watchEditor->SetTextRenderer (GetTextRenderer());
-    m_watchEditor->SetFont         (DxuiTheme::kMonoFace, m_watchList->GetFontSizeDip());
-    m_watchEditor->SetText    (text);
-    m_watchEditor->Layout     (cell, m_scaler);
-    m_watchEditor->SetVisible (true);
-    SetFocusedControl         (m_watchEditor);
-    m_watchEditor->SelectAll();
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::EndWatchEdit
-//
-//  Enter keeps what was typed, Escape leaves the watch as it was, and a
-//  click anywhere else keeps it, as a click away from a rename does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::EndWatchEdit (bool commit)
-{
-    std::wstring                 typed = m_watchEditor->GetText();
-    std::vector<DebuggerAction>  actions;
-
-
-
-    if (m_watchEdit.row < 0)
-    {
-        return;
-    }
-
-    if (commit && m_watchEdit.what.kind == WatchRowKind::Add)
-    {
-        std::string  expression = TextEncoding::WideToNarrow (typed);
-
-        expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
-
-        expression.erase (expression.find_last_not_of (" \t") + 1);
-
-        if (!expression.empty())
-        {
-            actions.push_back (DebuggerActions::GetAddWatch (expression, GetMode()));
-        }
-    }
-    else if (commit && m_snapshot != nullptr)
-    {
-        bool                                        isManual = m_watchEdit.what.kind == WatchRowKind::Manual;
-        std::optional<int>                          watchId  = isManual ? std::optional<int> (m_watchEdit.what.index) : std::nullopt;
-        std::optional<int>                          autoAt;
-        std::optional<DebuggerViewState::WatchUndo> undo;
-
-
-
-        //  An automatic watch that is no longer listed takes no edit.
-        for (size_t i = 0; !isManual && i < m_snapshot->autoWatches.size(); i++)
-        {
-            if (m_snapshot->autoWatches[i].key == m_watchEdit.autoKey)
-            {
-                autoAt = (int) i;
-                break;
-            }
-        }
-
-        actions = DebuggerViewState::GetWatchEditActions (*m_snapshot, watchId, autoAt, m_watchEdit.column,
-                                                          TextEncoding::WideToNarrow (typed), GetMode());
-
-        //  Recorded from the snapshot as it stands, BEFORE the edit runs.
-        undo = actions.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*m_snapshot, watchId, autoAt, m_watchEdit.column, GetMode());
-
-        if (undo.has_value())
-        {
-            m_watchHistory.Record (std::move (*undo), actions, WatchHistory::GetEditText (*m_snapshot, watchId, autoAt, m_watchEdit.column));
-        }
-    }
-
-    m_watchEdit = WatchEdit {};
-    m_watchEditor->SetVisible (false);
-    SetFocusedControl         (m_watchList);
-    Invalidate();
-
-    for (const DebuggerAction & action : actions)
-    {
-        RunAction (action);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RemoveSelectedWatch
-//
-//  Delete on a manual watch removes it (FR-096). Automatic watches come and
-//  go with the instruction, so there is nothing of theirs to remove.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RemoveSelectedWatch()
-{
-    int  row = m_watchList->GetSelectedRow();
-
-
-
-    if (row >= 0 && row < (int) m_watchRows.size() && m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
-    {
-        RunAction (DebuggerActions::GetClearWatch (m_watchRows[(size_t) row].index, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::UndoRegisterEdit
-//
-//  The registers pane's last edit taken back, or with `redo` made again,
-//  while the machine is still at the stop it was made at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::UndoRegisterEdit (bool redo)
-{
-    std::optional<DebuggerAction>  action = redo ? m_registerHistory.TryRedo (GetMode()) : m_registerHistory.TryUndo (GetMode());
-
-
-
-    if (action.has_value())
-    {
-        RunAction (*action);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::UndoWatchEdit
-//
-//  The last watch edit, put back, or with `redo` made again. A moved watch
-//  is found by being the one whose id did not exist before the move, since
-//  the engine numbered it only once the move ran.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::UndoWatchEdit (bool redo)
-{
-    std::optional<std::vector<DebuggerAction>>  actions;
-
-
-
-    if (m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    actions = redo ? m_watchHistory.TryRedo() : m_watchHistory.TryUndo (*m_snapshot, GetMode());
-
-    if (!actions.has_value())
-    {
-        return;
-    }
-
-    for (const DebuggerAction & action : *actions)
-    {
-        RunAction (action);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::UndoStackEdit
-//
-//  The stack pane's last edit taken back, or with `redo` made again, while
-//  the machine is still at the stop it was made at.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::UndoStackEdit (bool redo)
-{
-    std::optional<DebuggerAction>  action = redo ? m_stackHistory.TryRedo (GetMode()) : m_stackHistory.TryUndo (GetMode());
-
-
-
-    if (action.has_value())
-    {
-        RunAction (*action);
     }
 }
 
@@ -8229,292 +7353,6 @@ std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::EditRegister
-//
-//  PC shows the code at the PC. P's flags open the flags a checkbox each;
-//  every other byte register's value edits in place. Each is written by R,
-//  the command a person would type.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::EditRegister (int row, bool onFlags)
-{
-    std::string          name;
-    std::optional<Byte>  value;
-    Byte                 p     = 0;
-
-
-
-    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->registers.size())
-    {
-        return;
-    }
-
-    name  = m_snapshot->registers[(size_t) row].name;
-    value = GetRegisterByte (name);
-
-    if (DebuggerViewState::IsReadOnlyRegister (name))
-    {
-        return;
-    }
-
-    if (name == "PC")
-    {
-        ShowCode (std::nullopt);
-        return;
-    }
-
-    if (name != "P" || !onFlags)
-    {
-        BeginValueEdit (m_registerList, row);
-        return;
-    }
-
-    if (!m_snapshot->isPaused)
-    {
-        AppendConsole ({ "Pause the machine to edit its registers." });
-        return;
-    }
-
-    if (value.has_value() && FlagsDialog::Ask (GetHwnd(), m_theme, *value, p))
-    {
-        CommitRegister ("P", p);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ClickRegister
-//
-//  A click on a register's value edits it in place, as a click on a value
-//  does in Visual Studio's registers window. The click has already selected
-//  the row it landed on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ClickRegister (POINT clientPx)
-{
-    RECT  list  = m_registerList->GetBounds();
-    RECT  value = {};
-    RECT  flags = {};
-    int   row   = m_registerList->GetSelectedRow();
-
-
-
-    if (m_snapshot == nullptr || row < 0 || row >= (int) m_snapshot->registers.size() || !m_snapshot->isPaused)
-    {
-        return;
-    }
-
-    if (!m_registerList->GetCellTextRectPx (row, 1, value) || !m_registerList->GetCellTextRectPx (row, 2, flags))
-    {
-        return;
-    }
-
-    OffsetRect (&value, list.left, list.top);
-    value.right = list.left + flags.left;
-
-    if (DxuiDockSite::Contains (value, clientPx) && GetRegisterByte (m_snapshot->registers[(size_t) row].name).has_value())
-    {
-        BeginValueEdit (m_registerList, row);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::BeginValueEdit
-//
-//  A box over a stack byte's or a register's value, holding the value, all
-//  of it selected so typing replaces it -- as the watch pane's opens. Only a
-//  paused machine takes an edit, and only a byte: PC is moved by command.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::BeginValueEdit (DxuiListView * list, int row)
-{
-    DxuiTextInput        * editor = (list == m_stackList) ? m_stackEditor : m_registerEditor;
-    RECT                   cell   = {};
-    RECT                   bounds = {};
-    std::optional<Byte>    value;
-
-
-
-    if (m_snapshot == nullptr || (list != m_stackList && list != m_registerList) || row < 0)
-    {
-        return;
-    }
-
-    if (list == m_stackList && row < (int) m_snapshot->stack.size())
-    {
-        value = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].value;
-    }
-    else if (list == m_registerList && row < (int) m_snapshot->registers.size())
-    {
-        value = GetRegisterByte (m_snapshot->registers[(size_t) row].name);
-    }
-
-    if (!value.has_value())
-    {
-        return;
-    }
-
-    if (!m_snapshot->isPaused)
-    {
-        AppendConsole ({ (list == m_stackList) ? "Pause the machine to edit the stack." : "Pause the machine to edit its registers." });
-        return;
-    }
-
-    if (m_valueEdit.row >= 0)
-    {
-        EndValueEdit (false);
-    }
-
-    if (!list->GetCellTextRectPx (row, 1, cell))
-    {
-        return;
-    }
-
-    bounds = list->GetBounds();
-    OffsetRect (&cell, bounds.left, bounds.top);
-
-    m_valueEdit = ValueEdit { list, row };
-
-    //  In the list's own face and size, so the text does not jump when the
-    //  box opens over it.
-    editor->SetTextRenderer (GetTextRenderer());
-    editor->SetFont         (DxuiTheme::kMonoFace, list->GetFontSizeDip());
-    editor->SetText         (std::format (L"{:02X}", *value));
-    editor->Layout          (cell, m_scaler);
-    editor->SetVisible      (true);
-    SetFocusedControl       (editor);
-    editor->SelectAll();
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::EndValueEdit
-//
-//  Enter keeps what was typed, Escape leaves the value as it was, and a
-//  click anywhere else keeps it, as with a watch. What is not a byte in hex
-//  is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::EndValueEdit (bool commit)
-{
-    ValueEdit        edit   = m_valueEdit;
-    DxuiTextInput  * editor = (edit.list == m_stackList) ? m_stackEditor : m_registerEditor;
-    Word             typed  = 0;
-    bool             isByte = false;
-
-
-
-    if (edit.row < 0)
-    {
-        return;
-    }
-
-    isByte = TextDialog::TryParseHexWord (editor->GetText(), typed) && typed <= 0xFF;
-
-    m_valueEdit = ValueEdit {};
-    editor->SetVisible (false);
-    SetFocusedControl  (edit.list);
-    Invalidate();
-
-    if (!commit || !isByte || m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    if (edit.list == m_stackList)
-    {
-        CommitStackByte (edit.row, (Byte) typed);
-    }
-    else if (edit.row < (int) m_snapshot->registers.size())
-    {
-        CommitRegister (m_snapshot->registers[(size_t) edit.row].name, (Byte) typed);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::CommitStackByte
-//
-//  Writes a stack byte by the byte-entry command a person would type. The
-//  pane lists the stack newest first, so its rows run backwards through
-//  STACK's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CommitStackByte (int row, Byte typed)
-{
-    Word  at    = 0;
-    Byte  value = 0;
-
-
-
-    if (row < 0 || row >= (int) m_snapshot->stack.size())
-    {
-        return;
-    }
-
-    at    = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address;
-    value = m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].value;
-
-    m_stackHistory.Record (at, value, typed, m_snapshot->pc);
-    RunAction (DebuggerActions::GetEnterByte (at, typed, GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::CommitRegister
-//
-//  Writes a byte register by R, recording the edit for the pane's undo.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CommitRegister (const std::string & name, Byte typed)
-{
-    std::optional<Byte>  value = GetRegisterByte (name);
-
-
-
-    if (!value.has_value())
-    {
-        return;
-    }
-
-    m_registerHistory.Record (name, *value, typed, m_snapshot->pc);
-    RunAction (DebuggerActions::GetSetRegister (name, typed, GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::IsAnyMenuOpen
 //
 //  Whether the menu bar, a toolbar's drop-down or a context menu is open,
@@ -8531,7 +7369,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_breakpointBar, m_consoleBar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -8572,19 +7410,15 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 //
 //  DebuggerWindow::UpdateTooltip
 //
-//  Over the flags on P's row, what each letter is, one to a line. No tip
-//  shows while a menu is open, so none ever lies over its rows. A color tip
+//  No tip shows while a menu is open, so none ever lies over its rows. A color tip
 //  put below the operand tip is recorded, so that it goes when that tip does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::UpdateTooltip (POINT clientPx)
 {
-    RECT                 bounds = m_registerList->GetBounds();
     RECT                 cell   = {};
-    int                  row    = -1;
     int64_t              now    = (int64_t) GetTickCount64();
-    std::optional<Byte>  p;
     std::wstring         text;
     std::wstring         colorTip;
     RECT                 spot   = {};
@@ -8616,16 +7450,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
     {
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  And the registers, stack and watch panes'.
-    for (const PaneUndoBar & each : m_undoBars)
-    {
-        if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (each.pane) &&
-            each.bar != nullptr && each.bar->IsVisible())
-        {
-            barTip = each.bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-        }
     }
 
     //  And each pane's on the pane interface.
@@ -8698,6 +7522,11 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
         tip.SetMonospace (paneTip.isMonospace);
 
+        if (!paneTip.lineColors.empty())
+        {
+            tip.SetLineColors (std::move (paneTip.lineColors));
+        }
+
         if (paneTip.kind == PaneTip::Kind::Control)
         {
             tip.RequestShow (paneTip.anchor, paneTip.text, now);
@@ -8707,39 +7536,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
             tip.RequestShowNow (GetPointerAnchor (clientPx), paneTip.text, now);
         }
 
-        return;
-    }
-
-    if (m_snapshot != nullptr && IsRoutable (m_registerList) && m_registerList->IsVisible() && DxuiDockSite::Contains (bounds, clientPx))
-    {
-        row = m_registerList->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    }
-
-    if (row >= 0 && row < (int) m_snapshot->registers.size() && m_snapshot->registers[(size_t) row].name == "P" &&
-        m_registerList->GetCellTextRectPx (row, 2, cell) &&
-        clientPx.x - bounds.left >= cell.left && clientPx.x - bounds.left < cell.right)
-    {
-        p = GetRegisterByte ("P");
-    }
-
-    //  Over P's flags, a line for each flag, a flag that changed since the
-    //  last stop in the changed color, as its letter is in the cell.
-    if (p.has_value())
-    {
-        uint32_t               changed = m_stopChanges.GetChangedBits ("R:P");
-        std::vector<uint32_t>  colors;
-
-
-
-        for (const FlagsDialog::Flag & flag : FlagsDialog::GetFlags())
-        {
-            colors.push_back ((changed & flag.bit) != 0 ? GetChangedArgb() : 0);
-        }
-
-        OffsetRect (&cell, bounds.left, bounds.top);
-        tip.SetMonospace   (false);
-        tip.SetLineColors  (std::move (colors));
-        tip.RequestShow    (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 
@@ -10986,26 +9782,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  marks a drag over the cell.
     UpdateOperandTip (ev, ev.button == DxuiMouseButton::Left);
 
-    //  A watch being edited takes the pointer while it is over the box; a
-    //  press or a wheel anywhere else keeps the edit and lets it through.
-    if (m_watchEdit.row >= 0)
-    {
-        RECT  box = m_watchEditor->GetBounds();
-
-        if (DxuiDockSite::Contains (box, POINT { x, y }))
-        {
-            m_watchEditor->OnMouse (ev);
-            Invalidate();
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
-        {
-            EndWatchEdit (true);
-        }
-    }
-
-    //  So does a breakpoint being renamed.
+    //  A breakpoint being renamed takes the pointer while it is over the box;
+    //  a press or a wheel anywhere else keeps the edit and lets it through.
     if (m_nameEdit.row >= 0)
     {
         RECT  box = m_nameEditor->GetBounds();
@@ -11023,26 +9801,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_valueEdit.row >= 0)
-    {
-        DxuiTextInput  * editor = (m_valueEdit.list == m_stackList) ? m_stackEditor : m_registerEditor;
-        RECT             box    = editor->GetBounds();
-
-        if (DxuiDockSite::Contains (box, POINT { x, y }))
-        {
-            editor->OnMouse (ev);
-            Invalidate();
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
-        {
-            EndValueEdit (true);
-        }
-    }
-
-    //  And a pane's own box being edited, such as a heat map range or its
-    //  set's name.
+    //  And a pane's own box being edited, such as a watch, a register, a heat
+    //  map range or its set's name.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEditMouse (ev))
@@ -11105,12 +9865,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Then the registers, stack and watch panes' Undo and Redo.
-    if (RouteUndoBarMouse (ev))
-    {
-        return true;
-    }
-
     //  Then each pane's on the pane interface.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
@@ -11120,16 +9874,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  Then the history bands, whose Go live link takes a press.
-    for (const auto & [band, bandPane] : { std::pair { m_codeHistoryBand, DebuggerLayout::GetCodePaneId (0) },
-                                           std::pair { m_regHistoryBand,  std::wstring (DebuggerLayout::kRegisters) } })
+    //  Then the first disassembly view's history band, whose Go live link
+    //  takes a press.
+    if (m_codeHistoryBand->IsVisible() && DxuiDockSite::Contains (m_codeHistoryBand->GetBounds(), POINT { x, y }) &&
+        m_routingPane == GetBarRoutingPane (DebuggerLayout::GetCodePaneId (0)) && m_codeHistoryBand->OnMouse (ev))
     {
-        bool  isOver = band->IsVisible() && DxuiDockSite::Contains (band->GetBounds(), POINT { x, y });
-
-        if (isOver && m_routingPane == GetBarRoutingPane (bandPane) && band->OnMouse (ev))
-        {
-            return true;
-        }
+        return true;
     }
 
     //  And the console's.
@@ -11228,9 +9978,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
             //  A click on a register's value edits it once the click is
             //  over, so the list is not left mid-press under the box.
-            if (list == m_registerList && ev.kind == DxuiMouseEventKind::Up)
+            if (ev.kind == DxuiMouseEventKind::Up)
             {
-                ClickRegister (ev.positionDip);
+                NoteListReleased (list, ev.positionDip);
             }
 
             return true;
@@ -11372,11 +10122,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
                 x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
             {
                 ForwardToList (list, ev);
-
-                if (list == m_registerList)
-                {
-                    ClickRegister (ev.positionDip);
-                }
+                NoteListReleased (list, ev.positionDip);
             }
         }
 
@@ -11471,10 +10217,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-    if (pane == DebuggerLayout::kRegisters)   { return { m_undoBars[kRegisterUndoBar].slot.get(), m_registerList, m_registerEditor, m_undoBars[kRegisterUndoBar].bar }; }
     if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar, m_nameEditor }; }
-    if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
-    if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
@@ -11561,14 +10304,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {
         return diagnostics->GetFrame();
-    }
-
-    for (const PaneUndoBar & each : m_undoBars)
-    {
-        if (pane == each.pane)
-        {
-            return each.frame.get();
-        }
     }
 
     controls = GetPaneControls (pane);
@@ -13338,24 +12073,8 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  A watch being edited takes every key: Enter keeps what was typed,
-    //  Escape leaves the watch as it was.
-    if (m_watchEdit.row >= 0)
-    {
-        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
-        {
-            EndWatchEdit (ev.vk == VK_RETURN);
-        }
-        else
-        {
-            m_watchEditor->OnKey (ev);
-        }
-
-        Invalidate();
-        return true;
-    }
-
-    //  So does a breakpoint being renamed.
+    //  A breakpoint being renamed takes every key: Enter keeps what was
+    //  typed, Escape leaves the name as it was.
     if (m_nameEdit.row >= 0)
     {
         if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
@@ -13371,24 +12090,9 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  So does a stack byte or a register being edited.
-    if (m_valueEdit.row >= 0)
-    {
-        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
-        {
-            EndValueEdit (ev.vk == VK_RETURN);
-        }
-        else
-        {
-            ((m_valueEdit.list == m_stackList) ? m_stackEditor : m_registerEditor)->OnKey (ev);
-        }
-
-        Invalidate();
-        return true;
-    }
-
-    //  So does a pane's own box being edited, such as a heat map range; the
-    //  ranges list takes its own keys.
+    //  So does a pane's own box being edited, such as a watch, a register or
+    //  a heat map range; and a pane's list with the focus takes its own keys,
+    //  as F2 and Ctrl+Z in the registers, stack and watches.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEditKey (ev, focused))
@@ -13407,59 +12111,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_breakpointList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
     {
         BeginNameEdit (m_breakpointList->GetSelectedRow());
-        return true;
-    }
-
-    //  Delete removes a manual watch; F2 edits the selected one's value, as
-    //  it does in Visual Studio's watch window.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && !ev.ctrl && !ev.alt)
-    {
-        if (ev.vk == VK_DELETE)
-        {
-            RemoveSelectedWatch();
-            return true;
-        }
-
-        if (ev.vk == VK_F2)
-        {
-            BeginWatchEdit (m_watchList->GetSelectedRow(), 1);
-            return true;
-        }
-    }
-
-    //  Ctrl+Z in the watch pane undoes its own last edit, and nothing of any
-    //  memory window's (FR-097).
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_watchList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
-    {
-        UndoWatchEdit (ev.vk == 'Y');
-        return true;
-    }
-
-    //  The stack pane's the same way; F2 edits the selected byte.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_stackList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
-    {
-        UndoStackEdit (ev.vk == 'Y');
-        return true;
-    }
-
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_stackList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
-    {
-        BeginValueEdit (m_stackList, m_stackList->GetSelectedRow());
-        return true;
-    }
-
-    //  F2 in the registers pane edits the selected value in place, or on P's
-    //  row opens the flags, which share the row.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_registerList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
-    {
-        EditRegister (m_registerList->GetSelectedRow(), true);
-        return true;
-    }
-
-    //  Ctrl+Z and Ctrl+Y in the registers pane undo and redo its own edits.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_registerList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
-    {
-        UndoRegisterEdit (ev.vk == 'Y');
         return true;
     }
 

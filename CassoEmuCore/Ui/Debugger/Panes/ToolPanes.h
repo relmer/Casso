@@ -39,6 +39,9 @@ public:
     std::vector<DxuiListView *>  GetLists       () const override { return { m_list }; }
 
 protected:
+    //  Copy, for the rows selected in the list.
+    void                         AddCopyItem    (PaneMenuItems & items);
+
     //  The path the user picks to save to; empty when the user backs out or
     //  the window has no file pickers.
     std::wstring                 PickSaveFile   (const wchar_t * filterName, const wchar_t * filter, const wchar_t * extension, const std::wstring & fileName);

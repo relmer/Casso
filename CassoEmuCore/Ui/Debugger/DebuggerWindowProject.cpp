@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 #include "Core/TextEncoding.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -281,9 +283,9 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     //  undo, a line each, its name before its history. A history the text
     //  lacks is empty, and the next machine change clears none of them,
     //  since they are the new machine's.
-    m_registerHistory.FromText (std::string());
-    m_stackHistory.FromText    (std::string());
-    m_watchHistory.Clear();
+    m_registersPane->GetHistory().FromText (std::string());
+    m_stackPane->GetHistory().FromText     (std::string());
+    m_watchesPane->GetHistory().Clear();
 
     m_memoryGroup->ClearHistories();
 
@@ -297,15 +299,15 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
         if (name == "registers")
         {
-            m_registerHistory.FromText (text);
+            m_registersPane->GetHistory().FromText (text);
         }
         else if (name == "stack")
         {
-            m_stackHistory.FromText (text);
+            m_stackPane->GetHistory().FromText (text);
         }
         else if (name == "watches")
         {
-            m_watchHistory.FromText (text);
+            m_watchesPane->GetHistory().FromText (text);
         }
         else if (name.starts_with ("memory") && name.size() == 7 && name[6] >= '1' && name[6] < '1' + DebuggerViewState::kMaxMemoryWindows)
         {
@@ -342,7 +344,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
 std::string DebuggerWindow::GetUndoHistoriesText() const
 {
-    std::string  text = "registers=" + m_registerHistory.ToText() + "\nstack=" + m_stackHistory.ToText() + "\nwatches=" + m_watchHistory.ToText() + "\n";
+    std::string  text = "registers=" + m_registersPane->GetHistory().ToText() + "\nstack=" + m_stackPane->GetHistory().ToText() + "\nwatches=" + m_watchesPane->GetHistory().ToText() + "\n";
 
 
 

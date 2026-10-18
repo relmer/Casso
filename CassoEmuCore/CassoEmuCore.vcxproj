@@ -212,7 +212,8 @@
     <ClCompile Include="Ui\Debugger\DisassemblyPreview.cpp" />
     <ClCompile Include="Ui\Debugger\FocusAccentOwner.cpp" />
     <ClCompile Include="Ui\Debugger\UndoBarCommands.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowUndoBars.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\UndoListPanes.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\WatchesPane.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointHistory.cpp" />
     <ClCompile Include="Ui\Debugger\RegisterHistory.cpp" />
@@ -879,6 +880,8 @@
     <ClInclude Include="Ui\Debugger\Panes\HeatRangesPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\EventLogControllers.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryWindows.h" />
+    <ClInclude Include="Ui\Debugger\Panes\UndoListPanes.h" />
+    <ClInclude Include="Ui\Debugger\Panes\WatchesPane.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
     <ClInclude Include="Ui\Debugger\Panes\ProfileTimeline.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />

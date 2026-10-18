@@ -7,6 +7,7 @@
 #include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
+#include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/TextDialog.h"
 
@@ -42,10 +43,14 @@ struct PaneTip
         Pending,
     };
 
-    Kind          kind        = Kind::Pointer;
-    RECT          anchor      = {};
-    std::wstring  text;
-    bool          isMonospace = false;
+    Kind                   kind        = Kind::Pointer;
+    RECT                   anchor      = {};
+    std::wstring           text;
+    bool                   isMonospace = false;
+
+    //  A color for each line, 0 for the tip's own; none for a tip in one
+    //  color.
+    std::vector<uint32_t>  lineColors;
 };
 
 
@@ -98,10 +103,31 @@ public:
     virtual void                   RunAction        (const DebuggerAction & action) = 0;
     virtual CommandMode            GetMode          () const = 0;
 
-    //  Moves the disassembly to an address, and a memory window in view to
-    //  one, or the last one used, bringing it forward.
+    //  Moves the disassembly to an address, or to the PC; a memory window in
+    //  view to one, or the last one used, bringing it forward; and the last
+    //  one used to one.
     virtual void                   GoToCode         (Word address) = 0;
+    virtual void                   ShowPcCode       () = 0;
     virtual void                   ShowMemoryAddress (Word address) = 0;
+    virtual void                   GoToMemory       (Word address) = 0;
+
+    //  The rows a menu gets to show an address or a Go to text in each open
+    //  memory window.
+    virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
+
+    //  Goes back to the machine's present from a point in its history.
+    virtual void                   GoLive           () = 0;
+
+    //  What changed since the last stop, a register's, a stack byte's or a
+    //  watch's value, by its key.
+    virtual const StopChanges    & GetStopChanges   () const = 0;
+
+    //  Where the last press was, in the window's pixels, for a list's
+    //  double-click to find which of a row's cells it landed in.
+    virtual POINT                  GetLastPressPx   () const = 0;
+
+    //  The panes' row height, in DIPs, at the usual text size.
+    virtual int                    GetPaneRowDip    () const = 0;
 
     //  The file pickers, none for a window with no host.
     virtual IHostDialogs         * GetHostDialogs   () = 0;
@@ -141,6 +167,13 @@ public:
     //  pane's info button.
     virtual RECT                   GetBarStrip      (const std::wstring & pane, const RECT & slot) = 0;
 
+    //  The snapshot the window last applied, none before the first.
+    virtual const DebuggerViewSnapshot * GetLatestSnapshot () const = 0;
+
+    //  Opens the dialog for a zero-page pointer to watch, as Add zero-page
+    //  pointer... does.
+    virtual void                   AddZeroPagePointer () = 0;
+
     //  Moves the keyboard focus to a control, as a press on it does.
     virtual void                   FocusControl     (IDxuiControl * control) = 0;
 
@@ -161,6 +194,7 @@ public:
     //  Writes lines to the console; and the line the user types in a dialog,
     //  none when canceled, which a test supplies instead.
     virtual void                   AppendConsole    (const std::vector<std::string> & lines) = 0;
+    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label) = 0;
     virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                         TextDialog::CheckFn check) = 0;
 
@@ -216,6 +250,10 @@ public:
     //  The pane's layout id, as DebuggerLayout has it, and its tab's title.
     virtual std::wstring                 GetId          () const = 0;
     virtual std::wstring                 GetTitle       () const = 0;
+
+    //  The boxes the pane lays over its cells, which stay the window's last
+    //  children so they paint over the dock.
+    virtual std::vector<IDxuiControl *>  GetOverlays    () const { return {}; }
 
     //  Creates the pane's controls, ahead of the dock; then any box laid over
     //  a cell in place, after the dock, so it paints over the pane; then sets
@@ -320,6 +358,10 @@ public:
 
     //  Whether a cell's tip at a point lines up in columns.
     virtual bool                         IsMonospaceTipAt (POINT clientPx) const { (void) clientPx; return false; }
+
+    //  A press on one of the pane's lists ended at a point, the list having
+    //  had it.
+    virtual void                         OnListReleased (DxuiListView * list, POINT clientPx) { (void) list; (void) clientPx; }
 
     //  A list row's context menu, Copy among its rows where the list copies,
     //  false for a list not the pane's; and the menu on what the pane draws

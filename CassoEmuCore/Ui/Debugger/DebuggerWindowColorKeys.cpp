@@ -23,15 +23,6 @@
 
 void DebuggerWindow::CreateColorKeys()
 {
-    const std::array<std::pair<size_t, ColorLegend::Pane>, kUndoBarCount>  undo =
-    { {
-        { kRegisterUndoBar, ColorLegend::Pane::Registers },
-        { kWatchUndoBar,    ColorLegend::Pane::Watch     },
-        { kStackUndoBar,    ColorLegend::Pane::Stack     },
-    } };
-
-
-
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         AddColorKey (DebuggerLayout::GetCodePaneId (view), m_codeBarSlots[(size_t) view].get(), ColorLegend::Pane::Disassembly);
@@ -40,11 +31,6 @@ void DebuggerWindow::CreateColorKeys()
     for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
     {
         AddColorKey (DebuggerLayout::GetSourcePaneId (slot), m_sourceDocs[(size_t) slot].barSlot.get(), ColorLegend::Pane::Source);
-    }
-
-    for (const auto & [index, legend] : undo)
-    {
-        AddColorKey (m_undoBars[index].pane, m_undoBars[index].slot.get(), legend);
     }
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)

@@ -157,6 +157,21 @@ IDxuiControl * ToolListPane::GetContent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolListPane::AddCopyItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolListPane::AddCopyItem (PaneMenuItems & items)
+{
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ToolListPane::PickSaveFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,6 +329,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
+    AddCopyItem (items);
     return true;
 }
 
@@ -532,6 +548,7 @@ bool BookmarksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
         items.push_back ({ L"Delete", [this, id = bookmark->id]      { m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode())); } });
     }
 
+    AddCopyItem (items);
     return true;
 }
 
@@ -1119,6 +1136,7 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int, PaneMenuItems & items
     items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });
     items.push_back ({ L"Reset",   [this] { RunProfile ("RESET"); } });
     items.push_back ({ L"Save...", [this] { Save(); } });
+    AddCopyItem (items);
     return true;
 }
 
@@ -1303,6 +1321,7 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
         items.push_back ({ L"Delete", [this, from = block->first, to = block->last] { m_host.RunAction (DebuggerActions::GetClearData (from, to, m_host.GetMode())); } });
     }
 
+    AddCopyItem (items);
     return true;
 }
 

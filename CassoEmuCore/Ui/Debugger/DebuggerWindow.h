@@ -69,6 +69,9 @@ class FlameGraphView;
 class HeatMapPane;
 class HeatRangesPane;
 class MemoryWindowGroup;
+class RegistersPane;
+class StackPane;
+class WatchesPane;
 class SymbolsPane;
 class CallStackPane;
 class DiagnosticsPane;
@@ -216,7 +219,7 @@ protected:
 
     //  Protected so a test can see which pane the watch editor goes with.
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
-    DxuiTextInput  * GetWatchEditor   () const { return m_watchEditor; }
+    DxuiTextInput  * GetWatchEditor   () const;
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
@@ -257,16 +260,14 @@ protected:
     void            BeginNameEdit  (int row);
     void            EndNameEdit    (bool commit);
     IDxuiControl  * GetFocused     () const;
-    DxuiListView  * GetWatchList   () const { return m_watchList; }
+    DxuiListView  * GetWatchList   () const;
 
     //  Protected so a test can edit a stack byte or a register in place as a
     //  click, F2 and Enter do.
-    void            BeginValueEdit    (DxuiListView * list, int row);
-    void            EndValueEdit      (bool commit);
-    DxuiTextInput * GetStackEditor    () const { return m_stackEditor; }
-    DxuiTextInput * GetRegisterEditor () const { return m_registerEditor; }
-    DxuiListView  * GetStackList      () const { return m_stackList; }
-    DxuiListView  * GetRegisterList   () const { return m_registerList; }
+    DxuiTextInput * GetStackEditor    () const;
+    DxuiTextInput * GetRegisterEditor () const;
+    DxuiListView  * GetStackList      () const;
+    DxuiListView  * GetRegisterList   () const;
 
     //  Protected so a test can see which pane has the focus border.
     std::wstring    GetPaneOfFocus () const;
@@ -364,7 +365,7 @@ protected:
     //  address and length of memory saved to one; none when canceled. A test
     //  overrides it.
     //  A byte for Push byte..., none when canceled; a test overrides it.
-    virtual std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label);
+    std::optional<Byte>  RunByteDialog (const std::wstring & title, const std::wstring & label) override;
 
     //  A line typed for a Memory pane's Find, Fill, Copy or Compare, none when
     //  canceled; a test overrides it.
@@ -403,7 +404,7 @@ protected:
     void                                               RunBreakpointBarEntry  (int id);
     void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access, bool isIoPage,
                                                                                std::optional<BreakpointDialog::Type> type = std::nullopt);
-    void                                               AddZeroPagePointer     ();
+    void                                               AddZeroPagePointer     () override;
     void                                               RunBreakpointStep      (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
 
@@ -648,12 +649,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ApplySnapshot    ();
     void     ApplyHistory     ();
     void     UpdateChanges    ();
-    std::vector<DxuiListView::Cell>  MakeWatchHeading (const std::wstring & title) const;
-    void     RemoveSelectedWatch ();
-    void     ApplyWatches        ();
-    void     UndoWatchEdit    (bool redo);
-    void     UndoRegisterEdit (bool redo);
-    void     UndoStackEdit    (bool redo);
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
@@ -715,7 +710,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     OpenOptions          ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
     void     LoadFileIntoMemory   ();
-    void     PushStackByte        ();
 
     //  The window's state a debug project saves with no setting of its own:
     //  the console history, each pane's find history and options, and the
@@ -844,10 +838,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
     void                                                 AddSymbolAt  (Word address);
     void     ApplyCodeView    (int view);
-    void     EditRegister     (int row, bool onFlags);
-    void     ClickRegister    (POINT clientPx);
-    void     CommitStackByte  (int row, Byte typed);
-    void     CommitRegister   (const std::string & name, Byte typed);
     void     UpdateTooltip    (POINT clientPx) override;
     void     UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed);
     void     ShowOperandTip   ();
@@ -904,10 +894,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
-
-    //  The changed color on each flag letter at the end of P's flags whose
-    //  bit is set in changedBits.
-    void      AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
     //  The disassembly views' bytes, for the changed color in their bytes
     //  column.
@@ -967,36 +953,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     StopChanges                             m_stopChanges;
     ByteChanges                             m_codeChanges;
 
-    //  What each row of the watch pane is, since the list mixes headings,
-    //  automatic watches and the user's own: an automatic row has its index
-    //  into the snapshot and a manual one its watch id. A BASIC variable
-    //  listed under its heading or as an automatic watch is a BasicItem.
-    enum class WatchRowKind { Heading, Automatic, Manual, ZeroPage, Add, BasicHeading, BasicItem };
-
-    struct WatchRow
-    {
-        WatchRowKind  kind  = WatchRowKind::Heading;
-        int           index = 0;
-    };
-
-    std::vector<WatchRow>                   m_watchRows;
-
-    //  Editing a watch in place (FR-096): a box laid over the cell, as Visual
-    //  Studio's watch window opens one. Column 0 is the expression, 1 the
-    //  value; an automatic watch's expression is not editable. An automatic
-    //  watch is found again by its key, since a snapshot taken during the
-    //  edit can list the automatic watches in another order.
-    struct WatchEdit
-    {
-        int          row    = -1;
-        int          column = 0;
-        WatchRow     what;
-        std::string  autoKey;
-    };
-
-    DxuiTextInput                         * m_watchEditor        = nullptr;
-    WatchEdit                               m_watchEdit;
-
     //  Renaming a breakpoint in place: the row and the breakpoint, and the
     //  name the box opened with; Enter on that same name renames nothing.
     struct NameEdit
@@ -1009,32 +965,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiTextInput                         * m_nameEditor         = nullptr;
     NameEdit                                m_nameEdit;
 
-    //  Editing a stack byte or a register's value in place: a box laid over
-    //  the value cell. Each pane has its own box, so the box goes with the
-    //  pane into a floating window.
-    struct ValueEdit
-    {
-        DxuiListView  * list = nullptr;
-        int             row  = -1;
-    };
-
-    static constexpr int                    kValueEditMaxChars   = 4;
-    DxuiTextInput                         * m_stackEditor        = nullptr;
-    DxuiTextInput                         * m_registerEditor     = nullptr;
-    ValueEdit                               m_valueEdit;
     POINT                                   m_lastPressPx        = {};
     bool                                    m_arrowShowsTarget   = false;
-
-    //  The watch pane's own undo and redo (FR-097), apart from every memory
-    //  window's: Ctrl+Z in the watch pane puts back its last edit only.
-    WatchHistory                               m_watchHistory;
-
-    //  The registers pane's own undo and redo, cleared when the machine
-    //  moves on from the stop its edits were made at.
-    RegisterHistory                            m_registerHistory;
-
-    //  The stack pane's, cleared the same way.
-    StackHistory                               m_stackHistory;
 
     //  The optional views open at the last save, and whether the ones saved
     //  before have been reopened yet. Reopening is asynchronous, so saving
@@ -1152,10 +1084,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
     int                                                                              m_activeCode         = 0;
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>                m_codeSelected;
-    DxuiListView                                                                   * m_registerList       = nullptr;
     DxuiListView                                                                   * m_breakpointList     = nullptr;
-    DxuiListView                                                                   * m_watchList          = nullptr;
-    DxuiListView                                                                   * m_stackList          = nullptr;
     DxuiListView                                                                   * m_callStackList      = nullptr;
     DxuiButton                                                                     * m_callStackButton    = nullptr;
     std::unique_ptr<CallStackPane>                                                   m_callStackPane;
@@ -1164,20 +1093,17 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::unique_ptr<TracePane>                                                       m_tracePane;
     KeyHintLine                                                                    * m_traceHint          = nullptr;
     HistoryBand                                                                    * m_codeHistoryBand    = nullptr;
-    HistoryBand                                                                    * m_regHistoryBand     = nullptr;
     std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     bool                                                                             m_isHeatMapRecording = false;
     bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
 
     //  The BASIC program pane (DebuggerWindowBasic.cpp), whether it was
-    //  opened, and the line it last scrolled to, and whether the Watches
-    //  pane's BASIC variables heading is expanded.
+    //  opened, and the line it last scrolled to.
     DxuiListView                         * m_basicProgramList         = nullptr;
     std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
     std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
     std::set<std::wstring>                 m_basicOpened;
-    bool                                   m_isBasicVariablesExpanded = false;
     std::optional<Word>                    m_basicShownLine;
     bool                                   m_isBasicReading           = false;
 
@@ -1198,6 +1124,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     HeatMapPane                                  * m_heatMapPane    = nullptr;
     HeatRangesPane                               * m_heatRangesPane = nullptr;
     MemoryWindowGroup                            * m_memoryGroup    = nullptr;
+    RegistersPane                                * m_registersPane  = nullptr;
+    StackPane                                    * m_stackPane      = nullptr;
+    WatchesPane                                  * m_watchesPane    = nullptr;
 
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
@@ -1210,6 +1139,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     IDxuiControl       * GetFocusedControl      () const override { return m_focusMgr.GetFocusedControl(); }
     void                 FocusDefault           () override { m_focusMgr.SetFocused (m_commandBox); }
     void                 HideTooltip            () override { GetRoutedTooltip().HideImmediate(); }
+    void                 ShowPcCode             () override { ShowCode (std::nullopt); }
+    void                 GoToMemory             (Word address) override;
+    void                 AddShowInMemoryItems   (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) override { AddShowInMemory (what, goTo, items); }
+    void                 GoLive                 () override { GoLiveFromBand(); }
+    const StopChanges  & GetStopChanges         () const override { return m_stopChanges; }
+    POINT                GetLastPressPx         () const override { return m_lastPressPx; }
+    int                  GetPaneRowDip          () const override { return kPaneRowDip; }
+    const DebuggerViewSnapshot * GetLatestSnapshot () const override { return m_snapshot.get(); }
     void                 ActivatePaneTab        (const std::wstring & pane) override;
     void                 RelayoutDock           () override;
     void                 RelayoutWindow         () override { LayoutWidgets(); }
@@ -1249,38 +1186,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);
     bool                     HasOwnColumnWidths       (const DxuiListView * list) const;
     bool                     IsTextBox                (const IDxuiControl * control) const;
+    void                     NoteListReleased         (DxuiListView * list, POINT clientPx);
+    std::vector<IDxuiControl *>  GetLastChildren      () const;
     void                     ApplyLogDeltas           ();
 
     std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointFrame;
     std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointSlot;
     DxuiToolbar                                                                           * m_breakpointBar      = nullptr;
     std::unique_ptr<BreakpointBarCommands>                                                  m_breakpointCommands;
-
-    //  The registers, stack and watch panes are each a bar of Undo and Redo
-    //  over the pane's list, as the breakpoints pane is its bar over its rows.
-    struct PaneUndoBar
-    {
-        std::wstring                         pane;
-        DxuiListView                       * list = nullptr;
-        DxuiToolbar                        * bar  = nullptr;
-        std::unique_ptr<DebuggerPaneFrame>   slot;
-        std::unique_ptr<DebuggerPaneFrame>   frame;
-        std::unique_ptr<UndoBarCommands>     commands;
-    };
-
-    static constexpr size_t  kRegisterUndoBar = 0;
-    static constexpr size_t  kStackUndoBar    = 1;
-    static constexpr size_t  kWatchUndoBar    = 2;
-    static constexpr size_t  kUndoBarCount    = 3;
-
-    std::array<PaneUndoBar, kUndoBarCount>  m_undoBars;
-
-    void          ConfigureUndoBars  ();
-    void          PlaceUndoBars      ();
-    bool          RouteUndoBarMouse  (const DxuiMouseEvent & ev);
-    void          RunPaneUndo        (size_t index, bool redo);
-    bool          IsPaneUndoEnabled  (size_t index, bool redo) const;
-    std::wstring  GetPaneUndoTip     (size_t index, bool redo) const;
 
     //  Each pane whose colors mean something has an info button at the end of
     //  its toolbar, in a band of its own where the pane has no toolbar (the

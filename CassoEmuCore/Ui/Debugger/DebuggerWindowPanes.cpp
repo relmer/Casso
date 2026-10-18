@@ -9,6 +9,8 @@
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
@@ -36,6 +38,9 @@ void DebuggerWindow::CreatePanes()
     });
     std::unique_ptr<HeatRangesPane>       ranges   = std::make_unique<HeatRangesPane>    (host, *heatMap);
     std::unique_ptr<MemoryWindowGroup>    memory   = std::make_unique<MemoryWindowGroup> (host);
+    std::unique_ptr<RegistersPane>        regs     = std::make_unique<RegistersPane>     (host);
+    std::unique_ptr<StackPane>            stack    = std::make_unique<StackPane>         (host);
+    std::unique_ptr<WatchesPane>          watches  = std::make_unique<WatchesPane>       (host);
 
 
 
@@ -43,6 +48,13 @@ void DebuggerWindow::CreatePanes()
     m_heatMapPane    = heatMap.get();
     m_heatRangesPane = ranges.get();
     m_memoryGroup    = memory.get();
+    m_registersPane  = regs.get();
+    m_stackPane      = stack.get();
+    m_watchesPane    = watches.get();
+
+    m_panes.push_back (std::move (regs));
+    m_panes.push_back (std::move (watches));
+    m_panes.push_back (std::move (stack));
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
@@ -425,6 +437,213 @@ void DebuggerWindow::ChooseMemoryGrouping (int grouping)
 bool DebuggerWindow::IsMemoryBarEnabled (int id) const
 {
     return m_memoryGroup->IsBarEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GoToMemory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::GoToMemory (Word address)
+{
+    m_memoryGroup->GetActive()->GetModel().GoTo (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::NoteListReleased
+//
+//  A press on a list ended, the list having had it, for the pane whose list
+//  it is, as a click on a register's value edits it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteListReleased (DxuiListView * list, POINT clientPx)
+{
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->OnListReleased (list, clientPx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetLastChildren
+//
+//  The window's children that paint over the rest, in order: the site's
+//  strips and drop zones over the panes, and a box being edited in place over
+//  the site.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetLastChildren() const
+{
+    std::vector<IDxuiControl *>  last = { m_dockSite };
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetOverlays(), std::back_inserter (last));
+    }
+
+    return last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetWatchEditor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetWatchEditor() const
+{
+    return m_watchesPane->GetEditor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetWatchList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetWatchList() const
+{
+    return m_watchesPane->GetList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetStackEditor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetStackEditor() const
+{
+    return m_stackPane->GetEditor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRegisterEditor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetRegisterEditor() const
+{
+    return m_registersPane->GetEditor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetStackList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetStackList() const
+{
+    return m_stackPane->GetList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRegisterList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetRegisterList() const
+{
+    return m_registersPane->GetList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BeginWatchEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginWatchEdit (int row, int column)
+{
+    m_watchesPane->BeginEdit (row, column);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndWatchEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndWatchEdit (bool commit)
+{
+    m_watchesPane->EndEdit (commit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetUndoBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
+{
+    for (UndoListPane * each : std::initializer_list<UndoListPane *> { m_registersPane, m_stackPane, m_watchesPane })
+    {
+        if (each->GetId() == pane)
+        {
+            return each->GetBar();
+        }
+    }
+
+    return nullptr;
 }
 
 
