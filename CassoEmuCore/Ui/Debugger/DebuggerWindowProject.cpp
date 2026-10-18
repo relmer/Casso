@@ -327,8 +327,10 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         return;
     }
 
-    m_heatMapView->SetOptions (HeatMapOptions::FromText (m_host->GetDebuggerHeatMapOptions()));
-    m_host->SetDebuggerHeatMapOptions (m_host->GetDebuggerHeatMapOptions());
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->OnProjectSwitched();
+    }
 
     m_diskLogPane->SetOptionsText  (m_host->GetDebuggerEventLogOptions (DebugLogKind::Disk));
     m_inputLogPane->SetOptionsText (m_host->GetDebuggerEventLogOptions (DebugLogKind::Input));

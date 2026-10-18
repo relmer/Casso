@@ -5,6 +5,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/HeatMapRangeBarCommands.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
 
@@ -160,7 +161,7 @@ void DebuggerWindow::SetHeatRangeMenus()
         edited.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_heatViewBar->SetDropDownItems  (HeatMapBarCommands::kRangeSet,  std::move (shown));
+    m_heatMapPane->GetViewBar()->SetDropDownItems (HeatMapBarCommands::kRangeSet,  std::move (shown));
     m_heatRangeBar->SetDropDownItems (HeatMapRangeBarCommands::kSet,  std::move (edited));
 }
 
@@ -763,6 +764,27 @@ void DebuggerWindow::EditRangeSet (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyHeatRangeSymbols
+//
+//  The ranges read again only when the symbols they read against change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHeatRangeSymbols()
+{
+    if (m_snapshot->heatMapSymbols != m_heatRangeSymbols)
+    {
+        m_heatRangeSymbols = m_snapshot->heatMapSymbols;
+        ApplyHeatRanges();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyHeatRanges
 //
 //  The map shows the shown set's ranges as they read against the symbols
@@ -777,11 +799,11 @@ void DebuggerWindow::ApplyHeatRanges()
 
 
 
-    SendHeatMapIgnore();
+    m_heatMapPane->SendIgnore();
 
     if (m_heatRanges.shown.empty())
     {
-        m_heatMapView->ClearRanges();
+        m_heatMapPane->GetView()->ClearRanges();
         ApplyHeatRangeRows();
         return;
     }
@@ -791,7 +813,7 @@ void DebuggerWindow::ApplyHeatRanges()
         bands.push_back ({ TextEncoding::Utf8ToWide (span.name), span.first, (int) span.last - (int) span.first + 1 });
     }
 
-    m_heatMapView->SetRanges (std::move (bands));
+    m_heatMapPane->GetView()->SetRanges (std::move (bands));
     ApplyHeatRangeRows();
 }
 

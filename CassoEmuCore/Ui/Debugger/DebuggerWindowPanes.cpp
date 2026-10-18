@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
@@ -22,11 +23,19 @@ void DebuggerWindow::CreatePanes()
 {
     IDebuggerPaneHost            & host     = *this;
     std::unique_ptr<ProfilerPane>  profiler = std::make_unique<ProfilerPane> (host);
+    std::unique_ptr<HeatMapPane>   heatMap  = std::make_unique<HeatMapPane>  (host, HeatMapPane::Ranges
+    {
+        &m_heatRanges,
+        [this] () -> const HeatMapSymbols & { return GetHeatRangeSymbols(); },
+        [this] { SetHeatRangeMenus(); },
+    });
 
 
 
     m_profilerPane = profiler.get();
+    m_heatMapPane  = heatMap.get();
 
+    m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::make_unique<SymbolsPane>    (host));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
@@ -76,6 +85,202 @@ IDebuggerPane * DebuggerWindow::FindPane (const std::wstring & pane) const
 const std::vector<std::shared_ptr<DxuiCommand>> & DebuggerWindow::GetProfilerCommands() const
 {
     return m_profilerPane->GetCommands();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView * DebuggerWindow::GetHeatMapView() const
+{
+    return m_heatMapPane->GetView();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetHeatMapBar() const
+{
+    return m_heatMapPane->GetBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatViewBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetHeatViewBar() const
+{
+    return m_heatMapPane->GetViewBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyHeatMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHeatMap()
+{
+    m_heatMapPane->Apply (*m_snapshot);
+    ApplyHeatRangeSymbols();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetHeatMapBarMenus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetHeatMapBarMenus()
+{
+    m_heatMapPane->SetBarMenus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetHeatMapOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetHeatMapOptions (const HeatMapOptions & options)
+{
+    m_heatMapPane->SetOptions (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsHeatMapBarEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsHeatMapBarEnabled (int id) const
+{
+    return m_heatMapPane->IsBarEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsHeatMapBarChecked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsHeatMapBarChecked (int id) const
+{
+    return m_heatMapPane->IsBarChecked (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapBarLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetHeatMapBarLabel (int id) const
+{
+    return m_heatMapPane->GetBarLabel (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddHeatMapAccessItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddHeatMapAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
+{
+    m_heatMapPane->AddAccessItems (address, bank, items);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapFadeCommands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::shared_ptr<DxuiCommand>> & DebuggerWindow::GetHeatMapFadeCommands() const
+{
+    return m_heatMapPane->GetFadeCommands();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatViewCommands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::shared_ptr<DxuiCommand>> & DebuggerWindow::GetHeatViewCommands() const
+{
+    return m_heatMapPane->GetViewCommands();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatMapBankCommands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::shared_ptr<DxuiCommand>> & DebuggerWindow::GetHeatMapBankCommands() const
+{
+    return m_heatMapPane->GetBankCommands();
 }
 
 

@@ -47,8 +47,13 @@ public:
     static int           GetHeightPx (int widthDip, const DxuiDpiScaler & scaler);
 
     void                 Place       ();
-    bool                 RouteMouse  (const DxuiMouseEvent & ev);
-    const wchar_t      * GetTip      (POINT clientPx, RECT & anchor) const;
+    bool                 RouteMouse  (const DxuiMouseEvent & ev) { return RouteToolbarMouse (m_host, m_pane, m_bar, ev, m_press); }
+    const wchar_t      * GetTip      (POINT clientPx, RECT & anchor) const { return GetToolbarTip (m_host, m_pane, m_bar, clientPx, anchor); }
+
+    //  The same for any toolbar of a pane, such as one laid out outside the
+    //  slot.
+    static bool            RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press);
+    static const wchar_t * GetToolbarTip     (IDebuggerPaneHost & host, const std::wstring & pane, const DxuiToolbar * bar, POINT clientPx, RECT & anchor);
 
 private:
     IDebuggerPaneHost                   & m_host;

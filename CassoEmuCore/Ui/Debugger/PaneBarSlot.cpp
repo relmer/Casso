@@ -135,14 +135,14 @@ void PaneBarSlot::Place()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaneBarSlot::RouteMouse
+//  PaneBarSlot::RouteToolbarMouse
 //
 //  The strip and whatever menu it has open take the left button, from the
 //  window the pane's bar is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PaneBarSlot::RouteMouse (const DxuiMouseEvent & ev)
+bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press)
 {
     int   x    = ev.positionDip.x;
     int   y    = ev.positionDip.y;
@@ -151,17 +151,17 @@ bool PaneBarSlot::RouteMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (m_bar == nullptr || !m_host.IsBarRouted (m_pane))
+    if (bar == nullptr || !host.IsBarRouted (pane))
     {
         return false;
     }
 
-    open = m_bar->IsMenuOpen();
-    over = m_bar->IsVisible() && DxuiDockSite::Contains (m_bar->GetBounds(), POINT { x, y });
+    open = bar->IsMenuOpen();
+    over = bar->IsVisible() && DxuiDockSite::Contains (bar->GetBounds(), POINT { x, y });
 
     if (!over && !open)
     {
-        m_bar->OnToolbarMouseLeave();
+        bar->OnToolbarMouseLeave();
         return false;
     }
 
@@ -173,19 +173,19 @@ bool PaneBarSlot::RouteMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        m_host.UpdateTooltip (ev.positionDip);
-        return m_bar->OnToolbarMouseMove (x, y);
+        host.UpdateTooltip (ev.positionDip);
+        return bar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
-        if (!open && m_press)
+        if (!open && press)
         {
-            m_press();
+            press();
         }
 
-        return m_bar->OnToolbarLButtonDown (x, y);
+        return bar->OnToolbarLButtonDown (x, y);
 
     case DxuiMouseEventKind::Up:
-        return m_bar->OnToolbarLButtonUp (x, y);
+        return bar->OnToolbarLButtonUp (x, y);
 
     default:
         return open;
@@ -198,16 +198,16 @@ bool PaneBarSlot::RouteMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaneBarSlot::GetTip
+//  PaneBarSlot::GetToolbarTip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * PaneBarSlot::GetTip (POINT clientPx, RECT & anchor) const
+const wchar_t * PaneBarSlot::GetToolbarTip (IDebuggerPaneHost & host, const std::wstring & pane, const DxuiToolbar * bar, POINT clientPx, RECT & anchor)
 {
-    if (m_bar == nullptr || !m_host.IsBarRouted (m_pane) || !m_bar->IsVisible())
+    if (bar == nullptr || !host.IsBarRouted (pane) || !bar->IsVisible())
     {
         return nullptr;
     }
 
-    return m_bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
+    return bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
 }

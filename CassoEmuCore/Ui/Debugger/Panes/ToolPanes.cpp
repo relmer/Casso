@@ -1080,20 +1080,23 @@ bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProfilerPane::TryGetContentTip
+//  ProfilerPane::TryGetTip
 //
-//  Over the timeline, the frame there; over the flame graph, the routine.
+//  Over the timeline, the frame there; over the flame graph, the routine;
+//  each at once and following the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfilerPane::TryGetContentTip (POINT clientPx, std::wstring & text) const
+bool ProfilerPane::TryGetTip (POINT clientPx, PaneTip & tip)
 {
-    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, text))
+    tip.kind = PaneTip::Kind::Pointer;
+
+    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text))
     {
         return true;
     }
 
-    return m_host.IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, text);
+    return m_host.IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, tip.text);
 }
 
 

@@ -224,7 +224,7 @@
     <ClCompile Include="Ui\Debugger\DebuggerWindowProject.cpp" />
     <ClCompile Include="Ui\Debugger\ProjectSettingsDialog.cpp" />
     <ClCompile Include="Ui\Debugger\StepFiltersDialog.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowTools.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ToolPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FlameGraphView.cpp" />
     <ClCompile Include="Ui\Debugger\HeatStrip.cpp" />
@@ -232,7 +232,7 @@
     <ClCompile Include="Ui\Debugger\DebuggerMenuCommand.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ProfileTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMap.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMapRanges.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
@@ -874,6 +874,8 @@
     <ClInclude Include="Ui\Debugger\PaneBarSlot.h" />
     <ClInclude Include="Ui\Debugger\DebuggerMenuCommand.h" />
     <ClInclude Include="Ui\Debugger\Panes\IDebuggerPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapPane.h" />
+    <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
     <ClInclude Include="Ui\Debugger\Panes\ProfileTimeline.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />
     <ClInclude Include="Ui\Debugger\Panes\MeterBar.h" />

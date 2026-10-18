@@ -47,7 +47,18 @@ void DebuggerWindow::CreateColorKeys()
         AddColorKey (m_undoBars[index].pane, m_undoBars[index].slot.get(), legend);
     }
 
-    AddColorKey (DebuggerLayout::kHeatMap,     m_heatMapBarSlot.get(),   ColorLegend::Pane::HeatMap);
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::optional<PaneColorKeySpec>  key = pane->GetColorKey();
+
+
+
+        if (key.has_value())
+        {
+            AddColorKey (pane->GetId(), key->slot, key->legend, key->dynamic);
+        }
+    }
+
     AddColorKey (DebuggerLayout::kBreakpoints, m_breakpointSlot.get(),   ColorLegend::Pane::Breakpoints);
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)

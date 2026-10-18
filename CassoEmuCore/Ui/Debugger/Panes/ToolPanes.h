@@ -182,7 +182,7 @@ public:
     bool                         RouteBarMouse     (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
     const wchar_t              * GetBarTip         (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                         TryGetContentTip  (POINT clientPx, std::wstring & text) const override;
+    bool                         TryGetTip         (POINT clientPx, PaneTip & tip) override;
     bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
 
     //  The drop-down's words for a view.
