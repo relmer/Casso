@@ -106,6 +106,26 @@ uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorMarquee::GetShimmerBand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t InspectorMarquee::GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & scenePx)
+{
+    double  place = (xPx - scenePx.left) + (yPx - scenePx.top);
+    double  alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, scenePx));
+
+
+
+    return (static_cast<uint32_t> (std::clamp (alpha, 0.0, 255.0)) << 24) | 0x00FFFFFFu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorMarquee::GetBandCenter
 //
 //  Where the band's center is along the window's diagonal, in pixels of

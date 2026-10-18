@@ -63,6 +63,10 @@ public:
     //  map's selection lights up as the band crosses it.
     static uint32_t  GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx);
 
+    //  The band alone, with none of the glow: clear away from it, for light
+    //  laid over a line.
+    static uint32_t  GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & scenePx);
+
     //  The shimmer painted over a rectangle, the band a stripe at 45 degrees.
     static void  PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & scenePx);
 

@@ -33,6 +33,7 @@ static constexpr float    s_kMarqueeStepDip = 8.0f;
 static constexpr float    s_kShadeStepDip   = 24.0f;
 static constexpr int      s_kMaxPieces      = 4096;
 static constexpr float    s_kMinMarkDip     = 8.0f;
+static constexpr float    s_kShimmerHaloDip = 6.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
@@ -126,7 +127,9 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
                        m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
     }
 
-    if (m_hoverRing >= 0 && m_hoverRing != m_context.model->GetQuarterTrack())
+    //  The ring under the pointer, unless the pointer is on the selection,
+    //  which the ring's outline would obscure.
+    if (m_hoverRing >= 0 && m_hoverRing != m_context.model->GetQuarterTrack() && !IsOverSelection (view, m_context.hoverPx))
     {
         OutlineRing (painter, view, m_hoverRing, m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
     }
@@ -863,7 +866,7 @@ void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & t
         sector = PlatterGeometry::GetSectorAt (*track, PlatterGeometry::GetCellAtTurn (*track, hit.turn));
     }
 
-    if (sector >= 0)
+    if (sector >= 0 && !IsOverSelection (view, m_context.hoverPx))
     {
         const AnalyzedSector &  s = track->sectors[sector];
 
@@ -882,19 +885,17 @@ void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & t
 //
 //  A stretch of a ring marked across a band at least s_kMinMarkDip wide, so
 //  the mark is plain at fit. The selection is outlined in the selection
-//  color over a contrasting edge and shimmers (FR-038); the hovered sector
-//  is lit faintly and outlined thinly.
+//  color over a contrasting edge, and the shimmer's band runs over both the
+//  fill and the outline, a soft light just outside the edge and over the
+//  line (FR-038); the hovered sector is lit faintly and outlined thinly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const
 {
     double    now    = InspectorMarquee::GetClockMs();
-    double    outer  = PlatterGeometry::GetRingOuter (quarterTrack) * view.outerRadiusPx;
-    double    inner  = PlatterGeometry::GetRingOuter (quarterTrack + 1) * view.outerRadiusPx;
-    double    half   = std::max ((outer - inner) / 2, static_cast<double> (m_scaler.ToPxf (s_kMinMarkDip)) / 2);
-    double    r0     = (outer + inner) / 2 - half;
-    double    r1     = (outer + inner) / 2 + half;
+    double    r0     = 0;
+    double    r1     = 0;
     float     thick  = isSelected ? m_scaler.ToPxf (s_kSelectOutlineDip) : 1.0f;
     uint32_t  ink    = isSelected ? m_context.palette.colors.selection : InspectorMarquee::GetHoverLine();
     uint32_t  edge   = DiskInspectorPalette::GetTextColorOn (m_context.palette.colors.selection);
@@ -904,8 +905,30 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     double    m      = 0;
     auto      getX   = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
     auto      getY   = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+    auto      drawOutline = [&] (float w, const std::function<uint32_t (float, float)> & colorAt)
+    {
+        for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
+        {
+            pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, s_kMaxPieces);
+
+            for (int k = 0; k < pieces; k++)
+            {
+                a = part.first + (part.second - part.first) * k / pieces;
+                b = part.first + (part.second - part.first) * (k + 1) / pieces;
+                m = (a + b) / 2;
+
+                painter.DrawLine (getX (a, r1), getY (a, r1), getX (b, r1), getY (b, r1), w, colorAt (getX (m, r1), getY (m, r1)));
+                painter.DrawLine (getX (a, r0), getY (a, r0), getX (b, r0), getY (b, r0), w, colorAt (getX (m, r0), getY (m, r0)));
+            }
+        }
+
+        painter.DrawLine (getX (start, r0), getY (start, r0), getX (start, r1), getY (start, r1), w, colorAt (getX (start, (r0 + r1) / 2), getY (start, (r0 + r1) / 2)));
+        painter.DrawLine (getX (end, r0),   getY (end, r0),   getX (end, r1),   getY (end, r1),   w, colorAt (getX (end, (r0 + r1) / 2),   getY (end, (r0 + r1) / 2)));
+    };
 
 
+
+    GetMarkBand (view, quarterTrack, r0, r1);
 
     if (!IsBandVisible (view, r0, r1))
     {
@@ -930,30 +953,95 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
         }
     }
 
-    //  The outline: for the selection, the edge first and wider, then the
-    //  selection color over it.
-    for (int pass = isSelected ? 0 : 1; pass < 2; pass++)
+    //  The outline. For the selection: the band's light, wide and soft,
+    //  under the edge; the edge, wider than the line; the selection color;
+    //  then the band's light over the line.
+    if (isSelected)
     {
-        float     w     = (pass == 0) ? thick + 2.0f : thick;
-        uint32_t  color = (pass == 0) ? edge : ink;
+        drawOutline (thick + m_scaler.ToPxf (s_kShimmerHaloDip), [&] (float x, float y)
+                     {
+                         uint32_t  band = InspectorMarquee::GetShimmerBand (now, x, y, m_context.scenePx);
 
-        for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
-        {
-            pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, s_kMaxPieces);
-
-            for (int k = 0; k < pieces; k++)
-            {
-                a = part.first + (part.second - part.first) * k / pieces;
-                b = part.first + (part.second - part.first) * (k + 1) / pieces;
-
-                painter.DrawLine (getX (a, r1), getY (a, r1), getX (b, r1), getY (b, r1), w, color);
-                painter.DrawLine (getX (a, r0), getY (a, r0), getX (b, r0), getY (b, r0), w, color);
-            }
-        }
-
-        painter.DrawLine (getX (start, r0), getY (start, r0), getX (start, r1), getY (start, r1), w, color);
-        painter.DrawLine (getX (end, r0),   getY (end, r0),   getX (end, r1),   getY (end, r1),   w, color);
+                         return ((band >> 25) << 24) | (band & 0x00FFFFFFu);
+                     });
+        drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
     }
+
+    drawOutline (thick, [&] (float, float) { return ink; });
+
+    if (isSelected)
+    {
+        drawOutline (thick, [&] (float x, float y) { return InspectorMarquee::GetShimmerBand (now, x, y, m_context.scenePx); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetMarkBand
+//
+//  The radii between which a ring's mark is drawn: the ring itself, or a
+//  band s_kMinMarkDip wide centered on it where the ring is narrower.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::GetMarkBand (const PlatterPlacement & view, int quarterTrack, double & outR0, double & outR1) const
+{
+    double  outer = PlatterGeometry::GetRingOuter (quarterTrack) * view.outerRadiusPx;
+    double  inner = PlatterGeometry::GetRingOuter (quarterTrack + 1) * view.outerRadiusPx;
+    double  half  = std::max ((outer - inner) / 2, static_cast<double> (m_scaler.ToPxf (s_kMinMarkDip)) / 2);
+
+
+
+    outR0 = (outer + inner) / 2 - half;
+    outR1 = (outer + inner) / 2 + half;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsOverSelection
+//
+//  Whether the point is on the selection's mark, its outline included: the
+//  point's radius within the mark's band and its angle within the
+//  selection's turns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsOverSelection (const PlatterPlacement & view, POINT pointPx) const
+{
+    double  end    = 0;
+    double  start  = m_context.model->GetSelectionTurn (end);
+    double  dx     = pointPx.x - view.centerXPx;
+    double  dy     = pointPx.y - view.centerYPx;
+    double  r      = std::hypot (dx, dy);
+    double  slack  = m_scaler.ToPxf (s_kSelectOutlineDip) + 2.0;
+    double  r0     = 0;
+    double  r1     = 0;
+    double  turn   = 0;
+    double  margin = 0;
+    bool    isOver = false;
+
+
+
+    if (start >= 0 && r > 0 && PtInRect (&m_boundsDip, pointPx))
+    {
+        GetMarkBand (view, m_context.model->GetQuarterTrack(), r0, r1);
+
+        end    = (end <= start) ? end + 1.0 : end;
+        margin = slack / (s_kTwoPi * r);
+        turn   = std::atan2 (dx, -dy) / s_kTwoPi - view.rotation;
+        turn  -= std::floor (turn - (start - margin));
+        isOver = r >= r0 - slack && r <= r1 + slack && turn <= end + margin;
+    }
+
+    return isOver;
 }
 
 
