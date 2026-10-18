@@ -250,6 +250,11 @@
     <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowInput.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowLayout.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowContextMenus.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowTips.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowColors.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionEffect.cpp" />
     <ClCompile Include="Ui\Debugger\InstructionTouches.cpp" />
