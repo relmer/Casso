@@ -213,6 +213,21 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
 - Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
+### Session 2026-10-18 (owner review: the refactored build)
+
+- Q: How wide are the trace pane's columns? -> A: As wide as their content, as in the other lists (FR-255).
+- Q: Can a tab that is not the active one in its group be dragged off? -> A: Yes, at once: a press and drag on it detaches it with no click to activate it first (FR-256).
+- Q: Which fields does the breakpoint dialog have? -> A: Only the ones the chosen type uses; they change as the type changes (FR-257).
+- Q: What does a drag of a tab along its own strip do? -> A: It moves the tab within its group, as in Visual Studio. The group stays a tab group during the drag, and the tab detaches only once the pointer leaves the strip (FR-258).
+- Q: How does the watch pane's add row work? -> A: As the heat map ranges pane's: it reads "Add new watch", one click on it starts the edit in place, and both panes use the same editable list control (FR-259).
+- Q: Is the beam line over the video easy to see? -> A: Not on a busy screen, such as Lode Runner's blue bricks. It is brighter, with a dark edge (FR-260).
+- Q: What does a click on the status bar's history section do? -> A: It opens Options at the History page (FR-261).
+- Q: How is the preview in Options > Disassembly laid out? -> A: Its source lines are aligned to the disassembly's columns, so the branch arrow is never drawn over source text; and its dimmed lines are darker, as are the views' dimmed lines, at least in the skeuomorphic theme (FR-262).
+- Q: What is wrong with the heat map ranges pane? -> A: The new set's name editor is drawn over the set drop-down, reported before; the columns are not as wide as their content; the buttons read New set, Rename set and Delete set where New, Rename and Delete are enough; and a built-in range's context menu is the pane's tab menu, where it is one disabled Delete item. By default the heat map and the heat map ranges are in one tab group (FR-263, FR-264).
+- Q: How does the MMU panel draw its maps? -> A: The read and write bars are vertical and wide, with the list of mapped areas to their right. An area tall enough has its source or destination's name inside the bar (Main memory, Slot ROM); its bounds are labels beside the bars where they do not overlap a neighbor's; and a tip gives any area's name and bounds (FR-265).
+- Q: How are the input log's filters chosen? -> A: The paddle drop-downs have only their chosen value in them, with no label. The emulator input and host input drop-downs are removed: a context menu on each column has a Filter cascade for that column, and a column with a filter in force has a filter glyph right of its heading, before any sort glyph (FR-266).
+- Q: Why is the profiler not always on? -> A: Profiling runs every instruction through the per-instruction callback that trace uses, in place of the free-run path. Its cost at 1x and at full speed is measured and recorded in research; if it is small, the profiler is always on and its Profile button is removed (FR-267).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3183,6 +3198,45 @@ run something, switch back to the //e: it is where it was left.
   screen, docked, floating and slid out, after each step.
 - **FR-254**: `/bigobj` MUST be removed from `DebuggerWindow.cpp` once the
   last pane has moved.
+- **FR-255**: The trace pane's columns MUST be as wide as their content,
+  as the other lists' are.
+- **FR-256**: A press and drag on a tab that is not the active one in its
+  group MUST detach it at once, with no click to activate it first.
+- **FR-257**: The breakpoint dialog MUST have only the fields the chosen
+  breakpoint type uses, and MUST change them as the type changes.
+- **FR-258**: A tab dragged along its own strip MUST move within its group;
+  the group MUST stay a tab group during the drag, and the tab MUST detach
+  only once the pointer leaves the strip.
+- **FR-259**: The watch pane's add row MUST read "Add new watch" and start
+  the edit in place on one click, with the same editable list control the
+  heat map ranges pane uses.
+- **FR-260**: The beam line over the video MUST be drawn brighter, with a
+  dark edge, so it is visible over a busy screen.
+- **FR-261**: A click on the status bar's history section MUST open
+  Options at the History page.
+- **FR-262**: The preview in Options > Disassembly MUST align its source
+  lines to the disassembly's columns, with the branch arrow never over
+  source text; dimmed lines there and in the views MUST be darker, at least
+  in the skeuomorphic theme.
+- **FR-263**: In the heat map ranges pane, the new set's name editor MUST
+  NOT cover the set drop-down; the columns MUST be as wide as their
+  content; the buttons MUST read New, Rename and Delete; and a built-in
+  range's context menu MUST be one disabled Delete item.
+- **FR-264**: The default layout MUST put the heat map and the heat map
+  ranges in one tab group.
+- **FR-265**: The MMU panel MUST draw its read and write bars vertically
+  and wide, with the list of mapped areas to their right; an area tall
+  enough MUST have its source or destination's name inside the bar, its
+  bounds MUST be labels beside the bars where they do not overlap a
+  neighbor's, and a tip MUST give any area's name and bounds.
+- **FR-266**: The input log's paddle drop-downs MUST have only their chosen
+  value; its emulator input and host input drop-downs MUST be removed in
+  favor of a Filter cascade on each column's context menu, and a column
+  with a filter in force MUST have a filter glyph right of its heading,
+  before any sort glyph.
+- **FR-267**: The cost of profiling at 1x and at full speed MUST be measured
+  and recorded; if it is small, the profiler MUST be always on, with its
+  Profile button removed.
 
 ### Key Entities
 
