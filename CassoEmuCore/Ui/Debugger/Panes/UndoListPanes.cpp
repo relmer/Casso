@@ -57,8 +57,23 @@ UndoListPane::~UndoListPane() = default;
 
 void UndoListPane::CreateControls()
 {
-    m_list = m_host.GetControlParent().CreateChild<DxuiListView>();
+    m_list = CreateList();
     m_bar.Create();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UndoListPane::CreateList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * UndoListPane::CreateList()
+{
+    return m_host.GetControlParent().CreateChild<DxuiListView>();
 }
 
 

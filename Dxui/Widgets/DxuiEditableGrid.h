@@ -17,9 +17,9 @@
 //  commits it and Escape cancels it, and Tab moves to the next cell. The last
 //  row is a hint, "Add new range" or the like, that starts a new row; once
 //  every required column of the new row has text, the row is offered to the
-//  host and, if taken, a new hint row follows it. Each row has a gripper at
-//  its left that drags it to another place, and Delete removes the selected
-//  row.
+//  host and, if taken, a new hint row follows it. Unless the host turns it
+//  off, each row has a gripper at its left that drags it to another place.
+//  Delete removes the selected row.
 //
 //  The grid has no data of its own: the host sets its rows and columns, and
 //  each edit, addition, move and deletion is a callback that changes the
@@ -47,6 +47,7 @@ public:
         std::vector<Cell>          cells;       // one per grid column
         std::vector<std::wstring>  editTexts;   // the text an edit of each cell starts with; a cell's own text when absent
         bool                       isReadOnly = false;
+        std::vector<bool>          readOnlyCells;   // per grid column; a column past its end can be edited
     };
 
     //  The row is the grid's row, GetDataRowCount() for the hint row.
@@ -56,6 +57,7 @@ public:
     using MoveFn     = std::function<void (int from, int to)>;
     using DeleteFn   = std::function<void (int row)>;
     using ErrorFn    = std::function<void (const std::wstring & error)>;
+    using BeginFn    = std::function<void (int row, int column)>;
 
     static constexpr int  kGripperDip = 16;
 
@@ -68,20 +70,27 @@ public:
     void  SetEditorHwnd  (HWND hwnd)                  { m_editor.SetHwnd (hwnd); }
     void  SetEditorMaxLength (size_t maxLength)       { m_editor.SetMaxLength (maxLength); }
 
+    //  Whether rows have grippers and can be dragged to another place; on by
+    //  default. Set before the columns.
+    void  SetRowsMovable (bool isMovable)            { m_isMovable = isMovable; }
+
     void  SetOnValidate   (ValidateFn fn)  { m_validate = std::move (fn); }
     void  SetOnCommitCell (CommitFn fn)    { m_commit   = std::move (fn); }
     void  SetOnAddRow     (AddFn fn)       { m_add      = std::move (fn); }
     void  SetOnMoveRow    (MoveFn fn)      { m_move     = std::move (fn); }
     void  SetOnDeleteRow  (DeleteFn fn)    { m_delete   = std::move (fn); }
     void  SetOnError      (ErrorFn fn)     { m_error    = std::move (fn); }
+    void  SetOnBeginEdit  (BeginFn fn)     { m_begin    = std::move (fn); }
 
     int   GetDataRowCount () const               { return (int) m_rows.size(); }
     bool  IsAddRow        (int row) const        { return row == GetDataRowCount(); }
     int   ToGridColumn    (int listColumn) const { return listColumn - 1; }
     int   GetGridColumnAt (int xPx) const;
 
-    //  Whether a row can be edited or deleted: a data row not read-only.
+    //  Whether a row can be edited or deleted: a data row not read-only; and
+    //  whether one of its cells can be edited.
     bool  IsRowEditable   (int row) const;
+    bool  IsCellEditable  (int row, int column) const;
     bool  CanDeleteRow    (int row) const        { return IsRowEditable (row); }
     void  DeleteRow       (int row);
 
@@ -145,6 +154,7 @@ private:
     MoveFn                     m_move;
     DeleteFn                   m_delete;
     ErrorFn                    m_error;
+    BeginFn                    m_begin;
     int                        m_editRow     = -1;
     int                        m_editColumn  = -1;
     int                        m_pressRow    = -1;
@@ -152,4 +162,5 @@ private:
     int                        m_dragRow     = -1;
     int                        m_dropRow     = -1;
     bool                       m_isEnding    = false;
+    bool                       m_isMovable   = true;
 };

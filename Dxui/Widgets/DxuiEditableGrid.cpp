@@ -28,7 +28,8 @@ DxuiEditableGrid::DxuiEditableGrid()
 //
 //  DxuiEditableGrid::SetGridColumns
 //
-//  The gripper's column first, then the grid's.
+//  The gripper's column first, hidden when rows cannot be moved, then the
+//  grid's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,7 @@ void DxuiEditableGrid::SetGridColumns (std::vector<GridColumn> columns)
 
 
     gripper.widthDip = kGripperDip;
+    gripper.visible  = m_isMovable;
     listColumns.push_back (gripper);
 
     for (const GridColumn & each : columns)
@@ -215,6 +217,45 @@ bool DxuiEditableGrid::IsColumnEditable (int column) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::IsCellEditable
+//
+//  Every editable column of the hint row; in a data row that is not
+//  read-only, each editable column but those of its read-only cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::IsCellEditable (int row, int column) const
+{
+    const std::vector<bool>  * readOnly = nullptr;
+
+
+
+    if (!IsColumnEditable (column))
+    {
+        return false;
+    }
+
+    if (IsAddRow (row))
+    {
+        return true;
+    }
+
+    if (!IsRowEditable (row))
+    {
+        return false;
+    }
+
+    readOnly = &m_rows[(size_t) row].readOnlyCells;
+
+    return (size_t) column >= readOnly->size() || !(*readOnly)[(size_t) column];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::DeleteRow
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,7 +357,7 @@ bool DxuiEditableGrid::BeginEdit (int row, int column)
 
 
 
-    if (!IsColumnEditable (column) || !(IsRowEditable (row) || IsAddRow (row)))
+    if (!IsCellEditable (row, column))
     {
         return false;
     }
@@ -337,6 +378,12 @@ bool DxuiEditableGrid::BeginEdit (int row, int column)
     m_editor.Layout     (box, m_gridScaler);
     m_editor.SetFocused (true);
     m_editor.SelectAll();
+
+    if (m_begin)
+    {
+        m_begin (row, column);
+    }
+
     return true;
 }
 
@@ -702,7 +749,11 @@ void DxuiEditableGrid::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     m_editor.SetTheme        (&theme);
 
     DxuiListView::Paint (painter, text, theme);
-    PaintGrippers       (painter, theme);
+
+    if (m_isMovable)
+    {
+        PaintGrippers (painter, theme);
+    }
 
     if (IsDraggingRow())
     {
@@ -898,7 +949,7 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
         column      = GetGridColumnAt (lx);
         m_pressRow  = -1;
 
-        if (row >= 0 && row < GetDataRowCount() && column < 0)
+        if (m_isMovable && row >= 0 && row < GetDataRowCount() && column < 0)
         {
             m_dragRow = row;
             m_dropRow = row;
@@ -955,7 +1006,7 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 
 
 
-    if (IsDraggingRow() || (row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
+    if (IsDraggingRow() || (m_isMovable && row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
     {
         return IDC_SIZENS;
     }
@@ -1028,6 +1079,11 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_F2 || ev.vk == VK_RETURN) && selected >= 0)
     {
+        while (first >= 0 && !IsCellEditable (selected, first))
+        {
+            first = GetNextEditColumn (first, 1);
+        }
+
         return BeginEdit (selected, first);
     }
 

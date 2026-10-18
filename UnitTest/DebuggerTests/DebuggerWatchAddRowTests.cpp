@@ -147,12 +147,12 @@ namespace DebuggerWatchAddRowTests
 
             //  The window sizes the Watch column to its text as it draws; with
             //  nothing drawn here it is given a width so its cell has a place.
-            window.GetWatchesPane().GetList()->SetColumns ({ { L"Watch", 120, false, DxuiTextHAlign::Left },
-                                                 { L"Value", 120, false, DxuiTextHAlign::Left } });
+            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+                                                                                    { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
 
             Assert::AreEqual (2, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, then the add row");
             last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
-            Assert::AreEqual (std::wstring (L"Add item to watch"), window.GetWatchesPane().GetList()->GetCellsOfRow (last)[0].text);
+            Assert::AreEqual (std::wstring (L"Add new watch"), window.GetWatchesPane().GetList()->GetCellsOfRow (last)[1].text);
 
             window.GetWatchesPane().BeginEdit (last, 0);
             window.Type (L"400");
@@ -162,6 +162,44 @@ namespace DebuggerWatchAddRowTests
             Assert::IsTrue   (host.commands.front().find ("400") != std::string::npos, L"the typed expression is watched");
         }
 
+
+        //  As the heat map ranges pane's add row: one click starts the edit.
+        TEST_METHOD (OneClickOnTheAddRowStartsTheEdit)
+        {
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            WatchWindow         window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DxuiEditableGrid  * grid     = nullptr;
+            RECT                cell     = {};
+            DxuiMouseEvent      click;
+            int                 last     = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            grid = static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList());
+            grid->SetGridColumns ({ { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+                                    { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
+
+            last = grid->GetDataRowCount();
+            Assert::IsTrue (grid->GetCellTextRectPx (last, 1, cell), L"the add row's cell is in view");
+
+            click.button      = DxuiMouseButton::Left;
+            click.positionDip = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+            click.kind        = DxuiMouseEventKind::Down;
+            (void) grid->OnMouse (click);
+            click.kind        = DxuiMouseEventKind::Up;
+            (void) grid->OnMouse (click);
+
+            Assert::IsTrue   (grid->IsEditing(), L"one click does not start the edit");
+            Assert::AreEqual (last, grid->GetEditRow());
+        }
 
 
         //  Each watch and zero-page pointer has a check that enables or
@@ -185,16 +223,16 @@ namespace DebuggerWatchAddRowTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
             window.TakeSnapshot (snapshot);
-            window.GetWatchesPane().GetList()->SetColumns ({ { L"Watch", 160, false, DxuiTextHAlign::Left },
-                                                 { L"Value", 200, false, DxuiTextHAlign::Left } });
+            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"Watch", 160, false, DxuiTextHAlign::Left }, true, true },
+                                                                                    { { L"Value", 200, false, DxuiTextHAlign::Left }, true, false } });
 
             Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[0].check.value_or (false), L"the watch is on");
-            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[0].text);
-            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[0].check.value_or (true), L"the pointer is off");
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.value_or (false), L"the watch is on");
+            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
+            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.value_or (true), L"the pointer is off");
 
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (0, 0, check), L"the watch's check is in view");
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (0, 1, check), L"the watch's check is in view");
             press.kind        = DxuiMouseEventKind::Down;
             press.button      = DxuiMouseButton::Left;
             press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
@@ -204,7 +242,7 @@ namespace DebuggerWatchAddRowTests
             Assert::IsTrue   (host.commands.back().starts_with ("WD 0"), L"its check disables the watch");
 
             window.GetWatchesPane().GetList()->EnsureVisible (2);
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (2, 0, check), L"the pointer's check is in view");
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (2, 1, check), L"the pointer's check is in view");
             press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
             (void) window.GetWatchesPane().GetList()->OnMouse (press);
 

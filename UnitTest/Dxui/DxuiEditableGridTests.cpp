@@ -374,6 +374,48 @@ public:
 
 
 
+    TEST_METHOD (AReadOnlyCellIsNotEditedButTheRestOfItsRowIs)
+    {
+        Host                                    host;
+        std::vector<DxuiEditableGrid::GridRow>  rows (1);
+
+
+
+        rows[0].cells         = { { L"A" }, { L"$0" }, { L"$FF" } };
+        rows[0].readOnlyCells = { true };
+        host.grid.SetGridRows (std::move (rows));
+
+        host.Click (0, 0);
+        Assert::IsFalse  (host.grid.IsEditing(), L"the read-only cell opened");
+
+        host.Click (0, 1);
+        Assert::IsTrue   (host.grid.IsEditing(), L"the row's other cells edit");
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+    }
+
+
+
+    TEST_METHOD (RowsThatCannotMoveHaveNoGripper)
+    {
+        DxuiEditableGrid  grid;
+        DxuiDpiScaler     scaler;
+        POINT             at = {};
+
+
+
+        scaler.SetDpi (96);
+        grid.SetRowsMovable (false);
+        grid.SetGridColumns ({ { { L"Name", 120 } } });
+        grid.SetGridRows    ({ { { { L"A" } } }, { { { L"B" } } } });
+        grid.Layout         (RECT { 0, 0, 400, 300 }, scaler);
+
+        at.x = grid.GetPaneLeadPx() + 2;
+
+        Assert::IsFalse (grid.IsColumnVisible (0), L"the gripper's column is shown");
+        Assert::AreEqual (0, grid.GetGridColumnAt (at.x), L"the first column starts at the lead");
+    }
+
+
     TEST_METHOD (AColumnsValidationKeepsTheBoxOpen)
     {
         Host  host;

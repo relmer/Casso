@@ -1123,9 +1123,9 @@ namespace DebuggerTests
 
             window.OnCreate();
 
-            //  A floated pane takes its controls with it; the editor opens
-            //  over the watch list, so it has to be one of them.
-            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchesPane().GetEditor()));
+            //  A floated pane takes its controls with it; the editor is the
+            //  watch grid's own, so it goes with the grid.
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchesPane().GetList()));
         }
     };
 

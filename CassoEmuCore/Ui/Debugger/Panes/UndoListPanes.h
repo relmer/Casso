@@ -51,6 +51,10 @@ public:
     virtual void                     Undo           (bool redo) = 0;
 
 protected:
+    //  The pane's list, made in the window; a pane edited in place makes an
+    //  editable grid.
+    virtual DxuiListView *           CreateList     ();
+
     //  Adds the parts of the frame between the bar and the list, as the
     //  registers' history band.
     virtual void                     AddMiddleParts (DebuggerPaneFrame & frame) { (void) frame; }

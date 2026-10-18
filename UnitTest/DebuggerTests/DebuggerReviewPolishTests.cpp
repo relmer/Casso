@@ -521,11 +521,11 @@ namespace DebuggerReviewPolishTests
             window.Build();
             window.TakeSnapshot (snapshot);
 
-            const DxuiListView::Cell & heading = window.GetWatchesPane().GetList()->GetCellsOfRow (0)[0];
+            const DxuiListView::Cell & heading = window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1];
 
             last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
 
-            const DxuiListView::Cell & add = window.GetWatchesPane().GetList()->GetCellsOfRow (last)[0];
+            const DxuiListView::Cell & add = window.GetWatchesPane().GetList()->GetCellsOfRow (last)[1];
 
             Assert::AreEqual (std::wstring (L"Automatic"), heading.text);
             Assert::IsTrue   (heading.face != nullptr && std::wstring (heading.face) == DxuiTheme::kBodyFace, L"the heading in the body face");
@@ -533,7 +533,7 @@ namespace DebuggerReviewPolishTests
             Assert::IsTrue   (DxuiColor::ComputeContrastRatio (heading.background, theme.ContentBackground()) <
                               DxuiColor::ComputeContrastRatio (theme.HoverBackground(), theme.ContentBackground()) ||
                               theme.HoverBackground() == theme.ContentBackground(), L"closer to the pane than the hover color is");
-            Assert::AreEqual (std::wstring (L"Add item to watch"), add.text);
+            Assert::AreEqual (std::wstring (L"Add new watch"), add.text);
             Assert::IsTrue   (add.face != nullptr && std::wstring (add.face) == DxuiTheme::kBodyFace, L"the add row in the body face");
             Assert::IsTrue   (add.weight == DxuiFontWeight::Italic, L"in italic");
         }

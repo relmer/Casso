@@ -42,30 +42,14 @@ WatchesPane::~WatchesPane() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WatchesPane::CreateOverlays
-//
-//  The edit box, drawn over the row it edits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WatchesPane::CreateOverlays()
-{
-    m_editor = m_host.GetControlParent().CreateChild<DxuiTextInput>();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WatchesPane::Configure
 //
-//  Double-clicking a watch edits the cell under the pointer in place: the
-//  expression on the left, the value on the right. A watch's or a zero-page
-//  pointer's check enables or disables it. The value runs to the pane's
-//  edge, as Visual Studio's does, so the Automatic and Watches headings span
-//  the pane rather than the columns.
+//  A click on a watch's cell edits it in place: the expression on the left,
+//  the value on the right. A watch's or a zero-page pointer's check enables
+//  or disables it. The value runs to the pane's edge, as Visual Studio's
+//  does, so the Automatic and Watches headings span the pane rather than the
+//  columns. A double-click on the BASIC variables heading expands or
+//  collapses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +57,16 @@ void WatchesPane::Configure()
 {
     UndoListPane::Configure();
 
-    m_list->SetOnActivateRow ([this] (int row) { BeginEdit (row, IsPressRightOf (row, 1) ? 1 : 0); });
+    m_list->SetOnActivateRow ([this] (int row)
+    {
+        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+
+        if (snapshot != nullptr && row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::BasicHeading)
+        {
+            m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
+            ApplyRows (*snapshot);
+        }
+    });
 
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
@@ -92,13 +85,37 @@ void WatchesPane::Configure()
         }
     });
 
-    m_list->SetColumns ({ { L"Watch", 0, false, DxuiTextHAlign::Left },
-                          { L"Value", 0, true,  DxuiTextHAlign::Left } });
+    m_grid->SetGridColumns ({ { { L"Watch", 0, false, DxuiTextHAlign::Left }, true, true },
+                              { { L"Value", 0, true,  DxuiTextHAlign::Left }, true, false } });
 
-    m_editor->SetVisible   (false);
-    m_editor->SetOverText  (true);
-    m_editor->SetHwnd      (m_host.GetOwnerHwnd());
-    m_editor->SetMaxLength (kEditMaxChars);
+    m_grid->SetAddRowText      (L"Add new watch");
+    m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
+    m_grid->SetEditorMaxLength (kEditMaxChars);
+    m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring &) { return CommitCell (row, column, text); });
+    m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring &) { return AddWatch (texts[0]); });
+    m_grid->SetOnDeleteRow     ([this] (int) { RemoveSelected(); });
+    m_grid->SetOnBeginEdit     ([this] (int row, int) { NoteEditBegun (row); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::CreateList
+//
+//  An editable grid, its rows fixed in place, since the watches are in the
+//  engine's order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * WatchesPane::CreateList()
+{
+    m_grid = m_host.GetControlParent().CreateChild<DxuiEditableGrid>();
+    m_grid->SetRowsMovable (false);
+
+    return m_grid;
 }
 
 
@@ -113,7 +130,7 @@ void WatchesPane::Configure()
 
 std::vector<IDxuiControl *> WatchesPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_list, m_editor, m_bar.GetBar() };
+    return { m_bar.GetSlot(), m_list, m_bar.GetBar() };
 }
 
 
@@ -153,10 +170,9 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 {
     const StopChanges                             & changes     = m_host.GetStopChanges();
     uint32_t                                        changed     = m_host.GetTextColors().changed;
-    std::vector<std::vector<DxuiListView::Cell>>    rows;
+    std::vector<DxuiEditableGrid::GridRow>          rows;
     bool                                            isInProgram = BasicWatches::IsStoppedInProgram (snapshot.basic);
     std::vector<BasicWatches::Item>                 basicAutos  = isInProgram ? BasicWatches::GetStatementItems (*snapshot.basic) : std::vector<BasicWatches::Item>();
-    DxuiListView::Cell                              prompt      = { L"Add item to watch" };
 
 
 
@@ -164,7 +180,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
     if (!snapshot.autoWatches.empty() || !basicAutos.empty())
     {
-        rows.push_back (MakeHeading (L"Automatic"));
+        rows.push_back ({ MakeHeading (L"Automatic"), {}, true });
         m_rows.push_back ({ RowKind::Heading, 0 });
 
         for (size_t i = 0; i < snapshot.autoWatches.size(); i++)
@@ -192,18 +208,20 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
                 value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
             }
 
-            rows.push_back ({ name, value });
+            //  What the instruction touches is not the user's to change, so
+            //  only the value edits.
+            rows.push_back ({ { name, value }, {}, false, { true, false } });
             m_rows.push_back ({ RowKind::Automatic, (int) i });
         }
 
         //  The BASIC variables the statement being run uses.
         for (const BasicWatches::Item & item : basicAutos)
         {
-            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } });
+            rows.push_back ({ { BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
 
-        rows.push_back (MakeHeading (L"Watches"));
+        rows.push_back ({ MakeHeading (L"Watches"), {}, true });
         m_rows.push_back ({ RowKind::Heading, 0 });
     }
 
@@ -235,8 +253,13 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
                                               value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
 
+        //  The expression edits as its address or BASIC name; a BASIC watch's
+        //  value is the program's to change.
         name.check = watch.enabled;
-        rows.push_back ({ name, value });
+        rows.push_back ({ { name, value },
+                          { watch.basicName.empty() ? std::format (L"{:04X}", watch.address) : TextEncoding::NarrowToWide (watch.basicName),
+                            TextEncoding::NarrowToWide (watch.value) },
+                          false, { false, !watch.basicName.empty() } });
         m_rows.push_back ({ RowKind::Manual, watch.id });
     }
 
@@ -244,7 +267,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     //  address, then the address its two bytes form and the bytes there.
     if (!snapshot.zeroPagePointers.empty())
     {
-        rows.push_back (MakeHeading (L"Zero-page pointers"));
+        rows.push_back ({ MakeHeading (L"Zero-page pointers"), {}, true });
         m_rows.push_back ({ RowKind::Heading, 0 });
 
         for (const DebuggerViewSnapshot::WatchLine & pointer : snapshot.zeroPagePointers)
@@ -255,7 +278,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             name.check = pointer.enabled;
             name.dim   = !pointer.enabled;
             value.dim  = !pointer.enabled;
-            rows.push_back ({ name, value });
+            rows.push_back ({ { name, value }, {}, true });
             m_rows.push_back ({ RowKind::ZeroPage, pointer.id });
         }
     }
@@ -264,25 +287,19 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     //  expands or collapses.
     if (isInProgram)
     {
-        rows.push_back (MakeHeading (std::format (L"{} BASIC variables", m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight)));
+        rows.push_back ({ MakeHeading (std::format (L"{} BASIC variables", m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight)), {}, true });
         m_rows.push_back ({ RowKind::BasicHeading, 0 });
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
         {
-            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } });
+            rows.push_back ({ { BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
 
-    //  As in Visual Studio, the last row adds a watch: an expression typed
-    //  into it in place becomes one.
-    prompt.dim    = true;
-    prompt.face   = DxuiTheme::kBodyFace;
-    prompt.weight = DxuiFontWeight::Italic;
-    rows.push_back ({ prompt, { L"" } });
-    m_rows.push_back ({ RowKind::Add, 0 });
-
-    m_list->SetRows (std::move (rows));
+    //  As in Visual Studio, the grid's last row adds a watch: an expression
+    //  typed into it in place becomes one.
+    m_grid->SetGridRows (std::move (rows));
 }
 
 
@@ -326,94 +343,22 @@ std::vector<DxuiListView::Cell> WatchesPane::MakeHeading (const std::wstring & t
 //
 //  WatchesPane::BeginEdit
 //
-//  A heading edits nothing, an automatic watch's expression is what the
-//  instruction touches, so only its value edits, and the add row opens empty
-//  for an expression. A click on the BASIC variables heading expands or
-//  collapses it.
+//  The add row has only an expression to type, wherever it was opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchesPane::BeginEdit (int row, int column)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    RECT                          cell     = {};
-    RECT                          list     = m_list->GetBounds();
-    Row                           what;
-    std::wstring                  text;
-
-
-
-    if (snapshot == nullptr || row < 0 || row >= (int) m_rows.size())
-    {
-        return;
-    }
-
-    what = m_rows[(size_t) row];
-
-    if (what.kind == RowKind::BasicHeading)
-    {
-        m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
-        ApplyRows (*snapshot);
-        return;
-    }
-
-    if (what.kind == RowKind::Heading || what.kind == RowKind::BasicItem || (what.kind == RowKind::Automatic && column == 0))
-    {
-        return;
-    }
-
-    //  The add row has only an expression to type, wherever it was opened.
-    if (what.kind == RowKind::Add)
+    if (m_grid->IsAddRow (row))
     {
         column = 0;
     }
 
-    if (!m_list->GetCellTextRectPx (row, (size_t) column, cell))
+    if (m_grid->BeginEdit (row, column))
     {
-        return;
+        m_host.FocusControl (m_grid);
     }
 
-    if (what.kind == RowKind::Automatic)
-    {
-        text = TextEncoding::NarrowToWide (snapshot->autoWatches[(size_t) what.index].value);
-    }
-    else if (what.kind == RowKind::Manual)
-    {
-        for (const DebuggerViewSnapshot::WatchLine & watch : snapshot->watches)
-        {
-            //  A BASIC watch's value is the program's to change.
-            if (watch.id == what.index && column != 0 && !watch.basicName.empty())
-            {
-                return;
-            }
-
-            if (watch.id == what.index)
-            {
-                text = (column != 0)           ? TextEncoding::NarrowToWide (watch.value)
-                     : watch.basicName.empty() ? std::format (L"{:04X}", watch.address)
-                     :                           TextEncoding::NarrowToWide (watch.basicName);
-            }
-        }
-    }
-
-    OffsetRect (&cell, list.left, list.top);
-
-    m_edit = Edit { row, column, what, {} };
-
-    if (what.kind == RowKind::Automatic)
-    {
-        m_edit.autoKey = snapshot->autoWatches[(size_t) what.index].key;
-    }
-
-    //  In the list's own face and size, so the text does not jump when the
-    //  box opens over it.
-    m_editor->SetTextRenderer (m_host.GetPaneTextRenderer());
-    m_editor->SetFont         (DxuiTheme::kMonoFace, m_list->GetFontSizeDip());
-    m_editor->SetText         (text);
-    m_editor->Layout          (cell, m_host.GetPaneScaler());
-    m_editor->SetVisible      (true);
-    m_host.FocusControl       (m_editor);
-    m_editor->SelectAll();
     m_host.Repaint();
 }
 
@@ -425,75 +370,141 @@ void WatchesPane::BeginEdit (int row, int column)
 //
 //  WatchesPane::EndEdit
 //
-//  The undo record is taken from the snapshot as it is, before the edit
-//  runs. An automatic watch that is no longer listed takes no edit.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchesPane::EndEdit (bool commit)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    std::wstring                  typed    = m_editor->GetText();
-    std::vector<DebuggerAction>   actions;
-
-
-
-    if (m_edit.row < 0)
-    {
-        return;
-    }
-
-    if (commit && m_edit.what.kind == RowKind::Add)
-    {
-        std::string  expression = TextEncoding::WideToNarrow (typed);
-
-        expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
-
-        expression.erase (expression.find_last_not_of (" \t") + 1);
-
-        if (!expression.empty())
-        {
-            actions.push_back (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
-        }
-    }
-    else if (commit && snapshot != nullptr)
-    {
-        bool                                        isManual = m_edit.what.kind == RowKind::Manual;
-        std::optional<int>                          watchId  = isManual ? std::optional<int> (m_edit.what.index) : std::nullopt;
-        std::optional<int>                          autoAt;
-        std::optional<DebuggerViewState::WatchUndo> undo;
-
-
-
-        for (size_t i = 0; !isManual && i < snapshot->autoWatches.size(); i++)
-        {
-            if (snapshot->autoWatches[i].key == m_edit.autoKey)
-            {
-                autoAt = (int) i;
-                break;
-            }
-        }
-
-        actions = DebuggerViewState::GetWatchEditActions (*snapshot, watchId, autoAt, m_edit.column,
-                                                          TextEncoding::WideToNarrow (typed), m_host.GetMode());
-
-        undo = actions.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*snapshot, watchId, autoAt, m_edit.column, m_host.GetMode());
-
-        if (undo.has_value())
-        {
-            m_history.Record (std::move (*undo), actions, WatchHistory::GetEditText (*snapshot, watchId, autoAt, m_edit.column));
-        }
-    }
-
-    m_edit = Edit {};
-    m_editor->SetVisible (false);
-    m_host.FocusControl  (m_list);
+    (void) m_grid->EndEdit (commit);
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::CommitCell
+//
+//  The undo record is taken from the snapshot as it is, before the edit
+//  runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed)
+{
+    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    Edit                                          edit     = m_edit;
+    std::optional<int>                            watchId;
+    std::optional<int>                            autoAt;
+    std::optional<DebuggerViewState::WatchUndo>   undo;
+    std::vector<DebuggerAction>                   actions;
+
+
+
+    (void) row;
+    m_edit = Edit {};
+
+    if (snapshot == nullptr || !edit.isOpen)
+    {
+        return true;
+    }
+
+    if (edit.what.kind == RowKind::Manual)
+    {
+        watchId = edit.what.index;
+    }
+
+    for (size_t i = 0; edit.what.kind == RowKind::Automatic && i < snapshot->autoWatches.size(); i++)
+    {
+        if (snapshot->autoWatches[i].key == edit.autoKey)
+        {
+            autoAt = (int) i;
+            break;
+        }
+    }
+
+    //  An automatic watch no longer listed takes no edit.
+    if (!watchId.has_value() && !autoAt.has_value())
+    {
+        return true;
+    }
+
+    actions = DebuggerViewState::GetWatchEditActions (*snapshot, watchId, autoAt, column, TextEncoding::WideToNarrow (typed), m_host.GetMode());
+    undo    = actions.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*snapshot, watchId, autoAt, column, m_host.GetMode());
+
+    if (undo.has_value())
+    {
+        m_history.Record (std::move (*undo), actions, WatchHistory::GetEditText (*snapshot, watchId, autoAt, column));
+    }
 
     for (const DebuggerAction & action : actions)
     {
         m_host.RunAction (action);
     }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::NoteEditBegun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::NoteEditBegun (int row)
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+
+
+
+    m_edit = Edit {};
+
+    if (snapshot == nullptr || row < 0 || row >= (int) m_rows.size())
+    {
+        return;
+    }
+
+    m_edit.what   = m_rows[(size_t) row];
+    m_edit.isOpen = true;
+
+    if (m_edit.what.kind == RowKind::Automatic && m_edit.what.index < (int) snapshot->autoWatches.size())
+    {
+        m_edit.autoKey = snapshot->autoWatches[(size_t) m_edit.what.index].key;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::AddWatch
+//
+//  The expression typed into the add row, less the spaces around it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchesPane::AddWatch (const std::wstring & typed)
+{
+    std::string  expression = TextEncoding::WideToNarrow (typed);
+
+
+
+    expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
+    expression.erase (expression.find_last_not_of (" \t") + 1);
+
+    if (!expression.empty())
+    {
+        m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
+    }
+
+    return true;
 }
 
 
@@ -527,44 +538,9 @@ void WatchesPane::RemoveSelected()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WatchesPane::RouteEditMouse
-//
-//  The box takes the pointer while it is over the box; a press or a wheel
-//  anywhere else commits the edit and passes the event on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WatchesPane::RouteEditMouse (const DxuiMouseEvent & ev)
-{
-    if (m_edit.row < 0)
-    {
-        return false;
-    }
-
-    if (DxuiDockSite::Contains (m_editor->GetBounds(), ev.positionDip))
-    {
-        m_editor->OnMouse (ev);
-        m_host.Repaint();
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
-    {
-        EndEdit (true);
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WatchesPane::RouteEditKey
 //
-//  The box takes every key while a watch is edited. In the list, Delete
+//  The grid has every key while a watch is edited. In the list, Delete
 //  removes a manual watch and F2 edits the selected one's value, as in
 //  Visual Studio's watch window; Ctrl+Z undoes the pane's own last edit, and
 //  nothing of any memory window's.
@@ -573,22 +549,19 @@ bool WatchesPane::RouteEditMouse (const DxuiMouseEvent & ev)
 
 bool WatchesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
 {
-    if (m_edit.row >= 0)
+    if (focused != m_list)
     {
-        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
-        {
-            EndEdit (ev.vk == VK_RETURN);
-        }
-        else
-        {
-            m_editor->OnKey (ev);
-        }
+        return false;
+    }
 
+    if (m_grid->IsEditing())
+    {
+        (void) m_grid->OnKey (ev);
         m_host.Repaint();
         return true;
     }
 
-    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.alt)
+    if (ev.kind != DxuiKeyEventKind::Down || ev.alt)
     {
         return false;
     }

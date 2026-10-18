@@ -15,8 +15,9 @@
 //  watches the user added, then the zero-page pointers, each section under a
 //  heading of its own, and while the machine is stopped in a running
 //  Applesoft program, its variables. The last row adds a watch. A watch is
-//  edited in place, as in Visual Studio's watch window, and the pane's undo
-//  is its own, apart from every memory window's.
+//  edited in place, as in Visual Studio's watch window, on the same editable
+//  grid as the heat map's ranges, and the pane's undo is its own, apart from
+//  every memory window's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,32 +28,33 @@ public:
     ~WatchesPane() override;
 
     WatchHistory                 & GetHistory     () { return m_history; }
-    DxuiTextInput                * GetEditor      () const { return m_editor; }
+    DxuiTextInput                * GetEditor      () const { return &m_grid->GetEditor(); }
 
-    //  A box over a cell, holding what the cell shows, all of it selected so
-    //  typing replaces it; Enter commits what was typed, Escape cancels the
-    //  edit, and a click anywhere else commits it.
+    //  The grid's box over a cell, with the cell's text in it, all of it
+    //  selected so typing replaces it; Enter commits what was typed, Escape
+    //  cancels the edit, and a click anywhere else commits it.
     void                           BeginEdit      (int row, int column);
     void                           EndEdit        (bool commit);
 
-    void                           CreateOverlays () override;
-    std::vector<IDxuiControl *>    GetOverlays    () const override { return { m_editor }; }
     void                           Configure      () override;
     std::vector<IDxuiControl *>    GetControls    () const override;
     void                           Apply          (const DebuggerViewSnapshot & snapshot) override;
-    bool                           RouteEditMouse (const DxuiMouseEvent & ev) override;
     bool                           RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                           AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                           CanUndo        (bool redo) const override;
     std::wstring                   GetUndoText    (bool redo) const override;
     void                           Undo           (bool redo) override;
 
+protected:
+    DxuiListView *                 CreateList     () override;
+
 private:
     //  What each row is, since the list mixes headings, automatic watches and
     //  the user's own: an automatic row has its index into the snapshot and a
     //  manual one its watch id. A BASIC variable listed under its heading or
-    //  as an automatic watch is a BasicItem.
-    enum class RowKind { Heading, Automatic, Manual, ZeroPage, Add, BasicHeading, BasicItem };
+    //  as an automatic watch is a BasicItem. The grid's own last row adds a
+    //  watch, and has no entry.
+    enum class RowKind { Heading, Automatic, Manual, ZeroPage, BasicHeading, BasicItem };
 
     struct Row
     {
@@ -60,15 +62,14 @@ private:
         int      index = 0;
     };
 
-    //  The watch being edited: column 0 is the expression, 1 the value. An
-    //  automatic watch is found again by its key, since a snapshot taken
-    //  during the edit can list the automatic watches in another order.
+    //  The watch an edit began on. An automatic watch is found again by its
+    //  key, since a snapshot taken during the edit can list the automatic
+    //  watches in another order.
     struct Edit
     {
-        int          row    = -1;
-        int          column = 0;
         Row          what;
         std::string  autoKey;
+        bool         isOpen = false;
     };
 
     static constexpr int  kEditMaxChars = 64;
@@ -77,9 +78,15 @@ private:
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
     void                             RemoveSelected ();
 
-    WatchHistory        m_history;
-    DxuiTextInput     * m_editor                   = nullptr;
-    Edit                m_edit;
-    std::vector<Row>    m_rows;
-    bool                m_isBasicVariablesExpanded = false;
+    //  The grid's commit of a watch's cell, column 0 the expression and 1
+    //  the value, and of the add row.
+    bool                             CommitCell     (int row, int column, const std::wstring & typed);
+    bool                             AddWatch       (const std::wstring & typed);
+    void                             NoteEditBegun  (int row);
+
+    WatchHistory         m_history;
+    DxuiEditableGrid   * m_grid                     = nullptr;
+    std::vector<Row>     m_rows;
+    Edit                 m_edit;
+    bool                 m_isBasicVariablesExpanded = false;
 };
