@@ -48,7 +48,7 @@
 
 // Connect a //c serial port to its device while the machine runs. Payload:
 // "<port>:<device>", such as "2:tcp:6502"; an empty device loops back.
-#define IDM_SERIAL_CONNECT                 40090
+#define IDM_SERIAL_CONNECT                 40193
 
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that
