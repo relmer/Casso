@@ -13,20 +13,20 @@
 
 
 
-//  Windows 11's status icons, as its InfoBar draws them: a filled shape in the
-//  severity's color with its mark over it in the inverse of the text color.
-//  Each glyph pair is the icon font's own: the triangle and exclamation point,
-//  the circle and its cross or its i.
+//  The icons of Windows' own message box, in either theme: a red circle
+//  with a white cross, a yellow triangle with a black exclamation point, and
+//  a blue circle with a white i. Each glyph pair is the icon font's own: the
+//  triangle and exclamation point, the circle and its cross or its i.
 static constexpr wchar_t   s_kGlyphCircle      = L'\uF136';
 static constexpr wchar_t   s_kGlyphTriangle    = L'\uF139';
 static constexpr wchar_t   s_kGlyphExclamation = L'\uF13B';
 static constexpr wchar_t   s_kGlyphCross       = L'\uF13D';
 static constexpr wchar_t   s_kGlyphInfoMark    = L'\uF13F';
-static constexpr uint32_t  s_kArgbInfo         = 0xFF4A9EDB;
-static constexpr uint32_t  s_kArgbWarningDark  = 0xFFFCE100;   // SystemFillColorCaution
-static constexpr uint32_t  s_kArgbWarningLight = 0xFF9D5D00;
-static constexpr uint32_t  s_kArgbErrorDark    = 0xFFFF99A4;   // SystemFillColorCritical
-static constexpr uint32_t  s_kArgbErrorLight   = 0xFFC42B1C;
+static constexpr uint32_t  s_kArgbInfo         = 0xFF0067C0;
+static constexpr uint32_t  s_kArgbWarning      = 0xFFFFC83D;
+static constexpr uint32_t  s_kArgbError        = 0xFFD13438;
+static constexpr uint32_t  s_kArgbMarkLight    = 0xFFFFFFFF;
+static constexpr uint32_t  s_kArgbMarkDark     = 0xFF000000;
 static constexpr wchar_t   s_kIconFont   []    = L"Segoe Fluent Icons";
 
 enum class DxuiMessageSeverity { None, Info, Warning, Error };
@@ -81,16 +81,15 @@ public:
 
         if (m_severity != DxuiMessageSeverity::None)
         {
-            bool      dark      = DxuiColor::ComputeRelativeLuminance (theme.Background()) < 0.5f;
             int       iconColPx = m_scaler.ToPx (s_kIconColDip);
             wchar_t   shape[2]  = { (m_severity == DxuiMessageSeverity::Warning) ? s_kGlyphTriangle : s_kGlyphCircle, L'\0' };
             wchar_t   mark[2]   = { (m_severity == DxuiMessageSeverity::Warning) ? s_kGlyphExclamation
                                   : (m_severity == DxuiMessageSeverity::Error)   ? s_kGlyphCross
                                                                                  : s_kGlyphInfoMark, L'\0' };
-            uint32_t  fill      = (m_severity == DxuiMessageSeverity::Warning) ? (dark ? s_kArgbWarningDark : s_kArgbWarningLight)
-                                : (m_severity == DxuiMessageSeverity::Error)   ? (dark ? s_kArgbErrorDark   : s_kArgbErrorLight)
+            uint32_t  fill      = (m_severity == DxuiMessageSeverity::Warning) ? s_kArgbWarning
+                                : (m_severity == DxuiMessageSeverity::Error)   ? s_kArgbError
                                                                                : s_kArgbInfo;
-            uint32_t  ink       = dark ? 0xFF000000u : 0xFFFFFFFFu;
+            uint32_t  ink       = (m_severity == DxuiMessageSeverity::Warning) ? s_kArgbMarkDark : s_kArgbMarkLight;
 
             //  The glyph's line is taller than a short message; a box of its own,
             //  centered on the message, keeps it from being clipped.
