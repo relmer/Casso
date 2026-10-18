@@ -5,6 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/CallStackRebuildJob.h"
 
 
 
@@ -167,6 +168,8 @@ void CallStackHistory::OnMoved (bool isInterim)
     m_moveMark.reset();
 
     m_restoresSeen = GetRestoreCount();
+    m_session.ResolveDiskCalls();
+    m_session.TakeBasicValues();
 
     if (!isStill)
     {
@@ -838,6 +841,8 @@ void CallStackHistory::CheckLoads()
 
     m_restoresSeen = restores;
 
+    m_session.ResolveDiskCalls();
+    m_session.TakeBasicValues();
     m_session.RestartCallRecording();
 }
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -125,8 +126,6 @@ public:
 
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
-
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Surface the Disk2.rom slot ROM at $C600 (CxxxRomRouter /
         // INTCXROM=0; audit C1).

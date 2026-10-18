@@ -8,6 +8,7 @@
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/DiskCommandResult.h"
 
 
 

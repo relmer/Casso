@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "Config/IFileSystem.h"
-
 #include "Core/JsonValue.h"
+
+class IFileSystem;
 
 
 

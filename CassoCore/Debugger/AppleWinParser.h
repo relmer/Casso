@@ -1,8 +1,10 @@
 #pragma once
 
-#include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/DebugCommand.h"
 #include "Debugger/IDebugExpressionContext.h"
+
+struct AppleWinCommand;
+class AppleWinCommandTable;
 
 
 
@@ -96,7 +98,23 @@ private:
     static bool    TryParseFlagArguments     (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
     static bool    TryParseValueBreakpoint   (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseOpcodes           (const Arguments & args, DebugCommand & command, std::string & error);
+    static void    NoteSymbol                (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
+    static bool    IsMnemonicToken           (const std::string & token);
     static bool    TryParseBeamArguments     (const Arguments & args, DebugCommand & command, std::string & error);
+
+    // BPDISK (AppleWinParserDisk.cpp).
+    static bool    TryParseDiskArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseNameArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool    TryParseDiskEventArguments (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec);
+    static bool    TryParseDiskNumber         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue);
+    static bool    TryParseDiskFields         (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count);
+    static bool    TryParseDiskRange          (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, bool takesHalf);
+    static bool    TryParseDiskCommand        (const Tokens & tokens, size_t & at, DiskBreakSpec & spec);
+    static bool    TryParseDiskOptions        (const Tokens & tokens, size_t & at, DiskBreakSpec & spec);
+    static bool    TryParseDiskMarks          (const Tokens & tokens, size_t & at, std::optional<DiskMarkPattern> & outMarks);
+    static bool    IsDiskOptionWord           (const std::string & token);
+    static bool    TryEvaluateQuietly         (const std::string & text, const IDebugExpressionContext & context, Word & value);
     static bool    TryParseFrameArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
@@ -111,6 +129,7 @@ private:
     static bool    TryParseCallsArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseHistoryArguments  (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDecimal           (const std::string & text, uint64_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
+    static bool    IsBasicReferenceForm      (const std::string & text, std::string & error);
     static bool    TryParseCount             (const std::string & text, uint32_t & value, NumberSyntax syntax = NumberSyntax::AppleWin);
     static bool    IsNumberOrRange           (const std::string & text, NumberSyntax syntax);
     static bool    TryParsePanelArguments    (const Arguments & args, DebugCommand & command, std::string & error);

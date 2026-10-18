@@ -68,6 +68,11 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "BRKOP",       V::BreakOnOpcode,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKINT",      V::BreakOnInterrupt,         F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BRKUNINIT",   V::BreakOnUnwrittenRead,     F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPDISK",      V::SetDiskBreakpoint,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPBASIC",     V::SetBasicLineBreakpoint,   F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPBASICVAR",  V::SetBasicVariableBreakpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
+    { "BRKBASIC",    V::BreakOnBasicError,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
+    { "BPNAME",      V::SetBreakpointName,        F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BP",          V::SetBreakpoint,            F::Breakpoints, A::Headless,     nullptr,     nullptr },
     { "BPA",         V::SetBreakpointAndWatchpoint, F::Breakpoints, A::Headless,   nullptr,     nullptr },
     { "BPR",         V::SetRegisterBreakpoint,    F::Breakpoints, A::Headless,     nullptr,     nullptr },
@@ -92,8 +97,6 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "VIDEOINFO",   V::ShowVideoInfo,            F::Video,       A::Headless,     nullptr,     nullptr },
 
     // Config
-    { "BENCHMARK",   V::Benchmark,                F::Config,      A::Headless,     nullptr,     nullptr },
-    { "DISASM",      V::ConfigureDisassembly,     F::Config,      A::Headless,     nullptr,     nullptr },
     { "LOAD",        V::LoadConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "SAVE",        V::SaveConfig,               F::Config,      A::Headless,     nullptr,     nullptr },
     { "PWD",         V::PrintDirectory,           F::Config,      A::Headless,     nullptr,     nullptr },
@@ -120,6 +123,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
 
     // Disk
     { "DISK",        V::DiskCommand,              F::Disk,        A::Headless,     nullptr,     nullptr },
+    { "TAPE",        V::TapeCommand,              F::Disk,        A::Headless,     nullptr,     nullptr },
 
     // Flags
     { "CL",          V::ClearFlag,                F::Flags,       A::Headless,     nullptr,     nullptr },
@@ -247,8 +251,6 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "ZAP",         V::WriteNop,                 F::Cpu,         A::Headless,     "NOP",       nullptr },
 
     // Deprecated
-    { "BENCH",       V::Benchmark,                F::Config,      A::Headless,     "BENCHMARK", nullptr },
-    { "EXITBENCH",   V::ExitBenchmark,            F::Config,      A::Headless,     nullptr,     nullptr },
     { "MDB",         V::DumpMemory,               F::Memory,      A::Headless,     "D",         nullptr },
 
     // Casso engine commands
@@ -267,6 +269,12 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "OUTPUT",      V::ShowOutputFormat,         F::Engine,      A::Headless,     nullptr,     nullptr },
     { "SAVESTATE",   V::SaveState,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "LOADSTATE",   V::LoadState,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "PROJECT",     V::Project,                  F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICSTEP",   V::BasicStep,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICLINE",   V::BasicStepLine,            F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICOUT",    V::BasicStepOut,             F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICVARS",   V::ShowBasicVariables,       F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICSTACK",  V::ShowBasicStack,           F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },
@@ -347,6 +355,7 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "SOURCE",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SOURCE needs a link to an assembler listing." },
     { "SYNC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "SYNC needs a link to an assembler listing." },
     { "NTSC",        V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "NTSC reads an AppleWin palette file, which Casso does not use." },
+    { "DISASM",      V::None,                     F::Unsupported, A::NotAvailable, nullptr,     "Not supported. Use the check boxes in the disassembly window." },
 };
 
 

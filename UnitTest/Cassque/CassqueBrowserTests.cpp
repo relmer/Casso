@@ -5,6 +5,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "Cassque/CassqueBrowser.h"
 #include "Core/AppleSingleCodec.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

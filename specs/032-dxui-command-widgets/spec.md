@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Draft
+**Status**: Shipped in 1.25.0 (2026-09-16)
 
 **Input**: User description: "Bring Dxui's command surfaces up to the model
 WPF and WinUI use, so the upcoming Cassque file browser can be built on

@@ -2,6 +2,7 @@
 
 #include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Theme/DxuiDwm.h"
 
 
 
@@ -116,26 +117,50 @@ std::vector<DxuiDockDragMark> DxuiDockedWindow::GetHeaderFade (const RECT & rowP
 
 void DxuiDockedWindow::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    DxuiTabGroup  * group = nullptr;
-    RECT            row   = {};
-    UINT            dpi   = GetDpi();
+    RECT  row = {};
 
 
 
     UNREFERENCED_PARAMETER (text);
     UNREFERENCED_PARAMETER (theme);
 
-    if (m_site == nullptr || m_site->GetGroupCount() == 0)
+    if (m_site == nullptr || !TryGetHeaderFadeRow (*m_site, row))
     {
         return;
     }
 
-    group = m_site->GetGroup (0);
-    row   = m_site->GetCarriedPane().empty() ? group->GetTitleRect() : group->GetStripRect();
-    row   = RECT { MulDiv (row.left,  (int) dpi, USER_DEFAULT_SCREEN_DPI), MulDiv (row.top,    (int) dpi, USER_DEFAULT_SCREEN_DPI),
-                   MulDiv (row.right, (int) dpi, USER_DEFAULT_SCREEN_DPI), MulDiv (row.bottom, (int) dpi, USER_DEFAULT_SCREEN_DPI) };
-
     PaintHeaderFade (painter, row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::TryGetHeaderFadeRow
+//
+//  The site lays its groups out in pixels at its DPI, so the row is used as
+//  it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockedWindow::TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & outRowPx)
+{
+    const DxuiTabGroup  * group = nullptr;
+
+
+
+    outRowPx = RECT {};
+
+    if (site.GetGroupCount() == 0)
+    {
+        return false;
+    }
+
+    group    = site.GetGroup (0);
+    outRowPx = site.GetCarriedPane().empty() ? group->GetTitleRect() : group->GetStripRect();
+    return true;
 }
 
 

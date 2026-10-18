@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
+#include "Ui/Debugger/UndoText.h"
 
 
 
@@ -138,6 +139,81 @@ std::optional<MemoryRegion> MemoryEditModel::TryGetRegion (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryEditModel::GetHistoryText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryEditModel::GetHistoryText() const
+{
+    std::string  text;
+
+
+
+    for (const std::vector<Edit> * edits : { &m_history, &m_redo })
+    {
+        text += (edits == &m_redo) ? "|" : "";
+
+        for (size_t i = 0; i < edits->size(); i++)
+        {
+            const Edit  & edit = (*edits)[i];
+
+            text += std::format ("{}{:04X}:{}:{}", (i == 0) ? "" : ",", edit.address, UndoText::FormatBytes (edit.replaced), UndoText::FormatBytes (edit.written));
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::SetHistoryText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryEditModel::SetHistoryText (const std::string & text)
+{
+    std::vector<std::string>  lists = UndoText::Split (text, '|');
+
+
+
+    ClearHistory();
+
+    if (lists.size() != 2)
+    {
+        return;
+    }
+
+    for (size_t list = 0; list < 2; list++)
+    {
+        for (const std::string & field : UndoText::Split (lists[list], ','))
+        {
+            std::vector<std::string>  values  = UndoText::Split (field, ':');
+            uint32_t                  address = 0;
+            Edit                      edit;
+
+            if (values.size() != 3 || !UndoText::TryParseHex (values[0], address) || !UndoText::TryParseBytes (values[1], edit.replaced) ||
+                !UndoText::TryParseBytes (values[2], edit.written) || edit.replaced.size() != edit.written.size() || edit.written.empty())
+            {
+                ClearHistory();
+                return;
+            }
+
+            edit.address = (Word) address;
+            ((list == 0) ? m_history : m_redo).push_back (std::move (edit));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryEditModel::ReadBytes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,9 +227,17 @@ void MemoryEditModel::ReadBytes (uint64_t offset, std::span<uint8_t> out) const
 
     for (size_t i = 0; i < out.size(); i++)
     {
+        Word  address = GetAddressOf (offset + i);
+        auto  other   = m_others.find (address);
+
         value.reset();
 
-        out[i] = TryGetKnown (GetAddressOf (offset + i), value, region) ? value.value_or (0) : 0;
+        out[i] = TryGetKnown (address, value, region) ? value.value_or (0) : 0;
+
+        if (m_showOther && other != m_others.end())
+        {
+            out[i] = other->second;
+        }
     }
 }
 
@@ -187,6 +271,12 @@ void MemoryEditModel::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
         Word  address = GetAddressOf (offset + i);
 
         out[i] = kMarkNone;
+
+        if (m_others.contains (address))
+        {
+            out[i] = kMarkDiffers;
+            continue;
+        }
 
         if (TryGetShown (address, index) && m_changes.IsChanged (address))
         {
@@ -286,6 +376,7 @@ bool MemoryEditModel::TryGetByteTip (uint64_t offset, std::wstring & tip) const
     case kMarkIo:      tip += L"  I/O";          break;
     case kMarkRom:     tip += L"  ROM";          break;
     case kMarkUnread:  tip += L"  not read yet"; break;
+    case kMarkDiffers: tip += std::format (L"  differs: the other range has ${:02X}", m_others.at (GetAddressOf (offset))); break;
     default:                                     break;
     }
 
@@ -432,14 +523,22 @@ bool MemoryEditModel::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, st
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryEditModel::Undo()
+bool MemoryEditModel::Undo (std::optional<Word> & outChanged)
 {
-    Edit    edit;
-    size_t  index = 0;
+    Edit  edit;
 
 
 
-    if (m_history.empty())
+    outChanged.reset();
+
+    if (!CanUndo())
+    {
+        return false;
+    }
+
+    outChanged = FindChanged (m_history.back().address, m_history.back().written);
+
+    if (outChanged.has_value())
     {
         return false;
     }
@@ -447,15 +546,8 @@ bool MemoryEditModel::Undo()
     edit = std::move (m_history.back());
     m_history.pop_back();
 
-    for (size_t i = 0; i < edit.replaced.size(); i++)
-    {
-        if (TryGetShown ((uint64_t) edit.address + i, index))
-        {
-            m_bytes[index] = edit.replaced[i];
-        }
-    }
-
-    SendPatch (edit.address, edit.replaced);
+    ShowWritten (edit.address, edit.replaced);
+    SendPatch   (edit.address, edit.replaced, edit.written);
     m_redo.push_back (std::move (edit));
 
     return true;
@@ -471,14 +563,22 @@ bool MemoryEditModel::Undo()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryEditModel::Redo()
+bool MemoryEditModel::Redo (std::optional<Word> & outChanged)
 {
-    Edit    edit;
-    size_t  index = 0;
+    Edit  edit;
 
 
 
-    if (m_redo.empty())
+    outChanged.reset();
+
+    if (!CanRedo())
+    {
+        return false;
+    }
+
+    outChanged = FindChanged (m_redo.back().address, m_redo.back().replaced);
+
+    if (outChanged.has_value())
     {
         return false;
     }
@@ -486,18 +586,73 @@ bool MemoryEditModel::Redo()
     edit = std::move (m_redo.back());
     m_redo.pop_back();
 
-    for (size_t i = 0; i < edit.written.size(); i++)
-    {
-        if (TryGetShown ((uint64_t) edit.address + i, index))
-        {
-            m_bytes[index] = edit.written[i];
-        }
-    }
-
-    SendPatch (edit.address, edit.written);
+    ShowWritten (edit.address, edit.written);
+    SendPatch   (edit.address, edit.written, edit.replaced);
     m_history.push_back (std::move (edit));
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::FindChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> MemoryEditModel::FindChanged (Word address, const std::vector<Byte> & required) const
+{
+    std::optional<Byte>  value;
+    MemoryRegion         region = MemoryRegion::MainRam;
+
+
+
+    for (size_t i = 0; i < required.size(); i++)
+    {
+        Word  at = (Word) (address + i);
+
+        if (TryGetKnown (at, value, region) && value.has_value() && *value != required[i])
+        {
+            return at;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::ShowWritten
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryEditModel::ShowWritten (Word address, const std::vector<Byte> & bytes)
+{
+    size_t  index = 0;
+
+
+
+    for (size_t i = 0; i < bytes.size(); i++)
+    {
+        Word  at = (Word) (address + i);
+
+        if (TryGetShown (at, index))
+        {
+            m_bytes[index] = bytes[i];
+        }
+
+        if (at < m_keptRegions.size() && m_keptRegions[at] != 0)
+        {
+            m_keptBytes[at] = bytes[i];
+        }
+    }
 }
 
 
@@ -510,11 +665,11 @@ bool MemoryEditModel::Redo()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryEditModel::SendPatch (Word address, std::span<const Byte> bytes) const
+void MemoryEditModel::SendPatch (Word address, std::span<const Byte> bytes, std::span<const Byte> required) const
 {
     if (m_onPatch)
     {
-        m_onPatch (address, bytes);
+        m_onPatch (address, bytes, required);
     }
 }
 

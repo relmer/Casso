@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -203,7 +204,6 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
         machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
         machine.GetCpu()->SetPC (kBootRomEntry);
 

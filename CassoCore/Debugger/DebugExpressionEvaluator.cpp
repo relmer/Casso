@@ -59,10 +59,11 @@ const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUn
 //
 //  DebugExpressionEvaluator::Parse
 //
-//  Converts infix text to postfix. A bare name that matches a register is the
-//  register, a bare name made only of hex digits is a number, and any other
-//  name is a symbol, resolved when the expression is evaluated. $ forces hex
-//  and # or 0n forces decimal; in WinDbg's syntax 0x also forces hex.
+//  Converts infix text to postfix. A bare name is read when the expression is
+//  evaluated: a defined symbol first, then a register, then a hex number. @
+//  and a register's name is always the register. $ forces hex, and so does
+//  #, as in AppleWin; 0n forces decimal, and in WinDbg's syntax 0x also
+//  forces hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,7 +319,7 @@ bool DebugExpressionEvaluator::TryParseOperatorPosition (
 //
 //  DebugExpressionEvaluator::TryReadOperand
 //
-//  A character literal, $hex, #decimal, or a name. Leaves error empty when
+//  A character literal, $hex, #hex, or a name. The error is empty when
 //  nothing at pos can start a value.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,10 +353,10 @@ bool DebugExpressionEvaluator::TryReadOperand (
         return true;
     }
 
-    //  WinDbg writes a register @a, @x, @y, @sp, @pc or @fl.
-    if (lead == '@' && syntax == NumberSyntax::WinDbg && pos + 1 < text.size() && isalpha ((unsigned char) text[pos + 1]))
+    //  @ and a register's name is the register, ahead of any symbol.
+    if (lead == '@' && pos + 1 < text.size() && isalpha ((unsigned char) text[pos + 1]))
     {
-        return TryReadWinDbgRegister (text, pos, token, error);
+        return TryReadAtRegister (text, pos, syntax, token, error);
     }
 
     // @n is search result n, resolved by the session like a symbol.
@@ -399,11 +400,11 @@ bool DebugExpressionEvaluator::TryReadOperand (
 
     if (lead == '#' || lead == '$')
     {
-        isNumber = TryParseNumber (word, lead == '#' ? 10 : 16, token.value);
+        isNumber = TryParseNumber (word, 16, token.value);
 
         if (!isNumber)
         {
-            error = std::format ("{} is not a {} number.", text.substr (start, pos - start), lead == '#' ? "decimal" : "hex");
+            error = std::format ("{} is not a hex number.", text.substr (start, pos - start));
         }
 
         return isNumber;
@@ -421,33 +422,20 @@ bool DebugExpressionEvaluator::TryReadOperand (
         return isNumber;
     }
 
+    token.kind           = ExpressionToken::Kind::Name;
+    token.name           = word;
+    token.isRegisterName = IsRegisterName (upper);
+    token.isHexNumber    = TryParseNumber (word, 16, token.value);
+
     //  WinDbg reads a bare word as a number before a register, so a is $0A.
-    if (syntax == NumberSyntax::WinDbg && upper == "A")
-    {
-        token.value = 0x0A;
-        return true;
-    }
+    token.isNumberFirst  = syntax == NumberSyntax::WinDbg && upper == "A";
 
-    if (IsRegisterName (upper))
-    {
-        token.kind = ExpressionToken::Kind::Register;
-        token.name = upper;
-        return true;
-    }
-
-    if (TryParseNumber (word, 16, token.value))
-    {
-        return true;
-    }
-
-    if (isdigit ((unsigned char) lead))
+    if (!token.isRegisterName && !token.isHexNumber && isdigit ((unsigned char) lead))
     {
         error = std::format ("{} is not a hex number.", word);
         return false;
     }
 
-    token.kind = ExpressionToken::Kind::Symbol;
-    token.name = word;
     return true;
 }
 
@@ -545,21 +533,23 @@ bool DebugExpressionEvaluator::IsRegisterName (const std::string & upperName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugExpressionEvaluator::TryReadWinDbgRegister
+//  DebugExpressionEvaluator::TryReadAtRegister
 //
-//  WinDbg's @a, @x, @y, @sp, @pc or @fl at pos, as the register.
+//  @A, @X, @Y, @P, @S or @PC at pos, as the register, in any syntax; WinDbg's
+//  @sp and @fl too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugExpressionEvaluator::TryReadWinDbgRegister (
+bool DebugExpressionEvaluator::TryReadAtRegister (
     const std::string  & text,
     size_t             & pos,
+    NumberSyntax         syntax,
     ExpressionToken    & token,
     std::string        & error)
 {
     static constexpr std::pair<const char *, const char *>  kNames[] =
     {
-        { "A", "A" }, { "X", "X" }, { "Y", "Y" }, { "SP", "S" }, { "PC", "PC" }, { "FL", "P" },
+        { "A", "A" }, { "X", "X" }, { "Y", "Y" }, { "P", "P" }, { "S", "S" }, { "PC", "PC" }, { "SP", "S" }, { "FL", "P" },
     };
     size_t       start = pos;
     std::string  upper;
@@ -584,7 +574,8 @@ bool DebugExpressionEvaluator::TryReadWinDbgRegister (
         }
     }
 
-    error = std::format ("{} is not a register. The registers are @a, @x, @y, @sp, @pc and @fl.", text.substr (start, pos - start));
+    error = std::format ("{} is not a register. The registers are {}.", text.substr (start, pos - start),
+                         syntax == NumberSyntax::WinDbg ? "@a, @x, @y, @sp, @pc and @fl" : "@A, @X, @Y, @P, @S and @PC");
     return false;
 }
 
@@ -756,6 +747,15 @@ bool DebugExpressionEvaluator::TryResolveOperand (
         isFound = context.TryResolveSymbol (token.name, resolved);
         break;
 
+    case ExpressionToken::Kind::Name:
+        if (TryResolveName (token, context, value))
+        {
+            return true;
+        }
+
+        isFound = false;
+        break;
+
     default:
         value = token.value;
         return true;
@@ -769,6 +769,66 @@ bool DebugExpressionEvaluator::TryResolveOperand (
 
     value = resolved;
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::TryResolveName
+//
+//  A defined symbol, then the register or the number in the token's order.
+//  A register breakpoint's condition is evaluated at every instruction, so
+//  the symbol lookup is skipped while the symbols are those the name was
+//  last not found in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryResolveName (
+    const ExpressionToken          & token,
+    const IDebugExpressionContext  & context,
+    int32_t                        & value)
+{
+    Word         resolved = 0;
+    std::string  upper    = token.name;
+    uint64_t     revision = context.GetSymbolRevision (token.name);
+
+
+
+    if (revision == 0 || revision != token.notSymbolRevision)
+    {
+        if (context.TryResolveSymbol (token.name, resolved))
+        {
+            value = resolved;
+            return true;
+        }
+
+        token.notSymbolRevision = revision;
+    }
+
+    if (token.isHexNumber && token.isNumberFirst)
+    {
+        value = token.value;
+        return true;
+    }
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    if (token.isRegisterName && context.TryGetRegister (upper, resolved))
+    {
+        value = resolved;
+        return true;
+    }
+
+    if (token.isHexNumber)
+    {
+        value = token.value;
+        return true;
+    }
+
+    return false;
 }
 
 

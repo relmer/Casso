@@ -2,6 +2,7 @@
 
 #include "ScreenshotsPage.h"
 #include "Core/TextEncoding.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 

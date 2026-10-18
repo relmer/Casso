@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/HistoryTimelineClick.h"
+#include "Debugger/Reverse/HistoryThumbnails.h"
 
 
 

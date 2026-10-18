@@ -10,6 +10,7 @@
 #include "Core/DxuiSystemSettings.h"
 #include "Core/WindowTrace.h"
 #include "Render/DxuiStroke.h"
+#include "Core/DxuiCommand.h"
 
 
 
@@ -2593,7 +2594,14 @@ std::string DxuiPopupMenu::DescribeHit (POINT localPx, int row) const
         {
             std::wstring  wide = m_rows[(size_t) row].command->GetLabelText();
 
-            label.assign (wide.begin(), wide.end());
+            //  The trace is narrow and Dxui has no code page converter, so a
+            //  character past ASCII is written as its escape, never cut down
+            //  to a byte.
+            for (wchar_t ch : wide)
+            {
+                label += (ch < 0x80) ? std::string (1, (char) ch) : std::format ("\\u{:04X}", (unsigned) ch);
+            }
+
             text << " " << label;
         }
     }

@@ -166,6 +166,7 @@ public:
         Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
+        ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
 
         // Head starts at quarter-track 0. Energizing phase 3 with the
         // head at rot=0 pulls toward "decrement" direction -- pre-
@@ -185,6 +186,7 @@ public:
         Disk2Controller   ctrl (6);
 
         ctrl.SetAudioSink (&sink);
+        ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
 
         // Head at QT=0, rot=0. Adjacent phase 1 pulls forward
         // (direction=+1, single-magnet => qtDelta=+2).

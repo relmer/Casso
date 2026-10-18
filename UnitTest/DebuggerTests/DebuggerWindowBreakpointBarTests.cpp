@@ -158,7 +158,7 @@ namespace DebuggerBreakpointBarTests
                 }
             }
 
-            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Disable all, Undo, Redo, the two Go to, Show columns, Export, Import");
+            Assert::IsTrue (ids == BreakpointBarCommands::GetIds(), L"New, Delete, Delete all, Disable all, Undo, Redo, the two Go to, Export, Import");
 
             for (int id : ids)
             {
@@ -169,7 +169,7 @@ namespace DebuggerBreakpointBarTests
         }
 
 
-        TEST_METHOD (WithNothingSetOnlyNewShowColumnsAndImportCanAct)
+        TEST_METHOD (WithNothingSetOnlyNewAndImportCanAct)
         {
             CassoTheme  theme  = CassoTheme::MakeSkeuomorphic();
             BarHost     host;
@@ -182,7 +182,7 @@ namespace DebuggerBreakpointBarTests
 
             for (int id : BreakpointBarCommands::GetIds())
             {
-                bool  expected = id == BreakpointBarCommands::kNew || id == BreakpointBarCommands::kColumns || id == BreakpointBarCommands::kImport;
+                bool  expected = id == BreakpointBarCommands::kNew || id == BreakpointBarCommands::kImport;
 
                 Assert::AreEqual (expected, window.IsBreakpointBarEnabled (id), std::format (L"entry {}", id).c_str());
             }
@@ -284,9 +284,10 @@ namespace DebuggerBreakpointBarTests
             host.dialogs.path = L"C:\\Work\\my bps.txt";
             window.RunBreakpointBarEntry (BreakpointBarCommands::kExport);
 
-            Assert::AreEqual ((size_t) 1, host.lines.size());
-            Assert::AreEqual (std::string ("BPSAVE C:\\Work\\my bps.txt"), host.lines[0].first);
-            Assert::IsTrue   (host.lines[0].second == CommandMode::AppleWin);
+            Assert::AreEqual ((size_t) 1, host.actions.size());
+            Assert::AreEqual (std::string ("BPSAVE C:\\Work\\my bps.txt"), host.actions[0].echo);
+            Assert::IsTrue   (host.actions[0].command.verb == DebugVerb::SaveBreakpoints);
+            Assert::AreEqual (std::string ("C:\\Work\\my bps.txt"), host.actions[0].command.text);
         }
 
 

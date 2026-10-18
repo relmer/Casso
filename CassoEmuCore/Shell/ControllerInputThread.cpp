@@ -2,6 +2,7 @@
 
 #include "Core/ThreadName.h"
 #include "Shell/ControllerInputThread.h"
+#include "Seams/IControllerBackend.h"
 
 
 

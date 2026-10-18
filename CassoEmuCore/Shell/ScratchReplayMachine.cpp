@@ -6,6 +6,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/ReplayDiskCopier.h"
+#include "Debugger/Reverse/Replayer.h"
 
 
 
@@ -207,3 +209,27 @@ void ScratchReplayMachine::Release()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScratchReplayMachine::IsSavedWith
+//
+//  Whether saved, the media in a keyframe's bays, are the disks' media, bay
+//  for bay, and no others.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ScratchReplayMachine::IsSavedWith (
+    const MachineHost::MediaIds    & saved,
+    const std::vector<ReplayDisk>  & disks)
+{
+    MachineHost::MediaIds  given = {};
+
+
+
+    for (const ReplayDisk & disk : disks)
+    {
+        given[(size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive] = disk.mediaId;
+    }
+
+    return given == saved;
+}

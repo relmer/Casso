@@ -5,6 +5,7 @@
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiSlide.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Core/DxuiEvents.h"
 
 
 

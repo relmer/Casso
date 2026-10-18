@@ -3,6 +3,7 @@
 #include "EmuTests/TestMachine.h"
 #include "EmuTests/FixtureProvider.h"
 #include "Debugger/DebugMemoryView.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,7 +104,7 @@ namespace DebuggerTests
 
 
             hr = provider.OpenFixture (name, bytes);
-            Assert::AreEqual (S_OK, hr, std::wstring (name.begin(), name.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (name).c_str());
             Assert::IsFalse  (bytes.empty());
 
             return bytes;
@@ -149,7 +150,7 @@ namespace DebuggerTests
             {
                 TestMachine   machine (id, TestMachine::Slots::Empty);
                 std::string   narrow  (id);
-                std::wstring  name    (narrow.begin(), narrow.end());
+                std::wstring  name    = TextEncoding::NarrowToWide (narrow);
 
 
 

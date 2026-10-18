@@ -1,11 +1,12 @@
 #pragma once
 
 #include "Cpu.h"
+#include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
-#include "Debugger/DebugSessionView.h"
+#include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
@@ -21,7 +22,10 @@ class IDebugCommandHandler;
 class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
+class IIoEventSource;
+class ITapeControl;
 class OpcodeTable;
+struct DebugSessionView;
 
 
 
@@ -126,6 +130,15 @@ public:
     // Machine events the host reports.
     void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
     void   OnReset               (bool isPowerCycle);
+
+    //  Takes each RWTS and driver breakpoint's routine from its vector again,
+    //  for a machine whose memory changed other than by the CPU: a move
+    //  through history or a keyframe loaded under it.
+    void   ResolveDiskCalls      ();
+
+    //  Takes the values the Applesoft variable breakpoints compare against
+    //  from memory as it is now, for a machine that moved through history.
+    void   TakeBasicValues       () { m_basicMonitor.TakeValues (*this); }
     void   OnUserPaused          ();
     void   OnUserResumed         ();
 
@@ -180,8 +193,39 @@ public:
     void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
     bool                  IsStepBySource  () const        { return m_stepBySource; }
 
+    //  The cycle count RCC last reset the trip count at: CYCLES PART and the
+    //  Registers pane's Trip row count from it.
+    uint64_t              GetCycleMarker  () const        { return m_cycleMarker; }
+
+    //  The id the next breakpoint or watchpoint takes; the two share ids.
+    int                   GetNextId       () const        { return m_nextId; }
+    void                  SetNextId       (int nextId)    { m_nextId = nextId; }
+    void                  SetCycleMarker  (uint64_t cycle) { m_cycleMarker = cycle; }
+    uint64_t              GetTripCycles   (uint64_t total) const { return (total >= m_cycleMarker) ? total - m_cycleMarker : total; }
+
     // The routines a step into runs as a step over, in every dialect.
     const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
+
+    //  Each symbol or debug file loaded, with the table and the offset, for
+    //  a debug project to load again; a later load of one path into one
+    //  table replaces the earlier, and clearing a table removes its loads.
+    struct SymbolLoad
+    {
+        SymbolTableId  table  = SymbolTableId::User;
+        std::wstring   path;
+        int            offset = 0;
+    };
+
+    void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset);
+    void                              ForgetSymbolLoads (SymbolTableId table);
+    const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_symbolLoads; }
+
+    //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
+    //  and its file's name; a debug project's key while no debug file is
+    //  loaded (FR-167).
+    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name);
+    const std::string   & GetBinaryKey   () const { return m_binaryKey; }
+    const std::string   & GetBinaryName  () const { return m_binaryName; }
 
     // The call-stack record (FR-068), kept only while the debugger is attached:
     // while the window or the channel is open, and for a batch run. Turning it
@@ -258,6 +302,17 @@ public:
     void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
     std::wstring          ResolvePath          (const std::string & path) const;
 
+    // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
+    // window's shell and a batch run have them, and without them both
+    // commands are not available.
+    void                  SetIoEventSource     (IIoEventSource * source)          { m_ioEventSource = source; }
+    IIoEventSource      * GetIoEventSource     () const                           { return m_ioEventSource; }
+
+    // The cassette deck's keys in the emulator (ITapeControl); null in a batch
+    // run, where TAPE calls the deck directly.
+    void                  SetTapeControl       (ITapeControl * control)           { m_tapeControl = control; }
+    ITapeControl        * GetTapeControl       () const                           { return m_tapeControl; }
+
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to.
@@ -265,7 +320,14 @@ public:
 
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
-    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); }
+    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
+    uint64_t              GetSearchSerial      () const                           { return m_searchSerial; }
+
+    //  The last MC's differences, numbered as the searches are, for a Memory
+    //  pane's comparison.
+    const std::vector<CompareDifference> & GetCompareResults () const              { return m_compareResults; }
+    void                  SetCompareResults    (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
+    uint64_t              GetCompareSerial     () const                           { return m_compareSerial; }
 
     // Line-assembly mode: each following line is assembled at the address,
     // and a blank line ends it.
@@ -299,6 +361,13 @@ public:
     void                       SetStateFileRequester (StateFileRequester requester) { m_stateFileRequester = std::move (requester); }
     const StateFileRequester & GetStateFileRequester () const                       { return m_stateFileRequester; }
 
+    // PROJECT: the host's debug projects, given the words after PROJECT and
+    // the reply to fill. Empty where there is no host, and PROJECT is then
+    // not available.
+    using ProjectRequester = std::function<void (const std::string &, Reply &)>;
+
+    void                       SetProjectRequester   (ProjectRequester requester)   { m_projectRequester = std::move (requester); }
+
     // Behind live, an edit of registers or memory discards recorded history,
     // so the guard is asked first with the line the edit came from, and the
     // edit is made only when it returns true. Empty where nothing is recorded.
@@ -309,6 +378,9 @@ public:
     void   SetVideoBreak         (uint32_t first, uint32_t last);
     void   ClearVideoBreak       ();
     bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
+
+    //  The BPV range, first and last scanline, while one is set.
+    std::optional<std::pair<uint32_t, uint32_t>>  GetVideoBreak () const;
 
     // BPBEAM and FRAME: stop when the beam reaches a place in the frame,
     // given as the cycle within it, after passing it `passes - 1` times.
@@ -342,9 +414,11 @@ public:
     void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
 
     // IDebugExpressionContext
-    bool   TryGetRegister        (const std::string & name, Word & value) const override;
-    bool   TryPeek               (Word address, Byte & value) const override;
-    bool   TryResolveSymbol      (const std::string & name, Word & address) const override;
+    bool      TryGetRegister     (const std::string & name, Word & value) const override;
+    bool      TryPeek            (Word address, Byte & value) const override;
+    bool      TryPeekIo          (Word address, Byte & value) const override;
+    bool      TryResolveSymbol   (const std::string & name, Word & address) const override;
+    uint64_t  GetSymbolRevision  (const std::string & name) const override;
 
 private:
     struct VideoBreak
@@ -387,6 +461,7 @@ private:
     Byte   PeekByte              (Word address) const;
     Word   FindStoreInProgress   () const;
     bool   HasStopConditions     () const;
+    bool   IsProfiling           () const;
 
     //  A read before written's stop is reported under this id, which no
     //  breakpoint or watchpoint has.
@@ -398,6 +473,10 @@ private:
     bool   HasEnteredVideoBreak  ();
     bool   HasReachedBeamBreak   ();
     uint32_t  GetBeamCycle       () const;
+    void   AttachDiskReport      (StopEvent & event);
+    void   AttachDiskCallReport  (StopEvent & event);
+    void   AttachBasicReport     (StopEvent & event);
+    void   ExecuteBasicStep      (const DebugCommand & command, Reply & reply);
     void   ClearTemporary        (const StopEvent & stop);
     void   AttachCondition       (StopEvent & event) const;
 
@@ -410,11 +489,15 @@ private:
     std::vector<IDebugCommandHandler *>   m_handlers;
     IInstructionObserver                * m_instructionObserver = nullptr;
     IFileSystem                         * m_fileSystem          = nullptr;
+    IIoEventSource                      * m_ioEventSource       = nullptr;
+    ITapeControl                        * m_tapeControl         = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;
     BreakpointTable                       m_breakpoints   { m_nextId };
     WatchpointTable                       m_watchpoints   { m_nextId };
+    DiskBreakpointMonitor                 m_diskMonitor   { m_breakpoints, m_target };
+    BasicStopMonitor                      m_basicMonitor  { m_breakpoints };
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
@@ -427,11 +510,18 @@ private:
     uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
     bool                                  m_stepBySource  = false;
+    uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;
+    std::vector<SymbolLoad>               m_symbolLoads;
+    std::string                           m_binaryKey;
+    std::string                           m_binaryName;
     CallStackRecorder                     m_callRecorder;
     std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
     std::vector<Word>                     m_searchResults;
+    uint64_t                              m_searchSerial  = 0;
+    std::vector<CompareDifference>        m_compareResults;
+    uint64_t                              m_compareSerial = 0;
 
     //  Counts the call record's starts, ends and resets; and how far along a
     //  rebuild of it from history is, while one runs.
@@ -462,6 +552,7 @@ private:
     ScriptLineRunner              m_scriptLineRunner;
     ReverseRequester              m_reverseRequester;
     StateFileRequester            m_stateFileRequester;
+    ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;
     std::string                   m_guardLine;   // the outermost line being run, for the guard
     CommandMode                   m_guardMode          = CommandMode::AppleWin;
@@ -469,6 +560,8 @@ private:
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;
     bool                                  m_monitorReturned = false;
+    bool                                  m_isDiskStop      = false;     // ShouldStopBefore stopped for a disk breakpoint
+    bool                                  m_isBasicStop     = false;     // and for an Applesoft breakpoint, step or error
 
     //  A counted step over, step out or source step runs as that many single
     //  steps: the one to start after each step completes, how many are left,

@@ -3,6 +3,9 @@
 #include "Widgets/DxuiDockSite.h"
 #include "Render/IDxuiPainter.h"
 #include "Theme/IDxuiTheme.h"
+#include "Widgets/DxuiPaneFrame.h"
+#include "Core/DxuiEvents.h"
+#include "Render/DxuiCoverageRaster.h"
 
 
 
@@ -1330,6 +1333,25 @@ std::wstring DxuiDockSite::GetPaneOf (const IDxuiControl * content) const
     }
 
     return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetPaneContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DxuiDockSite::GetPaneContent (const std::wstring & pane) const
+{
+    auto  it = m_panes.find (pane);
+
+
+
+    return (it != m_panes.end()) ? it->second.content : nullptr;
 }
 
 

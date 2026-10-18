@@ -3,6 +3,8 @@
 #include "SettingsApplyAdapter.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "resource.h"
 
 
@@ -72,6 +74,83 @@ void SettingsApplyAdapter::ApplyFloppySound (bool enabled)
 {
     m_shell.PostCommand (enabled ? IDM_AUDIO_DRIVE_ENABLE
                                  : IDM_AUDIO_DRIVE_DISABLE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyFastTapeLoading
+//
+//  A flag the CPU thread reads each slice, so it needs no command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyFastTapeLoading (bool enabled)
+{
+    m_shell.GetTapeDeck().SetFastTapeLoading (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyTapeVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyTapeVolume (float gain)
+{
+    m_shell.GetAudio().SetTapeVolume (gain);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyTapeAutoStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyTapeAutoStop (bool enabled)
+{
+    m_shell.GetTapeDeck().SetTapeAutoStop (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyTapeIdleStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyTapeIdleStop (bool enabled)
+{
+    m_shell.GetTapeDeck().SetTapeIdleStop (enabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyTapeEightBit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyTapeEightBit (bool enabled)
+{
+    m_shell.GetTapeDeck().SetTapeEightBit (enabled);
 }
 
 

@@ -46,8 +46,13 @@ public:
     //  can be connected to it.
     bool  HasAnnunciators () const override { return (false); }
 
+    //  No cassette jacks on the back panel.
+    bool  HasCassettePort () const override { return (false); }
+
     //  The 40/80 column and keyboard switches on the case, and the 5.25"
     //  drive soldered behind the disk port.
     bool  HasCaseSwitches () const override { return (true); }
     bool  HasBuiltInDrive () const override { return (true); }
+
+    uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2c); }
 };

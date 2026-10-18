@@ -4,7 +4,10 @@
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiIconImage.h"
 #include "Core/DxuiPaneLayout.h"
-#include "Render/DxuiCoverageRaster.h"
+#include "Render/IDxuiTextRenderer.h"
+
+struct DxuiCoverageRect;
+class DxuiCoverageRaster;
 
 
 

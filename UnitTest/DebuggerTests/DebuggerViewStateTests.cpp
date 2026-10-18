@@ -6,6 +6,8 @@
 #include "Debugger/MonitorParser.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "EmuTests/TestMachine.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "FakeDiagnosticsProvider.h"
 #include "ControllerRig.h"
 #include "HandlerTestRig.h"
@@ -28,6 +30,10 @@
 #include "Core/UnicodeSymbols.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "UnreadableStackTarget.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -106,9 +112,35 @@ namespace DebuggerViewStateTests
             cycles   = rig.machine.GetCpu()->GetTotalCycles();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
-            Assert::AreEqual (std::string ("Cycles"),     snapshot.registers.back().name);
-            Assert::AreEqual (std::format ("{}", cycles), snapshot.registers.back().value);
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"the register pane is filled");
+            Assert::AreEqual (std::string ("Cycles"),      snapshot.registers[6].name);
+            Assert::AreEqual (std::format ("{}", cycles),  snapshot.registers[6].value);
+            Assert::AreEqual (std::string ("Trip"),        snapshot.registers[7].name);
+            Assert::AreEqual (std::format ("{}", cycles),  snapshot.registers[7].value, L"from power-on until RCC");
+            Assert::AreEqual (std::string ("Last branch"), snapshot.registers[8].name);
+            Assert::IsTrue   (snapshot.lastBranchFrom.has_value() && snapshot.lastBranchTo.has_value(), L"the ROM has branched by now");
+        }
+
+
+
+        //  RCC starts the trip count again; the total goes on.
+        TEST_METHOD (RccStartsTheTripCountAgain)
+        {
+            MachineRig            rig;
+            DebuggerViewSnapshot  snapshot;
+            uint64_t              trip = 0;
+
+
+
+            rig.machine.RunCycles (5000);
+            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetResetCycles (CommandMode::AppleWin));
+            rig.machine.RunCycles (100);
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            trip     = std::stoull (snapshot.registers[7].value);
+
+            Assert::IsTrue (trip >= 100 && trip < 200, L"counted from RCC");
+            Assert::IsTrue (std::stoull (snapshot.registers[6].value) > 5000, L"the total is not reset");
         }
 
         TEST_METHOD (TheCodePaneShowsThePcWithWhatLedToItAbove)
@@ -353,8 +385,8 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (go ("BASL,X")        == std::optional<Word> (0x002A), L"a symbol, indexed");
             Assert::IsTrue (go ("home+3")        == std::optional<Word> (0xFC5B), L"symbol arithmetic");
             Assert::IsTrue (go ("PC+2")          == std::optional<Word> (0x0302), L"register arithmetic");
-            Assert::IsTrue (go ("#1024")         == std::optional<Word> (0x0400), L"decimal");
-            Assert::IsTrue (go ("(#40),Y")       == std::optional<Word> (0x0405), L"a decimal pointer");
+            Assert::IsTrue (go ("0n1024")        == std::optional<Word> (0x0400), L"decimal");
+            Assert::IsTrue (go ("(0n40),Y")      == std::optional<Word> (0x0405), L"a decimal pointer");
 
             Assert::IsFalse (go ("(NOSUCH),Y").has_value());
             Assert::IsTrue  (error.find ("NOSUCH") != std::string::npos, L"the evaluator's own reason is kept");
@@ -526,9 +558,203 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("$004E=96; random seed, low byte (counts while waiting for a key)"),
                               lineAt (snapshot, 0x0306).annotation, L"a named location in memory says what it is after its byte");
 
-            //  And the result of running it is the action, not a store.
-            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click)"),
+            //  And the result of running it is the action, not a store, then
+            //  the cycles STA absolute takes.
+            Assert::AreEqual (std::string ("Toggle the speaker (each access is a click); 4 cycles"),
                               lineAt (snapshot, 0x0303).effect, L"the PC's line: a write to a switch stores nothing");
+        }
+
+
+        //  LDA PADDL0,X with X=1 reads paddle 1, so the annotation is paddle
+        //  1's description, not the description of the switch at the symbol.
+        TEST_METHOD (AnIndexedSoftSwitchIsDescribedByTheSwitchItReaches)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            DebuggerViewSnapshot  snapshot;
+            Cpu6502Registers      r      = target.GetRegisters();
+            std::string           annotation;
+
+
+
+            (void) target.TryPoke (0x0300, 0xBD);
+            (void) target.TryPoke (0x0301, 0x64);
+            (void) target.TryPoke (0x0302, 0xC0);
+
+            r.pc = 0x0300;
+            r.x  = 0x01;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+            {
+                if (line.address == 0x0300)
+                {
+                    annotation = line.annotation;
+                }
+            }
+
+            Assert::AreEqual (std::string ("X=01 paddle 1 timer in bit 7"), annotation);
+        }
+
+
+        //  A switch whose read operates nothing is peeked for the PC line's
+        //  result, and the peek changes nothing about the switch: the paddle
+        //  timer of an axis at 0 has run out, and a key's strobe stays set.
+        TEST_METHOD (APeekableSwitchReadHasItsValueInTheResult)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            std::string           effect;
+
+
+
+            Assert::IsNotNull (rig.machine.GetRefs().iieSoftSwitches);
+            Assert::IsNotNull (rig.machine.GetRefs().iieKeyboard);
+
+            rig.machine.GetRefs().iieSoftSwitches->SetPaddle (1, 0);
+            rig.machine.GetRefs().iieKeyboard->PressKey ('A');
+
+            //  LDA PADDL0,X with X=1, then LDA KBD.
+            (void) target.TryPoke (0x0300, 0xBD);
+            (void) target.TryPoke (0x0301, 0x64);
+            (void) target.TryPoke (0x0302, 0xC0);
+            (void) target.TryPoke (0x0303, 0xAD);
+            (void) target.TryPoke (0x0304, 0x00);
+            (void) target.TryPoke (0x0305, 0xC0);
+
+            r.pc = 0x0300;
+            r.x  = 0x01;
+            r.a  = 0x41;
+            r.p  = 0x20;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
+
+            Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect, L"paddle 1's timer has run out");
+
+            r.pc = 0x0303;
+            target.SetRegisters (r);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0303).effect;
+
+            Assert::AreEqual (std::string ("A=C1 N=1; 4 cycles"), effect, L"the key with its strobe");
+            Assert::IsFalse  (rig.machine.GetRefs().iieKeyboard->IsStrobeClear(), L"the peek leaves the strobe set");
+        }
+
+
+        //  PTRIG arms the paddle timers when read; its peek returns the byte
+        //  the read returns, 0, and arms nothing.
+        TEST_METHOD (APtrigReadHasItsValueAndArmsNothing)
+        {
+            MachineRig            rig;
+            IDebugTarget        & target  = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r       = target.GetRegisters();
+            uint64_t              trigger = 0;
+            std::string           effect;
+
+
+
+            Assert::IsNotNull (rig.machine.GetRefs().iieSoftSwitches);
+
+            trigger = rig.machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle();
+
+            //  LDA PTRIG.
+            (void) target.TryPoke (0x0300, 0xAD);
+            (void) target.TryPoke (0x0301, 0x70);
+            (void) target.TryPoke (0x0302, 0xC0);
+
+            r.pc = 0x0300;
+            r.a  = 0x41;
+            r.p  = 0x20;
+            target.SetRegisters (r);
+
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
+
+            Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect);
+            Assert::AreEqual (trigger, rig.machine.GetRefs().iieSoftSwitches->GetPaddleTriggerCycle(), L"the trial run arms no timer");
+        }
+
+
+        //  A byte nothing can peek feeds unknowns: each run of the instruction
+        //  with another fill value changes A, N and Z, so the result writes
+        //  them as "?", with the cycles and the next PC as they are.
+        TEST_METHOD (AnUnpeekableReadFeedsUnknowns)
+        {
+            MachineRig                   rig;
+            MockExpressionContext        memory;
+            Cpu6502Registers             registers = {};
+            InstructionTouches::Result   touches;
+            const Microcode            * set       = rig.controller.GetSession().GetTarget().GetInstructionSet();
+
+
+
+            memory.memory[0x0300] = 0xAD;     // LDA $C000, which the mock cannot read
+            memory.memory[0x0301] = 0x00;
+            memory.memory[0x0302] = 0xC0;
+
+            registers.pc = 0x0300;
+            registers.a  = 0x41;
+            registers.p  = 0x20;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 3);
+
+            Assert::IsTrue   (touches.isKnown);
+            Assert::IsTrue   (touches.unknowns.a);
+            Assert::AreEqual (std::string ("A=? Z=? N=?"), InstructionEffect::Format (registers, touches.after, touches.writes, 0x0303, nullptr, touches.unknowns));
+            Assert::AreEqual (4u, touches.cycles);
+        }
+
+        //  The PC's line ends with the cycles its instruction will take with
+        //  the registers as they are: a branch's count is for the way it goes.
+        TEST_METHOD (ThePcLineEndsWithItsCycles)
+        {
+            constexpr Byte        kZero  = 0x02;
+            MachineRig            rig;
+            IDebugTarget        & target = rig.controller.GetSession().GetTarget();
+            Cpu6502Registers      r      = target.GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            std::string           effect;
+            auto                  pcLine = [] (const DebuggerViewSnapshot & shot) -> std::string
+            {
+                for (const DebuggerViewSnapshot::CodeLine & line : shot.code)
+                {
+                    if (line.address == shot.pc)
+                    {
+                        return line.effect;
+                    }
+                }
+
+                return {};
+            };
+
+
+
+            //  BEQ  at , a branch within the page.
+            (void) target.TryPoke (0x0300, 0xF0);
+            (void) target.TryPoke (0x0301, 0x0E);
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p | kZero);
+            target.SetRegisters (r);
+            rig.view.SetCodeLines (20);
+            rig.view.CenterCodeOn (0x0300);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            effect   = pcLine (snapshot);
+            Assert::IsTrue (effect.ends_with ("3 cycles"), TextEncoding::NarrowToWide (effect).c_str());
+
+            r.p = (Byte) (r.p & ~kZero);
+            target.SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            effect   = pcLine (snapshot);
+            Assert::IsTrue (effect.ends_with ("2 cycles"), TextEncoding::NarrowToWide (effect).c_str());
         }
 
 
@@ -713,7 +939,7 @@ namespace DebuggerViewStateTests
             //  ids existed, so the new one can be found then.
             undo = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 0, CommandMode::AppleWin);
             Assert::IsTrue   (undo->actions.empty());
-            Assert::IsTrue   (undo->restoreAddress == std::optional<Word> (0x0400));
+            Assert::IsTrue   (undo->restoreText == std::optional<std::string> ("0400"));
             Assert::AreEqual ((size_t) 2, undo->movedFromIds.size());
 
             //  A value that could not be read has nothing to put back.
@@ -1196,6 +1422,27 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  P's flags are colored one by one, so a step that sets Z marks Z
+        //  alone.
+        TEST_METHOD (TheChangedBitsOfAHexValueAreThoseThatDiffer)
+        {
+            StopChanges  changes;
+
+
+
+            changes.Update (true, { { "R:P", "24" } });
+            Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"the first stop has nothing to compare with");
+
+            changes.Update (true, { { "R:P", "26" } });
+            Assert::AreEqual (0x02u, changes.GetChangedBits ("R:P"), L"DEX to zero sets Z alone");
+
+            changes.Update (true, { { "R:P", "A5" } });
+            Assert::AreEqual (0x83u, changes.GetChangedBits ("R:P"), L"N and C set, Z clear");
+
+            changes.Update (false, { { "R:P", "00" } });
+            Assert::AreEqual (0u, changes.GetChangedBits ("R:P"), L"nothing while running");
+        }
+
         TEST_METHOD (AScrolledFollowingViewFollowsAgainOnceThePcMoves)
         {
             std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
@@ -1255,7 +1502,7 @@ namespace DebuggerViewStateTests
                 Assert::AreEqual (std::string (expected), definition);
                 std::string  why = definition + ": " + reply.error.detail;
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (why.begin(), why.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (why).c_str());
             }
         }
 
@@ -1278,13 +1525,11 @@ namespace DebuggerViewStateTests
                 { BreakpointKind::MemoryValue, "BPMV 0400 41 IF A == 1"           },
             };
 
-            //  I/O is the one kind left out: no command makes one, and it is
-            //  written back as the memory watchpoint it behaves as.
             for (int kind = 0; kind <= (int) BreakpointKind::MemoryValue; ++kind)
             {
                 bool  isCovered = std::any_of (std::begin (setters), std::end (setters), [kind] (const auto & each) { return (int) each.first == kind; });
 
-                Assert::IsTrue (isCovered || kind == (int) BreakpointKind::Io, std::format (L"kind {} has no case", kind).c_str());
+                Assert::IsTrue (isCovered, std::format (L"kind {} has no case", kind).c_str());
             }
 
             for (const auto & [kind, setter] : setters)
@@ -1484,7 +1729,7 @@ namespace DebuggerViewStateTests
 
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"six registers, the cycle and trip counts and the last branch");
             Assert::AreEqual (std::string ("A"),  snapshot.registers[0].name);
             Assert::AreEqual (std::string ("41"), snapshot.registers[0].value);
             Assert::AreEqual (std::string ("PC"), snapshot.registers[5].name);
@@ -1611,6 +1856,7 @@ namespace DebuggerViewStateTests
         {
             MachineRig            rig;
             DebuggerViewSnapshot  snapshot;
+            uint64_t              newest   = 0;
 
 
 
@@ -1621,12 +1867,12 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (kTotal,                     snapshot.trace.total);
             Assert::AreEqual (kTotal - kRows,             snapshot.trace.first, L"following the end");
             Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size());
-            Assert::AreEqual (kTotal - 1,                 snapshot.trace.entries.back().index);
+            newest = snapshot.trace.entries.back().cycles;
 
             rig.view.SetTraceTop (100);
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((uint64_t) 100,             snapshot.trace.first);
-            Assert::AreEqual ((uint64_t) 100,             snapshot.trace.entries.front().index);
+            Assert::IsTrue   (snapshot.trace.entries.front().cycles < newest, L"older than the window at the end");
             Assert::AreEqual ((size_t) kRows,             snapshot.trace.entries.size(), L"a window, never the whole trace");
             Assert::AreEqual (std::string ("JMP $0300"),  snapshot.trace.entries.front().instruction);
         }
@@ -1821,7 +2067,7 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the assembly is still open");
-            Assert::AreEqual ((size_t) 7, snapshot.registers.size(), L"six registers and the cycle count");
+            Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"six registers, the cycle and trip counts and the last branch");
             Assert::IsFalse  (snapshot.memory.empty());
             Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300), L"nothing was assembled");
 
@@ -1845,7 +2091,7 @@ namespace DebuggerViewStateTests
             reply = rig.Run ("eb 300 00", CommandMode::WinDbg);
 
             Assert::AreEqual (std::string ("machine running"), reply.error.label);
-            Assert::IsTrue   (reply.error.detail.starts_with ("eb "), std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue   (reply.error.detail.starts_with ("eb "), TextEncoding::NarrowToWide (reply.error.detail).c_str());
         }
 
 
@@ -2120,7 +2366,7 @@ namespace DebuggerViewStateTests
             rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
 
             for (const auto & [line, expected] : { std::pair<const char *, Byte> { "MEB 0400 $41", 0x41 },
-                                                   std::pair<const char *, Byte> { "MEB 0400 #66", 0x42 },
+                                                   std::pair<const char *, Byte> { "MEB 0400 0n66", 0x42 },
                                                    std::pair<const char *, Byte> { "MEB 0400 A",   0x0A },
                                                    std::pair<const char *, Byte> { "MEB 0400 44",  0x44 } })
             {
@@ -3061,7 +3307,8 @@ namespace DebuggerViewStateTests
 
         //  Focus moving between the source and the disassembly switches how
         //  steps go, in whatever mode the session is in, and runs nothing.
-        TEST_METHOD (TheSourceStepLineWorksInEveryMode)
+        //  The action's echo is a line that mode's console runs too.
+        TEST_METHOD (TheSourceStepActionWorksInEveryMode)
         {
             for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
             {
@@ -3073,13 +3320,15 @@ namespace DebuggerViewStateTests
 
                 LoadDebugFile (rig);
 
-                reply = rig.Run (DebuggerViewState::GetSourceStepLine (true, mode), mode);
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (true, mode));
                 Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
-                reply = rig.Run (DebuggerViewState::GetSourceStepLine (false, mode), mode);
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (false, mode));
                 Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
+
+                reply = rig.Run (DebuggerActions::GetSourceStepping (true, mode).echo, mode);
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
+                Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
                 Assert::AreEqual ((int) 0x0300, (int) rig.controller.GetSession().GetTarget().GetRegisters().pc, where.c_str());
             }
@@ -3252,9 +3501,9 @@ namespace DebuggerViewStateTests
 
 
             Assert::AreEqual ((size_t) 4,                   lines.size());
-            Assert::AreEqual (std::wstring (L"a       b"),  lines[0], L"to the next multiple of eight, not eight spaces");
+            Assert::AreEqual (std::wstring (L"a   b"),      lines[0], L"to the next multiple of four, not four spaces");
             Assert::AreEqual (std::wstring (L"c"),          lines[1]);
-            Assert::AreEqual (std::wstring (L"        e"),  lines[3]);
+            Assert::AreEqual (std::wstring (L"    e"),      lines[3]);
         }
 
 
@@ -3732,8 +3981,8 @@ namespace DebuggerViewStateTests
                 reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
                 snapshot = rig.view.Build (rig.controller.GetSession());
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
-                Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), std::wstring (line.begin(), line.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
+                Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size(), TextEncoding::NarrowToWide (line).c_str());
             }
         }
 
@@ -3791,7 +4040,7 @@ namespace DebuggerViewStateTests
 
                 reply = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line.begin(), line.end()).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
                 Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
             }
         }

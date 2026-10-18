@@ -271,7 +271,7 @@ namespace DebuggerTests
 
         TEST_METHOD (BKey_HidesAndShowsTheBytesColumn)
         {
-            static constexpr size_t  kBytes = 3;
+            static constexpr size_t  kBytes = 2;
 
             CassoTheme       theme    = CassoTheme::MakeSkeuomorphic();
             TraceKeysHost    host;
@@ -315,12 +315,50 @@ namespace DebuggerTests
 
             pane.ProvideRow (2, cells);
             Assert::AreEqual (std::wstring (L"next"),     cells[0].text);
-            Assert::AreEqual (std::wstring (L"0300"),     cells[2].text);
-            Assert::AreEqual (std::wstring (L"LDA #$05"), cells[5].text);
-            Assert::IsTrue   (cells[6].text.empty(), L"no registers before it runs");
+            Assert::AreEqual (std::wstring (L"0300"),     cells[1].text);
+            Assert::AreEqual (std::wstring (L"LDA #$05"), cells[4].text);
+            Assert::IsTrue   (cells[5].text.empty(), L"no registers before it runs");
 
             pane.ProvideRow (3, cells);
-            Assert::AreEqual (std::wstring (L"0302"), cells[2].text);
+            Assert::AreEqual (std::wstring (L"0302"), cells[1].text);
+        }
+
+
+        //  The row about to run, the PC's, has the PC's marker and row color,
+        //  as the disassembly's does; the rows after it have neither.
+        TEST_METHOD (ThePcsRowHasThePcsMarkerAndColor)
+        {
+            constexpr uint32_t                     kPcRow = 0xFF403810;
+            DxuiListView                           list;
+            TracePane                              pane   (&list, [] (std::optional<uint64_t>) {});
+            DebuggerViewSnapshot::TraceState       trace;
+            std::vector<DxuiListView::Cell>        cells;
+            std::shared_ptr<const DxuiIconImage>   marker = std::make_shared<DxuiIconImage>();
+
+
+
+            pane.Configure();
+            pane.SetPcStyle (marker, kPcRow);
+
+            trace.total = 1;
+            trace.entries.resize (1);
+            trace.next.resize (2);
+            pane.Apply (trace);
+
+            pane.ProvideRow (1, cells);
+            Assert::IsTrue (cells[0].icon == marker, L"the marker on the PC's row");
+
+            for (const DxuiListView::Cell & cell : cells)
+            {
+                Assert::AreEqual (kPcRow, cell.background, L"and its color across it");
+            }
+
+            pane.ProvideRow (2, cells);
+            Assert::IsTrue   (cells[0].icon == nullptr, L"none on the row after it");
+            Assert::AreEqual (0u, cells[0].background);
+
+            pane.ProvideRow (0, cells);
+            Assert::AreEqual (0u, cells[0].background, L"nor on an entry that ran");
         }
     };
 
@@ -368,12 +406,19 @@ namespace DebuggerTests
 
 
 
+        //  With tracing on, a stopped machine's snapshot has the instructions
+        //  it runs next; with tracing off, none.
         TEST_METHOD (Snapshot_WhileStopped_HoldsTheNextInstructions)
         {
             ControllerRig         rig;
             DebuggerViewSnapshot  snapshot = rig.view.Build (rig.controller.GetSession());
 
 
+
+            Assert::IsTrue (snapshot.trace.next.empty(), L"tracing off: no preview");
+
+            rig.controller.GetSession().ExecuteLine ("HISTORY ON");
+            snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 / STA $0400 / RTS at $0300, the PC on the first.
             Assert::AreEqual ((size_t) 3,                snapshot.trace.next.size(), L"up to and including the RTS");

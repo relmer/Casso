@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/ControllersPageState.h"
 
 #include "SettingsPanelState.h"
@@ -13,12 +12,10 @@
 #include "SettingsCompositor.h"
 #include "Ui/Scene/DeskScene.h"
 #include "ColorPickerOverlay.h"
+#include "GeneralPage.h"
 #include "HardwarePage.h"
-#include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
-#include "PrintingPage.h"
-#include "ScreenshotsPage.h"
 
 
 class UserConfigStore;
@@ -27,6 +24,10 @@ class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
 class DxuiLabel;
+class ControllersPage;
+class PrintingPage;
+class DiskPage;
+class ScreenshotsPage;
 
 
 
@@ -78,6 +79,12 @@ public:
     //  on the menu and the paddle picker.
     //
     void    ShowControllersPage ();
+
+    //
+    //  Re-reads the update check time and the skipped release into the
+    //  General page, after a check finishes or the skip changes.
+    //
+    void    RefreshUpdateStatus ();
 
     //
     //  The Controllers page on one controller with the New Profile dialog up,
@@ -246,6 +253,7 @@ private:
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
+    GeneralPage      * m_generalPage     = nullptr;
     HardwarePage     * m_hardwarePage    = nullptr;
     DiskPage         * m_diskPage        = nullptr;
     ThemePage        * m_themePage       = nullptr;

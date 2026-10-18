@@ -439,7 +439,7 @@ HRESULT PreviewDecoder::Render (
                     outContent.kind    = PreviewContent::Kind::Error;
                     outContent.message = std::format (L"Line {}: {}",
                                                       (unsigned) applesoftError.lineNumber,
-                                                      std::wstring (applesoftError.reason.begin(), applesoftError.reason.end()));
+                                                      TextEncoding::NarrowToWide (applesoftError.reason));
                     hr = S_OK;
                 }
 
@@ -459,7 +459,7 @@ HRESULT PreviewDecoder::Render (
                     outContent.kind    = PreviewContent::Kind::Error;
                     outContent.message = std::format (L"Offset {}: {}",
                                                       (unsigned) integerError.offset,
-                                                      std::wstring (integerError.reason.begin(), integerError.reason.end()));
+                                                      TextEncoding::NarrowToWide (integerError.reason));
                     outContent.offset  = integerError.offset;
                     hr = S_OK;
                 }

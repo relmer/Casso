@@ -16,8 +16,7 @@
 //  DebugViewInput
 //
 //  Everything one build of the panes reads, taken on the machine's thread:
-//  the machine's capture, the session's tables, the run state, and, while
-//  the machine is behind live, the instructions history replayed to reach it.
+//  the machine's capture, the session's tables and the run state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +25,6 @@ struct DebugViewInput
     std::shared_ptr<const DebugViewCapture>   capture;
     DebugSessionView                          session;
     bool                                      isPaused = true;
-    std::optional<std::vector<TraceRecord>>   historyTrace;
 };
 
 

@@ -295,6 +295,31 @@ $checks = @(
         Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*([^)]*\(|$)'
         Message = 'call inside IGNORE_RETURN_VALUE -- capture the result first, then IGNORE_RETURN_VALUE (result, S_OK)'
         Exclude = @('Ehm/Ehm.h')
+    },
+    @{
+        # CS0024: a string converted between narrow and wide by copying its
+        # iterator range. `std::wstring (s.begin(), s.end())` widens each char
+        # on its own, and char is signed, so every byte above 127 sign-extends
+        # into U+FF80..U+FFFF instead of the character it encodes. The reverse,
+        # a std::string built from a wstring's range, truncates each wchar_t.
+        # Both are silent on ASCII, which is why they survive review: GH #79.
+        #
+        # Narrow on purpose. Only a range spanning ONE whole object --
+        # `x.begin(), x.end()` with the same `x` on both sides -- so a slice of a
+        # byte buffer is never flagged, and only where a wide type is on the
+        # line, so `std::string (bytes.begin(), bytes.end())` copying a byte
+        # vector is untouched. Narrow to wide: a `wstring` constructed from
+        # the range. Wide to narrow: a `string` constructed or assigned from a
+        # `.wstring()` / `.native()` result, or from a variable declared
+        # `wstring` earlier on the same line. A `.assign` onto a wstring whose
+        # type is declared elsewhere is not visible to a per-line check.
+        Id      = 'CS0024'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = '\bwstring\s*(?:\w+\s*)?[({]\s*(?<n>[\w.\[\]>-]+)\.c?begin\s*\(\)\s*,\s*\k<n>\.c?end\s*\(\)\s*[)}]' +
+                  '|(?:\bstring\s*(?:\w+\s*)?[({]|\.assign\s*\()\s*(?<w>[\w.\[\]>-]+\.(?:generic_)?(?:wstring|native)\s*\(\))\.c?begin\s*\(\)\s*,\s*\k<w>\.c?end\s*\(\)' +
+                  '|\bwstring\s*&?\s*(?<d>\w+)\b.*(?:\bstring\s*(?:\w+\s*)?[({]|\.assign\s*\()\s*\k<d>\.c?begin\s*\(\)\s*,\s*\k<d>\.c?end\s*\(\)'
+        Message = 'string widened or narrowed by copying its iterator range -- use TextEncoding (NarrowToWide, Utf8ToWide, WideToNarrow)'
+        Exclude = @()
     }
 )
 

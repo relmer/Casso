@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/StackHistory.h"
+#include "Ui/Debugger/UndoText.h"
 #include "Ui/Debugger/ByteChanges.h"
 
 
@@ -116,6 +117,85 @@ void StackHistory::Clear()
 {
     m_undo.clear();
     m_redo.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StackHistory::ToText
+//
+//  Each step is its address, its value before and its value after, apart at
+//  colons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string StackHistory::ToText() const
+{
+    std::string  text = std::format ("{:04X}", m_pc);
+
+
+
+    for (const std::vector<Step> * steps : { &m_undo, &m_redo })
+    {
+        text += "|";
+
+        for (size_t i = 0; i < steps->size(); i++)
+        {
+            text += std::format ("{}{:04X}:{:02X}:{:02X}", (i == 0) ? "" : ",", (*steps)[i].address, (*steps)[i].before, (*steps)[i].after);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StackHistory::FromText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StackHistory::FromText (const std::string & text)
+{
+    std::vector<std::string>  parts = UndoText::Split (text, '|');
+    uint32_t                  pc    = 0;
+
+
+
+    Clear();
+
+    if (parts.size() != 3 || !UndoText::TryParseHex (parts[0], pc))
+    {
+        return;
+    }
+
+    for (size_t list = 1; list <= 2; list++)
+    {
+        for (const std::string & field : UndoText::Split (parts[list], ','))
+        {
+            std::vector<std::string>  values  = UndoText::Split (field, ':');
+            uint32_t                  address = 0;
+            uint32_t                  before  = 0;
+            uint32_t                  after   = 0;
+
+            if (values.size() != 3 || !UndoText::TryParseHex (values[0], address) || !UndoText::TryParseHex (values[1], before) ||
+                !UndoText::TryParseHex (values[2], after))
+            {
+                Clear();
+                return;
+            }
+
+            ((list == 1) ? m_undo : m_redo).push_back ({ (Word) address, (Byte) before, (Byte) after });
+        }
+    }
+
+    m_pc = (Word) pc;
 }
 
 

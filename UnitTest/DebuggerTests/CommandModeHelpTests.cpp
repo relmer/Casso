@@ -12,6 +12,7 @@
 #include "MockExpressionContext.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -41,7 +42,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 
@@ -87,6 +88,35 @@ namespace DebuggerTests
             Assert::IsFalse (ListsName (casso, "BP"),     L"GSSquared has bp");
             Assert::IsFalse (ListsName (casso, "DB"),     L"a hex word is an address to GSSquared");
             Assert::IsTrue  (ListsName (casso, "SWITCHES"), L"an engine command");
+        }
+
+
+        //  Every mode's help lists BPDISK, as that mode writes it, under its
+        //  Breakpoints heading: a heading is indented two spaces, a command
+        //  four.
+        TEST_METHOD (EveryModesHelpListsBpdiskUnderBreakpoints)
+        {
+            for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
+            {
+                std::string  heading;
+                std::string  under;
+
+
+
+                for (const std::string & line : CommandModeHelp::BuildHelp (mode))
+                {
+                    std::string  upper = line;
+
+
+
+                    std::transform (upper.begin(), upper.end(), upper.begin(), [] (unsigned char c) { return (char) toupper (c); });
+
+                    heading = (line.starts_with ("  ") && !line.starts_with ("    ")) ? line.substr (2) : heading;
+                    under   = (under.empty() && upper.find ("BPDISK") != std::string::npos) ? heading : under;
+                }
+
+                Assert::AreEqual (std::string ("Breakpoints"), under, Widen (std::format ("mode {}", (int) mode)).c_str());
+            }
         }
 
 

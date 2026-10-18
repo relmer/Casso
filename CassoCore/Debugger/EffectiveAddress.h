@@ -1,10 +1,11 @@
 #pragma once
 
 #include "GlobalAddressingModes.h"
-#include "I6502DebugInfo.h"
-#include "Microcode.h"
 
 class IDebugExpressionContext;
+struct Cpu6502Registers;
+class I6502DebugInfo;
+class Microcode;
 
 
 

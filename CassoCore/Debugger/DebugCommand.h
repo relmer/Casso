@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DebugExpressionEvaluator.h"
+#include "Debugger/DiskBreakSpec.h"
 
 
 
@@ -78,8 +79,6 @@ enum class DebugVerb
     Stopwatch,
     VideoLog,
     SoundLog,
-    Benchmark,
-    ExitBenchmark,
     ShowCycles,
     ResetCycles,
     BreakOnVideoLine,
@@ -95,6 +94,7 @@ enum class DebugVerb
     GoLive,
     SaveState,
     LoadState,
+    Project,
 
     // Breakpoints and watchpoints
     SetBreakpoint,
@@ -109,6 +109,10 @@ enum class DebugVerb
     BreakOnOpcode,
     BreakOnInterrupt,
     BreakOnUnwrittenRead,
+    SetDiskBreakpoint,
+    SetBasicLineBreakpoint,
+    SetBasicVariableBreakpoint,
+    BreakOnBasicError,
     ClearBreakpoint,
     DisableBreakpoint,
     EnableBreakpoint,
@@ -116,6 +120,7 @@ enum class DebugVerb
     EditBreakpoint,
     ChangeBreakpoint,
     SaveBreakpoints,
+    SetBreakpointName,
 
     // Registers and stack
     ShowRegisters,
@@ -192,10 +197,10 @@ enum class DebugVerb
     ChangeDirectory,
     LoadConfig,
     SaveConfig,
-    ConfigureDisassembly,
     RunStartup,
     RunScript,
     DiskCommand,
+    TapeCommand,
     Log,
     Echo,
     Print,
@@ -235,6 +240,13 @@ enum class DebugVerb
     ClearStepFilter,
     ShowCallStack,
     SetCallStackMode,
+
+    // Applesoft
+    BasicStep,
+    BasicStepLine,
+    BasicStepOut,
+    ShowBasicVariables,
+    ShowBasicStack,
     ShowHistory,
     SetHistory,
     SaveHistory,
@@ -281,9 +293,12 @@ struct DebugCommand
     Expression               expression;
     std::string              text;
     std::string              symbolTable;
+    std::string              symbol;       // BP: the symbol its address was given as
     uint32_t                 count    = 0;
     std::optional<uint64_t>  budget;
-    std::optional<uint64_t>  first;        // HISTORY: the window's first entry
+    std::optional<uint64_t>  fromCycle;    // HISTORY: the window starts at the first entry at or after this cycle
     CommandMode              mode     = CommandMode::AppleWin;
     OutputFormat             output   = OutputFormat::AppleWin;
+
+    std::optional<DiskBreakSpec>  disk;    // BPDISK
 };

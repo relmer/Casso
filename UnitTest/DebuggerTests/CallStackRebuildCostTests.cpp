@@ -8,6 +8,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "HandlerTestRig.h"
 #include "Shell/ScratchCallReplayer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

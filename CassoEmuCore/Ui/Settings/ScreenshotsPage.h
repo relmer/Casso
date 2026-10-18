@@ -2,11 +2,8 @@
 
 #include "Pch.h"
 
-#include "Config/GlobalUserPrefs.h"
-
-
-
 class DxuiHwndSource;
+struct GlobalUserPrefs;
 
 
 

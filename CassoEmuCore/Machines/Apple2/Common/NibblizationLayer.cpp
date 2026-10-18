@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/FluxBitView.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 
 
@@ -1404,7 +1406,7 @@ HRESULT NibblizationLayer::DecodeTracks (
         lost       = 0;
         duplicated = 0;
         slotMask   = 0;
-        src        = GetTrackBits (img, track, fluxView);
+        src        = GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
         trackBits  = src.bitCount;
 
         //  A revolution that turns up nothing new means there is nothing left

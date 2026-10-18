@@ -2,6 +2,7 @@
 
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "MockExpressionContext.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -37,8 +38,8 @@ namespace DebuggerTests
 
             hr = DebugExpressionEvaluator::ParseAndEvaluate (text, context, value, error);
 
-            Assert::AreEqual (S_OK,     hr,    std::wstring (text.begin(), text.end()).c_str());
-            Assert::AreEqual (expected, value, std::wstring (text.begin(), text.end()).c_str());
+            Assert::AreEqual (S_OK,     hr,    TextEncoding::NarrowToWide (text).c_str());
+            Assert::AreEqual (expected, value, TextEncoding::NarrowToWide (text).c_str());
         }
 
 
@@ -61,8 +62,8 @@ namespace DebuggerTests
 
             hr = DebugExpressionEvaluator::ParseAndEvaluate (text, context, value, error);
 
-            Assert::IsTrue (FAILED (hr),                             std::wstring (text.begin(), text.end()).c_str());
-            Assert::IsTrue (error.find (fragment) != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue (FAILED (hr),                             TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (error.find (fragment) != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
         }
 
 
@@ -77,7 +78,9 @@ namespace DebuggerTests
             Expect (context, "$300",      0x300);
             Expect (context, "$a",        0xA);
             Expect (context, "0A",        0xA);
-            Expect (context, "#10",       10);
+            Expect (context, "#10",       0x10);
+            Expect (context, "#A",        0x0A);
+            Expect (context, "0n10",      10);
             Expect (context, "'A'",       0x41);
             Expect (context, "  1FF  ",   0x1FF);
             Expect (context, "FFFFFFFF",  -1);
@@ -228,6 +231,80 @@ namespace DebuggerTests
 
 
 
+        //  A defined symbol comes before a register and a hex number, and @
+        //  and a register's name is the register in every syntax.
+        TEST_METHOD (SymbolsBeforeRegistersAndNumbers)
+        {
+            MockExpressionContext  appleWin;
+            MockExpressionContext  winDbg;
+
+
+
+            winDbg.syntax = NumberSyntax::WinDbg;
+
+            appleWin.symbols["X"]   = 0x1234;
+            appleWin.symbols["BAD"] = 0x0800;
+            winDbg.symbols["X"]     = 0x1234;
+
+            Expect      (appleWin, "X",    0x1234);
+            Expect      (appleWin, "@X",   0x01);
+            Expect      (appleWin, "@x+1", 0x02);
+            Expect      (appleWin, "BAD",  0x0800);
+            Expect      (appleWin, "$BAD", 0x0BAD);
+            Expect      (appleWin, "Y",    0x02);
+            Expect      (appleWin, "@P",   0x30);
+            Expect      (appleWin, "@S",   0xFF);
+            Expect      (appleWin, "@PC",  0x0300);
+            ExpectError (appleWin, "@Q",   "@A, @X, @Y, @P, @S and @PC");
+
+            Expect      (winDbg,   "X",    0x1234);
+            Expect      (winDbg,   "@x",   0x01);
+            Expect      (winDbg,   "a",    0x0A);
+            Expect      (winDbg,   "@a",   0x41);
+            Expect      (winDbg,   "@sp",  0xFF);
+            Expect      (winDbg,   "@s",   0xFF);
+            Expect      (winDbg,   "@fl",  0x30);
+            ExpectError (winDbg,   "@q",   "@a, @x, @y, @sp, @pc and @fl");
+        }
+
+
+
+        //  A name not found among the symbols is not looked up again until
+        //  the symbol revision changes.
+        TEST_METHOD (ANameNotASymbolIsLookedUpAgainOnlyAfterTheSymbolsChange)
+        {
+            MockExpressionContext  context;
+            Expression             expression;
+            std::string            error;
+            int32_t                value = 0;
+            HRESULT                hr    = S_OK;
+
+
+
+            context.revision = 1;
+
+            hr = DebugExpressionEvaluator::Parse ("X", expression, error);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x01, value, L"no symbol X, so the register");
+
+            context.symbols["X"] = 0x1234;
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x01, value, L"the same revision, so no lookup");
+
+            context.revision = 2;
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0x1234, value, L"a new revision, so the symbol");
+        }
+
+
+
         TEST_METHOD (Errors)
         {
             MockExpressionContext context;
@@ -241,7 +318,7 @@ namespace DebuggerTests
             ExpectError (context, "10/0",     "divides by zero");
             ExpectError (context, "10%0",     "divides by zero");
             ExpectError (context, "$",        "column");
-            ExpectError (context, "#12A",     "decimal");
+            ExpectError (context, "#12G",     "hex");
             ExpectError (context, "3G",       "hex");
             ExpectError (context, "3 4",      "operator");
             ExpectError (context, "'A",       "'c'");

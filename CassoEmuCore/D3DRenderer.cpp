@@ -8,6 +8,7 @@
 #include "blit.ps.h"
 
 #include "Core/PerfStats.h"
+#include "Capture/CapturedImage.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")

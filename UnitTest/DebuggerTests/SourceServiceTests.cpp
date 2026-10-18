@@ -7,6 +7,8 @@
 #include "UiTests/InMemoryFileSystem.h"
 
 #include "CppUnitTest.h"
+#include "Debugger/DebugFile.h"
+#include "Debugger/Source/SourcePathList.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -40,7 +42,7 @@ namespace DebuggerTests
         {
             InMemoryFileSystem  files;
             GlobalUserPrefs     prefs;
-            SourcePathList      paths   { prefs };
+            SourcePathList      paths   { prefs.debugger };
             SourceService       service { files, paths };
         };
 
@@ -253,7 +255,7 @@ namespace DebuggerTests
         {
             Rig              rig;
             GlobalUserPrefs  loaded;
-            SourcePathList   reloaded { loaded };
+            SourcePathList   reloaded { loaded.debugger };
 
 
 

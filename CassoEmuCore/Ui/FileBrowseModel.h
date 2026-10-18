@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Config/IFileSystem.h"
+struct FileSystemEntry;
+class IFileSystem;
 
 
 

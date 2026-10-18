@@ -8,6 +8,7 @@
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
 #include "TestCpu65C02.h"
+#include "DialectReporting.h"
 
 
 

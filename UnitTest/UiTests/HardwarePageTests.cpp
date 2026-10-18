@@ -159,143 +159,58 @@ public:
     }
 
 
-    // //c external drive: when the machine supports the optional
-    // external drive, BuildNodes appends a top-level checkable "External
-    // drive" leaf whose checked state mirrors the connected pref. It is
-    // Optional (interactive) so the user can connect/disconnect it, and has
-    // no children (a leaf -- no expand twisty).
-    TEST_METHOD (BuildNodes_AppendsExternalDriveNodeWhenSupported)
+    // //c mouse: when the machine has a mouse port, BuildNodes appends a
+    // top-level checkable "Mouse" leaf whose checked state mirrors the
+    // connected pref. It is Optional (interactive) and has no children.
+    TEST_METHOD (BuildNodes_AppendsMouseNodeWhenSupported)
     {
         std::vector<HardwareEntry>  entries;
         entries.push_back (MakeEntry (HardwareEntryKind::InternalDevice, "kbd", CapabilityFlag::Required, true));
 
-        std::vector<DxuiTreeNode>  nodes =
-            HardwarePage::BuildNodes (entries, /*supportsExternalDrive*/ true, /*connected*/ true);
+        std::vector<DxuiTreeNode>  nodes = HardwarePage::BuildNodes (entries, /*supportsMouse*/ true, /*connected*/ true);
 
-        Assert::AreEqual<size_t> (3u, nodes.size(),
-            L"Internal-devices group + external-drive leaf + mouse leaf.");
-        const DxuiTreeNode & ext = nodes[nodes.size() - 2];
-        Assert::AreEqual (std::wstring (L"External drive"), ext.label);
+        Assert::AreEqual<size_t> (2u, nodes.size(), L"Internal-devices group + mouse leaf.");
         const DxuiTreeNode & ms = nodes.back();
         Assert::AreEqual (std::wstring (L"Mouse"), ms.label);
-        Assert::IsTrue (ms.checked, L"mouse defaults connected");
+        Assert::IsTrue (ms.checked, L"connected pref -> checked node");
         Assert::IsTrue (ms.capabilityFlag == DxuiTreeCapabilityFlag::Optional);
-        Assert::IsTrue (ext.capabilityFlag == DxuiTreeCapabilityFlag::Optional,
-            L"External drive must be interactive (Optional).");
-        Assert::IsTrue (ext.checked, L"Connected pref -> checked node.");
-        Assert::IsTrue (ext.children.empty(), L"External drive is a leaf.");
+        Assert::IsTrue (ms.children.empty(), L"Mouse is a leaf.");
     }
 
 
-    TEST_METHOD (BuildNodes_ExternalDriveNodeReflectsDisconnected)
+    TEST_METHOD (BuildNodes_MouseNodeReflectsDisconnected)
     {
-        std::vector<DxuiTreeNode>  nodes =
-            HardwarePage::BuildNodes ({}, /*supportsExternalDrive*/ true, /*connected*/ false);
+        std::vector<DxuiTreeNode>  nodes = HardwarePage::BuildNodes ({}, /*supportsMouse*/ true, /*connected*/ false);
 
-        Assert::AreEqual<size_t> (2u, nodes.size(), L"External-drive + mouse leaves.");
-        Assert::AreEqual (std::wstring (L"External drive"), nodes[0].label);
-        Assert::IsFalse (nodes[0].checked, L"Not-connected pref -> unchecked node.");
+        Assert::AreEqual<size_t> (1u, nodes.size(), L"just the mouse leaf");
+        Assert::IsFalse (nodes[0].checked, L"not-connected pref -> unchecked node");
     }
 
 
-    // A carded machine gets the same choice under its own name. "Drive 2"
-    // rather than "External drive" because that is what the hardware is: a
-    // drive on the card's second connector, not a unit on a cable.
-    TEST_METHOD (BuildNodes_AppendsSecondDriveNodeForACardedMachine)
+    // The second drive connects live from the Storage menu and its
+    // right-click menu, so no machine's tree offers it -- under either of
+    // the names it used to have here.
+    TEST_METHOD (BuildNodes_NoMachineOffersItsSecondDrive)
     {
         std::vector<HardwareEntry>  entries;
 
-        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
-                                      CapabilityFlag::Optional, true));
-        std::vector<DxuiTreeNode>   nodes   =
-            HardwarePage::BuildNodes (entries, false, false, true, true, true);
-
-        bool  found = false;
-
-        for (const DxuiTreeNode & n : nodes)
-        {
-            if (n.label == L"Drive 2")
-            {
-                found = true;
-                Assert::IsTrue (n.checked, L"attached -> checked");
-                Assert::IsTrue (n.capabilityFlag == DxuiTreeCapabilityFlag::Optional,
-                                L"the user can detach it");
-            }
-        }
-
-        Assert::IsTrue (found, L"a carded machine must offer the Drive 2 node");
-    }
 
 
-    TEST_METHOD (BuildNodes_SecondDriveNodeReflectsDetached)
-    {
-        std::vector<HardwareEntry>  entries;
-
-        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
-                                      CapabilityFlag::Optional, true));
-        std::vector<DxuiTreeNode>   nodes   =
-            HardwarePage::BuildNodes (entries, false, false, true, true, false);
-
-        for (const DxuiTreeNode & n : nodes)
-        {
-            if (n.label == L"Drive 2")
-            {
-                Assert::IsFalse (n.checked, L"detached -> unchecked");
-            }
-        }
-    }
-
-
-    // The two nodes are mutually exclusive. The //c reports true for BOTH
-    // gates -- its built-in IWM has to count as a controller for the Disk tab
-    // -- so a machine must never end up offering its second drive twice.
-    TEST_METHOD (BuildNodes_ACcGetsTheExternalNodeAndNotAlsoDriveTwo)
-    {
-        std::vector<HardwareEntry>  entries;
-
-        entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii",
-                                      CapabilityFlag::Optional, true));
-        std::vector<DxuiTreeNode>   nodes   =
-            HardwarePage::BuildNodes (entries, true, true, true, false, false);
-
-        bool  external = false;
-        bool  second   = false;
-
-        for (const DxuiTreeNode & n : nodes)
-        {
-            if (n.label == L"External drive") { external = true; }
-            if (n.label == L"Drive 2")        { second   = true; }
-        }
-
-        Assert::IsTrue  (external, L"the //c keeps its external-drive node");
-        Assert::IsFalse (second,   L"and must not also get a Drive 2 node");
-    }
-
-
-    TEST_METHOD (BuildNodes_NoExternalDriveNodeWhenUnsupported)
-    {
-        std::vector<DxuiTreeNode>  nodes;
-
-
-
-        // Default (supportsExternalDrive = false): no external-drive leaf, so
-        // //e / ][ machines are unchanged.
-        std::vector<HardwareEntry>  entries;
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
 
-        nodes = HardwarePage::BuildNodes (entries);
-
-        for (const DxuiTreeNode & n : nodes)
+        for (bool supportsMouse : { false, true })
         {
-            Assert::IsFalse (n.label == L"External drive",
-                L"External-drive node must not appear on unsupported machines.");
+            for (const DxuiTreeNode & n : HardwarePage::BuildNodes (entries, supportsMouse, true))
+            {
+                Assert::IsFalse (n.label == L"External drive", L"no External drive node");
+                Assert::IsFalse (n.label == L"Drive 2",        L"no Drive 2 node");
+            }
         }
     }
 
-
     //  The Joyport is turned on from the Controllers page and the picker, not
-    //  the Machine tab, so no machine's tree lists it: the ][+ and //e with a
-    //  card's second drive, and the //c with its external drive and mouse.
+    //  the Machine tab, so no machine's tree lists it: the ][+ and //e, and the
+    //  //c with its mouse.
     TEST_METHOD (BuildNodes_NoMachineListsTheJoyport)
     {
         std::vector<HardwareEntry>                entries;
@@ -306,9 +221,8 @@ public:
 
         entries.push_back (MakeEntry (HardwareEntryKind::Slot, "Slot 6: disk-ii", CapabilityFlag::Optional, true));
 
-        machines.push_back (HardwarePage::BuildNodes (entries, false, false, true, true, true));
-        machines.push_back (HardwarePage::BuildNodes (entries, false, false, true, true, false));
-        machines.push_back (HardwarePage::BuildNodes (entries, true,  true,  true, false, false));
+        machines.push_back (HardwarePage::BuildNodes (entries, false, true));
+        machines.push_back (HardwarePage::BuildNodes (entries, true,  true));
 
         for (const std::vector<DxuiTreeNode> & nodes : machines)
         {

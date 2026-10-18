@@ -162,16 +162,49 @@ void MonitorHandlers::Deposit (DebugSession & session, const DebugCommand & comm
 //  end of a range says: the ROM's L ignores A2. Without an address it
 //  continues from where the last listing stopped.
 //
+//  An undocumented opcode is listed as ??? over its first byte, and the
+//  listing goes on from the next byte, as the ROM's LIST does: its opcode
+//  table has the documented instructions only.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorHandlers::List (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
     DisassemblyData  data;
-    Word             first = command.hasA1 ? command.a1 : m_nextList;
+    DisassemblyData  one;
+    Word             address = command.hasA1 ? command.a1 : m_nextList;
+    Word             next    = 0;
+    int              i       = 0;
 
 
 
-    m_nextList = DataDirectiveHandlers::Disassemble (session, first, std::nullopt, kListLines, data);
+    for (i = 0; i < kListLines; i++)
+    {
+        one.lines.clear();
+        next = DataDirectiveHandlers::Disassemble (session, address, std::nullopt, 1, one);
+
+        if (one.lines.empty())
+        {
+            break;
+        }
+
+        if (one.lines[0].instruction.isDefined && !one.lines[0].instruction.documented)
+        {
+            one.lines[0].instruction.bytes.resize (1);
+            one.lines[0].instruction.mnemonic          = "???";
+            one.lines[0].instruction.operand.clear();
+            one.lines[0].instruction.isDefined         = false;
+            one.lines[0].instruction.hasTarget         = false;
+            one.lines[0].instruction.hasOperandAddress = false;
+            one.lines[0].operandSymbol.clear();
+            next = (Word) (address + 1);
+        }
+
+        data.lines.push_back (std::move (one.lines[0]));
+        address = next;
+    }
+
+    m_nextList = address;
     reply.data = data;
 }
 
@@ -290,7 +323,7 @@ void MonitorHandlers::SetHook (DebugSession & session, const DebugCommand & comm
 
     if (command.count > kHighestSlot)
     {
-        lines.push_back (std::format ("Slot {:X} is out of range; the ROM uses slot {:X}", command.count, slot));
+        lines.push_back (std::format ("There is no slot {:X}; only its low hex digit is used.", command.count));
     }
 
     lines.push_back (std::format ("{} hook: ${:04X}", isInput ? "Input" : "Output", target));
@@ -385,7 +418,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "R takes a file name here. Only the debugger window can prompt for one.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "R reads a host file here, and takes its name. To load from a tape, type R in the guest's own Monitor and start the tape.");
         return;
     }
 
@@ -448,7 +481,7 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "W takes a file name here. Only the debugger window can prompt for one.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "W writes a host file here, and takes its name. To save to a tape, press Record on the deck and type W in the guest's own Monitor.");
         return;
     }
 

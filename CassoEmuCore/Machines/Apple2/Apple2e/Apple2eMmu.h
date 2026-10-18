@@ -9,6 +9,7 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/IMmu.h"
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 

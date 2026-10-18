@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
-#include "Core/DxuiIconImage.h"
 #include "Core/DxuiPaneMetrics.h"
+
+struct DxuiIconImage;
 
 
 
@@ -77,6 +78,12 @@ public:
         Pin,
         Close,
     };
+
+    // Label metrics: the font a tab label is drawn in, and the inset the
+    // label keeps from each side of its tab. Callers sizing tabs to their
+    // labels measure with the same font.
+    static constexpr float  kLabelFontDip = 13.0f;
+    static constexpr float  kLabelPadXDip = 8.0f;
 
     DxuiTabStrip() { m_focusable = true; }
 
@@ -252,7 +259,7 @@ private:
     //  File Explorer's tab, measured at 120 dpi (research R13).
     static constexpr int  s_kIconInsetDip     = 10;   // icon from the tab's left edge
     static constexpr int  s_kIconDip          = 16;
-    static constexpr int  s_kLabelInsetDip    = 38;   // label from the tab's left edge
+    static constexpr int  s_kLabelInsetDip    = 38;   // label from the tab's left edge, in a tab with an icon
     static constexpr int  s_kCloseCenterDip   = 22;   // close button's center from the tab's right edge
     static constexpr int  s_kCloseBoxDip      = 24;
     static constexpr int  s_kCloseGlyphDip    = 10;

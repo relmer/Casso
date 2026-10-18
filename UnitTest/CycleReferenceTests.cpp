@@ -3,6 +3,7 @@
 #include "Cpu6502.h"
 #include "CycleReference.h"
 #include "Core/Cpu65C02Table.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -336,7 +337,7 @@ namespace CycleReferenceTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
     };
 }

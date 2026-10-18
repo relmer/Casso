@@ -10,7 +10,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
-#include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -189,7 +189,7 @@ public:
             hr = standIn.Take (store.GetThreadOwnership());
             AssertSucceeded (hr, L"Take");
 
-            hrInsert = EmulatorShell::InsertSalvagedCopy (manager, s_kRemountDrive, "damaged (salvaged).nib");
+            hrInsert = ShellDisks::InsertSalvagedCopy (manager, s_kRemountDrive, "damaged (salvaged).nib");
 
             hr = standIn.GiveBack();
             AssertSucceeded (hr, L"GiveBack");

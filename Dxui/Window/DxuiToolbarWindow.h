@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 #include "Window/DxuiWindow.h"
-#include "Widgets/DxuiToolbar.h"
+
+class DxuiToolbar;
 
 
 

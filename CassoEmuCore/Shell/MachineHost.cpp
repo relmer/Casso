@@ -24,6 +24,8 @@
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple2/Common/CharacterRomData.h"
+#include "Devices/IAciaEndpoint.h"
 
 
 
@@ -39,12 +41,20 @@ MachineHost::MachineHost() :
     m_memoryBus (std::make_unique<MemoryBus>()),
     m_charRom   (std::make_unique<CharacterRomData>()),
     m_diskStore (std::make_unique<DiskImageStore>()),
-    m_config    (std::make_unique<MachineConfig>())
+    m_config    (std::make_unique<MachineConfig>()),
+    m_tapeDeck  (std::make_unique<TapeDeck>())
 {
     // A disk leaving a bay is stamped with the position, and a disk change is
     // a boundary in reverse execution's history.
     m_diskStore->SetPositionSource (&m_position);
     m_diskStore->SetMediaChangeListener ([this] () { OnMediaChanged(); });
+
+    //  The store frees an image on an eject or a remount, so the controller
+    //  is re-pointed on every bay change rather than by each caller.
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    {
+        ConnectDiskToController (slot, drive);
+    });
 }
 
 
@@ -962,6 +972,10 @@ void MachineHost::SoftReset()
     // replay of a recorded reset.
     m_diskStore->SoftReset();
 
+    // A reset stops the recorder, as pressing reset mid-load would leave a real
+    // one running into a guest that is no longer listening. The tape stays in.
+    StopTape();
+
     m_memoryBus->SoftResetAll();
 
     if (m_mmu != nullptr)
@@ -1018,6 +1032,8 @@ void MachineHost::PowerCycle()
     {
         return;
     }
+
+    StopTape();
 
     // Auto-flush dirty disks before reseeding device state so writes don't
     // get lost across a power cycle. Mounts persist (matching
@@ -1174,7 +1190,7 @@ HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     hr = CheckStateHeader (reader, isOverMounted, savedParts);
     CHR (hr);
@@ -1228,7 +1244,7 @@ HRESULT MachineHost::LoadStateForPicture (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     hr = ReadPictureHeader (reader, savedParts);
     CHR (hr);
@@ -1302,7 +1318,7 @@ HRESULT MachineHost::ReadSavedMedia (
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadUInt32 (nameLength);
     CBREx (nameLength <= kLongestName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
@@ -1982,28 +1998,33 @@ void MachineHost::ApplyPowerOnOverrides()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::AttachObservers (const MachineObservers & observers)
+void MachineHost::AttachObservers (const MachineObservers & observers, ObserverSlot slot)
 {
     if (m_refs.diskController != nullptr)
     {
-        m_refs.diskController->SetEventSink (observers.disk);
+        m_refs.diskController->SetEventSink (slot, observers.disk);
     }
 
     if (m_refs.keyboard != nullptr)
     {
-        m_refs.keyboard->SetInputEventSink (observers.input);
+        m_refs.keyboard->SetInputEventSink (slot, observers.input);
     }
 
     // The //e soft-switch bank reports the switches the keyboard does not
     // own (80COL, 80STORE, ALTCHARSET); null on a ][ or ][+.
     if (m_refs.iieSoftSwitches != nullptr)
     {
-        m_refs.iieSoftSwitches->SetInputEventSink (observers.input);
+        m_refs.iieSoftSwitches->SetInputEventSink (slot, observers.input);
     }
 
     if (m_refs.gamePort != nullptr)
     {
-        m_refs.gamePort->SetInputEventSink (observers.input);
+        m_refs.gamePort->SetInputEventSink (slot, observers.input);
+    }
+
+    if (m_memoryBus != nullptr)
+    {
+        m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
     }
 }
 
@@ -2040,6 +2061,11 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         }
     }
 
+    if (m_refs.cassettePort != nullptr)
+    {
+        providers.push_back (&m_cassetteDiagnostics);
+    }
+
     return providers;
 }
 
@@ -2074,3 +2100,57 @@ void MachineHost::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
         snapshot.groups.push_back (std::move (video));
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ConnectDiskToController
+//
+//  Points the slot 6 controller's drive at the store's image for that bay. A
+//  null image, on an eject, selects the controller's own empty disk. Only
+//  slot 6 has a controller in the machine references.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ConnectDiskToController (int slot, int drive)
+{
+    Disk2Controller  *  controller = m_refs.diskController;
+
+
+
+    if (slot != 6 || controller == nullptr)
+    {
+        return;
+    }
+
+    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::StopTape
+//
+//  Stops the recorder at the current bus cycle; the tape stays inserted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::StopTape()
+{
+    uint64_t  now = m_cpu != nullptr ? *m_cpu->GetBusCyclePtr() : 0;
+
+
+
+    m_tapeDeck->Stop (now);
+    m_tapeResetCount.fetch_add (1, std::memory_order_release);
+}
+
+
+
+

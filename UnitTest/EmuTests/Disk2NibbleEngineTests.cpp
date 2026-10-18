@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "Core/StateWriter.h"
 #include "Devices/Disk/DiskImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -619,6 +620,97 @@ public:
         // once rather than being lost to permanent bit-slip.
         Assert::IsTrue (prologues >= 2,
             L"LSS must re-lock self-sync framing after a long zero/weak gap");
+    }
+
+
+    //  A track of distinct valid nibbles, the engine on it and at speed.
+    static void PrepareVariedStream (DiskImage & img, Disk2NibbleEngine & eng)
+    {
+        static constexpr uint8_t  kNibbles[] = { 0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F, 0xA6, 0xA7, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB2, 0xB3 };
+        size_t                    i          = 0;
+
+
+
+        img.ResizeTrack (0, 32 * 8);
+
+        for (i = 0; i < 32; i++)
+        {
+            WriteByteAt (img, i * 8, kNibbles[i % std::size (kNibbles)]);
+        }
+
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+        TickBits (eng, 37);
+    }
+
+
+    TEST_METHOD (PeekNibbles_returnsWhatTheFollowingReadsReturn)
+    {
+        DiskImage             img;
+        Disk2NibbleEngine     eng;
+        std::vector<Byte>     peeked;
+        std::vector<Byte>     read;
+        bool                  isRandom = true;
+        uint8_t               nibble   = 0;
+
+
+
+        PrepareVariedStream (img, eng);
+        eng.PeekNibbles (8, peeked, isRandom);
+
+        while (read.size() < peeked.size())
+        {
+            TickBits (eng, 1);
+
+            if (eng.ConsumeFreshNibble (nibble))
+            {
+                read.push_back (nibble);
+            }
+        }
+
+        Assert::AreEqual ((size_t) 8, peeked.size());
+        Assert::IsTrue   (peeked == read, L"the peek returns the nibbles the next reads take");
+        Assert::IsFalse  (isRandom, L"no long run without a transition");
+    }
+
+
+    TEST_METHOD (PeekNibbles_leavesTheEngineAsItWas)
+    {
+        DiskImage           img;
+        Disk2NibbleEngine   eng;
+        StateWriter         before;
+        StateWriter         after;
+        std::vector<Byte>   peeked;
+        bool                isRandom = false;
+
+
+
+        PrepareVariedStream (img, eng);
+
+        Assert::AreEqual (S_OK, eng.SaveState (before));
+        eng.PeekNibbles (16, peeked, isRandom);
+        Assert::AreEqual (S_OK, eng.SaveState (after));
+
+        Assert::IsTrue (before.GetBytes() == after.GetBytes(), L"the engine's state, its latch and bit cursor among it, is the same");
+    }
+
+
+    TEST_METHOD (PeekNibbles_reportsALongRunWithoutTransitionsAsRandom)
+    {
+        DiskImage           img;
+        Disk2NibbleEngine   eng;
+        std::vector<Byte>   peeked;
+        bool                isRandom = false;
+
+
+
+        img.ResizeTrack (0, 32 * 8);
+        eng.SetDiskImage (&img);
+        eng.SetMotorOn   (true);
+
+        eng.PeekNibbles (3, peeked, isRandom);
+
+        Assert::IsTrue (isRandom, L"a track of zeros reads through the weak-bit rule");
     }
 };
 

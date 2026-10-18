@@ -132,9 +132,9 @@ public:
     using TooltipCheckFn = std::function<void (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)>;
 
     //  Runs `check` over the tooltip of every theme the emulator and the
-    //  debugger offer that takes the window's background, with the fill and
-    //  border it is expected to have: Casso's three, the debugger's own
-    //  system dark, and the starting sets DxuiTheme gives a host. The
+    //  debugger offer whose border is half its fill's brightness, with the
+    //  fill and border each has: Casso's three, the debugger's own system
+    //  dark, and the starting sets DxuiTheme::Dark and Light. The
     //  debugger's system light takes Visual Studio's light tooltip instead,
     //  and Casso Explorer's system themes keep File Explorer's, so none of
     //  those is among them.
@@ -152,33 +152,75 @@ public:
 
         DebuggerThemes::ApplyOwnColors (debuggerLight, debuggerDark);
 
-        check (L"Skeuomorphic",          skeuo,         0xFF1A2230u, 0xFF0D1118u);
-        check (L"Dark modern",           modern,        0xFF1E2024u, 0xFF0F1012u);
-        check (L"Retro terminal",        retro,         0xFF0E2612u, 0xFF071309u);
+        check (L"Skeuomorphic",          skeuo,         0xFF222A38u, 0xFF11151Cu);
+        check (L"Dark modern",           modern,        0xFF26282Cu, 0xFF131416u);
+        check (L"Retro terminal",        retro,         0xFF162E1Au, 0xFF0B170Du);
         check (L"Debugger system dark",  debuggerDark,  0xFF272727u, 0xFF131313u);
-        check (L"Dxui dark",             baseDark,      0xFF1E2024u, 0xFF0F1012u);
-        check (L"Dxui light",            baseLight,     0xFFF6F6F6u, 0xFF7B7B7Bu);
+        check (L"Dxui dark",             baseDark,      0xFF26282Cu, 0xFF131416u);
+        check (L"Dxui light",            baseLight,     0xFFEEEEEEu, 0xFF777777u);
     }
 
 
 
-    //  A tooltip takes the window background, so it never shows brighter
-    //  than the window it pops up over.
-    TEST_METHOD (TooltipIsNoBrighterThanTheWindowInEveryTheme)
+    //  The debugger's system dark tooltip is the window background, no
+    //  brighter than the window it pops up over; its panes are darker, so the
+    //  tooltip differs from them.
+    TEST_METHOD (TheSystemDarkTooltipIsNoBrighterThanTheWindow)
     {
-        CheckEveryTooltip ([] (const wchar_t * name, const DxuiTheme & theme, uint32_t fill, uint32_t border)
+        DxuiDarkTheme   debuggerDark;
+        DxuiLightTheme  debuggerLight;
+        float           tipLuminance    = 0.0f;
+        float           windowLuminance = 0.0f;
+
+
+
+        DebuggerThemes::ApplyOwnColors (debuggerLight, debuggerDark);
+
+        tipLuminance    = DxuiColor::ComputeRelativeLuminance (debuggerDark.TooltipBackground());
+        windowLuminance = DxuiColor::ComputeRelativeLuminance (debuggerDark.Background());
+
+        Assert::AreEqual (debuggerDark.Background(), debuggerDark.TooltipBackground());
+        Assert::IsTrue   (tipLuminance <= windowLuminance);
+        Assert::AreNotEqual (debuggerDark.ContentBackground(), debuggerDark.TooltipBackground(), L"apart from the panes");
+    }
+
+
+
+    //  Where a theme's panes are its window color, as Casso's are, the
+    //  tooltip is a step off it, lighter on a dark theme and darker on a
+    //  light one, so a tip over a pane does not merge into it.
+    TEST_METHOD (ATooltipStandsApartFromThePaneUnderIt)
+    {
+        constexpr int  kStep            = 8;
+        constexpr int  kChannelShifts[] = { 16, 8, 0 };
+
+        CassoTheme  skeuo     = CassoTheme::MakeSkeuomorphic();
+        CassoTheme  modern    = CassoTheme::MakeDarkModern();
+        CassoTheme  retro     = CassoTheme::MakeRetroTerminal();
+        DxuiTheme   baseDark  = DxuiTheme::Dark();
+        DxuiTheme   baseLight = DxuiTheme::Light();
+        auto        check     = [kChannelShifts] (const wchar_t * name, const DxuiTheme & theme, int step)
         {
-            float  tipLuminance    = DxuiColor::ComputeRelativeLuminance (theme.TooltipBackground());
-            float  windowLuminance = DxuiColor::ComputeRelativeLuminance (theme.Background());
+            uint32_t  tip  = theme.TooltipBackground();
+            uint32_t  pane = theme.ContentBackground();
 
 
 
-            (void) border;
+            Assert::AreEqual (theme.Background(), pane, (std::wstring (name) + L": the panes are the window color").c_str());
 
-            Assert::AreEqual (fill,               theme.TooltipBackground(), name);
-            Assert::AreEqual (theme.Background(), theme.TooltipBackground(), name);
-            Assert::IsTrue   (tipLuminance <= windowLuminance,               name);
-        });
+            for (int shift : kChannelShifts)
+            {
+                Assert::AreEqual ((int) ((pane >> shift) & 0xFFu) + step, (int) ((tip >> shift) & 0xFFu), (std::wstring (name) + L": a step off the pane").c_str());
+            }
+        };
+
+
+
+        check (L"Skeuomorphic",   skeuo,     kStep);
+        check (L"Dark modern",    modern,    kStep);
+        check (L"Retro terminal", retro,     kStep);
+        check (L"Dxui dark",      baseDark,  kStep);
+        check (L"Dxui light",     baseLight, -kStep);
     }
 
 
@@ -245,9 +287,9 @@ public:
 
 
     //  Every theme's tooltip colors are its own values, with text that reads
-    //  on the fill. The emulator's and the debugger's themes take the window
-    //  background with a border at half its brightness, the debugger's system
-    //  dark with Visual Studio's text; the debugger's system light takes
+    //  on the fill. The emulator's and the debugger's themes have a border at
+    //  half the fill's brightness, the debugger's system dark with Visual
+    //  Studio's text; the debugger's system light takes
     //  Visual Studio's light tooltip whole; Casso Explorer's system themes
     //  keep File Explorer's.
     TEST_METHOD (EveryThemeGivesItsTooltipItsOwnColors)
@@ -274,15 +316,15 @@ public:
 
         DebuggerThemes::ApplyOwnColors (debuggerLight, debuggerDark);
 
-        check (L"Skeuomorphic",            skeuo,         0xFF1A2230u, 0xFF0D1118u, 0xFFE8EEF4u);
-        check (L"Dark modern",             modern,        0xFF1E2024u, 0xFF0F1012u, 0xFFF0F0F0u);
-        check (L"Retro terminal",          retro,         0xFF0E2612u, 0xFF071309u, 0xFFB7FCB9u);
+        check (L"Skeuomorphic",            skeuo,         0xFF222A38u, 0xFF11151Cu, 0xFFE8EEF4u);
+        check (L"Dark modern",             modern,        0xFF26282Cu, 0xFF131416u, 0xFFF0F0F0u);
+        check (L"Retro terminal",          retro,         0xFF162E1Au, 0xFF0B170Du, 0xFFB7FCB9u);
         check (L"Debugger system dark",    debuggerDark,  0xFF272727u, 0xFF131313u, 0xFFFFFFFFu);
         check (L"Debugger system light",   debuggerLight, 0xFFF9F9F9u, 0xFFDDDDDDu, 0xFF212121u);
         check (L"Explorer's system dark",  explorerDark,  0xFF2C2C2Cu, 0xFF4A4A4Au, 0xFFFFFFFFu);
         check (L"Explorer's system light", explorerLight, 0xFFF9F9F9u, 0xFFD1D1D1u, 0xFF1A1A1Au);
-        check (L"Dxui dark",               baseDark,      0xFF1E2024u, 0xFF0F1012u, 0xFFF0F0F0u);
-        check (L"Dxui light",              baseLight,     0xFFF6F6F6u, 0xFF7B7B7Bu, 0xFF1A1A1Au);
+        check (L"Dxui dark",               baseDark,      0xFF26282Cu, 0xFF131416u, 0xFFF0F0F0u);
+        check (L"Dxui light",              baseLight,     0xFFEEEEEEu, 0xFF777777u, 0xFF1A1A1Au);
     }
 
 
@@ -373,5 +415,21 @@ public:
 
         Assert::IsTrue (DxuiColor::ComputeContrastRatio (fixedColor, 0xFFFFFFFF) >= DebuggerTextColors::s_kMinTextContrast);
         Assert::IsTrue (DxuiColor::ComputeRelativeLuminance (fixedColor) < DxuiColor::ComputeRelativeLuminance (0xFF2B91AF));
+    }
+
+
+
+    //  A watch's "RNDL $004E": the symbol in the symbol color and the
+    //  address in the operand color, as an instruction's operand has them.
+    TEST_METHOD (AnOperandsSymbolAndAddressTakeTheirColors)
+    {
+        DebuggerTextColors::Set     set    = DebuggerTextColors::MakeFor (CassoTheme::MakeSkeuomorphic());
+        DebuggerTextColors::Ranges  ranges = DebuggerTextColors::GetOperandRanges (L"RNDL $004E", set);
+
+
+
+        Assert::AreEqual ((size_t) 2, ranges.size());
+        Assert::IsTrue   (ranges[0] == std::make_tuple (0, 4,  set.syntax.Get (SourceSyntax::Token::Symbol)), L"RNDL");
+        Assert::IsTrue   (ranges[1] == std::make_tuple (5, 10, set.operandAddress), L"$004E");
     }
 };

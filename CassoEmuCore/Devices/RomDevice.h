@@ -21,6 +21,7 @@ public:
     RomDevice (Word start, Word end, vector<Byte> && data);
 
     Byte Read     (Word address) override;
+    bool TryPeekIo (Word address, Byte & value) override { value = Read (address); return true; }
     void Write    (Word address, Byte value) override;
     Word GetStart () const override { return m_start; }
     Word GetEnd   () const override { return m_end; }

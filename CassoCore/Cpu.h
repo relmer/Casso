@@ -104,6 +104,12 @@ public:
     Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
     Byte GetLastPenalties         () const                   { return m_lastPenalties; }
     bool TryGetLastBranch         (Word & from) const        { from = m_lastBranchFrom; return m_hasLastBranch; }
+    bool TryGetLastBranchTarget   (Word & to) const          { to = m_lastBranchTo; return m_hasLastBranchTo; }
+
+    // The address of the instruction StepOne is executing, or last executed,
+    // for a device that reports which instruction touched it.
+    const Word * GetInstructionStartPtr () const             { return &m_instructionStart; }
+
     Byte PeekByte              (Word address) const       { return memory[address]; }
     void PokeByte                 (Word address, Byte value) { memory[address] = value; }
     Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
@@ -247,6 +253,12 @@ protected:
     Word                  m_lastBranchFrom = 0;
     bool                  m_hasLastBranch  = false;
 
+    //  Where it sent PC; unknown after loading a state from a build without it.
+    Word                  m_lastBranchTo    = 0;
+    bool                  m_hasLastBranchTo = false;
+
+    Word                  m_instructionStart = 0;
+
 public:
     // The penalty kinds the last instruction paid, one bit each, each worth one
     // cycle already counted in m_lastCycles. The profiler subtracts them to find
@@ -326,6 +338,11 @@ public:
 
     // Stops recording and keeps what the ring holds.
     void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; UpdateFetchObserved(); }
+
+    // Empties the ring and starts tracing again into the buffer it has, with no new
+    // allocation; nothing when there is no buffer.
+    void     RestartTrace   ()       { m_traceHead = 0; m_traceCount = 0; m_pendingTraceIntr = kTraceIntrNone; m_traceEnabled = m_traceCapacity != 0; UpdateFetchObserved(); }
+    size_t   GetTraceCapacity () const { return m_traceCapacity; }
 
     // The opcodes, a 256-entry table, whose fetches the watcher is told of,
     // with the fetch after each; null for none. The table is read in place.

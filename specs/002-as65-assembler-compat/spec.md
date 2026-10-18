@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-as65-assembler-compat`  
 **Created**: 2026-04-25  
-**Status**: Draft  
+**Status**: Shipped in 0.9.32 (2026-04-28)
 **Input**: User description: "Full, exact clone of AS65 assembler by Frank A. Kingswood (6502 mode). All syntax, macro behaviors, directives, expression operators, output formats, and command-line options."
 
 ## User Scenarios & Testing

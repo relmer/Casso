@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Core/JsonValue.h"
 #include "Debugger/Reply.h"
+
+class JsonValue;
 
 
 

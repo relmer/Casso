@@ -6,6 +6,7 @@
 #include "Core/JsonWriter.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/ReplyJson.h"
+#include "Core/JsonValue.h"
 
 
 

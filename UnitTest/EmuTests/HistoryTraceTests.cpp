@@ -5,6 +5,8 @@
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "HResultAssert.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

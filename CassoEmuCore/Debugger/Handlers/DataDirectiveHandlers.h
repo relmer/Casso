@@ -1,9 +1,10 @@
 #pragma once
 
-#include "Debugger/DataBlockTable.h"
 #include "Debugger/IDebugCommandHandler.h"
 
 class IDebugTarget;
+struct DataBlockEntry;
+class DataBlockTable;
 
 
 
@@ -31,11 +32,11 @@ public:
     // when both are given. The end address of the listing is returned.
     static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data);
 
-private:
-    // The symbol for a line's operand. In $C000-$C0FF the direction of the
-    // access decides which of the address's two soft switches it is (FR-112).
+    // The symbol put in a line's operand: for an I/O address, the one for the
+    // direction the opcode accesses it in.
     static void  ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line);
 
+private:
     static constexpr int   kDefaultLines   = 20;
     static constexpr int   kMaxLines       = 0x10000;
     static constexpr int   kFloatBytes     = 5;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterHead.h"
+#include "Devices/Printer/PrintRaster.h"
 
 
 

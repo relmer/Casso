@@ -174,7 +174,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (IoAndInterrupt_NeverMatchBeforeInstruction)
+        TEST_METHOD (Interrupt_NeverMatchesBeforeInstruction)
         {
             int                    nextId = 0;
             BreakpointTable        table (nextId);
@@ -183,12 +183,11 @@ namespace DebuggerTests
 
 
 
-            table.AddIo (0xC000, 0xC0FF);
             table.AddInterrupt();
 
-            Assert::IsTrue  (table.HasEnabledStopCondition());
-            Assert::IsFalse (table.TryMatchBeforeInstruction (0xC000, kNop, context, hitId));
-            Assert::AreEqual ((size_t) 2, table.GetAll().size());
+            Assert::IsTrue   (table.HasEnabledStopCondition());
+            Assert::IsFalse  (table.TryMatchBeforeInstruction (0xC000, kNop, context, hitId));
+            Assert::AreEqual ((size_t) 1, table.GetAll().size());
         }
 
 
@@ -245,6 +244,114 @@ namespace DebuggerTests
 
             Assert::IsFalse (table.IsAddressHit (0x8000));
             Assert::IsFalse (table.HasEnabledStopCondition());
+        }
+
+
+
+        static DiskBreakSpec MakeRead (Byte sector)
+        {
+            DiskBreakSpec  spec;
+
+
+
+            spec.event  = DiskEvent::SectorRead;
+            spec.track  = 0x11;
+            spec.sector = sector;
+            return spec;
+        }
+
+
+
+        //  Every disk entry the event matches counts the hit; the lowest id
+        //  of the ones that stop is reported, and a count-only entry counts
+        //  and does not stop.
+        TEST_METHOD (DiskEntries_CountEveryMatch_AndReportTheLowestStoppingId)
+        {
+            int                     nextId  = 0;
+            BreakpointTable         table (nextId);
+            MockExpressionContext   context;
+            int                     hitId   = -1;
+            std::optional<int32_t>  value;
+            int                     counts  = 0;
+            int                     first   = 0;
+            int                     second  = 0;
+            int                     other   = 0;
+            auto                    isZero  = [] (const Breakpoint & entry) { return entry.disk->sector == 0; };
+
+
+
+            counts = table.AddDisk (MakeRead (0));
+            first  = table.AddDisk (MakeRead (0));
+            second = table.AddDisk (MakeRead (0));
+            other  = table.AddDisk (MakeRead (1));
+            Assert::IsTrue (table.TrySetFlags (counts, false, false));
+
+            Assert::IsTrue   (table.TryMatchDisk (isZero, context, hitId, value));
+            Assert::AreEqual (first, hitId, L"the lowest id that stops");
+
+            for (const Breakpoint & entry : table.GetAll())
+            {
+                Assert::AreEqual (entry.id == other ? 0u : 1u, entry.hits, L"each match counted once");
+            }
+
+            Assert::IsTrue (table.IsDiskStop (isZero, context));
+            Assert::AreEqual (1u, table.GetAll()[1].hits, L"a replay counts nothing");
+            (void) second;
+        }
+
+        TEST_METHOD (DiskEntries_AFalseConditionNeitherStopsNorCounts)
+        {
+            int                     nextId = 0;
+            BreakpointTable         table (nextId);
+            MockExpressionContext   context;
+            int                     hitId  = -1;
+            std::optional<int32_t>  value;
+
+
+
+            table.AddDisk (MakeRead (0), Parse ("1 == 2"));
+
+            Assert::IsFalse  (table.TryMatchDisk ([] (const Breakpoint &) { return true; }, context, hitId, value));
+            Assert::AreEqual (0u, table.GetAll()[0].hits);
+        }
+
+        //  A copy, an adoption and a find have the spec; an RWTS
+        //  breakpoint takes the routine its vector leads to, and no other
+        //  disk kind does.
+        TEST_METHOD (DiskEntries_KeepTheirSpec_AndOnlyCallsResolve)
+        {
+            int              nextId = 0;
+            BreakpointTable  table (nextId);
+            DiskBreakSpec    rwts;
+            Breakpoint       found;
+            int              read   = 0;
+            int              call   = 0;
+            int              copy   = 0;
+
+
+
+            rwts.event   = DiskEvent::RwtsCall;
+            rwts.command = 1;
+
+            read = table.AddDisk (MakeRead (5));
+            call = table.AddDisk (rwts);
+
+            Assert::IsTrue  (table.TrySetResolved (call, (Word) 0xBD00));
+            Assert::IsFalse (table.TrySetResolved (read, (Word) 0xBD00), L"a sector read has no routine");
+
+            Assert::IsTrue (table.TryFind (call, found));
+            Assert::IsTrue (found.disk == rwts && found.resolved == (Word) 0xBD00);
+
+            copy = table.AddCopy (found);
+            Assert::IsTrue (table.TryFind (copy, found));
+            Assert::IsTrue (found.disk == rwts, L"a copy has the spec");
+
+            Assert::IsTrue  (table.TryClear (read));
+            found.id = read;
+            found.disk = MakeRead (5);
+            Assert::IsTrue  (table.TryAdopt (found));
+            Assert::IsTrue  (table.TryFind (read, found));
+            Assert::IsTrue  (found.disk == MakeRead (5), L"an adopted entry has the spec");
         }
     };
 }

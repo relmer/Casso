@@ -3,6 +3,8 @@
 #include "Core/JsonParser.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/ReplyJson.h"
+#include "Core/JsonValue.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,7 +34,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string::npos, line.find ('\n'), L"record holds a raw newline");
             hr = JsonParser::Parse (line, root, error);
-            Assert::AreEqual (S_OK, hr, std::wstring (line.begin(), line.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (line).c_str());
             return root;
         }
 
@@ -42,7 +44,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (value.HasObject (key, member), std::wstring (key.begin(), key.end()).c_str());
+            Assert::IsTrue (value.HasObject (key, member), TextEncoding::NarrowToWide (key).c_str());
             return *member;
         }
 
@@ -52,7 +54,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (value.HasArray (key, member), std::wstring (key.begin(), key.end()).c_str());
+            Assert::IsTrue (value.HasArray (key, member), TextEncoding::NarrowToWide (key).c_str());
             return *member;
         }
 
@@ -225,11 +227,17 @@ namespace DebuggerTests
             data.pageCross    = 1;
             data.opcodes      = { { "LDA", "Absolute, X", 2, 8 } };
             data.addresses    = { { 0x0300, "LOOP", 9 } };
+            data.routines     = { { 0, RoutineKind::Top, "", 3, 9, 0 }, { 0x0310, RoutineKind::Interrupt, "IRQ", 6, 6, 1 } };
+            data.tree         = { { 0, 0, 3, 9, 0 }, { 1, 1, 6, 6, 1 } };
+            data.frames       = { { 7, { { 0, 3 }, { 1, 6 } }, 0 } };
             root              = ParseRecord (ReplyJson::WriteReply (MakeOk (data), std::nullopt));
 
-            const JsonValue & body   = GetObjectMember (root, "data");
-            const JsonValue & opcode = GetArrayMember (body, "opcodes").GetArrayElement (0);
-            const JsonValue & hot    = GetArrayMember (body, "addresses").GetArrayElement (0);
+            const JsonValue & body    = GetObjectMember (root, "data");
+            const JsonValue & opcode  = GetArrayMember (body, "opcodes").GetArrayElement (0);
+            const JsonValue & hot     = GetArrayMember (body, "addresses").GetArrayElement (0);
+            const JsonValue & routine = GetArrayMember (body, "routines").GetArrayElement (1);
+            const JsonValue & node    = GetArrayMember (body, "tree").GetArrayElement (1);
+            const JsonValue & frame   = GetArrayMember (body, "frames").GetArrayElement (0);
 
             Assert::AreEqual (S_OK, body.GetString ("kind", text));
             Assert::AreEqual (std::string ("profile"), text);
@@ -243,6 +251,16 @@ namespace DebuggerTests
             Assert::AreEqual (0x0300, value);
             Assert::AreEqual (S_OK, hot.GetString ("symbol", text));
             Assert::AreEqual (std::string ("LOOP"), text);
+            Assert::AreEqual (S_OK, routine.GetString ("kind", text));
+            Assert::AreEqual (std::string ("interrupt"), text);
+            Assert::AreEqual (S_OK, routine.GetString ("name", text));
+            Assert::AreEqual (std::string ("Interrupt IRQ"), text);
+            Assert::AreEqual (S_OK, node.GetInt ("depth", value));
+            Assert::AreEqual (1, value);
+            Assert::AreEqual (S_OK, frame.GetInt ("frame", value));
+            Assert::AreEqual (7, value);
+            Assert::AreEqual (S_OK, GetArrayMember (frame, "shares").GetArrayElement (1).GetInt ("cycles", value));
+            Assert::AreEqual (6, value);
         }
 
 
@@ -313,7 +331,6 @@ namespace DebuggerTests
 
 
 
-            write.index         = 7;
             write.cycles        = 1234;
             write.pc            = 0x0302;
             write.opcode        = 0x8D;
@@ -324,7 +341,6 @@ namespace DebuggerTests
             write.accessAddress = 0x0400;
             write.accessData    = 0x05;
             write.accessSymbol  = "SCREEN";
-            implied.index       = 8;
             implied.instruction = "INX";
             data.isOn           = true;
             data.total          = 9;
@@ -365,7 +381,7 @@ namespace DebuggerTests
                 WatchListData(), SearchHitsData(), StackData(), SoftSwitchData(), SymbolData(), CyclesData(), ModeData(), FileIoData(),
                 CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
                 CallStackData(), CallStackModeData(),
-                TraceData(),
+                TraceData(), BasicVariablesData(), BasicStackData(), ProjectData(),
             };
 
             std::set<std::string>  names;

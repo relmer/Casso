@@ -72,7 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)$(CassoBuildFlavor)\</IntDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -158,14 +158,18 @@
     <ClCompile Include="DialectRegistry.cpp" />
     <ClCompile Include="DialectReporting.cpp" />
     <ClCompile Include="DiagnosticFormatter.cpp" />
+    <ClCompile Include="DiskMarkPattern.cpp" />
+    <ClCompile Include="CLexer.cpp" />
     <ClCompile Include="InstructionSetProvider.cpp" />
     <ClCompile Include="Debugger\LineAssembler.cpp" />
     <ClCompile Include="Debugger\ConditionContext.cpp" />
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinParserDisk.cpp" />
     <ClCompile Include="Debugger\CassoCommandReference.cpp" />
     <ClCompile Include="Debugger\DebugCommandPayload.cpp" />
+    <ClCompile Include="Debugger\DiskBreakSpecText.cpp" />
     <ClCompile Include="Debugger\MonitorParser.cpp" />
     <ClCompile Include="Debugger\GSSquaredParser.cpp" />
     <ClCompile Include="Debugger\CommandModeNames.cpp" />
@@ -233,12 +237,17 @@
     <ClInclude Include="DialectRegistry.h" />
     <ClInclude Include="DialectReporting.h" />
     <ClInclude Include="DiagnosticFormatter.h" />
+    <ClInclude Include="DiskFieldKind.h" />
+    <ClInclude Include="DiskMarkPattern.h" />
+    <ClInclude Include="CLexer.h" />
     <ClInclude Include="InstructionSetProvider.h" />
     <ClInclude Include="Debugger\LineAssembler.h" />
     <ClInclude Include="Debugger\ConditionContext.h" />
     <ClInclude Include="Debugger\DebugExpressionEvaluator.h" />
     <ClInclude Include="Debugger\IDebugExpressionContext.h" />
     <ClInclude Include="Debugger\DebugCommand.h" />
+    <ClInclude Include="Debugger\DiskBreakSpec.h" />
+    <ClInclude Include="Debugger\DiskBreakSpecText.h" />
     <ClInclude Include="Debugger\AppleWinCommandTable.h" />
     <ClInclude Include="Debugger\AppleWinParser.h" />
     <ClInclude Include="Debugger\CassoCommandReference.h" />

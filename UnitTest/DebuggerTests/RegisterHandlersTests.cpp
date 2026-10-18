@@ -57,7 +57,7 @@ namespace DebuggerTests
             rig.RunOk ("R S 1FE");
             Assert::AreEqual ((uint8_t) 0xFE, rig.target.registers.sp);
 
-            rig.RunOk ("R X #10");
+            rig.RunOk ("R X 0n10");
             Assert::AreEqual ((uint8_t) 10, rig.target.registers.x);
 
             Assert::AreEqual (std::string ("A:41 X:0A Y:00 P:30 S:FE PC:FA62  ..RB...."), rig.RunOk ("R Y 0").text.at (0));

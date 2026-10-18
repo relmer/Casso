@@ -164,7 +164,8 @@ namespace DisassemblyViewingTests
 
 
 
-        TEST_METHOD (EveryViewingOptionStartsChecked)
+        //  Every option but the address colon and Show heat starts checked.
+        TEST_METHOD (EveryViewingOptionButTheColonAndHeatStartsChecked)
         {
             DisassemblyOptions  options;
 
@@ -172,7 +173,7 @@ namespace DisassemblyViewingTests
 
             for (int i = 0; i < DisassemblyOptions::kOptionCount; i++)
             {
-                Assert::IsTrue (options.IsOn ((Option) i), DisassemblyOptions::GetLabel ((Option) i));
+                Assert::AreEqual ((Option) i != Option::AddressColon && (Option) i != Option::Heat, options.IsOn ((Option) i), DisassemblyOptions::GetLabel ((Option) i));
             }
         }
 

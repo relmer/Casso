@@ -3,6 +3,7 @@
 #include "Debugger/MonitorFormatter.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -37,7 +38,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 
@@ -284,6 +285,25 @@ namespace DebuggerTests
             reply          = MakeReply (data);
 
             Assert::AreEqual (std::string ("A=00 X=00 Y=00 P=30 S=FF"), Render (reply).at (0));
+        }
+
+
+        //  A register set can move PC, and the Monitor's line has no PC, so
+        //  its reply is the AppleWin line.
+        TEST_METHOD (ARegisterSetHasThePc)
+        {
+            RegistersData  data;
+            Reply          reply;
+            std::string    line;
+
+
+
+            data.registers.pc = 0x0300;
+            reply             = MakeReply (data);
+            reply.verb        = DebugVerb::SetRegister;
+            line              = Render (reply).at (0);
+
+            Assert::IsTrue (line.find ("PC:0300") != std::string::npos, Widen (line).c_str());
         }
 
 

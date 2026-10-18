@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -503,7 +504,7 @@ namespace DebuggerTests
             rig.files.WriteAllText (L"C:\\Work\\prog.dos", std::string ("\x00\x07\x02\x00\xEA\x60", 6));
 
             reply = rig.session.ExecuteLine ("load prog.dos,DOS 900", CommandMode::GSSquared);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (reply.error.detail).c_str());
             Assert::AreEqual ((Byte) 0xEA, rig.target.memory[0x0900], L"the header is not loaded as data");
         }
 
@@ -534,7 +535,7 @@ namespace DebuggerTests
             Store (rig, 0x0310, { 0x41, 0x42 });
 
             Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF $41").text.at (0));
-            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF #65").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF 0n65").text.at (0));
             Assert::AreEqual (std::string ("Found 1: $0310"), rig.RunOk ("S 300:3FF 041").text.at (0));
         }
 

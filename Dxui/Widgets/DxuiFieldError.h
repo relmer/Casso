@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
-#include "Widgets/DxuiButton.h"
+
+class DxuiButton;
 
 
 

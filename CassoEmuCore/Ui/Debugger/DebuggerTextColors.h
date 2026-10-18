@@ -146,9 +146,16 @@ public:
 
     static Ranges    GetInstructionRanges (const std::wstring & instruction, const Set & set);
 
+    //  An operand's colored runs, as an instruction's operand has them.
+    static Ranges    GetOperandRanges     (const std::wstring & operand, const Set & set);
+
     //  The same against several backgrounds at once, to `minRatio`.
     static uint32_t  GetReadable (uint32_t argb, const std::vector<uint32_t> & backgrounds, float minRatio = s_kMinTextContrast);
 
 private:
     static float     GetLowestRatio (uint32_t argb, const std::vector<uint32_t> & backgrounds);
+
+    //  The runs of `instruction` as color ranges; a number not after # is an
+    //  address in the operand color.
+    static Ranges    ToRanges       (const std::wstring & instruction, const std::vector<SourceSyntax::Run> & runs, const Set & set);
 };

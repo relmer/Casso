@@ -220,4 +220,23 @@ public:
         Assert::AreEqual (15, list.GetTopRow());
         Assert::AreEqual (2,  list.GetSelectedRow());
     }
+
+
+    // A popup menu over the list closes on its press, so the release is
+    // delivered to the list with no press before it, and no row is selected.
+    TEST_METHOD (AReleaseWithNoPressSelectsNothing)
+    {
+        DxuiListView      list;
+        std::vector<int>  activated;
+
+
+
+        ConfigureList (list, activated);
+        list.SetSelectedRow (2);
+
+        SendMouse (list, DxuiMouseEventKind::Up, 3);
+
+        Assert::AreEqual (2,          list.GetSelectedRow());
+        Assert::AreEqual (size_t (0), activated.size());
+    }
 };

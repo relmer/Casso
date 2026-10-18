@@ -25,6 +25,9 @@
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/Handlers/TraceHandlers.h"
 #include "Debugger/TraceLookahead.h"
+#include "Config/IFileSystem.h"
+#include "Debugger/HeatAccessJump.h"
+#include "Core/IParallelRunner.h"
 
 
 
@@ -109,8 +112,11 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     const Cpu6502Registers        r              = session.GetTarget().GetRegisters();
     const VideoPosition           video          = session.GetTarget().GetVideoPosition();
     const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
-    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch);
+    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch, false);
+    const WatchListData           pointers       = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
+    const WatchListData           bookmarks      = WatchHandlers::MakeList (session, WatchListKind::Bookmark);
     BreakpointListData            breakpoints;
+    DebugDiskState                diskState;
     InlineParallelRunner          inlineRunner;
     IParallelRunner             & run            = (runner != nullptr) ? *runner : inlineRunner;
     const IParallelRunner::Job    jobs[]         = { [this, &session, &snapshot] { BuildCodeViews   (session, snapshot); },
@@ -144,6 +150,16 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     //  The CPU cycles since power-on, as other emulators' register views
     //  show them; a replay or a seek restores the count with the machine.
     snapshot.registers.push_back ({ std::string (kCyclesRegister), std::format ("{}", session.GetTarget().GetCycleCount()) });
+    snapshot.registers.push_back ({ std::string (kTripRegister),   std::format ("{}", session.GetTripCycles (session.GetTarget().GetCycleCount())) });
+    snapshot.registers.push_back ({ std::string (kLastBranchRegister), std::string() });
+
+    {
+        Word  from = 0;
+        Word  to   = 0;
+
+        snapshot.lastBranchFrom = session.GetTarget().TryGetLastBranch (from)     ? std::optional<Word> (from) : std::nullopt;
+        snapshot.lastBranchTo   = session.GetTarget().TryGetLastBranchTarget (to) ? std::optional<Word> (to)   : std::nullopt;
+    }
 
     for (int bit = 7; bit >= 0; bit--)
     {
@@ -154,17 +170,30 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     BreakpointHandlers::ListAll (session, breakpoints);
 
+    //  An RWTS or driver breakpoint is listed at the routine it resolved to.
     for (const BreakpointInfo & info : breakpoints.breakpoints)
     {
-        SymbolTableId  table = SymbolTableId::Main;
+        SymbolTableId  table   = SymbolTableId::Main;
+        Word           address = info.resolved.value_or (info.address);
 
 
 
-        snapshot.breakpoints.push_back ({ info.id, info.address,
-                                          std::format ("#{} ${:04X}{}", info.id, info.address, info.enabled ? "" : " (off)"),
+        snapshot.breakpoints.push_back ({ info.id, address,
+                                          std::format ("#{} ${:04X}{}", info.id, address, info.enabled ? "" : " (off)"),
                                           info.enabled, info });
 
-        session.GetSymbols().TryFindName (info.address, snapshot.breakpoints.back().label, table);
+        session.GetSymbols().TryFindName (address, snapshot.breakpoints.back().label, table);
+    }
+
+    if (session.GetTarget().TryGetDiskState (diskState))
+    {
+        snapshot.diskSlot = diskState.slot;
+    }
+
+    //  Before the code views, which mark the line a step just ran.
+    if (isPaused)
+    {
+        UpdateLastStop (session, snapshot);
     }
 
     //  The code views, the memory panes and the trace each read the machine
@@ -180,14 +209,64 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         snapshot.stack.push_back ({ entry.address, entry.value });
     }
 
-    snapshot.callStack = session.GetCallStack();
+    snapshot.callStack      = session.GetCallStack();
+    snapshot.instructionSet = session.GetTarget().GetInstructionSet();
+
+    snapshot.searchHits    = session.GetSearchResults();
+    snapshot.searchSerial  = session.GetSearchSerial();
+    snapshot.comparison    = session.GetCompareResults();
+    snapshot.compareSerial = session.GetCompareSerial();
 
     for (const WatchEntry & entry : watches.entries)
     {
         snapshot.watches.push_back ({ entry.id, entry.address,
                                       entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                      entry.enabled });
+                                      entry.enabled, entry.basicName });
     }
+
+    for (const WatchEntry & entry : pointers.entries)
+    {
+        constexpr int  kPointedBytes = 4;
+        std::string    text          = "--";
+        Byte           value         = 0;
+
+        if (entry.value.has_value())
+        {
+            text = std::format ("${:04X}:", *entry.value);
+
+            for (int i = 0; i < kPointedBytes; i++)
+            {
+                text += session.GetTarget().TryPeek ((Word) (*entry.value + i), value) ? std::format (" {:02X}", value) : std::string (" ??");
+            }
+        }
+
+        snapshot.zeroPagePointers.push_back ({ entry.id, entry.address, text, entry.enabled });
+    }
+
+    for (const WatchEntry & entry : bookmarks.entries)
+    {
+        snapshot.bookmarks.push_back ({ entry.id, entry.address, std::string(), entry.enabled });
+    }
+
+    //  The symbols are read again only when they have changed.
+    if (m_symbols == nullptr || m_symbolsRevision != session.GetSymbols().GetRevision())
+    {
+        auto  state = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+
+
+
+        for (int table = 0; table < SymbolTable::kTableCount; table++)
+        {
+            state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
+                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table });
+            session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
+        }
+
+        m_symbols         = state;
+        m_symbolsRevision = session.GetSymbols().GetRevision();
+    }
+
+    snapshot.symbols = m_symbols;
 
     if (isPaused)
     {
@@ -196,7 +275,74 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     BuildSource (session, snapshot);
 
+    //  A stopped machine's program is read whatever is on screen: its
+    //  variables are in the Watches pane and its frames in the Call stack.
+    if (m_isBasicShown || isPaused)
+    {
+        snapshot.basic = ReadBasic (session, isPaused);
+    }
+
+    //  A BASIC watch's value is read with the program's, once the machine is
+    //  stopped in it.
+    for (DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (!watch.basicName.empty())
+        {
+            watch.value = (snapshot.basic.has_value() && snapshot.basic->hasValues) ? WatchHandlers::ReadBasicValue (session, watch.basicName).value_or ("--")
+                                                                                    : std::string ("--");
+        }
+    }
+
     return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadBasic
+//
+//  Every read is a peek. A real is written by the ROM's own FOUT, run on an
+//  overlay, which costs a few hundred instructions a value, so the values
+//  are read only while the machine is stopped in a running program: with
+//  no program, the variable table's pointers can span most of memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot::BasicState DebuggerViewState::ReadBasic (DebugSession & session, bool isPaused)
+{
+    DebuggerViewSnapshot::BasicState  state;
+    ApplesoftProgram                  program ([&session] (Word address) { Byte value = 0; session.TryPeek (address, value); return value; });
+    Byte                              low     = 0;
+    Byte                              high    = 0;
+
+
+
+    state.isApplesoft = BasicStopMonitor::IsApplesoftVisible (session);
+
+    if (!state.isApplesoft)
+    {
+        return state;
+    }
+
+    session.TryPeek (ApplesoftProgram::kTxtPtr,              low);
+    session.TryPeek ((Word) (ApplesoftProgram::kTxtPtr + 1), high);
+
+    state.hasProgram  = program.TryGetListing (state.lines);
+    state.line        = program.IsAtPrompt (session.GetTarget().GetRegisters().sp) ? std::nullopt : program.GetCurrentLine();
+    state.textPointer = (Word) ((low | (high << 8)) + 1);
+    state.hasValues   = isPaused && state.hasProgram && state.line.has_value();
+
+    if (state.hasValues)
+    {
+        program.GetVariables (state.variables);
+        program.GetArrays    (state.arrays);
+        program.GetFrames    (state.frames);
+    }
+
+    return state;
 }
 
 
@@ -313,11 +459,11 @@ void DebuggerViewState::BuildMemoryPanes (DebugSession & session, DebuggerViewSn
 //
 //  DebuggerViewState::BuildHeatMap
 //
-//  The map records only while its pane is shown, so the build that first
-//  sees the pane hidden turns it off; the one that sees it shown turns it on
-//  and puts what it has counted in the snapshot (ReadHeatMap). The map stays
-//  on while BRKUNINIT is, pane or no pane, since only it sees a read before
-//  written.
+//  The map is on only while its pane or a heat column is shown: a build with
+//  them all hidden turns it off, and a build with one shown turns it on and
+//  puts the counts in the snapshot (ReadHeatMap, ReadHeatColumns). The map
+//  stays on while BRKUNINIT is, pane or no pane, since a read before written
+//  is counted by the map alone.
 //
 //  A running machine's map is read every kHeatIntervalMs, and the snapshots
 //  between hold that reading; reading all 64K addresses at every snapshot
@@ -336,29 +482,46 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
     uint64_t                                               now    = m_clock();
     std::shared_ptr<DebuggerViewSnapshot::HeatMapState>    read;
     HeatSpace                                              space  = HeatSpace::Cpu;
+    bool                                                   isDue  = isPaused || m_isHeatReadDue || now - m_heatReadAt >= kHeatIntervalMs;
 
 
 
-    target.SetHeatMapOn         (m_isHeatMapShown || session.HasUnwrittenBreak());
+    target.SetHeatMapOn         (m_isHeatMapShown || m_isHeatColumnsShown || session.HasUnwrittenBreak());
     target.SetHeatMapFade       ((double) m_heatMapOptions.fadeSeconds);
     target.SetHeatMapCumulative (m_heatMapOptions.cumulative);
     map = target.FoldHeatMap();
 
-    if (map == nullptr || !m_isHeatMapShown)
+    if (map == nullptr || (!m_isHeatMapShown && !m_isHeatColumnsShown))
     {
         m_isHeatReadDue = true;
         return;
     }
 
-    if (m_heatRead == nullptr || isPaused || m_isHeatReadDue || now - m_heatReadAt >= kHeatIntervalMs)
+    if (m_isHeatColumnsShown && (m_heatColumnsRead == nullptr || isDue))
+    {
+        m_heatColumnsRead = ReadHeatColumns (*map);
+    }
+
+    if (m_isHeatMapShown && (m_heatRead == nullptr || isDue))
     {
         read = std::make_shared<DebuggerViewSnapshot::HeatMapState>();
         ReadHeatMap (session, *map, *read);
 
-        read->serial    = ++m_heatSerial;
-        m_heatRead      = read;
+        read->serial = ++m_heatSerial;
+        m_heatRead   = read;
+    }
+
+    if (isDue)
+    {
         m_heatReadAt    = now;
         m_isHeatReadDue = false;
+    }
+
+    snapshot.heatColumns = m_isHeatColumnsShown ? m_heatColumnsRead : nullptr;
+
+    if (!m_isHeatMapShown)
+    {
+        return;
     }
 
     state = *m_heatRead;
@@ -376,6 +539,43 @@ void DebuggerViewState::BuildHeatMap (DebugSession & session, DebuggerViewSnapsh
                                                                                  GetHeatAccess (session, space, true,  *m_heatMapHover),
                                                                                  GetHeatAccess (session, space, false, *m_heatMapHover) });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ReadHeatColumns
+//
+//  The CPU's address space's levels, as fading heat or as totals as the
+//  heat map's options choose, with same-value writes left out under Skip
+//  unchanged writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> DebuggerViewState::ReadHeatColumns (const AccessHeatMap & map) const
+{
+    auto        levels = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels>();
+    HeatKind    write  = m_heatMapOptions.ignoreSameWrites ? HeatKind::ChangedWrite : HeatKind::Write;
+
+
+
+    if (m_heatMapOptions.cumulative)
+    {
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
+        map.GetTotalLevels (HeatSpace::Cpu, write,             levels->write);
+    }
+    else
+    {
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
+        map.GetLevels (HeatSpace::Cpu, write,             levels->write);
+    }
+
+    return levels;
 }
 
 
@@ -753,39 +953,78 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::UpdateLastStop
+//
+//  A new stop. The instruction that just ran is known only when this stop
+//  is exactly where the last one's instruction would have put the machine,
+//  which is what a step looks like; after a free run it is not known, and
+//  nothing is marked rather than the wrong instruction.
+//
+//  The branch that brought the machine to the PC, by a step or a run that
+//  stopped, is the CPU's last transfer when that is a branch, jump or call
+//  whose target is the PC: PC moves on in order from a transfer's target,
+//  so the instruction at the target runs only after a transfer to it. The
+//  snapshot has its address, so the window draws its arrow whether or not
+//  its line is in a view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnapshot & snapshot) const
+{
+    const Cpu6502Registers      & now     = session.GetTarget().GetRegisters();
+    Word                          length  = GetInstructionLength (session, now.pc);
+    InstructionTouches::Result    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
+    bool                          isStep  = false;
+    Word                          from    = 0;
+    DisassemblyData               transfer;
+
+
+
+    if (!m_lastStop.isValid || !IsSameRegisters (m_lastStop.at, now))
+    {
+        isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
+
+        m_lastStop.previous = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
+        m_lastStop.at       = now;
+        m_lastStop.isValid  = true;
+    }
+
+    //  At the same stop, memory the debugger edited can change what the
+    //  instruction does, so it is worked out again on every build.
+    m_lastStop.here = current;
+
+    if (session.GetTarget().TryGetLastBranch (from))
+    {
+        (void) DataDirectiveHandlers::Disassemble (session, from, std::nullopt, 1, transfer);
+    }
+
+    if (!transfer.lines.empty() && transfer.lines.front().instruction.hasTarget && transfer.lines.front().instruction.target == now.pc)
+    {
+        snapshot.branchedFrom = from;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::BuildAutoWatches
 //
 //  What the instruction at the PC touches, then what the one just executed
-//  touched that this one does not (FR-095). Both come from InstructionTouches,
-//  the same account the code pane annotates from.
+//  touched that this one does not (FR-095). UpdateLastStop works both out
+//  with InstructionTouches, the same account the code pane annotates from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerViewState::BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    const Cpu6502Registers      & now    = session.GetTarget().GetRegisters();
-    Word                          length = GetInstructionLength (session, now.pc);
-    InstructionTouches::Result    current;
+    const Cpu6502Registers  & now = session.GetTarget().GetRegisters();
 
 
 
-    current = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(), now, now.pc, length);
-
-    AddAutoWatches (session, current, now, false, snapshot.autoWatches);
-
-    //  A new stop. The instruction that just ran is known only when this stop
-    //  is exactly where the last one's instruction would have left the
-    //  machine, which is what a step looks like; after a free run it is not
-    //  known, and is left out rather than shown for the wrong instruction.
-    if (!m_lastStop.isValid || !IsSameRegisters (m_lastStop.at, now))
-    {
-        bool  isStep = m_lastStop.isValid && m_lastStop.here.isKnown && IsSameRegisters (m_lastStop.here.after, now);
-
-        m_lastStop.previous = isStep ? std::optional<InstructionTouches::Result> (m_lastStop.here) : std::nullopt;
-        m_lastStop.here     = current;
-        m_lastStop.at       = now;
-        m_lastStop.isValid  = true;
-    }
+    AddAutoWatches (session, m_lastStop.here, now, false, snapshot.autoWatches);
 
     if (m_lastStop.previous.has_value())
     {
@@ -937,37 +1176,10 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
     snapshot.trace.first   = first;
     snapshot.trace.entries = std::move (data.entries);
 
-    if (snapshot.isPaused)
+    if (snapshot.isPaused && data.isOn)
     {
         BuildTraceNext (session, snapshot);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerViewState::ApplyHistoryTrace
-//
-//  The instructions that led to where the machine stands in its history,
-//  oldest first, replace the live trace's window: the replay that rebuilt
-//  them is the only record of that past, since nothing is traced while
-//  live unless the trace is on. They are described as trace entries are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerViewState::ApplyHistoryTrace (
-    DebugSession              & session,
-    std::vector<TraceRecord>    entries,
-    DebuggerViewSnapshot      & snapshot)
-{
-    TraceHandlers::Describe (session, entries);
-
-    snapshot.trace.total   = entries.size();
-    snapshot.trace.first   = 0;
-    snapshot.trace.entries = std::move (entries);
 }
 
 
@@ -1141,6 +1353,7 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     if (m_lineAddresses == nullptr || key != m_lineAddressesKey)
     {
         auto  addresses = std::make_shared<std::map<std::pair<int, int>, Word>>();
+        auto  ranges    = std::make_shared<std::map<std::pair<int, int>, std::pair<Word, Word>>>();
 
         for (const DebugLine & line : file.lines)
         {
@@ -1151,11 +1364,13 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
                 if (found == addresses->end() || range.first < found->second)
                 {
                     (*addresses)[{ line.file, line.line }] = range.first;
+                    (*ranges)[{ line.file, line.line }]    = range;
                 }
             }
         }
 
         m_lineAddresses    = addresses;
+        m_lineRanges       = ranges;
         m_lineAddressesKey = key;
     }
 
@@ -1164,6 +1379,7 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.files         = file.files;
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
+    state.lineRanges    = m_lineRanges;
 
     if (!atPc.empty())
     {
@@ -1466,21 +1682,6 @@ bool DebuggerViewState::IsHexBytes (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerViewState::GetSourceStepLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerViewState::GetSourceStepLine (bool isSource, CommandMode mode)
-{
-    return GetModeLine (isSource ? "SRC ON" : "SRC OFF", mode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerViewState::GetWinDbgLine
 //
 //  A control's AppleWin line in WinDbg's words: t, p, gu, g, bp, bc and eb.
@@ -1632,6 +1833,25 @@ bool DebuggerViewState::IsCodeBreakpointAt (const DebuggerViewSnapshot::Breakpoi
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::IsDiskRoutineAt
+//
+//  An RWTS or driver breakpoint resolved to the routine at the address: the
+//  gutter marks it, and toggling the line adds an execution breakpoint
+//  beside it rather than clearing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsDiskRoutineAt (const DebuggerViewSnapshot::BreakpointLine & bp, Word address)
+{
+    return bp.info.resolved.has_value() && *bp.info.resolved == address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetPokeLine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1688,8 +1908,10 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
         {
             if (watch.id == *watchId)
             {
-                return (column == 0) ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
-                                     : std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
+                //  A BASIC watch's value is the program's to change.
+                return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
+                     : !watch.basicName.empty()    ? std::vector<DebuggerAction> {}
+                     :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
             }
         }
 
@@ -1775,7 +1997,7 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
 
             if (column == 0)
             {
-                undo.restoreAddress = watch.address;
+                undo.restoreText = watch.basicName.empty() ? std::format ("{:04X}", watch.address) : "BASIC " + watch.basicName;
 
                 for (const DebuggerViewSnapshot::WatchLine & other : before.watches)
                 {
@@ -1884,7 +2106,7 @@ bool DebuggerViewState::TryParseHexWord (const std::string & text, Word & value)
 
 void DebuggerViewState::NoteMovedWatch (const DebuggerViewSnapshot & now, WatchUndo & undo)
 {
-    if (!undo.restoreAddress.has_value() || undo.movedToId.has_value())
+    if (!undo.restoreText.has_value() || undo.movedToId.has_value())
     {
         return;
     }
@@ -1916,7 +2138,7 @@ void DebuggerViewState::NoteMovedWatch (const DebuggerViewSnapshot & now, WatchU
 
 std::optional<std::vector<DebuggerAction>> DebuggerViewState::GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode)
 {
-    if (!undo.restoreAddress.has_value())
+    if (!undo.restoreText.has_value())
     {
         return undo.actions;
     }
@@ -1932,7 +2154,7 @@ std::optional<std::vector<DebuggerAction>> DebuggerViewState::GetWatchUndoAction
     {
         if (watch.id == *undo.movedToId)
         {
-            return std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (*undo.restoreAddress, mode) };
+            return std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (*undo.restoreText, mode) };
         }
     }
 
@@ -2280,6 +2502,19 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
         return reply;
     }
 
+    for (size_t i = 0; i < action.required.size(); i++)
+    {
+        Word  address = (Word) (command.a1 + i);
+        Byte  value   = 0;
+
+        if (session.GetTarget().TryPeek (address, value) && value != action.required[i])
+        {
+            reply.command = command.sourceName;
+            reply.SetError (CommandStatus::Error, "memory changed", std::format ("${:04X} has changed since the edit, so nothing was written.", address));
+            return reply;
+        }
+    }
+
     session.SetScriptLineRunner ([this, &session] (const std::string & scriptLine, CommandMode scriptMode)
     {
         return ExecuteWindowLine (session, scriptLine, scriptMode);
@@ -2335,6 +2570,14 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     if (action.operand.empty())
     {
+        return true;
+    }
+
+    //  A watch's text goes to the session as typed, which reads it as a BASIC
+    //  variable where it is one, and otherwise evaluates it.
+    if (command.verb == DebugVerb::AddWatch)
+    {
+        command.text = action.operand;
         return true;
     }
 
@@ -2928,6 +3171,9 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
                                                              : line.instruction.mnemonic + " " + line.GetShownOperand();
         row.label         = line.label;
         row.isCurrent     = row.address == snapshot.pc;
+        row.isBranchedFrom = snapshot.branchedFrom == row.address;
+        row.isRom          = session.GetTarget().GetRegion (row.address) == MemoryRegion::Rom ||
+                             session.GetTarget().GetRegion (row.address) == MemoryRegion::SlotRom;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
         //  is somewhere else by the time these are drawn.
@@ -2942,7 +3188,9 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
                                                                             now, line.instruction.address,
                                                                             (Word) line.instruction.bytes.size());
 
-            row.annotation = GetAnnotation (session, line, now, touches);
+            row.annotationParts = GetAnnotationParts (session, line, now, touches);
+            row.annotation      = ComposeAnnotation (row.annotationParts, true, false);
+
             row.effect     = row.isCurrent ? GetEffect (session, now, touches,
                                                         (Word) (line.instruction.address + line.instruction.bytes.size()))
                                            : std::string();
@@ -2961,7 +3209,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
         for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
         {
-            if (IsCodeBreakpointAt (bp, row.address))
+            if (IsCodeBreakpointAt (bp, row.address) || IsDiskRoutineAt (bp, row.address))
             {
                 row.isEnabled     = row.hasBreakpoint ? (row.isEnabled || bp.enabled) : bp.enabled;
                 row.hasBreakpoint = true;
@@ -3619,12 +3867,35 @@ std::optional<Word> DebuggerViewState::GetReturnAddress (DebugSession & session)
 std::string DebuggerViewState::GetAnnotation (DebugSession & session, const DisassemblyLine & line,
                                               const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
 {
-    std::string  registerText;
-    std::string  addressText;
-    std::string  flagText;
-    std::string  about;
-    bool         isIo  = false;
-    Byte         value = 0;
+    return ComposeAnnotation (GetAnnotationParts (session, line, registers, touches), true, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetAnnotationParts
+//
+//  The parts GetAnnotation joins. The pointer is an indirect mode's: the
+//  first address the instruction touches, and the address stored there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerViewSnapshot::AnnotationParts DebuggerViewState::GetAnnotationParts (DebugSession & session, const DisassemblyLine & line,
+                                                                             const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
+{
+    static constexpr Word                  kZeroPageLast = 0x00FF;
+    DebuggerViewSnapshot::AnnotationParts  parts;
+    bool                                   isIo          = false;
+    bool                                   isIndirect    = line.instruction.operand.starts_with ('(');
+    bool                                   hasPointer    = false;
+    Byte                                   value         = 0;
+    Byte                                   low           = 0;
+    Byte                                   high          = 0;
+    Word                                   pointer       = 0;
+    Word                                   next          = 0;
 
 
 
@@ -3640,7 +3911,7 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             Byte  held = GetRegisterByte (item.name, registers);
 
 
-            registerText += std::format ("{}={:02X} ", item.name, held);
+            parts.registers += std::format ("{}{}={:02X}", parts.registers.empty() ? "" : " ", item.name, held);
         }
         else if (item.kind == InstructionTouches::Kind::Flag)
         {
@@ -3653,15 +3924,15 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             {
                 if (item.name[0] == letter)
                 {
-                    flagText += std::format ("{}={} ", letter, (registers.p & bit) ? 1 : 0);
+                    parts.flags += std::format ("{}{}={}", parts.flags.empty() ? "" : " ", letter, (registers.p & bit) ? 1 : 0);
                 }
             }
         }
     }
 
     //  The address the instruction works on is the last one it touched: an
-    //  indirect mode reads its pointer first, and the pointer is not what the
-    //  line is about.
+    //  indirect mode reads its pointer first, and the pointer is a part of
+    //  its own.
     for (const InstructionTouches::Item & item : touches.items)
     {
         if (item.kind != InstructionTouches::Kind::Address)
@@ -3669,44 +3940,92 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
             continue;
         }
 
+        if (isIndirect && !hasPointer)
+        {
+            hasPointer = true;
+            pointer    = item.address;
+        }
+
         isIo = session.GetTarget().GetRegion (item.address) == MemoryRegion::Io;
 
+        //  An indexed operand can address a switch other than the one at its
+        //  symbol, so the description is the touched address's, for the
+        //  direction of the access.
         if (isIo)
         {
-            std::string  action = SymbolDescriptions::GetAction (line.operandSymbol);
+            std::vector<std::string>  names;
+            std::string               action;
 
-            addressText = action.empty() ? std::format ("${:04X}", item.address) : action;
+            session.GetSymbols().FindNames (item.address, names);
+
+            action             = SymbolDescriptions::GetAction (SymbolDescriptions::ChooseByDirection (names, item.isWrite));
+            parts.operandValue = action.empty() ? std::format ("${:04X}", item.address) : action;
         }
         else if (session.TryPeek (item.address, value))
         {
-            addressText = std::format ("${:04X}={:02X}", item.address, value);
+            parts.operandValue = std::format ("${:04X}={:02X}", item.address, value);
         }
         else
         {
-            addressText = std::format ("${:04X}", item.address);
+            parts.operandValue = std::format ("${:04X}", item.address);
         }
     }
 
-    std::string  text = registerText + addressText + (addressText.empty() ? "" : " ") + flagText;
+    //  A zero-page pointer's high byte wraps within the zero page, as the
+    //  6502 reads it.
+    next = (pointer <= kZeroPageLast) ? (Word) ((pointer + 1) & kZeroPageLast) : (Word) (pointer + 1);
 
-    while (!text.empty() && text.back() == ' ')
+    if (hasPointer && session.TryPeek (pointer, low) && session.TryPeek (next, high))
     {
-        text.pop_back();
+        parts.pointer = std::format ("(${:04X})=${:04X}", pointer, (Word) (low | (high << 8)));
     }
 
     //  A named location in memory says what it is after its byte, so
     //  INC RNDL reads $004E=96; random seed, low byte .... An I/O
     //  address already said it in place of the byte.
-    about = isIo ? std::string() : SymbolDescriptions::GetAction (line.operandSymbol);
+    parts.about = isIo ? std::string() : SymbolDescriptions::GetAction (line.operandSymbol);
 
-    if (!about.empty())
+    if (parts.about.size() > 1 && isupper ((unsigned char) parts.about[0]) && islower ((unsigned char) parts.about[1]))
     {
-        if (about.size() > 1 && isupper ((unsigned char) about[0]) && islower ((unsigned char) about[1]))
-        {
-            about[0] = (char) tolower ((unsigned char) about[0]);
-        }
+        parts.about[0] = (char) tolower ((unsigned char) parts.about[0]);
+    }
 
-        text += (text.empty() ? "" : "; ") + about;
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::ComposeAnnotation
+//
+//  The registers, the pointer, the operand's value and the flags, a space
+//  apart, then the description of a location with a symbol after a semicolon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::ComposeAnnotation (const DebuggerViewSnapshot::AnnotationParts & parts, bool withOperandValue, bool withPointer)
+{
+    std::string  text;
+
+
+
+    for (const std::string * part : { &parts.registers,
+                                      withPointer      ? &parts.pointer      : nullptr,
+                                      withOperandValue ? &parts.operandValue : nullptr,
+                                      &parts.flags })
+    {
+        if (part != nullptr && !part->empty())
+        {
+            text += (text.empty() ? "" : " ") + *part;
+        }
+    }
+
+    if (!parts.about.empty())
+    {
+        text += (text.empty() ? "" : "; ") + parts.about;
     }
 
     return text;
@@ -3721,7 +4040,8 @@ std::string DebuggerViewState::GetAnnotation (DebugSession & session, const Disa
 //  DebuggerViewState::GetEffect
 //
 //  What running the PC's instruction would leave behind (FR-107), written
-//  from the run InstructionTouches already made (FR-111).
+//  from the run InstructionTouches already made (FR-111), and the cycles
+//  that run took (FR-202).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3743,6 +4063,7 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
 
         return SymbolDescriptions::GetAction (SymbolDescriptions::ChooseByDirection (names, true));
     };
+    std::string  effect;
 
 
 
@@ -3751,7 +4072,12 @@ std::string DebuggerViewState::GetEffect (DebugSession & session, const Cpu6502R
         return {};
     }
 
-    return InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite);
+    //  The cycles end the line. The trial run counted them with the registers
+    //  as they are, so a branch's count is for the way it goes.
+    effect  = InstructionEffect::Format (registers, touches.after, touches.writes, next, describeWrite, touches.unknowns);
+    effect += std::format ("{}{} cycles", effect.empty() ? "" : "; ", touches.cycles);
+
+    return effect;
 }
 
 

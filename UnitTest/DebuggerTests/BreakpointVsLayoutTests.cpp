@@ -150,8 +150,8 @@ namespace BreakpointVsLayoutTests
             {
                 BreakpointBarCommands::kNew,        BreakpointBarCommands::kDelete,     BreakpointBarCommands::kDeleteAll,
                 BreakpointBarCommands::kDisableAll, BreakpointBarCommands::kUndo,       BreakpointBarCommands::kRedo,
-                BreakpointBarCommands::kGoToSource, BreakpointBarCommands::kGoToCode,   BreakpointBarCommands::kColumns,
-                BreakpointBarCommands::kExport,     BreakpointBarCommands::kImport,
+                BreakpointBarCommands::kGoToSource, BreakpointBarCommands::kGoToCode,   BreakpointBarCommands::kExport,
+                BreakpointBarCommands::kImport,
             };
 
 
@@ -160,7 +160,7 @@ namespace BreakpointVsLayoutTests
         }
 
 
-        TEST_METHOD (NewAndShowColumnsAreWordsAndTheRestAreIcons)
+        TEST_METHOD (NewIsAWordAndTheRestAreIcons)
         {
             BreakpointBarCommands            commands ({});
             std::vector<DxuiToolbar::Entry>  entries = commands.BuildEntries();
@@ -169,7 +169,7 @@ namespace BreakpointVsLayoutTests
 
             for (const DxuiToolbar::Entry & entry : entries)
             {
-                bool  isMenu  = entry.command->id == BreakpointBarCommands::kNew || entry.command->id == BreakpointBarCommands::kColumns;
+                bool  isMenu  = entry.command->id == BreakpointBarCommands::kNew;
                 bool  hasIcon = static_cast<bool> (entry.icon) || entry.command->glyph != nullptr;
 
                 Assert::AreEqual (isMenu,  entry.kind == DxuiToolbar::Kind::DropDown, entry.command->label.c_str());
@@ -181,8 +181,8 @@ namespace BreakpointVsLayoutTests
 
         TEST_METHOD (TheColumnsAreInThePanesOrder)
         {
-            std::vector<std::wstring>  expected = { L"Name", L"Condition", L"Hit count", L"Kind", L"Symbol", L"When hit",
-                                                    L"Function", L"File", L"Address", L"Data" };
+            std::vector<std::wstring>  expected = { L"Name", L"Condition", L"Hit count", L"Kind", L"Trigger", L"Symbol",
+                                                    L"When hit", L"Function", L"File", L"Address", L"Data" };
             std::vector<std::wstring>  headings;
 
 
@@ -215,15 +215,16 @@ namespace BreakpointVsLayoutTests
             data.label        = "TEXT";
 
             cells = BreakpointColumns::GetCells (snapshot, code);
-            Assert::AreEqual (std::string ("RESET"),   cells[(size_t) Column::Function]);
-            Assert::AreEqual (std::string ("RESET"),   cells[(size_t) Column::Symbol]);
-            Assert::AreEqual (std::string ("Address"), cells[(size_t) Column::Kind], L"the symbol may label a loop or data as well as a routine");
-            Assert::AreEqual (std::string (""),        cells[(size_t) Column::Data]);
+            Assert::AreEqual (std::string ("RESET"),     cells[(size_t) Column::Function]);
+            Assert::AreEqual (std::string ("RESET"),     cells[(size_t) Column::Symbol]);
+            Assert::AreEqual (std::string ("Breakpoint"), cells[(size_t) Column::Kind], L"the symbol may label a loop or data as well as a routine");
+            Assert::AreEqual (std::string (""),          cells[(size_t) Column::Data]);
 
             cells = BreakpointColumns::GetCells (snapshot, data);
             Assert::AreEqual (std::string (""),                          cells[(size_t) Column::Function], L"a data breakpoint stops in no function");
             Assert::AreEqual (std::string ("TEXT"),                      cells[(size_t) Column::Symbol]);
-            Assert::AreEqual (std::string ("Data read or write"),        cells[(size_t) Column::Kind]);
+            Assert::AreEqual (std::string ("Memory"),                    cells[(size_t) Column::Kind]);
+            Assert::AreEqual (std::string ("Read or write"),             cells[(size_t) Column::Trigger]);
             Assert::AreEqual (std::string ("Read or write $0400-$07FF"), cells[(size_t) Column::Data]);
         }
 

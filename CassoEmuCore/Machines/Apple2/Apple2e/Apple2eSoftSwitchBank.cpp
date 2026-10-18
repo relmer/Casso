@@ -3,9 +3,11 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Devices/IInputEventSink.h"
 #include "Devices/IRomBankSwitch.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -150,10 +152,7 @@ std::string Apple2eSoftSwitchBank::GetModeName() const
 
 Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 {
-    Byte  kbdBits  = 0;
-    Byte  topBit   = 0;
-    bool  flag     = false;
-    bool  isMouseC = false;
+    Byte  kbdBits = 0;
 
 
 
@@ -161,6 +160,30 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     {
         kbdBits = m_keyboard->ReadLatchedKeyDataBits();
     }
+
+    return static_cast<Byte> (kbdBits | GetStatusBit (address));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetStatusBit
+//
+//  Bit 7 of a status read, from the state it reports; reading it changes
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::GetStatusBit (Word address)
+{
+    Byte  topBit   = 0;
+    bool  flag     = false;
+    bool  isMouseC = false;
+
+
 
     // //c IOU mouse overrides: with no slots, the //c repurposes
     // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
@@ -206,7 +229,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
         topBit = flag ? 0x80 : 0x00;
     }
 
-    return static_cast<Byte> (kbdBits | topBit);
+    return topBit;
 }
 
 
@@ -258,6 +281,40 @@ Byte Apple2eSoftSwitchBank::ReadPaddle (Word address)
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekPaddle
+//
+//  ReadPaddle's byte with nothing journaled or watched, and the Joyport's
+//  state read the same way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eSoftSwitchBank::PeekPaddle (Word address) const
+{
+    int       axis    = static_cast<int> (address - s_kwPaddle0Address);
+    Byte      pos     = m_paddlePosition[axis].load (memory_order_acquire);
+    uint64_t  elapsed = UINT64_MAX;
+
+
+
+    if (m_joyport != nullptr && m_joyport->PeekDrivingPaddles())
+    {
+        return s_knPaddleTiming;
+    }
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        elapsed = *m_cpuCycleSource - m_paddleTriggerCycle;
+    }
+
+    return (elapsed < static_cast<uint64_t> (pos) * s_knPaddleCyclesPerUnit) ? s_knPaddleTiming : 0x00;
 }
 
 
@@ -418,12 +475,16 @@ void Apple2eSoftSwitchBank::SyncObservedInputs()
 
 void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
 {
+    IInputEventSink  * panel = m_inputSinks.Get (ObserverSlot::Panel);
+
+
+
     // No sink, or the same value we last reported: either way there is no
     // change to announce.
-    if (m_inputSink != nullptr && m_lastEmittedHostPaddle[axis] != value)
+    if (panel != nullptr && m_lastEmittedHostPaddle[axis] != value)
     {
         m_lastEmittedHostPaddle[axis] = value;
-        m_inputSink->OnHostPaddle (axis, value);
+        panel->OnHostPaddle (axis, value);
     }
 }
 
@@ -444,10 +505,7 @@ void Apple2eSoftSwitchBank::EmitPaddleTrigger()
 {
     // Not coalesced, unlike the read emitters: every strobe is a distinct
     // arming event the panel wants to show.
-    if (m_inputSink != nullptr)
-    {
-        m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
-    }
+    m_inputSinks.ForEach ([] (IInputEventSink & sink) { sink.OnPaddleTrigger (s_kwPaddleTimerStrobe); });
 }
 
 
@@ -471,12 +529,82 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 
 
-    // Same coalescing rule as EmitHostPaddle, on the guest-read side.
-    if (m_inputSink != nullptr && m_lastEmittedPaddle[idx] != value)
+    // Same coalescing rule as EmitHostPaddle, on the guest-read side; the
+    // edge moves whether or not anything listens, since it is part of the
+    // saved state.
+    if (m_lastEmittedPaddle[idx] != value)
     {
         m_lastEmittedPaddle[idx] = value;
-        m_inputSink->OnPaddleRead (address, value);
+
+        if (m_inputSinks.IsAny())
+        {
+            m_inputSinks.ForEach ([&] (IInputEventSink & sink) { sink.OnPaddleRead (address, value); });
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIo
+//
+//  Read's byte for each address, worked out as Read works it out, with no
+//  switch thrown, no timer armed and nothing observed: the status reads
+//  with the keyboard's data bits read without journaling them, PTRIG and
+//  the //c status reads behind it, the cassette input, the paddle timers or
+//  the //c mouse's direction lines, and the floating bus for the video and
+//  annunciator switches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eSoftSwitchBank::TryPeekIo (Word address, Byte & value)
+{
+    constexpr Byte  kStatusBit = 0x80;
+
+
+
+    value = 0;
+
+    if (address >= 0xC011 && address <= 0xC01F)
+    {
+        value = static_cast<Byte> (((m_keyboard != nullptr) ? m_keyboard->GetLatchedKeyDataBits() : 0) | GetStatusBit (address));
+    }
+    else if ((address & 0xFFF0) == s_kwPaddleTimerStrobe)
+    {
+        if (m_mouse != nullptr && address == 0xC07E)
+        {
+            value = m_mouse->IsIouAccessEnabled() ? 0 : kStatusBit;
+        }
+        else if (m_mouse != nullptr && address == 0xC07F)
+        {
+            value = m_doubleHiRes ? 0 : kStatusBit;
+        }
+    }
+    else if (address == CassettePort::kInputMirrorAddress && m_cassettePort != nullptr)
+    {
+        value = m_cassettePort->PeekInputLevel() ? CassettePort::kInputBit : 0;
+    }
+    else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
+    {
+        value = (address == 0xC066) ? m_mouse->ReadMouX1() : m_mouse->ReadMouY1();
+    }
+    else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
+    {
+        value = PeekPaddle (address);
+    }
+    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled() && address >= 0xC058 && address <= 0xC05F)
+    {
+        value = 0;
+    }
+    else if (address == 0xC05E || address == 0xC05F || (address >= 0xC050 && address <= 0xC05D))
+    {
+        value = ReadFloatingBus();
+    }
+
+    return true;
 }
 
 
@@ -487,7 +615,7 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 //
 //  Read
 //
-//  $C00C-$C00F (80COL/ALTCHARSET) toggle on read OR write per real //e.
+//  $C00C-$C00F (80COL/ALTCHARSET) are write-only; see Write.
 //  $C054-$C057 (PAGE2/HIRES) trigger banking-changed so MMU can re-resolve.
 //  $C058-$C05D set and clear annunciators AN0-AN2 in the base bank.
 //  $C05E/$C05F toggle DHIRES (display-only).
@@ -496,6 +624,10 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 Byte Apple2eSoftSwitchBank::Read (Word address)
 {
+    constexpr Byte  kStatusBit = 0x80;
+
+
+
     Byte  result        = 0;
     bool  bankingChange = false;
 
@@ -536,17 +668,38 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             // IOUDis off by writing to $C07F, then accessed ENVBL at $C05B" --
             // so honoring only $C078/$C079 left that documented sequence
             // silently programming annunciators instead of the mouse.
-            if (address == 0xC078 || address == 0xC07E)
+            //
+            // $C078 / $C079 switch on any access. $C07E / $C07F switch only
+            // when written (see Write); read, they are RdIOUDis and RdDHIRES,
+            // and a status read that moved the latch sent the next $C058-$C05F
+            // access to the wrong target. RdDHIRES reads 1 when double hi-res
+            // is OFF: the //c ROM's self-test switch table expects that, as
+            // does the //c Technical Reference, 2nd edition. Its first
+            // printing said the opposite.
+            if (address == 0xC078)
             {
                 m_mouse->WriteIouAccess (false);
             }
-            else if (address == 0xC079 || address == 0xC07F)
+            else if (address == 0xC079)
             {
                 m_mouse->WriteIouAccess (true);
+            }
+            else if (address == 0xC07E)
+            {
+                result = m_mouse->IsIouAccessEnabled() ? 0 : kStatusBit;
+            }
+            else if (address == 0xC07F)
+            {
+                result = m_doubleHiRes ? 0 : kStatusBit;
             }
         }
 
         EmitPaddleTrigger();
+    }
+    else if (address == CassettePort::kInputMirrorAddress && m_cassettePort != nullptr)
+    {
+        // $C068 mirrors the cassette input at $C060.
+        result = m_cassettePort->ReadInputLevel() ? CassettePort::kInputBit : 0;
     }
     else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
     {
@@ -576,18 +729,6 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
     {
         switch (address)
         {
-            case 0xC00C:
-                m_80colMode = false;
-                break;
-            case 0xC00D:
-                m_80colMode = true;
-                break;
-            case 0xC00E:
-                m_altCharSet = false;
-                break;
-            case 0xC00F:
-                m_altCharSet = true;
-                break;
             case 0xC028:
                 // Apple //c ROM-bank flip-flop: any access flips the visible
                 // 16K firmware bank across $C100-$FFFF. No effect on the //e
@@ -689,8 +830,11 @@ static const Apple2eSoftSwitchBank::MmuSwitch  s_kMmuSwitches[6] =
 //  Write
 //
 //  MMU-owned switches ($C000-$C00B, table above) forward to the MMU, which
-//  owns the flag and rebinds the page table. Everything else -- including
-//  $C00C-$C00F (80COL, ALTCHARSET) -- behaves exactly as the matching read.
+//  owns the flag and rebinds the page table. $C00C-$C00F (80COL, ALTCHARSET)
+//  are write-only (Sather Table 7.1, p. 7-5) and handled here; reading them
+//  returns keyboard data (p. 5-29), which the keyboard serves. Everything
+//  else behaves as the matching read, and on the //c a write of $C07E or
+//  $C07F also sets or clears IOUDIS, which a read does not.
 //
 //  Audit §1.1 fix-by-relocation: this is the correct addressing surface;
 //  the legacy AuxRamCard's $C003-$C006 was wrong and is deleted.
@@ -717,11 +861,40 @@ void Apple2eSoftSwitchBank::Write (Word address, Byte value)
         }
     }
 
-    // Everything else -- including $C00C-$C00F, which toggle on write exactly
-    // as they do on read -- goes through the read path.
+    // 80COL and ALTCHARSET: the even address of each pair clears the flag,
+    // the odd one sets it, as with the MMU pairs above.
+    if (address >= 0xC00C && address <= 0xC00F)
+    {
+        if (address <= 0xC00D)
+        {
+            m_80colMode = (address == 0xC00D);
+        }
+        else
+        {
+            m_altCharSet = (address == 0xC00F);
+        }
+
+        handled = true;
+    }
+
+    // Everything else goes through the read path.
     if (!handled)
     {
         Read (address);
+    }
+
+    // //c: SETIOUDIS / CLRIOUDIS take effect on a write only. Read leaves them
+    // alone, since reading the same addresses is a status read.
+    if (!handled && m_mouse != nullptr)
+    {
+        if (address == 0xC07E)
+        {
+            m_mouse->WriteIouAccess (false);
+        }
+        else if (address == 0xC07F)
+        {
+            m_mouse->WriteIouAccess (true);
+        }
     }
 }
 
@@ -881,6 +1054,8 @@ HRESULT Apple2eSoftSwitchBank::SaveState (StateWriter & writer) const
         writer.WriteByte (axis.load (memory_order_acquire));
     }
 
+    ReadEdges::Save (writer, m_lastEmittedPaddle);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -904,9 +1079,11 @@ Error:
 
 HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
 {
-    HRESULT   hr       = S_OK;
-    uint16_t  version  = 0;
-    Byte      position = 0;
+    HRESULT   hr                              = S_OK;
+    uint16_t  version                         = 0;
+    Byte      position                        = 0;
+    bool      isEdgesOk                       = true;
+    int       edges[s_knPaddleAxisCount]      = { -1, -1, -1, -1 };
 
 
 
@@ -927,8 +1104,17 @@ HRESULT Apple2eSoftSwitchBank::LoadState (StateReader & reader)
         axis.store (position, memory_order_release);
     }
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, edges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
+
+    CBREx (isEdgesOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    std::ranges::copy (edges, m_lastEmittedPaddle);
 
     SyncObservedInputs();
 

@@ -148,7 +148,10 @@ class Model:
                     key = (round(p[0], 4), round(p[1], 4), round(p[2], 4))
                     if key not in index:
                         index[key] = len(index) + 1
-                        lines_v.append(f"v {key[0]:g} {key[1]:g} {key[2]:g}")
+                        # Every rounded digit kept: plain :g keeps six
+                        # significant figures, which at 100+ mm skews the
+                        # normals of thin triangles enough to show on chrome.
+                        lines_v.append(f"v {key[0]:.10g} {key[1]:.10g} {key[2]:.10g}")
                     ids.append(index[key])
                 if ids[0] != ids[1] and ids[1] != ids[2] and ids[0] != ids[2]:
                     lines_f.append(f"f {ids[0]} {ids[1]} {ids[2]}")

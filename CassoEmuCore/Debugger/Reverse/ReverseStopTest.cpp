@@ -2,7 +2,47 @@
 
 #include "Debugger/Reverse/ReverseStopTest.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DiskCallVector.h"
 #include "Debugger/EffectiveAddress.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseStopTest::ReverseStopTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReverseStopTest::ReverseStopTest (DebugSession & session) :
+    m_session (session),
+    m_disk    (session.GetBreakpoints(), session.GetTarget()),
+    m_basic   (session.GetBreakpoints())
+{
+    m_disk.SetReplay();
+    m_basic.SetReplay();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseStopTest::GetDiskSink
+//
+//  The stop test's own listener, while a disk breakpoint other than a call
+//  is enabled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDisk2EventSink * ReverseStopTest::GetDiskSink()
+{
+    m_disk.Refresh();
+
+    return m_disk.IsArmed() ? &m_disk : nullptr;
+}
 
 
 
@@ -12,10 +52,11 @@
 //
 //  ReverseStopTest::ShouldStopBefore
 //
-//  Breakpoints first, then before-mode watchpoints against what the
-//  instruction would touch. The instruction's own reads are noted first, so
-//  the accesses it makes when it runs are judged as a forward run judges
-//  them.
+//  Breakpoints first, then the disk events the last instruction made, then
+//  Applesoft's entries, then before-mode watchpoints against what the
+//  instruction would touch. The
+//  instruction's own reads are noted first, so the accesses it makes when it
+//  runs are judged as a forward run judges them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,25 +64,45 @@ bool ReverseStopTest::ShouldStopBefore (
     MachineHost  & machine,
     Word           pc)
 {
-    IDebugTarget      & target     = m_session.GetTarget();
-    WatchpointTable   & watches    = m_session.GetWatchpoints();
-    Word                length     = 0;
-    Byte                opcode     = 0;
-    bool                isPeeked   = false;
+    IDebugTarget      & target      = m_session.GetTarget();
+    WatchpointTable   & watches     = m_session.GetWatchpoints();
+    Word                length      = 0;
+    Byte                opcode      = 0;
+    bool                isPeeked    = false;
     AccessPrediction    prediction;
-    HRESULT             hr         = S_OK;
+    HRESULT             hr          = S_OK;
+    uint64_t            cycle       = target.GetCycleCount();
+    bool                isJump      = !m_lastCycle.has_value() || cycle < *m_lastCycle || cycle - *m_lastCycle > DiskBreakpointMonitor::kMaxStepCycles;
+    bool                isDiskStop  = false;
+    bool                isBasicStop = false;
 
 
 
     (void) machine;
 
+    if (isJump)
+    {
+        ResolveRoutines();
+        m_basic.TakeValues (m_session);
+    }
+
+    m_lastCycle = cycle;
+
     m_session.GetCpuOwnReads (pc, length, m_storeTarget);
     m_fetchPc     = pc;
     m_fetchesLeft = (Byte) ((1u << length) - 1);
 
-    isPeeked = target.TryPeek (pc, opcode);
+    isPeeked   = target.TryPeek (pc, opcode);
+    isDiskStop  = m_disk.Poll (m_session);
+    isBasicStop = m_basic.Poll (pc, m_session);
+    m_disk.ClearStop();
 
-    if (m_session.GetBreakpoints().IsStopBefore (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, m_session))
+    if (m_session.GetBreakpoints().IsStopBefore (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, m_session, &m_routines))
+    {
+        return true;
+    }
+
+    if (isDiskStop || isBasicStop)
     {
         return true;
     }
@@ -96,6 +157,11 @@ void ReverseStopTest::OnWatchedAccess (
     std::optional<Byte>  previous)
 {
     (void) previous;
+
+    if (access == BusAccess::Write && std::ranges::find (m_vectorBytes, address) != m_vectorBytes.end())
+    {
+        ResolveRoutines();
+    }
 
     if (access == BusAccess::Read && TryConsumeCpuOwnRead (address))
     {
@@ -153,3 +219,42 @@ bool ReverseStopTest::TryConsumeCpuOwnRead (Word address)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseStopTest::ResolveRoutines
+//
+//  Each RWTS and driver breakpoint's routine as its vector has it now, read
+//  by peeks; none while the vector has no target. A machine with no Disk II
+//  resolves a driver breakpoint as slot 6's, as the session does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseStopTest::ResolveRoutines()
+{
+    static constexpr int   kDefaultSlot = 6;
+    IDebugTarget         & target       = m_session.GetTarget();
+    DebugDiskState         state;
+    int                    slot         = target.TryGetDiskState (state) ? state.slot : kDefaultSlot;
+
+
+
+    m_routines.clear();
+    m_vectorBytes.clear();
+
+    for (const Breakpoint & entry : m_session.GetBreakpoints().GetAll())
+    {
+        std::optional<Word>  routine = entry.IsDiskCall() ? DiskCallVector::TryResolve (*entry.disk, slot, m_session) : std::nullopt;
+
+
+
+        if (entry.IsDiskCall())
+        {
+            DiskCallVector::AddVectorBytes (*entry.disk, slot, m_vectorBytes);
+        }
+
+        if (routine.has_value())
+        {
+            m_routines[entry.id] = *routine;
+        }
+    }
+}

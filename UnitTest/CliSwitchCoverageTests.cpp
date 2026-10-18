@@ -9,6 +9,7 @@
 #include "CommandLineParser.h"
 #include "CommandLineHelp.h"
 #include "Dialect.h"
+#include "Core/TextEncoding.h"
 
 #include "CppUnitTest.h"
 
@@ -65,7 +66,7 @@ namespace CliSwitchCoverageTests
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 
@@ -458,6 +459,10 @@ namespace CliSwitchCoverageTests
             { "debug", "disk2", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--disk2", "b.dsk" },
               [] (const CommandLineOptions & o) { return o.debug.disk2 == "b.dsk"; },
               "--disk2 puts an image in drive 2" },
+
+            { "debug", "tape", { "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--tape", "t.wav" },
+              [] (const CommandLineOptions & o) { return o.debug.tape == "t.wav"; },
+              "--tape puts a recording in the cassette recorder" },
 
             { "debug", "script", { "CassoCli", "debug", "--machine", "Apple2e", "--script", "s.txt" },
               [] (const CommandLineOptions & o) { return o.debug.scriptPath == "s.txt"; },

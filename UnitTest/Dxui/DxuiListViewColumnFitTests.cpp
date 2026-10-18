@@ -343,4 +343,90 @@ public:
         Assert::AreEqual (-1, f.list.GetColumnOverrideWidthPx (0),
                           L"One press starts a drag rather than fitting");
     }
+
+
+    //  A list whose rows come from a provider never measures them; the text
+    //  noted for a fitted column is measured at the next paint, once, and
+    //  the column is as wide as the widest of it. A reset, as a text zoom
+    //  makes, measures the noted text again.
+    TEST_METHOD (NotedTextFitsAProvidersColumn)
+    {
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiListView          list;
+        DxuiDpiScaler         scaler;
+        int                   narrow = 0;
+        int                   wide   = 0;
+
+
+
+        scaler.SetDpi (96);
+        text.SetCannedMetrics (L"Read",                    SIZE { 40,  14 });
+        text.SetCannedMetrics (L"Motor command off label", SIZE { 160, 14 });
+
+        list.SetColumns        ({ DxuiListView::Column { L"", 0 }, DxuiListView::Column { L"Detail", 0, true } });
+        list.SetShowHeader     (true);
+        list.SetPreciseAutoFit (true);
+        list.SetRowProvider    (100, [] (int, std::vector<DxuiListView::Cell> & out) { out.assign (2, DxuiListView::Cell { L"x", false }); });
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.NoteFitText (0, L"Read");
+        list.Paint (painter, text, theme);
+        narrow = list.GetColumnEffectiveWidthPx (0);
+
+        list.NoteFitText (0, L"Motor command off label");
+        list.Paint (painter, text, theme);
+        wide = list.GetColumnEffectiveWidthPx (0);
+
+        Assert::IsTrue   (narrow >= 40,         L"as wide as the first label");
+        Assert::IsTrue   (wide   >= 160,        L"as wide as the widest");
+        Assert::IsTrue   (wide - narrow >= 120, L"widened by the difference");
+
+        list.NoteFitText (0, L"Read");
+        list.Paint (painter, text, theme);
+        Assert::AreEqual (wide, list.GetColumnEffectiveWidthPx (0), L"a label noted again changes nothing");
+
+        list.ResetAutoFit();
+        list.Paint (painter, text, theme);
+        Assert::AreEqual (wide, list.GetColumnEffectiveWidthPx (0), L"measured again after a reset");
+    }
+
+
+    //  A column fitted by counting characters makes room for an icon ahead
+    //  of a cell's text, as the trace's "next" row has the PC's marker, when
+    //  that row comes after the column was first fitted.
+    TEST_METHOD (AnIconWidensACountedColumn)
+    {
+        MockDxuiPainter                        painter;
+        MockDxuiTextRenderer                   text;
+        MockDxuiTheme                          theme;
+        DxuiListView                           list;
+        DxuiDpiScaler                          scaler;
+        auto                                   marker = std::make_shared<DxuiIconImage>();
+        int                                    before = 0;
+        int                                    after  = 0;
+
+
+
+        scaler.SetDpi (96);
+
+        list.SetColumns        ({ DxuiListView::Column { L"", 0 }, DxuiListView::Column { L"Rest", 0, true } });
+        list.SetPreciseAutoFit (false);
+        list.SetRowProvider    (1, [&marker] (int row, std::vector<DxuiListView::Cell> & out)
+        {
+            out.assign (2, DxuiListView::Cell { L"next", false });
+            out[0].icon = (row == 1) ? marker : nullptr;
+        });
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.Paint (painter, text, theme);
+        before = list.GetColumnEffectiveWidthPx (0);
+
+        list.SetVirtualRowCount (2);
+        list.Paint (painter, text, theme);
+        after = list.GetColumnEffectiveWidthPx (0);
+
+        Assert::IsTrue (after > before, L"wider by the icon and its gap");
+    }
 };

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -18,6 +19,7 @@ static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
+static constexpr const wchar_t *  s_kGlyphLoadFile    = s_kpszMdl2Import;
 static constexpr const wchar_t *  s_kGlyphDrawn       = L"";         // the step back and reverse entries draw their own icons
 
 
@@ -51,6 +53,7 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
         { kReverseContinue, L"Reverse continue", s_kGlyphDrawn,       L"Run backward to the latest breakpoint or watchpoint",  DxuiToolbar::Kind::Command, 2, false, true  },
         { kShowNext,        L"Show next",        s_kGlyphShowNext,    L"Bring the code panes to the next statement",           DxuiToolbar::Kind::Command, 3, false, true  },
         { kTrace,           L"Trace",            s_kGlyphTrace,       L"Record every instruction the machine runs",            DxuiToolbar::Kind::Toggle,  3, true,  false },
+        { kLoadFile,        L"Load file into memory", s_kGlyphLoadFile, L"Load a file into memory, as BLOAD does",            DxuiToolbar::Kind::Command, 4, false, true  },
     };
 
 
@@ -132,7 +135,7 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
 
-        if (row.id != kTrace)
+        if (row.id != kTrace && row.id != kLoadFile)
         {
             //  Drawn rather than a glyph, but through the strip's own icon
             //  path: hover and disabling are decided once, for every entry,

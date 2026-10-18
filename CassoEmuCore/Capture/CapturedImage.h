@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Devices/Printer/RgbaImage.h"
+struct RgbaImage;
 
 
 

@@ -144,7 +144,7 @@ contract predicts.
    top-level window; move it to a monitor of a different scale. Expect it to
    render at that monitor's scale (FR-043).
 3. Auto-hide the trace pane. Expect a tab on the edge that slides the pane
-   in on hover and on focus.
+   in when clicked, and not on hover (FR-041).
 4. Close and reopen the debugger. Expect the same layout. Disconnect the
    second monitor and reopen. Expect the floating pane on the primary at its
    saved size (SC-014).
@@ -292,6 +292,110 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
     instructions and run on. Expect the same stop again.
 12. Open the Disk ][ debug window, repeat step 1, and compare its rows with a
     run with no disk breakpoint (SC-042).
+
+## Story 21: debug projects
+
+1. Load `include-macro.a65`'s binary and debug file; set three breakpoints,
+   rename one with F2, add two watches and a bookmark, rearrange two panes,
+   and add `ECHO ready` as a startup command in File > Project settings....
+   Close Casso. Expect nothing asked about saving.
+2. Start Casso and load the same debug file. Expect every item back and
+   `ready` in the console.
+3. Boot a DOS 3.3 disk with no debug file; set a breakpoint; load the debug
+   file. Expect the program's project to open and an offer to bring the
+   breakpoint along.
+4. Kill Casso while a change is pending. Expect the project file readable and
+   at most the last 2 seconds of changes lost (SC-046).
+
+## Story 22: Applesoft
+
+1. Type a ten-line program with a GOSUB, a FOR loop, `A%`, `B$` and `C(3)`;
+   open the BASIC view. Expect the listing as LIST prints it.
+2. Set a breakpoint on line 40 and RUN. Expect a stop as line 40 begins, the
+   variables pane matching PRINT, the stack pane showing the GOSUB and FOR.
+3. Step a statement, then a line. Expect the mark to move to the next
+   statement, then the next line.
+4. Set a variable breakpoint on `A%` and run. Expect a stop after the
+   statement that changes it.
+
+## Story 23: window entry points
+
+1. Walk FR-180 to FR-198 without the console. Expect each to do what its
+   command does (SC-049).
+2. With the Visual Studio scheme, press Ctrl+Alt+D, Ctrl+Alt+B and Ctrl+`.
+   Expect those panes to take focus and the View menu to show the keys.
+3. Add three ranges to the Default set on the editable grid. Expect a new
+   trailing row after each (SC-051).
+
+## Story 24: event logs and one source
+
+1. Boot a DOS 3.3 disk with no debugger pane open, then open the Disk II
+   event log. Expect the boot's address marks, sector reads and head steps,
+   each stamped in cycles, and the Disk II diagnostics pane showing the last
+   address field and read or write.
+2. With the log open, run a program that reads the disk. Expect new events as
+   they happen.
+3. Rewind to the middle of the boot. Expect the log to end at the machine's
+   position; run on and expect the new run's events.
+4. Scroll back past the newest events to the start of the boot. Expect older
+   events to fill in, each screen within a quarter second (SC-054).
+5. Rebuild a recorded boot's log from history and compare it with the live
+   log. Expect identical events, order and cycles (SC-053).
+6. In a keyboard polling loop, press a key. Expect one host key row and one
+   guest read row in the input log, not a row per poll.
+7. Confirm neither emulator debug window nor its menu item remains (SC-055).
+8. In the Disk II log, find a Sector read row: its Detail has T/S/V, the size
+   and the first eight bytes. Hover the Detail: a monospaced hex dump of all
+   256 bytes. Right-click the row: Copy sector bytes copies the dump.
+9. Boot a 13-sector (DOS 3.2) disk: Sector read rows with 256 bytes each.
+10. Boot a copy-protected disk with bad fields: Error rows (address or data
+    checksum) on a reddish fill and Warning rows (cut off, no address field,
+    read stall, write protected) on a yellowish fill, each with Error or
+    Warning in the Severity column. Clear Info in the Severity drop-down:
+    only those rows remain.
+11. Right-click the column headings of the Disk II log, the input log and
+    the Breakpoints pane: a check for each column; the Detail, Meaning and
+    Name columns are dimmed. No pane has a column drop-down on its bar.
+12. Type 17.25 and 17-18.25 in the track filter: rows on quarter-track 17.25,
+    and on 17.0 to 18.25. There is no Quarter-tracks option.
+13. Run a program that turns two adjacent stepper phases on together: a Head
+    step row to the odd quarter-track between them (FR-233).
+
+## FR-218: debugger and input components (measurement)
+
+1. Before the move: Release build, pinned to one CCD, alternating runs;
+   record emulated MHz at Maximum speed and Casso's processor time over 60 s
+   at 1x, history recording on, idle at a DOS 3.3 prompt and during a boot.
+2. After each move (debugger, then input): repeat. Expect both within the
+   baseline's run-to-run noise (SC-052).
+3. Check `EmulatorShell.h` includes no debugger or input header, only forward
+   declarations.
+## Story 25: automatic machine states
+
+1. With a clean `%LOCALAPPDATA%\Casso\SavedState\`, start Casso: the General page
+   has "Automatically save the machine state at exit and resume at startup"
+   checked.
+2. Boot a //e from a disk, run a program to a recognizable screen, close
+   Casso. Look for `<machine>.autosave.cassostate` in the States folder. Start
+   Casso: the same screen, the program continuing, no dialog (SC-056).
+3. Switch to the //c, run something, switch back to the //e: it resumes where
+   it was; the //c has its own automatic state.
+4. Replace the //e's ROM file with a different one and start Casso: a notice
+   with the reason appears, the //e starts cold, and the automatic state
+   file's size and time match those before the start (FR-222).
+5. Start Casso with `--disk1` and a disk: it starts cold with that disk. Close
+   it: a prompt has the saved state's date, time and thumbnail. Choose Don't
+   replace, start Casso normally: the earlier state resumes. Repeat and choose
+   Replace: the command-line session's state resumes (FR-223).
+6. Start with `--machine` only: that machine's automatic state resumes.
+7. Clear the setting, close, start: no state written or resumed, and the
+   files are in the folder.
+8. File > Save state and Load state: both dialogs open in the States folder; a
+   state file saved before this change loads.
+9. Time startup with resume against a cold start, two 140 KB disks mounted:
+   no more than one second apart (SC-057).
+10. Run `MachineStateCompatibilityTests`: every fixture under
+    `UnitTest/Fixtures/States/` loads, resumes and runs a second (SC-059).
 
 ## Release
 

@@ -3,13 +3,14 @@
 #include "DxuiPropertySheet.h"
 #include "DxuiPropertyPage.h"
 
+#include "Render/IDxuiTextRenderer.h"
+#include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiButton.h"
 #include "Window/DxuiButtonRow.h"
 
 
 
 static constexpr int  s_kTabStripHeightDip = 36;
-static constexpr int  s_kTabWidthDip       = 100;
 static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // page inset
 static constexpr int  s_kScrollbarWidthDip = 10;    // sits in the right-hand page inset
 static constexpr int  s_kScrollbarInsetDip = 3;     // from the window's right edge
@@ -599,6 +600,126 @@ bool DxuiPropertySheet::TryApplyAllDirtyPages()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LayoutTabRects
+//
+//  Sizes each tab to its label: the measured label width plus kTabPadXDip
+//  on both sides, rounded up to whole pixels and held to at least
+//  kTabMinWidthDip. Visible tabs run edge to edge from the strip's left pad
+//  and span the strip's full height; a hidden tab gets an empty rect and
+//  moves nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::LayoutTabRects (
+    const RECT                     & stripPx,
+    const DxuiDpiScaler            & scaler,
+    std::span<const DxuiSheetTab>    tabs,
+    std::span<RECT>                  outRects)
+{
+    int  minW = scaler.ToPx (kTabMinWidthDip);
+    int  padX = scaler.ToPx (kTabPadXDip);
+    int  x    = stripPx.left + scaler.ToPx (s_kContentPadDip);
+    int  w    = 0;
+    int  i    = 0;
+
+
+
+    for (i = 0; i < (int) tabs.size(); ++i)
+    {
+        const DxuiSheetTab  & tab = tabs[(size_t) i];
+
+        outRects[(size_t) i] = {};
+
+        if (!tab.isVisible)
+        {
+            continue;
+        }
+
+        w = (int) std::ceil (scaler.ToPxf (tab.labelWidthDip)) + padX * 2;
+        w = std::max (w, minW);
+
+        outRects[(size_t) i] = { x, stripPx.top, x + w, stripPx.bottom };
+        x += w;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureTabLabelDip
+//
+//  Measures a tab label in the font DxuiTabStrip draws it in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPropertySheet::MeasureTabLabelDip (
+    IDxuiTextRenderer   & text,
+    const std::wstring  & label,
+    float               & outWidthDip)
+{
+    HRESULT  hr        = S_OK;
+    float    heightDip = 0.0f;
+
+
+
+    outWidthDip = 0.0f;
+
+    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTheme::kBodyFace, outWidthDip, heightDip);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureTabs
+//
+//  One entry per page, in registration order: the page's label width (zero
+//  when there is no text renderer yet, or the measure fails, which leaves
+//  the tab at its minimum width) and whether the page has a tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::MeasureTabs (std::vector<DxuiSheetTab> & out) const
+{
+    HRESULT              hr   = S_OK;
+    IDxuiTextRenderer  * text = GetTextRenderer();
+    int                  i    = 0;
+
+
+
+    out.assign (m_pages.size(), DxuiSheetTab {});
+
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        DxuiSheetTab  & tab = out[(size_t) i];
+
+        tab.isVisible = m_present[(size_t) i];
+
+        if (text == nullptr || !tab.isVisible)
+        {
+            continue;
+        }
+
+        hr = MeasureTabLabelDip (*text, m_pages[(size_t) i]->GetTitle(), tab.labelWidthDip);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Layout
 //
 //  The tab strip occupies a fixed top strip; the OK / Cancel / Apply row a
@@ -628,21 +749,30 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     if (m_tabs != nullptr)
     {
-        RECT  strip = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + tabH };
-        int   tabW  = scaler.ToPx (s_kTabWidthDip);
-        int   tx    = strip.left + pad;
+        RECT                            strip   = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + tabH };
+        std::vector<DxuiTabStrip::Tab>  tabs;
+        std::vector<DxuiSheetTab>       measure;
+        std::vector<RECT>               rects;
+        int                             tab     = 0;
+
+
 
         // DxuiTabStrip does not lay out its own tabs -- the caller owns each
-        // tab's rect. Assign uniform fixed-width tabs left-to-right (only
-        // present pages contribute a tab; no text renderer is available here
-        // to content-size them).
-        std::vector<DxuiTabStrip::Tab>  tabs;
-
+        // tab's rect. Size each to its label; only present pages get a tab.
         BuildTabList (tabs);
-        for (i = 0; i < (int) tabs.size(); ++i)
+        MeasureTabs  (measure);
+        rects.resize (measure.size());
+        LayoutTabRects (strip, scaler, measure, rects);
+
+        for (i = 0; i < (int) measure.size(); ++i)
         {
-            tabs[(size_t) i].rect = { tx, strip.top, tx + tabW, strip.bottom };
-            tx += tabW;
+            if (!measure[(size_t) i].isVisible)
+            {
+                continue;
+            }
+
+            tabs[(size_t) tab].rect = rects[(size_t) i];
+            ++tab;
         }
 
         m_tabs->SetTabs     (std::move (tabs));

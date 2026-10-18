@@ -3,7 +3,9 @@
 #include "Pch.h"
 
 #include "Capture/ScreenshotMode.h"
-#include "Devices/Printer/PngMetadata.h"
+
+struct MetadataEntry;
+class PngMetadata;
 
 
 

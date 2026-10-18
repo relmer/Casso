@@ -6,6 +6,11 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/ToolbarCheckEntry.h"
+#include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
 
 
 
@@ -186,9 +191,9 @@ std::wstring DebuggerWindow::GetViewMenuGroup (const std::wstring & pane)
 //
 //  DebuggerWindow::SetWindowMenus
 //
-//  File, Edit, View, Debug and Tools. View lists every debug window, Window
-//  the machine's device panels and the layout reset, and Tools the key
-//  schemes. What a pane's colors mean is behind the info button on the
+//  File, Edit, Machine, View, Debug and Tools. View has a row for every
+//  debug window, the machine's device panels and the layout reset, and
+//  Tools the key schemes. What a pane's colors mean is behind the info button on the
 //  pane's toolbar, so there is no Help menu. Rebuilt whenever what they list
 //  changes, since the rows carry the state they were built with; a menu that
 //  is open keeps its rows until it closes.
@@ -239,6 +244,15 @@ void DebuggerWindow::SetWindowMenus()
     add (file, row);
     add (file, MakeMenuCommand (L"Save trace...", false, [this] { SaveTrace(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
+    row            = MakeMenuCommand (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
+    row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
+    add (file, row);
+    add (file, MakeMenuCommand (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
+    file.push_back (DxuiPopupMenuItem::ForSeparator());
+    add (file, MakeMenuCommand (L"Open project...", false, [this] { OpenProject(); }));
+    add (file, MakeMenuCommand (L"Save project as...", false, [this] { SaveProjectAs(); }));
+    add (file, MakeMenuCommand (L"Project settings...", false, [this] { EditProjectSettings(); }));
+    file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, MakeMenuCommand (L"Close", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
 
     //  Edit: the focused control's own commands, then find in the console.
@@ -266,6 +280,13 @@ void DebuggerWindow::SetWindowMenus()
 
         row            = MakeMenuCommand (title, false, [this, pane] { ShowPane (pane); });
         row->isChecked = [this, pane] { return IsPaneShown (pane); };
+
+        //  The pane's key in the scheme in force, as the Debug menu's rows
+        //  have theirs.
+        if (DebuggerKeySchemes::GetActionOfPane (pane).has_value())
+        {
+            row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *DebuggerKeySchemes::GetActionOfPane (pane));
+        }
 
         if (group.empty())
         {
@@ -332,7 +353,7 @@ void DebuggerWindow::SetWindowMenus()
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
-            m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (!m_snapshot->source->stepBySource, m_snapshot->mode));
+            RunAction (DebuggerActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
         }
     });
     row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
@@ -342,6 +363,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
+    add (debug, MakeMenuCommand (L"Step filters...", false, [this] { EditStepFilters(); }));
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.
@@ -398,7 +420,7 @@ void DebuggerWindow::SetWindowMenus()
 
     //  Tools: the settings that have no place in a menu of their own.
     tools.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenReverseOptions(); }));
+    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenOptions(); }));
 
     m_menuBarItems =
     {
@@ -422,15 +444,19 @@ void DebuggerWindow::SetWindowMenus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::OpenReverseOptions
+//  DebuggerWindow::OpenOptions
 //
-//  Tools > Options: reverse execution's settings, saved by the host.
+//  Tools > Options: reverse execution's settings and the disassembly views'
+//  options, both saved by the host. The views are redrawn with the options
+//  chosen, as a toolbar check box redraws them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::OpenReverseOptions()
+void DebuggerWindow::OpenOptions()
 {
-    std::optional<ReverseOptions>  chosen;
+    DebuggerOptions                 current;
+    std::optional<DebuggerOptions>  chosen;
+    int                             view    = 0;
 
 
 
@@ -439,12 +465,27 @@ void DebuggerWindow::OpenReverseOptions()
         return;
     }
 
-    chosen = ReverseOptionsDialog::Ask (GetHwnd(), m_theme, m_host->GetReverseOptions());
+    current.reverse     = m_host->GetReverseOptions();
+    current.disassembly = m_codeOptions;
 
-    if (chosen.has_value())
+    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
+
+    if (!chosen.has_value())
     {
-        m_host->SetReverseOptions (*chosen);
+        return;
     }
+
+    m_host->SetReverseOptions (chosen->reverse);
+
+    m_codeOptions = chosen->disassembly;
+    m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
+
+    for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
+    {
+        ApplyCodeView (view);
+    }
+
+    Invalidate();
 }
 
 
@@ -731,11 +772,456 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
     m_pendingLooseSource = thenShow;
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadFileIntoMemory
+//
+//  BLOAD of a file the user picks, in the format, at the address and for the
+//  length typed in the dialog after the picker, run directly. The dialog
+//  opens with the fields typed last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadFileIntoMemory()
+{
+    HRESULT                                  hr     = S_OK;
+    FileDialogSpec                           spec;
+    std::filesystem::path                    chosen;
+    bool                                     picked = false;
+    std::optional<MemoryFileDialog::Fields>  fields;
+    DebuggerAction                           action;
+    std::wstring                             error;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr || !IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile), S_OK);
+
+    spec.filters = { { L"Binary and hex files", L"*.bin;*.b;*.obj;*.hex;*.ihx;*.s19;*.srec;*.as" }, { L"All files", L"*.*" } };
+
+    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    fields = RunMemoryFileDialog (chosen.wstring(), false, m_loadFileFields);
+    BAIL_OUT_IF (!fields.has_value(), S_OK);
+
+    m_loadFileFields = *fields;
+
+    if (MemoryFileDialog::TryMakeLoad (TextEncoding::WideToNarrow (chosen.wstring()), *fields, GetMode(), action, error))
+    {
+        RunAction (action);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveMemoryToFile
+//
+//  BSAVE of a range to a file the user picks, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveMemoryToFile()
+{
+    HRESULT                                  hr     = S_OK;
+    FileDialogSpec                           spec;
+    std::filesystem::path                    chosen;
+    bool                                     picked = false;
+    std::optional<MemoryFileDialog::Fields>  fields;
+    DebuggerAction                           action;
+    std::wstring                             error;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    spec.filters          = { { L"Binary files", L"*.bin" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"bin";
+    spec.defaultFileName  = L"memory.bin";
+
+    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    fields = RunMemoryFileDialog (chosen.wstring(), true, m_saveFileFields);
+    BAIL_OUT_IF (!fields.has_value(), S_OK);
+
+    m_saveFileFields = *fields;
+
+    if (MemoryFileDialog::TryMakeSave (TextEncoding::WideToNarrow (chosen.wstring()), *fields, GetMode(), action, error))
+    {
+        RunAction (action);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PushStackByte
+//
+//  PUSH of a byte typed in a dialog, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PushStackByte()
+{
+    std::optional<Byte>  value = RunByteDialog (L"Push byte", L"Byte");
+
+
+
+    if (value.has_value())
+    {
+        RunAction (DebuggerActions::GetPushByte (*value, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSearchLength
+//
+//  How many bytes a match of S's items covers: each character of a quoted
+//  text, a byte or a wildcard for each other item, and two for a value of
+//  more than two hex digits, which S matches as a word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DebuggerWindow::GetSearchLength (const std::wstring & items)
+{
+    size_t  length = 0;
+    size_t  at     = 0;
+
+
+
+    while (at < items.size())
+    {
+        size_t  end = 0;
+
+        if (iswspace (items[at]) || items[at] == L',')
+        {
+            at++;
+            continue;
+        }
+
+        if (items[at] == L'"' || items[at] == L'\'')
+        {
+            end     = items.find (items[at], at + 1);
+            end     = (end == std::wstring::npos) ? items.size() : end;
+            length += end - at - 1;
+            at      = end + 1;
+            continue;
+        }
+
+        end     = items.find_first_of (L" \t,", at);
+        end     = (end == std::wstring::npos) ? items.size() : end;
+        length += (end - at > 2 && items[at] != L'$') || (end - at > 3) ? 2 : 1;
+        at      = end;
+    }
+
+    return std::max<size_t> (length, 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FindInMemory
+//
+//  S over all memory with the items typed: hex bytes, a word, text in
+//  quotes, ?? for any byte and ?n or n? for half of one. The pane goes to
+//  the first match when the hits arrive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FindInMemory (MemoryPane * pane)
+{
+    std::optional<std::wstring>  items;
+
+
+
+    if (pane == nullptr || m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    items = RunTextDialog (L"Find in memory", L"Find", L"A9 00 ?? \"HELLO\"", [] (const std::wstring & text, std::wstring & error)
+    {
+        error = L"Type hex bytes, text in quotes, or ?? for any byte.";
+        return text.find_first_not_of (L" \t") != std::wstring::npos;
+    });
+
+    //  F3 and Shift+F3 walk the matches from the pane, which the dialog took
+    //  the focus from.
+    SetFocusedControl (pane->GetView());
+
+    if (!items.has_value())
+    {
+        return;
+    }
+
+    m_memoryFind = MemoryFind { pane->GetId(), GetSearchLength (*items), -1, m_snapshot->searchSerial, true };
+    RunAction (DebuggerActions::GetSearchMemory (TextEncoding::WideToNarrow (*items), GetMode()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::StepMemoryFind
+//
+//  The next match, or the one before, round to the other end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::StepMemoryFind (bool forward)
+{
+    int  count = (m_snapshot != nullptr) ? (int) m_snapshot->searchHits.size() : 0;
+
+
+
+    if (count == 0 || m_memoryFind.pane < 1 || m_memoryFind.pane > DebuggerViewState::kMaxMemoryWindows)
+    {
+        AppendConsole ({ "No matches in memory." });
+        return;
+    }
+
+    if (m_memoryFind.at < 0)
+    {
+        m_memoryFind.at = forward ? 0 : count - 1;
+    }
+    else
+    {
+        m_memoryFind.at = (m_memoryFind.at + (forward ? 1 : count - 1)) % count;
+    }
+
+    m_memoryPanes[(size_t) (m_memoryFind.pane - 1)]->SelectRange (m_snapshot->searchHits[(size_t) m_memoryFind.at], m_memoryFind.length);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyMemoryResults
+//
+//  A Find's hits or a comparison's differences, once the snapshot has the
+//  ones its command made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyMemoryResults()
+{
+    if (m_memoryFind.isAwaiting && m_snapshot->searchSerial != m_memoryFind.awaited)
+    {
+        m_memoryFind.isAwaiting = false;
+        StepMemoryFind (true);
+    }
+
+    if (m_memoryCompare.isAwaiting && m_snapshot->compareSerial != m_memoryCompare.awaited &&
+        m_memoryCompare.pane >= 1 && m_memoryCompare.pane <= DebuggerViewState::kMaxMemoryWindows)
+    {
+        m_memoryCompare.isAwaiting = false;
+        m_memoryPanes[(size_t) (m_memoryCompare.pane - 1)]->SetComparison (m_snapshot->comparison);
+        Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FillMemorySelection
+//
+//  F of the selection with the bytes typed, repeated over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FillMemorySelection (MemoryPane * pane)
+{
+    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
+    std::optional<std::wstring>           typed;
+    std::vector<Byte>                     bytes;
+
+
+
+    if (!range.has_value())
+    {
+        return;
+    }
+
+    typed = RunTextDialog (L"Fill selection", L"Bytes", L"00 or A9 20", [] (const std::wstring & text, std::wstring & error)
+    {
+        std::vector<Byte>  parsed;
+
+        error = L"Type one or more hex bytes, as 00 or A9 20.";
+        return TextDialog::TryParseBytes (text, parsed);
+    });
+
+    if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
+    {
+        RunAction (DebuggerActions::GetFillMemory (range->first, range->second, bytes, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CopyMemorySelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CopyMemorySelection (MemoryPane * pane)
+{
+    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
+    std::optional<std::wstring>           typed;
+    Word                                  to    = 0;
+
+
+
+    if (!range.has_value())
+    {
+        return;
+    }
+
+    typed = RunTextDialog (L"Copy selection to", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
+    {
+        Word  address = 0;
+
+        error = L"Type an address, one to four hex digits, as $6000.";
+        return TextDialog::TryParseAddress (text, address);
+    });
+
+    if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
+    {
+        RunAction (DebuggerActions::GetMoveMemory (to, range->first, range->second, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CompareMemorySelection
+//
+//  MC of the selection with the range at the address typed; the pane marks
+//  the bytes that differ once the snapshot has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CompareMemorySelection (MemoryPane * pane)
+{
+    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
+    std::optional<std::wstring>           typed;
+    Word                                  other = 0;
+
+
+
+    if (!range.has_value() || m_snapshot == nullptr)
+    {
+        return;
+    }
+
+    typed = RunTextDialog (L"Compare with", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
+    {
+        Word  address = 0;
+
+        error = L"Type an address, one to four hex digits, as $6000.";
+        return TextDialog::TryParseAddress (text, address);
+    });
+
+    if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
+    {
+        m_memoryCompare = MemoryCompare { pane->GetId(), m_snapshot->compareSerial, true };
+        RunAction (DebuggerActions::GetCompareMemory (other, range->first, range->second, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunTextDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
+                                                           TextDialog::CheckFn check)
+{
+    return TextDialog::RunModal (GetHwnd(), m_theme, title, label, placeholder, std::move (check));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunByteDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label)
+{
+    return ByteDialog::RunModal (GetHwnd(), m_theme, title, label);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunMemoryFileDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<MemoryFileDialog::Fields> DebuggerWindow::RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial)
+{
+    return MemoryFileDialog::RunModal (GetHwnd(), m_theme, path, isSave, initial);
 }
 
 
@@ -1036,7 +1522,8 @@ void DebuggerWindow::ConfigureCodeBars()
                                                        DisassemblyOptions::Option::CodeBytes,
                                                        DisassemblyOptions::Option::Source,
                                                        DisassemblyOptions::Option::Symbols,
-                                                       DisassemblyOptions::Option::LineNumbers };
+                                                       DisassemblyOptions::Option::LineNumbers,
+                                                       DisassemblyOptions::Option::Heat };
 
 
 

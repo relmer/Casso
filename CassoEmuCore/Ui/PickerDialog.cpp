@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "PickerDialog.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 
 

@@ -3,13 +3,13 @@
 #include "Pch.h"
 
 #include "Controllers/GamePortInputMixer.h"
-#include "Shell/HostInputGate.h"
 
 class AppleGamePort;
 class Apple2eSoftSwitchBank;
 class Apple2eKeyboard;
 class SiriusJoyport;
 class DivergenceGate;
+class HostInputGate;
 
 
 

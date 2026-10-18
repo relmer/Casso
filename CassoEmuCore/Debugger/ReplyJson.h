@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Core/JsonValue.h"
 #include "Debugger/Reply.h"
+
+class JsonValue;
 
 
 
@@ -42,6 +43,7 @@ public:
     static const char * GetModeName         (CommandMode mode);
     static const char * GetWatchModeName    (WatchMode mode);
     static const char * GetDataBlockKindName (DataBlockKind kind);
+    static const char * GetDiskEventName    (DiskEvent event);
 
 private:
     using Members = std::vector<std::pair<std::string, JsonValue>>;
@@ -67,4 +69,12 @@ private:
     static JsonValue    MakeTrace           (const TraceData & data);
     static JsonValue    MakeTraceRecord     (const TraceRecord & record);
     static JsonValue    MakeTextArray       (const std::vector<std::string> & lines);
+    static JsonValue    MakeDiskSpec        (const DiskBreakSpec & spec, const std::optional<Word> & resolved);
+    static JsonValue    MakeMarks           (const DiskMarkPattern & marks);
+    static JsonValue    MakeDiskReport      (const DiskReport & report);
+    static JsonValue    MakeDiskField       (const DiskFieldEvent & field);
+    static JsonValue    MakeDiskRequest     (const DiskCallRequest & request);
+    static JsonValue    MakeBasicReport     (const BasicStopReport & report);
+    static JsonValue    MakeBasicVariables  (const BasicVariablesData & data);
+    static JsonValue    MakeBasicStack      (const BasicStackData & data);
 };

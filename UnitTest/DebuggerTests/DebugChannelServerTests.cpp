@@ -5,6 +5,8 @@
 #include "InMemoryPipeTransport.h"
 
 #include "CppUnitTest.h"
+#include "Core/JsonValue.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -113,7 +115,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

@@ -10,6 +10,7 @@
 #include "UiTests/InMemoryFileSystem.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -44,7 +45,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 
@@ -104,6 +105,23 @@ namespace DebuggerTests
 
 
 
+        //  R and W with no file name are the Monitor's tape commands; here they
+        //  take a host file, and the error points tape work at the guest.
+        TEST_METHOD (ReadAndWrite_WithNoName_PointAtTheGuestsMonitorForTape)
+        {
+            Rig    rig;
+            Reply  read  = rig.Run ("800.8FFR");
+            Reply  write = rig.Run ("800.8FFW");
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Error, (int) read.status);
+            Assert::IsTrue   (read.error.detail.find ("type R in the guest's own Monitor") != std::string::npos, Widen (read.error.detail).c_str());
+            Assert::AreEqual ((int) CommandStatus::Error, (int) write.status);
+            Assert::IsTrue   (write.error.detail.find ("type W in the guest's own Monitor") != std::string::npos, Widen (write.error.detail).c_str());
+        }
+
+
         //  L on its own goes on from where the last listing ended, as the
         //  Monitor's does, not from $0000.
         TEST_METHOD (List_WithoutAddress_ContinuesFromTheLastListing)
@@ -121,6 +139,31 @@ namespace DebuggerTests
 
             line = rig.Line ("L", 0);
             Assert::IsTrue (line.starts_with ("0314"), Widen (line).c_str());
+        }
+
+
+        //  The ROM's LIST knows the documented instructions only: an
+        //  undocumented opcode such as LAX ($A7) is ??? over one byte, and the
+        //  listing goes on from the byte after it.
+        TEST_METHOD (List_AnUndocumentedOpcodeIsOneByteOfQuestionMarks)
+        {
+            Rig          rig;
+            TestCpu      cpu;
+            std::string  first;
+            std::string  second;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+            rig.RunOk ("300: A7 EA EA");
+
+            first  = rig.Line ("300L", 0);
+            second = rig.Line ("300L", 1);
+
+            Assert::IsTrue (first.starts_with ("0300") && first.find ("???") != std::string::npos, Widen (first).c_str());
+            Assert::IsTrue (first.find ("LAX") == std::string::npos, Widen (first).c_str());
+            Assert::IsTrue (second.starts_with ("0301") && second.find ("NOP") != std::string::npos, Widen (second).c_str());
         }
 
 
@@ -795,7 +838,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

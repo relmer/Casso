@@ -4,6 +4,7 @@
 #include "CommandLineParser.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -76,7 +77,7 @@ namespace DebugOptionsParseTests
 
     static std::wstring Widen (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 
 
@@ -216,6 +217,15 @@ namespace DebugOptionsParseTests
 
             Assert::AreEqual (std::string ("a.dsk"), options.debug.disk1);
             Assert::AreEqual (std::string ("b.woz"), options.debug.disk2);
+        }
+
+        TEST_METHOD (Tape_TakesTheRecorder)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--tape", "side1.wav" });
+
+
+
+            Assert::AreEqual (std::string ("side1.wav"), options.debug.tape);
         }
 
         TEST_METHOD (Mode_IsFoldedToLowerCase_AndAnotherWordIsRefused)

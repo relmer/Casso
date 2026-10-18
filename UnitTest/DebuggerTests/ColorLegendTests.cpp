@@ -9,6 +9,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -147,15 +148,15 @@ namespace ColorLegendTests
 
 
 
-            lda.address       = 0x0300;
-            lda.bytes         = "A5 10";
-            lda.instruction   = "LDA $10";
-            lda.annotation    = "$0010=41";
-            lda.effect        = "A=41";
-            lda.isCurrent     = true;
-            rts.address       = 0x0302;
-            rts.bytes         = "60";
-            rts.instruction   = "RTS";
+            lda.address                      = 0x0300;
+            lda.bytes                        = "A5 10";
+            lda.instruction                  = "LDA $10";
+            lda.annotationParts.operandValue = "$0010=41";
+            lda.effect                       = "A=41";
+            lda.isCurrent                    = true;
+            rts.address                      = 0x0302;
+            rts.bytes                        = "60";
+            rts.instruction                  = "RTS";
             rts.hasBreakpoint = true;
             rts.isEnabled     = false;
 
@@ -404,14 +405,59 @@ namespace ColorLegendTests
             //  A paint fits the columns to their text, which places the cells.
             list->Paint (painter, text, theme);
 
-            operand = GetTipOverCell (window, *list, 0, 5);
+            operand = GetTipOverCell (window, *list, 0, DisassemblyCells::kOperandColumn);
 
-            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, 1));
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              GetTipOverCell (window, *list, 0, DisassemblyCells::kAddressColumn));
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcMarker)),           GetTipOverCell (window, *list, 0, 0), L"the arrow is in the glyph margin");
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::BreakpointDisabled)), GetTipOverCell (window, *list, 1, 0));
-            Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Annotation)) != std::wstring::npos, operand.c_str());
-            Assert::IsTrue   (operand.find (ColorLegend::GetText (Meaning::Result))     != std::wstring::npos, operand.c_str());
-            Assert::IsTrue   (GetTipOverCell (window, *list, 1, 1).empty(), L"a plain row has no tip");
+            Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::PcRow)),              operand, L"the operand's colors are on its heading, not its cells");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, DisassemblyCells::kAddressColumn).empty(), L"a plain row has no tip");
+            Assert::IsTrue   (GetTipOverCell (window, *list, 1, DisassemblyCells::kOperandColumn).empty(), L"nor has its operand");
+        }
+
+
+        //  The operand column's colors mean the same on every row, so its
+        //  heading has the tip; past the last column there is none.
+        TEST_METHOD (TheOperandHeadingHasTheTipAndNothingPastTheLastColumnHasOne)
+        {
+            CassoTheme              theme = CassoTheme::MakeSkeuomorphic();
+            LegendHost              host;
+            LegendWindow            window (theme, host);
+            DxuiDpiScaler           scaler;
+            DxuiListView          * list    = nullptr;
+            MockDxuiPainter         painter;
+            MockDxuiTextRenderer    text;
+            RECT                    cell    = {};
+            RECT                    bounds  = {};
+            RECT                    anchor  = {};
+            std::wstring            tip;
+            int                     right   = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            list = window.GetCodeList (0);
+            list->Paint (painter, text, theme);
+
+            bounds = list->GetBounds();
+
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
+            Assert::IsTrue (window.TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
+            Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip, L"the operand's heading");
+
+            right = list->GetPaneLeadPx() - list->GetLeftPx();
+
+            for (size_t c = 0; c < list->GetColumnCount(); c++)
+            {
+                right += list->GetColumnEffectiveWidthPx (c);
+            }
+
+            Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
+            Assert::IsFalse (window.TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, anchor, tip), L"past the PC's row's last column");
         }
     };
 }

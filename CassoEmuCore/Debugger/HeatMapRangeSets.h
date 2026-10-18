@@ -88,6 +88,9 @@ public:
     //  The map's label for showing every address rather than a set.
     static constexpr const char  * kpszAllMemory  = "All memory";
 
+    //  The set there is from the first use: every built-in range, included.
+    static constexpr const char  * kpszDefaultSet = "Default";
+
     //  A range as the map lays it out.
     struct Span
     {
@@ -118,6 +121,9 @@ public:
     //  Every built-in range, left out: what a new set starts with.
     static HeatMapRangeSet          MakeSet      (const std::string & name);
 
+    //  With no set at all, adds the Default set; false when there is one.
+    bool                            TryAddDefaultSet ();
+
     //  Never empty, so text written once reads as written, not as unset.
     std::string                     ToText       () const;
     static HeatMapRangeSets         FromText     (const std::string & text);
@@ -137,6 +143,13 @@ public:
     static bool  TryEditRange   (HeatMapRangeSet & set, size_t index, Field field, const std::string & text,
                                  const HeatMapSymbols & symbols, std::string & error);
     static bool  TryRemoveRange (HeatMapRangeSet & set, size_t index, std::string & error);
+
+    //  A new range from a row's name, start, end and size, as TryEditRange
+    //  reads each: a whole span in the start, an end typed or a size. False,
+    //  with the reason, for one that does not read.
+    static bool  TryMakeRange   (const std::string & name, const std::string & start, const std::string & end,
+                                 const std::string & size, const HeatMapSymbols & symbols, HeatMapRange & range,
+                                 std::string & error);
     static bool  TryMoveRange   (HeatMapRangeSet & set, size_t index, int delta);
 
     //  What a range covers, or why it covers nothing.

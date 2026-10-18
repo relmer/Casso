@@ -5,6 +5,7 @@
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/FrameCycleBudget.h"
 #include "EmuTests/TestMachine.h"
 #include "resource.h"
@@ -1710,16 +1711,16 @@ namespace EmulatorDebugWiringTests
                 r.a  = 0x00;
                 GetTarget().SetRegisters (r);
 
-                shell->SetDebugRunDriver (&controller.GetRunDriver());
-                shell->SetDebugSession   (&controller.GetSession());
+                shell->GetDebugger().SetDebugRunDriver (&controller.GetRunDriver());
+                shell->GetDebugger().SetDebugSession   (&controller.GetSession());
             }
 
 
 
             ~Rig()
             {
-                shell->SetDebugRunDriver (nullptr);
-                shell->SetDebugSession   (nullptr);
+                shell->GetDebugger().SetDebugRunDriver (nullptr);
+                shell->GetDebugger().SetDebugSession   (nullptr);
             }
 
 

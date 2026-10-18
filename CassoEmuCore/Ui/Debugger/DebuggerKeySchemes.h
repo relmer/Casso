@@ -70,8 +70,33 @@ public:
         StepBackOut,
         ReverseRun,
 
+        //  The bookmark at the selected line toggled, and the disassembly
+        //  moved to the next or the previous bookmark.
+        ToggleBookmark,
+        NextBookmark,
+        PreviousBookmark,
+
+        //  Each opens its pane, or brings it forward, and focuses it.
+        ShowDisassembly,
+        ShowBreakpoints,
+        ShowCallStack,
+        ShowWatches,
+        ShowMemory1,
+        ShowMemory2,
+        ShowMemory3,
+        ShowMemory4,
+        ShowRegisters,
+        ShowConsole,
+        ShowStack,
+        ShowTrace,
+        ShowHeatMap,
+        ShowHeatRanges,
+        ShowDiskLog,
+        ShowInputLog,
+        ShowBasicProgram,
+
         First = Run,
-        Last  = ReverseRun,
+        Last  = ShowBasicProgram,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;
@@ -80,10 +105,18 @@ public:
     static std::string         GetName  (DebuggerKeyScheme scheme);
     static bool                TryParse (const std::string & name, DebuggerKeyScheme & scheme);
 
+    //  The pane a pane action opens, empty for any other action; and the
+    //  pane action of a pane, none for a pane without one.
+    static std::wstring           GetPaneOfAction (Action action);
+    static std::optional<Action>  GetActionOfPane (const std::wstring & pane);
+
     //  Whether a focused text box keeps a key rather than the scheme getting it.
     //  Function keys and Ctrl or Alt chords always reach the scheme; Space and
     //  Enter reach it only from an empty box, and not even then when an empty
     //  line is itself input, as it is at a Monitor prompt; every other key stays
     //  with the box.
     static bool  DoesBoxKeepKey (WPARAM vk, bool ctrl, bool alt, bool boxFocused, bool boxEmpty, bool isEmptyLineInput);
+
+private:
+    static std::vector<DxuiKeyChord>  AddPaneKeys (std::span<const DxuiKeyChord> keys);
 };

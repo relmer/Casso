@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -337,7 +338,7 @@ std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool is
         mnemonic += (char) std::toupper ((unsigned char) ch);
     }
 
-    wide = std::wstring (mnemonic.begin(), mnemonic.end());
+    wide = TextEncoding::NarrowToWide (mnemonic);
 
     for (const FlagBranch & branch : kBranches)
     {

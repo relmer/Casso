@@ -3,6 +3,7 @@
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/SymbolTable.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -66,7 +67,7 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (isRead, std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue (isRead, TextEncoding::NarrowToWide (error).c_str());
             return { first, last };
         }
 
@@ -246,6 +247,51 @@ namespace DebuggerTests
 
 
 
+        TEST_METHOD (ANewRowReadsAsARangeFromItsColumns)
+        {
+            HeatMapSymbols  symbols = MakeSymbols();
+            HeatMapRange    range;
+            std::string     error;
+
+
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange (" Game ", "$6000-$95FF", "", "", symbols, range, error), L"a whole span in the start");
+            Assert::AreEqual (std::string ("Game"),  range.name);
+            Assert::AreEqual (std::string ("$6000"), range.start);
+            Assert::AreEqual (std::string ("$95FF"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "$300", "", "$100", symbols, range, error), L"a size");
+            Assert::AreEqual (std::string ("+$100"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "$300", "$3FF", "$10", symbols, range, error), L"an end over a size");
+            Assert::AreEqual (std::string ("$3FF"), range.end);
+
+            Assert::IsTrue   (HeatMapRangeSets::TryMakeRange ("", "ZP_VARS", "", "", symbols, range, error), L"a symbol with its own size");
+
+            Assert::IsFalse  (HeatMapRangeSets::TryMakeRange ("", "$6000", "", "", symbols, range, error), L"no end");
+            Assert::IsFalse  (error.empty());
+        }
+
+
+
+        TEST_METHOD (TheDefaultSetHasEveryBuiltInRangeIncluded)
+        {
+            HeatMapRangeSets  sets = HeatMapRangeSets::FromText ("");
+
+
+
+            Assert::IsTrue   (sets.TryAddDefaultSet());
+            Assert::AreEqual ((size_t) 1, sets.sets.size());
+            Assert::AreEqual (std::string ("Default"), sets.sets[0].name);
+            Assert::AreEqual (HeatMapRangeSets::GetPresets().size(), sets.sets[0].ranges.size());
+            Assert::IsTrue   (std::ranges::all_of (sets.sets[0].ranges, [] (const HeatMapRange & range) { return range.included; }));
+
+            Assert::IsFalse  (sets.TryAddDefaultSet(), L"only with no set at all");
+            Assert::AreEqual ((size_t) 1, sets.sets.size());
+        }
+
+
+
         TEST_METHOD (TheSetsRoundTripThroughText)
         {
             HeatMapRangeSets  sets;
@@ -267,9 +313,9 @@ namespace DebuggerTests
             read = HeatMapRangeSets::FromText (sets.ToText());
 
             text = sets.ToText();
-            Logger::WriteMessage (std::wstring (text.begin(), text.end()).c_str());
+            Logger::WriteMessage (TextEncoding::NarrowToWide (text).c_str());
             text = read.ToText();
-            Logger::WriteMessage (std::wstring (text.begin(), text.end()).c_str());
+            Logger::WriteMessage (TextEncoding::NarrowToWide (text).c_str());
 
             Assert::IsTrue   (sets == read, L"every set, range, check and the set shown");
             Assert::IsFalse  (sets.ToText().empty());
@@ -411,7 +457,7 @@ namespace DebuggerTests
 
             hr = table.LoadFrom (SymbolTableId::User, content, 0, loaded, error);
 
-            Assert::IsTrue   (SUCCEEDED (hr), std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue   (SUCCEEDED (hr), TextEncoding::NarrowToWide (error).c_str());
             Assert::IsTrue   (table.TryGetSize ("ZP_VARS", size), L"the file's size= for the label");
             Assert::AreEqual ((Word) 32, size);
             Assert::IsFalse  (table.TryGetSize ("FLAG", size), L"none given, none known");

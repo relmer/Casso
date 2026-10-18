@@ -3,6 +3,9 @@
 
 #include "DxuiSlider.h"
 #include "Theme/DxuiColor.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
 
 
 
@@ -389,6 +392,7 @@ bool DxuiSlider::OnKey (WPARAM vk)
     constexpr int  s_kPageSteps = 10;
     bool           consumed     = false;
     bool           isActive     = m_enabled && m_focused;
+    float          page         = (m_pageStep > 0.0f) ? m_pageStep : m_step * (float) s_kPageSteps;
 
 
 
@@ -409,12 +413,12 @@ bool DxuiSlider::OnKey (WPARAM vk)
                 break;
 
             case VK_PRIOR:
-                ApplyValue (m_value + m_step * (float) s_kPageSteps);
+                ApplyValue (m_value + page);
                 consumed = true;
                 break;
 
             case VK_NEXT:
-                ApplyValue (m_value - m_step * (float) s_kPageSteps);
+                ApplyValue (m_value - page);
                 consumed = true;
                 break;
 

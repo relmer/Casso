@@ -124,6 +124,27 @@ namespace DebuggerTests
 
 
 
+        //  A C file is colored as C, a block comment over its lines.
+        TEST_METHOD (TheSourcePaneColorsACFileAsC)
+        {
+            SourcePane::Style               style;
+            std::vector<DxuiTextView::Row>  rows;
+
+
+
+            style.syntax = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004, 0xFF000005, 0xFF000006 };
+            rows = SourcePane::BuildRows ({ L"/* open", L"   return 1; */", L"return 2;" }, 0, {}, {}, style, {},
+                                          Assembler::Any, SourceSyntax::Listing::None, true);
+
+            Assert::AreEqual ((size_t) 1,  rows[1].spans.size(), L"the second line is all comment");
+            Assert::AreEqual (0xFF000006u, rows[1].spans[0].argb);
+            Assert::AreEqual ((size_t) 2,  rows[2].spans.size());
+            Assert::AreEqual (0xFF000001u, rows[2].spans[0].argb, L"a keyword in the mnemonic color");
+            Assert::AreEqual (0xFF000004u, rows[2].spans[1].argb, L"a number");
+        }
+
+
+
         TEST_METHOD (MerlinParseLineRecordsTheCommentColumn)
         {
             const DialectProfile  & merlin = DialectRegistry::Get (DialectId::Merlin);

@@ -5,8 +5,11 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DiskBreakSpecText.h"
+#include "Debugger/Handlers/BasicHandlers.h"
 #include "Microcode.h"
 #include "OpcodeTable.h"
 
@@ -41,12 +44,14 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
     case DebugVerb::BreakOnOpcode:              SetOpcode     (session, command, reply);                         return true;
     case DebugVerb::BreakOnInterrupt:           SetInterrupt  (session, command, reply);                         return true;
     case DebugVerb::BreakOnUnwrittenRead:       SetUnwritten  (session, command, reply);                         return true;
+    case DebugVerb::SetDiskBreakpoint:          SetDisk       (session, command, reply);                         return true;
     case DebugVerb::ClearBreakpoint:            Clear         (session, command, reply);                         return true;
     case DebugVerb::DisableBreakpoint:          Enable        (session, command, false, reply);                  return true;
     case DebugVerb::EnableBreakpoint:           Enable        (session, command, true,  reply);                  return true;
     case DebugVerb::EditBreakpoint:             Edit          (session, command, reply);                         return true;
     case DebugVerb::ChangeBreakpoint:           Change        (session, command, reply);                         return true;
     case DebugVerb::SaveBreakpoints:            Save          (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -66,7 +71,7 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
 //
 //  BreakpointHandlers::ListAll
 //
-//  Both tables, in id order.
+//  Both tables, in id order, and the BPV scanline break.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +89,8 @@ void BreakpointHandlers::ListAll (DebugSession & session, BreakpointListData & l
 
     std::sort (list.breakpoints.begin(), list.breakpoints.end(),
                [] (const BreakpointInfo & a, const BreakpointInfo & b) { return a.id < b.id; });
+
+    list.videoBreak = session.GetVideoBreak();
 }
 
 
@@ -113,6 +120,11 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.temporary = entry.temporary;
     info.stops     = entry.stops;
     info.hits      = entry.hits;
+    info.symbol    = entry.symbol;
+    info.name      = entry.name;
+    info.disk      = entry.disk;
+    info.resolved  = entry.resolved;
+    info.basicName = entry.basicName;
     return info;
 }
 
@@ -143,6 +155,7 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.temporary = entry.temporary;
     info.stops     = entry.stops;
     info.hits      = entry.hits;
+    info.name      = entry.name;
     return info;
 }
 
@@ -174,13 +187,68 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "BP " + range + clause;
-    case BreakpointKind::Register:    return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
-    case BreakpointKind::Opcode:      return std::format ("BRKOP {:02X}", info.opcode);
-    case BreakpointKind::Brk:         return "BRK ON";
-    case BreakpointKind::Interrupt:   return "BRKINT ON";
-    case BreakpointKind::MemoryValue: return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
-    default:                          return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
+    case BreakpointKind::Address:       return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
+    case BreakpointKind::Register:      return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
+    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode);
+    case BreakpointKind::Brk:           return "BRK ON";
+    case BreakpointKind::Interrupt:     return "BRKINT ON";
+    case BreakpointKind::MemoryValue:   return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    case BreakpointKind::Disk:          return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
+    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address);
+    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName;
+    case BreakpointKind::BasicError:    return "BRKBASIC ON";
+    default:                            return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::FollowSymbols
+//
+//  A rebuilt program can put a routine somewhere else; a breakpoint set by
+//  its symbol moves with it, and one whose symbol is gone is left where it
+//  is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::FollowSymbols (DebugSession & session, std::vector<std::string> & lines)
+{
+    std::vector<Breakpoint>  entries = session.GetBreakpoints().GetAll();
+    Word                     address = 0;
+    bool                     isMoved = false;
+
+
+
+    for (const Breakpoint & entry : entries)
+    {
+        if (entry.kind != BreakpointKind::Address || entry.symbol.empty())
+        {
+            continue;
+        }
+
+        if (!session.TryResolveSymbol (entry.symbol, address))
+        {
+            lines.push_back (std::format ("Breakpoint #{} is at ${:04X}: {} is no longer a symbol.", entry.id, entry.first, entry.symbol));
+            continue;
+        }
+
+        if (address == entry.first)
+        {
+            continue;
+        }
+
+        session.GetBreakpoints().TryMove (entry.id, address);
+        lines.push_back (std::format ("Breakpoint #{} moved from ${:04X} to ${:04X}, the address of {}.", entry.id, entry.first, address, entry.symbol));
+        isMoved = true;
+    }
+
+    if (isMoved)
+    {
+        session.OnStopConditionsChanged();
     }
 }
 
@@ -208,14 +276,17 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
 
     switch (info.kind)
     {
-    case BreakpointKind::Address:     return "exec " + range;
-    case BreakpointKind::Register:    return "when " + info.condition;
-    case BreakpointKind::Opcode:      return std::format ("opcode {:02X}", info.opcode);
-    case BreakpointKind::Io:          return "I/O " + range;
-    case BreakpointKind::Brk:         return "BRK";
-    case BreakpointKind::Interrupt:   return "interrupt";
-    case BreakpointKind::MemoryValue: return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
-    default:                          return std::string (kAccessWords[(int) info.access]) + " " + range;
+    case BreakpointKind::Address:       return "exec " + range;
+    case BreakpointKind::Register:      return "when " + info.condition;
+    case BreakpointKind::Opcode:        return std::format ("opcode {:02X}", info.opcode);
+    case BreakpointKind::Brk:           return "BRK";
+    case BreakpointKind::Interrupt:     return "interrupt";
+    case BreakpointKind::MemoryValue:   return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    case BreakpointKind::Disk:          return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
+    case BreakpointKind::BasicLine:     return std::format ("BASIC line {}", info.address);
+    case BreakpointKind::BasicVariable: return "BASIC variable " + info.basicName;
+    case BreakpointKind::BasicError:    return "BASIC error";
+    default:                            return std::string (kAccessWords[(int) info.access]) + " " + range;
     }
 }
 
@@ -242,6 +313,7 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
     }
 
     id = session.GetBreakpoints().AddAddress (command.a1, last, command.expression);
+    session.GetBreakpoints().TrySetSymbol (id, command.symbol);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
@@ -862,27 +934,44 @@ void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
 //
 //  BreakpointHandlers::SetOpcode
 //
-//  BRKOP with opcodes adds an entry for each; alone, it lists the opcode
-//  entries, or reports that there are none.
+//  BRKOP with opcodes, or mnemonics, adds an entry for each opcode, every
+//  opcode of a mnemonic on this CPU; alone, it lists the opcode entries, or
+//  reports that there are none. An unknown mnemonic adds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    BreakpointListData  list;
-    Breakpoint          entry;
+    BreakpointListData        list;
+    std::istringstream        mnemonics (command.text);
+    std::string               mnemonic;
+    std::vector<Byte>         opcodes   = command.values;
+    std::vector<Byte>         found;
 
 
 
-    for (Byte opcode : command.values)
+    while (mnemonics >> mnemonic)
     {
-        session.GetBreakpoints().TryFind (session.GetBreakpoints().AddOpcode (opcode), entry);
-        list.breakpoints.push_back (MakeInfo (entry));
+        if (!TryFindOpcodes (session, mnemonic, found))
+        {
+            reply.SetError (CommandStatus::Error, "unknown mnemonic", std::format ("{} is no instruction of this CPU.", mnemonic));
+            return;
+        }
+
+        opcodes.insert (opcodes.end(), found.begin(), found.end());
+    }
+
+    std::ranges::sort (opcodes);
+    opcodes.erase (std::ranges::unique (opcodes).begin(), opcodes.end());
+
+    for (Byte opcode : opcodes)
+    {
+        AddOpcodeEntry (session, opcode, list);
     }
 
     session.OnStopConditionsChanged();
 
-    if (command.values.empty())
+    if (opcodes.empty())
     {
         for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
         {
@@ -900,6 +989,119 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
     }
 
     reply.data = list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::AddOpcodeEntry
+//
+//  An opcode's entry, added unless one is there; the BRK opcode is the BRK
+//  breakpoint, so BRKOP 00 and BRK ON make the same one entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list)
+{
+    BreakpointTable  & table = session.GetBreakpoints();
+    Breakpoint         entry;
+    int                id    = -1;
+
+
+
+    for (const Breakpoint & existing : table.GetAll())
+    {
+        bool  isSame = (opcode == kBrkOpcode) ? existing.kind == BreakpointKind::Brk
+                                              : existing.kind == BreakpointKind::Opcode && existing.opcode == opcode;
+
+        id = (isSame && id < 0) ? existing.id : id;
+    }
+
+    if (id < 0)
+    {
+        id = (opcode == kBrkOpcode) ? table.AddBrk() : table.AddOpcode (opcode);
+    }
+
+    if (table.TryFind (id, entry))
+    {
+        list.breakpoints.push_back (MakeInfo (entry));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryFindOpcodes
+//
+//  Every opcode whose instruction is the mnemonic on the target's CPU,
+//  ignoring case; false when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes)
+{
+    const Microcode  * instructionSet = session.GetTarget().GetInstructionSet();
+    int                opcode         = 0;
+
+
+
+    opcodes.clear();
+
+    for (opcode = 0; instructionSet != nullptr && opcode < kOpcodeCount; opcode++)
+    {
+        const char  * name = instructionSet[opcode].instructionName;
+
+        if (name != nullptr && _stricmp (name, mnemonic.c_str()) == 0)
+        {
+            opcodes.push_back ((Byte) opcode);
+        }
+    }
+
+    return !opcodes.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetDisk
+//
+//  BPDISK on a machine with a Disk II controller, with the user's IF alone
+//  as the condition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetDisk (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int         id      = 0;
+    bool        hasDisk = !session.GetTarget().GetMachineInfo().disks.empty();
+    Breakpoint  entry;
+
+
+
+    if (!hasDisk)
+    {
+        reply.SetError (CommandStatus::Error, "no Disk II controller", "This machine has no Disk II controller.");
+        return;
+    }
+
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
+    id = session.GetBreakpoints().AddDisk (command.disk.value_or (DiskBreakSpec {}), command.expression);
+    session.OnStopConditionsChanged();
+    session.GetBreakpoints().TryFind (id, entry);
+    reply.data = BreakpointSetData { MakeInfo (entry) };
 }
 
 
@@ -1092,7 +1294,7 @@ void BreakpointHandlers::Clear (DebugSession & session, const DebugCommand & com
 
     if (!isFound)
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1138,7 +1340,7 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 
     if (!session.GetBreakpoints().TrySetEnabled (id, enabled) && !session.GetWatchpoints().TrySetEnabled (id, enabled))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1175,7 +1377,7 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
     if (command.text == "*" || !TryFindInfo (session, id, old))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1190,7 +1392,8 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV or BRKOP would take it, or BRK ON or BRKINT ON.");
+                        "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV, BPDISK, BPBASIC, BPBASICVAR or BRKOP would take it, "
+                        "or BRK ON, BRKINT ON or BRKBASIC ON.");
         return;
     }
 
@@ -1238,7 +1441,9 @@ bool BreakpointHandlers::TryMakeEntry (
     Watchpoint            & watchpoint,
     bool                  & isWatchpoint)
 {
-    Word  last = definition.hasA2 ? definition.a2 : definition.a1;
+    Word            last    = definition.hasA2 ? definition.a2 : definition.a1;
+    bool            isValid = false;
+    BasicReference  reference;
 
 
 
@@ -1246,10 +1451,12 @@ bool BreakpointHandlers::TryMakeEntry (
     breakpoint.enabled   = old.enabled;
     breakpoint.temporary = old.temporary;
     breakpoint.stops     = old.stops;
+    breakpoint.name      = old.name;
     watchpoint.id        = id;
     watchpoint.enabled   = old.enabled;
     watchpoint.temporary = old.temporary;
     watchpoint.stops     = old.stops;
+    watchpoint.name      = old.name;
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
@@ -1291,6 +1498,27 @@ bool BreakpointHandlers::TryMakeEntry (
 
     case DebugVerb::BreakOnInterrupt:
         breakpoint.kind = BreakpointKind::Interrupt;
+        return definition.text == "ON";
+
+    case DebugVerb::SetDiskBreakpoint:
+        breakpoint.kind      = BreakpointKind::Disk;
+        breakpoint.disk      = definition.disk;
+        breakpoint.condition = definition.expression;
+        return definition.disk.has_value();
+
+    case DebugVerb::SetBasicLineBreakpoint:
+        breakpoint.kind = BreakpointKind::BasicLine;
+        isValid         = BasicHandlers::TryParseLine (definition.text, breakpoint.first);
+        breakpoint.last = breakpoint.first;
+        return isValid;
+
+    case DebugVerb::SetBasicVariableBreakpoint:
+        breakpoint.kind      = BreakpointKind::BasicVariable;
+        breakpoint.basicName = definition.text;
+        return ApplesoftProgram::TryParseReference (definition.text, reference);
+
+    case DebugVerb::BreakOnBasicError:
+        breakpoint.kind = BreakpointKind::BasicError;
         return definition.text == "ON";
 
     case DebugVerb::SetMemoryWatchpoint: watchpoint.access = WatchAccess::ReadWrite; isWatchpoint = true; return true;
@@ -1338,6 +1566,35 @@ bool BreakpointHandlers::IsBrkOn (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHandlers::SetName
+//
+//  BPNAME # "text", for a breakpoint or a watchpoint; no text returns it to
+//  the default name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetName (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int  id = (int) command.count;
+
+
+
+    if (!session.GetBreakpoints().TrySetName (id, command.text) && !session.GetWatchpoints().TrySetName (id, command.text))
+    {
+        SetNoSuch (session, reply, id);
+        return;
+    }
+
+    reply.data = MessageData { { command.text.empty() ? std::format ("Breakpoint #{}: name cleared.", id)
+                                                       : std::format ("Breakpoint #{}: name set to \"{}\".", id, command.text) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHandlers::Change
 //
 //  BPCHANGE # flags: E or e for enabled, T or t for temporary, S or s for
@@ -1354,7 +1611,7 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
 
     if (command.text == "*" || !TryFindInfo (session, id, info))
     {
-        SetNoSuch (reply, id);
+        SetNoSuch (session, reply, id);
         return;
     }
 
@@ -1580,8 +1837,8 @@ void BreakpointHandlers::Replace (DebugSession & session, int id, const SavedEnt
 //
 //  BreakpointHandlers::SetState
 //
-//  Gives breakpoint `id` the enabled state and When hit setting of `info`,
-//  keeping its definition and hit count.
+//  Sets breakpoint `id`'s enabled state, When hit setting and name to
+//  those of `info`; its definition and hit count are left alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1590,10 +1847,12 @@ void BreakpointHandlers::SetState (DebugSession & session, int id, const Breakpo
     if (session.GetBreakpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
+        session.GetBreakpoints().TrySetName  (id, info.name);
     }
     else if (session.GetWatchpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetWatchpoints().TrySetFlags (id, info.temporary, info.stops);
+        session.GetWatchpoints().TrySetName  (id, info.name);
     }
 
     session.OnStopConditionsChanged();
@@ -1658,9 +1917,9 @@ bool BreakpointHandlers::TryFindInfo (DebugSession & session, int id, Breakpoint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHandlers::SetNoSuch (Reply & reply, int id)
+void BreakpointHandlers::SetNoSuch (const DebugSession & session, Reply & reply, int id)
 {
-    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. Use BPL to list them.", id));
+    reply.SetError (CommandStatus::Error, "no such breakpoint", std::format ("There is no breakpoint #{}. Use {} to list them.", id, CommandModeHelp::GetTypedName (session.GetLineMode(), "BPL")));
 }
 
 

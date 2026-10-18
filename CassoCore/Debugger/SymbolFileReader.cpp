@@ -2,6 +2,7 @@
 
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugFileReader.h"
+#include "Debugger/DebugFile.h"
 
 
 

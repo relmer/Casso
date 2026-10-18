@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImageStore.h"    // IsMountableImageExtension
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/IDiskImage.h"        // WriteProtectInfo
+#include "Machines/Apple2/Common/WozCompatibility.h"
 
 
 
@@ -72,11 +73,6 @@ struct DriveWidgetState
     // Disk2Controller::GetCurrentTrack next door returns whole ones. See
     // GH #136, which renames them.
     //
-    // Sampled per drive rather than from the controller's own quarter-track,
-    // which is a single member for the whole card and so follows whichever
-    // drive is selected. Drive 1's head drawn under drive 2's name would be a
-    // worse fault than a coarse readout. GH #135 covers the underlying defect.
-    //
     // -1 means the position is not known, which is every drive on a machine
     // with no Disk ][ controller. A reader must not render that as track 0.
     std::atomic<int>  headQuarterTrack     { -1 };
@@ -96,6 +92,19 @@ struct DriveWidgetState
     // from the DiskImage in DiskManager::UpdateDriveWidgets. Drives the
     // padlock cue and the hover tooltip. UI-thread only.
     WriteProtectInfo  writeProtect;
+
+    // What the mounted WOZ image declares about the machine it needs, and
+    // whether that conflicts with the machine running now -- which is what
+    // shows the info icon after the title. Sampled with writeProtect.
+    WozRequirements   wozRequirements;
+    bool              wozConflict          = false;
+
+    // The machine the requirements were checked against, which the icon's
+    // tooltip quotes. Sampled under the machine's lifetime lock, because the
+    // pointer can rest on the icon while a machine switch on the CPU thread
+    // replaces the config.
+    WozMachineFacts   wozMachine;
+    std::string       wozMachineName;
 
     // Default Open: an empty drive at rest shows the door open
     // (matches real Apple Disk II). Drives that auto-mount at boot

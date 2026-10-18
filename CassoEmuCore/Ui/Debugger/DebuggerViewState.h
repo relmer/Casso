@@ -1,10 +1,8 @@
 #pragma once
 
-#include "Core/IParallelRunner.h"
-
+#include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugFile.h"
 #include "Debugger/DiagnosticsSnapshot.h"
-#include "Debugger/HeatAccessJump.h"
 #include "Debugger/HeatMapOptions.h"
 #include "Debugger/Reply.h"
 #include "Debugger/Reverse/HistoryStatus.h"
@@ -19,6 +17,10 @@ class HeatMapSymbols;
 class AccessHeatMap;
 class IDebugTarget;
 class Microcode;
+class IParallelRunner;
+struct HeatAccessInfo;
+struct HeatAccessHover;
+class HeatAccessJump;
 
 class DebugSession;
 class IDiagnosticsProvider;
@@ -42,21 +44,36 @@ class IDiagnosticsProvider;
 
 struct DebuggerViewSnapshot
 {
+    //  A code line's annotation in its parts; a view composes the parts its
+    //  disassembly options turn on: the registers the instruction reads, the
+    //  address it accesses and the byte there, the pointer an indirect mode
+    //  reads, the flags, and the description of a location with a symbol.
+    struct AnnotationParts
+    {
+        std::string  registers;
+        std::string  operandValue;
+        std::string  pointer;
+        std::string  flags;
+        std::string  about;
+    };
+
     struct CodeLine
     {
-        Word         address       = 0;
+        Word         address        = 0;
         std::string  bytes;
         std::string  instruction;
         std::string  label;
-        bool         isCurrent     = false;
-        bool         hasBreakpoint = false;
-        bool         isEnabled     = true;
+        bool         isCurrent      = false;
+        bool         isBranchedFrom = false;
+        bool         hasBreakpoint  = false;
+        bool         isEnabled      = true;
 
         //  Where a branch or jump goes, and what the instruction acts on as
         //  the registers stand: its effective address and the byte there, or
         //  the flag a branch tests (FR-078).
         std::optional<Word>  target;
         std::string          annotation;
+        AnnotationParts      annotationParts;
 
         //  False for a branch on the PC's line that the flags as they stand
         //  will not take; true wherever that is not known.
@@ -76,6 +93,10 @@ struct DebuggerViewSnapshot
         //  debug file is loaded and one did.
         int          sourceFileId  = -1;
         int          sourceLine    = 0;
+
+        //  Whether the line is in ROM, which an edit of the instruction does
+        //  not change.
+        bool         isRom         = false;
     };
 
     struct RegisterRow
@@ -127,12 +148,14 @@ struct DebuggerViewSnapshot
         std::string     label;
     };
 
+    //  basicName is a BASIC watch's variable, empty for an address.
     struct WatchLine
     {
         int          id      = 0;
         Word         address = 0;
         std::string  value;
         bool         enabled = true;
+        std::string  basicName;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or
@@ -180,6 +203,11 @@ struct DebuggerViewSnapshot
         //  The same map is shared until another debug file is loaded.
         std::shared_ptr<const std::map<std::pair<int, int>, Word>>  lineAddresses;
 
+        //  Every line that produced code, to the first range of addresses it
+        //  produced, first and last; the same map is shared as the first
+        //  addresses' map is.
+        std::shared_ptr<const std::map<std::pair<int, int>, std::pair<Word, Word>>>  lineRanges;
+
         //  What each line in the PC's files reads, as the disassembly pane's
         //  operand column has it, and for the line at PC what it leaves too:
         //  the operand first, the result second. Built while the machine is
@@ -206,6 +234,14 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
+    //  Where the branch, jump or call that brought the machine to the PC is,
+    //  by a step or a run that stopped there; none where the machine came to
+    //  the PC otherwise, or while running.
+    std::optional<Word>          branchedFrom;
+    //  The last instruction that sent PC elsewhere, at any stop, and where it
+    //  sent it, when that is known.
+    std::optional<Word>          lastBranchFrom;
+    std::optional<Word>          lastBranchTo;
     //  Whether the machine was stopped when this was built. The command bar
     //  gates on it: stepping a running machine is not a command it can take.
     bool                         isPaused      = false;
@@ -214,6 +250,10 @@ struct DebuggerViewSnapshot
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
+
+    //  The CPU's instruction set, which the code pane assembles an edited
+    //  instruction with.
+    const Microcode            * instructionSet = nullptr;
 
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;
@@ -237,10 +277,49 @@ struct DebuggerViewSnapshot
     CallStackData                         callStack;
     std::vector<BreakpointLine>           breakpoints;
 
+    //  The Disk II controller's slot, which a disk breakpoint's Data column
+    //  has; absent on a machine with none.
+    std::optional<int>                    diskSlot;
+
     //  Whether the breakpoints pane has a step to undo or redo (FR-120).
     bool                                  canUndoBreakpoints = false;
     bool                                  canRedoBreakpoints = false;
     std::vector<WatchLine>                watches;
+
+    //  The zero-page pointers, each the address its two bytes form and the
+    //  first bytes there, as "$0300: A9 41 8D 00"; "--" for one disabled.
+    std::vector<WatchLine>                zeroPagePointers;
+
+    //  The bookmarks, each its id and address.
+    std::vector<WatchLine>                bookmarks;
+
+    //  The symbol tables, each its name, count and whether it is on, and
+    //  every symbol in them; one object until the symbols change, so a pane
+    //  rebuilds its rows only then.
+    struct SymbolTableRow
+    {
+        std::string    name;
+        size_t         count   = 0;
+        bool           enabled = true;
+        SymbolTableId  id      = SymbolTableId::Main;
+    };
+
+    struct SymbolsState
+    {
+        std::vector<SymbolTableRow>  tables;
+        std::vector<SymbolInfo>      symbols;
+    };
+
+    std::shared_ptr<const SymbolsState>   symbols;
+
+    //  The profile, read while the machine is paused; none while it runs.
+    //  Whether profiling is on, read either way. The data blocks and the
+    //  step filter's entries.
+    std::optional<ProfileData>            profile;
+    std::optional<ProfileData>            profileByAddress;
+    bool                                  isProfiling = false;
+    std::vector<DataBlockEntry>           dataBlocks;
+    std::vector<StepFilterEntry>          stepFilters;
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;
@@ -289,6 +368,17 @@ struct DebuggerViewSnapshot
 
     HeatMapState                          heatMap;
 
+    //  The CPU's address space's levels for the heat columns, read while any
+    //  is shown as the heat map's are; none while none is.
+    struct HeatColumnLevels
+    {
+        std::vector<Byte>  execute;
+        std::vector<Byte>  read;
+        std::vector<Byte>  write;
+    };
+
+    std::shared_ptr<const HeatColumnLevels>  heatColumns;
+
     //  The symbols the heat map's ranges are read against. The same copy is
     //  shared from snapshot to snapshot until the symbols change.
     std::shared_ptr<const HeatMapSymbols> heatMapSymbols;
@@ -328,6 +418,34 @@ struct DebuggerViewSnapshot
     };
 
     std::optional<GoTo>  goTo;
+
+    //  The last S or SH's hits and the last MC's differences, each with a
+    //  serial that moves when a new one replaces it.
+    std::vector<Word>               searchHits;
+    uint64_t                        searchSerial  = 0;
+    std::vector<CompareDifference>  comparison;
+    uint64_t                        compareSerial = 0;
+
+    //  The Applesoft program while a BASIC pane is open: whether Applesoft
+    //  is in the $D000 bank, its lines when the chain from TXTTAB ends as it
+    //  should, the line being run (none in direct mode or at the ] prompt)
+    //  and the byte after TXTPTR, which is the start of a statement about to
+    //  run or a byte of the one running. The variables and frames are read
+    //  only while the machine is paused, and hasValues is true then.
+    struct BasicState
+    {
+        bool                         isApplesoft = false;
+        bool                         hasProgram  = false;
+        std::vector<BasicLine>       lines;
+        std::optional<Word>          line;
+        Word                         textPointer = 0;
+        bool                         hasValues   = false;
+        std::vector<BasicVariable>   variables;
+        std::vector<BasicArray>      arrays;
+        std::vector<BasicFrame>      frames;
+    };
+
+    std::optional<BasicState>  basic;
 };
 
 
@@ -366,8 +484,16 @@ public:
     //  the last reading. A stopped machine's is read at every build.
     static constexpr uint64_t  kHeatIntervalMs  = 100;
 
-    //  The registers pane's last row: the CPU cycle count, read only.
-    static constexpr const char  * kCyclesRegister = "Cycles";
+    //  The registers pane's last rows, read only: the CPU cycle count, the
+    //  cycles since RCC, and the last branch taken.
+    static constexpr const char  * kCyclesRegister     = "Cycles";
+    static constexpr const char  * kTripRegister       = "Trip";
+    static constexpr const char  * kLastBranchRegister = "Last branch";
+
+    static bool  IsReadOnlyRegister (const std::string & name)
+    {
+        return name == kCyclesRegister || name == kTripRegister || name == kLastBranchRegister;
+    }
 
     //  Memory windows: the first is always open, and up to three more. Each
     //  reads this many bytes from a sixteen-byte boundary, enough for the rows a
@@ -449,18 +575,25 @@ public:
     static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
     static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
 
-    //  Behind live, the trace pane lists the instructions that led to the
-    //  current position, at most kHistoryTraceRows of them, in place of the
-    //  live trace.
-    static constexpr size_t  kHistoryTraceRows = 1000;
+    //  The BASIC panes: while one is visible each snapshot includes the
+    //  Applesoft program; with none visible the program is not read.
+    void                 SetBasicShown   (bool isVisible) { m_isBasicShown = isVisible; }
+    bool                 IsBasicShown    () const     { return m_isBasicShown; }
 
-    static void         ApplyHistoryTrace   (DebugSession & session, std::vector<TraceRecord> entries, DebuggerViewSnapshot & snapshot);
+    //  The Applesoft program and, while paused, its values, for the BASIC
+    //  panes.
+    static DebuggerViewSnapshot::BasicState  ReadBasic (DebugSession & session, bool isPaused);
 
     //  The heat map pane: while it is shown the machine's accesses are
     //  counted and each snapshot carries their levels; hidden, the machine
     //  records nothing.
     void                 SetHeatMapShown (bool shown) { m_isHeatMapShown = shown; m_isHeatReadDue = true; }
     bool                 IsHeatMapShown  () const     { return m_isHeatMapShown; }
+
+    //  The heat columns: while any is shown the accesses are counted too, and
+    //  each snapshot has the CPU's address space's levels.
+    void                 SetHeatColumnsShown (bool shown) { m_isHeatColumnsShown = shown; m_isHeatReadDue = true; }
+    bool                 IsHeatColumnsShown  () const     { return m_isHeatColumnsShown; }
 
     //  Whether the levels come from the fading heat or the totals, and how
     //  long the heat takes to fade.
@@ -512,6 +645,7 @@ public:
     static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address);
     static std::string  GetPokeLine             (Word address, Byte value);
     static bool         IsCodeBreakpointAt      (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
+    static bool         IsDiskRoutineAt         (const DebuggerViewSnapshot::BreakpointLine & bp, Word address);
 
     //  The actions a finished watch edit takes (FR-096), echoed in `mode`.
     //  `watchId` picks a manual watch and `autoIndex` an automatic one;
@@ -533,10 +667,11 @@ public:
     {
         std::vector<DebuggerAction>  actions;
 
-        //  For a moved watch: the id before the edit, and the address to put
-        //  back. `movedFromIds` is every watch id there was, so the one the
-        //  edit made is the one not among them.
-        std::optional<Word>          restoreAddress;
+        //  For a moved watch: the id before the edit, and what to watch again,
+        //  an address in hex or BASIC and a variable's name. `movedFromIds` is
+        //  every watch id there was, so the one the edit made is the one not
+        //  among them.
+        std::optional<std::string>   restoreText;
         std::vector<int>             movedFromIds;
 
         //  The watch the move made, once a snapshot shows it.
@@ -594,6 +729,10 @@ public:
                                                       const DebuggerViewSnapshot * snapshot,
                                                       int                          selectedRow);
 
+    //  A code line's annotation from its parts, with or without the operand's
+    //  value and the pointer an indirect mode reads.
+    static std::string  ComposeAnnotation (const DebuggerViewSnapshot::AnnotationParts & parts, bool withOperandValue, bool withPointer);
+
     //  A control's AppleWin line in the words of the mode the session is in,
     //  where the mode has them: GSSquared's `s`, `o`, `r`, `g`, `bp`, `nobp`
     //  and `addr:` deposit; WinDbg's `t`, `p`, `gu`, `g`, `bp`, `bc` and `eb`.
@@ -601,10 +740,6 @@ public:
     static std::string  GetModeLine   (const std::string & line, CommandMode mode);
     static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line);
     static bool         IsHexBytes    (const std::string & text);
-
-    //  SRC ON or SRC OFF, which the window sends when focus moves between the
-    //  source and the disassembly, in the words of the given mode.
-    static std::string  GetSourceStepLine (bool isSource, CommandMode mode);
 
     //  In GSSquared mode with the command line empty, Space and F10 step and
     //  Return resumes, as GSSquared's own window does, whatever the key
@@ -659,6 +794,11 @@ public:
     //  CPU thread only.
     std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
 
+    //  The Breakpoints pane's undo history as a debug project saves it, and
+    //  that history replaced from such text. CPU thread only.
+    std::string  GetBreakpointUndoText () const                                         { return m_breakpointHistory.ToText(); }
+    void         SetBreakpointUndoText (DebugSession & session, const std::string & text) { m_breakpointHistory.FromText (session, text); }
+
     //  The R or W a line holds with no file name, which the window asks for,
     //  and the line with the chosen name added.
     static std::optional<DebugVerb>  GetMissingFileVerb  (const std::string & line, CommandMode mode, bool isAssembling);
@@ -707,6 +847,8 @@ private:
     void  BuildPanels      (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildHeatMap     (DebugSession & session, DebuggerViewSnapshot & snapshot, bool isPaused) const;
     void  ReadHeatMap      (DebugSession & session, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state) const;
+
+    std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  ReadHeatColumns (const AccessHeatMap & map) const;
     static HeatAccessInfo  GetHeatAccess (DebugSession & session, HeatSpace space, bool isWrite, Word address);
     static void            ReadHeatValues (IDebugTarget & target, const AccessHeatMap & map, HeatMapOptions::Bank bank, std::vector<int16_t> & values);
     static void            FindHeatMarks  (IDebugTarget & target, const AccessHeatMap & map, DebuggerViewSnapshot::HeatMapState & state);
@@ -740,6 +882,8 @@ private:
     static std::optional<Word>  GetOperandAddress      (DebugSession & session, Word address);
     static std::string          GetAnnotation          (DebugSession & session, const DisassemblyLine & line,
                                                        const Cpu6502Registers & registers, const InstructionTouches::Result & touches);
+    static DebuggerViewSnapshot::AnnotationParts  GetAnnotationParts (DebugSession & session, const DisassemblyLine & line,
+                                                                     const Cpu6502Registers & registers, const InstructionTouches::Result & touches);
     static std::string          GetEffect              (DebugSession & session, const Cpu6502Registers & registers,
                                                        const InstructionTouches::Result & touches, Word next);
 
@@ -748,6 +892,7 @@ private:
     //  anchor that puts the PC in the middle.
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
+    void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);
@@ -791,6 +936,8 @@ private:
     Word                                           m_memoryAddress          = 0x0000;
     std::optional<uint64_t>                        m_traceTop;
     bool                                           m_isHeatMapShown         = false;
+    bool                                           m_isHeatColumnsShown     = false;
+    bool                                           m_isBasicShown           = false;
     HeatMapOptions                                 m_heatMapOptions;
     mutable std::shared_ptr<const HeatMapSymbols>  m_heatMapSymbols;
     mutable uint64_t                               m_heatMapSymbolsRevision = 0;
@@ -800,9 +947,14 @@ private:
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
 
+    //  The symbols as last read, and the symbol revision they were read at.
+    mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;
+    mutable uint64_t                                                    m_symbolsRevision = 0;
+
     //  The heat map as last read, when, and whether the next build reads it
     //  again whatever the time.
     mutable std::shared_ptr<const DebuggerViewSnapshot::HeatMapState>     m_heatRead;
+    mutable std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> m_heatColumnsRead;
     mutable uint64_t                                                      m_heatReadAt     = 0;
     mutable uint64_t                                                      m_heatSerial     = 0;
     mutable bool                                                          m_isHeatReadDue  = true;
@@ -843,5 +995,8 @@ private:
     //  The line-to-address map for the loaded debug file, built once per load.
     mutable std::string                                                        m_lineAddressesKey;
     mutable std::shared_ptr<const std::map<std::pair<int, int>, Word>>         m_lineAddresses;
+
+    //  The first range each line produced, built with m_lineAddresses.
+    mutable std::shared_ptr<const std::map<std::pair<int, int>, std::pair<Word, Word>>>  m_lineRanges;
     mutable std::shared_ptr<const DebuggerViewSnapshot::LineOperands>          m_lineOperands;
 };

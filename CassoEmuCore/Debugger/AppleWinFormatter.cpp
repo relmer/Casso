@@ -4,6 +4,7 @@
 
 #include "Debugger/CallStack.h"
 #include "Debugger/CommandModeNames.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/ReplyJson.h"
 
 
@@ -40,13 +41,16 @@ void AppleWinFormatter::Format (Reply & reply)
 //  A watchpoint stop says who touched what: the access, the value, the byte
 //  a write replaced when it is known, and the instruction that did it. A
 //  before-mode stop has no value yet. A read before written says so, with
-//  the value read. Other stops give the reason and PC.
+//  the value read. A disk stop is its report, and any other stop with a disk
+//  report has the report's lines after its own. Any other stop is its reason
+//  and PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset" };
+    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
+                                                 "BASIC step", "BASIC error" };
     std::string                   text;
 
 
@@ -83,7 +87,29 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
             }
         }
 
-        return text + FormatCondition (stop);
+        return text + FormatCondition (stop) + JoinDiskReport (stop);
+    }
+
+    if (stop.basic.has_value() && stop.basic->isBasicStop)
+    {
+        return DescribeBasicStop (stop) + JoinDiskReport (stop);
+    }
+
+    if (stop.reason == StopReason::Disk && stop.disk.has_value())
+    {
+        Lines  lines;
+
+
+
+        FormatDiskReport (*stop.disk, lines);
+        lines.front() += FormatCondition (stop);
+
+        for (const std::string & line : lines)
+        {
+            text += (text.empty() ? "" : "\n") + line;
+        }
+
+        return text;
     }
 
     text = std::format ("{} at ${:04X}", kReasons[(int) stop.reason], stop.pc);
@@ -98,6 +124,93 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
     if (stop.sourceLine > 0)
     {
         text += std::format (", {} line {}", stop.sourceFile, stop.sourceLine);
+    }
+
+    if (stop.basic.has_value() && stop.basic->line.has_value())
+    {
+        text += std::format (", BASIC line {}", *stop.basic->line);
+    }
+
+    return text + JoinDiskReport (stop);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::DescribeBasicStop
+//
+//  An error reads as Applesoft prints it, ?SYNTAX ERROR IN 20, with its code
+//  and whether ONERR was on to take it. A string variable's values are in
+//  quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::DescribeBasicStop (const StopEvent & stop)
+{
+    const BasicStopReport  & report  = *stop.basic;
+    std::string              at      = report.line.has_value() ? std::format ("line {}", *report.line) : std::string ("direct mode");
+    bool                     isText  = report.variable.ends_with ('$');
+    std::string              quote   = isText ? "\"" : "";
+
+
+
+    if (stop.reason == StopReason::BasicStep)
+    {
+        return "BASIC step to " + at;
+    }
+
+    if (stop.reason == StopReason::BasicError)
+    {
+        return std::format ("BASIC error: ?{} ERROR{} (code ${:02X}{})",
+                            report.error,
+                            report.line.has_value() ? std::format (" IN {}", *report.line) : std::string(),
+                            report.errorCode.value_or (0),
+                            report.isHandled ? ", ONERR on" : "");
+    }
+
+    if (!report.variable.empty())
+    {
+        return std::format ("Breakpoint #{}: {} changed from {}{}{} to {}{}{}{}, stopped at {}",
+                            stop.breakpointId.value_or (0), report.variable,
+                            quote, report.previous, quote, quote, report.value, quote,
+                            report.changeLine.has_value() ? std::format (" in line {}", *report.changeLine) : std::string(),
+                            at);
+    }
+
+    return std::format ("Breakpoint #{} at BASIC {}", stop.breakpointId.value_or (0), at);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::JoinDiskReport
+//
+//  A disk report's lines, each after a newline, for a stop that came
+//  another way; nothing when the stop has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::JoinDiskReport (const StopEvent & stop)
+{
+    Lines        lines;
+    std::string  text;
+
+
+
+    if (stop.disk.has_value())
+    {
+        FormatDiskReport (*stop.disk, lines);
+    }
+
+    for (const std::string & line : lines)
+    {
+        text += "\n" + line;
     }
 
     return text;
@@ -240,6 +353,13 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
     else if (auto * v = std::get_if<CalcData>           (&data)) { FormatCalc           (*v, lines); }
     else if (auto * v = std::get_if<StepFilterData>     (&data)) { FormatStepFilter     (*v, lines); }
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack      (*v, lines); }
+    else if (auto * v = std::get_if<BasicVariablesData> (&data)) { FormatBasicVariables (*v, lines); }
+    else if (auto * v = std::get_if<BasicStackData>     (&data)) { FormatBasicStack     (*v, lines); }
+    else if (auto * v = std::get_if<ProjectData>        (&data))
+    {
+        lines.push_back (std::format ("Debug project for {}, {}", v->label, v->isAutomatic ? "saved automatically" : "saved where it was chosen"));
+        lines.push_back ("File: " + v->file);
+    }
     else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
@@ -377,7 +497,42 @@ void AppleWinFormatter::FormatDisassembly (const DisassemblyData & data, Lines &
 
 void AppleWinFormatter::FormatBreakpointSet (const BreakpointSetData & data, Lines & lines)
 {
-    lines.push_back (std::format ("Breakpoint #{} set {}", data.breakpoint.id, DescribeBreakpoint (data.breakpoint)));
+    const BreakpointInfo  & info   = data.breakpoint;
+    bool                    isCall = info.disk.has_value() && (info.disk->event == DiskEvent::RwtsCall || info.disk->event == DiskEvent::DriverCall);
+    const char            * vector = (isCall && info.disk->event == DiskEvent::RwtsCall) ? "$03D9 has no JMP" : "the device vector has no routine";
+
+
+
+    if (info.kind != BreakpointKind::Disk)
+    {
+        lines.push_back (std::format ("Breakpoint #{} set {}", info.id, DescribeBreakpoint (info)));
+    }
+    else
+    {
+        lines.push_back (std::format ("Set disk breakpoint #{} ({}){}", info.id, DiskBreakSpecText::GetDescription (*info.disk),
+                                      (isCall && !info.resolved.has_value()) ? std::format (", unresolved: {} yet", vector) : std::string()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::AppendVideoBreak
+//
+//  The BPV scanline break, after the list, in every mode's list layout: it
+//  has no id, so no layout has a column for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::AppendVideoBreak (const BreakpointListData & data, std::vector<std::string> & lines)
+{
+    if (data.videoBreak.has_value())
+    {
+        lines.push_back (std::format ("Video break on scanlines ${:X}-${:X}, cleared when it fires.", data.videoBreak->first, data.videoBreak->second));
+    }
 }
 
 
@@ -392,7 +547,7 @@ void AppleWinFormatter::FormatBreakpointSet (const BreakpointSetData & data, Lin
 
 void AppleWinFormatter::FormatBreakpointList (const BreakpointListData & data, Lines & lines)
 {
-    if (data.breakpoints.empty())
+    if (data.breakpoints.empty() && !data.videoBreak.has_value())
     {
         lines.push_back ("No breakpoints.");
         return;
@@ -400,12 +555,15 @@ void AppleWinFormatter::FormatBreakpointList (const BreakpointListData & data, L
 
     for (const BreakpointInfo & breakpoint : data.breakpoints)
     {
-        lines.push_back (std::format ("#{} {} {}, hits {}",
+        lines.push_back (std::format ("#{} {} {}{}, hits {}",
                                       breakpoint.id,
                                       breakpoint.enabled ? "enabled " : "disabled",
                                       DescribeBreakpoint (breakpoint),
+                                      breakpoint.name.empty() ? std::string() : std::format (", \"{}\"", breakpoint.name),
                                       breakpoint.hits));
     }
+
+    AppendVideoBreak (data, lines);
 }
 
 
@@ -432,11 +590,16 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
 
     for (const WatchEntry & entry : data.entries)
     {
-        std::string  text = std::format ("#{} ${:04X}", entry.id, entry.address);
+        std::string  text = entry.basicName.empty() ? std::format ("#{} ${:04X}", entry.id, entry.address)
+                                                    : std::format ("#{} {}", entry.id, entry.basicName);
 
 
 
-        if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
+        if (!entry.basicName.empty())
+        {
+            text += " = " + entry.basicValue.value_or ("--");
+        }
+        else if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
         {
             text += std::format (" -> ${:04X}", *entry.value);
         }
@@ -690,12 +853,12 @@ void AppleWinFormatter::FormatTrace (const TraceData & data, Lines & lines)
 //
 //  AppleWinFormatter::FormatTraceLine
 //
-//  Entry number, cycle count, address, the opcode bytes, the address's symbol,
-//  the instruction, the registers before it, and the access: R or W, the
+//  Cycle count, address, the opcode bytes, the address's symbol, the
+//  instruction, the registers before it, and the access: R or W, the
 //  address, the byte, and the address's symbol. An interrupt handler's first
 //  instruction is marked.
 //
-//      1234    5678901  0300  AD 00 C0  START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
+//         5678901  0300  AD 00 C0  START    LDA $C000      A=00 X=00 Y=00 SP=FF nv-BdIzc  R C000=8D KBD
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -705,8 +868,13 @@ std::string AppleWinFormatter::FormatTraceLine (const TraceRecord & record)
 
 
 
-    line = std::format ("{:>6}  {:>10}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
-                        record.index, record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
+    if (!record.isAvailable)
+    {
+        return record.isRebuilding ? "  (being rebuilt from history)" : "  (not available: history could not be replayed here)";
+    }
+
+    line = std::format ("{:>12}  {:04X}  {:<8}  {:<8} {:<14} A={:02X} X={:02X} Y={:02X} SP={:02X} {}",
+                        record.cycles, record.pc, FormatTraceBytes (record), record.symbol, record.instruction,
                         record.a, record.x, record.y, record.sp, FormatFlags (record.p));
 
     if (record.hasAccess)
@@ -833,6 +1001,92 @@ std::string AppleWinFormatter::FormatCallFrame (const CallStackFrame & frame)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::FormatBasicVariables
+//
+//  A variable a line, as a program would assign it. An array is its name
+//  with its DIM subscripts, then its first elements, the first
+//  subscript varying fastest, and how many more there are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatBasicVariables (const BasicVariablesData & data, Lines & lines)
+{
+    static constexpr size_t  kShown = 16;
+
+
+
+    if (data.variables.empty() && data.arrays.empty())
+    {
+        lines.push_back ("No BASIC variables.");
+        return;
+    }
+
+    for (const BasicVariable & variable : data.variables)
+    {
+        lines.push_back (std::format ("{} = {}", variable.name, (variable.type == BasicType::String) ? "\"" + variable.value + "\"" : variable.value));
+    }
+
+    for (const BasicArray & array : data.arrays)
+    {
+        std::string  dims;
+        std::string  values;
+
+
+
+        for (int size : array.sizes)
+        {
+            dims += std::format ("{}{}", dims.empty() ? "" : ",", size - 1);
+        }
+
+        for (size_t i = 0; i < array.values.size() && i < kShown; i++)
+        {
+            values += (i == 0 ? "" : ", ") + ((array.type == BasicType::String) ? "\"" + array.values[i] + "\"" : array.values[i]);
+        }
+
+        if (array.values.size() > kShown)
+        {
+            values += std::format (", and {} more", array.values.size() - kShown);
+        }
+
+        lines.push_back (std::format ("{}({}) = {}", array.name, dims, values));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatBasicStack
+//
+//  Newest first: a GOSUB with the line it was made on, a FOR loop with its
+//  variable, limit, step and line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatBasicStack (const BasicStackData & data, Lines & lines)
+{
+    if (data.frames.empty())
+    {
+        lines.push_back ("No GOSUB or FOR is active.");
+        return;
+    }
+
+    for (const BasicFrame & frame : data.frames)
+    {
+        lines.push_back ((frame.kind == BasicFrameKind::Gosub)
+                         ? std::format ("GOSUB in line {}", frame.line)
+                         : std::format ("FOR {} TO {} STEP {} in line {}", frame.variable, frame.limit, frame.step, frame.line));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::FormatProfile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -846,13 +1100,13 @@ void AppleWinFormatter::FormatProfile (const ProfileData & data, Lines & lines)
         return;
     }
 
-    if (data.isByAddress)
+    switch (data.list)
     {
-        FormatProfileAddresses (data, lines);
-        return;
+    case ProfileList::Addresses: FormatProfileAddresses (data, lines); break;
+    case ProfileList::Routines:  FormatProfileRoutines  (data, lines); break;
+    case ProfileList::Tree:      FormatProfileTree      (data, lines); break;
+    default:                     FormatProfileOpcodes   (data, lines); break;
     }
-
-    FormatProfileOpcodes (data, lines);
 }
 
 
@@ -901,6 +1155,61 @@ void AppleWinFormatter::FormatProfileAddresses (const ProfileData & data, Lines 
     for (const ProfileAddressEntry & entry : data.addresses)
     {
         lines.push_back (std::format ("{:<7} {:<20} {:>10} {:>6.1f}%", std::format ("${:04X}", entry.address), entry.symbol, entry.cycles, GetShare (entry.cycles, data.cycles)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileRoutines
+//
+//  Each routine's own cycles and its total, each with its share of every
+//  cycle counted, its calls and its total per call. Top level is never
+//  called, so it has no cycles per call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileRoutines (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<24} {:>10} {:>7} {:>10} {:>7} {:>8} {:>8}", "Routine", "Self", "Percent", "Total", "Percent", "Calls", "Per call"));
+
+    for (const ProfileRoutineEntry & entry : data.routines)
+    {
+        std::string  perCall = (entry.calls != 0) ? std::to_string (entry.total / entry.calls) : std::string ("-");
+
+
+
+        lines.push_back (std::format ("{:<24} {:>10} {:>6.1f}% {:>10} {:>6.1f}% {:>8} {:>8}", entry.GetName(), entry.self, GetShare (entry.self, data.cycles),
+                                      entry.total, GetShare (entry.total, data.cycles), entry.calls, perCall));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinFormatter::FormatProfileTree
+//
+//  Each routine under its caller, two spaces in for each level.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinFormatter::FormatProfileTree (const ProfileData & data, Lines & lines)
+{
+    lines.push_back (std::format ("{:<40} {:>10} {:>10} {:>7} {:>8}", "Routine", "Self", "Total", "Percent", "Calls"));
+
+    for (const ProfileTreeEntry & entry : data.tree)
+    {
+        std::string  name = std::string ((size_t) entry.depth * 2, ' ') + data.routines[entry.routine].GetName();
+
+
+
+        lines.push_back (std::format ("{:<40} {:>10} {:>10} {:>6.1f}% {:>8}", name, entry.self, entry.total, GetShare (entry.total, data.cycles), entry.calls));
     }
 }
 
@@ -984,11 +1293,22 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Register:  text = "when " + breakpoint.condition;                                                       break;
     case BreakpointKind::Memory:    text = std::format ("on {} of {}{}", kAccess[(int) breakpoint.access], FormatAddress (breakpoint),
                                                         breakpoint.mode == WatchMode::Before ? ", before the access" : "");     break;
-    case BreakpointKind::Io:        text = "on I/O at " + FormatAddress (breakpoint);                                             break;
     case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
     case BreakpointKind::MemoryValue:
         text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
+        break;
+    case BreakpointKind::Disk:
+        text = "on disk " + DescribeDisk (breakpoint);
+        break;
+    case BreakpointKind::BasicLine:
+        text = std::format ("on BASIC line {}", breakpoint.address);
+        break;
+    case BreakpointKind::BasicVariable:
+        text = "on BASIC variable " + breakpoint.basicName + " changing";
+        break;
+    case BreakpointKind::BasicError:
+        text = "on BASIC error";
         break;
     default:                        text = "at " + FormatAddress (breakpoint);                                                    break;
     }

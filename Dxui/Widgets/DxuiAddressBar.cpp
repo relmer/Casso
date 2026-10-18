@@ -4,6 +4,9 @@
 #include "DxuiAddressBar.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
 
 
 

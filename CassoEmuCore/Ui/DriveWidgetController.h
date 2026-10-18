@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "DriveWidgetState.h"
-#include "IDriveCommandSink.h"
+struct DriveWidgetState;
+class IDriveCommandSink;
 
 
 

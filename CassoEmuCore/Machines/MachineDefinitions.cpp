@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Apple2e/Apple2e.h"
 #include "Machines/Apple2/Apple2eEnhanced/Apple2eEnhanced.h"
 #include "Machines/Apple2/Apple2c/Apple2c.h"
+#include "Machines/MachineDefinition.h"
 
 
 //
@@ -127,8 +128,10 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.hasGamePort     = machine->HasGamePortDevice();
         definition.gamePortAxisCount = machine->GetGamePortAxisCount();
         definition.hasAnnunciators = machine->HasAnnunciators();
+        definition.hasCassettePort = machine->HasCassettePort();
         definition.hasCaseSwitches = machine->HasCaseSwitches();
         definition.hasBuiltInDrive = machine->HasBuiltInDrive();
+        definition.wozHardwareFlag = machine->GetWozHardwareFlag();
 
         table.emplace (definition.id, std::move (definition));
     }

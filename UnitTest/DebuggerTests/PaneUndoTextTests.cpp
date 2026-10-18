@@ -38,7 +38,7 @@ namespace DebuggerTests
 
 
 
-            model.SetOnPatch  ([] (Word, std::span<const Byte>) {});
+            model.SetOnPatch  ([] (Word, std::span<const Byte>, std::span<const Byte>) {});
             model.SetContents (0x0300, bytes, regions);
 
             Assert::AreEqual (std::wstring(), model.GetUndoText());

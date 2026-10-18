@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
@@ -18,8 +19,13 @@
 //  be trusted (FR-069). The window hides the button that cycles the
 //  mechanism: the pane shows hybrid, and CALLS MODE picks another (FR-068).
 //
+//  While the machine is stopped in a running Applesoft program, the active
+//  GOSUB returns and FOR loops come first, newest first, each with its line
+//  (FR-177).
+//
 //  Activating a row -- a double-click or Enter -- moves the disassembly to
-//  the frame's call site, or to the instruction that broke the chain.
+//  the frame's call site, or to the instruction that broke the chain, and a
+//  BASIC frame's line into view in the BASIC program pane.
 //
 //  The window owns the list and the button as child controls; the pane holds
 //  pointers to them. The rows come from the snapshot's CALLS reply, and the
@@ -34,30 +40,37 @@ public:
     using ShowFn = std::function<void (Word address)>;
 
     //  One row as the list shows it. address is where activating it moves
-    //  the disassembly. A note is a sentence across the whole row, its text
-    //  in routine, rather than values in the columns.
+    //  the disassembly, and basicLine the BASIC frame's line instead. A note
+    //  is a sentence across the whole row, its text in routine, rather than
+    //  values in the columns.
     struct Row
     {
-        std::wstring  site;
-        std::wstring  routine;
-        std::wstring  foundBy;
-        bool          isBreak   = false;
-        bool          isDim     = false;
-        bool          isNote    = false;
-        bool          isReturn  = false;
-        Word          address   = 0;
+        std::wstring         site;
+        std::wstring         routine;
+        std::wstring         foundBy;
+        bool                 isBreak   = false;
+        bool                 isDim     = false;
+        bool                 isNote    = false;
+        bool                 isReturn  = false;
+        Word                 address   = 0;
+        std::optional<Word>  basicLine;
+        std::optional<Word>  routineAddress;
+        std::string          routineSymbol;
 
         //  An unverified frame's: why the call may already be over.
-        std::wstring  tip;
+        std::wstring         tip;
     };
 
-    CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode);
+    CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode, ShowFn showBasicLine);
 
     DxuiListView *  GetList       () const { return m_list; }
+
+    //  The rows in the list, the BASIC frames first.
+    const std::vector<Row> &  GetShownRows () const { return m_rows; }
     DxuiButton *    GetModeButton () const { return m_modeButton; }
 
     void  Configure ();
-    void  Apply     (const CallStackData & data);
+    void  Apply     (const CallStackData & data, const std::vector<BasicFrame> & basicFrames);
     void  SetColors (const DebuggerTextColors::Set & colors) { m_colors = colors; }
 
     //  A row's cells, colored as the disassembly is unless dimmed or a break,
@@ -65,6 +78,7 @@ public:
     static std::vector<DxuiListView::Cell>  GetCells (const Row & row, const DebuggerTextColors::Set & colors);
 
     static std::vector<Row>  GetRows             (const CallStackData & data);
+    static std::vector<Row>  GetBasicRows        (const std::vector<BasicFrame> & frames);
     static std::wstring      GetUnrecordedNote   (Word pc);
     static std::wstring      GetRebuildingNote   (float progress);
     static std::wstring      GetHistoryStartNote (Word pc);
@@ -81,6 +95,7 @@ private:
     DxuiButton               * m_modeButton = nullptr;
     RunFn                      m_run;
     ShowFn                     m_showCode;
+    ShowFn                     m_showBasicLine;
     std::vector<Row>           m_rows;
     CallStackMechanism         m_mechanism  = CallStackMechanism::Hybrid;
     DebuggerTextColors::Set    m_colors;

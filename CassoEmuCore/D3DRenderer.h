@@ -4,7 +4,7 @@
 
 #include "CrtPostProcess.h"
 
-#include "Capture/CapturedImage.h"
+struct CapturedImage;
 
 
 

@@ -3,6 +3,7 @@
 #include "Ui/Settings/SettingsPanelState.h"
 
 #include "Core/JsonParser.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

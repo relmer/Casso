@@ -1,9 +1,10 @@
 #pragma once
 
 #include "Pch.h"
-#include "ICpu.h"
 #include "IInterruptController.h"
 #include "IMachineState.h"
+
+class ICpu;
 
 
 

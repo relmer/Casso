@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

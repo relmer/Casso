@@ -7,6 +7,8 @@
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
 #include "StringEncoding.h"
+#include "SubsetBoundary.h"
+#include "InstructionSetProvider.h"
 
 
 
@@ -5426,10 +5428,10 @@ Error:
 //  Sizes a byte-producing directive in pass 1. Only the COUNT matters here --
 //  pass 2 computes the values -- so this advances m_pc and nothing else.
 //
-//  Evaluation is attempted first because it is the reliable count. When it
-//  fails (a forward reference, typically) the fallback counts comma-separated
-//  arguments instead, which is right for one-byte-per-argument data and keeps
-//  every later label at the correct address even though no value is known yet.
+//  Each argument is evaluated, because a string's length is its byte count.
+//  An argument that fails (a forward reference, typically) counts as one
+//  byte, so after a line mixing known values and forward references such as
+//  `.byte $0E, <fwd, >fwd`, every later label is at the correct address.
 //
 //  Errors go into a THROWAWAY list: any genuine problem will be reported again
 //  by pass 2 against the complete symbol table, and reporting here would
@@ -5451,16 +5453,9 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
 
     TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
-    // If evaluation fails, try counting comma-separated items
-    if (values.empty() && !info.parsed.directiveArg.empty())
-    {
-        auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        ReserveBytes ((Word) args.size());
-    }
-    else
-    {
-        ReserveBytes ((Word) values.size());
-    }
+    // An argument that fails to evaluate adds one error and no value. It is a
+    // single expression, so it emits a single byte in pass 2.
+    ReserveBytes ((Word) (values.size() + tempErrors.size()));
 
 // Error:
     return hr;

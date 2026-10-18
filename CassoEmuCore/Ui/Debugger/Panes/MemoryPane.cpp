@@ -26,11 +26,12 @@ MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, R
     m_move (std::move (move)),
     m_note (std::move (note))
 {
-    m_model.SetOnPatch ([run = std::move (run)] (Word address, std::span<const Byte> bytes)
+    m_model.SetOnPatch ([run = std::move (run)] (Word address, std::span<const Byte> bytes, std::span<const Byte> required)
     {
         std::vector<Byte>  values (bytes.begin(), bytes.end());
+        std::vector<Byte>  before (required.begin(), required.end());
 
-        run ([address, values] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode); });
+        run ([address, values, before] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode, before); });
     });
     m_view->SetSource (&m_model);
 }
@@ -58,7 +59,10 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetShowRegions  (true);
 
     //  The CPU's 64K wraps, so rows started partway along it keep four digits.
-    m_view->SetAddressSpace (m_model.GetByteCount());
+    //  The addresses are labels, in the proportional face; the bytes are a
+    //  grid, in the fixed-width one.
+    m_view->SetAddressSpace        (m_model.GetByteCount());
+    m_view->SetProportionalOffsets (true);
 
     m_view->SetMarkColor ([this] (uint8_t mark, uint32_t & outArgb)
     {
@@ -78,11 +82,79 @@ void MemoryPane::Configure (HWND hwnd)
         {
             outArgb = m_unreadArgb;
         }
+        else if (mark == MemoryEditModel::kMarkDiffers)
+        {
+            outArgb = m_differsArgb;
+        }
 
         return mark != MemoryEditModel::kMarkNone;
     });
 
     m_view->SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
+
+    m_view->SetByteFill ([this] (uint64_t offset) -> uint32_t
+    {
+        if (!m_isHeatOn || m_heatLevels == nullptr)
+        {
+            return 0;
+        }
+
+        return GetHeatFill (*m_heatLevels, m_model.GetAddressOf (offset), m_heatPalette);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetHeat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetHeat (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const HeatMapView::Palette & palette)
+{
+    m_heatLevels  = std::move (levels);
+    m_heatPalette = palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::GetHeatFill
+//
+//  Halfway, so the byte's own ink stays readable over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette)
+{
+    constexpr float  kTint   = 0.5f;
+    Byte             execute = 0;
+    Byte             read    = 0;
+    Byte             write   = 0;
+
+
+
+    if (levels.execute.size() != 0x10000 || levels.read.size() != 0x10000 || levels.write.size() != 0x10000)
+    {
+        return 0;
+    }
+
+    execute = levels.execute[address];
+    read    = levels.read[address];
+    write   = levels.write[address];
+
+    if (execute == 0 && read == 0 && write == 0)
+    {
+        return 0;
+    }
+
+    return DxuiColor::Mix (palette.background | 0xFF000000u, HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette), kTint) | 0xFF000000u;
 }
 
 
@@ -108,6 +180,7 @@ void MemoryPane::SetTextColors (const DebuggerTextColors::Set & colors)
     m_romArgb     = colors.rom;
     m_ioArgb      = colors.io;
     m_unreadArgb  = colors.muted;
+    m_differsArgb = colors.result;
 
     regions.rom     = colors.rom;
     regions.io      = colors.io;
@@ -169,6 +242,63 @@ void MemoryPane::FollowScroll()
         m_requested = start;
         m_move (m_id, *start);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SetComparison
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SetComparison (const std::vector<CompareDifference> & differences)
+{
+    std::map<Word, Byte>  others;
+
+
+
+    for (const CompareDifference & each : differences)
+    {
+        others[each.address] = each.otherValue;
+    }
+
+    m_model.SetComparison (std::move (others), false);
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::SelectRange
+//
+//  The view's offsets start at the model's phase, so an address's offset is
+//  its distance from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryPane::SelectRange (Word address, size_t count)
+{
+    uint64_t  offset = 0;
+
+
+
+    GoTo (address);
+    offset = (uint64_t) (Word) (address - m_model.GetPhase());
+
+    m_view->SelectByte (offset, DxuiHexView::Column::Hex);
+
+    if (count > 1)
+    {
+        m_view->ExtendSelectionTo (offset + count - 1);
+    }
+
+    m_view->EnsureByteVisible (offset);
 }
 
 
@@ -307,6 +437,38 @@ std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOff
     start = start & ~(uint64_t) (kBytesPerRow - 1);
 
     return (Word) start;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryPane::UndoOrRedo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryPane::UndoOrRedo (bool redo)
+{
+    std::optional<Word>  changed;
+    bool                 done = false;
+
+
+
+    if (!m_view->IsEditable())
+    {
+        return false;
+    }
+
+    done = redo ? m_model.Redo (changed) : m_model.Undo (changed);
+
+    if (changed.has_value() && m_note)
+    {
+        m_note (std::format ("${:04X} has changed since the edit, so it was not {}.", *changed, redo ? "redone" : "undone"));
+    }
+
+    return done;
 }
 
 

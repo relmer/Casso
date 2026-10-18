@@ -1,6 +1,6 @@
 # Implementation Plan: Debugger
 
-**Branch**: `035-debugger` | **Date**: 2026-09-13, revised 2026-09-18 and 2026-10-08 (disk breakpoints) | **Spec**: [spec.md](spec.md)
+**Branch**: `035-debugger` | **Date**: 2026-09-13, revised 2026-09-18, 2026-10-08 (disk breakpoints) and 2026-10-12 (automatic machine states) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `/specs/035-debugger/spec.md`
 
@@ -58,6 +58,17 @@ code over that record, so a live run, a replay and reverse continue match the
 same fields. The field definitions and `??` matcher, the per-drive head and the
 write hook are shared with 040 and built by whichever merges first. Scheduled
 with the owner.
+
+**2026-10-12: automatic machine states (User Story 25, R-047).** The
+`.cassostate` files built for T464 gain a save time and a screen thumbnail in
+a second version of their payload section, which files of the first version
+load without. A setting on the General page, on by default, saves one
+automatic state per machine kind at exit and on a machine switch and resumes
+it at startup and on switching back. A launch with command-line media starts
+cold, and its automatic state is replaced only after a prompt with the old
+state's time and thumbnail. States go to `%LOCALAPPDATA%\Casso\SavedState\`, and
+every state is written as a whole new file that replaces the old one. Nothing
+runs on the per-instruction or per-cycle path.
 
 ## Technical Context
 
@@ -152,6 +163,12 @@ touches `Casso/` or `CassoCli/`:
   assemblers call it.
 
 **PASS.**
+
+**2026-10-09 additions** (stories 21 to 23): the project model, scope keys and
+store, the Applesoft reader, detokenizer and stepper, the C lexer and the
+editable grid's row logic are core classes tested with in-memory files and
+synthetic memory; only the dialogs, panes and menu wiring are window code.
+No gate is violated.
 
 ### II. Testing Discipline
 
@@ -406,6 +423,309 @@ objects.
 - **Threading**: every disk event and the record are on the CPU thread, where
   the session runs; nothing on the UI thread touches the controller.
 
+### Debug projects (story 21)
+
+R-042 holds the decisions; data-model.md, "Debug projects", the types;
+contracts/command-modes.md the `BPNAME` and `PROJECT` commands.
+
+- **Model** (`CassoEmuCore/Debugger/Project/DebugProject.h/.cpp`, core): the
+  FR-166 state as one value. The engine's part is the script the debugger's
+  `SAVE` already writes (`BreakpointHandlers::MakeScript`,
+  `WatchHandlers::MakeScript` for watches, zero-page pointers and
+  bookmarks), extended with data directives and step filters, in Casso's own
+  mode so it reads back exactly; beside it the names, the window's state
+  (layout, range sets, disassembly options, open views) and the startup
+  commands. Serialized as JSON through `JsonParser`; paths relative to the
+  project file where they lie beside or below it.
+- **Scope** (`ProjectScope`): the FR-167 signal and its key. A debug or
+  symbol file is keyed by its content hash (SHA-1, which the debug file
+  reader already computes), so a moved file finds its project; a debugger
+  loaded binary by its content hash and load address; otherwise the machine
+  type and the drive-1 disk's path at power-on, or the machine type alone.
+  Automatic projects live under `%LOCALAPPDATA%\Casso\DebugProjects\`, one
+  file per key; a named project (Save project as) lives where the user puts
+  it, and the automatic file for its scope then points at it.
+- **Store** (`DebugProjectStore`, core over `IFileSystem`): load, save and
+  switch. A save is debounced to 2 seconds after the last change on the UI
+  thread, built from the snapshot and the window's state, and written whole
+  to a temporary file that replaces the old one (FR-168). An unreadable file
+  is renamed with the date and replaced by an empty project.
+- **Change sources**: `DebugSession`'s stop-condition, watch, bookmark,
+  symbol and filter changes; the dock site's `onChanged`; the range sets and
+  options. Each marks the project dirty and restarts the debounce.
+- **Switching** (FR-169): `SYM LOAD`, `BLOAD` and power-on report their
+  signal; a more specific signal switches projects after saving the old one,
+  and the window offers to carry breakpoints, watches and bookmarks across.
+- **Names** (FR-172): `Breakpoint` and `Watchpoint` gain `name`;
+  `BreakpointInfo` carries it; the pane's Name cell is editable in place;
+  `BPNAME id "text"` is a Casso engine command reachable in every mode and
+  listed among AppleWin mode's commands; `BPSAVE` and AppleWin's `SAVE` never write
+  names.
+- **Startup commands** (FR-171): stored with their mode; run in order through
+  the console's path after the project loads; edited in File > Project
+  settings... on the editable grid (FR-208).
+
+### Applesoft at source level (story 22)
+
+R-043 holds the interpreter's addresses and layouts, each to be confirmed
+against the fixture ROMs before it is relied on; data-model.md, "Applesoft".
+
+- **Reader** (`CassoEmuCore/Debugger/Basic/ApplesoftProgram.h/.cpp`, core):
+  everything through the target's side-effect-free peek. The program from
+  TXTTAB along the line links; the detokenizer over the token table ($80 to
+  $EA) prints as LIST does; CURLIN gives the line being run ($FFxx in direct
+  mode); the variable table from VARTAB to ARYTAB and the arrays from ARYTAB
+  to STREND, decoded as reals (five-byte floating point, printed as Applesoft
+  prints them), integers and string descriptors; the GOSUB and FOR frames
+  read from the 6502 stack by their tokens.
+- **Presence**: an Applesoft ROM in the machine (not the original Apple ][
+  Integer ROM), a program chain that links up within memory, and the
+  interpreter running; otherwise the BASIC view says so (edge case).
+- **Stops** (`BasicStepper`, core): an internal fetch hook at the
+  interpreter's statement entry (NEWSTT), armed only while a BASIC step, a
+  BASIC breakpoint or an error stop is set, so a program with none runs as
+  before (FR-064). A statement step stops at the next entry; a line step at
+  the next entry whose CURLIN differs; step out at the entry after the
+  frame's RETURN. A line breakpoint is a table entry of a new BASIC kind
+  matched at the entry; a variable breakpoint watches the variable's value
+  bytes, found from the variable table and found again after CLEAR, RUN or
+  NEW moves it, and holds the stop until the next entry so the statement
+  completes. An error stop is a fetch hook at the error handler's entry,
+  reporting the error code and CURLIN. Reverse continue stops on them as on
+  every other kind.
+- **Window**: a BASIC source document (the listing, the line mark, gutter
+  breakpoints, stepping keys as in a source document), a BASIC variables
+  pane and a BASIC stack pane; Kind "BASIC", Trigger "Line" or "Variable
+  change" in the Breakpoints pane.
+
+### C source coloring (FR-178)
+
+A pure C lexer in CassoCore (keywords, types, number, character and string
+literals, comments, preprocessor lines) feeding the source view's existing
+color runs; files are taken as C by the extension the debug file gives
+(`.c`, `.h`) and the theme's source colors are shared with assembly's.
+
+### Window entry points (story 23)
+
+R-044 holds the owner's tiering of ui-entry-point-audit.md; each entry calls
+the handler's function, never a typed command (the console is not the
+plumbing).
+
+- **Menus and toolbars** in `DebuggerWindowMenuBar.cpp` and
+  `DebuggerCommands.cpp`: Load file into memory (and its toolbar button),
+  Save memory to file, Project items, Step filters, Find in Memory panes,
+  bookmarks next and previous.
+- **Context menus**: the code pane (mark as data, Add symbol here, Never step
+  into, Edit instruction, Replace with NOPs, Toggle bookmark, stopwatch
+  here, Call subroutine here), the Memory pane (Fill, Copy to, Compare with,
+  Add as pointer watch), the Stack pane (Push, Pop), the call stack (Never
+  step into), the Registers pane (reset Trip).
+- **New panes**: Symbols, Bookmarks, Profiler, data directives list, BASIC
+  variables and BASIC stack, each in the View menu and the dock layout.
+- **Editable grid** (`Dxui/Widgets/DxuiEditableGrid.h/.cpp`): a list view with
+  a trailing hint row, cell editing in place with per-column validation and
+  required columns, row deletion and gripper reordering; the range list and
+  the startup command list use it.
+- **Disassembly selection**: Ctrl+drag keeps the selection in its starting
+  column; rows selected for Replace with NOPs come from the selection's rows.
+- **Status bar**: a speed section with a popup of 1x, 2x and Maximum, posting
+  the same command the emulator's speed menu posts.
+- **Keys** (FR-203, FR-204): `DebuggerKeySchemes::Action` gains an action per
+  pane and the console; the Visual Studio map binds Visual Studio's chords,
+  every map binds Ctrl+`; every menu item takes its accelerator text from the
+  active map, as the Debug menu does.
+- **Removed**: `BENCHMARK`'s verbs and handler.
+
+### Disassembly, docking and heat map (FR-200 to FR-209)
+
+- **DISASM** is reported as not available (FR-200, amended 2026-10-13), and
+  `ConfigHandlers`' stored DISASM settings are removed. The PC's branch row
+  takes a direction glyph in the gutter. The PC row's result annotation
+  appends the cycles its instruction will take, counted by the trial run
+  that computes the effect column, so a taken branch and a page crossing are
+  in the count; other rows have no cycles (FR-201, FR-202, amended
+  2026-10-13).
+- **Tools > Options (FR-227, FR-228)**: `ReverseOptionsDialog` becomes a
+  `DxuiPropertySheet` with two `DxuiPropertyPage`s, as `SettingsSheet` is
+  built. The History page has the record check box and a `DxuiSlider` for
+  the budget: 1 MB to the lower of 90% of `ullAvailPhys` and `ullAvailPhys`
+  less 4 MB (`GlobalMemoryStatusEx` as the sheet opens), never below 1 MB,
+  1 MB steps, a page of a tenth of the range, ten ticks; the minutes estimate
+  follows the slider. The range arithmetic is a pure function under unit
+  test. The Disassembly page has a check box per `DisassemblyOptions::Option`,
+  which gains `OperandValues`, `Pointers`, `BranchArrow` and
+  `AddressColon`. The toolbar and the page read and write the one
+  `GlobalUserPrefs::debugger.disassemblyOptions` text, so a change on either
+  appears on both. A saved text without the new keys takes their defaults
+  (on, off, on, off), so an option turned off is written to the text as well
+  as one turned on. In the code pane, Operand values and Pointers filter the
+  annotation's parts, Branch arrow gates `BranchArrow`, and Address colon
+  adds `:` to the address cell.
+- **Docking**: a title drag hands the dock site the whole group, whose
+  floating window follows the pointer from the threshold on (the T279 drag);
+  a press on any tab arms its drag; a torn-off group's float takes its
+  docked size. The pane look is the T710 work.
+- **Heat map**: the Default set is created on first use with the built-in
+  ranges; the range list moves to `DxuiEditableGrid`; the FR-209 defects are
+  fixed where they lie (edit box corners in `DxuiTextInput`'s frame, the
+  range grid's widths, the watch row's single click, the tooltip delay, the
+  range set name over the drop-down, the range titles over short ranges'
+  address labels).
+
+### One source of debug events (FR-210 to FR-212)
+
+R-045 holds the decisions; data-model.md, "Debug events", the types.
+
+**Design principle**: recorded history (the keyframe store and the input
+journal reverse execution already keeps) is the only record of what the
+machine did. Every debug view of past activity is computed from it by
+replaying stretches on a scratch machine with that view's probe attached, as
+`ScratchHeatReplayer` and `ScratchCallReplayer` already do for the heat map
+and the call stack, with their disk handling: each part loads its keyframe
+over the job's disks, mounted from their images and never written back, so a
+replay sees the disks as they were. A view's live buffer is a cache of what
+replay would produce, never a second record.
+
+- **Event cache** (`DebugEventCache<T>`, core): a bounded ring per view, fed
+  by the running machine through the same probe the replay uses, recording
+  from session start whatever panes are open, cut back to the machine's
+  position on every rewind or seek (`ReverseController`'s truncate callback),
+  and marked with gaps where recording paused.
+- **Rebuild on demand** (`DebugEventReplayer`, core, over the scratch replay
+  machinery): a view asks for the events of a span; the replayer serves the
+  cache's part at once and queues the stretches before it, a stretch being
+  keyframe to keyframe (10 frames by default), newest first, prefetching the
+  neighbors of the last one asked for on the replay pool. A newer request
+  replaces a waiting one, as heat jobs do. Results are kept per stretch in a
+  small LRU so scrolling back and forth does not replay twice.
+- **Cost**: the probes append a fixed-size record to a preallocated ring; no
+  allocation, lock or interface call is added per instruction or per cycle.
+  Disk events arrive per address field and per head step, input per change,
+  so their rate is in the hundreds a second at most.
+
+### Disk and input event logs (User Story 24, FR-213 to FR-217)
+
+- **Disk events**: the Disk II controller's existing event feed
+  (`IDisk2EventSink`) gains a second listener slot, so the live machine's
+  cache listens always and the scratch machine's replay listens during a
+  rebuild; the event kinds are those the old window shows (inventory, T-list
+  first). The Disk II diagnostics pane's rows gain the last address field and
+  the read or write state from the controller (FR-216).
+- **Input events**: host input from `InputJournal` directly (it is already the
+  replay's input); guest reads of the keyboard and game port from a read
+  probe on their soft switches that records a read only when its value
+  differs from the last read of that source, live and in replay.
+- **Panes**: two dockable panes over `DxuiListView` with the columns and
+  filters the approved inventory keeps; cycle stamps with an optional wall
+  time column (the journal's host time where one exists). The track and
+  sector filter (`TrackSectorPredicate`) and the row formatting
+  (`DebugDialogProjection`) are reused only if they fit the cycle-stamped
+  event; otherwise they go with the old windows.
+- **Removal**: once the panes pass SC-055, `Disk2DebugPanel`,
+  `InputDebugPanel`, their state classes, `EmulatorShellDebug.cpp`'s opening
+  and sink wiring, and the emulator's menu items are deleted with their
+  tests.
+
+### Debugger and input components (FR-218)
+
+R-046 holds the measurements. The owner reviews the component's next-level
+block diagram before the move starts.
+
+- **`ShellDebugger`** (core) owns what the debugger work added to
+  `EmulatorShell`: the debugger window and controller, the session and run
+  driver, the view state, publisher and build pool, reverse execution
+  (`ReverseHost`), the history renderer, thumbnails and the heat and call
+  replayers, the divergence gate, the debug channel, and their flags. It
+  implements `IDebuggerWindowHost` in the shell's place. It takes
+  `MachineHost`, `CpuManager` and `GlobalUserPrefs` by reference; the window
+  handle, theme, clipboard, held inputs and preference saving come through
+  `IDebuggerHost`, which a private adapter in the shell's `.cpp` implements,
+  so `EmulatorShell` gains no base class.
+- **`IShellDebugger`**: what the shell calls, about a dozen methods: the CPU
+  thread's slice and frame hooks, the input gate, present and caption
+  queries, open and close, reset, machine change and shutdown, each marked in
+  research R-046 with how often it runs. Its header forward-declares only.
+- **`ShellInput`** likewise owns keyboard routing, caps lock, held host
+  inputs, the game port mixer and the controller service, backend and thread.
+- **The shell** holds each through a forward declaration and a `unique_ptr`,
+  its constructor and destructor in the `.cpp`. `EmulatorShell.h` falls from
+  254 project headers to about 157.
+- **No new cost**: per-instruction and per-cycle work stays in the machine and
+  the session's hooks, untouched; only slice and frame hooks cross the
+  interface, moved as they are, with their order and locking. SC-052 is
+  measured before and after (R-046's method).
+
+### Automatic machine states (User Story 25, FR-219 to FR-225)
+
+The decisions are in R-047; the format is in data-model.md and
+[contracts/machine-state-file.md](contracts/machine-state-file.md).
+
+- **Format**: the `SFIL` section goes to version 2, adding the save time (UTC
+  `FILETIME`) and a PNG thumbnail after the machine state; the file header's
+  version goes to 2 as well, so a build from before this change reports a
+  newer format instead of a damaged file. `Parse` reads version 1 with no
+  time and no thumbnail. The hash covers both, as it covers the rest.
+- **Thumbnail**: the published UI framebuffer (560 by 384, the picture on the
+  screen, monitor tint included), copied under its mutex, halved to 280 by 192 with
+  a box filter, and encoded with `PngCodec`. The filter moves from
+  `HistoryThumbnails::Shrink` into a shared image helper so the state file
+  and the history strip use one.
+- **Policy**: a pure class, `AutoStatePolicy`, computes from the setting, the
+  launch's command line, whether an automatic state exists and the user's
+  answer whether to resume, whether to save, and whether to prompt first;
+  it also returns the automatic state's path. Every rule in FR-220 to FR-223
+  is a test on it with no machine and no window.
+- **Paths**: `AssetBootstrap::GetStateDirectory` creates and returns
+  `%LOCALAPPDATA%\Casso\SavedState\`. An automatic state is
+  `<machine>.autosave.cassostate` there. The Save state and Load state
+  dialogs set `FileDialogSpec::initialFolder` to it.
+- **Writing**: `SaveMachineState` and the automatic save both write through
+  `DiskImageStore::WriteFileAtomically`, which writes a temporary file and
+  renames it over the old one, so after a failure partway the previous
+  state is intact.
+- **Startup**: after `Initialize` has built and cold booted the machine and
+  mounted the media saved in the preferences, and before the CPU thread starts, the shell
+  posts the resume to the CPU thread's command queue, so the first frame is
+  the resumed machine. A launch with `--disk1`, `--disk2` or `--tape` posts
+  nothing and marks the session as command-line media for the exit prompt.
+  A failed resume posts a notice; the cold-booted machine stays.
+- **Machine switch**: `MachineManager::SwitchMachine` (CPU thread) saves the
+  outgoing machine's automatic state after the new configuration loads and
+  before reverse recording stops, so a switch that fails saves nothing, and
+  resumes the incoming machine's automatic state after it is built and power
+  cycled. A switch made by `LoadMachineState` saves the outgoing machine but
+  does not resume the incoming one, since the state being loaded replaces it.
+  For a command-line session's machine, the UI thread prompts before posting
+  the switch (`ShowMachinePicker`, `SettingsMachineCatalog`), and the answer
+  rides with the command.
+- **Exit**: `EmulatorShell` gains `OnClose`, which runs the prompt on the UI
+  thread while the message loop is live; closing the prompt without a choice
+  replaces nothing. File > Exit posts `WM_CLOSE` instead of destroying the
+  window, so every route goes through `OnClose`; the updater's restart posts
+  `WM_CLOSE` too. `OnDestroy` writes the automatic state right after the
+  CPU thread is stopped and joined, before teardown, so the machine is quiet
+  and the window exists. A failed write is logged and does not stop
+  the exit.
+- **Prompt**: a `DialogDefinition` with the thumbnail as its image and two
+  buttons, Replace and Don't replace. `DialogBodyContent` draws images into
+  a square today, so it gains an image placement at the picture's own aspect.
+- **Setting**: `GlobalUserPrefs::autoSaveMachineState`, true by default, under
+  the `autoSaveMachineState` key; the General page has a checkbox for it,
+  applied and saved at once like the page's other controls.
+- **Compatibility (FR-226, SC-059)**: from the release that first ships state
+  files, a part's `LoadState` reads every form a release wrote. Today
+  `MachineHost`, `DiskImage` and `Disk2NibbleEngine` accept only their newest
+  version (`version == kStateVersion`); each switches to a range check with a
+  branch per released version, as `SiriusJoyport` already does, filling a
+  field the older form lacked with its cold-boot value. `IMachineState.h`'s
+  rule changes from "may accept older versions" to "must accept every
+  released version". The release step saves one state per machine kind with
+  the release build into `UnitTest/Fixtures/States/<version>/`, and
+  `MachineStateCompatibilityTests` in ScenarioTests loads each fixture,
+  resumes it, and runs a second of emulated time. A version bump that breaks
+  an older fixture fails the suite. `MachineStateFile` distinguishes a newer
+  format, different ROM images and a damaged file in its error.
+
 ### Threading
 
 As before: batch is single-threaded; in the emulator the session lives on
@@ -470,7 +790,55 @@ landing as its own merge to the branch and gated by the full suite:
     tracker, table entries, `BPDISK`, matching, vectors, logical sectors,
     disk values, reports, reverse continue, the pane, the scenario boots and
     the cost measurements.
-10. **Release**: the README screenshot on the Mockingboard speech demo
+9c. **Review defects and docking (FR-205, FR-209)**: the review's defects
+    first, then the tear-off drag that moves the group, any tab draggable,
+    the float at its docked size.
+9d. **Window entry points and keys (story 23, P2)**: Load and save binary
+    with the toolbar button; the pane keys and menu accelerators; the
+    editable grid, then the range list and the Default set on it; the
+    context menus, the new panes and the status-bar speed control; the
+    DISASM reported as not available, the PC row's branch glyph and cycle
+    count; C coloring;
+    `BENCHMARK` removed.
+9e. **Debug projects (story 21, P1)**: names on breakpoints and `BPNAME`; the
+    project model over the existing scripts; scope keys; the store with its
+    debounce and whole-file replace; switching and carrying over; Save as,
+    Open and Project settings with startup commands.
+9f. **Applesoft (story 22, P2)**: confirm R-043's addresses against the
+    fixture ROMs; the reader and detokenizer, checked against LIST on
+    fixture programs; the stepper and its stops; the BASIC kind; the
+    document, variables and stack panes.
+9g. **Debugger and input components (FR-218)**: the SC-052 baseline first;
+    the owner's review of the component's block diagram; then `ShellDebugger`
+    behind `IShellDebugger` with no change of behavior, measured; then
+    `ShellInput`, measured.
+9h. **Event logs (story 24, P2)**: the inventory of the two old windows for
+    the owner's approval (FR-217); the event cache and the replayer over
+    history (FR-210 to FR-212); the Disk II event feed's second slot and the
+    guest-read probe; the two panes and the diagnostics rows; SC-053 to
+    SC-055; then the old windows removed.
+9i. **Logs brought in line (FR-198 amended)**: the video and sound logs and
+    the trace buffer moved onto the event cache and replayer.
+9k. **Debugger options (FR-227, FR-228)**, scheduled by the owner on
+    2026-10-13 ahead of 9h: the options and their saved text, the tabbed
+    sheet with the History slider, the Disassembly page, the code pane honoring
+    the four new options, and a build for the owner to test.
+9j. **Automatic machine states (story 25, P2)**, scheduled by the owner ahead
+    of 9h: the state file's version 2 with the save time and thumbnail, and
+    the shared image filter; the state folder, the dialogs' default folder
+    and the atomic write; `AutoStatePolicy` and the preference with the
+    General page's checkbox; resume and save on a machine switch; resume at
+    startup; save and the prompt at exit, with File > Exit through
+    `WM_CLOSE` and the aspect-keeping dialog image; the compatibility rule in
+    `IMachineState.h`, range checks in the three exact-match loaders, and
+    `MachineStateCompatibilityTests` (fixtures saved by the release step,
+    item 10); SC-057 measured; then the
+    CHANGELOG line and a README section for both the commands and the
+    automatic states, drafted for the owner's approval after the owner's test
+    of the build.
+10. **Release**: record one machine state per machine kind with the release
+    build into `UnitTest/Fixtures/States/<version>/` (SC-059); the README
+    screenshot on the Mockingboard speech demo
     (FR-065), `docs/Debugger.md` for every story, the changelog, the
     pre-merge gate, SC-008 measured, and 033 on master before 035 merges.
 
@@ -525,6 +893,43 @@ landing as its own merge to the branch and gated by the full suite:
   adopts the first's field definitions, matcher, head and write hook, and a
   merge of the two may conflict in `Disk2Controller`; the tasks that build
   them adopt 040's when it is on master.
+
+- **Applesoft's internals** (R-043): the zero-page pointers, the statement
+  entry and the error entry are from published maps and must be confirmed in
+  each machine's fixture ROM before the stepper relies on them; a wrong one
+  shows as a test failure, never as a silent misstep.
+- **Project scope**: a boot disk used for many programs gives one shared
+  project, which the owner accepted; a debug file's content key misses a
+  program rebuilt with changes, which then starts a fresh project, offered
+  the old one's breakpoints through FR-169's carry-over.
+- **Two windows saving one project**: the last save wins; whole-file replace
+  keeps the file readable.
+- **Always-on logs** (FR-198): bounded buffers keep memory flat; their cost
+  per speaker toggle is measured against SC-008 before they ship.
+- **A replayed event must equal the live one** (SC-053). A probe that read
+  host state, or a disk mounted differently in the scratch machine, would
+  make the rebuilt log disagree with the cache. The scratch machine's disk
+  handling is the one reverse execution already depends on, and SC-053
+  compares a live log with its rebuild on the scenario boots.
+- **Scroll-back speed depends on replay speed** (SC-054). Disk-heavy
+  stretches replay slowest; R-045 measures stretches per second on a DOS 3.3
+  boot before the panes rely on it, and the prefetch depth is set from it.
+- **The CPU thread's hooks are timing-sensitive** (FR-218). They move as
+  they are, in the same order and under the same locks, and SC-052's A/B
+  measurement decides; a regression is explained and fixed before the move
+  merges.
+
+- **The automatic state replaces a file the user cannot see being written.**
+  A crash during the write would destroy the state the setting exists to
+  save, so every state is written whole to a temporary file and renamed over
+  the old one (FR-225); SC-058's cases include a write that fails partway.
+- **A resume restores disk contents from the state, not from the image file.**
+  A disk changed outside Casso since the last exit comes back as the state
+  had it, which is what loading a state does today and what the spec's edge
+  case requires; the risk is a user surprised that the file's newer contents
+  are not there.
+  The Load state and resume notices include the state file's path, so the source of the
+  disk is visible.
 
 ## Project Structure
 
@@ -734,6 +1139,28 @@ diagnostics are declared in the
 debugger and implemented by each device, so a future machine's devices add
 providers without touching the window. Every new file is listed by hand in
 its `.vcxproj`.
+
+Added 2026-10-12 for User Story 25:
+
+```text
+CassoEmuCore/Shell/MachineStateFile.h/.cpp        # CHANGE: SFIL version 2 with save time and PNG thumbnail
+CassoEmuCore/Shell/AutoStatePolicy.h/.cpp         # NEW: when to resume, save and prompt; the automatic state's path
+CassoEmuCore/Shell/EmulatorShellState.cpp         # CHANGE: atomic write, default folder, automatic save and resume
+CassoEmuCore/Shell/MachineManager.cpp             # CHANGE: save the outgoing machine, resume the incoming one
+CassoEmuCore/Shell/Window/EmulatorWindow.cpp      # CHANGE: OnClose prompt, save in OnDestroy, startup resume
+CassoEmuCore/Shell/WindowCommandManager.cpp       # CHANGE: File > Exit posts WM_CLOSE
+CassoEmuCore/AssetBootstrap.h/.cpp                # CHANGE: GetStateDirectory
+CassoEmuCore/Config/GlobalUserPrefs.h/.cpp        # CHANGE: autoSaveMachineState
+CassoEmuCore/Ui/Settings/GeneralPage.h/.cpp       # CHANGE: the checkbox
+CassoEmuCore/Ui/Dialogs/DialogBodyContent.h/.cpp  # CHANGE: an image placement at the image's own aspect
+CassoEmuCore/Video/ImageShrink.h/.cpp             # NEW: the box filter, moved out of HistoryThumbnails
+UnitTest/EmuTests/MachineStateFileTests.cpp       # CHANGE: version 2 round trip, version 1 load, newer format fails
+UnitTest/EmuTests/AutoStatePolicyTests.cpp        # NEW: FR-220 to FR-223 rules
+CassoEmuCore/Core/IMachineState.h                 # CHANGE: every released version must load
+CassoEmuCore/Shell/MachineHost.cpp, Devices/Disk/DiskImage.cpp, Machines/Apple2/Common/Disk2NibbleEngine.cpp  # CHANGE: range checks, a branch per released version
+ScenarioTests/MachineStateCompatibilityTests.cpp  # NEW: each fixture loads, resumes and runs (SC-059)
+UnitTest/Fixtures/States/<version>/*.cassostate   # NEW: one state per machine kind per release
+```
 
 ## Complexity Tracking
 

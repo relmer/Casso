@@ -6,6 +6,10 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/ColorKeyButton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

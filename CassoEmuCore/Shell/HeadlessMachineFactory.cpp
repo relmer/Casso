@@ -4,6 +4,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Core/Prng.h"
+#include "Core/TextEncoding.h"
 #include "Machines/MachineDefinitions.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/IRomSource.h"
@@ -36,7 +37,7 @@ HRESULT HeadlessMachineFactory::Build (
     HRESULT        hr        = S_OK;
     MachineConfig  config;
     std::string    shippedId = GetShippedId (machineId);
-    std::wstring   wide (shippedId.begin(), shippedId.end());
+    std::wstring   wide      = TextEncoding::NarrowToWide (shippedId);
 
 
 

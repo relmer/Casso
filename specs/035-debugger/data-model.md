@@ -580,3 +580,96 @@ takes each RWTS and driver breakpoint's routine from its vector at the start
 of each replay and after each write to the vector's bytes during it, and
 counts nothing. The replayer also reports each bay whose disk a boundary
 snapshot changed.
+
+## Debug projects (User Story 21)
+
+- **DebugProject**: `scope` (ProjectScope); `engineScript` (Casso-mode
+  command lines: breakpoints, watchpoints, watches, zero-page pointers,
+  bookmarks, data directives, step filters, symbol and debug file loads);
+  `names` (breakpoint id in the script to name); `layout`, `rangeSets`,
+  `disassemblyOptions`, `openViews` (the window's saved strings);
+  `startupCommands` (ordered list of text and mode); `filePath`.
+  Validation: a script line that fails to read back is reported in the
+  console and skipped, never stopping the load.
+- **ProjectScope**: `kind` (DebugFile, Binary, MachineBoot, Machine);
+  `key` (content hash, content hash and load address, or machine type and
+  disk path); ordered from most specific to least.
+- **Breakpoint / Watchpoint** gain `name` (empty: the default name).
+
+## Applesoft (User Story 22)
+
+- **BasicProgram**: `lines` (number, text as LIST prints it, address);
+  `currentLine` (or none in direct mode); `currentStatementAddress`.
+- **BasicVariable**: `name`, `type` (Real, Integer, String), `value`,
+  `address` of its value bytes; arrays add `dimensions` and `elements`.
+- **BasicStackFrame**: `kind` (Gosub, For); Gosub: return line; For:
+  variable, limit, step, line.
+- **Breakpoint** gains kind `BasicLine` (line number) and `BasicVariable`
+  (variable name; its value address found again after the tables move).
+
+## Editable grid (FR-208)
+
+- **EditableGridRow**: `cells`, `requiredColumns`, `isTrailing` (the "Add new
+  range" row), `isEditing`; a row commits when every required cell holds a
+  valid value.
+
+## Debug events (User Story 24, FR-210 to FR-217)
+
+- **DebugEvent** (one per view kind): `cycle` (machine cycle count, the sort
+  key), `wallTime` (optional; the journal's host time where it has one), and
+  the kind's facts: a **DiskEvent** has `drive`, `kind` (the kinds the old
+  window shows, from the FR-217 inventory), `quarterTrack`, `track`,
+  `sector`, `addressField` (volume, track, sector, checksum) and `value`; an
+  **InputEvent** has `source` (key, mouse, controller, paddle 0-3, button
+  0-2), `origin` (host or guest), `kind` and `value`. Records are fixed-size
+  so a ring holds them without allocating.
+- **DebugEventCache<T>**: a bounded ring of one view's events, newest last;
+  `capacity`; `oldestCycle`; `gaps` (cycle spans where history recording
+  paused). Recording starts with the session. Invariant: no entry lies after
+  the machine's position; a rewind or seek truncates to it.
+- **EventSpanRequest**: `fromCycle`, `toCycle`, `view`; served from the cache
+  where it covers the span, the rest queued to the replayer by stretch.
+- **StretchEvents**: one stretch's rebuilt events (`firstPosition`,
+  `lastPosition`, `events`), held in an LRU of recent stretches.
+- **GuestReadFilter**: the last value read per source; a guest read is
+  recorded only when its value differs.
+
+## Debugger and input components (FR-218)
+
+- **IShellDebugger**: what the shell calls; each method is tagged with its rate
+  (per frame, per slice, per event) in research R-046. Header holds forward
+  declarations only.
+- **ShellDebugger**: owns the debugger window, controller, session, run
+  driver, view state, publisher and build pool, `ReverseHost`, history
+  renderer, thumbnails, heat and call replayers, divergence gate, debug
+  channel and their flags; implements `IDebuggerWindowHost`.
+- **IDebuggerHost**: the UI services the debugger asks of the shell (window
+  handle, theme, clipboard, held inputs, saving preferences, posting to the
+  UI thread); implemented by an adapter private to the shell's `.cpp`.
+- **ShellInput**: owns keyboard routing, caps lock, held host inputs, the
+  game port mixer and the controller service, backend and thread.
+
+## Automatic machine states (User Story 25, FR-219 to FR-225)
+
+- **MachineStateContents** (amended): gains `savedAtUtc` (`FILETIME`, zero
+  for a version-1 state) and `thumbnailPng` (bytes, empty for a version-1
+  state). `Build` fills both; `Parse` fills them from version 2, and for
+  version 1 they are empty.
+- **MachineStateThumbnail**: 280 by 192 pixels, the published framebuffer
+  halved with a box filter, stored as PNG inside the `SFIL` payload.
+- **AutoStatePolicy**: pure. Inputs: the setting, whether the launch's command line
+  has a disk or a tape, whether the machine's automatic state
+  exists, and for a command-line session the user's prompt answer. Outputs:
+  resume at startup (yes or no), save at exit or switch (yes, no, or prompt
+  first), and `GetAutoStatePath (stateDirectory, machineName)`, which is
+  `<stateDirectory>\<machineName>.autosave.cassostate`.
+- **Session flags** (shell): `isCommandLineMediaSession`, set at startup when
+  `--disk1`, `--disk2` or `--tape` is given; the machine it applies to is the
+  one started with it, and it clears on a switch away once the user has
+  chosen in the prompt.
+- **GlobalUserPrefs::autoSaveMachineState**: bool, default true, JSON key
+  `autoSaveMachineState`.
+- **Exit prompt** (`DialogDefinition`): title, the machine's name, the old
+  state's local date and time (the file time for a version-1 state), the
+  thumbnail when present at its own aspect, and the buttons Replace and
+  Don't replace; the close box is Don't replace.

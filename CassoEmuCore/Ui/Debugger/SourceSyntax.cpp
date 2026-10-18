@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/SourceSyntax.h"
 
+#include "CLexer.h"
 #include "Directive.h"
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
@@ -255,6 +256,27 @@ std::vector<SourceSyntax::Run> SourceSyntax::GetInstructionRuns (const std::wstr
 
     runs.push_back ({ (int) start, (int) (end - start), Token::Mnemonic });
     AddOperandRuns (instruction, end, instruction.size(), Assembler::Any, runs);
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::GetOperandRuns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SourceSyntax::Run> SourceSyntax::GetOperandRuns (const std::wstring & operand)
+{
+    std::vector<Run>  runs;
+
+
+
+    AddOperandRuns (operand, 0, operand.size(), Assembler::Any, runs);
 
     return runs;
 }
@@ -636,6 +658,42 @@ std::vector<SourceSyntax::Run> SourceSyntax::GetLineRuns (const std::wstring & l
             run.start += (int) column;
             runs.push_back (run);
         }
+    }
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceSyntax::GetCRuns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SourceSyntax::Run> SourceSyntax::GetCRuns (const std::wstring & line, bool & ioIsInComment)
+{
+    std::vector<Run>  runs;
+
+
+
+    for (const CLexer::Run & run : CLexer::GetRuns (line, ioIsInComment))
+    {
+        Token  token = Token::Symbol;
+
+        switch (run.token)
+        {
+            case CLexer::Token::Keyword:      token = Token::Mnemonic;  break;
+            case CLexer::Token::Type:         token = Token::Directive; break;
+            case CLexer::Token::Preprocessor: token = Token::Directive; break;
+            case CLexer::Token::Number:       token = Token::Number;    break;
+            case CLexer::Token::String:       token = Token::String;    break;
+            case CLexer::Token::Comment:      token = Token::Comment;   break;
+        }
+
+        runs.push_back ({ run.start, run.length, token });
     }
 
     return runs;

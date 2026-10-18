@@ -7,6 +7,8 @@
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Core/DxuiEvents.h"
+#include "Widgets/DxuiPaneFrame.h"
 
 
 

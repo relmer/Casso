@@ -4,6 +4,7 @@
 #include "Ui/Debugger/ColorLegend.h"
 
 #include "Debugger/CallStack.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -15,11 +16,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CallStackPane::CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode) :
-    m_list       (list),
-    m_modeButton (modeButton),
-    m_run        (std::move (run)),
-    m_showCode   (std::move (showCode))
+CallStackPane::CallStackPane (DxuiListView * list, DxuiButton * modeButton, RunFn run, ShowFn showCode, ShowFn showBasicLine) :
+    m_list          (list),
+    m_modeButton    (modeButton),
+    m_run           (std::move (run)),
+    m_showCode      (std::move (showCode)),
+    m_showBasicLine (std::move (showBasicLine))
 {
 }
 
@@ -43,7 +45,16 @@ void CallStackPane::Configure()
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        if (row >= 0 && row < (int) m_rows.size())
+        if (row < 0 || row >= (int) m_rows.size())
+        {
+            return;
+        }
+
+        if (m_rows[(size_t) row].basicLine.has_value())
+        {
+            m_showBasicLine (*m_rows[(size_t) row].basicLine);
+        }
+        else
         {
             m_showCode (m_rows[(size_t) row].address);
         }
@@ -67,15 +78,21 @@ void CallStackPane::Configure()
 //  CallStackPane::Apply
 //
 //  The columns fit the frames shown whenever they change, as the machine
-//  pauses or steps.
+//  pauses or steps. The BASIC frames come before the machine's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CallStackPane::Apply (const CallStackData & data)
+void CallStackPane::Apply (const CallStackData & data, const std::vector<BasicFrame> & basicFrames)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
-    std::vector<Row>                              rows    = GetRows (data);
-    bool                                          changed = !IsSameText (rows, m_rows);
+    std::vector<Row>                              rows    = GetBasicRows (basicFrames);
+    std::vector<Row>                              machine = GetRows (data);
+    bool                                          changed = false;
+
+
+
+    rows.insert (rows.end(), machine.begin(), machine.end());
+    changed = !IsSameText (rows, m_rows);
 
 
 
@@ -151,7 +168,7 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
         cells.pop_back();
     }
 
-    if (row.isDim || row.isBreak || colors.syntax.address == 0)
+    if (row.isDim || row.isBreak || row.basicLine.has_value() || colors.syntax.address == 0)
     {
         return cells;
     }
@@ -160,6 +177,43 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
     cells[1].colorRanges = DebuggerTextColors::GetInstructionRanges (row.routine, colors);
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallStackPane::GetBasicRows
+//
+//  A GOSUB or a FOR loop with its limit and step, on the line it was made
+//  on, as the stack has them, newest first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CallStackPane::Row> CallStackPane::GetBasicRows (const std::vector<BasicFrame> & frames)
+{
+    std::vector<Row>  rows;
+
+
+
+    for (const BasicFrame & frame : frames)
+    {
+        Row  row;
+
+
+
+        row.site      = std::format (L"Line {}", frame.line);
+        row.routine   = (frame.kind == BasicFrameKind::Gosub)
+                      ? std::wstring (L"GOSUB")
+                      : TextEncoding::NarrowToWide (std::format ("FOR {} TO {} STEP {}", frame.variable, frame.limit, frame.step));
+        row.foundBy   = L"Applesoft's stack";
+        row.basicLine = frame.line;
+        rows.push_back (row);
+    }
+
+    return rows;
 }
 
 
@@ -203,20 +257,21 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     Row                              row;
     std::optional<CallStackBreak>    above;
     bool                             isMidRun = false;
-    auto                             widen    = [] (const std::string & text) { return std::wstring (text.begin(), text.end()); };
-    auto                             frameRow = [&widen] (const CallStackFrame & frame)
+    auto                             frameRow = [] (const CallStackFrame & frame)
     {
         Row  made;
 
-        made.site    = std::format (L"${:04X}", frame.callSite);
-        made.routine = std::format (L"{} ${:04X}", widen (CallStack::GetKindName (frame.kind)), frame.target);
-        made.foundBy = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
-        made.isDim   = !frame.isVerified;
-        made.address = frame.callSite;
+        made.site           = std::format (L"${:04X}", frame.callSite);
+        made.routine        = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
+        made.foundBy        = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
+        made.isDim          = !frame.isVerified;
+        made.address        = frame.callSite;
+        made.routineAddress = frame.target;
+        made.routineSymbol  = frame.symbol;
 
         if (!frame.symbol.empty())
         {
-            made.routine += L" " + widen (frame.symbol);
+            made.routine += L" " + TextEncoding::NarrowToWide (frame.symbol);
         }
 
         if (!frame.isVerified)
@@ -237,7 +292,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
             //  frame's does; the second column says what it did.
             row         = Row();
             row.site    = std::format (L"${:04X}", each.chainBreak->pc);
-            row.routine = widen (CallStack::DescribeBreak (*each.chainBreak));
+            row.routine = TextEncoding::NarrowToWide (CallStack::DescribeBreak (*each.chainBreak));
 
             //  It stands alone on its row, so it starts with a capital.
             row.routine[0] = (wchar_t) towupper (row.routine[0]);
@@ -287,7 +342,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     if (data.lastReturn.has_value())
     {
         row          = frameRow (*data.lastReturn);
-        row.foundBy  = widen (data.lastReturn->note);
+        row.foundBy  = TextEncoding::NarrowToWide (data.lastReturn->note);
         row.isDim    = true;
         row.isReturn = true;
         rows.push_back (row);
@@ -410,7 +465,7 @@ std::wstring CallStackPane::GetUnverifiedTip (const std::optional<CallStackBreak
     {
     case CallBreakKind::Txs:
         text = CallStack::DescribeBreak (*above);
-        why  = std::format (L"The {} above set the stack pointer directly, so the stack may not be where these calls left it.", std::wstring (text.begin(), text.end()));
+        why  = std::format (L"The {} above set the stack pointer directly, so the stack may not be where these calls left it.", TextEncoding::NarrowToWide (text));
         break;
 
     case CallBreakKind::PulledReturn:

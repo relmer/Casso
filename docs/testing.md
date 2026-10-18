@@ -75,42 +75,51 @@ committed listing into a booted master, never from the tokenizer's own
 output. The circularity guard is spelled out in the inventory beside the
 fixture.
 
-## The AddressSanitizer build
+## The AddressSanitizer builds
 
-`scripts/RunTests.ps1 -Build -Sanitize` builds Debug x64 with
-AddressSanitizer (`/fsanitize=address`) and runs the unit suite against it.
-The flavor is a build property, `CassoSanitize=Address` in
-`Directory.Build.props`, not a third solution configuration, and it builds
-into `x64\DebugAsan\` so its objects never mix with plain Debug's. It builds
-the whole solution, because the suite needs `Casso.exe` and `CassoCli.exe`
-beside `UnitTest.dll`. `-Scenario` works with it too.
+`scripts/RunTests.ps1 -Build -Sanitize` builds x64 with AddressSanitizer
+(`/fsanitize=address`) and runs the unit suite against it; add `-Scenario` for
+the scenario suite and `-Configuration Release` for the optimized flavor. The
+flavor is a build property, `CassoSanitize=Address` in `Directory.Build.props`,
+not a solution configuration, and it builds into `x64\DebugAsan\` or
+`x64\ReleaseAsan\` so its objects never mix with the plain build's. It builds
+the whole solution, because the suite runs `Casso.exe` and `CassoCli.exe`
+beside `UnitTest.dll`. MeshCreator is left uninstrumented: it runs during the
+build, and instrumented it locks the sanitizer runtime while `UnitTest` copies
+it into the same folder.
 
 **What it catches.** A read or write of freed memory (use-after-free), and a
 read or write past the end of a heap or stack object, as a process abort with
-the allocation and free stacks. When one thread frees or resizes something another thread is still reading,
-this build usually stops at the bad read: the drive-status race fails under
-this build and passes under plain Debug.
+the allocation and free stacks. A disk image freed by `DiskImageStore::Eject`
+and then read through a controller attached to it reports
+`heap-use-after-free` with the eject on the free stack; without the sanitizer
+the same read can pass, because the freed memory has the old image's contents.
 
 **What it misses.** It is not a race detector: two threads updating a plain
-`int` lose updates with no report. It also misses an overflow that never
-leaves its allocation, such as one past a page-aligned 143,360-byte volume
-image, which has no red zone after it. The single-owner assertion and the
-stress tests cover what it cannot.
+`int` can drop an update with no report. It also misses an overflow that
+stays within its allocation, such as one past a page-aligned 143,360-byte volume
+image, which has no red zone after it.
 
 **Continue-on-error hides a report.** With `ASAN_OPTIONS=continue_on_error=2`
-a report prints and the test still passes, with exit 0. The runner removes
+a report prints, vstest reports success and exits 0. The runner removes
 `ASAN_OPTIONS` for the test run, restores it afterward, and fails the run on
 any `ERROR: AddressSanitizer` line in the output even when vstest exits 0.
 
-**What changes in this build.** `/RTC` is off, because it is incompatible with
-AddressSanitizer. `ThreadAllocationCounter` reports itself unavailable,
-because the sanitizer's heap bypasses the debug CRT's allocation hook, so the
-allocation-count tests skip their counts.
+**What changes in these builds.** `/RTC` is off in Debug, because it is
+incompatible with AddressSanitizer.
 
-**Cost and when to run it.** About three times the plain Debug suite's time
-(15 minutes against about 5, measured 2026-10). Run it once before merging a
-change to threading, ownership or object lifetime, not on every iteration.
+**Cost and when to run it.** Wall time per run, measured 2026-10-17 on one
+machine:
 
+| Suite    | Release | Release ASan | Debug | Debug ASan |
+|----------|---------|--------------|-------|------------|
+| Unit     | 0:21    | 2:11         | 1:37  | 4:03       |
+| Scenario | 0:12    | 0:55         | 0:59  | 1:50       |
+
+Release ASan with the scenario suite is the cheap pass: under a minute, over
+the code paths where real guests drive the devices. Run it before merging a
+change to device, disk or object-lifetime code; run Debug ASan over both
+suites before a release.
 ## The generated cycle reference
 
 `docs/cycle-reference.md` is not written, it is generated: `CycleReference` in

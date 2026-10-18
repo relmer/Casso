@@ -4,6 +4,7 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Core/TextEncoding.h"
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -48,7 +49,7 @@ public:
     static void AssertParsesTo (ControllerRig & rig, const std::string & line, const DebuggerAction & action)
     {
         AppleWinParseResult  parsed = AppleWinParser::Parse (line, rig.controller.GetSession());
-        std::wstring         what   (line.begin(), line.end());
+        std::wstring         what   = TextEncoding::NarrowToWide (line);
 
 
 
@@ -84,6 +85,24 @@ public:
         AssertParsesTo (rig, "HISTORY OFF",  DebuggerActions::GetTraceToggle      (true,  aw));
         AssertParsesTo (rig, "MODE MONITOR", DebuggerActions::GetSetMode          (CommandMode::Monitor, aw));
         AssertParsesTo (rig, "R P 30",       DebuggerActions::GetSetRegister      ("P", 0x30, aw));
+        AssertParsesTo (rig, "PROJECT MERGE", DebuggerActions::GetProject         ("MERGE", "", aw));
+        AssertParsesTo (rig, "PROJECT SAVEAS \"game.cassoproj\"", DebuggerActions::GetProject ("SAVEAS", "game.cassoproj", aw));
+        AssertParsesTo (rig, "DB 0300:030F",  DebuggerActions::GetMarkData       ("DB", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "ASC 0300:030F", DebuggerActions::GetMarkData       ("ASC", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "X 0300:030F",   DebuggerActions::GetClearData      (0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "SYM LOOP = 0300", DebuggerActions::GetAddSymbol    ("LOOP", 0x0300, aw));
+        AssertParsesTo (rig, "BMA 0300",      DebuggerActions::GetAddBookmark    (0x0300, aw));
+        AssertParsesTo (rig, "BMC 2",         DebuggerActions::GetClearBookmark  (2, aw));
+        AssertParsesTo (rig, "STOPWATCH 0300 0310", DebuggerActions::GetStopwatch (0x0300, 0x0310, aw));
+        AssertParsesTo (rig, "JSR 0300",      DebuggerActions::GetCallSubroutine (0x0300, aw));
+        AssertParsesTo (rig, "SKIP 0300",     DebuggerActions::GetSkipRoutine    ("", 0x0300, aw));
+        AssertParsesTo (rig, "SYMUSER ON",    DebuggerActions::GetEnableSymbols  ("USER", true, aw));
+        AssertParsesTo (rig, "SYMMAIN OFF",   DebuggerActions::GetEnableSymbols  ("MAIN", false, aw));
+        AssertParsesTo (rig, "SYMUSER CLEAR", DebuggerActions::GetClearSymbols   ("USER", aw));
+        AssertParsesTo (rig, "SYMUSER SAVE \"out.sym\"", DebuggerActions::GetSaveSymbols ("USER", "out.sym", aw));
+        AssertParsesTo (rig, "SYMUSER ! LOOP", DebuggerActions::GetRemoveSymbol  ("USER", "LOOP", aw));
+        AssertParsesTo (rig, "PROFILE ON",    DebuggerActions::GetProfile        ("ON", aw));
+        AssertParsesTo (rig, "SKIP -0300",    DebuggerActions::GetRemoveSkip     ({ "", 0x0300, 0x0300 }, aw));
     }
 
 
@@ -161,6 +180,34 @@ public:
         rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPoke (0x0400, 0x5A, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x0400));
+    }
+
+
+
+    //  A memory window's undo writes only while memory contains the action's
+    //  required bytes, whatever the window last read.
+    TEST_METHOD (APatchWithExpectedBytesWritesOnlyOverThem)
+    {
+        ControllerRig             rig;
+        std::vector<std::string>  lines;
+        const Byte                written[]  = { 0xA9, 0xEA };
+        const Byte                replaced[] = { 0x11, 0x22 };
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, written, CommandMode::AppleWin));
+        rig.machine.GetMemoryBus().WriteByte (0x0401, 0x33);
+
+        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+
+        Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0400), L"nothing was written");
+        Assert::IsTrue   (std::ranges::any_of (lines, [] (const std::string & line) { return line.find ("$0401 has changed since the edit") != std::string::npos; }));
+
+        rig.machine.GetMemoryBus().WriteByte (0x0401, 0xEA);
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+
+        Assert::AreEqual ((Byte) 0x11, rig.machine.GetMemoryBus().ReadByte (0x0400));
+        Assert::AreEqual ((Byte) 0x22, rig.machine.GetMemoryBus().ReadByte (0x0401));
     }
 
 

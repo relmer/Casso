@@ -5,6 +5,7 @@
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/ProfileTable.h"
 #include "Debugger/Reverse/ReverseCommand.h"
+#include "Debugger/RoutineProfile.h"
 
 class IDebugTarget;
 class IFileSystem;
@@ -18,9 +19,9 @@ class IFileSystem;
 //  ExecutionHandlers
 //
 //  =, JSR, NOP and ZAP, KEY, BPV, BPBEAM, FRAME and VIDEOINFO, LBR, TF,
-//  PROFILE, STOPWATCH, CYCLES and RCC, BENCHMARK, BENCH and EXITBENCH, and the
-//  reverse commands T-, P-, GU-, G- and LIVE. The run commands themselves (G,
-//  GG, T, TL, P, RTS) are the session's own.
+//  PROFILE, STOPWATCH, CYCLES and RCC, and the reverse commands T-, P-, GU-,
+//  G- and LIVE. The run commands themselves (G, GG, T, TL, P, RTS) are the
+//  session's own.
 //
 //  The family is also the session's instruction observer: the profile
 //  counters (while PROFILE ON), the stopwatch (while armed) and the trace file are fed from each
@@ -28,15 +29,22 @@ class IFileSystem;
 //  running freely. The key queue is fed during a run and after each slice of
 //  a free run. The branch record is the CPU's own, kept on every path.
 //
-//  BENCHMARK, BENCH and EXITBENCH report not available in every session: no
-//  benchmark runner exists.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExecutionHandlers : public IDebugCommandHandler,
                           public IInstructionObserver
 {
 public:
+    //  The commands that set the trace file, the profiler and the stopwatch
+    //  as they are now, for a debug project to run again.
+    std::vector<std::string>  MakeScript () const;
+
+    //  The profile as PROFILE LIST has it, with the list given.
+    void  BuildProfile (DebugSession & session, ProfileList list, ProfileData & data) const;
+
+    //  Whether PROFILE ON is in force.
+    bool  IsProfiling () const override { return m_profile.IsOn(); }
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
     void  OnInterrupt      (DebugSession & session) override;
@@ -87,7 +95,6 @@ private:
     void         ShowStopwatch     (Reply & reply) const;
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ResetCycles       (DebugSession & session, Reply & reply);
-    static void  Benchmark         (const DebugCommand & command, Reply & reply);
     static void  RunReverse        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     //  The reverse command a reverse verb stands for.
@@ -95,7 +102,7 @@ private:
 
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
-    void         BuildProfile      (DebugSession & session, bool isByAddress, ProfileData & data) const;
+    void         BuildRoutines     (DebugSession & session, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     HRESULT      FlushTrace        (DebugSession & session);
@@ -104,11 +111,14 @@ private:
     static Byte  Peek              (IDebugTarget & target, Word address);
     static std::string  TrimSpaces (const std::string & text);
 
+    //  The list for PROFILE LIST's word: none, ADDR, ROUTINES or TREE.
+    static bool  TryGetProfileList (const std::string & word, ProfileList & list);
+
     TraceState                         m_trace;
     ProfileTable                       m_profile;
+    RoutineProfile                     m_routines;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
     std::deque<Byte>                   m_keys;
-    uint64_t                           m_cycleMarker    = 0;
     uint64_t                           m_lastRunCycles  = 0;
 };

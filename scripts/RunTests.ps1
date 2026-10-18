@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Runs the Casso unit tests using vstest.console.
 
@@ -60,8 +60,8 @@
     Passes a full vstest filter expression through unchanged.
 
 .PARAMETER Sanitize
-    Run the AddressSanitizer flavor (x64\DebugAsan\), built with
-    Build.ps1 -Sanitize, or here with -Build -Sanitize. Debug x64 only. The run
+    Run the AddressSanitizer flavor (x64\DebugAsan\ or x64\ReleaseAsan\), built
+    with Build.ps1 -Sanitize, or here with -Build -Sanitize. x64 only. The run
     fails when the output holds an AddressSanitizer report, even if vstest
     itself exits 0. See docs/testing.md.
 
@@ -123,11 +123,12 @@ if ($Platform -eq 'Auto') {
 
 $ErrorActionPreference = 'Stop'
 
-if ($Sanitize -and ($Configuration -ne 'Debug' -or $Platform -ne 'x64')) {
-    throw '-Sanitize runs the Debug x64 AddressSanitizer build only.'
+if ($Sanitize -and $Platform -ne 'x64') {
+    throw '-Sanitize runs the x64 AddressSanitizer build only.'
 }
 
-#  The AddressSanitizer flavor builds into a folder of its own, x64\DebugAsan\.
+#  The AddressSanitizer flavor builds into a folder of its own, x64\DebugAsan\
+#  or x64\ReleaseAsan\.
 $flavor = $Sanitize ? 'Asan' : ''
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
@@ -257,7 +258,7 @@ Write-Host "vstest.console path: $vstestPath" -ForegroundColor DarkGray
 
 if ($Sanitize) {
     Write-Host ''
-    Write-Host 'SANITIZER BUILD -- AddressSanitizer (x64\DebugAsan), about three times slower.' -ForegroundColor Yellow
+    Write-Host "SANITIZER BUILD -- AddressSanitizer (x64\$Configuration$flavor), slower than the plain build." -ForegroundColor Yellow
     Write-Host '  Catches use-after-free and buffer overflows; it does not detect data races.' -ForegroundColor DarkGray
     Write-Host ''
 }

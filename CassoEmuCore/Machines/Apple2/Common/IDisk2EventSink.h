@@ -12,8 +12,8 @@
 //
 //  Abstract notification interface fired by Disk2Controller whenever a
 //  user-visible event happens on the controller surface. Implemented by
-//  Casso/Disk2DebugDialog and exercised by the spec-006 debug window;
-//  the controller has zero awareness of who is listening.
+//  whatever observes the controller; the controller has zero awareness
+//  of who is listening.
 //
 //  Contract:
 //    * All methods are void and infallible. They MUST NOT throw and MUST
@@ -37,14 +37,29 @@
 //                       kMaxQuarterTrack. Mutually exclusive with
 //                       OnHeadStep for any single HandlePhase call.
 //
-//  Address / data marks (fired by Disk2AddressMarkWatcher):
-//    * OnAddressMark   -- after D5 AA 96 + 4-and-4 fields + good XOR
-//                          checksum
-//    * OnDataMarkRead  -- after D5 AA AD + 342 nibbles + DE AA EB
-//    * OnDataMarkWrite -- DEFINED FOR FORWARD COMPATIBILITY ONLY.
-//                          DOES NOT FIRE in v1 (A-010). A symmetric
-//                          write-side watcher lands with issue #67
-//                          (bit-level write path through Q6/Q7).
+//  Address and data fields (fired by Disk2AddressMarkWatcher), 16-sector
+//  or 13-sector:
+//    * OnAddressMark          -- after D5 AA 96 or B5 + 4-and-4 fields +
+//                                 good XOR checksum
+//    * OnAddressChecksumError -- the same with a checksum that fails
+//    * OnDataMarkRead         -- after D5 AA AD + body + DE AA, the
+//                                 decoded bytes with a good checksum
+//    * OnDataChecksumError    -- the same with a checksum that fails
+//    * OnDataFieldCutOff      -- a data field with no epilogue, or one
+//                                 ended at a length neither encoding has
+//    * OnDataWithoutAddress   -- a whole data field with no address
+//                                 field read before it
+//    * OnDataMarkWrite        -- after D5 AA AD + body + DE AA written
+//                                 through the write latch, with its bytes
+//    * OnReadStall            -- two revolutions of nibbles read with no
+//                                 address field decoded and no head step;
+//                                 once per stall
+//
+//  Writing:
+//    * OnWriteMode            -- Q7 turned on or off, with the selected
+//                                 drive
+//    * OnWriteProtected       -- the program turned on writing with a
+//                                 write-protected disk in the drive
 //
 //  Drive / image lifecycle:
 //    * OnDriveSelect   -- active drive index flipped via $C0EA / $C0EB
@@ -74,8 +89,16 @@ public:
     virtual void OnHeadBump (int atQt) = 0;
 
     virtual void OnAddressMark (int track, int sector, int volume) = 0;
-    virtual void OnDataMarkRead (int track, int sector, int volume, int byteCount) = 0;
-    virtual void OnDataMarkWrite (int track, int sector, int volume, int byteCount) = 0;
+    virtual void OnDataMarkRead (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
+    virtual void OnDataMarkWrite (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
+    virtual void OnReadStall (int quarterTrack) {}
+
+    virtual void OnAddressChecksumError (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
+    virtual void OnDataChecksumError    (int track, int sector, int volume, std::span<const Byte> bytes) { (void) track; (void) sector; (void) volume; (void) bytes; }
+    virtual void OnDataFieldCutOff      (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
+    virtual void OnDataWithoutAddress   (std::span<const Byte> bytes)                                    { (void) bytes; }
+    virtual void OnWriteProtected       ()                                                                {}
+    virtual void OnWriteMode            (int drive, bool isOn)                                            { (void) drive; (void) isOn; }
 
     virtual void OnDriveSelect (int drive) = 0;
     virtual void OnDiskInserted (int drive) = 0;

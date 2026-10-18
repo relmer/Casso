@@ -3,8 +3,10 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "EmuTests/TestMachine.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -60,7 +62,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::Fail ((L"no row " + std::wstring (label.begin(), label.end())).c_str());
+            Assert::Fail ((L"no row " + TextEncoding::NarrowToWide (label)).c_str());
             return kMissing;
         }
 
@@ -75,7 +77,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::Fail ((L"no bit " + std::wstring (name.begin(), name.end())).c_str());
+            Assert::Fail ((L"no bit " + TextEncoding::NarrowToWide (name)).c_str());
             return false;
         }
 
@@ -161,11 +163,13 @@ namespace DebuggerTests
             TestMachine                  machine  ("Apple2e", TestMachine::Slots::Empty);
             DiagnosticsSnapshot          snapshot = Snapshot (*machine.GetMmu());
             const DiagnosticsMemoryMap * map      = std::get_if<DiagnosticsMemoryMap> (&snapshot.visual);
-            const DiagnosticsRow       & packed   = FindRow (snapshot, "MMU");
 
 
 
-            Assert::AreEqual ((size_t) 7, packed.bits.size(), L"RAMRD to INTC8ROM");
+            Assert::IsTrue (std::none_of (snapshot.groups.begin(), snapshot.groups.end(), [] (const DiagnosticsGroup & group)
+            {
+                return std::any_of (group.rows.begin(), group.rows.end(), [] (const DiagnosticsRow & row) { return row.label == "MMU"; });
+            }), L"no packed row: each switch is listed once");
 
             for (const char * name : { "RAMRD", "RAMWRT", "ALTZP", "80STORE", "INTCXROM", "SLOTC3ROM", "INTC8ROM" })
             {
@@ -194,7 +198,6 @@ namespace DebuggerTests
             on = Snapshot (*machine.GetMmu());
 
             Assert::AreEqual (std::string ("on"), FindRow (on, "ALTZP").value);
-            Assert::IsTrue   (IsBitSet (FindRow (on, "MMU"), "ALTZP"));
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x00].read  == MemorySource::Aux);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x01].write == MemorySource::Aux);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (on.visual).pages[0x02].read  == MemorySource::Main, L"only pages 0 and 1");
@@ -347,7 +350,7 @@ namespace DebuggerTests
 
             for (const DiagnosticsBit & bit : FindRow (none, "IER").bits)
             {
-                Assert::IsFalse (bit.set, std::wstring (bit.name.begin(), bit.name.end()).c_str());
+                Assert::IsFalse (bit.set, TextEncoding::NarrowToWide (bit.name).c_str());
             }
 
             Assert::AreEqual (std::string ("$40"), FindRow (timer1, "IER").value);
@@ -494,6 +497,64 @@ namespace DebuggerTests
 
             Assert::IsFalse (Contains (plusIds, "mmu"),          L"a ][+ has no MMU");
             Assert::IsFalse (Contains (plusIds, "mockingboard"), L"nor a card in an empty slot");
+            Assert::IsTrue  (Contains (iieIds,  "cassette"),     L"the //e has cassette jacks");
+            Assert::IsTrue  (Contains (plusIds, "cassette"),     L"and the ][+");
+        }
+
+
+        //  The //c has no cassette port, so no Cassette panel.
+        TEST_METHOD (TheIIcHasNoCassettePanel)
+        {
+            TestMachine  iic ("Apple2c", TestMachine::Slots::AsShipped);
+
+
+
+            Assert::IsFalse (Contains (GetIds (iic), "cassette"));
+        }
+
+
+        //  The Cassette panel with no tape, then after the guest toggles the
+        //  output twice: the transport, the output's level and the toggles.
+        TEST_METHOD (TheCassettePanelShowsTheTransportAndTheOutput)
+        {
+            TestMachine                   machine  ("Apple2e", TestMachine::Slots::Empty);
+            const IDiagnosticsProvider  * cassette = nullptr;
+            DiagnosticsSnapshot           before;
+            DiagnosticsSnapshot           after;
+
+
+
+            machine.PowerCycle();
+
+            for (const IDiagnosticsProvider * provider : machine.GetDiagnosticsProviders())
+            {
+                cassette = (provider->GetDiagnosticsId() == "cassette") ? provider : cassette;
+            }
+
+            if (cassette == nullptr)
+            {
+                Assert::Fail (L"the //e lists a Cassette panel");
+                return;
+            }
+
+            before = Snapshot (*cassette);
+            (void) machine.GetMemoryBus().ReadByte (0xC020);
+            (void) machine.GetMemoryBus().ReadByte (0xC020);
+            after  = Snapshot (*cassette);
+
+            Assert::AreEqual (std::string ("No tape"), FindRow (before, "Transport").value);
+            Assert::AreEqual (std::string ("none"),    FindRow (before, "Last access").value);
+            Assert::AreEqual (std::string ("0"),       FindRow (before, "Output toggles").value);
+            Assert::AreEqual (std::string ("2"),       FindRow (after,  "Output toggles").value);
+            Assert::AreEqual (std::string ("off"),     FindRow (after,  "Output level").value, L"two toggles, back where it began");
+        }
+
+
+        TEST_METHOD (CassetteSecondsAreMinutesSecondsAndTenths)
+        {
+            Assert::AreEqual (std::string ("0:00.0"), CassetteDiagnostics::FormatSeconds (0.0));
+            Assert::AreEqual (std::string ("2:05.3"), CassetteDiagnostics::FormatSeconds (125.25));
+            Assert::AreEqual (std::string ("0:59.9"), CassetteDiagnostics::FormatSeconds (59.94));
         }
     };
 }

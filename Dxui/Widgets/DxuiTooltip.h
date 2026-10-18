@@ -3,7 +3,9 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Render/DxuiShadow.h"
+#include "Theme/DxuiTheme.h"
 #include "Theme/IDxuiTheme.h"
+#include "Theme/DxuiTheme.h"
 
 
 class DxuiHwndSource;
@@ -53,6 +55,12 @@ public:
 
     using PointerMeasurer = PointerExtent (*) ();
 
+    //  Where the pointer is, in the owner's client pixels; false when it
+    //  cannot be found.
+    using PointerLocator  = bool (*) (HWND owner, POINT & outClientPx);
+
+    static bool  LocatePointer (HWND owner, POINT & outClientPx);
+
     //  The current pointer's extent, read from its image, or the system's
     //  cursor height below the hot spot where the image cannot be read.
     static PointerExtent  MeasurePointerExtent ();
@@ -63,6 +71,9 @@ public:
 
     //  Replaces MeasurePointerExtent, so a test can supply a pointer.
     void  SetPointerMeasurer (PointerMeasurer measurer) { m_pfnMeasurePointer = measurer; }
+
+    //  Replaces LocatePointer, so a test can put the pointer anywhere.
+    void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
     //  The rect the tip is placed against: the anchor, or for a tip that
     //  follows the pointer, the anchor grown to clear the pointer's image.
@@ -77,8 +88,32 @@ public:
     void  SetDwellCloseMs (int ms) { m_dwellCloseMs = ms; }
     void  SetFontSizeDip  (float dip) { m_fontDip = dip; }
 
-    //  A fixed-width face, for a tip whose lines are columns.
+    //  A fixed-width face, for a tip of code or bytes. A tip whose columns
+    //  are separated by tabs lines them up in either face (TableLayout).
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  A tip with a tab in its text is a table: the tab-separated parts of
+    //  each line start at the same columns, one em apart at the widest, so
+    //  they line up in a proportional face as they would in a fixed one. A
+    //  line with no tab spans the table and adds to no column.
+    struct TableLayout
+    {
+        std::vector<std::vector<std::wstring>>  lines;
+        std::vector<float>                      columnX;
+        std::vector<float>                      columnW;
+        float                                   width      = 0.0f;
+        float                                   lineHeight = 0.0f;
+    };
+
+    using MeasureFn = std::function<HRESULT (const std::wstring & part, float & widthPx, float & heightPx)>;
+
+    static bool     IsTable     (const std::wstring & text) { return text.find (L'\t') != std::wstring::npos; }
+
+    //  A table's line colors, one for each line from the top; zero, or a line
+    //  past the last, is drawn in the tip's text color. Set before the
+    //  request it goes with; a change of colors raises the tip again.
+    void  SetLineColors (std::vector<uint32_t> argbs) { m_lineArgbs = std::move (argbs); }
+    static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -115,7 +150,12 @@ public:
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
-    void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
+    // A hover tip for `anchor`, raised after the open dwell. It is placed by
+    // the pointer where the pointer came to rest, as the system's tips are,
+    // or with isAtPointer false against the anchor, as a tip stacked under
+    // another is. A move within the anchor with the same text does not move
+    // it.
+    void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs, bool isAtPointer = true);
     void  RequestHide     (int64_t nowMs);
 
     // Shows at once, with no open dwell and no fade, for a tip that follows
@@ -186,6 +226,9 @@ private:
     //
     void  ShowPopup          ();
 
+    //  The pointer's image, read once as a tip comes up.
+    void  MeasurePointerForPlacement ();
+
     //  The balloon's size for the current text, the anchor in screen
     //  pixels, and the balloon that is up moved to the anchor in place.
     void  MeasureBoxPx       (float & widthPx, float & heightPx);
@@ -211,34 +254,45 @@ private:
     //
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
-    DxuiDpiScaler      m_scaler;
-    RECT               m_anchor            = {};
-    std::wstring       m_text;
-    std::wstring       m_pendingText;
-    RECT               m_pendingAnchor     = {};
-    int64_t            m_showAtMs          = 0;
-    int64_t            m_hideAtMs          = 0;
-    int                m_dwellOpenMs       = 500;
-    int                m_dwellCloseMs      = 100;
-    float              m_fontDip           = 12.0f;
-    bool               m_monospace         = false;
-    uint32_t           m_bgArgb            = 0xFF2D2D2D;
-    uint32_t           m_borderArgb        = 0xFF606060;
-    uint32_t           m_textArgb          = 0xFFE8EEF4;
-    float              m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
-    bool               m_isWholePixelFrame = false;
-    DxuiShadow::Style  m_shadowOnDark;
-    DxuiShadow::Style  m_shadowOnLight;
-    int                m_viewportWPx       = 0;
-    int                m_viewportHPx       = 0;
-    bool               m_visible           = false;
-    bool               m_pending           = false;
-    bool               m_fadingOut         = false;
-    bool               m_isInstant         = false;
-    DxuiHwndSource   * m_popupHost         = nullptr;
-    DxuiPopupHost    * m_activePopup       = nullptr;
-    PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;
-    PointerExtent      m_pointerExtent     = {};
-    bool               m_hasPointerExtent  = false;
-    int                m_showCount         = 0;
+    //  The table's parts drawn from its top-left, in pixels.
+    void  DrawTable          (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
+
+    //  The table laid out with `text` measuring the parts at the tip's font.
+    HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
+
+    DxuiDpiScaler            m_scaler;
+    RECT                     m_anchor            = {};
+    std::wstring             m_text;
+    std::wstring             m_pendingText;
+    RECT                     m_pendingAnchor     = {};
+    bool                     m_isPointerTip      = true;
+    bool                     m_isNextPointerTip  = true;
+    int64_t                  m_showAtMs          = 0;
+    int64_t                  m_hideAtMs          = 0;
+    int                      m_dwellOpenMs       = 500;
+    int                      m_dwellCloseMs      = 100;
+    float                    m_fontDip           = 12.0f;
+    bool                     m_monospace         = false;
+    uint32_t                 m_bgArgb            = 0xFF2D2D2D;
+    uint32_t                 m_borderArgb        = 0xFF606060;
+    uint32_t                 m_textArgb          = 0xFFE8EEF4;
+    float                    m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
+    bool                     m_isWholePixelFrame = false;
+    DxuiShadow::Style        m_shadowOnDark;
+    DxuiShadow::Style        m_shadowOnLight;
+    int                      m_viewportWPx       = 0;
+    int                      m_viewportHPx       = 0;
+    bool                     m_visible           = false;
+    bool                     m_pending           = false;
+    bool                     m_fadingOut         = false;
+    bool                     m_isInstant         = false;
+    DxuiHwndSource         * m_popupHost         = nullptr;
+    DxuiPopupHost          * m_activePopup       = nullptr;
+    PointerMeasurer          m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator           m_pfnLocatePointer  = LocatePointer;
+    PointerExtent            m_pointerExtent     = {};
+    bool                     m_hasPointerExtent  = false;
+    int                      m_showCount         = 0;
+    std::vector<uint32_t>    m_lineArgbs;
+    std::vector<uint32_t>    m_shownLineArgbs;
 };

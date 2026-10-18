@@ -2,6 +2,8 @@
 
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiThread.h"
+#include "Core/IDxuiViewportInputSink.h"
+#include "Core/DxuiEvents.h"
 
 
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Devices/Disk/DiskImage.h"
+class DiskImage;
 
 
 

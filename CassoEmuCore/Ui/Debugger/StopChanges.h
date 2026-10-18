@@ -33,6 +33,10 @@ public:
     //  or "-6"; empty while running, with no previous stop, or no move.
     std::string  GetDelta  (const std::string & key) const;
 
+    //  The bits of a hexadecimal value that differ from the previous stop;
+    //  0 while running, with no previous stop, or no change.
+    uint32_t     GetChangedBits (const std::string & key) const;
+
 private:
     Values  m_stop;
     Values  m_previous;

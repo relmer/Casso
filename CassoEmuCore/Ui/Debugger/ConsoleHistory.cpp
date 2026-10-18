@@ -39,6 +39,27 @@ void ConsoleHistory::Add (const std::wstring & line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConsoleHistory::SetLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleHistory::SetLines (std::vector<std::wstring> lines)
+{
+    if (lines.size() > kLimit)
+    {
+        lines.erase (lines.begin(), lines.end() - (ptrdiff_t) kLimit);
+    }
+
+    m_lines = std::move (lines);
+    m_index.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConsoleHistory::GetOlder
 //
 //  The first step back keeps what was typed so the walk can return to it. At

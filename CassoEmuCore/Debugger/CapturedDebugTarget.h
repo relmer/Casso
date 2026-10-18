@@ -52,12 +52,14 @@ public:
     uint64_t            GetCycleCount     () const override { return m_capture->cycleCount; }
     Byte                GetLastPenalties  () const override { return m_capture->lastPenalties; }
     bool                TryGetLastBranch  (Word & from) const override;
+    bool                TryGetLastBranchTarget (Word & to) const override;
     DebugCpuKind        GetCpuKind        () const override { return m_capture->cpuKind; }
     const Microcode   * GetInstructionSet () const override { return m_capture->instructionSet; }
     DebugMachineInfo    GetMachineInfo    () const override { return m_capture->machineInfo; }
 
     void                InjectKey         (Byte) override {}
     bool                IsKeyPending      () const override { return m_capture->isKeyPending; }
+    bool                TryGetDiskState   (DebugDiskState & state) const override { state = m_capture->diskState.value_or (state); return m_capture->diskState.has_value(); }
 
     void                SetTraceOn        (bool) override {}
     bool                IsTraceOn         () const override { return m_capture->isTraceOn; }

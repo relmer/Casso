@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -180,9 +183,13 @@ public:
     //  A pointer twenty pixels tall below its hot spot, and two above it.
     static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
 
-    //  An instant tip follows the pointer, so it is placed clear of the
-    //  pointer's whole image plus a gap, below it, or above it where below
-    //  would run off the work area. A dwelled tip keeps its control's anchor.
+    //  No pointer to be found, and a pointer resting at (150, 400).
+    static bool  FindNoPointer      (HWND, POINT &)       { return false; }
+    static bool  FindRestingPointer (HWND, POINT & out)  { out = { 150, 400 }; return true; }
+
+    //  A tip is placed clear of the pointer's whole image plus a gap, below
+    //  it, or above it where below would run off the work area. With no
+    //  pointer to be found it is placed against its anchor.
     TEST_METHOD (RequestShowNow_PlacesTheTipClearOfThePointer)
     {
         constexpr int  kGapPx   = 4;
@@ -196,6 +203,7 @@ public:
 
 
         t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
         t.RequestShowNow (cell, L"$0400", 0);
 
         anchor = t.GetPlacementAnchor();
@@ -217,7 +225,7 @@ public:
         t.Tick (0);
         anchor = t.GetPlacementAnchor();
 
-        Assert::IsTrue (EqualRect (&anchor, &cell) != FALSE, L"a dwelled tip keeps its control's anchor");
+        Assert::AreEqual (cell.bottom + 20 + kGapPx, anchor.bottom, L"a dwelled tip clears the pointer too");
     }
 
     //  A tip that follows the pointer keeps the one balloon it raised and
@@ -235,6 +243,7 @@ public:
 
         t.SetPopupHost       (&host);
         t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
 
         t.RequestShowNow (MakeRect (100, 200, 101, 201), L"$0400", 0);
 
@@ -253,6 +262,102 @@ public:
         Assert::AreEqual (1, t.GetShowCount(), L"new text is put in place");
         Assert::AreEqual (std::wstring (L"$0401"), t.GetText());
         Assert::AreEqual (placed.left + 60, popup->GetPlacedRectScreenPx().left);
+
+        t.HideImmediate();
+    }
+
+    //  A tip's tab-separated parts start at the same columns on every line,
+    //  each column as wide as its widest part and a gap after it; a line with
+    //  no tab spans the columns and widens only the whole table.
+    //  A table line with a color of its own is drawn in it, every part of
+    //  it; the other lines are in the tip's text color.
+    TEST_METHOD (ATableLineTakesItsOwnColor)
+    {
+        constexpr uint32_t    kRed = 0xFFE05050;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineColors     ({ 0, kRed });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"N\tNegative\t0\nZ\tZero\t1", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            bool  isZeroLine = call.text == L"Z" || call.text == L"Zero" || call.text == L"1";
+
+            Assert::AreEqual (isZeroLine ? kRed : t.GetTextArgb(), call.argb, call.text.c_str());
+        }
+
+        Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
+    }
+
+    TEST_METHOD (LayOutTable_LinesUpTheColumnsOfEveryLine)
+    {
+        DxuiTooltip::TableLayout  table;
+        HRESULT                   hr      = S_OK;
+        auto                      measure = [] (const std::wstring & part, float & w, float & h)
+        {
+            w = 10.0f * (float) part.size();
+            h = 16.0f;
+            return S_OK;
+        };
+
+
+
+        hr = DxuiTooltip::LayOutTable (L"N\tNegative\t1\nZ\tZero\t0\nA line that spans the two columns", 12.0f, measure, table);
+
+        Assert::AreEqual (S_OK, hr);
+        Assert::AreEqual ((size_t) 3, table.lines.size());
+        Assert::AreEqual ((size_t) 3, table.columnX.size());
+        Assert::AreEqual (0.0f,                 table.columnX[0]);
+        Assert::AreEqual (10.0f + 12.0f,        table.columnX[1], L"after the widest letter and the gap");
+        Assert::AreEqual (22.0f + 80.0f + 12.0f, table.columnX[2], L"after Negative, the wider name");
+        Assert::AreEqual (330.0f,               table.width,      L"the spanning line is the widest");
+        Assert::AreEqual (16.0f,                table.lineHeight);
+        Assert::IsFalse  (DxuiTooltip::IsTable (L"no tabs here"));
+    }
+
+    //  A hover tip sits by the pointer, wherever on its control the pointer
+    //  rests, as the system's own tips do; a request again for the same tip
+    //  while it is up does not raise it again. A tip stacked under another
+    //  and a timed notice are placed against their anchor.
+    TEST_METHOD (AHoverTipSitsByThePointer)
+    {
+        constexpr int   kGapPx  = 4;
+        DxuiHwndSource  host;
+        DxuiTooltip     t;
+        RECT            control = MakeRect (100, 200, 300, 260);
+        RECT            anchor  = {};
+        int             raised  = 0;
+
+
+
+        t.SetPopupHost       (&host);
+        t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindRestingPointer);
+        t.SetDwellOpenMs (0);
+        t.RequestShow (control, L"a control's tip", 0);
+        t.Tick (0);
+
+        anchor = t.GetPlacementAnchor();
+        Assert::AreEqual (150L,               anchor.left,   L"at the pointer, not the control's edge");
+        Assert::AreEqual (401L + 20 + kGapPx, anchor.bottom, L"below the pointer's image");
+
+        raised = t.GetShowCount();
+        t.RequestShow (control, L"a control's tip", 10);
+        Assert::AreEqual (raised, t.GetShowCount(), L"a move within the control does not raise it again");
+
+        t.RequestShow (control, L"stacked", 20, false);
+        anchor = t.GetPlacementAnchor();
+        Assert::IsTrue (EqualRect (&anchor, &control) != FALSE, L"a stacked tip is placed against its anchor");
+
+        t.ShowTimed (control, L"a notice", 30, 1000);
+        anchor = t.GetPlacementAnchor();
+        Assert::IsTrue (EqualRect (&anchor, &control) != FALSE, L"a timed notice is placed against its anchor");
 
         t.HideImmediate();
     }

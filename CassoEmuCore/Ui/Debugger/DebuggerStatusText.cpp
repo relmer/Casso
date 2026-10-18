@@ -1,6 +1,27 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Debugger/Reverse/ReplayControl.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetSpeedText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetSpeedText (SpeedMode speed)
+{
+    switch (speed)
+    {
+    case SpeedMode::Double:  return L"2x";
+    case SpeedMode::Maximum: return L"Maximum";
+    default:                 return L"1x";
+    }
+}
 
 
 

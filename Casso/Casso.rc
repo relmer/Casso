@@ -1,4 +1,4 @@
-﻿#include "resource.h"
+#include "resource.h"
 #include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
 #include "Version.h"    // single source of truth for the app version
@@ -57,6 +57,7 @@ IDR_MODEL_DISKII_MESH              RCDATA "DiskII.dmesh"
 IDR_MODEL_MONITOR2_MESH            RCDATA "Monitor2.dmesh"
 IDR_MODEL_DISK2C_MESH              RCDATA "Disk2c.dmesh"
 IDR_MODEL_DUODISK_MESH             RCDATA "DuoDisk.dmesh"
+IDR_MODEL_CASSETTE_RECORDER_MESH   RCDATA "CassetteRecorder.dmesh"
 
 // Embedded ImageWriter II mechanical sound set (extracted to the asset base by
 // EnsureImageWriterSounds; decoded by PrinterAudioSource). CC BY 4.0 -- see
@@ -92,13 +93,13 @@ BEGIN
     VK_F7,          IDM_VIEW_DEBUGGER,      VIRTKEY
     VK_F12,         IDM_VIEW_DEBUGGER,      VIRTKEY, CONTROL
     VK_RETURN,      IDM_VIEW_FULLSCREEN,    VIRTKEY, ALT
-    "D",            IDM_VIEW_DRIVE_STRIP,   VIRTKEY, CONTROL
+    VK_F8,          IDM_VIEW_DRIVE_STRIP,   VIRTKEY
     "0",            IDM_VIEW_RESET_SIZE,    VIRTKEY, CONTROL
     "1",            IDM_DISK_INSERT1,       VIRTKEY, CONTROL
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
     VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
-    "D",            IDM_VIEW_DISK2_DEBUG,  VIRTKEY, CONTROL, SHIFT
-    "I",            IDM_VIEW_INPUT_DEBUG, VIRTKEY, CONTROL, SHIFT
+    "D",            IDM_VIEW_DISK2_LOG,     VIRTKEY, CONTROL, SHIFT
+    "I",            IDM_VIEW_INPUT_LOG,     VIRTKEY, CONTROL, SHIFT
     VK_OEM_COMMA,   IDM_VIEW_SETTINGS,      VIRTKEY, CONTROL
     "J",            IDM_MACHINE_ARROWS_JOYSTICK, VIRTKEY, CONTROL, SHIFT
     "C",            IDM_EDIT_COPY_SCREENSHOT, VIRTKEY, CONTROL, ALT

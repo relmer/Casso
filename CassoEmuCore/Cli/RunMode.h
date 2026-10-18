@@ -1,8 +1,9 @@
 #pragma once
 
 #include "AssemblerTypes.h"
-#include "CommandLineOptions.h"
-#include "Cpu.h"
+
+class Cpu;
+struct CommandLineOptions;
 
 
 

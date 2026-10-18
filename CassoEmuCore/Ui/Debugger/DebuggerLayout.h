@@ -37,6 +37,24 @@ public:
     static constexpr const wchar_t * kTrace       = L"trace";
     static constexpr const wchar_t * kHeatMap     = L"heatmap";
     static constexpr const wchar_t * kHeatRanges  = L"heatranges";
+    static constexpr const wchar_t * kDiskLog     = L"disklog";
+    static constexpr const wchar_t * kInputLog    = L"inputlog";
+    static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
+    static constexpr const wchar_t * kSymbols        = L"symbols";
+    static constexpr const wchar_t * kBookmarks      = L"bookmarks";
+    static constexpr const wchar_t * kProfiler       = L"profiler";
+    static constexpr const wchar_t * kDataBlocks     = L"datablocks";
+
+    //  The Symbols, Bookmarks, Profiler and data ranges panes.
+    static std::vector<std::wstring>  GetToolPaneIds ();
+
+    //  The BASIC program pane and the tool panes stay closed until each is
+    //  first opened; the open-views text has " open=" and the pane once it
+    //  is.
+    static bool         IsBasicPane       (const std::wstring & pane);
+    static bool         IsOpenedLater     (const std::wstring & pane);
+    static std::string  FormatBasicOpened (const std::set<std::wstring> & opened);
+    static std::set<std::wstring>  ParseBasicOpened (const std::string & text);
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);

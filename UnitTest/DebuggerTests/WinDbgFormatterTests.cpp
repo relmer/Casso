@@ -4,6 +4,7 @@
 #include "ControllerRig.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -71,6 +72,24 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("a=41 x=00 y=00 sp=f9 pc=0300 Nv-bdizC"), Render ("r", data)[0]);
             Assert::AreEqual (std::string ("nv-bdizc"), WinDbgFormatter::FormatFlags (0x20));
+        }
+
+        TEST_METHOD (Registers_ANamedOneAlone)
+        {
+            RegistersData  data;
+
+
+
+            data.registers = { 0x0300, 0x41, 0x00, 0x00, 0xF9, 0x81 };
+
+            data.only = "A";
+            Assert::AreEqual (std::string ("a=41"),    Render ("r", data)[0]);
+            data.only = "S";
+            Assert::AreEqual (std::string ("sp=f9"),   Render ("r", data)[0]);
+            data.only = "PC";
+            Assert::AreEqual (std::string ("pc=0300"), Render ("r", data)[0]);
+            data.only = "P";
+            Assert::AreEqual (std::string ("fl=81"),   Render ("r", data)[0]);
         }
 
         TEST_METHOD (Db_SixteenBytesADashAndTheCharacters)
@@ -311,7 +330,7 @@ namespace DebuggerTests
 
             lines = Render ("k", data);
 
-            Assert::IsTrue (lines[1].find ("0310 printline ") != std::string::npos, std::wstring (lines[1].begin(), lines[1].end()).c_str());
+            Assert::IsTrue (lines[1].find ("0310 printline ") != std::string::npos, TextEncoding::NarrowToWide (lines[1]).c_str());
         }
 
         //  With OUTPUT WINDBG, a Monitor examine written DA is the byte at $DA,
@@ -328,8 +347,8 @@ namespace DebuggerTests
             reply = rig.Run ("DA", CommandMode::Monitor);
 
             Assert::IsFalse (reply.text.empty());
-            Assert::IsTrue  (reply.text[0].starts_with ("00da  "), std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
-            Assert::IsTrue  (reply.text[0].find ('"') == std::string::npos, std::wstring (reply.text[0].begin(), reply.text[0].end()).c_str());
+            Assert::IsTrue  (reply.text[0].starts_with ("00da  "), TextEncoding::NarrowToWide (reply.text[0]).c_str());
+            Assert::IsTrue  (reply.text[0].find ('"') == std::string::npos, TextEncoding::NarrowToWide (reply.text[0]).c_str());
         }
 
         TEST_METHOD (Evaluate_AndFormats)

@@ -3,8 +3,12 @@
 #include "Pch.h"
 
 #include "Devices/Disk/FilePath.h"
-#include "Machines/Apple2/Common/VolumeTypes.h"
-#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
+
+struct VolumeListing;
+struct FilePayload;
+struct DeleteOutcome;
+struct DirectoryRemovalPlan;
+class VolumeIntegrityReport;
 
 
 

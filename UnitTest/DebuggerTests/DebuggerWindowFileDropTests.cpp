@@ -52,6 +52,7 @@ namespace DebuggerWindowFileDropTests
         }
 
         void  RunDebuggerCommandInMode (const std::string & line, CommandMode) override { commands.push_back (line); }
+        void  RunDebuggerAction        (const DebuggerAction & action)       override { commands.push_back (action.echo); verbs.push_back (action.command.verb); }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -75,6 +76,7 @@ namespace DebuggerWindowFileDropTests
 
         std::vector<int>          openedMemory;
         std::vector<std::string>  commands;
+        std::vector<DebugVerb>    verbs;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -147,6 +149,7 @@ namespace DebuggerWindowFileDropTests
             Assert::AreEqual ((size_t) 2, host.commands.size());
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\game.dbg\""), host.commands[0]);
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\rom.SYM\""),  host.commands[1]);
+            Assert::IsTrue   (host.verbs[0] == DebugVerb::LoadSymbols, L"a typed action, not a line to parse");
         }
 
 

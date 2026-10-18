@@ -9,11 +9,12 @@
 #include "Cpu.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/CallStackRebuildJob.h"
-#include "Debugger/DebugMemoryView.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Shell/MachineHost.h"
 #include "Shell/ScratchReplayMachine.h"
+
+class DebugMemoryView;
 
 
 
@@ -131,7 +132,6 @@ private:
     HRESULT     UseQueue        ();
     bool        IsAbandoned     (const CallStackRebuildJob & job) const;
 
-    static bool IsSavedWith     (const MachineHost::MediaIds & saved, const std::vector<ReplayDisk> & disks);
 
     //  The jobs, between the threads.
     std::mutex                                   m_lock;

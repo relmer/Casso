@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/DebugMemoryImage.h"
 
 
 
@@ -127,6 +128,21 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
             image.readable[first + offset] = TryPeek ((Word) (first + offset), image.bytes[first + offset]);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::TryPeekIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPeekIo (Word address, Byte & value) const
+{
+    return m_host.GetMemoryBus().TryPeekIo (address, value);
 }
 
 

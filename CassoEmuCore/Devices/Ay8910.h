@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 #include "Core/IMachineState.h"
-#include "Debugger/DiagnosticsSnapshot.h"
+
+struct DiagnosticsMeters;
+struct DiagnosticsSnapshot;
 
 
 

@@ -98,6 +98,7 @@ public:
 
     // MemoryDevice
     Byte    Read       (Word address) override;
+    bool    TryPeekIo  (Word address, Byte & value) override;
     void    Write      (Word address, Byte value) override;
     Word    GetStart   () const override { return m_base; }
     Word    GetEnd     () const override { return static_cast<Word> (m_base + kPageSize - 1); }
@@ -119,6 +120,7 @@ public:
     MockingboardVariant        GetVariant     () const { return m_variant; }
     Via6522 &                  GetVia         (int index) { return m_via[index]; }
     Ay8910 &                   GetPsg         (int index) { return m_psg[index]; }
+    Byte                       GetLastControl (int index) const { return m_lastControl[index]; }
     MockingboardAudioSource *  GetAudioSource (int index) { return &m_audioSource[index]; }
 
     // The installed voice chip, or nullptr on the sound-only variant.

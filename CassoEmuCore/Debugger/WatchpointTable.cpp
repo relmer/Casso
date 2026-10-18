@@ -179,6 +179,30 @@ bool WatchpointTable::TrySetEnabled (int id, bool enabled)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+bool WatchpointTable::TrySetName (int id, const std::string & name)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Watchpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->name = name;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TrySetFlags
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool WatchpointTable::TrySetFlags (int id, bool temporary, bool stops)
 {
     bool  isFound = false;
@@ -220,6 +244,34 @@ int WatchpointTable::AddCopy (const Watchpoint & entry)
     m_entries.push_back (copy);
     Publish();
     return copy.id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::TryChangeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchpointTable::TryChangeId (int from, int to)
+{
+    Watchpoint  existing;
+    auto  found = std::ranges::find_if (m_entries, [from] (const Watchpoint & entry) { return entry.id == from; });
+
+
+
+    if (found == m_entries.end() || (from != to && TryFind (to, existing)))
+    {
+        return false;
+    }
+
+    found->id = to;
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Watchpoint & a, const Watchpoint & b) { return a.id < b.id; });
+    Publish();
+    return true;
 }
 
 
@@ -503,7 +555,8 @@ bool WatchpointTable::IsTouchMatch (WatchAccess watched, PredictedAccess predict
 //
 //  Every page an enabled after-mode watchpoint's range touches, and the page
 //  of every enabled value breakpoint, the stack page while the stack write
-//  sink is set and the I/O log's pages while its sink is, and no other.
+//  sink is set, the I/O log's pages while its sink is, and the disk call
+//  vectors' pages, and no other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -518,6 +571,11 @@ WatchedPages WatchpointTable::GetWatchedPages() const
     for (size_t page = 0; m_ioLogSink != nullptr && page < pages.size(); ++page)
     {
         pages[page] = pages[page] || m_ioLogPages[page];
+    }
+
+    for (Word address : m_vectorBytes)
+    {
+        pages[address >> kPageShift] = true;
     }
 
     for (const Watchpoint & entry : m_entries)
@@ -587,6 +645,11 @@ void WatchpointTable::OnWatchedAccess (Word address, Byte value, BusAccess acces
     if (m_ioLogSink != nullptr && m_ioLogPages[address >> kPageShift])
     {
         m_ioLogSink (address, value, access);
+    }
+
+    if (m_vectorWriteSink != nullptr && access == BusAccess::Write && std::ranges::find (m_vectorBytes, address) != m_vectorBytes.end())
+    {
+        m_vectorWriteSink();
     }
 
     if (access == BusAccess::Read && TryConsumeCpuOwnRead (address))
@@ -799,6 +862,28 @@ void WatchpointTable::SetIoLogSink (IoLogSink sink, const WatchedPages & pages)
     m_ioLogSink  = std::move (sink);
     m_ioLogPages = pages;
     Publish();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchpointTable::SetVectorBytes
+//
+//  The pages are published again only when the bytes change, since the
+//  session sets them at every stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchpointTable::SetVectorBytes (const std::vector<Word> & bytes)
+{
+    if (bytes != m_vectorBytes)
+    {
+        m_vectorBytes = bytes;
+        Publish();
+    }
 }
 
 

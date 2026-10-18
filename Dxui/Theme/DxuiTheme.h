@@ -254,8 +254,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFF45494F;
         theme.buttonPressed             = 0xFF23252A;
         theme.buttonBorder              = 0xFF55595F;
-        theme.tooltipBg                 = 0xFF1E2024;
-        theme.tooltipBorder             = 0xFF0F1012;
+        theme.tooltipBg                 = 0xFF26282C;
+        theme.tooltipBorder             = 0xFF131416;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
         theme.resultText                = 0xFF4EC9E0;
@@ -294,8 +294,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.buttonHover               = 0xFFD0D0D0;
         theme.buttonPressed             = 0xFFC0C0C0;
         theme.buttonBorder              = 0xFFB0B0B0;
-        theme.tooltipBg                 = 0xFFF6F6F6;
-        theme.tooltipBorder             = 0xFF7B7B7B;
+        theme.tooltipBg                 = 0xFFEEEEEE;
+        theme.tooltipBorder             = 0xFF777777;
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
         theme.resultText                = 0xFF00727D;

@@ -4,6 +4,7 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -13,93 +14,67 @@
 //
 //  ReadRegister
 //
-//  Reads that touch a timer's low counter clear that timer's interrupt
-//  flag; every other read is side-effect free. Port reads combine the
-//  output register (for output pins) with the external input latch (for
-//  input pins).
+//  Reads that touch a port with handshaking or a timer's low counter clear
+//  that interrupt flag; every other read is side-effect free.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Via6522::ReadRegister (Byte reg)
 {
-    Byte   result = 0;
+    Byte  result = PeekRegister (reg);
 
 
 
     switch (reg & kRegisterMask)
     {
-    case kRegOrb:
-        ClearFlag (kIrqCb1);
-        result = GetPortB();
-        break;
+    case kRegOrb:   ClearFlag (kIrqCb1);    break;
+    case kRegOra:   ClearFlag (kIrqCa1);    break;   // $F, the no-handshake alias, does not
+    case kRegT1CL:  ClearFlag (kIrqTimer1); break;
+    case kRegT2CL:  ClearFlag (kIrqTimer2); break;
+    default:                                break;
+    }
 
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekRegister
+//
+//  Port reads combine the output register (for output pins) with the
+//  external input latch (for input pins).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Via6522::PeekRegister (Byte reg) const
+{
+    Byte  result = 0;
+
+
+
+    switch (reg & kRegisterMask)
+    {
+    case kRegOrb:   result = GetPortB();                                    break;
     case kRegOra:
-        // Reading the handshaking port clears CA1; $F is the no-handshake
-        // alias and deliberately does not.
-        ClearFlag (kIrqCa1);
-        result = GetPortA();
-        break;
-
-    case kRegOraNh:
-        result = GetPortA();
-        break;
-
-    case kRegDdrb:
-        result = m_ddrb;
-        break;
-
-    case kRegDdra:
-        result = m_ddra;
-        break;
-
-    case kRegT1CL:
-        ClearFlag (kIrqTimer1);
-        result = static_cast<Byte> (m_t1Counter & 0xFF);
-        break;
-
-    case kRegT1CH:
-        result = static_cast<Byte> ((m_t1Counter >> 8) & 0xFF);
-        break;
-
-    case kRegT1LL:
-        result = m_t1LatchLo;
-        break;
-
-    case kRegT1LH:
-        result = m_t1LatchHi;
-        break;
-
-    case kRegT2CL:
-        ClearFlag (kIrqTimer2);
-        result = static_cast<Byte> (m_t2Counter & 0xFF);
-        break;
-
-    case kRegT2CH:
-        result = static_cast<Byte> ((m_t2Counter >> 8) & 0xFF);
-        break;
-
-    case kRegSr:
-        result = m_sr;
-        break;
-
-    case kRegAcr:
-        result = m_acr;
-        break;
-
-    case kRegPcr:
-        result = m_pcr;
-        break;
-
-    case kRegIfr:
-        result = GetIfr();
-        break;
-
-    case kRegIer:
-        result = GetIer();
-        break;
-
-    default:
-        break;
+    case kRegOraNh: result = GetPortA();                                    break;
+    case kRegDdrb:  result = m_ddrb;                                        break;
+    case kRegDdra:  result = m_ddra;                                        break;
+    case kRegT1CL:  result = static_cast<Byte> (m_t1Counter & 0xFF);        break;
+    case kRegT1CH:  result = static_cast<Byte> ((m_t1Counter >> 8) & 0xFF); break;
+    case kRegT1LL:  result = m_t1LatchLo;                                   break;
+    case kRegT1LH:  result = m_t1LatchHi;                                   break;
+    case kRegT2CL:  result = static_cast<Byte> (m_t2Counter & 0xFF);        break;
+    case kRegT2CH:  result = static_cast<Byte> ((m_t2Counter >> 8) & 0xFF); break;
+    case kRegSr:    result = m_sr;                                          break;
+    case kRegAcr:   result = m_acr;                                         break;
+    case kRegPcr:   result = m_pcr;                                         break;
+    case kRegIfr:   result = GetIfr();                                      break;
+    case kRegIer:   result = GetIer();                                      break;
+    default:                                                                break;
     }
 
     return result;

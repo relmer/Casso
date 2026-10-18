@@ -5,6 +5,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Disassembler.h"
 
 
@@ -37,7 +38,8 @@ bool TraceHandlers::TryExecute (DebugSession & session, const DebugCommand & com
 //  TraceHandlers::Describe
 //
 //  The instruction comes from the bytes the entry recorded, not from memory
-//  now, which may have changed since the instruction ran.
+//  now, which may have changed since the instruction ran. Its operand has
+//  the symbol for the address it accesses, as the disassembly's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +49,7 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
     const Microcode          * instructionSet    = session.GetTarget().GetInstructionSet();
     bool                       hasInstructionSet = instructionSet != nullptr;
     Disassembler               disassembler      (instructionSet);
-    DisassembledInstruction    instruction;
+    DisassemblyLine            line;
     SymbolTableId              table             = SymbolTableId::Main;
     HRESULT                    hr                = S_OK;
 
@@ -59,14 +61,26 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 
 
 
+        if (!record.isAvailable)
+        {
+            continue;
+        }
+
         if (hasInstructionSet)
         {
-            hr = disassembler.DisassembleOne (record.pc, bytes, instruction);
+            line = DisassemblyLine();
+
+            hr = disassembler.DisassembleOne (record.pc, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            record.instruction = instruction.operand.empty() ? instruction.mnemonic
-                                                             : instruction.mnemonic + " " + instruction.operand;
-            record.length      = (Byte) instruction.bytes.size();
+            if (line.instruction.hasOperandAddress)
+            {
+                DataDirectiveHandlers::ChooseOperandSymbol (session, line);
+            }
+
+            record.instruction = line.instruction.operand.empty() ? line.instruction.mnemonic
+                                                                  : line.instruction.mnemonic + " " + line.GetShownOperand();
+            record.length      = (Byte) line.instruction.bytes.size();
         }
 
         record.symbol.clear();
@@ -88,8 +102,8 @@ void TraceHandlers::Describe (DebugSession & session, std::vector<TraceRecord> &
 //
 //  TraceHandlers::Show
 //
-//  A first past the end gives no entries; a window running past the end is
-//  cut at it.
+//  A cycle past the newest entry returns no entries; a window running past
+//  the newest is cut at it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,9 +115,9 @@ void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, 
 
 
 
-    if (command.first.has_value())
+    if (command.fromCycle.has_value())
     {
-        first = (size_t) std::min<uint64_t> (*command.first, total);
+        first = FindCycle (session.GetTarget(), *command.fromCycle);
     }
     else
     {
@@ -111,6 +125,52 @@ void TraceHandlers::Show (DebugSession & session, const DebugCommand & command, 
     }
 
     reply.data = MakeWindow (session, first, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHandlers::FindCycle
+//
+//  The place in the trace of the first entry at or after cycle, or the
+//  trace's size when every entry is before it. The cycle count rises from
+//  one entry to the next, so the search halves the trace each step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TraceHandlers::FindCycle (IDebugTarget & target, uint64_t cycle)
+{
+    size_t                     low  = 0;
+    size_t                     high = target.GetTraceSize();
+    size_t                     mid  = 0;
+    std::vector<TraceRecord>   one;
+
+
+
+    if (target.TryFindTraceCycle (cycle, low))
+    {
+        return low;
+    }
+
+    while (low < high)
+    {
+        mid = low + (high - low) / 2;
+        target.GetTraceWindow (mid, 1, one);
+
+        if (!one.empty() && one.front().cycles < cycle)
+        {
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid;
+        }
+    }
+
+    return low;
 }
 
 
@@ -181,15 +241,17 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     IDebugTarget             & target  = session.GetTarget();
     IFileSystem              * files   = session.GetFileSystem();
     size_t                     total   = target.GetTraceSize();
+    size_t                     first   = (total > kMaxSaved) ? total - kMaxSaved : 0;
     std::vector<TraceRecord>   entries;
     std::string                text;
+    std::string                saved;
 
 
 
     CBRF (files != nullptr, reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files."));
     CBRF (total != 0,       reply.SetError (CommandStatus::Error, "no trace", "The trace is empty. Use HISTORY ON to start one."));
 
-    target.GetTraceWindow (0, total, entries);
+    target.GetTraceWindow (first, total - first, entries);
     Describe (session, entries);
 
     for (const TraceRecord & record : entries)
@@ -200,7 +262,9 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
     hr = files->WriteAllText (session.ResolvePath (command.text), text);
     CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text)));
 
-    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", entries.size(), entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
+    saved = (first > 0) ? std::format ("the newest {} of {}", entries.size(), total) : std::format ("{}", entries.size());
+
+    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
 
 Error:
     return;

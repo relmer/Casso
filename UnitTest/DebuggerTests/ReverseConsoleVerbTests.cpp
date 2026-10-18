@@ -2,6 +2,7 @@
 
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -111,6 +112,6 @@ private:
 
     static std::wstring ToWide (const std::string & text)
     {
-        return std::wstring (text.begin(), text.end());
+        return TextEncoding::NarrowToWide (text);
     }
 };

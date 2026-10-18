@@ -3,7 +3,8 @@
 #include "Pch.h"
 
 #include "Cassque/Model/Location.h"
-#include "Config/IFileSystem.h"
+
+class IFileSystem;
 
 
 

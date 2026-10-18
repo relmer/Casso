@@ -6,6 +6,8 @@
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandSuggestion.h"
 #include "Debugger/ReplyJson.h"
+#include "Core/JsonValue.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -31,7 +33,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 

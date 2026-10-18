@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "PrintingPage.h"
+#include "Config/GlobalUserPrefs.h"
 
 
 

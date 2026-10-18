@@ -3,6 +3,8 @@
 #include "Devices/Disk/MountDiagnosis.h"
 
 #include "CreateDiskDialog.h"
+#include "Config/IFileSystem.h"
+#include "Ui/CreateDiskBodyPanel.h"
 
 
 

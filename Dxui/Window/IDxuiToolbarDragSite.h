@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "Widgets/DxuiToolbarDock.h"
+
+struct DxuiToolbarDock;
 
 
 

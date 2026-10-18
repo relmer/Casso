@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiDragRegion.h"
+#include "Core/DxuiThread.h"
 
 
 

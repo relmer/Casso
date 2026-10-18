@@ -6,6 +6,7 @@
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 
 
@@ -348,6 +349,7 @@ HistoryStatus ReverseHost::GetStatus() const
     status.isBehindLive = m_controller.IsInHistory();
     status.cycle        = cycle;
     status.wallTime     = m_controller.GetWallTimeAt (cycle);
+    status.position     = position;
 
     if (status.isRecording)
     {
@@ -390,6 +392,8 @@ void ReverseHost::FillBudget (
 
     status.budgetBytes   = budget;
     status.usedBytes     = store.GetUsedBytes();
+    status.storedBytes   = store.GetByteCount();
+    status.arenaBytes    = store.GetArenaBytes();
     status.hasHistory    = count > 0;
     status.isFull        = store.IsFull();
     status.beginCycle    = (count > 0) ? store.GetInfo (0).cycle    : 0;
@@ -431,7 +435,6 @@ void ReverseHost::GetRecentTrace (
     for (const ReplayStep & step : steps)
     {
         record        = TraceRecord();
-        record.index  = outEntries.size();
         record.cycles = step.cycles;
         record.pc     = step.pc;
         record.opcode = step.opcode;

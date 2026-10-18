@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
@@ -97,7 +98,7 @@ namespace BreakpointHistoryTests
             Assert::IsFalse  (after.stops);
 
             rig.Do (BreakpointStep::Kind::Redo);
-            Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again, under its new id");
+            Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again");
         }
 
 
@@ -295,6 +296,85 @@ namespace BreakpointHistoryTests
             Assert::AreEqual ((size_t) 2, rig.List().size());
             Assert::AreEqual (a, rig.controller.GetSession().GetTarget().GetRegisters().a, L"the register line is not run");
             Assert::IsTrue   (lines.back().find ("skipped 2 lines") != std::string::npos);
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ProjectTextTests
+    //
+    //  The history as a debug project saves it, read into a second session
+    //  whose breakpoints the project restored under the same ids.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ProjectTextTests)
+    {
+    public:
+
+        TEST_METHOD (TheHistoryComesBackFromItsText)
+        {
+            HistoryRig      first;
+            HistoryRig      second;
+            std::string     text;
+            BreakpointInfo  restored;
+
+
+
+            first.Run ("BPMW 0400:04FF IF A=41");
+            first.Run ("BPCHANGE 0 eTs");
+            first.Run ("BPNAME 0 \"screen\"");
+            first.Run ("BP 0300");
+            first.Step ({ DebuggerActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
+            first.Step ({ DebuggerActions::GetEnableBreakpoint (1, false, CommandMode::AppleWin) });
+            text = first.view.GetBreakpointUndoText();
+
+            second.Run ("BPMW 0400:04FF IF A=41");
+            second.Run ("BP 0300");
+            second.Run ("BPC 0");
+            second.Run ("BPD 1");
+            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+
+            Assert::AreEqual (text, second.view.GetBreakpointUndoText());
+            Assert::AreEqual (2, second.controller.GetSession().GetNextId(), L"reading the text adds no id");
+            Assert::AreEqual ((size_t) 1, second.List().size(), L"reading the text adds no breakpoint");
+
+            second.Do (BreakpointStep::Kind::Undo);
+            Assert::IsTrue   (second.List().at (0).enabled, L"the disable is undone");
+
+            second.Do (BreakpointStep::Kind::Undo);
+            Assert::AreEqual ((size_t) 2, second.List().size(), L"the delete is undone");
+            restored = second.List().at (0);
+            Assert::AreEqual (0, restored.id, L"under the id it had");
+            Assert::AreEqual (std::string ("BPMW 0400:04FF IF A=41"), BreakpointHandlers::MakeDefinition (restored));
+            Assert::IsFalse  (restored.enabled);
+            Assert::IsTrue   (restored.temporary);
+            Assert::IsFalse  (restored.stops);
+            Assert::AreEqual (std::string ("screen"), restored.name);
+
+            second.Do (BreakpointStep::Kind::Redo);
+            Assert::AreEqual ((size_t) 1, second.List().size(), L"redo deletes it again");
+        }
+
+
+        TEST_METHOD (TextThatDoesNotParseGivesNoHistory)
+        {
+            HistoryRig  rig;
+
+
+
+            rig.Run ("BP 0300");
+            rig.Step ({ DebuggerActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
+
+            for (const char * text : { "", "nonsense", "2|1:0|1.4250.|", "2|1:0|1.ZZ:111:.|" })
+            {
+                rig.view.SetBreakpointUndoText (rig.controller.GetSession(), text);
+                Assert::IsFalse (rig.CanUndo(), TextEncoding::NarrowToWide (text).c_str());
+            }
         }
     };
 }

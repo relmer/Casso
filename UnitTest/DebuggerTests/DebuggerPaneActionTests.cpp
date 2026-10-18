@@ -2,8 +2,10 @@
 
 #include "ControllerRig.h"
 #include "Debugger/AppleWinParser.h"
+#include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -28,7 +30,7 @@ public:
     static void AssertParsesTo (ControllerRig & rig, const std::string & line, const DebuggerAction & action)
     {
         AppleWinParseResult  parsed = AppleWinParser::Parse (line, rig.controller.GetSession());
-        std::wstring         what   (line.begin(), line.end());
+        std::wstring         what   = TextEncoding::NarrowToWide (line);
 
 
 
@@ -37,6 +39,8 @@ public:
         Assert::AreEqual (parsed.command.sourceName,  action.command.sourceName, what.c_str());
         Assert::AreEqual (parsed.command.a1,          action.command.a1,         what.c_str());
         Assert::AreEqual (parsed.command.hasA1,       action.command.hasA1,      what.c_str());
+        Assert::AreEqual (parsed.command.a2,          action.command.a2,         what.c_str());
+        Assert::AreEqual (parsed.command.hasA2,       action.command.hasA2,      what.c_str());
         Assert::IsTrue   (parsed.command.values == action.command.values,        what.c_str());
         Assert::AreEqual (parsed.command.text,        action.command.text,       what.c_str());
         Assert::AreEqual (parsed.command.count,       action.command.count,      what.c_str());
@@ -58,6 +62,153 @@ public:
         AssertParsesTo (rig, "CALLS MODE WALK",        DebuggerActions::GetCallStackMode    ("WALK", aw));
         AssertParsesTo (rig, "HISTORY SAVE \"trace.txt\"", DebuggerActions::GetSaveHistory      ("trace.txt", aw));
         AssertParsesTo (rig, "W 0300",                 DebuggerActions::GetAddWatch         (0x0300, aw));
+    }
+
+
+
+    //  File > Load file into memory... and Save memory to file... are BLOAD
+    //  and BSAVE as their lines parse.
+    TEST_METHOD (TheMemoryFileActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "BLOAD \"game.bin\"",              DebuggerActions::GetLoadBinary ("game.bin", "", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"my game\",DOS",           DebuggerActions::GetLoadBinary ("my game", "DOS", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000",     DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000,100", DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, 0x100, aw));
+        AssertParsesTo (rig, "BSAVE \"page.bin\" 0400,400",     DebuggerActions::GetSaveBinary ("page.bin", 0x0400, 0x400, aw));
+    }
+
+
+
+    //  The Registers and Stack panes' commands: RCC, PUSH, POP and PPOP.
+    TEST_METHOD (TheRegisterAndStackActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "RCC",     DebuggerActions::GetResetCycles (aw));
+        AssertParsesTo (rig, "PUSH A9", DebuggerActions::GetPushByte    (0xA9, aw));
+        AssertParsesTo (rig, "POP",     DebuggerActions::GetPopByte     (aw));
+        AssertParsesTo (rig, "PPOP",    DebuggerActions::GetPopWord     (aw));
+    }
+
+
+
+    TEST_METHOD (TheWatchAndPointerActionsAreTheCommandsTheirLinesParseTo)
+    {
+        ControllerRig  rig;
+        CommandMode    aw = CommandMode::AppleWin;
+
+
+
+        AssertParsesTo (rig, "WE 2",  DebuggerActions::GetEnableWatch           (2, true,  aw));
+        AssertParsesTo (rig, "WD 2",  DebuggerActions::GetEnableWatch           (2, false, aw));
+        AssertParsesTo (rig, "ZP 06", DebuggerActions::GetAddZeroPagePointer    (0x06, aw));
+        AssertParsesTo (rig, "ZPC 1", DebuggerActions::GetClearZeroPagePointer  (1, aw));
+        AssertParsesTo (rig, "ZPE 1", DebuggerActions::GetEnableZeroPagePointer (1, true,  aw));
+        AssertParsesTo (rig, "ZPD 1", DebuggerActions::GetEnableZeroPagePointer (1, false, aw));
+    }
+
+
+
+    //  The breakpoint dialog's New types for the stops that are not entries
+    //  of the breakpoint table, each a definition the console runs.
+    TEST_METHOD (TheDialogsMachineStopsAreDefinitionsTheConsoleRuns)
+    {
+        using Type = BreakpointDialog::Type;
+
+        struct Case
+        {
+            Type         type;
+            std::string  address;
+            std::string  value;
+            std::string  expected;
+        };
+
+        const Case  cases[] =
+        {
+            { Type::UnwrittenRead, "",          "",   "BRKUNINIT ON"  },
+            { Type::VideoLine,     "64:6B",     "",   "BPV 64:6B"     },
+            { Type::Beam,          "64",        "20", "BPBEAM 64 20"  },
+            { Type::Beam,          "vbl",       "",   "BPBEAM VBL"    },
+            { Type::ExecuteWatch,  "0300:030F", "",   "BPA 0300:030F" },
+        };
+
+
+
+        for (const Case & each : cases)
+        {
+            ControllerRig             rig;
+            BreakpointDialog::Fields  fields;
+            Reply                     reply;
+
+            fields.type    = each.type;
+            fields.address = each.address;
+            fields.value   = each.value;
+
+            Assert::AreEqual (each.expected, BreakpointDialog::MakeDefinition (fields));
+
+            reply = rig.Run (each.expected);
+            Assert::IsTrue (reply.status == CommandStatus::Ok, TextEncoding::NarrowToWide (each.expected).c_str());
+        }
+    }
+
+
+
+    //  A Memory pane's Find, Fill, Copy and Compare: S's hits, F's bytes, M's
+    //  copy and MC's differences, the hits and differences in the snapshot
+    //  for the pane.
+    TEST_METHOD (TheMemoryPanesCommandsRunAndTheirResultsReachTheSnapshot)
+    {
+        ControllerRig         rig;
+        CommandMode           aw      = CommandMode::AppleWin;
+        const Byte            bytes[] = { 0x5A, 0xA5 };
+        DebuggerViewSnapshot  snapshot;
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
+        Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x6002), L"the pattern repeats");
+        Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x6003));
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
+        Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x7001), L"copied");
+
+        rig.machine.GetMemoryBus().WriteByte (0x7002, 0x00);
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSearchMemory ("5A A5 5A", aw));
+
+        snapshot = rig.view.Build (rig.controller.GetSession());
+
+        Assert::AreEqual ((size_t) 1, snapshot.comparison.size(), L"one byte differs");
+        Assert::AreEqual ((Word) 0x6002, snapshot.comparison[0].address);
+        Assert::AreEqual ((Byte) 0x00, snapshot.comparison[0].otherValue);
+        Assert::IsTrue   (snapshot.compareSerial > 0);
+        Assert::IsTrue   (std::ranges::find (snapshot.searchHits, (Word) 0x6000) != snapshot.searchHits.end(), L"the fill's start is a hit");
+        Assert::IsTrue   (snapshot.searchSerial > 0);
+    }
+
+
+
+    //  A load from the File menu runs with no parser and writes the file's
+    //  bytes at the address given.
+    TEST_METHOD (ALoadFromTheMenuWritesTheFilesBytes)
+    {
+        ControllerRig  rig;
+
+
+
+        rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
+
+        Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300));
+        Assert::AreEqual ((Byte) 0x60, rig.machine.GetMemoryBus().ReadByte (0x0302));
     }
 
 

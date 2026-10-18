@@ -21,8 +21,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  an edit reaches RAM, ROM and a refusal by the same path the command box
 //  does.
 //
-//  UNDO RESTORES WHAT THE EDIT REPLACED, even when the machine has changed the
-//  byte since; that is what undoing an edit means.
+//  UNDO RESTORES WHAT THE EDIT REPLACED, only while memory contains what the
+//  edit wrote: a byte the machine changed since is not written over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,12 +36,17 @@ namespace DebuggerTests
         {
             MemoryEditModel            model;
             std::vector<std::string>   lines;
+            std::vector<Byte>          required;
 
             Rig()
             {
                 //  $0300-$030F: $00-$0F, all RAM, and $C000-$C00F: I/O.
                 Show (0x0300, MemoryRegion::MainRam);
-                model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes) { lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo); });
+                model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes, std::span<const Byte> before)
+                {
+                    lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
+                    required.assign (before.begin(), before.end());
+                });
             }
 
             void  Show (Word first, MemoryRegion region)
@@ -102,6 +107,38 @@ namespace DebuggerTests
             rig.model.SetContents (0x0300, bytes, regions);
             rig.model.ReadMarks   (0x0300, marks);
             Assert::AreEqual ((int) MemoryEditModel::kMarkNone, (int) marks[5], L"unchanged since the read before");
+        }
+
+
+        //  A comparison marks the bytes that differ, puts the other range's
+        //  value in each one's tip, and draws those values in place with
+        //  SetShowOther.
+        TEST_METHOD (AComparisonMarksItsDifferencesAndCanShowTheOtherValues)
+        {
+            Rig                      rig;
+            std::array<uint8_t, 4>   marks = {};
+            std::wstring             tip;
+
+
+
+            rig.model.SetComparison ({ { 0x0302, 0x99 } }, false);
+            rig.model.ReadMarks (0x0300, marks);
+
+            Assert::AreEqual ((int) MemoryEditModel::kMarkDiffers, (int) marks[2]);
+            Assert::AreEqual ((int) MemoryEditModel::kMarkNone,    (int) marks[1]);
+            Assert::AreEqual ((Byte) 0x02, rig.Read (0x0302), L"this range's value");
+
+            Assert::IsTrue   (rig.model.TryGetByteTip (0x0302, tip));
+            Assert::IsTrue   (tip.find (L"$99") != std::wstring::npos, tip.c_str());
+
+            rig.model.SetShowOther (true);
+            Assert::AreEqual ((Byte) 0x99, rig.Read (0x0302), L"the other range's value in its place");
+            Assert::AreEqual ((Byte) 0x01, rig.Read (0x0301), L"a byte the same in both ranges is as it is");
+
+            rig.model.ClearComparison();
+            rig.model.ReadMarks (0x0300, marks);
+            Assert::AreEqual ((int) MemoryEditModel::kMarkNone, (int) marks[2]);
+            Assert::AreEqual ((Byte) 0x02, rig.Read (0x0302));
         }
 
 
@@ -200,9 +237,10 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (UndoRestoresWhatTheEditReplacedEvenAfterTheMachineChangedIt)
+        TEST_METHOD (UndoDoesNotWriteOverAByteTheMachineChanged)
         {
-            Rig  rig;
+            Rig                  rig;
+            std::optional<Word>  changed;
 
 
 
@@ -210,8 +248,55 @@ namespace DebuggerTests
             rig.Show  (0x0300, MemoryRegion::MainRam);      // a new snapshot: the machine rewrote $0300 as $00
             rig.lines.clear();
 
-            rig.model.Undo();
-            Assert::AreEqual (std::string ("PATCH 0300 00"), rig.lines.at (0), L"the value the edit replaced, not what is there now");
+            Assert::IsFalse  (rig.model.Undo (changed));
+            Assert::IsTrue   (changed == std::optional<Word> (0x0300));
+            Assert::IsTrue   (rig.lines.empty(), L"nothing is written");
+            Assert::IsTrue   (rig.model.CanUndo(), L"the edit stays in the history");
+            Assert::IsFalse  (rig.model.CanRedo());
+        }
+
+
+        TEST_METHOD (UndoAndRedoSendTheBytesMemoryMustContain)
+        {
+            Rig                  rig;
+            std::optional<Word>  changed;
+
+
+
+            rig.Write (0x0300, { 0xA9, 0xEA });
+            rig.lines.clear();
+
+            Assert::IsTrue   (rig.model.Undo (changed));
+            Assert::IsFalse  (changed.has_value());
+            Assert::AreEqual (std::string ("PATCH 0300 00 01"), rig.lines.at (0));
+            Assert::IsTrue   (rig.required == std::vector<Byte> { 0xA9, 0xEA }, L"for undo, the bytes the edit wrote");
+
+            Assert::IsTrue   (rig.model.Redo (changed));
+            Assert::AreEqual (std::string ("PATCH 0300 A9 EA"), rig.lines.at (1));
+            Assert::IsTrue   (rig.required == std::vector<Byte> { 0x00, 0x01 }, L"for redo, the bytes the edit replaced");
+        }
+
+
+        TEST_METHOD (RedoDoesNotWriteOverAByteTheMachineChanged)
+        {
+            Rig                               rig;
+            std::optional<Word>               changed;
+            std::vector<std::optional<Byte>>  bytes (16);
+            std::vector<MemoryRegion>         regions (16, MemoryRegion::MainRam);
+
+
+
+            rig.Write (0x0300, { 0xA9 });
+            Assert::IsTrue   (rig.model.Undo());
+
+            bytes[0] = 0x77;                                // the machine wrote $0300 after the undo
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.lines.clear();
+
+            Assert::IsFalse  (rig.model.Redo (changed));
+            Assert::IsTrue   (changed == std::optional<Word> (0x0300));
+            Assert::IsTrue   (rig.lines.empty());
+            Assert::IsTrue   (rig.model.CanRedo(), L"the step stays to redo");
         }
 
 
@@ -239,6 +324,34 @@ namespace DebuggerTests
             rig.model.ClearHistory();
 
             Assert::IsFalse (rig.model.CanUndo());
+        }
+
+
+        //  The session takes no memory writes while the machine runs, so an
+        //  undo then would drop the edit from the history and change nothing.
+        TEST_METHOD (UndoAndRedoWaitForThePausedMachine)
+        {
+            Rig  rig;
+
+
+
+            rig.Write (0x0300, { 0xA9 });
+            rig.lines.clear();
+            rig.model.SetPaused (false);
+
+            Assert::IsFalse (rig.model.CanUndo(), L"undo is unavailable while the machine runs");
+            Assert::IsFalse (rig.model.Undo());
+            Assert::IsTrue  (rig.lines.empty(), L"no PATCH reaches the running machine");
+
+            rig.model.SetPaused (true);
+
+            Assert::IsTrue   (rig.model.Undo(), L"the edit is in the history once the machine pauses");
+            Assert::AreEqual (std::string ("PATCH 0300 00"), rig.lines.at (0));
+
+            rig.model.SetPaused (false);
+
+            Assert::IsFalse (rig.model.CanRedo(), L"redo is unavailable while the machine runs");
+            Assert::IsFalse (rig.model.Redo());
         }
 
 

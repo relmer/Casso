@@ -288,23 +288,23 @@ namespace DebuggerStatusBarBeamZoomTests
 
 
 
-            Assert::AreEqual (100, saved.debuggerTextZoomPercent, L"100% until the user changes it");
+            Assert::AreEqual (100, saved.debugger.textZoomPercent, L"100% until the user changes it");
 
-            saved.debuggerTextZoomPercent = 170;
+            saved.debugger.textZoomPercent = 170;
             hr = saved.Save (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
 
             hr = loaded.Load (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
-            Assert::AreEqual (170, loaded.debuggerTextZoomPercent);
+            Assert::AreEqual (170, loaded.debugger.textZoomPercent);
 
-            saved.debuggerTextZoomPercent = 5000;
+            saved.debugger.textZoomPercent = 5000;
             hr = saved.Save (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
 
             hr = clamped.Load (L"C:\\Casso", fs);
             Assert::IsTrue (SUCCEEDED (hr));
-            Assert::AreEqual (300, clamped.debuggerTextZoomPercent);
+            Assert::AreEqual (300, clamped.debugger.textZoomPercent);
         }
     };
 }

@@ -63,9 +63,14 @@ class StateWriter;
 //  - One section per object, with a tag of its own and a version. A reader
 //    meeting another tag, a newer version, or a section whose size does not
 //    match what it consumed fails with an error rather than loading garbage.
-//  - Raise kStateVersion whenever the field list changes. LoadState may accept
-//    older versions by branching on the version it read; a section newer than
-//    the reader supports is refused.
+//  - Raise kStateVersion whenever the field list changes. LoadState MUST accept
+//    every version a released Casso wrote, from kOldestStateVersion up,
+//    branching on the version it read and setting a field the older version
+//    lacks to its cold-boot value: a saved machine state, the automatic one
+//    included, has to load after an update. kOldestStateVersion is the oldest
+//    version a release wrote and is never raised. A section newer than the
+//    reader supports fails to load. ScenarioTests' MachineStateCompatibility
+//    tests load a state saved by each release.
 //  - Save the state the machine computes with, not caches derived from it.
 //    Page tables, the active video mode object, and the like are re-derived at
 //    the end of LoadState from the flags just loaded.

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/Model/LaunchCommand.h"
+#include "Seams/IProcessLauncher.h"
 
 
 

@@ -825,6 +825,41 @@ namespace DebuggerTests
         }
 
 
+        //  A disk event is tested at every instruction boundary; an RWTS or
+        //  driver breakpoint marks its routine's page once it has one.
+        TEST_METHOD (DiskBreakpointsSetTheHookFilter)
+        {
+            Rig                      rig;
+            const DebugHookFilter  & filter = rig.session.GetFilter();
+            DiskBreakSpec            call;
+            DiskBreakSpec            read;
+
+
+
+            call.event = DiskEvent::RwtsCall;
+            read.event = DiskEvent::SectorRead;
+
+            rig.target.TryPoke (0x03D9, 0x00);
+            rig.session.GetBreakpoints().AddDisk (call);
+            rig.session.OnStopConditionsChanged();
+            Assert::IsFalse (filter.everyInstruction, L"an RWTS breakpoint stops before its routine");
+            Assert::IsFalse (filter.pages[0xBD], L"not before it is resolved");
+
+            rig.target.TryPoke (0x03D9, 0x4C);
+            rig.target.TryPoke (0x03DA, 0x00);
+            rig.target.TryPoke (0x03DB, 0xBD);
+            rig.session.OnStopConditionsChanged();
+            Assert::IsTrue  (filter.pages[0xBD], L"its routine's page");
+            Assert::IsFalse (filter.pages[0xBE]);
+
+            rig.session.GetBreakpoints().AddDisk (read);
+            rig.session.OnStopConditionsChanged();
+            Assert::IsTrue (filter.everyInstruction, L"a sector read is tested at every boundary");
+
+            rig.session.ClearAllBreakpoints();
+        }
+
+
         TEST_METHOD (AFreeRunStopsAtABreakpointWithAndWithoutRecording)
         {
             static constexpr uint64_t  kBudget = 1'000'000;

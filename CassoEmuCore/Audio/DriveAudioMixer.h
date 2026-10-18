@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "Audio/IDriveAudioSource.h"
+
+class IDriveAudioSource;
 
 
 

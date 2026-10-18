@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -124,12 +125,20 @@ namespace DebuggerTests
         using DebuggerWindow::ChooseMemoryGrouping;
         using DebuggerWindow::GetFindBarTip;
         using DebuggerWindow::GetWatchEditor;
+        using DebuggerWindow::IsPaneShown;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
         bool  Press (WPARAM vk, bool ctrl = false, bool shift = false)
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, shift, ctrl, false };
+
+            return OnKey (ev) || RouteMappedKey (ev);
+        }
+
+        bool  PressCtrlAlt (WPARAM vk)
+        {
+            DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, false, true, true };
 
             return OnKey (ev) || RouteMappedKey (ev);
         }
@@ -635,6 +644,64 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"or"), window.GetMemoryBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"o and r step only outside a box");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DebuggerPaneKeyTests
+    //
+    //  A pane's key opens the pane and focuses it, and a chord's second key
+    //  does so even from the command line.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (DebuggerPaneKeyTests)
+    {
+    public:
+
+        TEST_METHOD (APanesKeyFocusesIt)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::VisualStudio);
+            window.FocusControl (window.GetCommandBox());
+
+            Assert::IsTrue   (window.PressCtrlAlt ('B'), L"Ctrl+Alt+B");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kBreakpoints), window.GetPaneOfFocus());
+
+            Assert::IsTrue   (window.Press (VK_OEM_3, true), L"Ctrl+`");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetPaneOfFocus());
+        }
+
+
+
+        TEST_METHOD (AChordsSecondKeyOpensItsPaneFromTheCommandLine)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiKeyEvent        typed  = { DxuiKeyEventKind::Char, (WPARAM) L'd', false, false, false, false };
+
+
+
+            DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::AppleWin);
+            window.FocusControl (window.GetCommandBox());
+
+            Assert::IsTrue   (window.PressCtrlAlt ('L'), L"Ctrl+Alt+L");
+            Assert::IsTrue   (window.Press ('D'), L"then D");
+            (void) window.OnKey (typed);
+
+            Assert::IsTrue   (window.IsPaneShown (DebuggerLayout::kDiskLog), L"the Disk II log");
+            Assert::IsTrue   (window.GetCommandBox()->GetText().empty(), L"and the D typed nothing");
         }
     };
 

@@ -6,6 +6,10 @@
 #include "D3DRenderer.h"
 
 #include "Devices/Printer/PngCodec.h"
+#include "Capture/CaptureOutcome.h"
+#include "Seams/IHostDialogs.h"
+#include "Capture/CapturedImage.h"
+#include "Devices/Printer/RgbaImage.h"
 
 
 

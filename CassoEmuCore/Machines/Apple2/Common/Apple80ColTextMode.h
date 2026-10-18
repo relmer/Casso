@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 #include "Video/VideoOutput.h"
-#include "Core/MemoryBus.h"
 
 class CharacterRomData;
+class MemoryBus;
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/WatchHistory.h"
+#include "Ui/Debugger/UndoText.h"
 #include "Core/TextEncoding.h"
 
 
@@ -68,7 +69,7 @@ std::optional<std::vector<DebuggerAction>> WatchHistory::TryUndo (const Debugger
         return std::nullopt;
     }
 
-    if (!m_undo.back().undo.restoreAddress.has_value())
+    if (!m_undo.back().undo.restoreText.has_value())
     {
         m_redo.push_back (std::move (m_undo.back()));
     }
@@ -146,4 +147,223 @@ std::wstring WatchHistory::GetEditText (const DebuggerViewSnapshot & snapshot, s
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::ToText
+//
+//  Steps are apart at commas.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchHistory::ToText() const
+{
+    std::string  text;
+
+
+
+    for (const std::vector<Step> * steps : { &m_undo, &m_redo })
+    {
+        text += (steps == &m_redo) ? "|" : "";
+
+        for (size_t i = 0; i < steps->size(); i++)
+        {
+            text += ((i == 0) ? "" : ",") + FormatStep ((*steps)[i]);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::FormatStep
+//
+//  The undo's actions, the text of what a move watches again, the watch ids before
+//  the move, the id of the watch it made, the edit's actions, and the text
+//  for the menu, apart at colons; an absent value is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchHistory::FormatStep (const Step & step)
+{
+    std::string  ids;
+
+
+
+    for (size_t i = 0; i < step.undo.movedFromIds.size(); i++)
+    {
+        ids += std::format ("{}{:X}", (i == 0) ? "" : "+", step.undo.movedFromIds[i]);
+    }
+
+    return std::format ("{}:{}:{}:{}:{}:{}", FormatActions (step.undo.actions),
+                        step.undo.restoreText.has_value() ? UndoText::FormatText (*step.undo.restoreText) : std::string(),
+                        ids,
+                        step.undo.movedToId.has_value() ? std::format ("{:X}", *step.undo.movedToId) : std::string(),
+                        FormatActions (step.edit), UndoText::FormatText (TextEncoding::WideToUtf8 (step.text)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::FormatActions
+//
+//  Each action's text, apart at plus signs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchHistory::FormatActions (const std::vector<DebuggerAction> & actions)
+{
+    std::string  text;
+
+
+
+    for (size_t i = 0; i < actions.size(); i++)
+    {
+        text += ((i == 0) ? "" : "+") + DebuggerActions::ToText (actions[i]);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::FromText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchHistory::FromText (const std::string & text)
+{
+    std::vector<std::string>  parts = UndoText::Split (text, '|');
+    Step                      step;
+
+
+
+    Clear();
+
+    if (parts.size() != 2)
+    {
+        return;
+    }
+
+    for (size_t list = 0; list < 2; list++)
+    {
+        for (const std::string & each : UndoText::Split (parts[list], ','))
+        {
+            if (!TryParseStep (each, step))
+            {
+                Clear();
+                return;
+            }
+
+            ((list == 0) ? m_undo : m_redo).push_back (std::move (step));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::TryParseStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHistory::TryParseStep (const std::string & text, Step & step)
+{
+    std::vector<std::string>  fields = UndoText::Split (text, ':');
+    std::string               utf8;
+    uint32_t                  value  = 0;
+
+
+
+    step = {};
+
+    if (fields.size() != 6 || !TryParseActions (fields[0], step.undo.actions) || !TryParseActions (fields[4], step.edit) ||
+        !UndoText::TryParseText (fields[5], utf8))
+    {
+        return false;
+    }
+
+    if (!fields[1].empty())
+    {
+        step.undo.restoreText = std::string();
+
+        if (!UndoText::TryParseText (fields[1], *step.undo.restoreText))
+        {
+            return false;
+        }
+    }
+
+    for (const std::string & id : UndoText::Split (fields[2], '+'))
+    {
+        if (!UndoText::TryParseHex (id, value))
+        {
+            return false;
+        }
+
+        step.undo.movedFromIds.push_back ((int) value);
+    }
+
+    if (!fields[3].empty())
+    {
+        if (!UndoText::TryParseHex (fields[3], value))
+        {
+            return false;
+        }
+
+        step.undo.movedToId = (int) value;
+    }
+
+    step.text = TextEncoding::Utf8ToWide (utf8);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHistory::TryParseActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHistory::TryParseActions (const std::string & text, std::vector<DebuggerAction> & actions)
+{
+    DebuggerAction  action;
+
+
+
+    actions.clear();
+
+    for (const std::string & each : UndoText::Split (text, '+'))
+    {
+        if (!DebuggerActions::TryFromText (each, action))
+        {
+            return false;
+        }
+
+        actions.push_back (std::move (action));
+    }
+
+    return true;
 }

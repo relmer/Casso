@@ -3,11 +3,13 @@
 #include "Pch.h"
 #include "IFloatingBusSource.h"
 #include "IMachineState.h"
+#include "IIoAccessSink.h"
 #include "IWatchSink.h"
-#include "MemoryDevice.h"
+#include "ObserverSlots.h"
 
 class Prng;
 class RamPages;
+class MemoryDevice;
 
 
 
@@ -72,8 +74,6 @@ public:
     HRESULT SaveState (StateWriter & writer) const override;
     HRESULT LoadState (StateReader & reader) override;
 
-    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
-
     // What unmapped I/O reads: the source's byte -- on an Apple II, the byte
     // the video scanner fetched on that cycle -- or, with no source, the last
     // value any device drove. Devices whose reads drive no data return
@@ -87,6 +87,11 @@ public:
 
     Byte ReadByte     (Word address);
     void WriteByte    (Word address, Byte value);
+
+    // A side-effect-free read of $C000-$CFFF for the debugger: the byte the
+    // device there works out (MemoryDevice::TryPeekIo), or the floating bus
+    // where no device decodes the address.
+    bool TryPeekIo    (Word address, Byte & value);
 
     void AddDevice    (MemoryDevice * device);
     void RemoveDevice (MemoryDevice * device);
@@ -103,6 +108,9 @@ public:
     void PowerCycleAll (Prng & prng);
 
     const vector<BusEntry> & GetEntries () const { return m_entries; }
+
+    // The last byte on the bus: what an address nothing drives reads as.
+    Byte GetFloatingBusValue () const { return m_floatingBusValue; }
 
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to
     // a host buffer; null = read-only / writes ignored. Only used for RAM
@@ -151,6 +159,11 @@ public:
     void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
     IWatchSink * GetTraceSink () const                  { return m_traceSink; }
     bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
+
+    // A listener on the I/O space for each observer slot: each access a
+    // device at $C000-$CFFF decodes at an address its filter includes,
+    // after the device acts on it.
+    void   SetIoAccessSink    (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
     int    GetWatchedPageCount () const;
 
     // The access heat map: while on, every page takes the watched path, so the
@@ -182,8 +195,8 @@ public:
     void SetBankingChangedCallback (BankingChangedFn fn) { m_bankingChanged = move (fn); }
     void NotifyBankingChanged ()
     {
-        // A banking change can swap which buffer (main vs aux) the renderer
-        // reads for the display region without any write landing, so force
+        // The switches that call this -- PAGE2, HIRES and DHIRES -- can
+        // change what the screen shows without any write landing, so force
         // a repaint alongside the callback.
         m_videoDirty = true;
 
@@ -202,6 +215,18 @@ private:
     void StoreToPage      (Byte * page, Word address, Byte value);
     void PublishPage      (int pageIndex);
     void ReportAccess     (Word address, Byte value, BusAccess access, std::optional<Byte> previous);
+    void ReportIoAccess   (Word address, Byte value, bool isWrite);
+
+    // Whether an access at an address a device decoded goes to an I/O
+    // listener: one load when there is none.
+    bool IsIoReported (Word address, bool isWrite) const
+    {
+        size_t  index = (size_t) address - IoAccessFilter::kFirst;
+
+
+
+        return m_ioSinks.IsAny() && index < IoAccessFilter::kSize && (isWrite ? m_ioWanted.writes : m_ioWanted.reads).test (index);
+    }
 
     // Rebuild the I/O dispatch map from the current device list. Called from
     // the constructor and after any AddDevice / RemoveDevice -- the only events
@@ -226,6 +251,8 @@ private:
     // "first match wins" overlap contract exactly; nullptr means unmapped
     // (floating bus). RAM ($0000-$BFFF) is never in the map -- the page table
     // serves it, and the rare null-low-page case keeps a linear-scan fallback.
+    static constexpr Word   kIoFirst   = 0xC000;
+    static constexpr Word   kIoLast    = 0xCFFF;
     static constexpr int    kIoMapBase = 0xC000;
     static constexpr int    kIoMapSize = 0x10000 - kIoMapBase;  // $4000 = 16 KiB entries
     vector<MemoryDevice *>  m_ioDeviceMap;
@@ -255,6 +282,13 @@ private:
     IWatchSink *            m_traceSink              = nullptr;
     bool                    m_allPagesWatched        = false;
     bool                    m_traceAllPages          = false;
+
+    // The I/O listeners, their filters by slot, and the filters' union, which
+    // the access paths test. The filters by slot are on the heap: a kilobyte
+    // each, and a bus is often on a test's stack.
+    ObserverSlots<IIoAccessSink>                    m_ioSinks;
+    std::vector<IoAccessFilter>                     m_ioFilters = std::vector<IoAccessFilter> (kObserverSlotCount);
+    IoAccessFilter                                  m_ioWanted;
 
     BankingChangedFn        m_bankingChanged;
 

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "FluxTrack.h"
+class FluxTrack;
 
 
 

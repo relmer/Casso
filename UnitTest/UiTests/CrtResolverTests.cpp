@@ -2,6 +2,7 @@
 
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
+#include "Ui/ThemeLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

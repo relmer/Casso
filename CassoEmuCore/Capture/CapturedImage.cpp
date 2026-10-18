@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Capture/CapturedImage.h"
+#include "Devices/Printer/RgbaImage.h"
 
 
 

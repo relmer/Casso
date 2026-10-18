@@ -96,7 +96,7 @@ namespace BreakpointUndoAddTests
             Assert::AreEqual ((size_t) 1, rig.List().size());
             after = rig.List().at (0);
 
-            Assert::AreNotEqual (before.id, after.id, L"it comes back under a new id");
+            Assert::AreEqual    (before.id, after.id, L"it comes back under its own id");
             Assert::AreEqual    (BreakpointHandlers::MakeDefinition (before), BreakpointHandlers::MakeDefinition (after));
             Assert::AreEqual    (before.condition, after.condition);
             Assert::IsFalse     (after.enabled);

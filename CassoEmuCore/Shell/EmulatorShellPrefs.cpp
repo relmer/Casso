@@ -1,6 +1,15 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDeskScene.h"
+#include "Ui/ThemeManager.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -59,82 +68,9 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadMachineUiPrefs
-//
-//  Reads the active machine's JSON config and merges the user overrides via
-//  UserConfigStore, handing back the "$cassoUiPrefs" object in outUiPrefs.
-//  Any problem collapses to outUiPrefs == nullptr so the caller keeps the
-//  built-in defaults, and these cosmetic per-machine prefs never block
-//  startup -- though corrupt content (as opposed to a simply-absent file or
-//  key) asserts first so a debug build catches it. The returned pointer
-//  aliases into outDoc, so outDoc must outlive every use of it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LoadMachineUiPrefs (
-    JsonValue         & outDoc,
-    const JsonValue * & outUiPrefs)
-{
-    HRESULT            hr                = S_OK;
-    std::string        machineNameNarrow = GetCurrentMachineNameNarrow();
-    JsonValue          defaultJson;
-    JsonParseError     parseErr;
-    std::ifstream      configFile;
-    std::stringstream  ss;
-    std::string        jsonText;
-    std::wstring       configRelPath     = std::wstring (L"Machines\\") + m_machine.GetCurrentMachineName() +
-                                           L"\\" + m_machine.GetCurrentMachineName() + L".json";
-    fs::path           configPath        = PathResolver::FindFile (PathResolver::BuildSearchPaths (
-                                               PathResolver::GetExecutableDirectory(),
-                                               PathResolver::GetWorkingDirectory()),
-                                               configRelPath);
-
-
-
-    outUiPrefs = nullptr;
-
-    // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
-    // for this machine): recover to null so the caller keeps defaults, no
-    // assert. A machine's own config failing to parse IS a coding error -- it
-    // is a shipped asset, not something a user edits -- so that one asserts.
-    //
-    // The store's Load is a different matter and must NOT assert. It reads the
-    // user's prefs file, and PrimeChromeThemeEarly's banner already settles
-    // what that means: a malformed prefs file is bad DATA, there is no bug for
-    // a developer to break into, and it would stop the debugger every time
-    // someone hand-edits their JSON. An unreadable file that could not be set
-    // aside reaches here on the very next machine load.
-    BAIL_OUT_IF (configPath.empty(), S_OK);
-    configFile.open (configPath);
-    BAIL_OUT_IF (!configFile.good(), S_OK);
-
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
-
-    hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
-    CHRA (hr);
-
-    hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    CHR (hr);
-
-    BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
-
-    hr = outDoc.GetObject ("$cassoUiPrefs", outUiPrefs);
-    if (FAILED (hr))
-    {
-        outUiPrefs = nullptr;
-    }
-
-Error:
-    return;
-}
+#include "Shell/ControllerInputThread.h"
+#include "Machines/MachineDefinition.h"
+#include "Ui/ThemeManager.h"
 
 
 
@@ -154,468 +90,9 @@ Error:
 
 void EmulatorShell::RestoreColorTextPref()
 {
-    SetColorMonitorTextArgbLive (
-        ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
-                                                m_globalPrefs.colorMonitorTextCustomArgb));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadControllerPrefs
-//
-//  Hands the saved controller settings, calibrations, active profiles,
-//  players and last holders to the service. Anything that cannot be used is
-//  said once: it falls back to the default mapping, to automatic
-//  calibration or to Automatic, and the next save drops it, so there is
-//  nothing to say again.
-//
-//  THE PLAYERS ARE ADOPTED ONCE. With no players saved, the launched
-//  machine's own selection becomes them and is saved at once, so the saved
-//  players mark the adoption done and no other machine's selection is ever
-//  read for it. Player 1's keys are taken here too, before anything can
-//  reconcile Player 1 with a shell that has not heard of them yet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LoadControllerPrefs()
-{
-    ControllerProfileStore    store;
-    std::vector<std::string>  rejected;
-    PlayerEntries             entries;
-    PlayerLastHolders         lastHolders;
-    JsonValue                 doc;
-    const JsonValue         * uiPrefs   = nullptr;
-    bool                      isAdopted = false;
-
-
-
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    store.FromJson (m_globalPrefs.controllers, rejected);
-    m_hadSavedPlayerModes = store.hasPlayerModes;
-
-    m_controllerService->SetModelSettings  (store.models);
-    m_controllerService->SetCalibrations   (store.calibrations);
-    m_controllerService->SetActiveProfiles (ProfileMode::Joystick, store.activeProfiles);
-    m_controllerService->SetActiveProfiles (ProfileMode::Paddle,   store.paddleActiveProfiles);
-    m_controllerService->SetActiveProfiles (ProfileMode::Joyport,  store.joyportActiveProfiles);
-
-    if (store.players.has_value())
-    {
-        entries     = store.players.value();
-        lastHolders = store.lastHolders;
-    }
-    else
-    {
-        LoadMachineUiPrefs (doc, uiPrefs);
-        entries   = MachineInputPrefs::ReadAdoptedPlayers (uiPrefs, lastHolders);
-        isAdopted = true;
-    }
-
-    m_controllerService->SetLastHolders   (lastHolders);
-    m_controllerService->SetPlayerEntries (entries);
-
-    m_arrowsJoystick = m_controllerService->GetPlayerEntries()[0].kind == PlayerEntryKind::ArrowKeys;
-
-    if (isAdopted)
-    {
-        SaveControllerPrefs();
-    }
-
-    if (!rejected.empty())
-    {
-        PostNotice (L"Some saved controller settings couldn't be read, so those settings were reset.");
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SaveControllerPrefs
-//
-//  Writes every controller model's settings, every unit's calibration, the
-//  active profiles, the players' entries and the last holders into the
-//  global prefs, and saves them only when that changed what they hold: an
-//  automatic calibration that learned nothing new costs no write.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SaveControllerPrefs()
-{
-    ControllerProfileStore  store;
-    JsonValue               controllers;
-
-
-
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    store.models                = m_controllerService->GetModelSettings();
-    store.calibrations          = m_controllerService->GetCalibrations();
-    store.activeProfiles        = m_controllerService->GetActiveProfiles (ProfileMode::Joystick);
-    store.paddleActiveProfiles  = m_controllerService->GetActiveProfiles (ProfileMode::Paddle);
-    store.joyportActiveProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joyport);
-    store.players               = m_controllerService->GetPlayerEntries();
-    store.lastHolders           = m_controllerService->GetLastHolders();
-    controllers                 = store.ToJson (m_globalPrefs.controllers);
-
-    if (JsonWriter::Write (controllers) == JsonWriter::Write (m_globalPrefs.controllers))
-    {
-        return;
-    }
-
-    m_globalPrefs.controllers = std::move (controllers);
-    SaveGlobalPrefs();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AdoptInputModeForMachine
-//
-//  Seeds the live input mapping. Player 1's keys and mouse are the global
-//  players' entries and follow the user from machine to machine; only the
-//  //c's own mouse comes from the machine's $cassoUiPrefs block, and a
-//  machine that has never stored it falls back to the legacy global setting,
-//  so upgrading from a build where the mapping was global keeps it. The mouse
-//  picked as Player 1's paddle takes the pointer, so it outranks that mouse.
-//
-//  STATE ONLY, no chrome. The machine-switch path calls this on the CPU
-//  thread, and SyncSelectorState measures text through Dxui, which asserts
-//  the UI thread; both callers reflect the state on the UI thread afterwards
-//  (the switch through the post-switch reflow, launch through the layout that
-//  follows). This is the same rule ApplyDefaultPointerForMachine follows, and
-//  it runs before that one so the //c mouse nudge sees the restored value.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AdoptInputModeForMachine (const JsonValue * uiPrefs, const std::string & machineId)
-{
-    PlayerEntryKind  playerOne     = PlayerEntryKind::Automatic;
-    bool             machineArrows = false;
-
-
-
-    MachineInputPrefs::ReadFromUiPrefs (uiPrefs,
-                                        m_globalPrefs.pointerMapping,
-                                        machineArrows,
-                                        m_pointerMode);
-
-    if (m_controllerService != nullptr)
-    {
-        playerOne = m_controllerService->GetPlayerEntries()[0].kind;
-    }
-
-    m_arrowsJoystick = playerOne == PlayerEntryKind::ArrowKeys;
-
-    if (playerOne == PlayerEntryKind::MousePaddle)
-    {
-        m_pointerMode = InputMappingMode::Paddle;
-    }
-
-    AdoptControllerForMachine (uiPrefs, machineId);
-
-    // The mixer is thread-safe and writes on the UI thread, so handing the
-    // axes over from here is safe on the CPU thread too.
-    SyncGamePortAxisOwner();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AdoptControllerForMachine
-//
-//  Sets the service up for the machine being entered: its axis count, the
-//  move of its old active profile, a rate reset and a rescan. The players are
-//  global and are not touched: they describe the controllers on the desk,
-//  not the machine.
-//
-//  An UNREADABLE OR UNKNOWN TOKEN IS TREATED AS NO CONTROLLER, not as an
-//  error: there is only no old profile to move.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AdoptControllerForMachine (const JsonValue * uiPrefs, const std::string & machineId)
-{
-    HRESULT                              hr         = S_OK;
-    std::string                          token;
-    std::string                          legacyProfile;
-    std::map<std::string, std::string>   normalProfiles;
-    std::optional<ControllerUnitKey>     selection;
-    ControllerUnitKey                    unit;
-    bool                                 isAdopted  = false;
-    const MachineDefinition            * definition = MachineDefinitions::Find (machineId);
-
-
-
-    if (m_controllerService == nullptr)
-    {
-        return;
-    }
-
-    // How many axes this machine has, before anything is mapped onto them: a
-    // player slot for paddles it lacks is kept and plays nothing (FR-035).
-    //
-    // From `machineId`, NOT from m_machine. On the switch path this runs
-    // before the new config is adopted, so m_machine is still the machine
-    // being LEFT: reading it left the count a machine behind, which gave a
-    // //c player two the //e's PDL2/PDL3 -- no stick, but a live button --
-    // and cost an //e player two the axes the machine does have.
-    if (definition != nullptr)
-    {
-        m_controllerService->SetAxisCount (static_cast<size_t> (definition->gamePortAxisCount));
-    }
-
-    token = MachineInputPrefs::ReadControllerToken (uiPrefs);
-
-    if (!token.empty())
-    {
-        hr = ControllerTokens::UnitFromToken (token, unit);
-
-        if (SUCCEEDED (hr))
-        {
-            selection = unit;
-        }
-    }
-
-    // A machine's own active profile is from before each controller carried
-    // its own. It passes to the machine's saved controller once, when that
-    // controller has none recorded, and is written back to no machine after.
-    legacyProfile  = MachineInputPrefs::ReadProfileName (uiPrefs);
-    normalProfiles = m_controllerService->GetActiveProfiles (ProfileMode::Joystick);
-    isAdopted      = ControllerProfileStore::TryAdoptLegacyProfile (normalProfiles, selection, legacyProfile);
-
-    if (isAdopted)
-    {
-        m_controllerService->SetActiveProfiles (ProfileMode::Joystick, normalProfiles);
-    }
-
-    // A rate binding's paddle position belongs to the machine it was moved on.
-    m_controllerService->ResetPaddleRate();
-
-    // The players are decided against what is attached now.
-    m_controllerService->RequestRescan();
-
-    if (m_controllerThread != nullptr)
-    {
-        m_controllerThread->Wake();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PersistInputModeForMachine
-//
-//  Saves the live mapping. The players' entries, Player 1's keys and mouse
-//  among them, go to the global prefs. The machine's $cassoUiPrefs block
-//  takes only its pointer mapping, which is the //c's own mouse: a pointer
-//  mode that holds the pointer is written as Off.
-//
-//  THE MACHINE'S OLD SELECTION IS LEFT ALONE. Its controller, two-player
-//  block and arrows-to-joystick are neither written nor removed, so an older
-//  build reading the same file keeps its own behavior.
-//
-//  Best-effort: a missing store or machine name, or a write failure, just
-//  leaves the on-disk state as it was.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PersistInputModeForMachine()
-{
-    HRESULT                                         hr = S_OK;
-    std::vector<std::pair<std::string, JsonValue>>  entries;
-
-
-
-    SaveControllerPrefs();
-
-    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
-    {
-        return;
-    }
-
-    entries = MachineInputPrefs::BuildUiPrefEntries (m_pointerMode);
-
-    hr = DiskSettings::WriteSavedUiPrefs (
-             *m_userConfigStore, m_uiFs, m_machine.GetCurrentMachineName(), entries);
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RecordActiveMachineSelection
-//
-//  Records the currently-active machine so the next launch boots it by
-//  default (Main resolves the value via this same GlobalUserPrefs field).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RecordActiveMachineSelection()
-{
-    std::string  narrow = GetCurrentMachineNameNarrow();
-
-
-
-    if (m_globalPrefs.lastSelectedMachine != narrow)
-    {
-        m_globalPrefs.lastSelectedMachine = narrow;
-        SaveGlobalPrefs();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PersistColorModeForMachine
-//
-//  Writes the picked color mode into the machine's UI prefs, the same key
-//  the Settings panel saves on OK. The View menu's color commands
-//  deliberately do not persist -- they are a momentary look -- but a picker
-//  that shows the current value has to remember the one it was given.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PersistColorModeForMachine (int settingsColorModeIndex)
-{
-    HRESULT                                         hr      = S_OK;
-    std::vector<std::pair<std::string, JsonValue>>  entries;
-    const char *                                    text    = nullptr;
-    bool                                            inRange = settingsColorModeIndex >= 0 &&
-                                                              settingsColorModeIndex <= (int) SettingsColorMode::White;
-
-
-
-    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty() || !inRange)
-    {
-        return;
-    }
-
-    text = SettingsPanelState::ColorToString ((SettingsColorMode) settingsColorModeIndex);
-    entries.emplace_back ("colorMode", JsonValue (std::string (text)));
-
-    hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,
-                                          m_machine.GetCurrentMachineName(), entries);
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MigrateJoyportAtLaunch
-//
-//  The Joyport setting that per-player modes replaced is read only while no
-//  player mode has been saved: a Joyport that was on puts Player 1 in the
-//  left jack and Player 2 on Same as Player 1, and the players' modes are
-//  saved at once, which marks it read (PlayerModeRules::MigrateAdapter). The
-//  old global key is then removed from the global prefs; each machine's own
-//  value is left for older builds. Then the machine just built takes the
-//  players' modes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::MigrateJoyportAtLaunch (const JsonValue * uiPrefs)
-{
-    JoyportMigration  migration = PlayerModeRules::MigrateAdapter (m_hadSavedPlayerModes, m_globalPrefs.gamePortAdapter,
-                                                                   uiPrefs, m_machine.GetJoyport() != nullptr);
-
-
-
-    if (migration.isJoyport && m_controllerService != nullptr)
-    {
-        m_controllerService->SetPlayerEntries (PlayerModeRules::ApplyMigration (m_controllerService->GetPlayerEntries()));
-    }
-
-    // Saves only what changed, so a launch with the modes already saved
-    // writes nothing here.
-    SaveControllerPrefs();
-    m_hadSavedPlayerModes = true;
-
-    if (migration.shouldRemoveKey)
-    {
-        m_globalPrefs.gamePortAdapter.clear();
-        SaveGlobalPrefs();
-    }
-
-    ApplyJoyportToMachine();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyJoyportToMachine
-//
-//  Attaches the running machine's Joyport while a player is in one of its
-//  jacks, connects its paddle inputs while a player beside it stands in for
-//  a paddle or a joystick in the rear sockets, and tells the controller
-//  service whether the machine has one, so the players in its jacks play
-//  their Joyport profiles. Runs once the machine is built -- at a cold start,
-//  and on a machine switch right after the new devices are built, before the
-//  power cycle that opens the Joyport's reset window -- and after every
-//  change to the players' modes. The //c builds no Joyport, so there the
-//  jacks play as joysticks and the modes are kept for the next machine that
-//  has one.
-//
-//  Takes no lock: a machine switch calls it while holding the lifetime lock
-//  exclusively, and SyncJoyport takes it shared.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ApplyJoyportToMachine()
-{
-    SiriusJoyport  * joyport    = m_machine.GetJoyport();
-    bool             hasJoyport = joyport != nullptr;
-    PlayerEntries    entries;
-
-
-
-    if (m_controllerService)
-    {
-        entries = m_controllerService->GetPlayerEntries();
-        m_controllerService->SetJoyportAvailable (hasJoyport);
-    }
-
-    if (joyport != nullptr)
-    {
-        joyport->SetPaddlesConnected (PlayerModeRules::ArePaddlesConnected (entries, hasJoyport));
-        joyport->SetAttached         (PlayerModeRules::IsJoyportOn (entries, hasJoyport));
-    }
+    m_renderer->SetColorMonitorTextArgbLive (
+        ColorUtil::ResolveColorMonitorTextArgb (m_settings->GetPrefs().colorMonitorTextMode,
+                                                m_settings->GetPrefs().colorMonitorTextCustomArgb));
 }
 
 
@@ -659,28 +136,28 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // primes m_chromeTheme from the persisted user choice. Without
     // this the chrome would still paint Skeuomorphic until the
     // user re-picked the theme in Settings.
-    m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
+    m_settings->GetThemeManager()->AddChangeListener ([this] (const LoadedTheme & t)
     {
-        ApplyChromeThemeByName (t.name);
+        m_scene->ApplyChromeThemeByName (t.name);
 
         // The command bar's theme picker is built from this catalog, and the
         // manager outlives every other path that can change the active theme
         // (the picker itself, Settings, a fallback activation), so this is
         // the one place that sees all of them.
-        RefreshToolbarThemeList();
+        m_chrome->RefreshToolbarThemeList();
     });
 
     // Tell the theme manager which machine is active BEFORE the
     // first Activate so its listener notification carries the
     // correctly-resolved (per-variant) theme.
-    m_themeManager->SetActiveMachineName (m_machine.GetConfig().name);
+    m_settings->GetThemeManager()->SetActiveMachineName (m_machine.GetConfig().name);
 
     //  The notices about a changed disk mention the machine, and "the Apple"
     //  is not what is in front of the user. Set beside the theme's copy so the
     //  two cannot come to disagree about which machine is running.
     m_machine.GetDiskStore().SetMachineName (m_machine.GetConfig().name);
 
-    hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
+    hrActivate = m_settings->GetThemeManager()->Activate (m_settings->GetPrefs().activeTheme);
     if (FAILED (hrActivate))
     {
         // The persisted theme name is unknown -- renamed, deleted, or a stale
@@ -688,7 +165,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
         // the discovered set, chrome keeps its constructed Skeuomorphic
         // default, so a failed fallback is genuinely nothing to act on. This
         // function returns void, hence the explicit discard rather than CHR.
-        hrActivate = m_themeManager->Activate ("Skeuomorphic");
+        hrActivate = m_settings->GetThemeManager()->Activate ("Skeuomorphic");
         IGNORE_RETURN_VALUE (hrActivate, S_OK);
     }
 }
@@ -722,7 +199,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
 
 
 
-    LoadMachineUiPrefs (doc, uiPrefs);
+    m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
     // NO SAVED COLOR MEANS THE MONITOR'S OWN. The machine names the monitor
     // it ships with and the monitor owns its phosphor, so an untouched //c
@@ -736,11 +213,11 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     // up color exactly once: the window position written on the way out gave
     // the block something to hold, and the second launch reached this line
     // and found green.
-    SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
+    m_renderer->SetColorModeLive (MonitorCatalog::GetSettingsIndex (MonitorCatalog::GetColorModeForMachineJson (doc)));
 
     // The players' modes are global and apply to a machine with no block of
     // its own too, so the Joyport is settled above the guard below.
-    MigrateJoyportAtLaunch (uiPrefs);
+    m_input->MigrateJoyportAtLaunch (uiPrefs);
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
@@ -778,14 +255,14 @@ void EmulatorShell::ApplyPersistedChromePrefs()
 
         if (diskPort != nullptr)
         {
-            m_externalDriveConnected = !diskPort->device.empty();
+            m_disks->SetExternalDriveConnected (!diskPort->device.empty());
         }
         else
         {
             hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
             if (SUCCEEDED (hrOpt))
             {
-                m_externalDriveConnected = extConnected;
+                m_disks->SetExternalDriveConnected (extConnected);
             }
         }
     }
@@ -793,8 +270,12 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);
     if (SUCCEEDED (hrOpt))
     {
-        m_mouseConnected = mouseConn;
+        m_input->SetMouseConnected (mouseConn);
     }
+
+    // The cassette recorder, connected unless it was disconnected.
+    m_tapeDeck->SetRecorderConnected (true);
+    m_tapeDeck->LoadRecorderConnected (*uiPrefs);
 
 
     // Seed the per-drive user write-protect preference BEFORE the
@@ -803,225 +284,17 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     hrOpt = uiPrefs->GetArray ("writeProtect", wpArr);
     if (SUCCEEDED (hrOpt) && wpArr != nullptr)
     {
-        for (size_t wi = 0; wi < wpArr->GetArraySize() && wi < m_userWriteProtect.size(); ++wi)
+        for (size_t wi = 0; wi < wpArr->GetArraySize() && wi < m_disks->GetUserWriteProtect().size(); ++wi)
         {
             const JsonValue &  entry = wpArr->GetArrayElement (wi);
 
             if (entry.GetType() == JsonType::Bool)
             {
-                m_userWriteProtect[wi] = entry.GetBool();
+                m_disks->GetUserWriteProtect()[wi] = entry.GetBool();
             }
         }
     }
 
 Error:
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ApplyAndPersistTheme
-//
-//  Activates the named theme via ThemeManager (which fires our chrome
-//  cache listener) and writes the new choice into GlobalUserPrefs so
-//  the next launch starts in the same theme. Activation failure on an
-//  unknown name falls back to Skeuomorphic rather than leaving the
-//  chrome in a stale state.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
-{
-    HRESULT      hr         = S_OK;
-    HRESULT      hrActivate = S_OK;
-    HRESULT      hrSave     = S_OK;
-    std::string  resolved   = themeName;
-
-
-
-    CBRA (m_themeManager);                       // null member = Casso bug
-    BAIL_OUT_IF (themeName.empty(), S_OK);        // no theme requested -> no-op
-
-    hrActivate = m_themeManager->Activate (themeName);
-    if (FAILED (hrActivate))
-    {
-        resolved   = "Skeuomorphic";
-        hrActivate = m_themeManager->Activate (resolved);
-    }
-
-    // Live guard now. Previously Activate reported "no such theme" as
-    // S_FALSE, so CHR treated it as success and this function went on to
-    // persist a theme name that never activated.
-    CHR (hrActivate);
-
-    m_globalPrefs.activeTheme = resolved;
-    if (m_userConfigStore != nullptr)
-    {
-        hrSave = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
-    }
-    else
-    {
-        hrSave = m_globalPrefs.Save (m_machine.GetAssetBaseDir(), m_uiFs);
-    }
-
-    IGNORE_RETURN_VALUE (hrSave, S_OK);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::ApplyThemeLive
-//
-//  Activates the named theme via ThemeManager (which fires our chrome
-//  cache listener and reskins the live chrome) but does NOT write the
-//  choice into GlobalUserPrefs -- so a Settings Cancel can revert to the
-//  baseline theme without a persisted trace. Mirrors ApplyAndPersistTheme
-//  minus the save. Unknown names fall back to Skeuomorphic.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
-{
-    HRESULT  hr         = S_OK;
-    HRESULT  hrActivate = S_OK;
-
-
-
-    CBRA (m_themeManager);                       // null member = Casso bug
-    BAIL_OUT_IF (themeName.empty(), S_OK);        // no theme requested -> no-op
-
-    hrActivate = m_themeManager->Activate (themeName);
-    if (FAILED (hrActivate))
-    {
-        hrActivate = m_themeManager->Activate ("Skeuomorphic");
-    }
-
-    CHR (hrActivate);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SaveGlobalPrefs
-//
-//  Flushes the in-memory GlobalUserPrefs to UserPrefs.json. Used as the
-//  WindowManager save callback so per-monitor window placement edits
-//  land on disk immediately after the user moves/resizes the window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SaveGlobalPrefs()
-{
-    HRESULT  hr          = S_OK;
-    bool     offUiThread = (m_hwnd != nullptr) &&
-                           (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
-
-
-
-    if (m_userConfigStore == nullptr)
-    {
-        return;
-    }
-
-    hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
-
-    // A deferred request is consumed only by a write that LANDED and that ran
-    // on the thread the request was made from. Clearing it up front dropped the
-    // change outright: a save that failed, or one skipped for want of a store,
-    // still ate the request, and the shutdown flush writes nothing when the flag
-    // is clear. Clearing it from the CPU thread -- SwitchMachine reaches here --
-    // ate a request for a value that thread has no happens-before edge to, so
-    // the file could be written with the old volume while the pending write that
-    // would have corrected it was cancelled.
-    //
-    // The timer is deliberately NOT killed here: the Dxui timer calls assert the
-    // UI thread. It fires once more and either finds nothing dirty and stops
-    // itself in OnTimer, or writes the value a failed or off-thread save missed.
-    if (SUCCEEDED (hr) && !offUiThread)
-    {
-        m_globalPrefsDirty = false;
-    }
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::SaveGlobalPrefsDeferred
-//
-//  Records that GlobalUserPrefs needs writing and (re)arms the timer that
-//  writes it, so a burst of changes costs one file write instead of one per
-//  change.
-//
-//  RE-ARMING ON EACH CALL is what makes it a debounce rather than a period:
-//  the write happens once the changes stop, not on a fixed cadence through
-//  the middle of a drag.
-//
-//  Before there is a window there is no timer to arm, so the request stands
-//  as a dirty flag until something flushes it -- an ordinary SaveGlobalPrefs
-//  from another setting, or shutdown.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SaveGlobalPrefsDeferred()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    m_globalPrefsDirty = true;
-
-    // No window to hang a timer on -- before Initialize built one, or after
-    // teardown destroyed it. The flag stands, and the shutdown flush writes
-    // it. Tested against the HWND rather than the host because the Dxui timer
-    // calls assert on a host without one.
-    if (m_hwnd == nullptr || m_host == nullptr)
-    {
-        return;
-    }
-
-    hr = m_host->SetTimer (kPrefsSaveTimerId, kPrefsSaveDelayMs);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::FlushDeferredGlobalPrefs
-//
-//  Writes a pending deferred save now, if there is one. Called from the timer
-//  and again at shutdown, so a quit taken inside the debounce window still
-//  lands the user's last change.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::FlushDeferredGlobalPrefs()
-{
-    if (m_globalPrefsDirty)
-    {
-        SaveGlobalPrefs();
-    }
 }

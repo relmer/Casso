@@ -3,10 +3,15 @@
 #include "Pch.h"
 
 #include "Debugger/DebugCommand.h"
+#include "Debugger/Events/DebugLogDelta.h"
 #include "Debugger/HeatAccessJump.h"
-#include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/ReverseCommand.h"
-#include "Shell/CpuManager.h"
+#include "Shell/CpuCommandTargets.h"
+
+struct EmulatorCommand;
+class CpuManager;
+struct InputRecord;
+class InputJournal;
 
 
 
@@ -14,49 +19,19 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ICpuCommandTarget
+//  IDebugCommandTarget
 //
-//  What a command from the UI thread can ask the CPU thread to do.
-//
-//  Every method is one outcome: mount this, eject that, reset, run faster.
-//  The shell implements it over the machine, the disk manager and the audio
-//  mixers; a test implements it with a notebook and reads back what was asked
-//  for. Neither side sees the command ids or the payload grammar, which
-//  belong to the dispatcher alone.
+//  What a command from the UI thread can ask of the debugger on the CPU
+//  thread. The debugger implements it, and the dispatcher reaches it through
+//  CpuCommandTargets with the other command targets.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICpuCommandTarget
+class IDebugCommandTarget
 {
 public:
 
-    virtual ~ICpuCommandTarget () = default;
-
-    virtual HRESULT  SwitchMachine            (const std::wstring & machineName)                = 0;
-    virtual void     SoftReset                ()                                                = 0;
-    virtual void     HoldAppleKeysThroughReset (bool openApple, bool closedApple)               = 0;
-    virtual void     PowerCycle               ()                                                = 0;
-    virtual void     StepInstruction          ()                                                = 0;
-    virtual void     SaveTrace                ()                                                = 0;
-    virtual void     RemountDisks             ()                                                = 0;
-    virtual HRESULT  MountDisk                (int drive, const std::string & path)             = 0;
-    virtual void     EjectDisk                (int drive)                                       = 0;
-    virtual void     SetDriveUserWriteProtect (int drive, bool wp)                              = 0;
-    virtual HRESULT  ToggleImageWriteProtect  (int drive)                                       = 0;
-    virtual void     ResolvePendingChange     (int slot, int drive, int action,
-                                               const std::string & savePath)                   = 0;
-
-    //  Salvage of a damaged disk: assess the drive and offer the copy, then
-    //  write the copy the user confirmed, while the drive still holds the
-    //  medium that was assessed.
-    virtual void     AssessSalvage            (int drive)                                       = 0;
-    virtual void     WriteSalvagedCopy        (int drive, uint64_t mediaId,
-                                               const std::string & path)                       = 0;
-    virtual void     SetDriveAudioEnabled     (bool enabled)                                    = 0;
-    virtual HRESULT  SetDriveAudioMechanism   (const std::wstring & mechanism)                  = 0;
-    virtual void     SetDriveAudioVolumes     (float motor, float head, float door)             = 0;
-    virtual void     SetDriveAudioPan         (int drive, float pan)                            = 0;
-    virtual void     PlayDriveTestSound       (int drive, int kind)                             = 0;
+    virtual ~IDebugCommandTarget () = default;
 
     //  A debugger command line and the client its reply goes to, run on the
     //  thread that owns the machine, in `mode` when given and otherwise in the
@@ -80,9 +55,18 @@ public:
     //  Where the trace pane reads from: an entry, or the newest when empty.
     virtual void     SetDebugTraceView        (std::optional<uint64_t> first)                   = 0;
 
+    //  An event log pane's request: "open", "close", or "earlier" for the
+    //  rows before its oldest.
+    virtual void     SetDebugEventLog         (DebugLogKind kind, const std::string & request)  { (void) kind; (void) request; }
+
     //  Whether the heat map pane is shown, which is whether the machine
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
+    virtual void     SetDebugHeatColumnsShown (bool shown)                                      { (void) shown; }
+
+    //  Whether a BASIC pane is open and visible, which is when each
+    //  snapshot includes the Applesoft program.
+    virtual void     SetDebugBasicShown       (bool isVisible)                                  { (void) isVisible; }
 
     //  The heat map pane's options, in HeatMapOptions' text, and its Reset,
     //  which zeroes what the map has counted.
@@ -116,10 +100,6 @@ public:
     //  Behind live, the user agreed to discard the history recorded after where
     //  the machine stands, ahead of the change that asked.
     virtual void     DivergeHistory           ()                                                { }
-
-    //  Saves the whole machine to a state file, or loads one.
-    virtual void     SaveMachineState         (const std::filesystem::path & path)              = 0;
-    virtual void     LoadMachineState         (const std::filesystem::path & path)              = 0;
 };
 
 
@@ -130,7 +110,7 @@ public:
 //
 //  CpuCommandDispatcher
 //
-//  Turns a queued command into calls on the target, on the CPU thread.
+//  Turns a queued command into calls on its targets, on the CPU thread.
 //
 //  This is the whole of the payload grammar: which id means which drive,
 //  what "50,60,70" is a triple of, where the path starts in a change
@@ -144,7 +124,7 @@ class CpuCommandDispatcher
 {
 public:
 
-    static void  Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target);
+    static void  Dispatch (const EmulatorCommand & cmd, const CpuCommandTargets & targets);
 
     //  A code view's name: `base` for the first, `base` with 2 to 4 after it
     //  for the others; index is 0 to 3.
@@ -166,7 +146,7 @@ public:
     //  "ignore " and HeatMapRangeSets' span words after "heatmap": the spans
     //  whose reads before written are left out.
     static bool  TryGetHeatMapIgnore (const std::string & where, std::vector<std::pair<Word, Word>> & spans);
-    static void  SetHeatMapIgnore    (const std::string & where, ICpuCommandTarget & target);
+    static void  SetHeatMapIgnore    (const std::string & where, IDebugCommandTarget & target);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
@@ -185,14 +165,15 @@ public:
 
 private:
 
-    static bool  DispatchDiskCommand   (const EmulatorCommand & cmd, ICpuCommandTarget & target);
-    static bool  DispatchDebugCommand  (const EmulatorCommand & cmd, ICpuCommandTarget & target);
-    static void  DispatchResolveChange (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchSalvageWrite  (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchDriveVolumes  (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchDrivePan      (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchDriveTest     (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchDebugView     (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchReverse       (const std::string & payload, ICpuCommandTarget & target);
-    static void  DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target);
+    static bool  DispatchDriveCommand   (const EmulatorCommand & cmd, ICpuDiskCommands & disks, ICpuDriveAudioCommands & driveAudio);
+    static bool  DispatchDebugCommand   (const EmulatorCommand & cmd, IDebugCommandTarget & debug);
+    static bool  DispatchTapeCommand    (const EmulatorCommand & cmd, ICpuTapeCommands & tape);
+    static void  DispatchResolveChange  (const std::string & payload, ICpuDiskCommands & disks);
+    static void  DispatchSalvageWrite   (const std::string & payload, ICpuDiskCommands & disks);
+    static void  DispatchDriveVolumes   (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDrivePan       (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDriveTest      (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDebugView      (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverse        (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target);
 };

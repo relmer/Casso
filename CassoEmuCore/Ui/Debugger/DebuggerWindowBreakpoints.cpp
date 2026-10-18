@@ -6,6 +6,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
 
 
 
@@ -54,11 +55,8 @@ void DebuggerWindow::ConfigureBreakpointBar()
 //
 //  DebuggerWindow::SetBreakpointBarMenus
 //
-//  New's kinds, each opening the breakpoint dialog set to that kind, and the
-//  columns, each checked while it shows (FR-118). Name always shows, so it
-//  is listed checked and disabled, as Visual Studio lists it. Rebuilt before
-//  each drop-down opens, since the rows carry the checks they were built
-//  with.
+//  New's kinds, each opening the breakpoint dialog set to that kind. Rebuilt
+//  before each drop-down opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,42 +67,87 @@ void DebuggerWindow::SetBreakpointBarMenus()
         const wchar_t   * label;
         BreakpointKind    kind;
         WatchAccess       access;
+        bool              isIoPage;
     };
 
     static constexpr Kind           kKinds[] =
     {
-        { L"Breakpoint at address...", BreakpointKind::Address,  WatchAccess::ReadWrite },
-        { L"Function breakpoint...",   BreakpointKind::Address,  WatchAccess::ReadWrite },
-        { L"Data breakpoint...",       BreakpointKind::Memory,   WatchAccess::Write     },
-        { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite },
-        { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite },
-        { L"I/O range...",             BreakpointKind::Io,       WatchAccess::ReadWrite },
+        { L"Breakpoint at address...", BreakpointKind::Address,  WatchAccess::ReadWrite, false },
+        { L"Function breakpoint...",   BreakpointKind::Address,  WatchAccess::ReadWrite, false },
+        { L"Data breakpoint...",       BreakpointKind::Memory,   WatchAccess::Write,     false },
+        { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite, false },
+        { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite, false },
+        { L"I/O range...",             BreakpointKind::Memory,   WatchAccess::ReadWrite, true  },
+        { L"Disk event...",            BreakpointKind::Disk,     WatchAccess::ReadWrite, false },
+        { L"BASIC line...",            BreakpointKind::BasicLine,     WatchAccess::ReadWrite, false },
+        { L"BASIC variable change...", BreakpointKind::BasicVariable, WatchAccess::ReadWrite, false },
+        { L"BASIC error...",           BreakpointKind::BasicError,    WatchAccess::ReadWrite, false },
+    };
+    //  Stops that are not entries of the breakpoint table, which the dialog
+    //  makes as BRKUNINIT, BPV, BPBEAM and BPA.
+    struct Special
+    {
+        const wchar_t           * label;
+        BreakpointDialog::Type    type;
+    };
+
+    static constexpr Special        kSpecials[] =
+    {
+        { L"Read of memory never written...", BreakpointDialog::Type::UnwrittenRead },
+        { L"Video line...",                   BreakpointDialog::Type::VideoLine     },
+        { L"Beam position...",                BreakpointDialog::Type::Beam          },
+        { L"Execute and watch...",            BreakpointDialog::Type::ExecuteWatch  },
     };
     std::vector<DxuiPopupMenuItem>  kinds;
-    std::vector<DxuiPopupMenuItem>  columns;
-    std::shared_ptr<DxuiCommand>    name = MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {});
 
 
 
     for (const Kind & each : kKinds)
     {
-        BreakpointKind  kind   = each.kind;
-        WatchAccess     access = each.access;
+        BreakpointKind  kind     = each.kind;
+        WatchAccess     access   = each.access;
+        bool            isIoPage = each.isIoPage;
 
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access] { NewBreakpoint (kind, access); })));
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
     }
 
-    name->isEnabled = [] { return false; };
-    columns.push_back (DxuiPopupMenuItem::ForCommand (name));
+    for (const Special & each : kSpecials)
+    {
+        BreakpointDialog::Type  type = each.type;
+
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, type]
+        {
+            NewBreakpoint (BreakpointKind::Address, WatchAccess::ReadWrite, false, type);
+        })));
+    }
+
+    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew, std::move (kinds));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddBreakpointColumnItems
+//
+//  The breakpoints pane's menu on its headings: the columns, each checked
+//  while visible (FR-118). Name is always visible, so it is listed checked
+//  and disabled, as in Visual Studio.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands)
+{
+    commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {}));
+    commands.back()->isEnabled = [] { return false; };
 
     for (size_t i = 1; i < BreakpointColumns::kCount; i++)
     {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
-                                                                           [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); })));
+        commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
+                                             [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); }));
     }
-
-    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kNew,     std::move (kinds));
-    m_breakpointBar->SetDropDownItems (BreakpointBarCommands::kColumns, std::move (columns));
 }
 
 
@@ -235,7 +278,7 @@ bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
     case BreakpointBarCommands::kUndo:       return m_snapshot != nullptr && m_snapshot->canUndoBreakpoints;
     case BreakpointBarCommands::kRedo:       return m_snapshot != nullptr && m_snapshot->canRedoBreakpoints;
     case BreakpointBarCommands::kGoToSource: return one && BreakpointColumns::TryGetSourcePlace (*m_snapshot, selected[0], fileId, line);
-    case BreakpointBarCommands::kGoToCode:   return one && BreakpointColumns::HasAddress (selected[0].info);
+    case BreakpointBarCommands::kGoToCode:   return one && (BreakpointColumns::HasAddress (selected[0].info) || BreakpointColumns::HasRoutine (selected[0].info));
     default:                                 return true;
     }
 }
@@ -302,7 +345,7 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
         break;
 
     default:
-        //  New and Show columns are drop-downs; their rows act.
+        //  New is a drop-down; its rows act.
         break;
     }
 }
@@ -315,28 +358,141 @@ void DebuggerWindow::RunBreakpointBarEntry (int id)
 //
 //  DebuggerWindow::NewBreakpoint
 //
-//  The breakpoint dialog, set to the kind chosen and at the PC, asks for what
-//  that kind needs; its definition is the line a person could have typed.
+//  The breakpoint dialog, set to the kind chosen at the PC, or over the I/O
+//  page for an I/O range; its definition is the line a person could have
+//  typed. An I/O range is a memory watchpoint, as AppleWin's BPIO is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access)
+void DebuggerWindow::NewBreakpoint (BreakpointKind kind, WatchAccess access, bool isIoPage, std::optional<BreakpointDialog::Type> type)
 {
+    constexpr Word              kIoFirst   = 0xC000;
+    constexpr Word              kIoLast    = 0xC0FF;
     BreakpointInfo              info;
     std::optional<std::string>  definition;
+    bool                        isBasic    = kind == BreakpointKind::BasicLine || kind == BreakpointKind::BasicVariable || kind == BreakpointKind::BasicError;
 
 
 
+    //  A new BASIC line breakpoint's field starts empty, not at the PC.
     info.kind    = kind;
     info.access  = access;
-    info.address = (m_snapshot != nullptr) ? m_snapshot->pc : (Word) 0;
-    info.last    = info.address;
+    info.address = isIoPage ? kIoFirst : (isBasic || m_snapshot == nullptr) ? (Word) 0 : m_snapshot->pc;
+    info.last    = isIoPage ? kIoLast  : info.address;
 
-    definition = BreakpointDialog::Ask (GetHwnd(), m_theme, info);
+    definition = BreakpointDialog::RunModal (GetHwnd(), m_theme, info, type);
 
     if (definition.has_value())
     {
         RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, GetMode()) }, {} });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddZeroPagePointer
+//
+//  ZP of a zero-page address typed in a dialog, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddZeroPagePointer()
+{
+    std::optional<Byte>  address = RunByteDialog (L"Add zero-page pointer", L"Zero-page address");
+
+
+
+    if (address.has_value())
+    {
+        RunAction (DebuggerActions::GetAddZeroPagePointer (*address, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BeginNameEdit
+//
+//  A box over the Name cell with the name the row has, all of it selected
+//  so typing replaces it, as Visual Studio's rename opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginNameEdit (int row)
+{
+    const DebuggerViewSnapshot::BreakpointLine  * bp   = GetBreakpointOfRow (row);
+    RECT                                          cell = {};
+    RECT                                          list = m_breakpointList->GetBounds();
+    std::wstring                                  text;
+
+
+
+    if (bp == nullptr || !m_breakpointList->GetCellTextRectPx (row, 0, cell))
+    {
+        return;
+    }
+
+    text = TextEncoding::NarrowToWide (BreakpointColumns::GetCells (*m_snapshot, *bp)[(size_t) BreakpointColumns::Column::Name]);
+
+    OffsetRect (&cell, list.left, list.top);
+
+    m_nameEdit = NameEdit { row, bp->id, text };
+
+    m_nameEditor->SetTextRenderer (GetTextRenderer());
+    m_nameEditor->SetFont         (DxuiTheme::kMonoFace, m_breakpointList->GetFontSizeDip());
+    m_nameEditor->SetText         (text);
+    m_nameEditor->Layout          (cell, m_scaler);
+    m_nameEditor->SetVisible      (true);
+    SetFocusedControl             (m_nameEditor);
+    m_nameEditor->SelectAll();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndNameEdit
+//
+//  Enter or a click away commits what was typed, as one step the pane can
+//  undo; Escape, or the name left as it opened, changes nothing. An emptied
+//  box returns the breakpoint to its default name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndNameEdit (bool commit)
+{
+    std::string  typed = TextEncoding::WideToNarrow (m_nameEditor->GetText());
+    int          id    = m_nameEdit.id;
+    bool         isNew = commit && m_nameEditor->GetText() != m_nameEdit.opened;
+
+
+
+    if (m_nameEdit.row < 0)
+    {
+        return;
+    }
+
+    typed.erase (0, std::min (typed.size(), typed.find_first_not_of (" \t")));
+    typed.erase (typed.find_last_not_of (" \t") + 1);
+
+    m_nameEdit = NameEdit {};
+    m_nameEditor->SetVisible (false);
+    SetFocusedControl        (m_breakpointList);
+    Invalidate();
+
+    if (isNew)
+    {
+        RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetNameBreakpoint (id, typed, GetMode()) }, {} });
     }
 }
 
@@ -432,7 +588,7 @@ void DebuggerWindow::ExportBreakpoints()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host->RunDebuggerCommandInMode ("BPSAVE " + TextEncoding::WideToNarrow (chosen.wstring()), CommandMode::AppleWin);
+    RunAction (DebuggerActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;

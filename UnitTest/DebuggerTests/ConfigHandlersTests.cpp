@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
+#include "Debugger/ITapeControl.h"
 #include "HandlerTestRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -17,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ConfigHandlersTests
 //
-//  Directories, scripts, the DISASM and LOG settings, the output commands,
+//  Directories, scripts, the LOG setting, the output commands,
 //  help and the disk report.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,58 @@ namespace DebuggerTests
             rig.RunFails ("CD", "invalid arguments");
             rig.RunFails ("CD \"\"", "invalid arguments");
             Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetCurrentDirectory(), L"a quoted empty name leaves the directory alone");
+        }
+
+
+        //  A session no CD has run in opens relative paths from the process's
+        //  directory, so PWD prints that one.
+        TEST_METHOD (PWD_BeforeAnyCdIsTheProcessDirectory)
+        {
+            Rig              rig;
+            std::error_code  code;
+
+
+
+            rig.session.SetCurrentDirectory (L"");
+
+            Assert::AreEqual (TextEncoding::WideToNarrow (std::filesystem::current_path (code).wstring()), rig.RunOk ("PWD").text.at (0));
+        }
+
+
+
+
+        //  With a tape control set, as in the emulator, TAPE calls the control's
+        //  keys and its insert, and the deck is not touched.
+        TEST_METHOD (Tape_GoesThroughTheSessionsTapeControl)
+        {
+            class Keys : public ITapeControl
+            {
+            public:
+                std::vector<std::string>  pressed;
+
+                void  InsertTapeFile (const std::wstring & path) override { pressed.push_back ("insert " + TextEncoding::WideToNarrow (path)); }
+                void  PlayTape       () override                          { pressed.push_back ("play");   }
+                void  StopTape       () override                          { pressed.push_back ("stop");   }
+                void  RewindTape     () override                          { pressed.push_back ("rewind"); }
+                void  EjectTape      () override                          { pressed.push_back ("eject");  }
+            };
+
+            MachineHandlerRig<ConfigHandlers>  rig;
+            Keys                               keys;
+            std::vector<std::string>           expected = { "insert C:\\Work\\side1.wav", "play", "stop", "rewind", "eject" };
+
+
+
+            rig.session.SetTapeControl (&keys);
+
+            Assert::AreEqual (std::string ("Loading the tape from C:\\Work\\side1.wav."), rig.RunOk ("TAPE INSERT side1.wav").text.at (0));
+            Assert::AreEqual (std::string ("Tape: none"),                               rig.RunOk ("TAPE PLAY").text.at (0), L"TAPE PLAY does not touch the deck");
+
+            rig.RunOk ("TAPE STOP");
+            rig.RunOk ("TAPE REWIND");
+            rig.RunOk ("TAPE EJECT");
+
+            Assert::IsTrue (expected == keys.pressed);
         }
 
 
@@ -616,7 +669,7 @@ namespace DebuggerTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
 
@@ -690,18 +743,17 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (DISASM_Settings)
+        //  DISASM's settings set AppleWin's console layout, which Casso's
+        //  disassembly view does not have; its check boxes set its options.
+        TEST_METHOD (DISASM_IsNotAvailable)
         {
-            Rig  rig;
+            Rig    rig;
+            Reply  reply = rig.Run ("DISASM TARGET 0");
 
 
 
-            Assert::AreEqual ((size_t) 8, rig.RunOk ("DISASM").text.size());
-            Assert::AreEqual (std::string ("BRANCH = 0"), rig.RunOk ("DISASM branch 0").text.at (0));
-            Assert::AreEqual (std::string ("BRANCH = 0"), rig.RunOk ("DISASM BRANCH").text.at (0), L"the setting sticks");
-            Assert::AreEqual (std::string ("BRANCH = 1"), rig.RunOk ("DISASM BRANCH 1").text.at (0));
-            rig.RunFails ("DISASM FOO",      "invalid arguments");
-            rig.RunFails ("DISASM BRANCH 2", "invalid arguments");
+            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) reply.status);
+            Assert::IsTrue   (reply.error.detail.find ("check boxes") != std::string::npos, Widen (reply.error.detail).c_str());
         }
 
 

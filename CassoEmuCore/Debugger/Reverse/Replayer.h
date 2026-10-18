@@ -141,6 +141,7 @@ private:
     HRESULT   LoadState           (const std::vector<Byte> & state, uint64_t position, size_t journalIndex);
     HRESULT   ApplyInputs         (uint64_t position, bool includeObserved);
     HRESULT   ApplyInput          (const InputRecord & record);
+    void      ReportMedia         (const InputRecord & record);
     HRESULT   LoadBoundaryIfDue   ();
     HRESULT   CheckKeyframe       (ReplayReport & report);
     HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps, std::vector<Byte> * stackPointers);

@@ -27,12 +27,15 @@ struct DebugViewCapture
     VideoPosition             video;
     Byte                      lastPenalties  = 0;
     std::optional<Word>       lastBranch;
+    std::optional<Word>       lastBranchTo;
     DebugCpuKind              cpuKind        = DebugCpuKind::M6502;
     const Microcode         * instructionSet = nullptr;
     DebugMachineInfo          machineInfo;
     bool                      isKeyPending   = false;
     std::vector<SoftSwitch>   softSwitches;
     DebugMemoryImage          memory;
+
+    std::optional<DebugDiskState>  diskState;     // absent with no Disk II controller
 
     bool                      isTraceOn      = false;
     size_t                    traceSize      = 0;

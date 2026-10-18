@@ -73,7 +73,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)$(CassoBuildFlavor)\</IntDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -87,6 +87,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -106,6 +107,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -121,6 +123,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -140,6 +143,7 @@
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -153,6 +157,24 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
+    <ClCompile Include="EmuTests\ThreadOwnershipTests.cpp" />
+    <ClCompile Include="EmuTests\OwnerThreadStandIn.cpp" />
+    <ClCompile Include="EmuTests\DiskOwnershipTests.cpp" />
+    <ClCompile Include="UiTests\StoragePageTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
+    <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
+    <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
+    <ClCompile Include="UiTests\TapeManagerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRecordScannerTests.cpp" />
+    <ClCompile Include="EmuTests\TapeRomLoadTests.cpp" />
+    <ClCompile Include="EmuTests\TapeDeckTests.cpp" />
+    <ClCompile Include="EmuTests\CassettePortTests.cpp" />
+    <ClCompile Include="EmuTests\TapeImageLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\TapeSignalDecoderTests.cpp" />
+    <ClCompile Include="EmuTests\AiffCodecTests.cpp" />
+    <ClCompile Include="EmuTests\WavCodecTests.cpp" />
+    <ClCompile Include="EmuTests\TapeTestEncoder.cpp" />
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
     <ClCompile Include="UndocumentedOpcodeTests.cpp" />
@@ -209,6 +231,15 @@
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchTableTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugSessionTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskBreakSpecTextTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskBreakpointParserTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskCallBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskValueTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskReportFormatTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskBreakpointPaneTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskLogicalMapTests.cpp" />
+    <ClCompile Include="DebuggerTests\DiskFieldTrackerTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinCommandTableTests.cpp" />
     <ClCompile Include="DebuggerTests\AppleWinParserTests.cpp" />
     <ClCompile Include="DebuggerTests\CassoCommandReferenceTests.cpp" />
@@ -232,6 +263,8 @@
     <ClCompile Include="DebuggerTests\InputJournalTests.cpp" />
     <ClCompile Include="DebuggerTests\InputObservedAtReadTests.cpp" />
     <ClCompile Include="DebuggerTests\ProfileTableTests.cpp" />
+    <ClCompile Include="DebuggerTests\RoutineProfileTests.cpp" />
+    <ClCompile Include="DebuggerTests\HeatColumnTests.cpp" />
     <ClCompile Include="DebuggerTests\CycleStopwatchTests.cpp" />
     <ClCompile Include="DebuggerTests\IoEventLogTests.cpp" />
     <ClCompile Include="DebuggerTests\LogCommandsTests.cpp" />
@@ -241,6 +274,8 @@
     <ClCompile Include="DebuggerTests\CommandCompletionTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerCommandCompletionWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceTests.cpp" />
+    <ClCompile Include="DebuggerTests\EventLogPaneTests.cpp" />
+    <ClCompile Include="DebuggerTests\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />
@@ -278,6 +313,9 @@
     <ClCompile Include="DebuggerTests\BreakpointHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointImportDialectTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugSessionDetachTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerBasicFollowTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerCodeMenuTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerToolPanesTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWatchAddRowTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerReviewPolishTests.cpp" />
     <ClCompile Include="DebuggerTests\RegisterHistoryTests.cpp" />
@@ -308,6 +346,7 @@
     <ClCompile Include="DebuggerTests\DebuggerFindReviewTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFindWidgetTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerFocusAccentTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerPaneMinimumTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowClosedPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerClosedPanesSettingTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyOptionsTests.cpp" />
@@ -366,6 +405,7 @@
     <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxAssemblerTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceListingSyntaxTests.cpp" />
+    <ClCompile Include="DebuggerTests\MemoryFileDialogTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineOperandsTests.cpp" />
     <ClCompile Include="DebuggerTests\TracePaneHomeKeyTests.cpp" />
@@ -480,6 +520,7 @@
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
+    <ClCompile Include="CLexerTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
@@ -499,8 +540,17 @@
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="EmuTests\DurableCommitTests.cpp" />
+    <ClCompile Include="EmuTests\FieldLocatorTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
+    <ClCompile Include="EmuTests\LatchFramerTests.cpp" />
+    <ClCompile Include="EmuTests\SectorFieldWriterTests.cpp" />
+    <ClCompile Include="EmuTests\SectorWriteThroughVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\WozFileLayoutTests.cpp" />
     <ClCompile Include="EmuTests\WozFluxLoaderTests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineFluxTests.cpp" />
+    <ClCompile Include="EmuTests\WozBitTimingTests.cpp" />
+    <ClCompile Include="EmuTests\WozCompatibilityTests.cpp" />
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
@@ -544,6 +594,7 @@
     <ClCompile Include="Cassque\FolderWatchTests.cpp" />
     <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
     <ClInclude Include="Cassque\FakeFolderWatcher.h" />
+    <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />
@@ -602,6 +653,11 @@
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\Disk2StateTests.cpp" />
+    <ClCompile Include="Devices\Disk2PerDriveHeadTests.cpp" />
+    <ClCompile Include="Devices\Disk2WriteHookTests.cpp" />
+    <ClCompile Include="Devices\Disk2NibbleRecordTests.cpp" />
+    <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
+    <ClCompile Include="Devices\DiskMarkPatternTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
@@ -637,16 +693,29 @@
     <ClCompile Include="PrinterTests\PrinterViewportTests.cpp" />
     <ClCompile Include="Casso\ClipboardTextTests.cpp" />
     <ClCompile Include="Casso\ClipboardSeamTests.cpp" />
-    <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
-    <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
-    <ClCompile Include="Casso\InputDebugFilterTests.cpp" />
-    <ClCompile Include="Casso\Disk2DebugDialogColumnTests.cpp" />
     <ClCompile Include="Casso\MenuPredicatesTests.cpp" />
-    <ClCompile Include="Casso\RichEditSquiggleTests.cpp" />
     <ClCompile Include="UiTests\UserConfigStoreTests.cpp" />
     <ClCompile Include="UiTests\MachineInputPrefsTests.cpp" />
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
+    <ClCompile Include="UpdateTests\AuthenticodeVerifierTests.cpp" />
+    <ClCompile Include="UpdateTests\InflateTests.cpp" />
+    <ClCompile Include="UpdateTests\InstallTypeDetectorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseInfoTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesExtractorTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesFormatterTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseVersionTests.cpp" />
+    <ClCompile Include="UpdateTests\LocalFeedHttpClientTests.cpp" />
+    <ClCompile Include="UpdateTests\RelaunchAndPendingTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateScheduleTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateServiceTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateDialogModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesLayoutTests.cpp" />
+    <ClCompile Include="UpdateTests\ReleaseNotesImageTests.cpp" />
+    <ClCompile Include="UpdateTests\SizeGripTests.cpp" />
+    <ClCompile Include="UpdateTests\UpdateIndicatorModelTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipArchiveTests.cpp" />
+    <ClCompile Include="UpdateTests\ZipUpdateInstallerTests.cpp" />
     <ClCompile Include="UiTests\SettingsSheetSizeTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementKeyTests.cpp" />
     <ClCompile Include="UiTests\WindowPlacementProfileTests.cpp" />
@@ -678,6 +747,7 @@
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetHitTests.cpp" />
+    <ClCompile Include="UiTests\DriveWidgetInfoIconTests.cpp" />
     <ClCompile Include="UiTests\WindowsThemeColorsTests.cpp" />
     <ClCompile Include="UiTests\DriveWidgetStateTests.cpp" />
     <ClCompile Include="UiTests\DragDropHitTestRoutingTests.cpp" />
@@ -690,6 +760,7 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
+    <ClCompile Include="UiTests\DriveBandTapeLayoutTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
     <ClCompile Include="UiTests\JoyportSwitchViewTests.cpp" />
     <ClCompile Include="UiTests\InputDeviceGlyphsTests.cpp" />
@@ -698,6 +769,8 @@
     <ClCompile Include="UiTests\MonitorCatalogTests.cpp" />
     <ClCompile Include="UiTests\CrtResolverTests.cpp" />
     <ClCompile Include="UiTests\DisplayPageTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageModelTests.cpp" />
+    <ClCompile Include="UiTests\GeneralPageTests.cpp" />
     <ClCompile Include="UiTests\ScreenshotsPageTests.cpp" />
     <ClCompile Include="UiTests\SettingsPageEnablementTests.cpp" />
     <ClCompile Include="UiTests\ControllersPageLayoutTests.cpp" />
@@ -708,6 +781,7 @@
     <ClCompile Include="UiTests\DeskSceneLayoutTests.cpp" />
     <ClCompile Include="UiTests\ChromeBandLayoutTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneModelTests.cpp" />
+    <ClCompile Include="UiTests\DeskSceneRecorderTests.cpp" />
     <ClCompile Include="UiTests\DeskSceneHitTesterTests.cpp" />
     <ClCompile Include="UiTests\FullscreenStripStateTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
@@ -718,6 +792,8 @@
     <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiInfoTipTests.cpp" />
+    <ClCompile Include="Dxui\DxuiShadowedTextTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextElideTests.cpp" />
     <ClCompile Include="Dxui\DxuiLinkFocusRingTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
@@ -811,6 +887,7 @@
     <ClCompile Include="Dxui\DxuiListViewStretchColumnTests.cpp" />
     <ClCompile Include="Dxui\DxuiIconImageTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
+    <ClCompile Include="Dxui\DxuiEditableGridTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="DebuggerTests\ByteChangesTests.cpp" />
@@ -860,13 +937,11 @@
     <ClCompile Include="Dxui\MockDxuiTextRenderer.cpp" />
     <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
-    <ClCompile Include="Devices\Disk2DebugDialogTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
     <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
-    <ClCompile Include="Disk2DebugPanelLayoutTests.cpp" />
     <ClCompile Include="EmuTests\MachineDefinitionTests.cpp" />
     <ClCompile Include="EmuTests\PerfStatsTests.cpp" />
     <ClCompile Include="EmuTests\CrtPostProcessTests.cpp" />
@@ -887,6 +962,9 @@
     <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
     <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
+    <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />
+    <ClCompile Include="EmuTests\AutoStatePolicyTests.cpp" />
+    <ClCompile Include="EmuTests\StateThumbnailTests.cpp" />
     <ClCompile Include="EmuTests\HistoryTimelineTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailCostTests.cpp" />
     <ClCompile Include="EmuTests\HistorySeekCostTests.cpp" />
@@ -896,11 +974,18 @@
     <ClCompile Include="EmuTests\DiskFlushHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskResetRemountHoldTests.cpp" />
     <ClCompile Include="EmuTests\DiskHistoryTests.cpp" />
-    <ClCompile Include="EmuTests\DiskOwnershipTests.cpp" />
-    <ClCompile Include="EmuTests\IdleHistoryRateTests.cpp" />
     <ClCompile Include="EmuTests\MachineStateFileTests.cpp" />
     <ClCompile Include="EmuTests\ReplayOutputGateTests.cpp" />
     <ClCompile Include="EmuTests\ReverseCommandTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseBasicBreakpointTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseDiskBreakpointTests.cpp" />
+    <ClCompile Include="DebuggerTests\ApplesoftProgramTests.cpp" />
+    <ClCompile Include="DebuggerTests\BasicPanesTests.cpp" />
+    <ClCompile Include="DebuggerTests\BasicStopTests.cpp" />
+    <ClCompile Include="DebuggerTests\BreakpointNameTests.cpp" />
+    <ClCompile Include="DebuggerTests\ProjectShellTests.cpp" />
+    <ClCompile Include="EmuTests\TraceHistoryTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugProjectTests.cpp" />
     <ClCompile Include="EmuTests\ReverseNoCallerTests.cpp" />
     <ClCompile Include="EmuTests\ReverseStepOutSeekTests.cpp" />
     <ClCompile Include="EmuTests\SliceInputSampleTests.cpp" />
@@ -909,7 +994,15 @@
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
     <ClCompile Include="DebuggerTests\StateFileCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandGoLiveTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
-    <ClCompile Include="DebuggerTests\ReverseOptionsDialogTests.cpp" />
+    <ClCompile Include="DebuggerTests\ReverseBudgetRangeTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerOptionsSheetTests.cpp" />
+    <ClCompile Include="DebuggerTests\StopFocusTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugEventCacheTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugEventReplayerTests.cpp" />
+    <ClCompile Include="EmuTests\DebugEventLogsTests.cpp" />
+    <ClCompile Include="EmuTests\IoEventDecoderTests.cpp" />
+    <ClCompile Include="EmuTests\IoPeekTests.cpp" />
+    <ClCompile Include="EmuTests\DebugEventRebuildTests.cpp" />
+    <ClCompile Include="EmuTests\ObserverSlotTests.cpp" />
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\DivergenceGateTests.cpp" /><ClCompile Include="EmuTests\HeldInputReadTests.cpp" /><ClCompile Include="DebuggerTests\HistoryGuardTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
@@ -926,8 +1019,6 @@
     <ClCompile Include="EmuTests\WrittenPageTests.cpp" />
     <ClCompile Include="EmuTests\InlineWorkQueue.cpp" />
     <ClCompile Include="EmuTests\ThreadAllocationCounter.cpp" />
-    <ClCompile Include="EmuTests\OwnerThreadStandIn.cpp" />
-    <ClCompile Include="EmuTests\ThreadOwnershipTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostObserverTests.cpp" />
     <ClCompile Include="EmuTests\AppleKeyMappingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
@@ -935,6 +1026,8 @@
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
+    <ClInclude Include="EmuTests\TapeTestEncoder.h" />
     <ClInclude Include="EmuTests\DamagedDisk.h" />
     <ClInclude Include="EmuTests\DemoAssets.h" />
     <ClInclude Include="Pch.h" />
@@ -948,13 +1041,20 @@
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
-    <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
+    <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />
+    <ClInclude Include="UpdateTests\FakeSignatureVerifier.h" />
+    <ClInclude Include="UpdateTests\MockUpdateFileSystem.h" />
+    <ClInclude Include="UpdateTests\TestZipBuilder.h" />
+    <ClInclude Include="UpdateTests\FakePackageDeployer.h" />
+    <ClInclude Include="UpdateTests\FakeUpdateHost.h" />
+    <ClInclude Include="UpdateTests\MockHttpClient.h" />
+    <ClInclude Include="UpdateTests\RecordingResultPoster.h" />
     <ClInclude Include="Casso\FakeHostClipboard.h" />
     <ClInclude Include="EmuTests\MockIrqAsserter.h" />
     <ClInclude Include="EmuTests\GuestSession.h" />

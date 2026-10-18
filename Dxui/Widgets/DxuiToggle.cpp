@@ -5,6 +5,9 @@
 
 #include "Core/DxuiFocusRing.h"
 #include "Theme/DxuiColor.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Render/IDxuiPainter.h"
+#include "Core/DxuiEvents.h"
 
 
 

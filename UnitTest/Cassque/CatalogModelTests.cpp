@@ -5,6 +5,9 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "HResultAssert.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Config/IFileSystem.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

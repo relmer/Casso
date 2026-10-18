@@ -2,6 +2,7 @@
 
 #include "KeyboardMapText.h"
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 
 

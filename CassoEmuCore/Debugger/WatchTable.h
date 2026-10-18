@@ -12,11 +12,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  basicName is a BASIC watch's Applesoft variable, as Applesoft writes it;
+//  empty for an address.
 struct WatchItem
 {
-    int   id      = 0;
-    Word  address = 0;
-    bool  enabled = true;
+    int          id      = 0;
+    Word         address = 0;
+    bool         enabled = true;
+    std::string  basicName;
 };
 
 
@@ -39,11 +42,18 @@ class WatchTable
 {
 public:
     int   Add           (Word address);
+    int   AddBasic      (const std::string & name);
     int   AddAt         (int id, Word address);
     bool  TryClear      (int id);
     void  ClearAll      ();
     bool  TrySetEnabled (int id, bool enabled);
     bool  TryFind       (int id, WatchItem & item) const;
+
+    //  An entry's id changed, and the id the next Add takes, as a debug
+    //  project restores them. TryChangeId fails if the id is taken.
+    bool  TryChangeId   (int from, int to);
+    int   GetNextId     () const     { return m_nextId; }
+    void  SetNextId     (int nextId) { m_nextId = nextId; }
 
     const std::vector<WatchItem> &  GetAll () const { return m_items; }
 

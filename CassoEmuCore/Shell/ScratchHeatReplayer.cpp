@@ -4,6 +4,7 @@
 
 #include "Debugger/MachineDebugTarget.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/Replayer.h"
 
 
 

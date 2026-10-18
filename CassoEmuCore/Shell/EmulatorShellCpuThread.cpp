@@ -1,6 +1,18 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
+
+#include "Devices/Tape/TapeTurboGovernor.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/ShellDebugger.h"
+#include "Shell/ClipboardManager.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/DiskManager.h"
+#include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/TapeManager.h"
+#include "Shell/Components/ShellAudio.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Debugger/CpuManagerRunDriver.h"
@@ -65,6 +77,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
+#include "Shell/DiskManager.h"
 
 
 
@@ -72,32 +85,23 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ApplyPersistedAudioPrefs
+//  ApplyPersistedMachinePrefs
 //
-//  Seeds the drive-audio mixer, the input mapping, and the //c default
-//  pointer from the per-machine $cassoUiPrefs JSON before the audio thread
-//  first calls SetEnabled / SetMechanism. Default is enabled + Shugart when
-//  nothing is persisted.
+//  Seeds the input mapping, the //c default pointer, the drive sounds, the
+//  tape settings and the //c case switches from the per-machine
+//  $cassoUiPrefs JSON, before the audio thread first opens the output.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyPersistedAudioPrefs()
+void EmulatorShell::ApplyPersistedMachinePrefs()
 {
     HRESULT            hr      = S_OK;
-    HRESULT            hrOpt   = S_OK;
     JsonValue          doc;
-    const JsonValue *  uiPrefs = nullptr;
-    bool               enabled = true;
-    std::string        mechNarrow;
-    double             motorV  = Disk2AudioSource::kMotorVolume;
-    double             headV   = Disk2AudioSource::kHeadVolume;
-    double             doorV   = Disk2AudioSource::kDoorVolume;
-    double             pan0    = DriveAudioMixer::kDefaultDriveOnePan;
-    double             pan1    = DriveAudioMixer::kDefaultDriveTwoPan;
+    const JsonValue  * uiPrefs = nullptr;
 
 
 
-    LoadMachineUiPrefs (doc, uiPrefs);
+    m_settings->LoadMachineUiPrefs (doc, uiPrefs);
 
     // The input mapping and the //c pointer default are settled whether or
     // not this machine has a prefs block, so they come BEFORE the bail. A
@@ -108,50 +112,14 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
     // Here rather than with the chrome prefs because both read state that is
     // seeded earlier: the mouse device exists by now, and
     // ApplyPersistedChromePrefs has already applied mouseConnected.
-    AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
-    ApplyDefaultPointerForMachine();
-    SyncSelectorState();
+    m_input->AdoptInputModeForMachine (uiPrefs, m_machine.GetConfig().machineId);
+    m_input->ApplyDefaultPointerForMachine();
+    m_input->SyncPaddleSourceList();
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
-    hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
-    if (SUCCEEDED (hrOpt))
-    {
-        m_driveAudioMixer.SetEnabled (enabled);
-    }
-
-    hrOpt = uiPrefs->GetString ("floppyMechanism", mechNarrow);
-    if (SUCCEEDED (hrOpt) && !mechNarrow.empty())
-    {
-        // DriveAudioMixer matches mechanism names case-insensitively, so
-        // the persisted lower-case token ("alps"/"shugart") can be handed
-        // over as-is. A stale/unknown name leaves the mixer on its default
-        // mechanism, which is fine -- not worth aborting startup for.
-        std::wstring  mechWide = TextEncoding::Utf8ToWide (mechNarrow);
-
-        hrOpt = m_driveAudioMixer.SetMechanism (mechWide);
-        IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    }
-
-    // Optional gains + pans: each value is pre-seeded to its built-in
-    // default, and GetNumber leaves that default in place when the key is
-    // absent, so the read result is intentionally discarded -- absence
-    // simply means "keep the default". SetDriveAudio* then applies the
-    // resolved values (default or persisted) uniformly.
-    hrOpt = uiPrefs->GetNumber ("driveMotorVolume", motorV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveHeadVolume",  headV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
-
-    hrOpt = uiPrefs->GetNumber ("driveOnePan", pan0);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    hrOpt = uiPrefs->GetNumber ("driveTwoPan", pan1);
-    IGNORE_RETURN_VALUE (hrOpt, S_OK);
-    SetDriveAudioPan (0, (float) pan0);
-    SetDriveAudioPan (1, (float) pan1);
+    m_audio->ApplyMachinePrefs (*uiPrefs);
+    m_tapeDeck->ApplyMachinePrefs (*uiPrefs);
 
     // //c case-switch latches: restore the 80/40 and keyboard (Dvorak) switch
     // positions onto the keyboard device. Absent keys leave the hardware
@@ -192,8 +160,7 @@ Error:
 //
 //  CPU-thread-side initialization callback invoked by CpuManager once
 //  the worker thread is alive and COM is initialized. Brings up the
-//  WASAPI client and seeds the drive-audio mixer with the per-machine
-//  sample set so subsequent SetMechanism() switches reload from disk.
+//  audio output, which has to open on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,111 +170,25 @@ void EmulatorShell::OnCpuThreadStart()
 
 
 
-    // The disks are this thread's from here until OnCpuThreadStop; the window
-    // released them just before the start.
+    // The disk store's token moves to this thread here and back to the window
+    // thread at OnCpuThreadStop. The window thread calls ReleaseDiskOwnership
+    // just before the start.
     m_machine.ClaimDiskOwnership();
 
-    // Initialize WASAPI audio (non-fatal if it fails)
-    hr = m_wasapiAudio.Initialize();
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    LoadAudioAssetsForDeviceRate();
+    m_audio->Start (m_machine.GetRefs().mockingboard);
 
     // Reverse execution records from here, on the thread that runs the
     // machine, which is built and power cycled by now. The settings are read
     // once, here, and hold for every machine built after.
-    m_isReverseOn           = m_globalPrefs.reverseRecording;
-    m_reverseBudgetMb       = m_globalPrefs.reverseBudgetMb;
-    m_reverseIntervalFrames = m_globalPrefs.reverseIntervalFrames;
-
-    StartReverseRecording();
+    m_debugger->LoadReverseSettings();
+    m_debugger->StartReverseRecording();
 
     // On the CPU thread, which is where the debugger lives from here on.
     if (m_openDebuggerAtStart)
     {
-        hr = OpenDebugger();
+        hr = m_debugger->OpenDebugger();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadAudioAssetsForDeviceRate
-//
-//  Decodes every sound that has to arrive at the host device's sample rate,
-//  and records the rate it decoded at.
-//
-//  Drive-audio sample loading (spec 005-disk-ii-audio FR-009, NFR-005,
-//  FR-019, FR-006). The mixer holds the asset-load context, so any later
-//  runtime mechanism switch reloads every registered source through one entry
-//  point. Default mechanism is Shugart unless the per-machine registry
-//  already overrode it during Initialize.
-//
-//  The ImageWriter mechanical sound set is the embedded CC BY 4.0 grains that
-//  EnsureImageWriterSounds extracted to the asset base, decoded from MP3
-//  through the same Media Foundation path as the Disk II WAVs. A missing
-//  grain is silent.
-//
-//  The Mockingboard PSGs are seeded here because the initial machine is built
-//  before WASAPI comes up; machine switches after this point pick the rate up
-//  at build time in MachineManager.
-//
-//  ExecuteCpuSlices re-runs this whenever the device rate moves. A change of
-//  the default output device can land on a device with a different mix format
-//  (GH #137), and grains decoded at the old rate would play at the wrong
-//  pitch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LoadAudioAssetsForDeviceRate()
-{
-    HRESULT   hr          = S_OK;
-    bool      isAudioUp   = false;
-    uint32_t  sampleRate  = 0;
-    fs::path  baseDir;
-    wstring   devicesDir;
-    fs::path  soundsDir;
-    HRESULT   hrLoad      = S_OK;
-    HRESULT   hrSnd       = S_OK;
-
-
-
-    isAudioUp = m_wasapiAudio.IsInitialized();
-    BAIL_OUT_IF (!isAudioUp, S_OK);
-
-    sampleRate = m_wasapiAudio.GetSampleRate();
-
-    if (!m_diskAudioSources.empty())
-    {
-        // Use the same user-writable asset root that Main.cpp /
-        // AssetBootstrap used when writing the WAVs so the read
-        // path agrees with the write path.
-        baseDir     = AssetBootstrap::GetAssetBaseDirectory();
-        devicesDir  = (baseDir / L"Devices" / L"DiskII").wstring();
-
-        m_driveAudioMixer.SetSampleLoadContext (devicesDir, sampleRate);
-
-        hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
-        IGNORE_RETURN_VALUE (hrLoad, S_OK);
-    }
-
-    soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
-    hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(), sampleRate);
-    IGNORE_RETURN_VALUE (hrSnd, S_OK);
-
-    if (m_machine.GetRefs().mockingboard != nullptr)
-    {
-        m_machine.GetRefs().mockingboard->SetSampleRate (sampleRate);
-    }
-
-    m_audioAssetSampleRate = sampleRate;
-
-Error:
-    return;
 }
 
 
@@ -323,12 +204,13 @@ Error:
 void EmulatorShell::OnCpuThreadStop()
 {
     // First, so the disks' held writes reach their files at shutdown.
-    StopReverseRecording();
+    m_debugger->StopReverseRecording();
 
-    CloseDebugger();
-    m_wasapiAudio.Shutdown();
+    m_debugger->CloseDebugger();
+    m_audio->Stop();
 
-    // Last, so the shutdown flush can claim the disks once the thread is gone.
+    // Last, so the shutdown flush on the window thread can claim the disk
+    // store's token once this thread has exited.
     m_machine.ReleaseDiskOwnership();
 }
 
@@ -342,9 +224,9 @@ void EmulatorShell::OnCpuThreadStop()
 //
 //  Invoked by CpuManager once per drained EmulatorCommand, on the CPU
 //  thread, where it is safe to touch CPU, bus and device state. The command
-//  ids and the payload grammar live in CpuCommandDispatcher; this shell is
-//  the target it calls, and the eight small overrides below are the calls
-//  that used to be inline in the switch.
+//  ids and the payload grammar live in CpuCommandDispatcher. The shell takes
+//  the machine-wide commands, and the drives, the drive sounds and the
+//  recorder take their own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -361,7 +243,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         m_machine.RecordInput (input.kind, input.value, input.detail, input.payload);
     }
 
-    CpuCommandDispatcher::Dispatch (cmd, *this);
+    CpuCommandDispatcher::Dispatch (cmd, { *this, *m_disks, *m_audio, *m_tapeDeck, *m_debugger });
 }
 
 
@@ -372,8 +254,8 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 //
 //  StepInstruction
 //
-//  The first of the ICpuCommandTarget overrides: each one outcome, over the
-//  machine, the disk manager or a mixer.
+//  The first of the ICpuMachineCommands overrides: each one outcome, over the
+//  machine.
 //
 //  With the debugger attached this is the debugger's own step into, so the
 //  session starts it, the frame loop runs it as it runs any other step, and
@@ -385,17 +267,8 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
 void EmulatorShell::StepInstruction()
 {
-    DebugCommand  stepInto;
-
-
-
-    if (m_debugSession != nullptr)
+    if (m_debugger->StepSession())
     {
-        stepInto.verb       = DebugVerb::StepInto;
-        stepInto.sourceName = "T";
-
-        (void) m_debugSession->Execute (stepInto);
-        m_isDebugViewDirty = true;
         return;
     }
 
@@ -407,202 +280,8 @@ void EmulatorShell::StepInstruction()
     m_machine.SampleHostInputs();
     m_machine.StepOne();
 
-    RenderFramebuffer();
-    PublishFramebuffer();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RemountDisks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RemountDisks()
-{
-    m_diskManager->RemountSlot6Disks();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MountDisk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::MountDisk (int drive, const std::string & path)
-{
-    return m_diskManager->MountDiskInSlot6 (drive, path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EjectDisk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::EjectDisk (int drive)
-{
-    m_diskManager->EjectDiskInSlot6 (drive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ToggleImageWriteProtect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::ToggleImageWriteProtect (int drive)
-{
-    // On the CPU thread like mount and eject, so the flush never races the
-    // drive engine; failures are already reported inside.
-    return m_diskManager->ToggleImageWriteProtect (drive);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResolvePendingChange
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
-{
-    m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AssessSalvage
-//
-//  Reads the damaged disk here, where the store is held, and posts what a
-//  salvaged copy would hold to the window, which shows it. A drive with
-//  nothing to salvage posts nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AssessSalvage (int drive)
-{
-    HRESULT         hr       = S_OK;
-    SalvageOffer *  offer    = nullptr;
-    bool            hasHwnd  = m_hwnd != nullptr;
-    bool            isPosted = false;
-
-
-
-    BAIL_OUT_IF (!hasHwnd, S_OK);
-
-    offer = new (std::nothrow) SalvageOffer();
-    CPR (offer);
-
-    offer->drive = drive;
-
-    hr = m_machine.GetDiskStore().AssessSalvage (6, drive, offer->assessment);
-    CHR (hr);
-
-    BAIL_OUT_IF (!offer->assessment.isOffered, S_OK);
-
-    isPosted = PostMessageW (m_hwnd, WM_APP_SALVAGE_OFFER, 0, reinterpret_cast<LPARAM> (offer)) != FALSE;
-    CWR (isPosted);
-
-Error:
-    if (!isPosted)
-    {
-        delete offer;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteSalvagedCopy
-//
-//  Writes the copy the user confirmed, while the drive still holds the
-//  medium that was assessed, and posts the result to the window, which
-//  reports it and offers to insert the copy.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::WriteSalvagedCopy (int drive, uint64_t mediaId, const std::string & path)
-{
-    HRESULT           hr       = S_OK;
-    SalvageOutcome *  outcome  = nullptr;
-    bool              hasHwnd  = m_hwnd != nullptr;
-    bool              isPosted = false;
-
-
-
-    outcome = new (std::nothrow) SalvageOutcome();
-    CPR (outcome);
-
-    outcome->drive = drive;
-    outcome->path  = path;
-    outcome->hr    = m_machine.GetDiskStore().SalvageToFile (6, drive, mediaId, path, outcome->report);
-
-    BAIL_OUT_IF (!hasHwnd, S_OK);
-
-    isPosted = PostMessageW (m_hwnd, WM_APP_SALVAGE_DONE, 0, reinterpret_cast<LPARAM> (outcome)) != FALSE;
-    CWR (isPosted);
-
-Error:
-    if (!isPosted)
-    {
-        delete outcome;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioEnabled
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioEnabled (bool enabled)
-{
-    m_driveAudioMixer.SetEnabled (enabled);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioMechanism
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::SetDriveAudioMechanism (const std::wstring & mechanism)
-{
-    return m_driveAudioMixer.SetMechanism (mechanism);
+    m_renderer->RenderFramebuffer();
+    m_renderer->PublishFramebuffer();
 }
 
 
@@ -664,405 +343,30 @@ void EmulatorShell::RequestReset()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::PersistSwitchState
+//  ApplyTapeTurbo
 //
-//  Writes one //c case-switch latch into the current machine's per-machine
-//  $cassoUiPrefs block so the position survives across runs. Best-effort: a
-//  missing store / machine name, or a write failure, just leaves the on-disk
-//  state as it was.
+//  Runs a tape load at Maximum speed while the governor returns true, and
+//  restores the user's own speed as soon as it returns false. Only a change is
+//  written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PersistSwitchState (const char * key, bool value)
+void EmulatorShell::ApplyTapeTurbo()
 {
-    HRESULT  hr = S_OK;
+    uint64_t  now    = *m_machine.GetCpu()->GetBusCyclePtr();
+    bool      isFast = TapeTurboGovernor::ShouldRunAtMaximum (m_tapeDeck->IsFastTapeLoading(),
+                                                              m_machine.GetTapeDeck(),
+                                                              now,
+                                                              (double) m_machine.GetConfig().clockSpeed);
 
 
 
-    if (m_userConfigStore == nullptr || m_machine.GetCurrentMachineName().empty())
+    // Not silenced. At Maximum speed the audio path keeps only what fits in
+    // real time and drops the rest, faded at each cut, so the load plays as
+    // slices of the tape at its true pitch -- the data's rasp, not a chirp.
+    if (isFast != m_cpuManager.IsMaximumOverride())
     {
-        return;
-    }
-
-    hr = DiskSettings::WriteSavedUiPrefBool (*m_userConfigStore, m_uiFs, key,
-                                             m_machine.GetCurrentMachineName(), value);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioVolumes
-//
-//  Stores the live drive-audio gains and pushes them to every registered
-//  Disk2AudioSource. Runs on the CPU thread (the mixing thread), so it is
-//  safe to mutate the sources' gains here without synchronization.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
-{
-    m_driveMotorVolume = motor;
-    m_driveHeadVolume  = head;
-    m_driveDoorVolume  = door;
-
-    for (auto & src : m_diskAudioSources)
-    {
-        src->SetVolumes (motor, head, door);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDriveAudioPan
-//
-//  Stores a live per-drive stereo pan and applies it to the matching
-//  Disk2AudioSource via equal-power panning. Runs on the CPU thread (the
-//  mixing thread), so mutating the source's pan here needs no locking.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::SetDriveAudioPan (int drive, float pan)
-{
-    HRESULT  hr   = S_OK;
-    float    panL = DriveAudioMixer::kSpeakerCenter;
-    float    panR = DriveAudioMixer::kSpeakerCenter;
-
-
-
-    BAIL_OUT_IF (drive < 0 || drive >= (int) std::size (m_drivePan), S_OK);
-
-    m_drivePan[drive] = std::clamp (pan, -1.0f, 1.0f);
-
-    DriveAudioMixer::PanToStereo (m_drivePan[drive], panL, panR);
-
-    if (drive < (int) m_diskAudioSources.size())
-    {
-        m_diskAudioSources[(size_t) drive]->SetPan (panL, panR);
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlayDriveTestSound
-//
-//  Auditions a single drive sound on demand. Runs on the CPU thread (the
-//  mixing thread), so triggering the source's test channel is lock-free.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::PlayDriveTestSound (int drive, int kind)
-{
-    HRESULT                          hr       = S_OK;
-    Disk2AudioSource::TestSoundKind  testKind = Disk2AudioSource::TestSoundKind::Motor;
-    bool                             valid    = true;
-
-
-
-    BAIL_OUT_IF (drive < 0 || drive >= (int) m_diskAudioSources.size(), S_OK);
-
-    switch (kind)
-    {
-        case 0:  testKind = Disk2AudioSource::TestSoundKind::Motor; break;
-        case 1:  testKind = Disk2AudioSource::TestSoundKind::Head;  break;
-        case 2:  testKind = Disk2AudioSource::TestSoundKind::Door;  break;
-        default: valid    = false;                                  break;
-    }
-
-    BAIL_OUT_IF (!valid, S_OK);
-
-    m_diskAudioSources[(size_t) drive]->PlayTestSound (testKind);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RunDebugCommand
-//
-//  A debugger command, run on the CPU thread because that is where the machine
-//  it inspects and changes is safe to touch. With no handler attached nobody is
-//  debugging, so there is no one to reply to and the line is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::RunDebugCommand (uint32_t clientId, const std::string & line, std::optional<CommandMode> mode)
-{
-    m_debugCommandClient = clientId;
-
-    if (m_debugCommandHandler)
-    {
-        m_debugCommandHandler (clientId, line, mode);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugPauseChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugPauseChanged (bool paused)
-{
-    // A pause during a debugger run ends that run, so a client hears one stop
-    // with its budget and cycle count rather than a run that never finishes.
-    if (paused && m_debugRunDriver != nullptr)
-    {
-        m_debugRunDriver->EndForUserPause();
-    }
-
-    if (m_debugSession == nullptr)
-    {
-        return;
-    }
-
-    if (paused)
-    {
-        m_debugSession->OnUserPaused();
-    }
-    else
-    {
-        m_debugSession->OnUserResumed();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugReset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugReset (bool isPowerCycle)
-{
-    if (m_debugSession != nullptr)
-    {
-        m_debugSession->OnReset (isPowerCycle);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NotifyDebugMachineChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::NotifyDebugMachineChanged (const std::string & machineName)
-{
-    //  A debugger run on the old machine ends with it, announced as a pause,
-    //  and gives back the speed it borrowed.
-    if (m_debugRunDriver != nullptr)
-    {
-        m_debugRunDriver->EndForUserPause();
-    }
-
-    if (m_debugSession != nullptr)
-    {
-        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OpenDebugger
-//
-//  The pipe, the controller, and the shell's debug pointers at them. Nothing
-//  is attached until the channel has actually opened, so a failure -- another
-//  process holding this instance's pipe name -- leaves the shell exactly as it
-//  was and the emulator running with no debugger.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT EmulatorShell::OpenDebugger()
-{
-    HRESULT                              hr         = S_OK;
-    std::vector<BYTE>                    userSid;
-    std::unique_ptr<Win32NamedPipeApi>   api;
-    std::unique_ptr<Win32PipeTransport>  transport;
-    std::unique_ptr<DebuggerController>  controller;
-    uint32_t                             processId  = GetCurrentProcessId();
-
-
-
-    //  Already built: reopen a channel the window closed. The controller and
-    //  its session were kept, so this is only the pipe.
-    if (m_debugger != nullptr)
-    {
-        BAIL_OUT_IF (m_debugger->IsOpen(), S_OK);
-
-        hr = m_debugger->Open();
-        CHR (hr);
-
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
-    CHR (hr);
-
-    api        = std::make_unique<Win32NamedPipeApi>();
-    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
-    controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
-        [this] (ChannelHello & hello)
-        {
-            hello.title   = TextEncoding::WideToNarrow (m_titlePrefix);
-            hello.machine = m_machine.GetConfig().name;
-        },
-        processId);
-
-    hr = controller->Open();
-    CHR (hr);
-
-    m_pipeApi       = std::move (api);
-    m_pipeTransport = std::move (transport);
-
-    AttachDebugger (std::move (controller));
-
-Error:
-    if (FAILED (hr))
-    {
-        DEBUGMSG (L"The debug channel could not be opened: 0x%08X\n", hr);
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AttachDebugger
-//
-//  The shell's debug pointers at the controller, and the session's requests
-//  routed to the CPU thread's queue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::AttachDebugger (std::unique_ptr<DebuggerController> controller)
-{
-    m_debugger = std::move (controller);
-
-    SetDebugRunDriver  (&m_debugger->GetRunDriver());
-    SetDebugSession    (&m_debugger->GetSession());
-    SetReverseStopTest (&m_debugger->GetReverseStopTest());
-
-    m_debugger->GetSession().SetReverseRequester ([this] (ReverseCommand command)
-    {
-        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
-
-
-
-        if (isRecording)
-        {
-            PostReverseCommand (command);
-        }
-
-        return isRecording;
-    });
-
-    //  Loading replaces the machine, so both go to the CPU thread as the
-    //  File menu's commands do, and run there between instructions.
-    m_debugger->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
-    {
-        return GuardHistoryEdit (line, mode);
-    });
-
-    m_debugger->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
-    {
-        PostCommand ((request == StateFileRequest::Load) ? IDM_FILE_LOAD_STATE : IDM_FILE_SAVE_STATE, CpuCommandDispatcher::PathToPayload (path));
-        return true;
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CloseDebugger
-//
-//  Detaches before destroying, so the slice loop and the notifications never
-//  reach a controller that is going away. The controller's call history
-//  unlinks itself from history as it goes, dropping a rebuild under way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::CloseDebugger()
-{
-    SyncHeatHistory (false);
-
-    SetDebugRunDriver  (nullptr);
-    SetDebugSession    (nullptr);
-    SetReverseStopTest (nullptr);
-
-    m_debugger.reset();
-    m_pipeTransport.reset();
-    m_pipeApi.reset();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ServiceDebugger
-//
-//  The CPU manager's service tick: once per pass through its loop, paused or
-//  running, so a client gets a reply either way. The call record's rebuild
-//  from history is looked after here too, before the panes are gathered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::ServiceDebugger()
-{
-    if (m_debugger != nullptr)
-    {
-        m_debugger->Pump();
-        ServiceCallHistory();
-        PublishDebuggerView();
-    }
-
-    // A debugger edit can make a paused machine live again.
-    if (m_reverseHost != nullptr)
-    {
-        m_reverseHost->SyncInputGate();
+        m_cpuManager.SetMaximumOverride (isFast);
     }
 }
 
@@ -1079,7 +383,7 @@ void EmulatorShell::ServiceDebugger()
 void EmulatorShell::RunOneFrame()
 {
     ExecuteCpuSlices();
-    RenderFramebuffer();
+    m_renderer->RenderFramebuffer();
 }
 
 
@@ -1101,110 +405,14 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
-    HRESULT         hr          = S_OK;
-    FrameSignature  current;
-    FrameSignature  lastRendered;
-    bool            needsRender = false;
-
-
-
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
-    if (m_reverseHost != nullptr)
-    {
-        hr = m_reverseHost->OnFrame (m_cpuManager.IsUserMaximumSpeed());
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
 
-    if (ShouldPublishFrame())
-    {
-        current.videoDirty = m_machine.GetMemoryBus().IsVideoDirty();
-        current.modeSig    = ComputeVideoModeSig();
-        current.flashOn    = ComputeFlashOn();
-        current.colorSig   = ComputeColorSig();
-
-        lastRendered.modeSig  = m_lastRenderModeSig;
-        lastRendered.flashOn  = m_lastRenderFlashOn;
-        lastRendered.colorSig = m_lastRenderColorSig;
-
-        needsRender = FramePacing::NeedsRender (current, lastRendered);
-    }
-
-    if (needsRender)
-    {
-        RenderFramebuffer();
-        PublishFramebuffer();
-
-        m_machine.GetMemoryBus().ClearVideoDirty();
-        m_lastRenderModeSig  = current.modeSig;
-        m_lastRenderFlashOn  = current.flashOn;
-        m_lastRenderColorSig = current.colorSig;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TickKeyboardAutoRepeat
-//
-//  Advances the //e keyboard's auto-repeat cadence by the real time since the
-//  previous CPU-thread frame.
-//
-//  The cadence used to be counted in guest cycles, ticked once per
-//  instruction. That reads as authentic and is not: the //e's repeat is
-//  generated in the keyboard encoder, off an oscillator that knows nothing
-//  about the 6502, and a typist's finger rests in real seconds either way. So
-//  the guest clock dragged it along -- Double repeated at twice the rate off
-//  half the delay, and Maximum, which runs uncapped at tens of times real,
-//  turned a held key into hundreds of characters a second and made the
-//  machine impossible to type on.
-//
-//  Once a frame is resolution enough for a 500 ms delay and a 15 cps rate,
-//  and the clock read replaces one call per instruction. The stamp is
-//  advanced by the whole microseconds handed over rather than set to now, so
-//  the sub-microsecond remainder is carried instead of being dropped every
-//  frame -- at Maximum speed the frames are short enough for that to matter.
-//
-//  Each repeat that fires is journaled as a key press at the cycle it landed
-//  on, so a replay applies the same presses without this host-time timer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::TickKeyboardAutoRepeat()
-{
-    uint32_t  elapsed = 0;
-    Byte      fired   = 0;
-
-
-
-    if (m_machine.GetRefs().keyboard == nullptr)
-    {
-        return;
-    }
-
-    // The first frame since the machine came up starts the interval rather
-    // than reporting the whole time since the epoch, and a stall is charged
-    // once at the device's initial delay: the device caps anything past it at
-    // one repeat anyway. Both rules are the clock's, and tested there.
-    elapsed = m_frameClock.TakeKeyRepeatElapsedUs (AppleKeyboard::kKeyRepeatDelayUs);
-
-    if (elapsed == 0)
-    {
-        return;
-    }
-
-    fired = m_machine.GetRefs().keyboard->TickAutoRepeat (static_cast<uint32_t> (elapsed));
-
-    if (fired != 0)
-    {
-        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
-    }
+    m_renderer->PublishFrameIfChanged();
 }
 
 
@@ -1222,17 +430,16 @@ void EmulatorShell::TickKeyboardAutoRepeat()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
+uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget, const DebuggerSliceHooks & hooks)
 {
-    bool      isBehind   = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
-    bool      isWatching = isBehind && m_heldInputWatch.Refresh();
+    bool      isWatching = hooks.isBehindLive && hooks.heldInputWatch->Refresh();
     uint32_t  actual     = 0;
 
 
 
     if (isWatching)
     {
-        m_machine.SetHeldInputWatch (&m_heldInputWatch);
+        m_machine.SetHeldInputWatch (hooks.heldInputWatch);
     }
 
     actual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
@@ -1291,21 +498,22 @@ uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget)
 
 void EmulatorShell::ExecuteCpuSlices()
 {
-    HRESULT   hr              = S_OK;
-    uint32_t  nominalCycles   = m_cyclesPerFrame;
-    uint32_t  targetCycles    = 0;
-    uint32_t  executed        = 0;
-    SpeedMode speed           = m_cpuManager.GetSpeedMode();
-    bool      audioActive     = false;
-    bool      isSilent        = false;
-    double    cyclesPerSample = 0.0;
-    uint32_t  sliceTarget     = 0;
-    uint32_t  sliceActual     = 0;
-    uint32_t  numSamples      = 0;
-    Byte      pasted          = 0;
-    bool      isPauseLanding  = false;
-    bool      hasRunEnded     = false;
-    bool      isBehindLive    = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    HRESULT                   hr              = S_OK;
+    uint32_t                  nominalCycles   = m_cyclesPerFrame;
+    uint32_t                  targetCycles    = 0;
+    uint32_t                  executed        = 0;
+    SpeedMode                 speed           = m_cpuManager.GetEffectiveSpeedMode();
+    bool                      audioActive     = false;
+    bool                      isSilent        = false;
+    double                    cyclesPerSample = 0.0;
+    uint32_t                  sliceTarget     = 0;
+    uint32_t                  sliceActual     = 0;
+    uint32_t                  numSamples      = 0;
+    Byte                      pasted          = 0;
+    bool                      isPauseLanding  = false;
+    bool                      hasRunEnded     = false;
+    const DebuggerSliceHooks  hooks           = m_debugger->GetSliceHooks();   // the slices touch the debugger only through these
+    const bool                isBehindLive    = hooks.isBehindLive;
 
 
 
@@ -1315,7 +523,7 @@ void EmulatorShell::ExecuteCpuSlices()
     // audioActive gate rather than inside SubmitFrame: a teardown clears
     // IsInitialized, so the gate below would otherwise keep the reopen from
     // ever running (GH #137).
-    m_wasapiAudio.ServiceEndpointChanges();
+    m_audio->ServiceEndpointChanges();
 
     // Real time, not the cycle budget below: the keyboard's repeat cadence is
     // the one thing in this frame that must not follow the emulated clock.
@@ -1323,17 +531,17 @@ void EmulatorShell::ExecuteCpuSlices()
     // replay applies from the journal.
     if (!isBehindLive)
     {
-        TickKeyboardAutoRepeat();
+        m_input->TickKeyboardAutoRepeat();
     }
 
-    audioActive = (m_machine.GetRefs().speaker != nullptr && m_wasapiAudio.IsInitialized());
+    audioActive = (m_machine.GetRefs().speaker != nullptr && m_audio->IsOutputUp());
 
     // A reopen can land on a device with a different mix format, and every
     // drive, printer and PSG sound was decoded to the rate of the device that
     // is gone. Re-decode before this frame's samples are generated.
-    if (audioActive && m_wasapiAudio.GetSampleRate() != m_audioAssetSampleRate)
+    if (audioActive && m_audio->HasDeviceRateChanged())
     {
-        LoadAudioAssetsForDeviceRate();
+        m_audio->LoadAssetsForDeviceRate (m_machine.GetRefs().mockingboard);
     }
 
     if (speed == SpeedMode::Double)
@@ -1347,20 +555,20 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // A pending pause shortens this pass to the share of the frame that
         // matches how far through the host tick it was asked for.
-        isPauseLanding = m_debugRunDriver != nullptr && m_debugRunDriver->IsPausePending();
+        isPauseLanding = hooks.runDriver != nullptr && hooks.runDriver->IsPausePending();
 
         if (isPauseLanding)
         {
             targetCycles = FrameCycleBudget::GetPauseTarget (nominalCycles,
                                                              m_machine.GetCpu()->GetTotalCycles(),
-                                                             m_debugRunDriver->GetPauseFraction());
+                                                             hooks.runDriver->GetPauseFraction());
         }
     }
 
     if (audioActive)
     {
         cyclesPerSample = static_cast<double> (m_machine.GetConfig().clockSpeed) /
-                          static_cast<double> (m_wasapiAudio.GetSampleRate());
+                          static_cast<double> (m_audio->GetSampleRate());
         m_machine.GetRefs().speaker->BeginFrame();
     }
 
@@ -1395,14 +603,14 @@ void EmulatorShell::ExecuteCpuSlices()
         // slice, here where the machine first holds it. Off, one bool test.
         m_machine.SampleHostInputs();
 
-        sliceActual = RunWatchedSlice (sliceTarget);
+        sliceActual = RunWatchedSlice (sliceTarget, hooks);
         executed   += sliceActual;
 
         // Behind live, the slice ended after a read that input held back
         // would change: the machine stops there and the user is asked.
-        if (m_heldInputWatch.HasHit())
+        if (hooks.heldInputWatch->HasHit())
         {
-            StopForHeldInputRead();
+            m_debugger->StopForHeldInputRead();
             hasRunEnded = true;
             break;
         }
@@ -1420,7 +628,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // A debugger step is silent: whether this slice belonged to one is
         // read before the run can end, and its speaker toggles are dropped
         // rather than played, here or with the next run's first slice.
-        isSilent = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+        isSilent = hooks.runDriver != nullptr && hooks.runDriver->IsSilent();
 
         if (audioActive && isSilent)
         {
@@ -1428,7 +636,7 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().speaker->BeginFrame();
         }
 
-        if (m_debugRunDriver != nullptr && m_debugRunDriver->OnSliceExecuted (sliceActual))
+        if (hooks.runDriver != nullptr && hooks.runDriver->OnSliceExecuted (sliceActual))
         {
             hasRunEnded = true;
             break;
@@ -1448,17 +656,26 @@ void EmulatorShell::ExecuteCpuSlices()
             m_machine.GetRefs().iieKeyboard->TickResetHold (sliceActual);
         }
 
+        // The recorder stops itself at the end of the tape and refreshes what
+        // the deck shows, on emulated time like everything else here.
+        m_machine.GetTapeDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
+        ApplyTapeTurbo();
+
+        if (m_machine.GetTapeDeck().HasPendingRecording())
+        {
+            hr = m_tapeDeck->GetManager()->CommitPendingRecording (m_machine.GetTapeDeck());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
         if (audioActive && !isSilent)
         {
-            numSamples = m_sampleBudget.SamplesFor (sliceActual, cyclesPerSample);
+            numSamples = m_audio->TakeSamplesFor (sliceActual, cyclesPerSample);
 
-            hr = m_wasapiAudio.SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
-                                            sliceActual,
-                                            m_machine.GetRefs().speaker->GetFrameInitialState(),
-                                            numSamples,
-                                            &m_driveAudioMixer,
-                                            m_machine.GetCpu()->GetTotalCycles(),
-                                            &m_mockingboardAudioMixer);
+            hr = m_audio->SubmitFrame (m_machine.GetRefs().speaker->GetToggleTimestamps(),
+                                       sliceActual,
+                                       m_machine.GetRefs().speaker->GetFrameInitialState(),
+                                       numSamples,
+                                       m_machine.GetCpu()->GetTotalCycles());
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             m_machine.GetRefs().speaker->ClearTimestamps();
@@ -1470,6 +687,6 @@ void EmulatorShell::ExecuteCpuSlices()
     // as a breakpoint, ended the pass and the pause along with it.
     if (isPauseLanding && !hasRunEnded)
     {
-        m_debugRunDriver->OnPausePointReached (executed);
+        hooks.runDriver->OnPausePointReached (executed);
     }
 }

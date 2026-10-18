@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Seams/IProcessLauncher.h"
+class IProcessLauncher;
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "External/StbVorbisWrapper.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

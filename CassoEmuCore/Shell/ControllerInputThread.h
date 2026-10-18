@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
-#include "Seams/IControllerBackend.h"
+class IControllerBackendEvents;
+struct ControllerWaitSources;
+class IControllerBackend;
 
 
 

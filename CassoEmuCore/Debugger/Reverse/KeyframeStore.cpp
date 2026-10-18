@@ -4,6 +4,8 @@
 #include "Core/StateHash.h"
 #include "Core/StateWriter.h"
 #include "Shell/MachineHost.h"
+#include "Core/IWorkQueue.h"
+#include "Debugger/Reverse/KeyframeUnpacker.h"
 
 
 

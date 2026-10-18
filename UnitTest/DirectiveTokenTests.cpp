@@ -4,6 +4,7 @@
 #include "Directive.h"
 #include "Parser.h"
 #include "TestHelpers.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -73,7 +74,7 @@ public:
 
             std::string  line   = std::string (entry.name) + " " + SampleArgFor (entry.token);
             parsed = Parser::ParseLine (line, 1);
-            std::wstring what (line.begin(), line.end());
+            std::wstring what = TextEncoding::NarrowToWide (line);
 
             Assert::IsTrue (parsed.isDirective,
                 (L"'" + what + L"' must parse as a directive").c_str());
@@ -179,7 +180,7 @@ public:
             resLong = asm6502.Assemble (srcLong);
             resShort = asmShort.Assemble (srcShort);
             std::string     what     = std::string (pair[0]) + " vs " + pair[1];
-            std::wstring    msg (what.begin(), what.end());
+            std::wstring    msg      = TextEncoding::NarrowToWide (what);
 
             Assert::IsTrue (resLong.success,  (L"long form must assemble: "  + msg).c_str());
             Assert::IsTrue (resShort.success, (L"short form must assemble: " + msg).c_str());

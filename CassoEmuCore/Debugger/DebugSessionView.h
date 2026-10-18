@@ -1,14 +1,16 @@
 #pragma once
 
-#include "Debugger/BreakpointTable.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/LineTable.h"
-#include "Debugger/SymbolTable.h"
 #include "Debugger/WatchTable.h"
-#include "Debugger/WatchpointTable.h"
 
 class IFileSystem;
+struct Breakpoint;
+class BreakpointTable;
+class SymbolTable;
+struct Watchpoint;
+class WatchpointTable;
 
 
 
@@ -64,6 +66,11 @@ struct DebugSessionView
     CallStackMechanism                        callMechanism   = CallStackMechanism::Hybrid;
     CallRecord                                callRecord;
     std::optional<float>                      callRebuild;
+    uint64_t                                  cycleMarker     = 0;
+    std::vector<Word>                         searchResults;
+    uint64_t                                  searchSerial    = 0;
+    std::vector<CompareDifference>            compareResults;
+    uint64_t                                  compareSerial   = 0;
     IFileSystem                             * fileSystem      = nullptr;
     std::wstring                              currentDirectory;
 };

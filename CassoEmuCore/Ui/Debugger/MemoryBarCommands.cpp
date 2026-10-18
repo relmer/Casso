@@ -19,7 +19,7 @@ static constexpr const wchar_t *  s_kGlyphRedo    = s_kpszMdl2Redo;      // arro
 //
 //  MemoryBarCommands::GetRows
 //
-//  Where to look, then how to lay the bytes out, then undo.
+//  Where to look, then how to lay the bytes out, then undo, then the heat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +33,7 @@ const std::vector<MemoryBarCommands::Row> & MemoryBarCommands::GetRows()
         { kGrouping,  L"Group by bytes",    nullptr,            L"Show each value as a byte, a word or a long",                                  DxuiToolbar::Kind::DropDown, 1, false },
         { kUndo,      L"Undo",              s_kGlyphUndo,       L"Undo the last change made in this window",                                     DxuiToolbar::Kind::Command,  2, true  },
         { kRedo,      L"Redo",              s_kGlyphRedo,       L"Redo the change just undone",                                                  DxuiToolbar::Kind::Command,  2, true  },
+        { kHeat,      L"Heat",              nullptr,            L"Tint each byte by its heat, in the heat map's colors",                         DxuiToolbar::Kind::Toggle,   3, false },
     };
 
 
@@ -90,6 +91,11 @@ MemoryBarCommands::MemoryBarCommands (Handlers handlers)
 
             return text.empty() ? tip : text;
         };
+
+        if (row.kind == DxuiToolbar::Kind::Toggle)
+        {
+            command->isChecked = [this, id] { return m_handlers.isChecked && m_handlers.isChecked (id); };
+        }
 
         m_commands.push_back (std::move (command));
     }

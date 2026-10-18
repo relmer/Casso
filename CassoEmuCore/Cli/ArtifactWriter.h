@@ -2,8 +2,11 @@
 
 #include "AssemblerTypes.h"
 #include "CommandLineOptions.h"
-#include "Debugger/DebugFileWriter.h"
-#include "DialectReporting.h"
+
+struct DebugSourceName;
+class DebugFileWriter;
+struct DialectReportLine;
+class DialectReporting;
 
 
 

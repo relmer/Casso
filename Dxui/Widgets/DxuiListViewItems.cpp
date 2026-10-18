@@ -2,6 +2,7 @@
 
 #include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiListView.h"
+#include "Render/IDxuiPainter.h"
 
 
 

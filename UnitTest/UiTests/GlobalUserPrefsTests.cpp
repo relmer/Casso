@@ -7,6 +7,7 @@
 #include "Ui/ColorUtil.h"
 
 #include "Core/JsonParser.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -140,6 +141,76 @@ public:
         Assert::AreEqual (orig.printerAudioPan,         loaded.printerAudioPan);
         Assert::AreEqual (orig.masterVolume,            loaded.masterVolume);
         Assert::AreEqual (orig.masterMuted,             loaded.masterMuted);
+    }
+
+
+    TEST_METHOD (UpdateState_DefaultsAndRoundTrip)
+    {
+        static constexpr std::int64_t  kCheckedAt = 1790000000;
+
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     defaults;
+        GlobalUserPrefs     orig;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr       = S_OK;
+
+
+
+        Assert::IsTrue   (defaults.autoUpdateCheck);
+        Assert::AreEqual ((std::int64_t) 0, defaults.lastUpdateCheckUtc);
+        Assert::IsTrue   (defaults.latestKnownVersion.empty());
+        Assert::IsTrue   (defaults.skippedVersion.empty());
+
+        orig.autoUpdateCheck    = false;
+        orig.lastUpdateCheckUtc = kCheckedAt;
+        orig.latestKnownVersion = "1.31.0";
+        orig.skippedVersion     = "1.30.1";
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse  (loaded.autoUpdateCheck);
+        Assert::AreEqual (kCheckedAt,              loaded.lastUpdateCheckUtc);
+        Assert::AreEqual (string ("1.31.0"),       loaded.latestKnownVersion);
+        Assert::AreEqual (string ("1.30.1"),       loaded.skippedVersion);
+        Assert::IsTrue   (loaded.unknownPassthrough.empty(), L"update keys are known keys");
+    }
+
+
+    TEST_METHOD (AutoSaveMachineState_DefaultsOnAndRoundTrips)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     defaults;
+        GlobalUserPrefs     orig;
+        GlobalUserPrefs     loaded;
+        GlobalUserPrefs     fromOlderFile;
+        HRESULT             hr       = S_OK;
+
+
+
+        Assert::IsTrue (defaults.autoSaveMachineState, L"on by default");
+
+        orig.autoSaveMachineState = false;
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse (loaded.autoSaveMachineState, L"turned off and saved, it loads off");
+        Assert::IsTrue  (loaded.unknownPassthrough.empty(), L"the key is a known key");
+
+        hr = fs.WriteAllText (L"C:\\Casso\\UserPrefs.json", "{ \"autoUpdateCheck\": true }");
+        AssertSucceeded (hr);
+
+        hr = fromOlderFile.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (fromOlderFile.autoSaveMachineState, L"a prefs file from before the setting reads on");
     }
 
 
@@ -310,9 +381,9 @@ public:
         GlobalUserPrefs     loaded;
         HRESULT             hr;
 
-        Assert::AreEqual (string ("VisualStudio"), saved.debuggerKeyScheme);
+        Assert::AreEqual (string ("VisualStudio"), saved.debugger.keyScheme);
 
-        saved.debuggerKeyScheme = "AppleWin";
+        saved.debugger.keyScheme = "AppleWin";
 
         hr = saved.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
@@ -320,7 +391,7 @@ public:
         hr = loaded.Load (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (string ("AppleWin"), loaded.debuggerKeyScheme);
+        Assert::AreEqual (string ("AppleWin"), loaded.debugger.keyScheme);
     }
 
 
@@ -394,9 +465,9 @@ public:
         HRESULT             hr;
         string              text = "dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\") (tabs 0 \"registers\"))\n";
 
-        Assert::IsTrue (saved.debuggerLayout.empty(), L"empty until a pane moves");
+        Assert::IsTrue (saved.debugger.layout.empty(), L"empty until a pane moves");
 
-        saved.debuggerLayout = text;
+        saved.debugger.layout = text;
 
         hr = saved.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
@@ -404,7 +475,7 @@ public:
         hr = loaded.Load (L"C:\\Casso", fs);
         AssertSucceeded (hr);
 
-        Assert::AreEqual (text, loaded.debuggerLayout);
+        Assert::AreEqual (text, loaded.debugger.layout);
     }
 
 

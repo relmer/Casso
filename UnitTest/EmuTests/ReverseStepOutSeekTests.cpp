@@ -2,6 +2,7 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/CallStack.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

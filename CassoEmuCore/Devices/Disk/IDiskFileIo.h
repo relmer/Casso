@@ -78,6 +78,19 @@ public:
     virtual HRESULT  ReplaceAtomically (const std::string & tempPath,
                                         const std::string & targetPath) = 0;
 
+    //  Makes a written file's contents durable: they are on the storage, not
+    //  only in the system's cache, when this returns.
+    virtual HRESULT  FlushToStorage         (const std::string & path) = 0;
+
+    //  Gives the new file what the old one had beyond its bytes: the hidden,
+    //  system and not-content-indexed attributes, the creation time, and the
+    //  access control list when it is protected or has entries of its own.
+    virtual HRESULT  CopyFileMetadata       (const std::string & fromPath, const std::string & toPath) = 0;
+
+    //  Moves the temporary to the target name only if nothing is there yet,
+    //  failing with ERROR_ALREADY_EXISTS otherwise.
+    virtual HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) = 0;
+
     //  Opens the target for exclusive access and reports whether anything else
     //  already holds it. Best-effort by nature: it catches another TOOL, and
     //  cannot catch this emulator, which holds no handle on a mounted image.

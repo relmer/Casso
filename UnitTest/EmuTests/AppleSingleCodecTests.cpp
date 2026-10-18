@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/AppleSingleCodec.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -41,7 +42,7 @@ public:
         Assert::AreEqual ((Byte) 0x05, bytes[1]);
         Assert::AreEqual ((Byte) 0x16, bytes[2]);
         Assert::AreEqual ((Byte) 0x00, bytes[3]);
-        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), std::wstring (error.begin(), error.end()).c_str());
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), TextEncoding::NarrowToWide (error).c_str());
         Assert::IsTrue   (decoded.data == original.data);
         Assert::AreEqual (std::string ("PROG"), decoded.realName);
         Assert::IsTrue   (decoded.hasProDosInfo);
@@ -97,7 +98,7 @@ public:
         cut.assign (bytes.begin(), bytes.begin() + 55);
         hr = AppleSingleCodec::Decode (cut, decoded, error);
         Assert::IsTrue   (FAILED (hr), L"a fork past the end of the file");
-        Assert::IsTrue   (error.find ("entry 1") != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+        Assert::IsTrue   (error.find ("entry 1") != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
 
         bytes[5] = 0x03;
         hr = AppleSingleCodec::Decode (bytes, decoded, error);
@@ -139,7 +140,7 @@ public:
         Assert::AreEqual ((Byte) 0x80, bytes[kBackupAt]);
         Assert::AreEqual ((Byte) 0x00, bytes[kBackupAt + 3]);
 
-        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), std::wstring (error.begin(), error.end()).c_str());
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), TextEncoding::NarrowToWide (error).c_str());
         Assert::IsTrue   (decoded.createDate == std::optional<int32_t> (0));
         Assert::IsTrue   (decoded.modifyDate == std::optional<int32_t> (-86400));
         Assert::IsFalse  (decoded.backupDate.has_value(), L"unknown");
@@ -214,11 +215,11 @@ public:
         shortEntry[kDatesLengthLow] = 12;
         hr = AppleSingleCodec::Decode (shortEntry, decoded, error);
         Assert::IsTrue (FAILED (hr), L"12 bytes of dates");
-        Assert::IsTrue (error.find ("dates") != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+        Assert::IsTrue (error.find ("dates") != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
 
         cut.assign (bytes.begin(), bytes.end() - 4);
         hr = AppleSingleCodec::Decode (cut, decoded, error);
         Assert::IsTrue (FAILED (hr), L"dates past the end of the file");
-        Assert::IsTrue (error.find ("entry 8") != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+        Assert::IsTrue (error.find ("entry 8") != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
     }
 };

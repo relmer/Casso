@@ -5,6 +5,7 @@
 
 #include "Controllers/DirectInputSampleDecoder.h"
 #include "Controllers/XInputSampleDecoder.h"
+#include "Controllers/ControlMapping.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

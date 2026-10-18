@@ -5,6 +5,7 @@
 #include "RamPages.h"
 #include "StateReader.h"
 #include "StateWriter.h"
+#include "Core/MemoryDevice.h"
 
 
 
@@ -107,8 +108,9 @@ Byte MemoryBus::ReadByte (Word address)
     // ($C000-$C0FF) and the //e's slot ROM space ($C100-$CFFF) stay null and
     // fall through to device dispatch so their read side effects run. On the
     // //c, the internal ROM pages $C1-$CF are mapped for reads, except $C3
-    // and $CF, which keep their INTC8ROM side effects. This is the hottest
-    // read in the emulator, so the mapped case stays one branch deep.
+    // and $CF, which keep their INTC8ROM side effects, and any slot page a
+    // registered I/O device owns. This is the hottest read in the emulator,
+    // so the mapped case stays one branch deep.
     //
     // The device dispatch is written out here rather than calling
     // ReadFromDevice, which holds the same code for ReadWatchedPage. Every ROM
@@ -137,6 +139,11 @@ Byte MemoryBus::ReadByte (Word address)
         {
             value              = device->Read (address);
             m_floatingBusValue = value;
+
+            if (IsIoReported (address, false))
+            {
+                ReportIoAccess (address, value, false);
+            }
         }
         else if (address >= 0xC000 && address <= 0xCFFF)
         {
@@ -170,6 +177,11 @@ Byte MemoryBus::ReadFromDevice (Word address)
     {
         value              = device->Read (address);
         m_floatingBusValue = value;
+
+        if (IsIoReported (address, false))
+        {
+            ReportIoAccess (address, value, false);
+        }
     }
     else if (address >= 0xC000 && address <= 0xCFFF)
     {
@@ -179,6 +191,44 @@ Byte MemoryBus::ReadFromDevice (Word address)
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIo
+//
+//  The device at a $C000-$CFFF address works out the byte without operating
+//  anything; an address no device decodes reads the floating bus, as
+//  ReadFromDevice has it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryBus::TryPeekIo (Word address, Byte & value)
+{
+    MemoryDevice *  device = nullptr;
+
+
+
+    value = 0;
+
+    if (address < kIoFirst || address > kIoLast)
+    {
+        return false;
+    }
+
+    device = FindDevice (address);
+
+    if (device == nullptr)
+    {
+        value = ReadFloatingBus();
+        return true;
+    }
+
+    return device->TryPeekIo (address, value);
 }
 
 
@@ -286,6 +336,11 @@ void MemoryBus::WriteByte (Word address, Byte value)
     if (device != nullptr)
     {
         device->Write (address, value);
+
+        if (IsIoReported (address, true))
+        {
+            ReportIoAccess (address, value, true);
+        }
     }
 
     m_floatingBusValue = value;
@@ -363,6 +418,11 @@ void MemoryBus::WriteWatchedPage (Word address, Byte value)
         if (device != nullptr)
         {
             device->Write (address, value);
+
+            if (IsIoReported (address, true))
+            {
+                ReportIoAccess (address, value, true);
+            }
         }
 
         m_floatingBusValue = value;
@@ -395,6 +455,65 @@ void MemoryBus::ReportAccess (Word address, Byte value, BusAccess access, std::o
     if (m_watchSink != nullptr && m_debugWatched[address >> 8])
     {
         m_watchSink->OnWatchedAccess (address, value, access, previous);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportIoAccess
+//
+//  An access the union of the filters includes goes to each listener whose
+//  own filter includes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::ReportIoAccess (Word address, Byte value, bool isWrite)
+{
+    size_t           index = (size_t) address - IoAccessFilter::kFirst;
+    IIoAccessSink  * sink  = nullptr;
+    size_t           slot  = 0;
+
+
+
+    for (slot = 0; slot < m_ioFilters.size(); slot++)
+    {
+        sink = m_ioSinks.Get ((ObserverSlot) slot);
+
+        if (sink != nullptr && (isWrite ? m_ioFilters[slot].writes : m_ioFilters[slot].reads).test (index))
+        {
+            sink->OnIoAccess (address, value, isWrite);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetIoAccessSink
+//
+//  The slot's listener and filter, and the union the access paths test. A
+//  slot with no listener takes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::SetIoAccessSink (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter)
+{
+    m_ioSinks.Set (slot, sink);
+
+    m_ioFilters[(size_t) slot] = (sink != nullptr) ? filter : IoAccessFilter();
+    m_ioWanted                 = IoAccessFilter();
+
+    for (const IoAccessFilter & each : m_ioFilters)
+    {
+        m_ioWanted.reads  |= each.reads;
+        m_ioWanted.writes |= each.writes;
     }
 }
 

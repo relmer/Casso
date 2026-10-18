@@ -86,6 +86,11 @@ enum class InputEventType : uint8_t
 
     // Synthetic
     EventsLost      = 10,   // producer-side ring overflow marker
+
+    // Host-side, from the input journal
+    HostPaste       = 11,   // a pasted character
+    HostMouseMove   = 12,   // payload.motion
+    HostMouseButton = 13,   // payload.io.value: 1 down, 0 up
 };
 
 
@@ -143,11 +148,18 @@ struct InputEvent
         uint32_t            count;
     };
 
+    struct MotionPayload
+    {
+        int16_t             dx;
+        int16_t             dy;
+    };
+
     union Payload
     {
         KeyPayload          key;
         IoPayload           io;
         LostPayload         lost;
+        MotionPayload       motion;
     };
 
     InputEventCategory      category;

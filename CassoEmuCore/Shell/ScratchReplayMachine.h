@@ -4,12 +4,13 @@
 
 #include "Core/MachineConfig.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Debugger/Reverse/ReplayDiskCopier.h"
-#include "Debugger/Reverse/Replayer.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineBuilder.h"
 
 class MachineHost;
+struct ReplayDisk;
+class ReplayDiskCopier;
+class Replayer;
 
 
 
@@ -50,6 +51,11 @@ public:
 
     MachineHost * GetMachine  () const { return m_machine.get(); }
     Replayer    * GetReplayer () const { return m_replayer.get(); }
+
+    //  Whether saved, the media in a keyframe's bays, are the disks' media,
+    //  bay for bay, and no others.
+    static bool   IsSavedWith (const std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount> & saved,
+                               const std::vector<ReplayDisk> & disks);
 
 private:
     //  The medium each drive bay holds, slot-major, zero for none.

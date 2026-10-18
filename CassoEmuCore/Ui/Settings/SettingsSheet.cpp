@@ -1,14 +1,28 @@
 #include "Pch.h"
+#include "Shell/Components/ShellInput.h"
 
 #include "SettingsSheet.h"
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellWindow.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
+#include "GeneralPageModel.h"
 #include "../../Shell/ScreenshotCapture.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/PrinterPanel.h"
 #include "resource.h"
+#include "Ui/Settings/PrintingPage.h"
+#include "Ui/Settings/ScreenshotsPage.h"
+#include "Ui/Settings/ControllersPage.h"
+#include "Ui/Settings/DiskPage.h"
 
 
 
@@ -60,9 +74,9 @@ SettingsSheet::~SettingsSheet()
     m_compositor.Shutdown();
 
     // The page is gone, so the controller thread stops reading its controller.
-    if (m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    if (m_emuShell != nullptr && m_emuShell->GetInput().GetControllerService() != nullptr)
     {
-        m_emuShell->GetControllerService()->SetInspectedUnit (std::nullopt);
+        m_emuShell->GetInput().GetControllerService()->SetInspectedUnit (std::nullopt);
     }
 }
 
@@ -82,8 +96,9 @@ SettingsSheet::~SettingsSheet()
 
 void SettingsSheet::OnBuildPages()
 {
+    m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
-    m_diskPage     = CreatePage<DiskPage>     (L"Disk");
+    m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
@@ -230,7 +245,7 @@ HRESULT SettingsSheet::OpenModeless (
     FitToMaxSize();
     m_openedSizeDip = GetSizeDip();
 
-    SetTheme (&emuShell.m_chromeTheme);
+    SetTheme (&emuShell.GetChrome().GetTheme());
 
     // Stand up the live-preview post-process and install it as the window's
     // compose hook. The base renders the content tree (panel + caption +
@@ -272,7 +287,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
                   [this] ()
                   {
-                      SetTheme (&m_emuShell->m_chromeTheme);
+                      SetTheme (&m_emuShell->GetChrome().GetTheme());
                       m_crt.AdoptThemeDefaults();
                   },
                   &m_catalog);
@@ -310,7 +325,45 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->SetCrtMonitorEnabled (enabled);
+        m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click,
+    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
+    m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
+    m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
+    m_generalPage->SetAutoStateChecked  (prefs.autoSaveMachineState);
+    RefreshUpdateStatus();
+
+    m_generalPage->SetOnAutoUpdateToggled ([this] (bool enabled)
+    {
+        m_emuShell->GetUpdater().SetAutoUpdateCheck (enabled);
+    });
+    m_generalPage->SetOnAudioOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->GetSettings().SetAudioDownloadConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnRomOfferToggled ([this] (bool checked)
+    {
+        m_emuShell->GetSettings().SetRomRefreshConsent (GeneralPageModel::MakeConsentFromChecked (checked));
+    });
+    m_generalPage->SetOnAutoStateToggled ([this] (bool enabled)
+    {
+        m_emuShell->GetSettings().SetAutoSaveMachineState (enabled);
+    });
+    m_generalPage->SetOnCheckNow ([this] ()
+    {
+        m_emuShell->GetUpdater().CheckForUpdatesNow();
+    });
+    m_generalPage->SetOnStopSkipping ([this] ()
+    {
+        m_emuShell->GetUpdater().StopSkippingVersion();
+    });
+    m_generalPage->SetFolderPath   (ShellSettings::GetSettingsFolder());
+    m_generalPage->SetOnOpenFolder ([this] ()
+    {
+        m_emuShell->GetSettings().OpenSettingsFolder();
     });
 
     // Scene antialiasing rides the same live-and-persist channel: the cost is
@@ -318,7 +371,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetAntiAliasingSamples (prefs.sceneAntiAliasing);
     m_themePage->SetOnAntiAliasingChanged ([this] (int samples)
     {
-        m_emuShell->SetSceneAntiAliasing (samples);
+        m_emuShell->m_scene->SetSceneAntiAliasing (samples);
     });
 
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
@@ -371,7 +424,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_prefs->colorMonitorTextMode = (ColorMonitorTextMode) idx;
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (
                     ColorUtil::ResolveColorMonitorTextArgb (m_prefs->colorMonitorTextMode,
                                                             m_prefs->colorMonitorTextCustomArgb));
             }
@@ -395,7 +448,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (argb);
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (argb);
             }
         }
     });
@@ -407,7 +460,7 @@ HRESULT SettingsSheet::OpenModeless (
             m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
             if (m_emuShell != nullptr)
             {
-                m_emuShell->SetColorMonitorTextArgbLive (argb);
+                m_emuShell->GetRenderer().SetColorMonitorTextArgbLive (argb);
             }
         }
 
@@ -421,19 +474,19 @@ HRESULT SettingsSheet::OpenModeless (
     {
         outW = ChromeMetrics::kFramebufferWidthPx;
         outH = ChromeMetrics::kFramebufferHeightPx;
-        return m_emuShell->GetUiFramebufferPixels();
+        return m_emuShell->GetRenderer().GetUiFramebufferPixels();
     });
     m_themePage->SetMountedPathSource ([this] (int driveIndex) -> std::wstring
     {
-        return m_emuShell->GetMountedImagePath (driveIndex);
+        return m_emuShell->GetDisks().GetMountedImagePath (driveIndex);
     });
     m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
     {
-        return m_emuShell->GetDriveWriteProtect (driveIndex);
+        return m_emuShell->GetDisks().GetDriveWriteProtect (driveIndex);
     });
     m_themePage->SetDriveActivitySource ([this] (int driveIndex, DriveWidgetState & outState)
     {
-        m_emuShell->SampleDriveActivity (driveIndex, outState);
+        m_emuShell->GetDisks().SampleDriveActivity (driveIndex, outState);
     });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
@@ -459,7 +512,7 @@ HRESULT SettingsSheet::OpenModeless (
     // reads whichever controller the page shows, so it can be assigned and
     // calibrated without being the selected one.
     {
-        ControllerInputService *  service = m_emuShell->GetControllerService();
+        ControllerInputService *  service = m_emuShell->GetInput().GetControllerService();
 
         if (service != nullptr)
         {
@@ -496,7 +549,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->PickPlayer (player, entry);
+                m_emuShell->GetInput().PickPlayer (player, entry);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -508,7 +561,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->SetPlayerMode (player, mode);
+                m_emuShell->GetInput().SetPlayerMode (player, mode);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -570,7 +623,7 @@ HRESULT SettingsSheet::OpenModeless (
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinterBannerMessage());
+    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
 
     m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_shotsPage->SetPrefs (&prefs);
@@ -660,6 +713,38 @@ void SettingsSheet::ShowControllersPage()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RefreshUpdateStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RefreshUpdateStatus()
+{
+    const GlobalUserPrefs  & prefs = m_emuShell->GetSettings().GetPrefs();
+    std::wstring             skipped;
+
+
+
+    if (m_generalPage == nullptr)
+    {
+        return;
+    }
+
+    if (!prefs.skippedVersion.empty())
+    {
+        skipped = GeneralPageModel::MakeSkippedText (prefs.skippedVersion);
+    }
+
+    m_generalPage->SetLastCheckedText (GeneralPageModel::MakeLastCheckedTextNow (prefs.lastUpdateCheckUtc));
+    m_generalPage->SetSkippedText     (skipped);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StartNewControllerProfile
 //
 //  New... from a player's profile section in the picker: the Controllers
@@ -702,12 +787,12 @@ bool SettingsSheet::TrySyncControllersPlayers()
 
 
 
-    if (m_emuShell == nullptr || m_emuShell->GetControllerService() == nullptr || m_controllersPage == nullptr)
+    if (m_emuShell == nullptr || m_emuShell->GetInput().GetControllerService() == nullptr || m_controllersPage == nullptr)
     {
         return false;
     }
 
-    snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+    snapshot = m_emuShell->GetInput().GetControllerService()->GetSnapshot();
 
     // Laid out again rather than merely re-synced: the section is not a value
     // on the page, it is rows that come and go, and every row below it moves
@@ -898,9 +983,9 @@ void SettingsSheet::OnDialogTick()
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.
-    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetControllerService() != nullptr)
+    if (m_controllersPage != nullptr && m_emuShell != nullptr && m_emuShell->GetInput().GetControllerService() != nullptr)
     {
-        ControllerInputService::Snapshot  snapshot = m_emuShell->GetControllerService()->GetSnapshot();
+        ControllerInputService::Snapshot  snapshot = m_emuShell->GetInput().GetControllerService()->GetSnapshot();
 
         m_controllersState.UpdateDevices (snapshot.devices);
 
@@ -938,6 +1023,11 @@ void SettingsSheet::OnDialogTick()
 
     UpdatePreviewCompose();
     GrowToContent();
+
+    // The pages' controls get the tick too. Nothing else ticks them, and a
+    // timed control -- an info tip's tooltip, which opens only once its
+    // dwell has passed -- would otherwise never advance.
+    DxuiPanel::Tick ((int64_t) GetTickCount64());
 }
 
 
@@ -1062,7 +1152,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_emuShell != nullptr && m_emuShell->MachineHasBuiltInDrive() != m_previewSceneIsC)
+    if (m_emuShell != nullptr && m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
     {
         hr = LoadPreviewSceneModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1124,7 +1214,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 HRESULT SettingsSheet::LoadPreviewSceneModels()
 {
     HRESULT  hr  = S_OK;
-    bool     isC = (m_emuShell != nullptr) && m_emuShell->MachineHasBuiltInDrive();
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().MachineHasBuiltInDrive();
 
 
 
@@ -1134,12 +1224,12 @@ HRESULT SettingsSheet::LoadPreviewSceneModels()
     CBRA (m_emuShell != nullptr);
 
     {
-        bool  shellHasModels = m_emuShell->m_deskScene.HasModels();
+        bool  shellHasModels = m_emuShell->GetDeskScene().GetScene().HasModels();
 
         CBRA (shellHasModels);
     }
 
-    hr = m_previewScene.AdoptModelsFrom (m_emuShell->m_deskScene);
+    hr = m_previewScene.AdoptModelsFrom (m_emuShell->GetDeskScene().GetScene());
     CHRA (hr);
 
     m_previewScene.SetPowerLampOn (true);
@@ -1186,7 +1276,7 @@ void SettingsSheet::UpdatePreviewCompose()
         // client pixels. No overlap => empty rect => blur + dim only (still
         // focuses attention on the control), no see-through zone.
         RECT  winRect   = {};
-        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetEmulatorContentScreenRect() : RECT{};
+        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->GetWindow().GetEmulatorContentScreenRect() : RECT{};
         RECT  inter     = {};
         if (GetWindowRect (hwnd, &winRect) && IntersectRect (&inter, &winRect, &emuScreen))
         {

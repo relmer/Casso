@@ -4,6 +4,7 @@
 #include "GuestSession.h"
 #include "TestMachine.h"
 #include "ApplesoftTokenizer.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

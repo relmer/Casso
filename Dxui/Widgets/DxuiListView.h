@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiIconImage.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Theme/DxuiTheme.h"
 #include "DxuiScrollbar.h"
 
 
@@ -38,6 +39,10 @@ public:
         bool            stretch  = false;   // when true, column absorbs any remaining width after fixed/auto
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
+
+        //  Tip text for the heading, put up by the host. The list never
+        //  draws it.
+        std::wstring    tip;
     };
 
     struct Cell
@@ -81,8 +86,10 @@ public:
         bool      spansRow   = false;
 
         //  A face and weight of the cell's own in place of the list's, for a
-        //  row that is a label rather than a value; null keeps the list's.
-        //  Honored where the cell is drawn in one color.
+        //  row that is a label rather than a value, or a value whose
+        //  characters line up only in a fixed-width face; null for the
+        //  list's. The face is honored in every run of the cell; the weight
+        //  where the cell is drawn in one color.
         const wchar_t   * face       = nullptr;
         DxuiFontWeight    weight     = DxuiFontWeight::Normal;
 
@@ -190,6 +197,12 @@ public:
     // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
 
+    // Text a fitted column must have room for, for a list whose rows come
+    // from a provider and are never measured: each string not noted before
+    // is measured at the next paint, in the list's face, and its column is
+    // at least that wide from then on. A column whose text comes from a
+    // fixed set notes the whole set once.
+    void  NoteFitText               (size_t idx, const std::wstring & text);
     // Opt-in re-fit for a list whose rows change on every refresh (a
     // debugger pane): SetRows asks the next paint to re-measure, and precise
     // widths only grow. Off by default, because a large list pays for a
@@ -237,6 +250,12 @@ public:
     const std::vector<int> &  GetSelectedRows () const   { return m_selectedRows; }
     void                      SetSelectedRows (std::vector<int> rows, int anchor);
     bool                      IsRowSelected   (int row) const;
+
+    // The set, its anchor and the keyboard's row set again after the rows
+    // under them moved, with no scrolling, so a Shift+arrow or a drag in
+    // progress extends from where it began. An anchor or keyboard row
+    // outside the list becomes the last row in the set.
+    void                      RestoreSelectedRows (std::vector<int> rows, int anchor, int keyboardRow);
     int                       GetAnchorRow    () const   { return m_anchorRow; }
 
     // A click that selects, as the mouse delivers it: the modifiers decide
@@ -253,10 +272,10 @@ public:
 
     //  Text selection, for a list that reads as text rather than as rows, as
     //  a disassembly does: a drag selects characters across cells and rows,
-    //  a double-click selects the word under the pointer, and Copy takes the
-    //  characters rather than whole rows. Off by default. A click still
-    //  selects its row either way, and a selection clears when the rows under
-    //  it change.
+    //  a Ctrl+drag only in the column it began in, a double-click selects the
+    //  word under the pointer, and Copy takes the characters rather than
+    //  whole rows. Off by default. A click selects its row either way, and a
+    //  selection clears when the rows under it change.
     void                      SetTextSelection   (bool enabled);
     bool                      HasTextSelection   () const   { return m_hasTextSel; }
     void                      ClearTextSelection ();
@@ -271,6 +290,11 @@ public:
     // so a consumer no longer has to reimplement that routing. Default
     // off: OnKey is inert for every existing consumer.
     void  SetKeyboardColumnNav    (bool enabled)           { m_kbColNavEnabled = enabled; }
+
+    // Opt-in: a single-select list calls the selection-changed callback for
+    // a keyboard move too, as it does for a click. Default off, so existing
+    // consumers, which track keyboard moves themselves, are unaffected.
+    void  SetKeyboardMoveNotify   (bool enabled)           { m_kbMoveNotify = enabled; }
 
     // Selects the header keyboard model (only meaningful when column nav is
     // on). Off (default): the header is a single Tab sub-stop after the body
@@ -481,7 +505,7 @@ public:
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive || m_textPressed; }
+    virtual bool  IsInteracting () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_dragSelecting || m_bandActive || m_textPressed; }
 
     //  The rubber band an item view draws while the pointer drags from empty
     //  space, in the list's pixels; empty when none is being drawn.
@@ -631,6 +655,7 @@ private:
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_rows is empty).
     void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
+    void         RequeueFitTexts     ();
     // The cell vector for row `r`: the provider scratch in virtual mode
     // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
     const std::vector<Cell> & GetRowCells (int r) const;
@@ -787,6 +812,7 @@ private:
     int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;
     bool                       m_kbColNavEnabled   = false;
+    bool                       m_kbMoveNotify      = false;
     bool                       m_kbColResize       = false;
     int                        m_kbColFocus        = -1;
     bool                       m_vertDragging      = false;
@@ -850,6 +876,7 @@ private:
     bool      m_textSelect  = false;
     bool      m_textPressed = false;
     bool      m_hasTextSel  = false;
+    bool      m_isColumnSel = false;
     TextPos   m_textAnchor;
     TextPos   m_textFocus;
     POINT     m_textPressPx = {};
@@ -858,6 +885,11 @@ private:
     //  character under it: only a renderer can measure where one ends.
     mutable IDxuiTextRenderer  * m_measureText   = nullptr;
     bool                         m_dragSelecting = false;
+
+    //  A left press landed on a row, so the release that ends it is a
+    //  click; a release with no press here, as when a menu over the list
+    //  closes on its press, selects nothing.
+    bool                         m_rowPressed    = false;
 
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the
@@ -871,6 +903,11 @@ private:
     int               m_lastDividerCol = -1;
     int64_t           m_lastDividerMs  = 0;
     int               m_pendingFitCol  = -1;
+
+    // NoteFitText's strings: those noted for each column, and those not yet
+    // measured.
+    std::vector<std::unordered_set<std::wstring>>         m_notedFitTexts;
+    mutable std::vector<std::pair<size_t, std::wstring>>  m_pendingFitTexts;
 
     //  Characters typed toward a row, and when the last one arrived.
     std::wstring  m_typeAhead;

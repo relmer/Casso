@@ -3,13 +3,13 @@
 #include "CommandLineOptions.h"
 #include "Cli/DebugBatchSink.h"
 #include "Debugger/DebugHandlerSet.h"
-#include "Debugger/MachineDebugTarget.h"
-#include "Debugger/SynchronousRunDriver.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 
 class IFileSystem;
 class IRomSource;
+class MachineDebugTarget;
+class SynchronousRunDriver;
 
 
 
@@ -61,6 +61,7 @@ public:
     static constexpr int  kBudgetStop     = 3;
 
     DebugBatchRunner (const IRomSource & roms, IFileSystem & files);
+    ~DebugBatchRunner();
 
     // scriptText holds the --script file's lines; the command lines run
     // after them.
@@ -82,6 +83,7 @@ private:
     void     RouteDiskIo  (bool writeThrough);
     void     FollowBays   ();
     HRESULT  MountDisk    (const std::string & path, int drive, DebugBatchResult & result);
+    HRESULT  InsertTape   (const std::string & path, DebugBatchResult & result);
     void     RunLines     (const CommandLineOptions::DebugOptions & options, const std::vector<std::string> & lines, DebugSession & session, DebugBatchResult & result);
 
     static void         SplitLines (const std::string & text, std::vector<std::string> & lines);

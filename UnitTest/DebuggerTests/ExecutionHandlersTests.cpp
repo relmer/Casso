@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "HandlerTestRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -621,7 +622,7 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (PROFILE_CountsWhileOnDuringDebuggerRuns_ResetAndSave)
+        TEST_METHOD (PROFILE_CountsWhileOn_ResetAndSave)
         {
             MachineRig                rig;
             std::vector<std::string>  lines;
@@ -641,7 +642,8 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
             rig.machine.RunCycles (20);
-            Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is not profiled");
+            Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is profiled too");
+            rig.RunOk ("PROFILE RESET");
 
             rig.RunOk ("= 300");
             rig.RunOk ("G");
@@ -668,6 +670,41 @@ namespace DebuggerTests
 
         //  A quoted file name with a space in it is one name, as HISTORY SAVE
         //  takes it.
+        //  A JSR's cycles are its caller's and the routine's own instructions
+        //  its own, listed by routine and as the tree.
+        TEST_METHOD (PROFILE_LIST_ROUTINES_AndTREE_CountEachRoutine)
+        {
+            MachineRig                rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+
+            // $0300: JSR $0310, then $0310: INX / RTS
+            rig.Load (0x0300, { 0x20, 0x10, 0x03, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA, 0xE8, 0x60 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("PROFILE ON");
+            rig.RunOk ("G");
+
+            lines = rig.RunOk ("PROFILE LIST ROUTINES").text;
+            Assert::AreEqual (std::string ("Instructions: 3, cycles: 14"), lines.at (0));
+            Assert::IsTrue   (lines.at (2).starts_with ("$0310                             8   57.1%          8   57.1%        1        8"), TextEncoding::NarrowToWide (lines.at (2)).c_str());
+            Assert::IsTrue   (lines.at (3).starts_with ("Top level                         6   42.9%         14  100.0%"),                   TextEncoding::NarrowToWide (lines.at (3)).c_str());
+
+            lines = rig.RunOk ("PROFILE LIST TREE").text;
+            Assert::IsTrue   (lines.at (2).starts_with ("Top level "));
+            Assert::IsTrue   (lines.at (3).starts_with ("  $0310 "));
+
+            rig.RunOk ("PROFILE RESET");
+            Assert::AreEqual ((size_t) 1, rig.RunOk ("PROFILE LIST ROUTINES").text.size(), L"nothing counted after a reset");
+            Assert::IsTrue   (rig.Run ("PROFILE LIST HOT").status == CommandStatus::Error);
+        }
+
+
+
         TEST_METHOD (PROFILE_SAVE_TakesAQuotedNameWithSpaces)
         {
             MachineRig  rig;
@@ -735,17 +772,21 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (PROFILE_InstallsNoHook)
+        //  Profiling installs the hook while it is on, so a machine running on
+        //  its own is profiled too, and removes it again when it is off.
+        TEST_METHOD (PROFILE_InstallsTheHookWhileOn)
         {
             Rig  rig;
-            int  changes = rig.target.hookChanges;
 
 
+
+            rig.session.SetInstructionObserver (&rig.handlers);
 
             rig.RunOk ("PROFILE ON");
+            Assert::IsTrue  (rig.target.hookInstalled);
+
             rig.RunOk ("PROFILE OFF");
-            Assert::AreEqual (changes, rig.target.hookChanges, L"profiling rides the debugger's own runs");
-            Assert::IsFalse  (rig.target.hookInstalled);
+            Assert::IsFalse (rig.target.hookInstalled);
         }
 
 
@@ -765,7 +806,7 @@ namespace DebuggerTests
             rig.RunOk ("G");
             lines = SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt"));
             Assert::AreEqual ((size_t) 2, lines.size(), L"the file is written at the stop");
-            Assert::IsTrue   (lines[0].ends_with ("  0300: INX "),      (L"line 0: " + std::wstring (lines[0].begin(), lines[0].end())).c_str());
+            Assert::IsTrue   (lines[0].ends_with ("  0300: INX "),      (L"line 0: " + TextEncoding::NarrowToWide (lines[0])).c_str());
             Assert::IsTrue   (lines[1].find ("X=01") != std::string::npos, L"the registers as they were before the instruction");
             Assert::IsTrue   (lines[1].ends_with ("  0301: LDA #$41"));
 
@@ -845,7 +886,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (CYCLES_RCC_VIDEOINFO_BPV_BENCHMARK)
+        TEST_METHOD (CYCLES_RCC_VIDEOINFO_BPV)
         {
             Rig        rig;
             StopEvent  stop;
@@ -879,9 +920,19 @@ namespace DebuggerTests
             rig.target.Stop (StopEvent { StopReason::Breakpoint, 0x0300 });
             Assert::IsFalse  (rig.session.HasVideoBreak(), L"a video break clears when it fires");
             Assert::IsFalse  (rig.target.hookInstalled);
+        }
 
-            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("BENCHMARK").status);
-            Assert::AreEqual ((int) CommandStatus::NotAvailable, (int) rig.Run ("EXITBENCH").status);
+
+
+        //  BENCHMARK is gone (FR-179): no command of any mode has the name.
+        TEST_METHOD (BENCHMARK_IsNoCommand)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("BENCHMARK").status);
+            Assert::AreEqual ((int) CommandStatus::Unknown, (int) rig.Run ("EXITBENCH").status);
         }
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebugViewPublisher.h"
+#include "Core/IWorkQueue.h"
 
 
 
@@ -145,8 +146,14 @@ void DebugViewPublisher::BuildPending()
 
 void DebugViewPublisher::MergeLive (const DebuggerViewSnapshot & live, DebuggerViewSnapshot & snapshot)
 {
-    snapshot.panels      = live.panels;
-    snapshot.diagnostics = live.diagnostics;
-    snapshot.heatMap     = live.heatMap;
-    snapshot.history     = live.history;
+    snapshot.panels           = live.panels;
+    snapshot.diagnostics      = live.diagnostics;
+    snapshot.heatMap          = live.heatMap;
+    snapshot.heatColumns      = live.heatColumns;
+    snapshot.history          = live.history;
+    snapshot.profile          = live.profile;
+    snapshot.profileByAddress = live.profileByAddress;
+    snapshot.isProfiling      = live.isProfiling;
+    snapshot.dataBlocks       = live.dataBlocks;
+    snapshot.stepFilters      = live.stepFilters;
 }

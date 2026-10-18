@@ -18,16 +18,21 @@
 //  CPU thread last read for this window and zero elsewhere, and the window
 //  moves what the CPU thread reads as the view scrolls.
 //
-//  AN EDIT IS A COMMAND LINE. A write the view hands over becomes a PATCH line
-//  for the host to run, and is shown at once rather than waiting for the next
-//  snapshot. An I/O address, or a byte this window was never shown, is
-//  refused: the one because writing it has effects only OUT should cause, the
-//  other because there is no replaced value for undo to restore.
+//  AN EDIT IS A PATCH ACTION. Each write from the view becomes a PATCH action
+//  for the host to run, and its bytes are drawn at once rather than after the
+//  next snapshot. A write to an I/O address, or to a byte outside every read
+//  for this window, fails: writing I/O has effects only OUT should cause, and
+//  an unread byte has no replaced value for undo to restore.
 //
-//  UNDO IS THIS WINDOW'S. Each edit records the bytes it replaced, and undo
-//  sends them back, most recent first, whatever the machine has done to those
-//  bytes since. Redo writes an undone edit's bytes again; a new edit clears
-//  what could be redone.
+//  UNDO IS THIS WINDOW'S. Each edit in the history has the bytes it replaced
+//  and the bytes it wrote. Undo writes the replaced bytes back, most recent
+//  first, and redo writes an undone edit's bytes again; a new edit clears
+//  what could be redone. Either one writes only while memory contains the
+//  step's bytes there: the bytes the edit wrote, for undo, and the bytes it
+//  replaced, for redo. The model compares the bytes it last read, and the
+//  session compares memory itself before it writes. Neither runs while the
+//  machine runs, which is when the session takes no memory writes, so the
+//  edit stays in the history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +46,9 @@ public:
 
     //  A byte no read has reached yet, whose value and region are unknown.
     static constexpr uint8_t  kMarkUnread  = 4;
+
+    //  A byte that differs from its counterpart in the range compared with.
+    static constexpr uint8_t  kMarkDiffers = 5;
 
     //  The regions a window outlines: one for each run with a label of its
     //  own, every slot's ROM apart from the next. Main RAM is in none.
@@ -68,8 +76,10 @@ public:
     static std::wstring  GetRegionLabel (uint16_t key);
 
     void  SetRegionColors (const RegionColors & colors) { m_regionColors = colors; }
-    //  An edit's bytes, which the window writes at the address directly.
-    using PatchFn = std::function<void (Word address, std::span<const Byte> bytes)>;
+    //  An edit's bytes, which the window writes at the address directly. For
+    //  an undo or redo, `required` is what memory must contain there first;
+    //  for a new edit it is empty.
+    using PatchFn = std::function<void (Word address, std::span<const Byte> bytes, std::span<const Byte> required)>;
 
     void  SetOnPatch (PatchFn fn) { m_onPatch = std::move (fn); }
 
@@ -100,11 +110,30 @@ public:
     //  was refused.
     std::optional<MemoryRegion>  TryGetRegion (Word address) const;
 
-    bool  Undo         ();
-    bool  Redo         ();
-    bool  CanUndo      () const { return !m_history.empty(); }
-    bool  CanRedo      () const { return !m_redo.empty(); }
+    //  A comparison's differing bytes, each with the other range's value,
+    //  marked; with `showOther`, drawn as the other range's values.
+    void  SetComparison   (std::map<Word, Byte> others, bool showOther) { m_others = std::move (others); m_showOther = showOther; }
+    void  ClearComparison ()       { m_others.clear(); m_showOther = false; }
+    bool  HasComparison   () const { return !m_others.empty(); }
+    bool  IsShowingOther  () const { return m_showOther; }
+    void  SetShowOther    (bool showOther) { m_showOther = showOther; }
+
+    //  False, with `outChanged` set and neither list altered, when memory at
+    //  a byte the step writes over differs from the step's own bytes.
+    bool  Undo         (std::optional<Word> & outChanged);
+    bool  Redo         (std::optional<Word> & outChanged);
+    bool  Undo         () { std::optional<Word> changed; return Undo (changed); }
+    bool  Redo         () { std::optional<Word> changed; return Redo (changed); }
+    bool  CanUndo      () const { return m_isPaused && !m_history.empty(); }
+    bool  CanRedo      () const { return m_isPaused && !m_redo.empty(); }
     void  ClearHistory ()       { m_history.clear(); m_redo.clear(); }
+
+    //  The edits to undo and to redo as a debug project saves them, the two
+    //  lists apart at a bar and each edit its address, the bytes it replaced
+    //  and the bytes it wrote, apart at colons. FromText replaces the
+    //  history; the history is left empty for text it cannot read.
+    std::string   GetHistoryText () const;
+    void          SetHistoryText (const std::string & text);
 
     //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
     std::wstring  GetUndoText () const;
@@ -121,7 +150,15 @@ private:
     };
 
     bool  TryGetShown   (uint64_t address, size_t & outIndex) const;
-    void  SendPatch     (Word address, std::span<const Byte> bytes) const;
+    void  SendPatch     (Word address, std::span<const Byte> bytes, std::span<const Byte> required = {}) const;
+
+    //  The first byte from `address` whose last read value differs from
+    //  `required`. A byte with no read value counts as a match.
+    std::optional<Word>  FindChanged (Word address, const std::vector<Byte> & required) const;
+
+    //  Puts `bytes` from `address` into the current read and into the bytes
+    //  of earlier reads, so the window draws them at once.
+    void  ShowWritten   (Word address, const std::vector<Byte> & bytes);
 
     //  The byte and region at an address from the current read, or else from
     //  the last read that reached it. False for an address none has.
@@ -133,6 +170,10 @@ private:
     bool                                      m_isPaused = true;
     mutable std::vector<std::optional<Byte>>  m_bytes;
     std::vector<MemoryRegion>                 m_regions;
+
+    //  A comparison's other values by address, and whether they are drawn.
+    std::map<Word, Byte>                      m_others;
+    bool                                      m_showOther = false;
 
     //  Every read's bytes and regions, kept by address, so a window scrolled
     //  past its read draws what it was last shown there rather than unmarked

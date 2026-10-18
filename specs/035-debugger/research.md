@@ -1750,6 +1750,16 @@ Reverse commands after recording 60 seconds (3,600 frames, about 19 million inst
 
 A step forward inside a stretch replays one instruction and took under a microsecond.
 
+**Measured again 2026-10-13.** The rates above predate the later work that shares unchanged disk tracks and lets a group run past wholeEvery while its differences stay small, so a quiet machine now records far less. `HistoryRateTests` (ScenarioTests) measures three programs on a //e booted from the DOS 3.3 master, over 120 emulated seconds after a 10-second warm-up, Release x64:
+
+| Workload | History per emulated second | Minutes 64 MB holds |
+|---|---|---|
+| DOS prompt waiting for a key | 694 bytes | 1,612 (27 hours) |
+| Applesoft plotting random hi-res points | 16,822 bytes | 66 |
+| Machine-language loop rewriting the whole hi-res page | 69,540 bytes | 16 |
+
+The History tab's estimate uses the recording's own rate once it covers 30 emulated seconds, and the first and last rows as its range before that.
+
 ## Floating bus sources
 
 Checked 2026-10-04 against the documents themselves, not against other emulators.
@@ -1761,8 +1771,8 @@ Checked 2026-10-04 against the documents themselves, not against other emulators
 
 **Status**: designed 2026-10-08 from a request the disk inspector work (spec
 040, GH #159) sent on the owner's behalf, checked claim by claim against the
-code at `811a6f727`; nothing is built. Tasks T712-T734, scheduled with the
-owner.
+code at `811a6f727`; T712's measurement is in "The read test". Tasks
+T712-T734, scheduled with the owner.
 
 **Decision**: one `BPDISK` command that adds breakpoint-table entries of a new
 `Disk` kind. The Disk II controller gains a second listener slot behind its one
@@ -2046,6 +2056,103 @@ instruction that found its address prologue, the test misses its reads and
   only when the CPU touches the controller (the catch-up on each access), so
   a gap shows only at the next access, long after the read.
 
+**Measured 2026-10-14 (T712).** `ScenarioTests/DiskReadProbeTests.cpp` boots
+the DOS 3.3 System Master and the ProDOS Users Disk on an enhanced //e from a
+power cycle, with a test hook before every instruction and a listener on reads
+of $C0EC. A read is the first of its nibble when the drive's count of
+assembled nibbles has gone up since the last one taken, which is the rule
+`ConsumeFreshNibble` follows. The requests are taken at the boot ROM's $C65C
+($3D, $41), at RWTS's entry with the IOB at Y and A, and at ProDOS's device
+vector at $BF1C ($42, $46-$47), each mapped to physical sectors. Both
+statements are confirmed:
+
+| Boot | Prologue read at | Checksum read at | Fields | The sector requested |
+|---|---|---|---|---|
+| DOS 3.3 | $B94F (RDADR16) | $B925 (READ16) | 60 | 60 |
+| DOS 3.3 | $B94F | $B94F | 213 | 0 |
+| DOS 3.3 | $394F (RWTS at $3D00) | $3925 | 27 | 27 |
+| DOS 3.3 | $394F | $394F | 38 | 0 |
+| DOS 3.3 | $C65E (boot ROM) | $C6CB | 11 | 11 |
+| DOS 3.3 | $C65E | $C65E | 14 | 0 |
+| ProDOS | $FBA5 (driver) | $FCB1 | 118 | 118 |
+| ProDOS | $FBA5 | $FBA5 | 269 | 2, both read on a later turn |
+| ProDOS | $09F2 (block 0 loader) | $0A5F | 70 | not followed |
+| ProDOS | $09F2 | $09F2 | 62 | not followed |
+| ProDOS | $C65E | $C6CB | 2 | 2 |
+| ProDOS | $C65E | $C65E | 2 | 0 |
+
+Every request is counted as read, 98 of 98 on DOS 3.3 and 54 of 54 on
+ProDOS, and no field counted as read is another sector. ProDOS's block 0
+loader reads through a routine of its own, whose requests the probe does not
+follow; its 70 reads and 62 fields passed over split the same way. Four
+findings the design did not have:
+
+- **The boot ROM skips the address checksum.** The checksum's first nibble can
+  go unread, so an address field the ROM finds may fail a decode that requires
+  all eight nibbles. T720's tracker takes an address field whose only gap is in
+  the checksum pair, unchecked.
+- **Boot stage 2 runs a second RWTS.** The System Master's stage 2 reads 27
+  sectors through a copy of RWTS at $3D00 before DOS moves up, while $03D9
+  has no JMP. `BPDISK RWTS` is unresolved for those reads, as designed;
+  sector-read breakpoints stop on them.
+- **Every call of RWTS's entry comes through $B7B5**, the $03D9 JMP's
+  target (60 of 60), and RDADR16 is called only from $BDC4, inside RWTS. The
+  only other calls into $B800-$BFFF from outside are two from $A0E2 to $BFDC,
+  which is neither RWTS's entry, RDADR16 nor READ16. Scenario 9 and the "A
+  relocated DOS" edge case are unaffected.
+- **The window's "Data read" events are mostly sectors passed over.** On DOS
+  3.3, 87 fire on a sector read and 265 on one passed over; on ProDOS, none
+  on the 188 sectors read and 271 on ones passed over, since its driver, its
+  loader and the boot ROM stop at the checksum nibble and never read DE AA.
+  Spec 006's window was replaced by 035's Disk II log, whose "Sector read"
+  rows are these events: GH #175.
+
+### Measured 2026-10-14 (T732)
+
+Release x64, pinned to one core (`/affinity 10`, high priority), vstest
+running a scratch benchmark that is not committed; ns per emulated cycle,
+best of the repetitions in each run, median of five alternated runs.
+
+| Build | //e idle at BASIC | DOS 3.3 boot, reading throughout |
+|---|---|---|
+| master `325bfbb5` | 4.874 | 12.223 |
+| branch before T714 (`a199887b8`) | 6.758 | 13.115 |
+| branch after T731 (`72f1c7502`), nothing armed | 6.751 | 13.320 |
+
+The record and the other disk work cost nothing measurable idle and 1.6% on
+a boot that reads the disk throughout. The master row is not a like-for-like
+comparison: the branch's test machine models video timing and master's has
+none, which T165 removed from the branch's to compare; that gap was there
+before T714, so SC-008 against master was not measured again here.
+
+Armed, on a //e booted to the DOS 3.3 prompt with the drive idle, best of
+seven, at the prompt and in a loop that writes page 3 throughout:
+
+| Armed | Prompt | Page 3 writes |
+|---|---|---|
+| nothing | 8.45 | 5.42 |
+| one memory watchpoint (`BPM 9000`) | 17.85 | 31.19 |
+| one disk breakpoint (`BPDISK READ 11 0`) | 17.96 | 18.34 |
+| `BP 9000` and `BPMW 3D9:3DB` | 17.87 | 33.71 |
+| `BPDISK RWTS` | 8.64 | 8.07 |
+| `BP 9000` and `BPMW BF1C:BF1D` | 18.07 | 31.81 |
+| `BPDISK DRIVER` | 8.67 | 5.63 |
+
+A disk breakpoint costs what a watchpoint costs at the prompt (0.6% apart,
+within one run's noise) and less under writes, since it watches no page; an
+RWTS or driver breakpoint costs about a twentieth of the address breakpoint
+and vector watchpoint it replaces.
+
+History, from `RewindProfile` (`b816bc7d7`) cherry-picked onto the commits
+before and after T717, 600 frames with recording on, in bytes of keyframes
+per emulated second; `read` is a fourth workload added for this measurement,
+an Applesoft loop that catalogs the disk without end. `game` was not run: the game disk R-040 used is not in the tree.
+
+| Workload | Before T717 | After T717 |
+|---|---|---|
+| read | 54,753 | 54,996 (+0.44%) |
+| hgr | 84,048 | 84,429 (+0.45%) |
+| write | 164,176 | 164,648 (+0.29%) |
 ### The epilogue in a sector-read report
 
 **Decision**: the three nibbles after the checksum are read by running a copy
@@ -2258,3 +2365,336 @@ of their own.
   table.
 - Each drive gets its own head position as an emulation fix (GH #135), not a
   debugger-only value.
+
+## R-042: Debug projects
+
+**Decision**: an automatic project per program, chosen from the most
+specific signal (debug or symbol file by content hash, then a debugger-loaded
+binary, then machine type and boot disk), saved as the user works, debounced
+2 seconds and replaced whole; named copies through Save as and Open; startup
+commands run on load. The engine's state travels as the script the
+debugger's `SAVE` already writes, in Casso's mode; the window's state beside
+it as JSON.
+
+**Rationale**: the owner asked that the right state come back with no user
+action (2026-10-09). Mesen2 does this per ROM: a JSON workspace of
+breakpoints, labels and watches per CPU, autosaved at most once a minute and
+on switching ROMs, loaded with the ROM (`DebugWorkspaceManager.cs`). Visual
+Studio keeps breakpoints and layout per solution with no save step. Reusing
+`SAVE`'s script keeps one serialization of the engine's state, already
+tested by `LOAD`.
+
+**Alternatives considered**: explicit projects only, as WinDbg's named
+workspaces (rejected: ceremony, and lost work when the user forgets);
+a project per machine (rejected: breakpoints from one program would arm in
+another); keying a disk by content (rejected: a disk changes as the guest
+writes it). FCEUX keeps a per-ROM file; MAME keeps only comments; AppleWin,
+VICE, Stella and GSSquared were found to keep none.
+
+## R-043: Applesoft internals for source-level debugging
+
+**Decision**: read the program and its state from Applesoft's zero page and
+tables, and stop at the interpreter's statement and error entries. From the
+published Applesoft memory maps, to be confirmed in the fixture ROMs (][+,
+//e, enhanced //e, //c) before use: TXTTAB $67-$68 (program start), VARTAB
+$69-$6A (simple variables), ARYTAB $6B-$6C (arrays), STREND $6D-$6E,
+CURLIN $75-$76 (line being run; high byte $FF in direct mode), TXTPTR
+$B8-$B9, NEWSTT $D7D2 (statement entry), the error handler's entry and
+ONERR's flag. Program lines are a link, a line number and tokens ending in
+zero; variables are seven bytes (a two-byte name whose high bits give the
+type, five value bytes); reals are five-byte floating point; GOSUB and FOR
+frames on the 6502 stack are marked by their tokens.
+
+**Confirmed 2026-10-15 (T757)** in the ROMs of the ][+, //e, enhanced //e
+and //c, by the debugger's disassembly of each, byte for byte the same on all
+four:
+
+| Address | What | Where the ROM's own code uses it |
+|---|---|---|
+| $67-$68 TXTTAB | program start | $D698 `LDA TXTTAB` before setting TXTPTR to it less one |
+| $69-$6A VARTAB, $6B-$6C ARYTAB, $6D-$6E STREND | simple variables, arrays, end of arrays | CLEAR at $D674-$D67E copies VARTAB into ARYTAB and STREND |
+| $75-$76 CURLIN | line being run | NEWSTT stores it at $D7F5; $D7DC-$D7DF takes high byte $FF as direct mode |
+| $B8-$B9 TXTPTR | the interpreter's place in the program | NEWSTT reads `(TXTPTR),Y` at $D7E7 |
+| $D7D2 NEWSTT | statement entry | `TSX`, `STX $F8`, `JSR $D858` (the Ctrl-C test) |
+| $D412 ERROR | error handler entry | `BIT $D8`, `BPL`, `JMP $F2E9` (ONERR's handler) |
+| $D8 ERRFLG | ONERR's flag, bit 7 set while ONERR is on | ERROR's `BIT $D8` |
+**Rationale**: everything is read-only and side-effect free, and the hooks
+are armed only while a BASIC stop is set, so ordinary runs pay nothing.
+
+**Alternatives considered**: patching the ROM's trace hooks (rejected: it
+changes the guest); stepping by the 6502 alone (rejected: the user asked for
+statements and lines).
+
+## R-044: Window entry points
+
+**Decision**: the owner's tiering of ui-entry-point-audit.md (2026-10-09):
+the entries FR-180 to FR-198 list are built; LOAD and SAVE of the debugger
+configuration, IN, OUT, TSAVE, BUDGET, TF and the Monitor ROM idioms stay
+console-only; BENCHMARK, a stub, is removed; BPCHANGE is covered by the
+row checkbox and the Edit dialog. Visual Studio's pane keys go in its
+scheme; Ctrl+` opens the console in all three.
+
+**Rationale**: a feature reachable only by typing is invisible to most
+users; the dropped commands either have a better route (debug projects,
+history) or a side effect a menu should not invite (IN, OUT).
+
+**Alternatives considered**: a menu item for every verb (rejected: menus
+full of Monitor ROM idioms nobody would choose there).
+
+## R-045: One source of debug events
+
+**Decision**: recorded history is the only record of machine activity; each
+debug view is computed from it by replaying stretches on a scratch machine
+with the view's probe, using the scratch replay machinery the heat map and
+call stack use. A view keeps a bounded cache of the newest events the running
+machine produced, always recording, cut back to the machine's position on a
+rewind or seek, with gaps where recording paused. Older events are rebuilt
+stretch by stretch (a stretch is keyframe to keyframe, 10 frames by default),
+newest first, neighbors prefetched, recent stretches kept in a small LRU.
+
+**Rationale**: the owner asked for one source (2026-10-10). Views computed
+from it agree with each other and with every rewind, reach as far back as
+history (hours at the default 64 MB budget), and need no pane open to start
+collecting. Replaying continuously to feed a live view would roughly double
+host time during disk activity; a cache fed by the same probe costs a ring
+append per event, and events arrive per address field, head step or input
+change, hundreds a second at most. The scratch replayers already load each
+keyframe over the disks it was saved with, mounted from their images and
+never written back, so a rebuilt event sees the disk as it was.
+
+**To measure before the panes rely on it**: stretches replayed per second on
+a DOS 3.3 boot, the slowest case, which sets the prefetch depth for SC-054.
+
+**Measured 2026-10-14 (T778).** `DebugEventReplayRateTests` (ScenarioTests)
+boots a //e from the DOS 3.3 master with history on, then replays each of the
+boot's stretches alone on the scratch machine with the Disk II feed attached,
+newest first, in the order a log scrolling back requests them, timing each
+from unpack to its end. Release x64: 78 stretches in 206 ms, 379 a second; median 2.83 ms
+a stretch, slowest 6.41 ms. 59 of the 78 had disk events, at most 29 in one,
+1,099 in all.
+
+A quarter second (SC-054) replays about 39 stretches at the slowest stretch's
+time. A screen of about 40 rows takes two or three stretches while the disk
+reads, but many more across quiet history, where a stretch may have no event
+at all, so the prefetch is set by time rather than by rows:
+`DebugEventReplayer::kPrefetch` is 32 stretches, about 0.2 s at the slowest,
+and the LRU of rebuilt stretches has room for four times that, so a stretch
+prefetched is not evicted before the user scrolls to it.
+
+**Alternatives considered**: keeping the old windows' own buffers, started
+when a window opens (rejected: no events from before it opened, wall-clock
+stamps, and a second record that a rewind leaves wrong); a buffer as deep as
+history (rejected: hours of events held in memory for what replay recomputes
+on demand); replay only, with no cache (rejected: no live view while running).
+
+## R-046: Debugger and input components in the shell
+
+**Decision**: `ShellDebugger` behind `IShellDebugger`, and `ShellInput`
+behind its own interface, each held by `EmulatorShell` through a forward
+declaration and a `unique_ptr`, constructor and destructor out of line.
+`ShellDebugger` implements `IDebuggerWindowHost` in the shell's place and
+reaches the shell through references to `MachineHost`, `CpuManager` and
+`GlobalUserPrefs` and an `IDebuggerHost` adapter private to the shell's
+`.cpp`.
+
+**Measured (2026-10-10)**:
+
+- `EmulatorShell.h` pulls in 254 project headers (1,468 KB of text) today;
+  with the debugger's includes gone, 163; with input's too, 157 (931 KB).
+  Its 28 includers include 15 `EmulatorShell*.cpp` files.
+- The debugger's state is used 214 times inside `EmulatorShellDebugger.cpp`
+  and `EmulatorShellReverse.cpp` and 72 times elsewhere. From those two files
+  it reaches outward to about eight shell members: `m_globalPrefs` (42 uses,
+  the reverse settings), `m_cpuManager` (36), `m_machine` (32), the window
+  handle, host, instance and theme (15 together), and the clipboard manager,
+  held inputs and file system (2 each).
+- The rest of the shell reaches the debugger from four places: the CPU
+  thread (about 54 uses across `AttachDebugger`, `ExecuteCpuSlices`,
+  `OpenDebugger`, `NotifyDebugPauseChanged`, `ServiceDebugger`,
+  `NotifyDebugMachineChanged`, `CloseDebugger`, `RunWatchedSlice`,
+  `RunCpuThreadFrame`, `NotifyDebugReset`, `RunDebugCommand` and
+  `StepInstruction`), the keyboard path through the divergence gate (9),
+  presenting (4) and the shell's own open and close (4).
+- `EmulatorShellDebug.cpp` predates 035 (one line changed) and holds the
+  emulator's Disk II and Input debug windows, which User Story 24 replaces;
+  it is not part of the move.
+
+**Rationale**: the shell's header shrinks by a third and the ten shell files
+that have nothing to do with debugging stop parsing the debugger; the code
+leaves files only 035 edits, so later merges with master stay small.
+Per-instruction and per-cycle work already lives in the machine and the
+session's hooks, so only slice- and frame-rate calls cross the interface.
+
+**Measurement method for SC-052**: Release build, pinned to one CCD, A and B
+runs alternated; guest speed as emulated MHz at Maximum speed with history
+recording on, and host processor time of the Casso process over 60 s at 1x
+with history recording on, each idle at a DOS 3.3 prompt and during a DOS 3.3
+boot. The baseline is taken after master is merged and before the move.
+
+**Measured (2026-10-10, written up 2026-10-15)**: the real Casso in Release x64
+on the portrait monitor, `--debugger`, the //e at the DOS 3.3 prompt with
+history recording on, six alternated rounds per build: A, the master merge
+before the move (`766055549`); S, the move's first stage; B, its second. Idle
+is the Casso process's processor time over 60 s at 1x, in cores; guest speed
+is a `GG` of 10^9 cycles through the channel at Maximum speed, in emulated
+MHz, by the wall clock and by the CPU thread's own processor time.
+
+| Build | Idle (cores) | Guest MHz | CPU-thread MHz |
+|---|---|---|---|
+| A | 0.157 (0.142-0.166) | 26.95 (26.10-27.10) | 27.06 (26.19-27.23) |
+| S | 0.153 (0.145-0.158) | 26.70 (25.20-27.00) | 26.80 (25.30-27.11) |
+| B | 0.149 (0.140-0.170) | 26.60 (25.60-26.70) | 26.71 (25.66-26.83) |
+
+Medians, with each build's range across its rounds. B is 1.3% slower than A
+at Maximum speed, inside A's own spread of 4%, and no busier idle; two earlier
+sets (eight and five rounds, guest speed by the wall clock alone) have the same result. The
+harness measures the prompt only: a boot is over before the channel opens,
+so "during a disk boot" was not measured.
+
+**Block diagram (T772, drawn 2026-10-15, after the move)**. `EmulatorShell`
+has `ShellDebugger` by `unique_ptr`; there is no `IShellDebugger`, since the
+class's public methods are the interface the shell uses. `ShellDebugger`
+accesses the shell only through `IDebuggerHost`, an adapter private to
+`EmulatorShell.cpp`, and the machine through `MachineHost` and `CpuManager`.
+
+```text
+EmulatorShell ──unique_ptr──► ShellDebugger
+                                ├─ DebuggerController, while the debugger is open
+                                │    └─ DebugSession ─► MachineDebugTarget ─► MachineHost
+                                ├─ DebuggerWindow, DebuggerViewState, DebugViewPublisher, build pool (UI thread)
+                                ├─ ReverseHost: ReverseController, Replayer, keyframes (history)
+                                ├─ HistoryThumbnails, ScratchHeatReplayer (2), ScratchCallReplayer
+                                ├─ DebugEventLogs: the Disk II and input event caches
+                                ├─ DivergenceGate, HeldInputWatch: input behind live
+                                └─ Win32PipeTransport: the debug channel
+ShellDebugger ──calls──► IDebuggerHost (EmulatorShell::DebuggerHost)
+```
+
+The shell's calls into `ShellDebugger`, by how often they come:
+
+| Rate | Calls |
+|---|---|
+| Per frame | `RecordHistoryFrame` (the CPU thread's frame), `RenderWindowFrame` and `IsBeamMarkShown` (the renderer), `GetReplayCaption` (the caption) |
+| Per slice | `GetSliceHooks` (the run driver, the `HeldInputWatch` and whether the machine is behind live), `StopForHeldInputRead` |
+| Per service tick, paused or not | `ServiceDebugger`, `ServiceHistoryThumbnails`, `AllowCommand` (each posted command) |
+| Per debugger step | `StepSession` |
+| Per UI message | `IsDebuggerMessage` |
+| Per event | `OpenDebugger`, `CloseDebugger`, `LoadReverseSettings`, `StartReverseRecording`, `StopReverseRecording` (CPU thread start and stop, machine switch, state load); `NotifyDebugReset`, `NotifyDebugMachineChanged`, `MarkViewDirty`; `OpenDebuggerWindow`, `OpenDebuggerLog` (menus); `IsBehindLiveForUi`, `HoldInputBehindLive`, `PublishHeldInput`, `ApplyHeldInputs`, `OnHeldInputRead`, `TakeJoyportSyncOwed`, `ToggleEightyColumnSwitch` (input behind live); `DestroyWindow` (shutdown) |
+
+`IDebuggerHost`'s services, which `ShellDebugger` calls:
+
+| Group | Methods |
+|---|---|
+| Window | `GetMainWindow`, `GetInstance`, `GetChromeTheme`, `GetTitlePrefix`, `ApplyAppIcon`, `UpdateWindowTitle`, `GetWindowPlacements` |
+| Frames | `PresentUiFrame`, `DrawFrame`, `RedrawStoppedFrame`, `PrepareFramebuffers` |
+| Timers and commands | `SetUiTimer`, `KillUiTimer`, `PostCommand` |
+| Files and dialogs | `GetUiFileSystem`, `GetHostDialogs` |
+| Settings | `SaveSettings`, `PersistSwitchState` |
+| Input and devices | `GetHeldHostInputs`, `TruncatePaste`, `GetTapeControl` |
+**Alternatives considered**: the concrete class behind a pimpl with no
+interface (equally light in the header; kept open for the owner's review of
+the block diagram, since the shell would then call `ShellDebugger` directly);
+moving only includes (measured 2026-10-10: forward declarations alone cut the
+tree's parsed header text by 6%, since the shell holds its parts by value).
+
+## R-047: Automatic machine states (User Story 25)
+
+**Decision**: version 2 of the state file's `SFIL` section adds the save time
+and a PNG thumbnail; an `AutoStatePolicy` class computes resume, save and
+prompt; the shell resumes through the CPU thread's command queue at startup,
+saves in `MachineManager::SwitchMachine` and in `OnDestroy`, and prompts in a
+new `OnClose`; states are written atomically to `%LOCALAPPDATA%\Casso\SavedState\`.
+
+**Found in the code (2026-10-12)**:
+
+- `MachineStateFile` writes a 28-byte header (magic `CASSOSTA`, format
+  version 1, payload size, hash) and one `SFIL` section of version 1. `Parse`
+  fails on a newer header version, a section version above its maximum, and
+  any bytes after `SFIL`; the hash covers the whole payload. Every build
+  already released fails on a second section, with "damaged"; it fails on a
+  version 2 `SFIL` too, but with the header version raised its message is
+  "newer state format".
+- `SaveMachineState` writes with `std::ofstream` and truncation, so a failure
+  partway destroys the old file. `DiskImageStore::WriteFileAtomically` (a
+  temporary file renamed over the target) exists and is public.
+- The published UI framebuffer is 560 by 384 BGRA under
+  `ShellRenderer::GetFramebufferMutex`. `MachineFrameRenderer` can draw a
+  picture from a machine but switches video modes as it draws, so it is not
+  run on the live machine. `PngCodec` encodes RGBA through WIC;
+  `HistoryThumbnails::Shrink` is the only scaler.
+- `EmulatorShell` has no `OnClose`. File > Exit calls `DestroyWindow`
+  directly, bypassing `WM_CLOSE`; the updater's restart posts `WM_CLOSE`.
+  `OnDestroy` stops and joins the CPU thread first; `~EmulatorShell` flushes
+  disks with `FlushAllForShutdown`, which can open a dialog.
+- `MachineManager::SwitchMachine` runs on the CPU thread; the configuration
+  load is its last point of refusal, before reverse recording stops and the
+  disks flush. `LoadMachineState` calls it for a state from another machine.
+- `Initialize` cold boots the machine and mounts the command-line media or
+  the media saved in the preferences before `RunMessageLoop` starts the CPU thread; a command posted before
+  the start is queued and runs first.
+- `DialogDefinition` takes an image and custom buttons; `DialogBodyContent`
+  stretches the image into a square.
+
+**Rationale**: the thumbnail is the last picture on the screen, so it comes
+from the published framebuffer rather than a fresh render. With a version
+bump inside `SFIL` there is one section and one hash, and older files load
+with no migration. A pure policy class puts every rule of FR-220 to FR-223 under unit
+tests without a machine or a window. Saving in `OnDestroy` after the CPU
+thread is joined requires no cross-thread handoff, and the window exists for
+a notice if the write fails; saving at the point where the switch can no
+longer fail means a failed switch writes no new automatic state.
+Resuming through the command queue before the CPU thread starts means the
+first frame is already the resumed machine.
+
+**Alternatives considered**:
+
+- A separate thumbnail section: every released build reports it as damaged,
+  and `ReadPayload` would have to loop over sections; nothing gained over a
+  version bump.
+- A sidecar file for the thumbnail and time: two files to update in step and
+  to replace atomically together.
+- Rendering the thumbnail with `MachineFrameRenderer` on a scratch machine:
+  a second machine build at every save, and the picture is without the
+  monitor tint that was on the screen.
+- Saving at exit in `~EmulatorShell`: works, but after `OnDestroy` the window
+  is gone, so a failure there cannot be reported.
+- Prompting in `OnDestroy`: the window is already closing, and a modal
+  dialog during teardown is the hazard `FlushAllForShutdown` already has.
+- An automatic state per date: more than one per machine, which is out of the
+  spec's scope.
+
+### R-047 addendum: older states in newer versions (FR-226)
+
+**Found (2026-10-12)**: each part of the machine writes its own versioned
+section. `IMachineState.h` permits a loader to read older versions, but
+`MachineHost` (version 2), `DiskImage` (3) and `Disk2NibbleEngine` (2) fail
+unless the version is exactly their newest; `SiriusJoyport` (2) branches on
+the version it read. Those three have each raised their version on this
+branch, so with exact matching every such change ends every saved state, and
+with automatic states on by default, every user's session after the update.
+
+**Decision**: from the first release with state files, every loader reads
+every released form; a release saves fixture states per machine kind; a
+scenario test loads, resumes and runs each. Forms only unreleased builds
+wrote are not read.
+
+**Alternatives considered**: converting old states with a migration step
+(a second code path per version, tested no better than the branch in the
+loader); keeping exact matching and relying on FR-222's cold boot (correct
+but the user's session ends at each update that touches a part's state).
+
+**Measured (2026-10-12, SC-057)**: resuming an Apple //e state of 933,526 bytes
+with two 140 KB disks in its drives (parse and apply, Release build, nine runs
+on fresh machines) takes a median of 4.6 ms, from 4.5 to 4.7 ms; reading the
+file adds about a millisecond. Startup with a resume is therefore well inside
+SC-057's one second of a cold start. The CPU thread already initializes COM
+(multithreaded) in `CpuManager`'s thread procedure, so no COM change was made
+for the thumbnail's PNG encode.
+
+**Compression (2026-10-12)**: format version 3 stores the payload compressed
+with the Windows Compression API's MSZIP algorithm. Measured on the owner's
+automatic states: an Apple //e state with two WOZ disks goes from 1,353,932 to
+542,774 bytes, saving in 107 ms and unpacking in 4 ms. XPRESS Huffman was
+10% larger at 5 ms; LZMS was 1% smaller at 229 ms. Each disk remains twice in
+the file, as its image and as the drive's tracks, so a state file is complete
+without any other file.

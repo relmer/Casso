@@ -5,6 +5,10 @@
 
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
+#include "Core/DxuiIconImage.h"
 
 
 

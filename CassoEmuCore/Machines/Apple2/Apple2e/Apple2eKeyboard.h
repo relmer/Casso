@@ -20,13 +20,13 @@ class AppleSpeaker;
 //  $C000-$C01F to $C000-$C063 so reads of $C061/$C062/$C063 land here.
 //
 //  Logical ownership (Phase 6 / T061):
-//    - Keyboard owns:  $C000-$C00B (data), $C010 (strobe-clear),
-//                      $C061-$C063 (modifier reads).
-//    - Soft-switch bank owns: $C011-$C01F (status reads — bit 7 from
+//    - Keyboard owns:  $C000-$C00F reads (keyboard data), $C010
+//                      (strobe-clear), $C061-$C063 (modifier reads).
+//    - Soft-switch bank owns: $C000-$C00F writes (MMU switches, 80COL,
+//                      ALTCHARSET), $C011-$C01F (status reads — bit 7 from
 //                      MMU/LC/VideoTiming/SoftSwitchBank, bits 0-6 from
 //                      the keyboard latch via GetLatchedKeyDataBits()),
-//                      $C00C-$C00F (80COL/ALTCHARSET), $C050-$C05F
-//                      (display switches).
+//                      $C050-$C05F (display switches).
 //    - Speaker owns:   $C030-$C03F (toggle).
 //
 //  The bus first-match-wins ordering means this device wins for every
@@ -46,6 +46,7 @@ public:
 
     Byte Read    (Word address) override;
     void Write   (Word address, Byte value) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     Word GetEnd  () const override { return 0xC063; }
     void Reset   () override;
     void SoftReset () override;
@@ -104,6 +105,7 @@ public:
     // The game-port adapter, asked first for every $C061-$C063 read. Null on
     // the //c, which has no annunciators to drive one.
     void SetJoyport (const class SiriusJoyport * joyport) { m_joyport = joyport; }
+    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
 
     // Apple //c case switches (two latching pushbuttons on the top of the
     // case). SetApple2cMode enables the //c-only behaviors below; on the //e
@@ -166,8 +168,10 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', 'E');
-    static constexpr uint16_t  kStateVersion = 1;
+    //  Version 2 adds the buttons' read edges (ReadEdges).
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('K', 'B', 'D', 'E');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     Byte TranslateTypedChar (Byte ch) const override;
@@ -192,6 +196,7 @@ protected:
     void EmitButtonRead (Word address, Byte value);
     void EmitHostButton (int index, bool pressed);
     Byte ReadButton     (Word address);
+    Byte PeekButton     (Word address) const;
 
     // The host-written switches a read can see, in InputLine order up to the
     // 80/40 switch. ObserveLine runs with a journal attached only.
@@ -210,6 +215,7 @@ protected:
     class LanguageCard *           m_lc                = nullptr;
     class IVideoTiming *           m_videoTiming       = nullptr;
     class AppleMouse *             m_mouse             = nullptr;
+    class CassettePort *           m_cassettePort      = nullptr;
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
 

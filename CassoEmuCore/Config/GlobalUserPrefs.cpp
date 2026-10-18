@@ -9,6 +9,7 @@
 #include "Core/JsonWriter.h"
 
 #include "Config/CrtResolver.h"
+#include "Config/IFileSystem.h"
 
 
 
@@ -86,6 +87,14 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "reverseRecording",
     "reverseBudgetMb",
     "reverseIntervalFrames",
+    "autoUpdateCheck",
+    "autoSaveMachineState",
+    "lastUpdateCheckUtc",
+    "latestKnownVersion",
+    "skippedVersion",
+    "pendingUpdateVersion",
+    "pendingUpdateKind",
+    "pendingUpdateFailure",
     "screenshotMode",
     "screenshotSaveFile",
     "screenshotFolder",
@@ -99,10 +108,13 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
     "debuggerHeatMapRanges",
+    "debuggerDiskLogOptions",
+    "debuggerInputLogOptions",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
-    "debuggerProgramSourceFolders"
+    "debuggerProgramSourceFolders",
+    "debuggerWindowState"
 };
 
 
@@ -1266,20 +1278,33 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("screenshotSaveFile", JsonValue (screenshotSaveFile));
     root.emplace_back ("screenshotFolder",   JsonValue (screenshotFolder));
 
-    root.emplace_back ("debuggerKeyScheme",  JsonValue (debuggerKeyScheme));
-    root.emplace_back ("debuggerTheme",      JsonValue (debuggerTheme));
-    root.emplace_back ("debuggerLayout",     JsonValue (debuggerLayout));
-    root.emplace_back ("debuggerClosedPanes", JsonValue (debuggerClosedPanes));
-    root.emplace_back ("debuggerCommandBarDock", JsonValue (debuggerCommandBarDock));
-    root.emplace_back ("debuggerTimelineDock", JsonValue (debuggerTimelineDock));
-    root.emplace_back ("debuggerFocusedPane", JsonValue (debuggerFocusedPane));
-    root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debuggerDisassemblyOptions));
-    root.emplace_back ("debuggerHeatMapOptions",     JsonValue (debuggerHeatMapOptions));
-    root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debuggerHeatMapRanges));
-    root.emplace_back ("debuggerOpenViews",  JsonValue (debuggerOpenViews));
-    root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debuggerTextZoomPercent));
-    root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debuggerSourceFolders));
-    root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debuggerProgramSourceFolders));
+    root.emplace_back ("debuggerKeyScheme",  JsonValue (debugger.keyScheme));
+    root.emplace_back ("debuggerTheme",      JsonValue (debugger.theme));
+    root.emplace_back ("debuggerLayout",     JsonValue (debugger.layout));
+    root.emplace_back ("debuggerClosedPanes", JsonValue (debugger.closedPanes));
+    root.emplace_back ("debuggerCommandBarDock", JsonValue (debugger.commandBarDock));
+    root.emplace_back ("debuggerTimelineDock", JsonValue (debugger.timelineDock));
+    root.emplace_back ("debuggerFocusedPane", JsonValue (debugger.focusedPane));
+    root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debugger.disassemblyOptions));
+    root.emplace_back ("debuggerHeatMapOptions",     JsonValue (debugger.heatMapOptions));
+    root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debugger.heatMapRanges));
+    root.emplace_back ("debuggerDiskLogOptions",     JsonValue (debugger.diskLogOptions));
+    root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
+    root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
+    root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
+    root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debugger.sourceFolders));
+    root.emplace_back ("debuggerProgramSourceFolders", FolderMapToJson (debugger.programSourceFolders));
+
+    {
+        std::vector<std::pair<std::string, JsonValue>>  state;
+
+        for (const auto & [name, text] : debugger.windowState)
+        {
+            state.emplace_back (name, JsonValue (text));
+        }
+
+        root.emplace_back ("debuggerWindowState", JsonValue (std::move (state)));
+    }
 
     // Printer mechanical-audio prefs (FR-034).
     root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
@@ -1299,9 +1324,21 @@ JsonValue GlobalUserPrefs::ToJson() const
     }
 
     // Reverse execution's history.
-    root.emplace_back ("reverseRecording",      JsonValue (reverseRecording));
-    root.emplace_back ("reverseBudgetMb",       JsonValue ((double) reverseBudgetMb));
-    root.emplace_back ("reverseIntervalFrames", JsonValue ((double) reverseIntervalFrames));
+    root.emplace_back ("reverseRecording",      JsonValue (debugger.reverseRecording));
+    root.emplace_back ("reverseBudgetMb",       JsonValue ((double) debugger.reverseBudgetMb));
+    root.emplace_back ("reverseIntervalFrames", JsonValue ((double) debugger.reverseIntervalFrames));
+
+    // The update check.
+    root.emplace_back ("autoUpdateCheck",    JsonValue (autoUpdateCheck));
+    root.emplace_back ("lastUpdateCheckUtc", JsonValue ((double) lastUpdateCheckUtc));
+    root.emplace_back ("latestKnownVersion", JsonValue (latestKnownVersion));
+    root.emplace_back ("skippedVersion",     JsonValue (skippedVersion));
+    root.emplace_back ("pendingUpdateVersion", JsonValue (pendingUpdateVersion));
+
+    // The machine states saved at exit and resumed at startup.
+    root.emplace_back ("autoSaveMachineState", JsonValue (autoSaveMachineState));
+    root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
+    root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -1510,33 +1547,47 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     screenshotSaveFile = TryGetBoolOpt  (v, "screenshotSaveFile", screenshotSaveFile);
     screenshotFolder   = GetStringOpt   (v, "screenshotFolder",   screenshotFolder);
 
-    debuggerKeyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debuggerKeyScheme);
-    debuggerTheme      = GetStringOpt   (v, "debuggerTheme",      debuggerTheme);
-    debuggerLayout     = GetStringOpt   (v, "debuggerLayout",     debuggerLayout);
-    debuggerOpenViews  = GetStringOpt   (v, "debuggerOpenViews",  debuggerOpenViews);
+    debugger.keyScheme  = GetStringOpt   (v, "debuggerKeyScheme",  debugger.keyScheme);
+    debugger.theme      = GetStringOpt   (v, "debuggerTheme",      debugger.theme);
+    debugger.layout     = GetStringOpt   (v, "debuggerLayout",     debugger.layout);
+    debugger.openViews  = GetStringOpt   (v, "debuggerOpenViews",  debugger.openViews);
 
-    debuggerClosedPanes = GetStringOpt (v, "debuggerClosedPanes", debuggerClosedPanes);
-    debuggerCommandBarDock = GetStringOpt (v, "debuggerCommandBarDock", debuggerCommandBarDock);
-    debuggerTimelineDock   = GetStringOpt (v, "debuggerTimelineDock",   debuggerTimelineDock);
-    debuggerFocusedPane    = GetStringOpt (v, "debuggerFocusedPane",    debuggerFocusedPane);
+    debugger.closedPanes = GetStringOpt (v, "debuggerClosedPanes", debugger.closedPanes);
+    debugger.commandBarDock = GetStringOpt (v, "debuggerCommandBarDock", debugger.commandBarDock);
+    debugger.timelineDock   = GetStringOpt (v, "debuggerTimelineDock",   debugger.timelineDock);
+    debugger.focusedPane    = GetStringOpt (v, "debuggerFocusedPane",    debugger.focusedPane);
 
-    debuggerDisassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debuggerDisassemblyOptions);
-    debuggerHeatMapOptions     = GetStringOpt (v, "debuggerHeatMapOptions",     debuggerHeatMapOptions);
-    debuggerHeatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debuggerHeatMapRanges);
+    debugger.disassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debugger.disassemblyOptions);
+    debugger.heatMapOptions     = GetStringOpt (v, "debuggerHeatMapOptions",     debugger.heatMapOptions);
+    debugger.heatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debugger.heatMapRanges);
+    debugger.diskLogOptions     = GetStringOpt (v, "debuggerDiskLogOptions",     debugger.diskLogOptions);
+    debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);
 
-    debuggerTextZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debuggerTextZoomPercent),
-                                          kMinDebuggerTextZoomPercent, kMaxDebuggerTextZoomPercent);
+    debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),
+                                          DebuggerSettings::kMinTextZoomPercent, DebuggerSettings::kMaxTextZoomPercent);
 
-    debuggerSourceFolders.clear();
+    debugger.sourceFolders.clear();
     if (v.HasArray ("debuggerSourceFolders", sourceFolderArr))
     {
-        RecentDisksFromJson (*sourceFolderArr, debuggerSourceFolders);
+        RecentDisksFromJson (*sourceFolderArr, debugger.sourceFolders);
     }
 
-    debuggerProgramSourceFolders.clear();
+    debugger.programSourceFolders.clear();
     if (v.HasObject ("debuggerProgramSourceFolders", programFolderObj))
     {
-        FolderMapFromJson (*programFolderObj, debuggerProgramSourceFolders);
+        FolderMapFromJson (*programFolderObj, debugger.programSourceFolders);
+    }
+
+    debugger.windowState.clear();
+    if (v.HasObject ("debuggerWindowState", programFolderObj))
+    {
+        for (const auto & [name, value] : programFolderObj->GetObjectEntries())
+        {
+            if (value.GetType() == JsonType::String)
+            {
+                debugger.windowState[name] = value.GetString();
+            }
+        }
     }
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
@@ -1562,9 +1613,21 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Reverse execution's history: a budget below a few megabytes holds
     // almost nothing, and a keyframe more than ten seconds apart makes every
     // step back replay that long.
-    reverseRecording      = TryGetBoolOpt (v, "reverseRecording", reverseRecording);
-    reverseBudgetMb       = std::clamp (GetIntOpt (v, "reverseBudgetMb",       reverseBudgetMb),       kMinReverseBudgetMb, kMaxReverseBudgetMb);
-    reverseIntervalFrames = std::clamp (GetIntOpt (v, "reverseIntervalFrames", reverseIntervalFrames), 1,                   kMaxReverseIntervalFrames);
+    debugger.reverseRecording      = TryGetBoolOpt (v, "reverseRecording", debugger.reverseRecording);
+    debugger.reverseBudgetMb       = std::clamp (GetIntOpt (v, "reverseBudgetMb",       debugger.reverseBudgetMb),       DebuggerSettings::kMinReverseBudgetMb, DebuggerSettings::kMaxReverseBudgetMb);
+    debugger.reverseIntervalFrames = std::clamp (GetIntOpt (v, "reverseIntervalFrames", debugger.reverseIntervalFrames), 1,                   DebuggerSettings::kMaxReverseIntervalFrames);
+
+    // The update check; absent keys keep struct defaults.
+    autoUpdateCheck    = TryGetBoolOpt (v, "autoUpdateCheck", autoUpdateCheck);
+    lastUpdateCheckUtc = (std::int64_t) GetNumberOpt (v, "lastUpdateCheckUtc", (double) lastUpdateCheckUtc);
+    latestKnownVersion = GetStringOpt  (v, "latestKnownVersion", latestKnownVersion);
+    skippedVersion     = GetStringOpt  (v, "skippedVersion",     skippedVersion);
+
+    autoSaveMachineState = TryGetBoolOpt (v, "autoSaveMachineState", autoSaveMachineState);
+
+    pendingUpdateVersion = GetStringOpt (v, "pendingUpdateVersion", pendingUpdateVersion);
+    pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);
+    pendingUpdateFailure = (int) GetNumberOpt (v, "pendingUpdateFailure", (double) pendingUpdateFailure);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

@@ -2,6 +2,7 @@
 
 #include "DisassemblyOptions.h"
 #include "SourceSyntax.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -21,18 +22,14 @@ std::string DisassemblyOptions::ToText() const
 
     for (int i = 0; i < kOptionCount; i++)
     {
-        if (!m_on[(size_t) i])
-        {
-            continue;
-        }
-
         text += text.empty() ? "" : " ";
+        text += m_on[(size_t) i] ? "" : "-";
         text += GetKey ((Option) i);
     }
 
-    //  Every option off still differs from the defaults, which empty text
-    //  gives.
-    return text.empty() ? std::string ("none") : text;
+    text += std::string (" ") + kDimPrefix + GetDimKey (m_dim);
+
+    return text;
 }
 
 
@@ -50,23 +47,38 @@ DisassemblyOptions DisassemblyOptions::FromText (const std::string & text)
     DisassemblyOptions  options;
     std::istringstream  words (text);
     std::string         word;
+    bool                isOn        = false;
+    bool                isFirstForm = text.find ('-') == std::string::npos;
+    int                 i           = 0;
 
 
 
-    if (text.empty())
+    if (isFirstForm)
     {
-        return options;
+        for (i = 0; i < kFirstTextOptionCount && !text.empty(); i++)
+        {
+            options.m_on[(size_t) i] = false;
+        }
     }
-
-    options.m_on.fill (false);
 
     while (words >> word)
     {
-        for (int i = 0; i < kOptionCount; i++)
+        for (i = 0; i < kDimCount && word.starts_with (kDimPrefix); i++)
+        {
+            if (word.substr (std::strlen (kDimPrefix)) == GetDimKey ((Dim) i))
+            {
+                options.m_dim = (Dim) i;
+            }
+        }
+
+        isOn = !word.starts_with ('-');
+        word = isOn ? word : word.substr (1);
+
+        for (i = 0; i < kOptionCount; i++)
         {
             if (word == GetKey ((Option) i))
             {
-                options.m_on[(size_t) i] = true;
+                options.m_on[(size_t) i] = isOn;
             }
         }
     }
@@ -88,11 +100,16 @@ const wchar_t * DisassemblyOptions::GetLabel (Option option)
 {
     switch (option)
     {
-    case Option::Addresses:   return L"Show address";
-    case Option::CodeBytes:   return L"Show code bytes";
-    case Option::Source:      return L"Show source code";
-    case Option::Symbols:     return L"Show symbol names";
-    case Option::LineNumbers: return L"Show line numbers";
+    case Option::Addresses:     return L"Show address";
+    case Option::CodeBytes:     return L"Show code bytes";
+    case Option::Source:        return L"Show source code";
+    case Option::Symbols:       return L"Show symbol names";
+    case Option::LineNumbers:   return L"Show line numbers";
+    case Option::OperandValues: return L"Show operand values";
+    case Option::Pointers:      return L"Show pointers";
+    case Option::BranchArrow:   return L"Show branch arrow";
+    case Option::AddressColon:  return L"Show colon after address";
+    case Option::Heat:          return L"Show heat";
     }
 
     return L"";
@@ -112,11 +129,60 @@ const char * DisassemblyOptions::GetKey (Option option)
 {
     switch (option)
     {
-    case Option::Addresses:   return "address";
-    case Option::CodeBytes:   return "bytes";
-    case Option::Source:      return "source";
-    case Option::Symbols:     return "symbols";
-    case Option::LineNumbers: return "lines";
+    case Option::Addresses:     return "address";
+    case Option::CodeBytes:     return "bytes";
+    case Option::Source:        return "source";
+    case Option::Symbols:       return "symbols";
+    case Option::LineNumbers:   return "lines";
+    case Option::OperandValues: return "values";
+    case Option::Pointers:      return "pointers";
+    case Option::BranchArrow:   return "arrow";
+    case Option::AddressColon:  return "colon";
+    case Option::Heat:          return "heat";
+    }
+
+    return "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetDimLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DisassemblyOptions::GetDimLabel (Dim dim)
+{
+    switch (dim)
+    {
+    case Dim::Source: return L"Source lines";
+    case Dim::Code:   return L"Disassembly lines";
+    case Dim::None:   return L"Neither";
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetDimKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * DisassemblyOptions::GetDimKey (Dim dim)
+{
+    switch (dim)
+    {
+    case Dim::Source: return "source";
+    case Dim::Code:   return "code";
+    case Dim::None:   return "none";
     }
 
     return "";
@@ -197,7 +263,7 @@ std::wstring DisassemblyOptions::GetSymbolsTip (const std::vector<std::string> &
 
     for (const std::string & source : sources)
     {
-        tip += L"\n" + std::wstring (source.begin(), source.end());
+        tip += L"\n" + TextEncoding::NarrowToWide (source);
     }
 
     return tip;
@@ -333,5 +399,5 @@ bool DisassemblyOptions::CanTakeBreakpoint (const DebuggerViewSnapshot::CodeLine
 
 
 
-    return !mnemonic.empty() && SourceSyntax::IsMnemonic (std::wstring (mnemonic.begin(), mnemonic.end()));
+    return !mnemonic.empty() && SourceSyntax::IsMnemonic (TextEncoding::NarrowToWide (mnemonic));
 }

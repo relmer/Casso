@@ -26,6 +26,10 @@ public:
     virtual void  OnReset          (bool isPowerCycle)               = 0;
     virtual void  OnMachineChanged (const std::string & machineName) = 0;
     virtual void  OnModeChanged    (CommandMode mode)                = 0;
+
+    //  A disk inserted or ejected while the machine was paused, which a disk
+    //  breakpoint on it reports in one line instead of stopping.
+    virtual void  OnDiskNotice     (const std::string & line)        { (void) line; }
 };
 
 

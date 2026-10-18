@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Controllers/ControllerTypes.h"
+struct ControlId;
+struct ControllerSample;
 
 
 

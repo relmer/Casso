@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "Debugger/CallRecordCopies.h"
-#include "Debugger/CallStackRebuildJob.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 #include "Debugger/Reverse/ReplayDiskCopier.h"
@@ -11,6 +10,11 @@
 class DebugSession;
 class MachineHost;
 class ReverseController;
+struct CallStackRebuildPart;
+struct CallRecordCopy;
+struct CallStackRebuildJob;
+struct CallStackRebuildResult;
+class ICallStackRebuilder;
 
 
 

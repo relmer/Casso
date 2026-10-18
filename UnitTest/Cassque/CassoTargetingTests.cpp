@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Cassque/Model/CassoTargeting.h"
+#include "Core/MachineConfig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

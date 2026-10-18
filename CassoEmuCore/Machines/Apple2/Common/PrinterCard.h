@@ -67,6 +67,7 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     Byte Read (Word address) override;
+    bool TryPeekIo (Word address, Byte & value) override { (void) address; value = ReadStatus(); return true; }
     void Write (Word address, Byte value) override;
     Word GetStart() const override { return m_ioStart; }
     Word GetEnd() const override { return m_ioEnd; }

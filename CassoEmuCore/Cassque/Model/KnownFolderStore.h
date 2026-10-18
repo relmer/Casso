@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "Config/IFileSystem.h"
 #include "Shell/DiskMru.h"
+
+class IFileSystem;
 
 
 

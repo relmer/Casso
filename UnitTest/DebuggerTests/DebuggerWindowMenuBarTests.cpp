@@ -7,6 +7,7 @@
 #include "resource.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/DebuggerCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -51,7 +52,7 @@ namespace DebuggerMenuBarTests
             inModeModes.push_back (mode);
         }
 
-        void  RunDebuggerAction (const DebuggerAction &) override { actions++; }
+        void  RunDebuggerAction (const DebuggerAction & action) override { actions++; lastAction = action; }
 
         void  RunEmulatorCommand (int commandId) override { emulatorCommands.push_back (commandId); }
 
@@ -70,6 +71,7 @@ namespace DebuggerMenuBarTests
         std::vector<CommandMode>  inModeModes;
         std::vector<int>          emulatorCommands;
         int                       actions = 0;
+        DebuggerAction            lastAction;
         FakeHostDialogs           dialogs;
     };
 
@@ -107,6 +109,17 @@ namespace DebuggerMenuBarTests
         using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kDialectEntry;
+
+        //  The fields a user would type in the memory file dialog, and the
+        //  path of each time it opened.
+        std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields &) override
+        {
+            opened.push_back ({ path, isSave });
+            return typed;
+        }
+
+        std::optional<MemoryFileDialog::Fields>        typed;
+        std::vector<std::pair<std::wstring, bool>>     opened;
     };
 
 
@@ -241,6 +254,28 @@ namespace DebuggerMenuBarTests
         }
 
 
+        TEST_METHOD (ViewRowsHaveEachPanesKey)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            MenuBarHost                host;
+            MenuBarWindow              window (theme, host);
+            const DxuiPopupMenuItem  * row    = nullptr;
+
+
+
+            window.OnCreate();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Breakpoints");
+            Assert::IsNotNull (row);
+            Assert::AreEqual  (std::wstring (L"Ctrl+Alt+B"), row->command->accelerator);
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Console");
+            Assert::IsNotNull (row);
+            Assert::AreEqual  (std::wstring (L"Ctrl+` or Ctrl+Alt+I"), row->command->accelerator);
+        }
+
+
+
         TEST_METHOD (DebugRowsShowTheKeysOfTheSchemeInForce)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
@@ -291,6 +326,70 @@ namespace DebuggerMenuBarTests
         }
 
 
+        //  Load file into memory: a picked file, then the dialog for its
+        //  format and address, then BLOAD run directly; off while the
+        //  machine runs, since a load writes memory.
+        TEST_METHOD (LoadFileIntoMemoryRunsBloadOfThePickedFile)
+        {
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            MenuBarHost                            host;
+            MenuBarWindow                          window   (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = std::make_shared<DebuggerViewSnapshot>();
+            const DxuiPopupMenuItem              * row      = nullptr;
+
+
+
+            host.dialogs.path = L"C:\\games\\game.bin";
+            window.typed      = MemoryFileDialog::Fields { MemoryFileDialog::Format::Raw, L"$6000", L"" };
+            window.OnCreate();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Load file into memory...");
+            Assert::IsNotNull (row);
+
+            snapshot->isPaused = false;
+            window.SetSnapshotForTest (snapshot);
+            Assert::IsFalse   (row->command->isEnabled(), L"off while the machine runs");
+
+            snapshot->isPaused = true;
+            Assert::IsTrue    (row->command->isEnabled());
+            row->command->dispatch();
+
+            Assert::AreEqual ((size_t) 1, window.opened.size());
+            Assert::IsFalse  (window.opened[0].second, L"a load");
+            Assert::AreEqual (1, host.actions, L"run directly, not typed");
+            Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::LoadBinary);
+            Assert::AreEqual (std::string ("C:\\games\\game.bin,RAW"), host.lastAction.command.text);
+            Assert::AreEqual ((Word) 0x6000, host.lastAction.command.a1);
+        }
+
+
+
+        TEST_METHOD (SaveMemoryToFileRunsBsaveOfTheRangeGiven)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            MenuBarHost                host;
+            MenuBarWindow              window (theme, host);
+            const DxuiPopupMenuItem  * row    = nullptr;
+
+
+
+            host.dialogs.path = L"C:\\games\\page.bin";
+            window.typed      = MemoryFileDialog::Fields { MemoryFileDialog::Format::Raw, L"400", L"400" };
+            window.OnCreate();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Save memory to file...");
+            Assert::IsNotNull (row);
+            row->command->dispatch();
+
+            Assert::AreEqual (1, host.dialogs.saves);
+            Assert::IsTrue   (window.opened[0].second, L"a save");
+            Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::SaveBinary);
+            Assert::AreEqual ((Word) 0x0400, host.lastAction.command.a1);
+            Assert::AreEqual ((Word) 0x07FF, host.lastAction.command.a2);
+        }
+
+
+
         TEST_METHOD (OpenSymbolFileLoadsThePickedFile)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
@@ -308,9 +407,10 @@ namespace DebuggerMenuBarTests
             row->command->dispatch();
 
             Assert::AreEqual (1, host.dialogs.opens);
-            Assert::AreEqual (1, (int) host.inModeLines.size());
-            Assert::AreEqual (std::string ("SYM LOAD \"C:\\games\\game.dbg\""), host.inModeLines[0]);
-            Assert::IsTrue   (host.inModeModes[0] == CommandMode::AppleWin);
+            Assert::AreEqual (1, host.actions);
+            Assert::AreEqual (std::string ("SYM LOAD \"C:\\games\\game.dbg\""), host.lastAction.echo);
+            Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::LoadSymbols);
+            Assert::AreEqual (std::string ("\"C:\\games\\game.dbg\""), host.lastAction.command.text);
         }
 
 
@@ -389,7 +489,8 @@ namespace DebuggerMenuBarTests
             std::vector<int>  expected = { DebuggerCommands::kRun, DebuggerCommands::kPause, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
                                            DebuggerCommands::kStepOut, DebuggerCommands::kRunToCursor,
                                            DebuggerCommands::kStepBackInto, DebuggerCommands::kStepBackOver, DebuggerCommands::kStepBackOut,
-                                           DebuggerCommands::kReverseContinue, DebuggerCommands::kShowNext, DebuggerCommands::kTrace };
+                                           DebuggerCommands::kReverseContinue, DebuggerCommands::kShowNext, DebuggerCommands::kTrace,
+                                           DebuggerCommands::kLoadFile };
             std::vector<int>  ids;
 
 

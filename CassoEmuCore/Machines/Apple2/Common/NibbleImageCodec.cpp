@@ -478,6 +478,15 @@ HRESULT NibbleImageCodec::Render (
             continue;
         }
 
+        //  Only the shared sector writer changed this track, and it changes
+        //  whole nibbles in place, so the track's bits ARE its block: every
+        //  other nibble stays where it was rather than being derived again.
+        if (hasSource && img.IsTrackChangedOnlyByWriter (track) && img.GetTrackBitCount (track) == trackSize * kBitsPerNibble)
+        {
+            memcpy (&out[offset], img.GetTrackBits (track).data(), trackSize);
+            continue;
+        }
+
         hr = DeriveTrack (img, track, nibbles);
         CHR (hr);
 

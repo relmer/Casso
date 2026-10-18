@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -17,6 +18,7 @@ static constexpr DebuggerLayout::DiagnosticsPanel  s_kDiagnosticsPanels[] =
     { "disk",         L"Disk II"      },
     { "mockingboard", L"Mockingboard" },
     { "printer",      L"Printer"      },
+    { "cassette",     L"Cassette"     },
 };
 
 static constexpr const wchar_t * s_kpszDiagnosticsPrefix = L"diag-";
@@ -93,7 +95,7 @@ std::span<const DebuggerLayout::DiagnosticsPanel> DebuggerLayout::GetDiagnostics
 
 std::wstring DebuggerLayout::GetDiagnosticsPaneId (const std::string & id)
 {
-    return s_kpszDiagnosticsPrefix + std::wstring (id.begin(), id.end());
+    return s_kpszDiagnosticsPrefix + TextEncoding::NarrowToWide (id);
 }
 
 
@@ -141,7 +143,8 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
-    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges };
+    std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
+                                       kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
 
 
 
@@ -340,12 +343,138 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if (pane == kTrace && layout.Contains (kConsole))
+    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog) && layout.Contains (kConsole))
     {
         return kConsole;
     }
 
+    if (pane == kBasicProgram && layout.Contains (kCode))
+    {
+        return kCode;
+    }
+
+    if (pane == kProfiler && layout.Contains (kConsole))
+    {
+        return kConsole;
+    }
+
+    if ((pane == kSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
+    {
+        return kBreakpoints;
+    }
+
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::IsBasicPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
+{
+    return pane == kBasicProgram;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetToolPaneIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
+{
+    return { kSymbols, kBookmarks, kProfiler, kDataBlocks };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::IsOpenedLater
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerLayout::IsOpenedLater (const std::wstring & pane)
+{
+    std::vector<std::wstring>  tools = GetToolPaneIds();
+
+
+
+    return IsBasicPane (pane) || std::ranges::find (tools, pane) != tools.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::FormatBasicOpened
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerLayout::FormatBasicOpened (const std::set<std::wstring> & opened)
+{
+    std::string  text;
+
+
+
+    for (const std::wstring & pane : opened)
+    {
+        if (IsOpenedLater (pane))
+        {
+            text += " open=" + TextEncoding::WideToNarrow (pane);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::ParseBasicOpened
+//
+//  Any other token is passed over, as ParseOpenViews passes over this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::wstring> DebuggerLayout::ParseBasicOpened (const std::string & text)
+{
+    std::set<std::wstring>  opened;
+    std::istringstream      in (text);
+    std::string             token;
+
+
+
+    while (in >> token)
+    {
+        std::wstring  pane = token.starts_with ("open=") ? TextEncoding::NarrowToWide (token.substr (5)) : std::wstring();
+
+
+
+        if (IsOpenedLater (pane))
+        {
+            opened.insert (pane);
+        }
+    }
+
+    return opened;
 }
 
 
@@ -359,10 +488,10 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
 //  Built by the same operations a user would perform, so the default is a
 //  layout like any other and saves and restores the same way.
 //
-//  On the left the disassembly over the console, which carries the trace
-//  and the device panels as tabs; on the right the registers beside the
-//  stack, then watches, call stack, breakpoints and memory, top to bottom,
-//  with the heat map a tab beside the memory windows.
+//  On the left the disassembly over the console, which has the trace, the
+//  event logs and the device panels as tabs; on the right the registers
+//  beside the stack, then watches, call stack, breakpoints and memory, top to
+//  bottom, with the heat map a tab beside the memory windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,7 +531,18 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
         layout.Add (GetCodePaneId (view), kCode);
     }
 
-    layout.Add (kTrace,   kConsole);
+    layout.Add (kTrace,    kConsole);
+    layout.Add (kDiskLog,  kConsole);
+    layout.Add (kInputLog, kConsole);
+
+    //  The BASIC program is a tab of the disassembly, the profiler of the
+    //  console, and the symbols, bookmarks and data ranges of the
+    //  breakpoints.
+    layout.Add (kBasicProgram, kCode);
+    layout.Add (kProfiler,     kConsole);
+    layout.Add (kSymbols,      kBreakpoints);
+    layout.Add (kBookmarks,    kBreakpoints);
+    layout.Add (kDataBlocks,   kBreakpoints);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

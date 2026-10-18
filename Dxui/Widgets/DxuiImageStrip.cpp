@@ -4,6 +4,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
+#include "Core/DxuiIconImage.h"
 
 
 

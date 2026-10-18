@@ -2,6 +2,7 @@
 
 #include "Core/AppleSingleCodec.h"
 #include "Debugger/BinaryImageReader.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -38,7 +39,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
             Assert::IsTrue   (!image.segments.empty(), L"an image has at least one segment");
             return image;
         }
@@ -52,7 +53,7 @@ namespace DebuggerTests
 
 
             Assert::IsTrue (FAILED (hr));
-            Assert::IsTrue (error.find (fragment) != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+            Assert::IsTrue (error.find (fragment) != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
         }
 
 

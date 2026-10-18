@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -227,7 +228,9 @@ int HeatMapView::GetColumnsOf (int columns, int count)
 //  HeatMapView::PlaceBands
 //
 //  Each range's header and rows, one after another down the map. All of
-//  memory is one range with no header.
+//  memory is one range with no header. A range under a header takes at
+//  least a row label's line, so the label of a range of one short row ends
+//  before the next header.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,7 +256,7 @@ void HeatMapView::PlaceBands()
         placed.rowsTop   = y + header;
         placed.rows      = (count + placed.columns - 1) / placed.columns;
 
-        y = placed.rowsTop + placed.rows * pitch;
+        y = placed.rowsTop + std::max (placed.rows * pitch, m_hasRanges ? m_labelLinePx : 0L);
     }
 
     m_contentH = y;
@@ -1006,7 +1009,7 @@ uint32_t HeatMapView::GetColor (
     uint32_t         hue             = (write >= read) ? palette.write : palette.read;
     Byte             level           = data;
     bool             isSelfModifying = ran > 0 && put > 0;
-    float            total           = (float) ran + (float) got + (float) put;
+    float            total           = std::max (1.0f, (float) ran + (float) got + (float) put);   // at least 1, so C4723 cannot fire; a nonzero total of whole counts is 1 or more already
     auto             mixChannel      = [&] (int shift)
     {
         float  sum = (float) ((code >> shift) & 0xFF) * ran + (float) ((palette.read >> shift) & 0xFF) * got + (float) ((palette.write >> shift) & 0xFF) * put;
@@ -1341,7 +1344,6 @@ std::optional<HeatMapView::BreakKind> HeatMapView::GetBreakKind (const Breakpoin
         return BreakKind::Execute;
 
     case BreakpointKind::Memory:
-    case BreakpointKind::Io:
         switch (info.access)
         {
         case WatchAccess::Read:  return BreakKind::Read;
@@ -1949,7 +1951,7 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
 
     if (m_symbols != nullptr && m_symbols->TryGetNameAt (cpu, name))
     {
-        text += L"\nSymbol " + std::wstring (name.begin(), name.end());
+        text += L"\nSymbol " + TextEncoding::NarrowToWide (name);
     }
 
     return text;
@@ -2135,6 +2137,7 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
     float           width   = 0.0f;
     float           height  = 0.0f;
     int             gutter  = 0;
+    long            line    = 0;
     HRESULT         hr      = S_OK;
 
 
@@ -2147,13 +2150,15 @@ void HeatMapView::MeasureGutter (IDxuiTextRenderer & text, const IDxuiTheme & th
     }
 
     gutter = (int) std::ceil (width) + DxuiPaneMetrics::GetContentTextInsetPx (m_scaler) + m_scaler.ToPx (kPadDip);
+    line   = (long) std::ceil (m_scaler.ToPxf (font.sizeDip) * kLabelLine);
 
-    if (gutter == m_gutterPx)
+    if (gutter == m_gutterPx && line == m_labelLinePx)
     {
         return;
     }
 
-    m_gutterPx = gutter;
+    m_gutterPx    = gutter;
+    m_labelLinePx = line;
 
     if (m_isFitted)
     {
@@ -2278,7 +2283,6 @@ void HeatMapView::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr float  kLineHeight = 1.4f;
     constexpr int    kPadDip     = 4;
     DxuiFontHandle   font        = theme.MonospaceFont();
     float            size        = m_scaler.ToPxf (font.sizeDip);
@@ -2303,7 +2307,7 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
 
 
 
-        while (step < placed.rows && (float) (step * pitch) < size * kLineHeight)
+        while (step < placed.rows && (float) (step * pitch) < size * kLabelLine)
         {
             step *= 2;
         }
@@ -2322,7 +2326,7 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
 
             label = std::format (L"${:04X}", (Word) (m_bands[band].first + row * placed.columns));
 
-            hr = text.DrawString (label.c_str(), (float) m_boundsDip.left, y, gutter, size * kLineHeight,
+            hr = text.DrawString (label.c_str(), (float) m_boundsDip.left, y, gutter, size * kLabelLine,
                                   theme.ForegroundMuted(), size, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -2565,7 +2569,7 @@ std::wstring HeatMapView::GetDetailLine (Byte value, bool isOpcode, const std::s
 
     if (isOpcode && !form.empty())
     {
-        return std::wstring (form.begin(), form.end());
+        return TextEncoding::NarrowToWide (form);
     }
 
     for (int bit = kBits - 1; bit >= 0; bit--)

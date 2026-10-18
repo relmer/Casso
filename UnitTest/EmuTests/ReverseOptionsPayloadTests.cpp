@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/CpuCommandDispatcher.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -36,7 +37,7 @@ public:
 
 
 
-                Assert::IsTrue   (isParsed, std::wstring (payload.begin(), payload.end()).c_str());
+                Assert::IsTrue   (isParsed, TextEncoding::NarrowToWide (payload).c_str());
                 Assert::AreEqual (isOn,   isRecording);
                 Assert::AreEqual (budget, budgetMb);
             }

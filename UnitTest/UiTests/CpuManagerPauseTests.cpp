@@ -4,6 +4,7 @@
 #include "EmuTests/TestMachine.h"
 #include "Shell/CpuManager.h"
 #include "Shell/FrameCycleBudget.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

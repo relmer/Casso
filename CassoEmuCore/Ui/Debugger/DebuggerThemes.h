@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Ui/Chrome/CassoTheme.h"
+struct CassoTheme;
 
 
 

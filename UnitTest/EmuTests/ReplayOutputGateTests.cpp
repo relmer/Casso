@@ -3,6 +3,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "Devices/Printer/PrinterByteRing.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

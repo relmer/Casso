@@ -106,6 +106,9 @@ public:
     static constexpr int     kQuarterTrackCount          = 160;
     static constexpr int     kQuarterTracksPerWholeTrack = 4;
 
+    // A quarter-track index as a track: "17", "17.25", "17.5" or "17.75".
+    static std::string  FormatQuarterTrack (int quarterTrack);
+
     DiskImage ();
 
     int           GetTrackCount     () const override;
@@ -182,6 +185,12 @@ public:
     //  bookkeeping it does. A consumer that copies clean tracks and re-derives
     //  dirty ones otherwise sees a rewritten track as untouched.
     void             MarkTrackDirty      (int track);
+
+    //  A slot the shared sector writer changed, apart from guest writes
+    //  through the drive. A save clears both. A slot only the writer changed
+    //  can be saved in place where a guest-written one is rebuilt.
+    void             MarkTrackChangedByWriter   (int slot);
+    bool             IsTrackChangedOnlyByWriter (int slot) const;
     void             ResizeTrack         (int track, size_t bitCount);
 
     // Quarter-track addressing. The head physically steps in quarter-track
@@ -191,6 +200,10 @@ public:
     // track (qt / 4); WOZ images install an explicit map from the TMAP so
     // half/quarter-track-formatted protections resolve to distinct streams.
     int              ResolveQuarterTrack (int quarterTrack) const;
+
+    // The slot whole track N plays: what the map gives quarter track 4N. A
+    // file's records need not be in track order, so slot N is not track N.
+    int              ResolveWholeTrack   (int track) const;
 
     // The slot the map gives a quarter track, whether or not that slot holds
     // data -- which a report about tracks that failed to load needs, since a
@@ -257,9 +270,10 @@ public:
     HRESULT          SaveState           (StateWriter & writer) const override;
     HRESULT          LoadState           (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('D', 'I', 'S', 'K');
-    static constexpr uint16_t  kStateVersion      = 3;
-    static constexpr uint32_t  kMaxStateTrackSize = 0x100000;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('D', 'I', 'S', 'K');
+    static constexpr uint16_t  kStateVersion       = 3;
+    static constexpr uint16_t  kOldestStateVersion = 3;   // versions 1 and 2 were never released
+    static constexpr uint32_t  kMaxStateTrackSize  = 0x100000;
 
 private:
     friend class DiskTrackSnapshot;
@@ -303,6 +317,8 @@ private:
     vector<vector<Byte>>  m_trackBits;
     vector<size_t>        m_trackBitCounts;
     vector<bool>          m_trackDirty;
+    vector<bool>          m_trackChangedByWriter;
+    vector<bool>          m_trackGuestWritten;
     vector<int>           m_quarterTrackMap;
     vector<TrackKind>     m_slotKind;
     vector<FluxTrack>     m_fluxTracks;

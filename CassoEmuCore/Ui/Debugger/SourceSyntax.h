@@ -73,11 +73,20 @@ public:
     //  A disassembled instruction: its mnemonic, then its operand.
     static std::vector<Run>  GetInstructionRuns (const std::wstring & instruction);
 
+    //  An operand alone, such as a watch's "RNDL $004E": its symbols,
+    //  numbers and strings.
+    static std::vector<Run>  GetOperandRuns     (const std::wstring & operand);
+
     static bool  IsMnemonic (const std::wstring & word);
 
     //  A line of a file, a listing or not: a listing row's address and bytes,
     //  then its source's runs where the source starts.
     static std::vector<Run>  GetLineRuns (const std::wstring & line, Assembler assembler, Listing listing);
+
+    //  A line of C, in the source colors: a keyword as a mnemonic, a type or
+    //  a preprocessor line as a directive. ioIsInComment is whether a block
+    //  comment is open at the line's start, and at its end.
+    static std::vector<Run>  GetCRuns (const std::wstring & line, bool & ioIsInComment);
 
     //  Whether a line's opcode is one of the assembler's directives, which
     //  lays down data rather than code; a macro's invocation is not.

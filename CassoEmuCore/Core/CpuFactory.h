@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
-#include "ICpu.h"
-
 class MemoryBus;
+class ICpu;
 
 
 

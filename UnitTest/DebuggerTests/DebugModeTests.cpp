@@ -2,6 +2,8 @@
 
 #include "Cli/DebugBatchRunner.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Tape/TapeAudio.h"
+#include "Devices/Tape/WavCodec.h"
 #include "EmuTests/FixtureProvider.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -10,6 +12,7 @@
 #include "UiTests/InMemoryFileSystem.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -61,6 +64,32 @@ namespace DebugModeTests
 
         static std::string Script   (const char * name) { return Fixture (std::string ("Debugger/Scripts/") + name); }
         static std::string Expected (const char * name) { return Fixture (std::string ("Debugger/Scripts/expected/") + name); }
+
+        //  A silent recording of the given length, as a WAV file's bytes.
+        static std::string MakeWav (int seconds)
+        {
+            constexpr uint32_t  kRate = 44100;
+            TapeAudio           audio;
+            std::vector<Byte>   bytes;
+
+
+
+            audio.sampleRate = kRate;
+            audio.samples.assign ((size_t) seconds * kRate, 0.0f);
+            WavCodec::Encode (audio, bytes);
+
+            return std::string (bytes.begin(), bytes.end());
+        }
+
+        void AssertContains (const std::string & text) const
+        {
+            std::string  flat = result.output;
+
+
+
+            std::replace (flat.begin(), flat.end(), '\n', '|');
+            Assert::IsTrue (result.output.find (text) != std::string::npos, Widen (text + " in: " + flat).c_str());
+        }
 
         int Run (const std::string & script)
         {
@@ -168,7 +197,7 @@ namespace DebugModeTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
     };
 
@@ -293,6 +322,21 @@ namespace DebugModeTests
 
             Assert::AreEqual (1, rig.Run (""));
             Assert::IsTrue (rig.result.output.find ("Budget at") != std::string::npos, L"the budget stop still printed");
+        }
+
+        //  A batch run has the video log from its first instruction:
+        //  $0300 STA $C050 / BRK, run to the BRK, and the change is listed.
+        TEST_METHOD (TheVideoLogIsKeptInABatchRun)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.commands = { "300:8D 50 C0 00", "R PC 300", "BP 303", "G", "VIDEOLOG" };
+
+            Assert::AreEqual (0, rig.Run (""), rig.Widen (rig.result.output).c_str());
+            Assert::IsTrue   (rig.result.output.find ("1 entry:") != std::string::npos, rig.Widen (rig.result.output).c_str());
+            Assert::IsTrue   (rig.result.output.find ("$C050  TEXT off") != std::string::npos, rig.Widen (rig.result.output).c_str());
         }
 
         //  A command that is not available in this session is not a failure.
@@ -667,6 +711,80 @@ namespace DebugModeTests
                 Assert::AreEqual (S_OK, rig.files.ReadAllText (L"C:\\Work\\merlin.woz", after));
                 Assert::AreEqual (!writeDisks, after == original, writeDisks ? L"--write-disks wrote the file" : L"the overlay left the file alone");
             }
+        }
+
+        //  --tape puts the recording in stopped at its start; TAPE reports the
+        //  deck, and PLAY, STOP and EJECT work the transport.
+        TEST_METHOD (Tape_IsInsertedFromTheFileSystem_AndTheTransportFollowsTape)
+        {
+            BatchRig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\side1.wav", BatchRig::MakeWav (10));
+            rig.options.tape     = "C:\\Work\\side1.wav";
+            rig.options.commands = { "TAPE", "TAPE PLAY", "TAPE STOP", "TAPE EJECT", "TAPE BOGUS" };
+
+            Assert::AreEqual (1, rig.Run (""));
+            rig.AssertContains ("Tape: Stopped, 0:00.0 of 0:10.0");
+            rig.AssertContains ("Tape: Playing, 0:00.0 of 0:10.0");
+            rig.AssertContains ("Tape: none");
+            rig.AssertContains ("TAPE takes INFO, INSERT file, PLAY, STOP, REWIND or EJECT.");
+        }
+
+        //  TAPE INSERT reads the file through the session; a run with the
+        //  tape playing moves it along by the bus cycles that ran.
+        TEST_METHOD (TapeInsert_ReadsTheFile_AndARunMovesThePlayingTape)
+        {
+            BatchRig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\side2.wav", BatchRig::MakeWav (10));
+            rig.options.maxCycles = 2'046'000;
+            rig.options.commands  = { "TAPE INSERT C:\\Work\\side2.wav", "TAPE PLAY", "G", "TAPE" };
+
+            Assert::AreEqual (3, rig.Run (""));
+            rig.AssertContains ("Inserted the tape.");
+            rig.AssertContains ("Tape: Playing, 0:02.0 of 0:10.0");
+        }
+
+        //  The //c has no cassette jacks: --tape is a usage error, and TAPE
+        //  is not available.
+        TEST_METHOD (Tape_OnTheIIc_IsRefused)
+        {
+            BatchRig  withTape;
+            BatchRig  command;
+
+
+
+            withTape.files.WriteAllText (L"C:\\Work\\side1.wav", BatchRig::MakeWav (1));
+            withTape.options.machine  = "Apple2c";
+            withTape.options.tape     = "C:\\Work\\side1.wav";
+            withTape.options.commands = { "R" };
+
+            Assert::AreEqual (2, withTape.Run (""));
+            Assert::IsTrue (withTape.result.diagnostics.find ("no cassette jacks") != std::string::npos, withTape.Widen (withTape.result.diagnostics).c_str());
+
+            command.options.machine  = "Apple2c";
+            command.options.commands = { "TAPE" };
+
+            Assert::AreEqual (0, command.Run (""));
+            command.AssertContains ("This machine has no cassette jacks.");
+        }
+
+        TEST_METHOD (MissingTape_ExitsTwo_AndRunsNothing)
+        {
+            BatchRig  rig;
+
+
+
+            rig.options.tape     = "C:\\Work\\none.wav";
+            rig.options.commands = { "R" };
+
+            Assert::AreEqual (2, rig.Run (""));
+            Assert::IsTrue (rig.result.output.empty());
+            Assert::IsTrue (rig.result.diagnostics.find ("none.wav could not be read.") != std::string::npos, rig.Widen (rig.result.diagnostics).c_str());
         }
 
         TEST_METHOD (MissingDisk_ExitsTwo_AndRunsNothing)

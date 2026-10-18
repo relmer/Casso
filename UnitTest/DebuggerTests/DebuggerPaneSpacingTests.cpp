@@ -468,8 +468,8 @@ namespace DebuggerTests
 
                 trace.total = 2;
                 trace.entries.resize (2);
-                trace.entries[0].index = 9;
-                trace.entries[1].index = 12345678;
+                trace.entries[0].cycles = 9;
+                trace.entries[1].cycles = 12345678;
                 trace.next.resize (1);
                 pane.Apply (trace);
 
@@ -479,7 +479,7 @@ namespace DebuggerTests
                 text.Reset();
                 list.Paint  (painter, text, theme);
 
-                for (const wchar_t * first : { L"Entry", L"9", L"12345678", L"next" })
+                for (const wchar_t * first : { L"Cycles", L"9", L"12345678", L"next" })
                 {
                     found = FindText (text, first);
 
@@ -599,7 +599,7 @@ namespace DebuggerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            CallStackPane         pane (&list, &button, [] (const DebuggerActionBuilder &) {}, [] (Word) {});
+            CallStackPane         pane (&list, &button, [] (const DebuggerActionBuilder &) {}, [] (Word) {}, [] (Word) {});
             int                   wide   = 0;
             int                   narrow = 0;
 
@@ -610,11 +610,11 @@ namespace DebuggerTests
             list.SetRefitOnSetRows (true);
             list.Layout            (RECT { 0, 0, 2000, 300 }, GetScaler96());
 
-            pane.Apply (MakeFrames ("A_VERY_LONG_ROUTINE_NAME_INDEED"));
+            pane.Apply (MakeFrames ("A_VERY_LONG_ROUTINE_NAME_INDEED"), {});
             list.Paint (painter, text, theme);
             wide = list.GetTotalMeasuredWidthPx();
 
-            pane.Apply (MakeFrames ("SHORT"));
+            pane.Apply (MakeFrames ("SHORT"), {});
             list.Paint (painter, text, theme);
             narrow = list.GetTotalMeasuredWidthPx();
 
@@ -631,7 +631,7 @@ namespace DebuggerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            CallStackPane         pane (&list, &button, [] (const DebuggerActionBuilder &) {}, [] (Word) {});
+            CallStackPane         pane (&list, &button, [] (const DebuggerActionBuilder &) {}, [] (Word) {}, [] (Word) {});
             CallStackData         noted = MakeFrames ("SHORT");
             CallStackRow          began;
             int                   plain = 0;
@@ -646,11 +646,11 @@ namespace DebuggerTests
             list.SetRefitOnSetRows (true);
             list.Layout            (RECT { 0, 0, 2000, 300 }, GetScaler96());
 
-            pane.Apply (MakeFrames ("SHORT"));
+            pane.Apply (MakeFrames ("SHORT"), {});
             list.Paint (painter, text, theme);
             plain = list.GetTotalMeasuredWidthPx();
 
-            pane.Apply (noted);
+            pane.Apply (noted, {});
             list.Paint (painter, text, theme);
 
             Assert::AreEqual (2, list.GetRowCount(), L"the note is still a row");

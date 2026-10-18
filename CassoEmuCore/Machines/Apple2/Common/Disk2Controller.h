@@ -3,18 +3,21 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Core/ObserverSlots.h"
 #include "Core/ThreadOwnership.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
 #include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/Disk2NibbleRecord.h"
 
 
 class IDriveAudioSink;
 class IDisk2EventSink;
+struct DeviceConfig;
+struct MachineConfig;
+class MemoryBus;
 
 
 
@@ -42,6 +45,19 @@ public:
     static constexpr int    kDriveCount      = 2;
     static constexpr int    kPhaseCount      = 4;
     static constexpr int    kMaxQuarterTrack = 139;
+
+    // A phase's magnets are a half track (two quarter tracks) from the next
+    // phase's.
+    static constexpr int    kQuarterTracksPerHalfTrack = 2;
+
+    // How far, in quarter tracks, the energized phases move a head at
+    // quarterTrack (HandlePhase).
+    static int  GetPull (uint8_t phases, int quarterTrack);
+
+    // Read's byte for a switch, with no switch thrown and the drive not
+    // moved on. False while the drive is writing, which a copy of it cannot
+    // run without writing to the disk.
+    bool  TryPeekIo (Word address, Byte & value) override;
 
     // Real Disk II: writing $C0E8 (motor off) starts a ~1-second
     // spindown so DOS RWTS can toggle the motor off between
@@ -108,7 +124,9 @@ public:
     // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
     // Disk2AddressMarkWatcher so the watcher fires its own
     // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDisk2EventSink * sink);
+    void          SetEventSink (IDisk2EventSink * sink) { SetEventSink (ObserverSlot::Panel, sink); }
+    void          SetEventSink (ObserverSlot slot, IDisk2EventSink * sink);
+    IDisk2EventSink * GetEventSink (ObserverSlot slot) const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_eventSinks.Get (slot); }
 
     // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
     // Machine, not a Disk II card, so it adds a write-only MODE register and a
@@ -168,13 +186,25 @@ public:
     // without a real CPU.
     void   SetCpuCycleSource (const uint64_t * cycleSource) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
 
+    // The address of the instruction the CPU is executing, for the recent
+    // nibbles; with none, as in tests that drive the controller without a
+    // CPU, each entry has address 0. Wiring, not saved.
+    void   SetInstructionAddressSource (const Word * source) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_instructionAddressSource = source; }
+
+    // The nibbles the CPU most recently took from the drives or wrote to them.
+    const Disk2NibbleRecord &  GetNibbleRecord() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_nibbleRecord; }
+
     // Inspectors used by Phase 9 tests.
+    int    GetSlot() const { return m_slot; }
     int    GetActiveDrive() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_activeDrive; }
     bool   IsMotorOn() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorOn; }
     bool   IsMotorAtSpeed() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorOn && m_motorSpinupRemaining == 0; }
     uint32_t  GetMotorSpinupRemaining() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_motorSpinupRemaining; }
-    int    GetQuarterTrack() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack; }
-    int    GetCurrentTrack() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack / 4; }
+    // The selected drive's head, or a given drive's: each drive has a
+    // stepper of its own.
+    int    GetQuarterTrack() const          { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack[m_activeDrive]; }
+    int    GetQuarterTrack (int drive) const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_quarterTrack[drive]; }
+    int    GetCurrentTrack() const          { return GetQuarterTrack() / 4; }
     bool   IsQ6() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_q6; }
     bool   IsQ7() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_q7; }
     uint8_t  GetPhases() const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_phases; }
@@ -198,12 +228,17 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag                 = IMachineState::MakeTag ('D', 'S', 'K', '2');
+    static constexpr uint16_t  kStateVersion             = 3;
+    static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
+    static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
+    static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
 
 private:
     void   HandleSwitch (int offset);
     void   HandlePhase (int phase, bool on);
+    void   MoveHeadToPull ();
+    void   MoveHeadIfEnabled ();
     void   UpdateEngineSelection();
     void   UpdateEngineWriteMode();
     Byte   HandleReadDispatch();
@@ -212,14 +247,22 @@ private:
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
 
+    // The one place a guest write to a disk is reported: a load of the data
+    // latch with Q6 and Q7 set while the motor runs, its spin-down included,
+    // with the drive, the nibble, that drive's head and whether write
+    // protection drops the bits. A load with the motor stopped writes
+    // nothing, and the //c's mode-register load is not a latch load; neither
+    // is reported.
+    virtual void  OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped);
+
 protected:
     int                  m_slot;
     Word                 m_ioStart;
     Word                 m_ioEnd;
 
-    uint8_t              m_phases       = 0;
-    int                  m_phase        = 0;
-    int                  m_quarterTrack = 0;
+    uint8_t              m_phases                    = 0;
+    int                  m_phase                     = 0;
+    int                  m_quarterTrack[kDriveCount] = { 0, 0 };
 
     bool                 m_motorOn      = false;
 
@@ -255,8 +298,9 @@ protected:
 
     IDriveAudioSink *    m_audioSink   = nullptr;
 
-    IDisk2EventSink *         m_eventSink       = nullptr;
-    Disk2AddressMarkWatcher   m_addrMarkWatcher;
+    ObserverSlots<IDisk2EventSink>  m_eventSinks;
+    Disk2AddressMarkWatcher         m_addrMarkWatcher;
+    Disk2NibbleRecord               m_nibbleRecord;
 
     // Fired on the CPU thread when the motor finishes spinning down; the
     // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
@@ -283,6 +327,9 @@ protected:
     // a turn in the middle of the operation it was meant to avoid.
     bool                      m_busySinceIdleCallback   = false;
 
-    const uint64_t *          m_cpuCycleSource = nullptr;
-    uint64_t                  m_lastCpuSync    = 0;
+    const uint64_t *          m_cpuCycleSource           = nullptr;
+    uint64_t                  m_lastCpuSync              = 0;
+    const Word *              m_instructionAddressSource = nullptr;
+
+    Word  GetInstructionAddress() const { return (m_instructionAddressSource != nullptr) ? *m_instructionAddressSource : 0; }
 };

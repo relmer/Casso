@@ -70,7 +70,7 @@ ParsedLine As65Dialect::ParseLine (const std::string & line, int lineNumber) con
     startsAtColumn0 = !stripped.empty() && !isspace ((unsigned char) stripped[0]);
 
     // Check for label (contains ':')
-    colonPos = remainder.find (':');
+    colonPos = Parser::FindUnquoted (remainder, ':');
 
     if (colonPos != std::string::npos)
     {

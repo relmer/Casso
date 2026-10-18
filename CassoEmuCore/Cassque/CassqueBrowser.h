@@ -11,9 +11,9 @@
 #include "Config/IFileSystem.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
-#include "Seams/IShellIcons.h"
 
 class IDiskFileIo;
+class IShellIcons;
 
 
 

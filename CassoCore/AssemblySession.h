@@ -3,7 +3,6 @@
 #include "AssemblerTypes.h"
 #include "ExpressionEvaluator.h"
 #include "OpcodeTable.h"
-#include "InstructionSetProvider.h"
 #include "Directive.h"
 #include "Parser.h"
 
@@ -13,6 +12,7 @@
 
 class DialectProfile;
 struct SubsetBoundaryRow;
+class InstructionSetProvider;
 
 
 

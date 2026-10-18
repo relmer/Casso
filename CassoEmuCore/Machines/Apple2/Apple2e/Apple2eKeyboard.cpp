@@ -1,12 +1,14 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Common/ReadEdges.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Devices/IInputEventSink.h"
 
@@ -49,23 +51,29 @@ Byte Apple2eKeyboard::Read (Word address)
 
 
 
-    // Everything the soft-switch bank owns, forwarded identically:
-    //   $C00C-$C00F  80COL / ALTCHARSET
+    // Everything the soft-switch bank owns on a read, forwarded identically:
     //   $C011-$C01F  status reads (T061 ownership split)
     //   $C028        //c ROM-bank flip-flop (ROMBANK), which toggles the
     //                visible firmware bank on any access; unused on the //e,
     //                where the sibling no-ops with no ROM-bank switch attached
     //   $C050-$C05F  video display switches
-    bool  isSoftSwitch = (address >= 0xC00C && address <= 0xC00F)
-                         || (address >= 0xC011 && address <= 0xC01F)
+    // $C00C-$C00F (80COL / ALTCHARSET) are write-only switches. A read of any
+    // address in $C000-$C00F returns the keyboard latch (Sather p. 5-29), so
+    // those reads stay with the base keyboard below.
+    bool  isSoftSwitch = (address >= 0xC011 && address <= 0xC01F)
                          || (address == 0xC028)
                          || (address >= 0xC050 && address <= 0xC05F);
 
 
     // Each arm carries its own sibling test rather than sharing one up front:
-    // with the sibling absent the address must keep falling through, and for
-    // $C00C-$C00F that means reaching the base keyboard below.
-    if (isSoftSwitch && m_softSwitchSibling != nullptr)
+    // with the sibling absent the address must keep falling through. The
+    // cassette output comes first so $C028 toggles it on the //e; the //c,
+    // whose ROM bank flips there, has no cassette port.
+    if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
+    }
+    else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {
         value = m_softSwitchSibling->Read (address);
     }
@@ -85,6 +93,11 @@ Byte Apple2eKeyboard::Read (Word address)
         value = ReadButton (address);
         EmitButtonRead (address, value);
     }
+    else if (address == CassettePort::kInputAddress && m_cassettePort != nullptr)
+    {
+        // Cassette input, bit 7; the rest of the byte reads 0 as before.
+        value = m_cassettePort->ReadInputLevel() ? CassettePort::kInputBit : 0;
+    }
     else if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
     {
         // $C060 (RD80SW): the //c 80/40 case switch, bit 7. A switch pressed
@@ -103,13 +116,125 @@ Byte Apple2eKeyboard::Read (Word address)
     }
     else if (address <= 0xC010)
     {
-        // $C000-$C00B (keyboard data) and $C010 (strobe-clear) belong to the
+        // $C000-$C00F (keyboard data) and $C010 (strobe-clear) belong to the
         // base AppleKeyboard. Other unowned addresses ($C020-$C02F,
         // $C040-$C04F, $C060) keep the 0 — no device behind them on a //e.
         value = AppleKeyboard::Read (address);
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIo
+//
+//  Read's byte for each address, worked out as Read works it out, with
+//  nothing toggled, cleared or observed: the soft-switch bank's and the
+//  speaker's addresses from them, the buttons, the cassette input and the
+//  //c 80/40 switch, the keyboard's own two switches, and 0 where no device
+//  drives the bus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2eKeyboard::TryPeekIo (Word address, Byte & value)
+{
+    bool  isSoftSwitch = (address >= 0xC011 && address <= 0xC01F)
+                         || (address == 0xC028)
+                         || (address >= 0xC050 && address <= 0xC05F);
+
+
+
+    value = 0;
+
+    if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        return true;
+    }
+
+    if (isSoftSwitch && m_softSwitchSibling != nullptr)
+    {
+        return m_softSwitchSibling->TryPeekIo (address, value);
+    }
+
+    if (address >= 0xC030 && address <= 0xC03F && m_speakerSibling != nullptr)
+    {
+        return m_speakerSibling->TryPeekIo (address, value);
+    }
+
+    if (address >= kFirstButtonAddress && address < kFirstButtonAddress + kButtonCount)
+    {
+        value = PeekButton (address);
+        return true;
+    }
+
+    if (address == CassettePort::kInputAddress && m_cassettePort != nullptr)
+    {
+        value = m_cassettePort->PeekInputLevel() ? CassettePort::kInputBit : 0;
+        return true;
+    }
+
+    if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
+    {
+        value = m_eightyColSwitchIn.load (memory_order_acquire) ? kEightyColSwitchIn : kEightyColSwitchOut;
+        return true;
+    }
+
+    if (address <= 0xC010)
+    {
+        return AppleKeyboard::TryPeekIo (address, value);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekButton
+//
+//  ReadButton's byte, with nothing journaled or watched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::PeekButton (Word address) const
+{
+    int   index    = static_cast<int> (address - kFirstButtonAddress);
+    bool  isDown   = false;
+    Byte  joyValue = 0;
+
+
+
+    if (m_joyport != nullptr && m_joyport->TryPeekButton (index, joyValue))
+    {
+        return joyValue;
+    }
+
+    if (address == 0xC061)
+    {
+        isDown = m_openApple.load (memory_order_acquire) || m_holdOpenApple.load (memory_order_acquire);
+    }
+    else if (address == 0xC062)
+    {
+        isDown = m_closedApple.load (memory_order_acquire) || m_holdClosedApple.load (memory_order_acquire);
+    }
+    else if (m_mouse != nullptr)
+    {
+        return m_mouse->ReadButton();
+    }
+    else
+    {
+        isDown = m_shift.load (memory_order_acquire);
+    }
+
+    return isDown ? 0x80 : 0x00;
 }
 
 
@@ -330,17 +455,21 @@ bool Apple2eKeyboard::ApplyInput (const InputRecord & record)
 
 void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 {
-    IInputEventSink * sink = GetInputSink();
-    int               idx  = static_cast<int> (address - kFirstButtonAddress);
+    int  idx = static_cast<int> (address - kFirstButtonAddress);
 
 
 
-    // No sink, or the same byte we last reported: either way there is no
-    // edge to announce, which is what keeps a tight poll loop from flooding.
-    if (sink != nullptr && m_lastEmittedButton[idx] != value)
+    // The same byte as last reported is no edge, so a tight poll loop is one
+    // report. The edge moves whether or not anything listens, since it is
+    // part of the saved state.
+    if (m_lastEmittedButton[idx] != value)
     {
         m_lastEmittedButton[idx] = value;
-        sink->OnButtonRead (address, value);
+
+        if (GetInputSinks().IsAny())
+        {
+            GetInputSinks().ForEach ([&] (IInputEventSink & sink) { sink.OnButtonRead (address, value); });
+        }
     }
 }
 
@@ -640,6 +769,10 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     {
         AppleKeyboard::Write (address, value);
     }
+    else if (address >= CassettePort::kFirstOutputAddress && address <= CassettePort::kLastOutputAddress && m_cassettePort != nullptr)
+    {
+        m_cassettePort->ToggleOutput();
+    }
     else if (isSoftSwitch && m_softSwitchSibling != nullptr)
     {
         m_softSwitchSibling->Write (address, value);
@@ -766,6 +899,10 @@ void Apple2eKeyboard::SoftReset()
     // dispatch to Apple2eKeyboard::Reset and clobber the modifiers we
     // need to preserve. Just clear the latched-character byte directly.
     AppleKeyboard::Reset();
+
+    // The first read of each button after a reset is reported, as the
+    // keyboard's are.
+    std::ranges::fill (m_lastEmittedButton, -1);
 }
 
 
@@ -815,6 +952,8 @@ HRESULT Apple2eKeyboard::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_eightyColSwitchIn.load    (memory_order_acquire));
     writer.WriteBool   (m_keyboardSwitchDvorak.load (memory_order_acquire));
 
+    ReadEdges::Save (writer, m_lastEmittedButton);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -844,6 +983,8 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
     bool      shift                = false;
     bool      eightyColSwitchIn    = false;
     bool      keyboardSwitchDvorak = false;
+    bool      isEdgesOk            = true;
+    int       edges[kButtonCount]  = { -1, -1, -1 };
     size_t    i                    = 0;
 
 
@@ -863,10 +1004,16 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
     reader.ReadBool   (eightyColSwitchIn);
     reader.ReadBool   (keyboardSwitchDvorak);
 
+    if (version >= kReadEdgesVersion)
+    {
+        isEdgesOk = ReadEdges::Load (reader, edges);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
     CBREx (resetHoldCycles <= kResetHoldCycles, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (isEdgesOk,                           HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_openApple.store            (openApple,            memory_order_release);
     m_closedApple.store          (closedApple,          memory_order_release);
@@ -879,7 +1026,7 @@ HRESULT Apple2eKeyboard::LoadState (StateReader & reader)
 
     for (i = 0; i < kButtonCount; i++)
     {
-        m_lastEmittedButton[i] = -1;
+        m_lastEmittedButton[i] = edges[i];
     }
 
     for (i = 0; i < kHostButtonCount; i++)

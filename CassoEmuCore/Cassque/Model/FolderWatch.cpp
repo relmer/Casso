@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/Model/FolderWatch.h"
+#include "Cassque/Model/IFolderWatcher.h"
 
 
 

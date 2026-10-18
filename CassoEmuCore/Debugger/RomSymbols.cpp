@@ -203,17 +203,57 @@ static constexpr const char * s_kpszProDosSymbols =
 //  RomSymbols::GetMain
 //
 //  The //e and //c get the Monitor table with the memory-management switches
-//  appended; the ][ and ][+ get the Monitor table alone.
+//  appended; the ][ and ][+ get the Monitor table alone. The //c has no
+//  cassette port: $C028 flips its ROM bank and $C060 reads its 80/40
+//  switch, so ROMBANK and RD80SW take the place of TAPEOUT and TAPEIN.
+//  Source: Apple IIc Technical Reference Manual, chapter 2.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const char * RomSymbols::GetMain (const std::string & machineName)
 {
     static const std::string  s_iie = std::string (s_kpszMonitorSymbols) + s_kpszIieSymbols;
+    static const std::string  s_iic = MakeIic (s_iie);
 
 
+
+    if (IsIic (machineName))
+    {
+        return s_iic.c_str();
+    }
 
     return IsIie (machineName) ? s_iie.c_str() : s_kpszMonitorSymbols;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RomSymbols::MakeIic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RomSymbols::MakeIic (const std::string & iie)
+{
+    std::string  text = iie;
+    size_t       at   = 0;
+
+
+
+    for (const auto & [from, to] : { std::pair<const char *, const char *> { "TAPEOUT=$C020\n", "ROMBANK=$C028\n" },
+                                     std::pair<const char *, const char *> { "TAPEIN=$C060\n",  "RD80SW=$C060\n"  } })
+    {
+        at = text.find (from);
+
+        if (at != std::string::npos)
+        {
+            text.replace (at, strlen (from), to);
+        }
+    }
+
+    return text;
 }
 
 
@@ -267,9 +307,36 @@ const char * RomSymbols::GetProDos()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RomSymbols::IsIic
+//
+//  A machine whose name has "2c" or "//c" in it is a //c.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RomSymbols::IsIic (const std::string & machineName)
+{
+    std::string  lower (machineName);
+
+
+
+    for (char & ch : lower)
+    {
+        ch = (char) tolower ((unsigned char) ch);
+    }
+
+    return lower.find ("2c") != std::string::npos || lower.find ("//c") != std::string::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RomSymbols::IsIie
 //
-//  A machine name holding "2e", "2c", "//e" or "//c" has the //e memory map.
+//  A machine whose name has "2e", "2c", "//e" or "//c" in it has the //e
+//  memory map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

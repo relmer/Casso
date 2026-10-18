@@ -3,6 +3,8 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
+#include "../Dxui/MockDxuiPainter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -78,6 +80,48 @@ namespace DebuggerTests
 
 
 
+        //  The arrow of the branch that led to the PC is dotted: round dots as
+        //  wide as the line, two widths apart, in the same color; the PC's own
+        //  is one line a segment.
+        TEST_METHOD (TheSteppedArrowIsDottedAndThePcsIsSolid)
+        {
+            BranchArrow::Input   input  = MakeInput (50.0f, 150.0f, true);
+            BranchArrow::Result  arrow  = BranchArrow::Build (input);
+            MockDxuiPainter      solid;
+            MockDxuiPainter      dotted;
+            size_t               lines  = 0;
+            float                width  = 1.5f;
+
+
+
+            DisassemblyCells::PaintBranchArrow (solid,  input, true, 0xFFFFE34D, 0xFF808080);
+            DisassemblyCells::PaintBranchArrow (dotted, input, true, 0xFFFFE34D, 0xFF808080, true);
+
+            for (const RecordedPaintCall & call : solid.Calls())
+            {
+                lines += (call.kind == RecordedPaintKind::DrawLine) ? 1 : 0;
+            }
+
+            Assert::AreEqual (arrow.segments.size(), lines, L"solid: a line a segment");
+
+            lines = 0;
+
+            for (const RecordedPaintCall & call : dotted.Calls())
+            {
+                Assert::IsTrue (call.kind != RecordedPaintKind::DrawLine, L"no line, only dots");
+
+                if (call.kind == RecordedPaintKind::FillCircle)
+                {
+                    lines++;
+                    Assert::AreEqual (width,      call.width, 0.01f, L"a dot as wide as the line");
+                    Assert::AreEqual (0xFFFFE34Du, call.argb,         L"the taken color");
+                }
+            }
+
+            Assert::IsTrue (lines > 20, L"dotted: many dots along the arrow's hundred pixels");
+        }
+
+
         TEST_METHOD (APressOnTheUprightHitsTheArrowAndOneAwayDoesNot)
         {
             BranchArrow::Input  input   = MakeInput (50.0f, 150.0f, true);
@@ -132,9 +176,69 @@ namespace DebuggerTests
 
 
 
+        //  The branch, jump or call that brought the machine to the PC, by a
+        //  step or by a run of several instructions, is marked, so its arrow
+        //  is drawn to the PC; a PC the machine moved on to in order marks
+        //  nothing.
+        TEST_METHOD (TheTransferThatBroughtThePcIsMarked)
+        {
+            ControllerRig         rig;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+            bool                  isMarked = false;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+            rig.machine.GetMemoryBus().WriteByte (0x0310, 0xEA);    // NOP
+            rig.machine.GetMemoryBus().WriteByte (0x0311, 0x4C);    // JMP $0320
+            rig.machine.GetMemoryBus().WriteByte (0x0312, 0x20);
+            rig.machine.GetMemoryBus().WriteByte (0x0313, 0x03);
+            rig.machine.GetMemoryBus().WriteByte (0x0320, 0xEA);    // NOP
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p | 0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.branchedFrom.has_value(), L"no transfer to $0300");
+
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the BEQ was taken to the PC");
+
+            for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+            {
+                isMarked = isMarked || (line.isBranchedFrom && line.address == 0x0300);
+            }
+
+            Assert::IsTrue (isMarked, L"its line is marked");
+
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the same stop, built again");
+
+            //  A run of two instructions with no build between, as a run that
+            //  a breakpoint stops: the JMP brought the machine to $0320.
+            rig.machine.StepOne();
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual ((int) 0x0320, (int) snapshot.pc);
+            Assert::IsTrue   (snapshot.branchedFrom == std::optional<Word> (0x0311), L"the JMP, found with no stop at it");
+
+            rig.machine.StepOne();
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.branchedFrom.has_value(), L"the PC moved on in order from the JMP's target, so nothing is marked");
+        }
+
+
+
         TEST_METHOD (TheResultFollowsTheOperandInTheResultColor)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
 
 
 
@@ -148,7 +252,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AResultAloneTakesTheWholeCell)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("", "A=41", 0xFF00FFFF);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("", "A=41", 0xFF00FFFF);
 
 
 

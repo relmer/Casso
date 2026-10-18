@@ -11,6 +11,7 @@
 // into a launch that now needs it nowhere.
 #include "Painter.vs.h"
 #include "Painter.ps.h"
+#include "Core/DxuiThread.h"
 
 
 

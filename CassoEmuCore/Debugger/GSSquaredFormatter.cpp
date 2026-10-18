@@ -66,7 +66,7 @@ bool GSSquaredFormatter::TryFormatData (const Reply & reply, Lines & lines)
 
     if      (auto * v = std::get_if<MemoryData>         (&data)) { FormatMemory         (*v, reply.command.find ('.') == std::string::npos, lines); }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly    (*v, lines); }
-    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); }
+    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpointList (*v, lines); AppleWinFormatter::AppendVideoBreak (*v, lines); }
     else if (auto * v = std::get_if<SymbolData>         (&data)) { FormatSymbols        (*v, lines); }
     else if (auto * v = std::get_if<BreakpointSetData>  (&data)) { lines.push_back (std::format ("Breakpoint id={} set", v->breakpoint.id)); }
     else if (auto * v = std::get_if<WatchListData>      (&data); v != nullptr && v->kind == WatchListKind::Watch)
@@ -202,8 +202,9 @@ void GSSquaredFormatter::FormatDisassembly (const DisassemblyData & data, Lines 
 //
 //  GSSquaredFormatter::FormatBreakpointList
 //
-//  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`. A
-//  kind GSSquared has no word for is described as AppleWin describes it.
+//  `[id] exec 00/0300`, `[id] exec 00/0300.030F`, `[id] data 00/C019 r`,
+//  `[id] disk sector read, ...`. A kind GSSquared has no word for has
+//  AppleWin's text for it.
 //  A condition, BEFORE and the entry's state follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,8 +240,8 @@ void GSSquaredFormatter::FormatBreakpointList (const BreakpointListData & data, 
             text = std::format ("[{}] data {} {}", breakpoint.id, place, kAccess[(int) breakpoint.access]);
             break;
 
-        case BreakpointKind::Io:
-            text = std::format ("[{}] io {} rw", breakpoint.id, place);
+        case BreakpointKind::Disk:
+            text = std::format ("[{}] disk {}", breakpoint.id, AppleWinFormatter::DescribeDisk (breakpoint));
             break;
 
         default:
@@ -336,7 +337,7 @@ void GSSquaredFormatter::FormatWatchList (const WatchListData & data, bool isAdd
 
     for (const WatchEntry & entry : data.entries)
     {
-        lines.push_back (std::format ("[{}] {}", entry.id, FormatAddress (entry.address)));
+        lines.push_back (std::format ("[{}] {}", entry.id, entry.basicName.empty() ? FormatAddress (entry.address) : entry.basicName));
     }
 }
 

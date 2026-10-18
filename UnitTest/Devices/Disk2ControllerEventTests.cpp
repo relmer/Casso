@@ -65,6 +65,8 @@ namespace Disk2ControllerEventTests
                 DriveSelect,
                 DiskInserted,
                 DiskEjected,
+                WriteModeOn,
+                WriteModeOff,
             };
 
             struct LogEntry
@@ -82,11 +84,12 @@ namespace Disk2ControllerEventTests
             void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
             void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
             void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
-            void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
-            void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
+            void OnDataMarkRead (int, int sector, int, std::span<const Byte>) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
+            void OnDataMarkWrite (int, int sector, int, std::span<const Byte>) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
             void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
             void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
             void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
+            void OnWriteMode (int drive, bool isOn) override    { log.push_back ({ isOn ? Event::WriteModeOn : Event::WriteModeOff, drive }); }
 
             int CountOf (Event ev) const
             {
@@ -275,6 +278,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
 
             // Head at qt 0, energize phase 3 -> decrement direction,
             // pre-clamp delta is negative, clamped to 0 == bump.
@@ -295,6 +299,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
 
             // qt 0, rot 0. Adjacent phase 1 -> direction=+1,
             // single magnet => qtDelta=+2.
@@ -315,6 +320,89 @@ namespace Disk2ControllerEventTests
             }
         }
 
+
+        //  A DOS seek turns the next phase on before it turns the last one
+        //  off: the first pulls the head to the quarter track between, and
+        //  the second finishes the half-track step. Each quarter-track move
+        //  is a step event.
+        TEST_METHOD (ADosSeekPassesTheQuarterTrackBetween)
+        {
+            RecordingEventSink   sink;
+            Disk2Controller      ctrl (6);
+            std::vector<int>     positions;
+
+
+
+            ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
+
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on: the head is there
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on
+            ctrl.Write (0xC0E0, 0x00);      // phase 0 off
+            ctrl.Write (0xC0E5, 0x00);      // phase 2 on
+            ctrl.Write (0xC0E2, 0x00);      // phase 1 off
+
+            for (const auto & logEntry : sink.log)
+            {
+                if (logEntry.event == RecordingEventSink::Event::HeadStep)
+                {
+                    positions.push_back (logEntry.arg);
+                }
+            }
+
+            Assert::IsTrue   ((positions == std::vector<int> { 1, 2, 3, 4 }), L"quarter tracks 1, 2, 3 and 4");
+            Assert::AreEqual (4, ctrl.GetQuarterTrack());
+        }
+
+
+        //  With two adjacent phases on, the head rests on the quarter track
+        //  between them, and a phase turned on again does not move it.
+        TEST_METHOD (TwoAdjacentPhasesHoldTheQuarterTrackBetween)
+        {
+            Disk2Controller  ctrl (6);
+
+
+
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on
+            Assert::AreEqual (1, ctrl.GetQuarterTrack());
+
+            ctrl.Write (0xC0E3, 0x00);
+            ctrl.Write (0xC0E1, 0x00);
+            Assert::AreEqual (1, ctrl.GetQuarterTrack(), L"the same phases hold it there");
+        }
+
+
+        //  A phase directly opposite the head pulls neither way, so with
+        //  opposite phases on, or the opposite phase alone, the head does not
+        //  move.
+        TEST_METHOD (OppositePhasesDoNotMoveTheHead)
+        {
+            Disk2Controller  ctrl (6);
+
+
+
+            ctrl.Write (0xC0E1, 0x00);      // phase 0 on
+            ctrl.Write (0xC0E5, 0x00);      // phase 2 on, opposite
+            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+
+            ctrl.Write (0xC0E0, 0x00);      // phase 0 off: phase 2 alone, opposite
+            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+        }
+
+
+        TEST_METHOD (ThePullIsTheAverageOfTheEnergizedPhases)
+        {
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0000, 5),  L"no phase on");
+            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 0),  L"phase 1 from track 0");
+            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0011, 0),  L"phases 0 and 1: the quarter track between");
+            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0010, 1),  L"phase 1 from the quarter track before it");
+            Assert::AreEqual (-2, Disk2Controller::GetPull (0b1000, 0),  L"phase 3 pulls back from track 0");
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0100, 0),  L"phase 2 is opposite track 0");
+            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b1011, 0),  L"phases 3, 0 and 1 balance");
+            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 64), L"the cycle repeats every eight quarter tracks");
+        }
 
         TEST_METHOD (DriveSelect_firesOnceWithNewDriveIndex)
         {
@@ -515,6 +603,113 @@ namespace Disk2ControllerEventTests
                 Byte  b = observed.Read (0xC08C);
                 Assert::AreEqual (a, b);
             }
+        }
+
+
+        //  A sequence touching every switch kind: motor, a step, both drive
+        //  selects, write mode on and off, and the motor off and spun down.
+        static void RunScript (Disk2Controller & ctrl)
+        {
+            ctrl.Write (0xC0E9, 0x00);      // motor on
+            ctrl.Write (0xC0E3, 0x00);      // phase 1 on: a step
+            ctrl.Write (0xC0E2, 0x00);      // phase 1 off
+            ctrl.Write (0xC0EB, 0x00);      // drive 2
+            ctrl.Write (0xC0EA, 0x00);      // drive 1
+            ctrl.Write (0xC0EF, 0x00);      // write mode on
+            ctrl.Write (0xC0EF, 0x00);      // on again: no event
+            ctrl.Write (0xC0EE, 0x00);      // write mode off
+            ctrl.Write (0xC0E8, 0x00);      // motor off
+            ctrl.Tick  (Disk2Controller::kMotorSpindownCycles + 1);
+        }
+
+
+        static bool IsSameLog (const RecordingEventSink & a, const RecordingEventSink & b)
+        {
+            return std::equal (a.log.begin(), a.log.end(), b.log.begin(), b.log.end(),
+                               [] (const auto & x, const auto & y) { return x.event == y.event && x.arg == y.arg; });
+        }
+
+
+        //  Every event is delivered to the Breakpoints slot alone, and to the
+        //  Panel and Breakpoints slots together, in the same order as to the
+        //  Panel slot alone.
+        TEST_METHOD (EachEventReachesTheBreakpointsSlotAloneAndBesideThePanel)
+        {
+            RecordingEventSink  panelAlone;
+            RecordingEventSink  breakAlone;
+            RecordingEventSink  panelBoth;
+            RecordingEventSink  breakBoth;
+            auto                first  = std::make_unique<Disk2Controller> (6);
+            auto                second = std::make_unique<Disk2Controller> (6);
+            auto                third  = std::make_unique<Disk2Controller> (6);
+
+
+
+            first->SetEventSink (&panelAlone);
+            RunScript (*first);
+
+            second->SetEventSink (ObserverSlot::Breakpoints, &breakAlone);
+            RunScript (*second);
+
+            third->SetEventSink (&panelBoth);
+            third->SetEventSink (ObserverSlot::Breakpoints, &breakBoth);
+            RunScript (*third);
+
+            Assert::IsTrue (panelAlone.CountOf (RecordingEventSink::Event::WriteModeOn)  == 1, L"write mode on, once");
+            Assert::IsTrue (panelAlone.CountOf (RecordingEventSink::Event::WriteModeOff) == 1, L"write mode off, once");
+            Assert::IsTrue (IsSameLog (panelAlone, breakAlone), L"the Breakpoints slot alone");
+            Assert::IsTrue (IsSameLog (panelAlone, panelBoth),  L"the Panel slot beside it");
+            Assert::IsTrue (IsSameLog (panelAlone, breakBoth),  L"the Breakpoints slot beside the Panel");
+        }
+
+
+        //  With the window's sink set after the debugger's, the debugger's is in
+        //  its slot, and the Disk II log's events are the same whether or not
+        //  a Breakpoints listener is there.
+        TEST_METHOD (TheBreakpointsSlotIsIndependentOfTheOthers)
+        {
+            RecordingEventSink  breakpoints;
+            RecordingEventSink  window;
+            RecordingEventSink  historyAlone;
+            RecordingEventSink  historyBeside;
+            auto                ctrl     = std::make_unique<Disk2Controller> (6);
+            auto                alone    = std::make_unique<Disk2Controller> (6);
+            auto                beside   = std::make_unique<Disk2Controller> (6);
+
+
+
+            ctrl->SetEventSink (ObserverSlot::Breakpoints, &breakpoints);
+            ctrl->SetEventSink (&window);
+            RunScript (*ctrl);
+
+            Assert::IsFalse (breakpoints.log.empty(), L"the Breakpoints sink is in its slot after the Panel sink is set");
+            Assert::IsTrue  (IsSameLog (window, breakpoints));
+
+            alone->SetEventSink (ObserverSlot::History, &historyAlone);
+            RunScript (*alone);
+
+            beside->SetEventSink (ObserverSlot::History,     &historyBeside);
+            beside->SetEventSink (ObserverSlot::Breakpoints, &breakpoints);
+            RunScript (*beside);
+
+            Assert::IsTrue (IsSameLog (historyAlone, historyBeside), L"the History slot's events are the same with a Breakpoints listener");
+        }
+
+
+        TEST_METHOD (WithNoListenerNoSlotIsAny)
+        {
+            ObserverSlots<IDisk2EventSink>  slots;
+            RecordingEventSink              sink;
+
+
+
+            Assert::IsFalse (slots.IsAny());
+
+            slots.Set (ObserverSlot::Breakpoints, &sink);
+            Assert::IsTrue  (slots.IsAny(), L"the Breakpoints slot alone");
+
+            slots.Set (ObserverSlot::Breakpoints, nullptr);
+            Assert::IsFalse (slots.IsAny());
         }
     };
 }

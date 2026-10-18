@@ -6,6 +6,9 @@
 #include "Cassque/Model/DiskOperations.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "HResultAssert.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -83,7 +86,7 @@ public:
     //  A clean run, or the runner's own diagnostics as the failure text.
     static void AssertCleanCli (const DiskCommandResult & result)
     {
-        std::wstring  why (result.diagnostics.begin(), result.diagnostics.end());
+        std::wstring  why = TextEncoding::NarrowToWide (result.diagnostics);
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, why.c_str());
     }
@@ -92,7 +95,7 @@ public:
 
     static void AssertCleanFacade (const DiskOperations::Result & result)
     {
-        std::wstring  why (result.message.begin(), result.message.end());
+        std::wstring  why = TextEncoding::NarrowToWide (result.message);
 
         Assert::IsTrue (result.Succeeded(), why.c_str());
     }

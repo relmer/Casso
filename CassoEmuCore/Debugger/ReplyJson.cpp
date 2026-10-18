@@ -5,6 +5,7 @@
 #include "Core/JsonWriter.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/CommandModeNames.h"
+#include "Core/JsonValue.h"
 
 
 
@@ -141,6 +142,16 @@ std::string ReplyJson::WriteStopped (const StopEvent & stop, std::optional<int64
         }
 
         members.emplace_back ("watch", JsonValue (std::move (watch)));
+    }
+
+    if (stop.disk.has_value())
+    {
+        members.emplace_back ("disk", MakeDiskReport (*stop.disk));
+    }
+
+    if (stop.basic.has_value())
+    {
+        members.emplace_back ("basic", MakeBasicReport (*stop.basic));
     }
 
     if (!stop.condition.empty())
@@ -297,7 +308,8 @@ const char * ReplyJson::GetRegionName (MemoryRegion region)
 
 const char * ReplyJson::GetBreakpointKindName (BreakpointKind kind)
 {
-    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "io", "brk", "interrupt", "memoryValue" };
+    static constexpr const char * kNames[] = { "address", "opcode", "register", "memory", "brk", "interrupt", "memoryValue", "disk",
+                                               "basicLine", "basicVariable", "basicError" };
 
 
 
@@ -335,7 +347,8 @@ const char * ReplyJson::GetAccessName (WatchAccess access)
 
 const char * ReplyJson::GetStopReasonName (StopReason reason)
 {
-    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset" };
+    static constexpr const char * kNames[] = { "breakpoint", "watchpoint", "step", "runTo", "budget", "pause", "brk", "invalidOpcode", "reset", "disk",
+                                               "basicStep", "basicError" };
 
 
 
@@ -605,6 +618,18 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
 
     if (auto * v = std::get_if<ProfileData>       (&data)) { return MakeProfile    (*v); }
     if (auto * v = std::get_if<TraceData>         (&data)) { return MakeTrace      (*v); }
+    if (auto * v = std::get_if<BasicVariablesData> (&data)) { return MakeBasicVariables (*v); }
+    if (auto * v = std::get_if<BasicStackData>    (&data)) { return MakeBasicStack (*v); }
+
+    if (auto * v = std::get_if<ProjectData> (&data))
+    {
+        return JsonValue (Members { { "kind",        MakeString ("project") },
+                                    { "scope",       MakeString (v->scope) },
+                                    { "key",         MakeString (v->key) },
+                                    { "label",       MakeString (v->label) },
+                                    { "file",        MakeString (v->file) },
+                                    { "isAutomatic", JsonValue (v->isAutomatic) } });
+    }
 
     if (auto * v = std::get_if<VideoInfoData> (&data))
     {
@@ -786,6 +811,19 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
 {
     std::vector<JsonValue>  opcodes;
     std::vector<JsonValue>  addresses;
+    std::vector<JsonValue>  routines;
+    std::vector<JsonValue>  tree;
+    std::vector<JsonValue>  frames;
+    auto                    kindName = [] (RoutineKind kind)
+    {
+        switch (kind)
+        {
+        case RoutineKind::Call:      return "call";
+        case RoutineKind::Brk:       return "brk";
+        case RoutineKind::Interrupt: return "interrupt";
+        default:                     return "top";
+        }
+    };
 
 
 
@@ -804,6 +842,41 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
                                                   { "cycles",  MakeNumber ((int64_t) entry.cycles) } }));
     }
 
+    for (const ProfileRoutineEntry & entry : data.routines)
+    {
+        routines.push_back (JsonValue (Members { { "address", MakeNumber ((int64_t) entry.address) },
+                                                 { "kind",    MakeString (kindName (entry.kind)) },
+                                                 { "name",    MakeString (entry.GetName()) },
+                                                 { "self",    MakeNumber ((int64_t) entry.self) },
+                                                 { "total",   MakeNumber ((int64_t) entry.total) },
+                                                 { "calls",   MakeNumber ((int64_t) entry.calls) } }));
+    }
+
+    for (const ProfileTreeEntry & entry : data.tree)
+    {
+        tree.push_back (JsonValue (Members { { "routine", MakeNumber ((int64_t) entry.routine) },
+                                             { "depth",   MakeNumber ((int64_t) entry.depth) },
+                                             { "self",    MakeNumber ((int64_t) entry.self) },
+                                             { "total",   MakeNumber ((int64_t) entry.total) },
+                                             { "calls",   MakeNumber ((int64_t) entry.calls) } }));
+    }
+
+    for (const ProfileFrameEntry & entry : data.frames)
+    {
+        std::vector<JsonValue>  shares;
+
+
+
+        for (const auto & [routine, cycles] : entry.shares)
+        {
+            shares.push_back (JsonValue (Members { { "routine", MakeNumber ((int64_t) routine) }, { "cycles", MakeNumber ((int64_t) cycles) } }));
+        }
+
+        frames.push_back (JsonValue (Members { { "frame",  MakeNumber ((int64_t) entry.index) },
+                                               { "shares", JsonValue (std::move (shares)) },
+                                               { "other",  MakeNumber ((int64_t) entry.other) } }));
+    }
+
     return JsonValue (Members { { "kind",         MakeString ("profile") },
                                 { "on",           JsonValue (data.isOn) },
                                 { "instructions", MakeNumber ((int64_t) data.instructions) },
@@ -812,7 +885,10 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
                                 { "penalties",    JsonValue (Members { { "pageCross",   MakeNumber ((int64_t) data.pageCross) },
                                                                        { "branchTaken", MakeNumber ((int64_t) data.branchTaken) },
                                                                        { "branchCross", MakeNumber ((int64_t) data.branchCross) } }) },
-                                { "addresses",    JsonValue (std::move (addresses)) } });
+                                { "addresses",    JsonValue (std::move (addresses)) },
+                                { "routines",     JsonValue (std::move (routines)) },
+                                { "tree",         JsonValue (std::move (tree)) },
+                                { "frames",       JsonValue (std::move (frames)) } });
 }
 
 
@@ -868,8 +944,13 @@ JsonValue ReplyJson::MakeTraceRecord (const TraceRecord & record)
                                       { "symbol",    record.accessSymbol.empty() ? JsonValue (nullptr) : MakeString (record.accessSymbol) } });
     }
 
-    return JsonValue (Members { { "index",       MakeNumber ((int64_t) record.index) },
-                                { "cycles",      MakeNumber ((int64_t) record.cycles) },
+    if (!record.isAvailable)
+    {
+        return JsonValue (Members { { "available",  JsonValue (false) },
+                                    { "rebuilding", JsonValue (record.isRebuilding) } });
+    }
+
+    return JsonValue (Members { { "cycles",      MakeNumber ((int64_t) record.cycles) },
                                 { "pc",          MakeNumber ((int64_t) record.pc) },
                                 { "bytes",       JsonValue (std::vector<JsonValue> { MakeNumber (record.opcode),
                                                                                      MakeNumber (record.op1),
@@ -977,7 +1058,7 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
 {
     Members  members;
     bool     hasRange = breakpoint.kind == BreakpointKind::Address || breakpoint.kind == BreakpointKind::Memory ||
-                        breakpoint.kind == BreakpointKind::Io      || breakpoint.kind == BreakpointKind::MemoryValue;
+                        breakpoint.kind == BreakpointKind::MemoryValue;
 
 
 
@@ -1011,6 +1092,31 @@ JsonValue ReplyJson::MakeBreakpoint (const BreakpointInfo & breakpoint)
         members.emplace_back ("mode",   MakeString (GetWatchModeName (breakpoint.mode)));
     }
 
+    if (breakpoint.disk.has_value())
+    {
+        members.emplace_back ("disk", MakeDiskSpec (*breakpoint.disk, breakpoint.resolved));
+    }
+
+    if (breakpoint.resolved.has_value())
+    {
+        members.emplace_back ("resolved", MakeNumber (*breakpoint.resolved));
+    }
+
+    if (breakpoint.kind == BreakpointKind::BasicLine)
+    {
+        members.emplace_back ("line", MakeNumber (breakpoint.address));
+    }
+
+    if (breakpoint.kind == BreakpointKind::BasicVariable)
+    {
+        members.emplace_back ("variable", MakeString (breakpoint.basicName));
+    }
+
+    if (!breakpoint.name.empty())
+    {
+        members.emplace_back ("name", MakeString (breakpoint.name));
+    }
+
     members.emplace_back ("enabled",   JsonValue (breakpoint.enabled));
     members.emplace_back ("temporary", JsonValue (breakpoint.temporary));
     members.emplace_back ("stops",     JsonValue (breakpoint.stops));
@@ -1037,10 +1143,21 @@ JsonValue ReplyJson::MakeWatchList (const WatchListData & data)
 
     for (const WatchEntry & entry : data.entries)
     {
-        entries.push_back (JsonValue (Members { { "id",      MakeNumber (entry.id) },
-                                                { "address", MakeNumber (entry.address) },
-                                                { "enabled", JsonValue (entry.enabled) },
-                                                { "value",   entry.value.has_value() ? MakeNumber (*entry.value) : JsonValue (nullptr) } }));
+        Members  members = { { "id",      MakeNumber (entry.id) },
+                             { "address", MakeNumber (entry.address) },
+                             { "enabled", JsonValue (entry.enabled) },
+                             { "value",   entry.value.has_value() ? MakeNumber (*entry.value) : JsonValue (nullptr) } };
+
+
+
+        //  A BASIC watch has its variable and the value as PRINT writes it.
+        if (!entry.basicName.empty())
+        {
+            members.emplace_back ("basic",      MakeString (entry.basicName));
+            members.emplace_back ("basicValue", entry.basicValue.has_value() ? MakeString (*entry.basicValue) : JsonValue (nullptr));
+        }
+
+        entries.push_back (JsonValue (std::move (members)));
     }
 
     return JsonValue (Members { { "kind", MakeString (kKinds[(int) data.kind]) }, { "entries", JsonValue (std::move (entries)) } });

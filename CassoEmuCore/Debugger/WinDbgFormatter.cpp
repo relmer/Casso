@@ -74,6 +74,36 @@ std::string WinDbgFormatter::FormatRegisters (const Cpu6502Registers & registers
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WinDbgFormatter::FormatRegister
+//
+//  One register under WinDbg's name for it: `a=41`, `sp=f9`, `pc=0300`,
+//  `fl=30`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WinDbgFormatter::FormatRegister (const Cpu6502Registers & registers, const std::string & name)
+{
+    std::string  line;
+
+
+
+    if      (name == "A")  { line = std::format ("a={:02x}",  registers.a);  }
+    else if (name == "X")  { line = std::format ("x={:02x}",  registers.x);  }
+    else if (name == "Y")  { line = std::format ("y={:02x}",  registers.y);  }
+    else if (name == "S")  { line = std::format ("sp={:02x}", registers.sp); }
+    else if (name == "PC") { line = std::format ("pc={:04x}", registers.pc); }
+    else if (name == "P")  { line = std::format ("fl={:02x}", registers.p);  }
+    else                   { line = FormatRegisters (registers); }
+
+    return line;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WinDbgFormatter::FormatFlags
 //
 //  N V - B D I Z C, lowercase where clear and uppercase where set, as WinDbg
@@ -123,7 +153,7 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
 
     if (auto * v = std::get_if<RegistersData> (&data))
     {
-        lines.push_back (FormatRegisters (v->registers));
+        lines.push_back (v->only.empty() ? FormatRegisters (v->registers) : FormatRegister (v->registers, v->only));
     }
     else if (auto * v = std::get_if<MemoryData> (&data))
     {
@@ -133,7 +163,7 @@ bool WinDbgFormatter::TryFormatData (const std::string & name, const ReplyData &
         else                   { FormatBytes  (*v, lines); }
     }
     else if (auto * v = std::get_if<DisassemblyData>    (&data)) { FormatDisassembly (*v, lines); }
-    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, lines); }
+    else if (auto * v = std::get_if<BreakpointListData> (&data)) { FormatBreakpoints (*v, lines); AppleWinFormatter::AppendVideoBreak (*v, lines); }
     else if (auto * v = std::get_if<CallStackData>      (&data)) { FormatCallStack   (*v, lines); }
     else if (auto * v = std::get_if<CalcData>           (&data))
     {
@@ -379,7 +409,8 @@ void WinDbgFormatter::FormatDisassembly (const DisassemblyData & data, Lines & l
 //  its first hit. A value entry shows its byte. A condition follows, then the
 //  hits and any flag that is off its default. A breakpoint on an opcode, a
 //  register, BRK or an interrupt has no address, so what it stops on takes
-//  that place.
+//  that place. A disk breakpoint has `disk` there, and its event after the
+//  counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,7 +426,7 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
 
 
 
-        if (breakpoint.kind == BreakpointKind::Memory || breakpoint.kind == BreakpointKind::Io)
+        if (breakpoint.kind == BreakpointKind::Memory)
         {
             kind = std::format ("{}{} ",
                                 breakpoint.access == WatchAccess::Read  ? "r"
@@ -413,6 +444,11 @@ void WinDbgFormatter::FormatBreakpoints (const BreakpointListData & data, Lines 
         }
 
         text = std::format ("{} {} {} {}0001 (0001)", breakpoint.id, breakpoint.enabled ? "e" : "d", address, kind);
+
+        if (breakpoint.kind == BreakpointKind::Disk)
+        {
+            text += "  " + AppleWinFormatter::DescribeDisk (breakpoint);
+        }
 
         if (!breakpoint.condition.empty() && breakpoint.kind != BreakpointKind::Register)
         {
@@ -441,11 +477,15 @@ std::string WinDbgFormatter::DescribeTarget (const BreakpointInfo & breakpoint)
 {
     switch (breakpoint.kind)
     {
-    case BreakpointKind::Opcode:    return std::format ("opcode {:02x}", breakpoint.opcode);
-    case BreakpointKind::Register:  return "register " + breakpoint.condition;
-    case BreakpointKind::Brk:       return "brk";
-    case BreakpointKind::Interrupt: return "interrupt";
-    default:                        return std::format ("{:04x}", breakpoint.address);
+    case BreakpointKind::Opcode:        return std::format ("opcode {:02x}", breakpoint.opcode);
+    case BreakpointKind::Register:      return "register " + breakpoint.condition;
+    case BreakpointKind::Brk:           return "brk";
+    case BreakpointKind::Interrupt:     return "interrupt";
+    case BreakpointKind::Disk:          return "disk";
+    case BreakpointKind::BasicLine:     return std::format ("basic line {}", breakpoint.address);
+    case BreakpointKind::BasicVariable: return "basic variable " + breakpoint.basicName;
+    case BreakpointKind::BasicError:    return "basic error";
+    default:                            return std::format ("{:04x}", breakpoint.address);
     }
 }
 

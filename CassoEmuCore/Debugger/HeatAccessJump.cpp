@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/HeatAccessJump.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -214,7 +215,7 @@ std::wstring HeatAccessJump::Describe (
     text += info.instruction.empty() ? std::string ("???") : info.instruction;
     text += " at cycle " + GroupDigits (info.cycle);
 
-    return std::wstring (text.begin(), text.end());
+    return TextEncoding::NarrowToWide (text);
 }
 
 

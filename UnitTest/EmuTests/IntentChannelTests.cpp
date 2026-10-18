@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

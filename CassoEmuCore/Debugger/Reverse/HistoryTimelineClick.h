@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/HistoryThumbnails.h"
+struct HistoryThumbnailCell;
+class HistoryThumbnails;
 
 
 

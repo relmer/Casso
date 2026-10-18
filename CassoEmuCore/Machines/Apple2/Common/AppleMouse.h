@@ -41,6 +41,11 @@ struct InputRecord;
 //      $C070 R    PTRIG side effect: clears the VBL interrupt latch
 //      $C078 W    IOU access off (default; $C058-5F = annunciator/DHIRES)
 //      $C079 W    IOU access on  ($C058-5F = the mouse switches above)
+//      $C07E W    SETIOUDIS: IOU access off, as $C078
+//      $C07E R7   RdIOUDis: 1 = IOU access off (a read does not switch it)
+//      $C07F W    CLRIOUDIS: IOU access on, as $C079
+//      $C07F R7   RdDHIRES: 1 = double hi-res OFF (a read does not switch it;
+//                 polarity per the //c ROM self-test, see Apple2eSoftSwitchBank)
 //
 //  Interrupt model: host motion accumulates as signed deltas; one unit per
 //  axis latches at a time (direction line + pending flag), the aggregate
@@ -72,11 +77,15 @@ public:
     // VBL-onset source for the VBL interrupt latch. Caller-owned.
     void    SetVideoTiming (IVideoTiming * vt) { m_videoTiming = vt; }
 
-    // Memory bus for reading the mouse firmware's screen holes (position +
-    // clamp window) during Tick — CPU thread, so the reads are race-free
-    // with guest execution and see the live MMU mapping (the shell's UI
-    // thread must NOT read guest memory directly). Caller-owned.
-    void    SetBus (MemoryBus * bus) { m_bus = bus; }
+    // Where Tick reads the mouse firmware's screen holes (position + clamp
+    // window). The firmware keeps them in main RAM, so SetMainRam gives the
+    // main RAM buffer and the reads ignore RAMRD and 80STORE+PAGE2, which
+    // bank the CPU's view of $0400-$07FF. Without it, the reads go through
+    // the bus. Both are read on the CPU thread, so the reads are race-free
+    // with guest execution (the shell's UI thread must NOT read guest memory
+    // directly). Caller-owned.
+    void    SetBus     (MemoryBus * bus)       { m_bus     = bus;     }
+    void    SetMainRam (const Byte * mainRam)  { m_mainRam = mainRam; }
 
     // Host input (any thread)
 
@@ -86,11 +95,11 @@ public:
     // Absolute host->guest targeting: the host pointer's position
     // over the emulator viewport as 16-bit fractions (0..65535 across each
     // axis). Tick (CPU thread) projects the fraction into the firmware's
-    // LIVE clamp window (read from the slot-7 screen holes via the bus) and
+    // LIVE clamp window (read from the slot-7 screen holes) and
     // queues the delta from the firmware's current position as movement
     // units — self-correcting: units the firmware clamps away re-derive on
     // the next tick. Inert until the guest initializes the mouse firmware
-    // (hole sanity checks) or when no bus is wired.
+    // (hole sanity checks) or when neither main RAM nor a bus is wired.
     void    SetHostTargetFraction (uint16_t fx, uint16_t fy);
     void    ClearHostTarget       () { m_hasTarget.store (false, std::memory_order_release); }
 
@@ -190,7 +199,7 @@ protected:
     static constexpr Word     kHoleYMaxLo  = 0x06FD, kHoleYMaxHi  = 0x07FD;
 
     // Retarget cadence: re-derive pending motion from the holes at ~500 Hz
-    // rather than per instruction (12 bus reads per pass).
+    // rather than per instruction (12 hole reads per pass).
     static constexpr uint32_t kRetargetIntervalCycles = 2048;
 
     // Host-thread accumulator (drained by Tick on the CPU thread).
@@ -203,6 +212,7 @@ protected:
     std::atomic<bool>         m_hasTarget   { false };
     uint32_t           m_retargetCountdown = 0;
     class MemoryBus  * m_bus               = nullptr;
+    const Byte       * m_mainRam           = nullptr;
 
     // The host state the journal last saw (CPU thread, journal attached).
     // The button is read by a const status read, so it is mutable.

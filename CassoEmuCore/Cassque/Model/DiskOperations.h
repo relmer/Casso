@@ -5,13 +5,15 @@
 #include "CommandLineOptions.h"
 #include "Devices/Disk/DiskCommandResult.h"
 #include "Devices/Disk/DiskImageSession.h"
-#include "Devices/Disk/FilePath.h"
-#include "Machines/Apple2/Common/VolumeTypes.h"
 
 
 class IDiskFileIo;
 class IIntentChannel;
 enum class VolumeKind;
+class FilePath;
+struct VolumeListing;
+struct FilePayload;
+struct DirectoryRemovalPlan;
 
 
 

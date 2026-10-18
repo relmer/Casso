@@ -5,6 +5,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
+#include "Debugger/AppleWinCommandTable.h"
 
 
 
@@ -511,6 +512,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
                                                        command.verb == DebugVerb::SetReadWatchpoint   ||
                                                        command.verb == DebugVerb::SetWriteWatchpoint  ||
                                                        command.verb == DebugVerb::SetValueBreakpoint  ||
+                                                       command.verb == DebugVerb::SetDiskBreakpoint   ||
                                                        (command.verb == DebugVerb::SetBreakpoint && !isConditional);
     bool                               takesOne      = command.verb == DebugVerb::SetBreakpointAndWatchpoint ||
                                                        command.verb == DebugVerb::ClearBreakpoint            ||
@@ -574,10 +576,23 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
             return true;
         }
 
-        return TryParseRange (args.tokens[0], *args.context, command, error) && isLive();
+        if (!TryParseRange (args.tokens[0], *args.context, command, error))
+        {
+            return false;
+        }
+
+        if (command.verb == DebugVerb::SetBreakpoint)
+        {
+            NoteSymbol (args.tokens[0], *args.context, command);
+        }
+
+        return isLive();
 
     case DebugVerb::BreakOnBeam:
         return TryParseBeamArguments (args, command, error);
+
+    case DebugVerb::SetDiskBreakpoint:
+        return TryParseDiskArguments (args, command, error);
 
     case DebugVerb::RunFrame:
         return TryParseFrameArguments (args, command, error);
@@ -594,7 +609,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         return TryParseRegisterCondition (args.tokens, command, error);
 
     case DebugVerb::BreakOnOpcode:
-        return TryParseValues (args.tokens, 0, ValueWidth::Bytes, *args.context, command, error);
+        return TryParseOpcodes (args, command, error);
 
     case DebugVerb::ClearBreakpoint:
     case DebugVerb::DisableBreakpoint:
@@ -627,6 +642,10 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
         return true;
 
+    // BPNAME # "text": the id, then the name as typed, its quotes taken off.
+    case DebugVerb::SetBreakpointName:
+        return TryParseNameArguments (args, command, error);
+
     // A file name keeps its case; BRK's and BRKINT's keywords do not.
     case DebugVerb::SaveBreakpoints:
         command.text = args.rest;
@@ -636,6 +655,53 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         command.text = ToUpper (args.rest);
         return true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseNameArguments
+//
+//  The name is the rest of the line after the id, with the spaces inside
+//  it; in quotes, the quotes are taken off. Nothing after the id clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseNameArguments (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    std::string  rest  = args.rest;
+    size_t       start = rest.find_first_not_of (" \t");
+    size_t       end   = (start == std::string::npos) ? std::string::npos : rest.find_first_of (" \t", start);
+    Tokens       id;
+
+
+
+    if (start == std::string::npos || rest[start] == '*')
+    {
+        error = "BPNAME takes a breakpoint's id, then its name in quotes.";
+        return false;
+    }
+
+    id.push_back (rest.substr (start, end - start));
+
+    if (!TryParseIdOrAll (id, command, error, args.context->GetNumberSyntax()))
+    {
+        return false;
+    }
+
+    command.text = (end == std::string::npos) ? std::string() : rest.substr (end);
+    command.text.erase (0, std::min (command.text.size(), command.text.find_first_not_of (" \t")));
+    command.text.erase (command.text.find_last_not_of (" \t") + 1);
+
+    if (command.text.size() >= 2 && command.text.front() == '"' && command.text.back() == '"')
+    {
+        command.text = command.text.substr (1, command.text.size() - 2);
+    }
+
+    return true;
 }
 
 
@@ -679,6 +745,98 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
 
     hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::NoteSymbol
+//
+//  An address given as a symbol, one address and no range, is noted with
+//  the address, so the breakpoint can follow the symbol to where a rebuilt
+//  program puts it. A number written like a symbol's name is a number: the
+//  symbol must resolve to the address the text evaluated to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleWinParser::NoteSymbol (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command)
+{
+    Word  address = 0;
+
+
+
+    if (!command.hasA2 && context.TryResolveSymbol (text, address) && address == command.a1)
+    {
+        command.symbol = text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseOpcodes
+//
+//  BRKOP [opcode | mnemonic]...: each opcode a byte, into values, and each
+//  mnemonic, upper case, into text separated by spaces, for the handler to
+//  find the opcodes of on the machine's CPU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseOpcodes (const Arguments & args, DebugCommand & command, std::string & error)
+{
+    Tokens  bytes;
+
+
+
+    command.text.clear();
+
+    for (const std::string & token : args.tokens)
+    {
+        if (!IsMnemonicToken (token))
+        {
+            bytes.push_back (token);
+            continue;
+        }
+
+        command.text += (command.text.empty() ? "" : " ") + ToUpper (token);
+    }
+
+    return TryParseValues (bytes, 0, ValueWidth::Bytes, *args.context, command, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::IsMnemonicToken
+//
+//  Three letters, or three and a digit as the 65C02's RMB0 and BBS7 are: no
+//  byte is written that way, since a byte takes at most two hex digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsMnemonicToken (const std::string & token)
+{
+    constexpr size_t  kLetters = 3;
+    bool              isWord   = token.size() == kLetters || token.size() == kLetters + 1;
+    size_t            i        = 0;
+
+
+
+    for (i = 0; isWord && i < kLetters; i++)
+    {
+        isWord = std::isalpha ((unsigned char) token[i]) != 0;
+    }
+
+    return isWord && (token.size() == kLetters || std::isdigit ((unsigned char) token[kLetters]) != 0);
 }
 
 
@@ -1196,6 +1354,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
         }
 
         command.hasA1 = !args.tokens.empty();
+
+        //  A watch's text also goes to the session, which reads it as a BASIC
+        //  variable where it is one; text that is not an address may be one.
+        if (command.verb == DebugVerb::AddWatch && !args.tokens.empty())
+        {
+            command.text = args.rest;
+            return TryEvaluate (args.tokens[0], *args.context, command.a1, error) || IsBasicReferenceForm (args.rest, error);
+        }
+
         return args.tokens.empty() || TryEvaluate (args.tokens[0], *args.context, command.a1, error);
 
     case DebugVerb::ClearWatch:
@@ -1377,6 +1544,13 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
         return TryParseMemoryArguments (args, command, error);
     }
 
+    //  PROJECT's subcommand and file name, the name's case as typed.
+    if (command.verb == DebugVerb::Project)
+    {
+        command.text = args.rest;
+        return true;
+    }
+
     //  A file name keeps its case.
     if (command.verb == DebugVerb::SaveState || command.verb == DebugVerb::LoadState)
     {
@@ -1508,15 +1682,15 @@ bool AppleWinParser::TryParseCallsArguments (const Arguments & args, DebugComman
 //  AppleWinParser::TryParseHistoryArguments
 //
 //  HISTORY ON and HISTORY OFF switch the trace; HISTORY SAVE file writes it;
-//  HISTORY first [count] shows count entries from first, and a bare HISTORY
-//  the newest. The numbers are decimal, since an entry number runs past what
-//  a 16-bit expression holds.
+//  HISTORY cycle [count] lists count entries from the first at or after the
+//  cycle, and a bare HISTORY the newest. The numbers are decimal, since a
+//  cycle count runs past what a 16-bit expression has room for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a first entry and a count in decimal.";
+    static constexpr const char * kUsage = "HISTORY takes ON, OFF, SAVE and a file name, or a cycle and a count in decimal.";
     std::string                   first;
     uint64_t                      value  = 0;
     NumberSyntax                  syntax = args.context->GetNumberSyntax();
@@ -1557,7 +1731,7 @@ bool AppleWinParser::TryParseHistoryArguments (const Arguments & args, DebugComm
         return false;
     }
 
-    command.first = value;
+    command.fromCycle = value;
 
     if (args.tokens.size() == 2)
     {
@@ -1607,9 +1781,39 @@ bool AppleWinParser::TryParseCount (const std::string & text, uint32_t & value, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinParser::IsBasicReferenceForm
+//
+//  BASIC and a name, or a name written as an Applesoft variable or array
+//  element: letters and digits after a letter, a $ or %, and subscripts.
+//  The error is cleared for one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::IsBasicReferenceForm (const std::string & text, std::string & error)
+{
+    static const std::regex  s_kForm (R"(^\s*(BASIC\s+)?[A-Za-z][A-Za-z0-9]*[$%]?(\(\s*\d+(\s*,\s*\d+)*\s*\))?\s*$)", std::regex::icase);
+
+
+
+    if (!std::regex_match (text, s_kForm))
+    {
+        return false;
+    }
+
+    error.clear();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinParser::TryParseDecimal
 //
-//  Digits, with or without the # or 0n that marks a decimal number elsewhere.
+//  Digits, with or without the # an id is listed with, or the 0n that marks a
+//  decimal number in an expression.
 //  In WinDbg's syntax 0x or $ marks hex.
 //
 ////////////////////////////////////////////////////////////////////////////////

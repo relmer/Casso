@@ -3,9 +3,10 @@
 #include "Pch.h"
 
 #include "CommitPlan.h"
-#include "DiskCommandResult.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+
+struct DiskCommandResult;
 
 enum class VolumeKind;
 
@@ -162,6 +163,7 @@ public:
     //  enforced by the HOST file's read-only attribute finally surfaces -- the
     //  volume layer never sees it, because nothing about the image's contents
     //  says the file may not be written.
+    static std::string  DescribeCommitFailure  (HRESULT hr, CommitPlan::Step step);
     static std::string  DescribeReplaceFailure (HRESULT hr);
 
     //  The same job for writing the temporary beside the image.

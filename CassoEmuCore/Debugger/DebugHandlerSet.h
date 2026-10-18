@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/Handlers/BasicHandlers.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/CallStackHandlers.h"
 #include "Debugger/Handlers/ConfigHandlers.h"
@@ -36,6 +37,8 @@ class DebugHandlerSet
 public:
     void  Attach (DebugSession & session);
 
+    const ExecutionHandlers &  GetExecution () const { return m_execution; }
+
 private:
     RegisterHandlers       m_registers;
     BreakpointHandlers     m_breakpoints;
@@ -50,4 +53,5 @@ private:
     TraceHandlers          m_trace;
     LogHandlers            m_logs;
     StateFileHandlers      m_stateFiles;
+    BasicHandlers          m_basic;
 };

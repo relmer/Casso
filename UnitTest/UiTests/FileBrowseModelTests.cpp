@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "InMemoryFileSystem.h"
 #include "Ui/FileBrowseModel.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

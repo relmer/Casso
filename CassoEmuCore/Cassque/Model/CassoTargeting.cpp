@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Cassque/Model/CassoTargeting.h"
+#include "Core/MachineConfig.h"
 
 
 

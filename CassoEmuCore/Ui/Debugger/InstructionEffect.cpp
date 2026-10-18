@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/InstructionEffect.h"
+#include "Debugger/IDebugExpressionContext.h"
 
 
 
@@ -96,7 +97,9 @@ void ShadowCpu::WriteWord (Word address, Word value)
 //
 //  A byte this instruction already wrote reads back as written, so an
 //  instruction that writes and reads the same address within itself sees its
-//  own value rather than what the machine still holds.
+//  own value rather than the machine's. A $C000-$C0FF byte comes from the
+//  switch's side-effect-free peek; a byte with no peek is the run's fill
+//  value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,13 +119,14 @@ Byte ShadowCpu::ReadByteSlow (Word address)
         }
     }
 
-    if (m_memory == nullptr || !m_memory->TryPeek (address, value))
+    if (m_memory != nullptr && (m_memory->TryPeek (address, value) || m_memory->TryPeekIo (address, value)))
     {
-        m_isComplete = false;
-        return 0;
+        return value;
     }
 
-    return value;
+    m_hasUnknownRead = true;
+
+    return m_unknownValue;
 }
 
 
@@ -153,12 +157,13 @@ Word ShadowCpu::ReadWord (Word address)
 //
 //  InstructionEffect::GetFlagChanges
 //
-//  Only the bits that moved, each as the value it takes. A flag the
-//  instruction leaves alone says nothing.
+//  Only the bits that moved, each as the value it takes, and the bits an
+//  unknown read feeds as "?". A flag the instruction does not change is
+//  left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string InstructionEffect::GetFlagChanges (Byte before, Byte after)
+std::string InstructionEffect::GetFlagChanges (Byte before, Byte after, Byte unknown)
 {
     static constexpr char  kFlagLetters[] = { 'C', 'Z', 'I', 'D', 'B', '-', 'V', 'N' };
     std::string            text;
@@ -169,7 +174,16 @@ std::string InstructionEffect::GetFlagChanges (Byte before, Byte after)
     {
         Byte  mask = (Byte) (1u << bit);
 
-        if (kFlagLetters[bit] != '-' && ((before ^ after) & mask) != 0)
+        if (kFlagLetters[bit] == '-')
+        {
+            continue;
+        }
+
+        if ((unknown & mask) != 0)
+        {
+            text += std::format (" {}=?", kFlagLetters[bit]);
+        }
+        else if (((before ^ after) & mask) != 0)
         {
             text += std::format (" {}={}", kFlagLetters[bit], (after & mask) ? 1 : 0);
         }
@@ -271,7 +285,7 @@ std::string InstructionEffect::GetPush (Byte spBefore, Byte spAfter, const std::
 //  InstructionEffect::Format
 //
 //  The registers, writes and flags that differ, from a run the caller
-//  already made.
+//  already made, with what an unknown read feeds as "?".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,17 +293,25 @@ std::string InstructionEffect::Format (const Cpu6502Registers              & bef
                                        const Cpu6502Registers              & after,
                                        const std::vector<ShadowCpu::Write> & writes,
                                        Word                                  next,
-                                       const WriteText                     & describeWrite)
+                                       const WriteText                     & describeWrite,
+                                       const Unknowns                      & unknowns)
 {
     std::string  text;
     std::string  pushed = GetPush (before.sp, after.sp, writes);
 
 
 
-    if (after.a  != before.a)  { text += std::format (" A={:02X}", after.a);  }
-    if (after.x  != before.x)  { text += std::format (" X={:02X}", after.x);  }
-    if (after.y  != before.y)  { text += std::format (" Y={:02X}", after.y);  }
-    if (after.sp != before.sp) { text += std::format (" S={:02X}", after.sp); }
+    if      (unknowns.a)              { text += " A=?"; }
+    else if (after.a  != before.a)    { text += std::format (" A={:02X}", after.a);  }
+
+    if      (unknowns.x)              { text += " X=?"; }
+    else if (after.x  != before.x)    { text += std::format (" X={:02X}", after.x);  }
+
+    if      (unknowns.y)              { text += " Y=?"; }
+    else if (after.y  != before.y)    { text += std::format (" Y={:02X}", after.y);  }
+
+    if      (unknowns.s)              { text += " S=?"; }
+    else if (after.sp != before.sp)   { text += std::format (" S={:02X}", after.sp); }
 
     text += pushed;
 
@@ -304,15 +326,29 @@ std::string InstructionEffect::Format (const Cpu6502Registers              & bef
             continue;
         }
 
-        text += what.empty() ? std::format (" ${:04X}={:02X}", write.address, write.value)
-                             : " " + what;
+        if (!what.empty())
+        {
+            text += " " + what;
+        }
+        else if (write.isUnknown)
+        {
+            text += std::format (" ${:04X}=?", write.address);
+        }
+        else
+        {
+            text += std::format (" ${:04X}={:02X}", write.address, write.value);
+        }
     }
 
-    text += GetFlagChanges (before.p, after.p);
+    text += GetFlagChanges (before.p, after.p, unknowns.flags);
 
     //  A PC that merely walked past the instruction is where anyone would
     //  expect it; a branch taken, a jump, a call or a return is not.
-    if (after.pc != next)
+    if (unknowns.pc)
+    {
+        text += " PC=?";
+    }
+    else if (after.pc != next)
     {
         text += std::format (" PC=${:04X}", after.pc);
     }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
 
@@ -59,6 +60,54 @@ namespace DebuggerTests
             return opcodes;
         }
 
+
+
+        //  A BPV scanline break has no id, so it is listed after the table's
+        //  entries, and alone when there are none.
+        TEST_METHOD (BPL_ListsTheVideoBreak)
+        {
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            rig.session.SetVideoBreak (0xA0, 0xA0);
+
+            lines = List (rig);
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (0));
+
+            rig.RunOk ("BP 300");
+            lines = List (rig);
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (1));
+
+            rig.session.ClearVideoBreak();
+            Assert::AreEqual ((size_t) 1, List (rig).size(), L"the line goes with the break");
+        }
+
+
+        //  BPDISK fails with no Disk II controller; with one, the set line and
+        //  BPL have the event, and BPSAVE's line sets it again.
+        TEST_METHOD (BPDISK_SetsListsAndSaves)
+        {
+            Rig    bare;
+            Rig    rig;
+            Reply  set;
+
+
+
+            bare.RunFails ("BPDISK READ 11 0", "no Disk II controller");
+
+            rig.target.machineInfo.disks = { "", "" };
+            set = rig.RunOk ("BPDISK D1 READ 11 0");
+
+            Assert::AreEqual (std::string ("Set disk breakpoint #0 (sector read, track $11 sector $00, drive 1)"), set.text.at (0));
+            Assert::IsTrue   (List (rig).at (0).find ("on disk sector read, track $11 sector $00, drive 1") != std::string::npos);
+            Assert::AreEqual (std::string ("BPDISK D1 READ 11 0"), BreakpointHandlers::MakeDefinition (BreakpointHandlers::MakeInfo (rig.session.GetBreakpoints().GetAll().at (0))));
+
+            set = rig.RunOk ("BPDISK RWTS 11 0 READ");
+            Assert::IsTrue (set.text.at (0).ends_with (", unresolved: $03D9 has no JMP yet"), L"an RWTS breakpoint before DOS has filled its vector");
+        }
 
 
         TEST_METHOD (BRK_Lengths_NmosTable)
@@ -194,6 +243,96 @@ namespace DebuggerTests
             rig.RunFails ("BRKINT maybe", "invalid arguments");
         }
 
+
+
+        //  A breakpoint set by a symbol has it: BPSAVE writes the symbol, and
+        //  when the symbols are loaded again with the routine moved, the
+        //  breakpoint moves with it, with a line in the reply. A breakpoint
+        //  set by a number has no symbol.
+        TEST_METHOD (BP_BySymbol_FollowsTheSymbolWhenSymbolsReload)
+        {
+            Rig                       rig;
+            SymbolHandlers            symbols;
+            std::vector<std::string>  lines;
+            std::string               all;
+
+
+
+            rig.session.AddHandler (&symbols);
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0900 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            rig.RunOk ("BP PRINTIT");
+            rig.RunOk ("BP 300");
+            rig.RunOk ("BPSAVE bp.txt");
+
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\bp.txt").find ("BP PRINTIT") != std::string::npos, L"the symbol is saved, not its address");
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\bp.txt").find ("BP 0300") != std::string::npos, L"a number is saved as one");
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0940 PRINTIT\n");
+            lines = rig.RunOk ("SYMUSER LOAD prog.sym").text;
+
+            for (const std::string & line : lines)
+            {
+                all += line + "\n";
+            }
+
+            Assert::IsTrue  (all.find ("Breakpoint #0 moved from $0900 to $0940, the address of PRINTIT.") != std::string::npos, TextEncoding::NarrowToWide (all).c_str());
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0940), L"it stops at the symbol's new address");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0900), L"and not at the old one");
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0300), L"the one set by number is where it was");
+        }
+
+
+        //  A mnemonic sets every opcode of it on this CPU: JSR one, LDA the
+        //  6502's eight. A byte sets its opcode, an opcode set twice is one
+        //  entry, and a word that is no instruction adds nothing.
+        TEST_METHOD (BRKOP_TakesMnemonics)
+        {
+            TestCpu                   cpu;
+            Rig                       rig;
+            std::vector<std::string>  lines;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+
+            lines = rig.RunOk ("BRKOP JSR").text;
+            Assert::AreEqual ((size_t) 1, lines.size());
+            Assert::IsTrue   (lines.at (0).ends_with ("on opcode $20, hits 0"));
+
+            lines = rig.RunOk ("BRKOP lda").text;
+            Assert::AreEqual ((size_t) 8, lines.size(), L"immediate, zero page, zero page X, absolute, absolute X and Y, and both indirect");
+
+            lines = rig.RunOk ("BRKOP 20 EA").text;
+            Assert::AreEqual ((size_t) 2, lines.size());
+            Assert::AreEqual ((size_t) 10, List (rig).size(), L"$20 was already set, so ten entries in all");
+
+            rig.RunFails ("BRKOP FOO", "unknown mnemonic");
+            Assert::AreEqual ((size_t) 10, List (rig).size());
+        }
+
+
+        //  BRKOP 00, or BRKOP BRK, is the BRK breakpoint, so it and BRK ON are
+        //  one entry.
+        TEST_METHOD (BRKOP_OnTheBrkOpcodeIsTheBrkBreakpoint)
+        {
+            TestCpu  cpu;
+            Rig      rig;
+
+
+
+            cpu.InitForTest();
+            rig.target.instructionSet = cpu.GetInstructionSet();
+
+            Assert::IsTrue   (rig.RunOk ("BRKOP 00").text.at (0).ends_with ("on BRK, hits 0"));
+            Assert::IsTrue   (rig.RunOk ("BRKOP BRK").text.at (0).ends_with ("on BRK, hits 0"));
+            rig.RunOk ("BRK ON");
+
+            Assert::AreEqual ((size_t) 1, List (rig).size(), L"one entry that stops on BRK");
+            Assert::AreEqual (std::string ("No opcode breakpoints."), rig.RunOk ("BRKOP").text.at (0));
+        }
 
 
         //  BRKOP alone lists only the opcode entries, so with none it says
@@ -411,6 +550,47 @@ namespace DebuggerTests
             rig.RunFails ("BPSAVE", "invalid arguments");
             rig.session.SetFileSystem (nullptr);
             rig.RunFails ("BPSAVE x.txt", "no file access");
+        }
+
+        //  Each disk breakpoint saves as one BPDISK line, marks and the
+        //  user's IF included, and an RWTS breakpoint's request stays out of
+        //  its condition both ways.
+        TEST_METHOD (BPSAVE_DiskBreakpoints_ReplayRestoresTheTable)
+        {
+            Rig                       rig;
+            std::vector<Breakpoint>   before;
+            std::string               script;
+
+
+
+            rig.target.machineInfo.disks = { "", "" };
+            rig.RunOk ("BPDISK D2 READ 3 4 ADDR D5 AA 96 DATA D5 AA AD PASSED");
+            rig.RunOk ("BPDISK RWTS 11 READ IF A == 21");
+            rig.RunOk ("BPDISK HEAD T 1:3 BUMP");
+            before = rig.session.GetBreakpoints().GetAll();
+
+            rig.RunOk ("BPSAVE bp.txt");
+            script = rig.files.PeekContent (L"C:\\Work\\bp.txt");
+            Assert::IsTrue (script.find ("BPDISK RWTS 11 READ IF A == 21\n") != std::string::npos, TextEncoding::NarrowToWide (script).c_str());
+
+            rig.RunOk ("BPC *");
+
+            for (size_t start = 0, end = script.find ('\n'); end != std::string::npos; start = end + 1, end = script.find ('\n', start))
+            {
+                rig.RunOk (script.substr (start, end - start));
+            }
+
+            Assert::AreEqual (before.size(), rig.session.GetBreakpoints().GetAll().size());
+
+            for (size_t at = 0; at < before.size(); at++)
+            {
+                const Breakpoint  & replayed = rig.session.GetBreakpoints().GetAll().at (at);
+
+
+
+                Assert::IsTrue   (before[at].disk == replayed.disk, std::format (L"entry {}", at).c_str());
+                Assert::AreEqual (before[at].condition.text, replayed.condition.text);
+            }
         }
     };
 }

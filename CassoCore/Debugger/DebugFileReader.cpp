@@ -3,6 +3,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Sha1.h"
+#include "Debugger/DebugFile.h"
 
 
 

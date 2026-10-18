@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/SymbolFileReader.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,7 +33,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (S_OK, hr, std::wstring (error.begin(), error.end()).c_str());
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (error).c_str());
             Assert::AreEqual ((int) expected, (int) format);
             Assert::IsTrue   (!symbols.empty(), L"a symbol file yields symbols");
             return symbols;
@@ -48,7 +49,7 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::Fail ((L"missing " + std::wstring (name.begin(), name.end())).c_str());
+            Assert::Fail ((L"missing " + TextEncoding::NarrowToWide (name)).c_str());
             return {};
         }
 

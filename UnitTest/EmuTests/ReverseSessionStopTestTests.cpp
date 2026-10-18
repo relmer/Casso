@@ -4,6 +4,7 @@
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Reverse/ReverseStopTest.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

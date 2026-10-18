@@ -4,6 +4,8 @@
 
 #include "Debugger/IDebugExpressionContext.h"
 #include "OpcodeTable.h"
+#include "Microcode.h"
+#include "I6502DebugInfo.h"
 
 
 

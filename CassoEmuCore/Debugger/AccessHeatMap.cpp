@@ -877,7 +877,9 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
 //
 //  A write, a change too when the byte it replaced, read just before, held
 //  something else or could not be read. The byte it lands on is written
-//  from here on.
+//  from here on. A store reads its target before it writes it, except at an
+//  absolute address; that read is the bus's, not the program's, so it is
+//  taken back when the store writes the address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -888,6 +890,13 @@ void AccessHeatMap::OnWrite (Word address, Byte value)
     size_t   bit      = 0;
 
 
+
+    if (m_isStore && m_lastRead == address)
+    {
+        TakeBackLastRead (address);
+    }
+
+    m_lastRead.reset();
 
     m_operandsLeft = 0;
     landing        = Count (HeatKind::Write, address, true);
@@ -1515,30 +1524,14 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
         length = 1 + (int) OpcodeTable::GetOperandSize (m_instructionSet[opcode].globalAddressingMode);
     }
 
-    if (m_lastRead == pc && m_counts[m_lastReadLanding.cpu] > 0)
+    if (m_lastRead == pc)
     {
-        m_counts[m_lastReadLanding.cpu]--;
-        m_last[GetLastIndex (HeatSpace::Cpu, false, pc)] = m_lastReadWasCpu;
-
-        if (m_lastReadLanding.hasBank && m_counts[m_lastReadLanding.bank] > 0)
-        {
-            m_counts[m_lastReadLanding.bank]--;
-            m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)] = m_lastReadWasBank;
-        }
-
-        if (m_isLastReadUnwritten)
-        {
-            UncountAlso (HeatKind::UnwrittenRead, pc, m_lastReadLanding);
-        }
-
-        if (m_isLastReadStop)
-        {
-            m_unwrittenStop.reset();
-        }
+        TakeBackLastRead (pc);
     }
 
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
+    m_isStore             = m_instructionSet != nullptr && IsStore (m_instructionSet[opcode].operation);
 
     MarkOpcode (pc, Count (HeatKind::Execute, pc, false));
 
@@ -1555,6 +1548,63 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     m_operandsLeft = length - 1;
 
     m_lastRead.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::TakeBackLastRead
+//
+//  The last read was not data: its counts are removed, the instruction that
+//  read the address before is its last reader again, and the read before
+//  written counted for it, and the stop for that, are removed too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::TakeBackLastRead (Word address)
+{
+    if (m_counts[m_lastReadLanding.cpu] > 0)
+    {
+        m_counts[m_lastReadLanding.cpu]--;
+        m_last[GetLastIndex (HeatSpace::Cpu, false, address)] = m_lastReadWasCpu;
+
+        if (m_lastReadLanding.hasBank && m_counts[m_lastReadLanding.bank] > 0)
+        {
+            m_counts[m_lastReadLanding.bank]--;
+            m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)] = m_lastReadWasBank;
+        }
+
+        if (m_isLastReadUnwritten)
+        {
+            UncountAlso (HeatKind::UnwrittenRead, address, m_lastReadLanding);
+        }
+
+        if (m_isLastReadStop)
+        {
+            m_unwrittenStop.reset();
+        }
+    }
+
+    m_isLastReadUnwritten = false;
+    m_isLastReadStop      = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::IsStore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AccessHeatMap::IsStore (Microcode::Operation operation)
+{
+    return operation == Microcode::Store || operation == Microcode::StoreZero || operation == Microcode::StoreAccumulatorAndX;
 }
 
 

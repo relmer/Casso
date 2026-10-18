@@ -6,7 +6,7 @@
 
 **Updated**: 2026-08-08 (entry point, create-dialog navigation, write-protect toggle)
 
-**Status**: Draft
+**Status**: Shipped in 1.16.0 (2026-08-10)
 
 **Input**: User description: "There's a glaring omission, no way to create a blank disk of a given format and then insert that into the drive."
 

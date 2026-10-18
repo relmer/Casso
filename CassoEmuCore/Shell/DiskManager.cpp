@@ -20,6 +20,7 @@
 #include "../Ui/DriveWidgetState.h"
 #include "../resource.h"
 #include "CpuManager.h"
+#include "Devices/Disk/MountDiagnosis.h"
 
 
 
@@ -559,10 +560,8 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
     //  Re-point the controller at what the store now holds -- the new image on
     //  an insert or a swap, null on an eject, which restores the internal disk.
-    if (controller != nullptr)
-    {
-        controller->SetExternalDisk (drive, image);
-    }
+    //  This sink replaces MachineHost's, so it makes the same call.
+    m_machine.ConnectDiskToController (slot, drive);
 
     //  Re-assert the effective write protection on a disk that just arrived:
     //  the user's per-drive preference plus the backing file's read-only state.
@@ -790,10 +789,11 @@ void DiskManager::Eject (int slot, int drive)
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller                                     * controller = FindSlot6Controller();
-    int64_t                                               nowMs      = GetNowMs();
-    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents = m_driveWidgets.ConsumeSyncEvents();
-    int                                                   drive      = 0;
+    Disk2Controller                                     * controller   = FindSlot6Controller();
+    int64_t                                               nowMs        = GetNowMs();
+    std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents   = m_driveWidgets.ConsumeSyncEvents();
+    WozMachineFacts                                       machineFacts = WozCompatibility::GetMachineFacts (m_machine.GetConfig());
+    int                                                   drive        = 0;
 
 
 
@@ -890,12 +890,23 @@ void DiskManager::UpdateDriveWidgets()
         }
 
         // Sample the mounted image's write-protect breakdown for the
-        // padlock cue + hover tooltip. Empty drive -> no protection.
+        // padlock cue + hover tooltip, and what it declares about the machine
+        // for the info icon. Empty drive -> no protection, nothing declared.
         {
             DiskImage *  image = m_diskStore.GetImage (6, drive);
 
-            st.writeProtect = (image != nullptr) ? image->GetWriteProtectInfo()
-                                                 : WriteProtectInfo();
+            st.writeProtect    = (image != nullptr) ? image->GetWriteProtectInfo()
+                                                    : WriteProtectInfo();
+            st.wozRequirements = (image != nullptr) ? WozCompatibility::ReadRequirements (image->GetWozMetadata())
+                                                    : WozRequirements();
+            st.wozConflict     = WozCompatibility::HasConflict (st.wozRequirements, machineFacts);
+            st.wozMachine      = machineFacts;
+
+            // Copied only when it changes, which is only on a machine switch.
+            if (st.wozMachineName != m_machine.GetConfig().name)
+            {
+                st.wozMachineName = m_machine.GetConfig().name;
+            }
         }
     }
 

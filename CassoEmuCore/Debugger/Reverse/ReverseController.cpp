@@ -9,6 +9,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Shell/MachineHost.h"
+#include "Debugger/Reverse/ReplayControl.h"
 
 
 
@@ -135,6 +136,48 @@ void ReverseController::SetKeyframeListener (
     {
         m_keyframeListeners.emplace_back (owner, std::move (listener));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLiveListener
+//
+//  The owner's listener replaces any it set before; a null one removes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::SetLiveListener (
+    const void    * owner,
+    LiveListener    listener)
+{
+    std::erase_if (m_liveListeners, [owner] (const std::pair<const void *, LiveListener> & each) { return each.first == owner; });
+
+    if (listener)
+    {
+        m_liveListeners.emplace_back (owner, std::move (listener));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRecordingLive
+//
+//  Whether what the machine does now becomes new history: recording, live,
+//  not paused at Maximum speed, and not replaying history of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseController::IsRecordingLive() const
+{
+    return m_isRecording && m_isLive && !m_isPaused && !m_replayer.IsReplaying();
 }
 
 
@@ -1724,11 +1767,13 @@ Error:
 //  last one, so only what changed is copied; the keyframe store flattens it
 //  into a buffer of its own and packs it on its work queue. Every buffer,
 //  list and writer here is reused, so a capture allocates nothing. The
-//  history observer's side bytes, if any, are stored with it.
+//  history observer's side bytes, if any, are stored with it. The keyframe
+//  listeners are called after, unless the caller marks the keyframe first
+//  and calls them itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseController::CaptureNow()
+HRESULT ReverseController::CaptureNow (bool isNotifying)
 {
     HRESULT            hr         = S_OK;
     EmuCpu           * cpu        = m_machine.GetCpu();
@@ -1789,9 +1834,9 @@ HRESULT ReverseController::CaptureNow()
 
     PruneRetainedMedia();
 
-    for (const auto & [owner, listener] : m_keyframeListeners)
+    if (isNotifying)
     {
-        listener (position);
+        NotifyKeyframe (position);
     }
 
 Error:
@@ -1806,11 +1851,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NotifyKeyframe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ReverseController::NotifyKeyframe (uint64_t position)
+{
+    for (const auto & [owner, listener] : m_keyframeListeners)
+    {
+        listener (position);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CaptureBoundary
 //
 //  A keyframe a replay loads rather than reaches: after a change from
 //  outside the recorded inputs, or where recording resumed after a gap that
 //  began at gapStart. While paused, recording stops again just after it.
+//  The keyframe listeners are called once it is marked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1822,7 +1886,7 @@ HRESULT ReverseController::CaptureBoundary (
 
 
 
-    hr = CaptureNow();
+    hr = CaptureNow (false);
     CHR (hr);
 
     if (isAfterGap)
@@ -1833,6 +1897,8 @@ HRESULT ReverseController::CaptureBoundary (
     {
         m_keyframes.MarkNewestBoundary();
     }
+
+    NotifyKeyframe (m_machine.GetPosition());
 
     if (m_isPaused)
     {
@@ -2107,6 +2173,7 @@ bool ReverseController::IsStopDue (
 //  keyframes fall due on their own schedule, or, while paused, recording
 //  stops where the machine stands. The automatic disk flushes resume, and
 //  the watch on input held back behind live comes off the devices.
+//  The live listeners are called last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2133,6 +2200,11 @@ void ReverseController::BecomeLive()
     m_machine.SetInputJournalOn (!m_isPaused);
 
     ScheduleCaptures();
+
+    for (const auto & [owner, listener] : m_liveListeners)
+    {
+        listener (m_machine.GetPosition());
+    }
 }
 
 

@@ -3,14 +3,16 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
+#include "Core/ObserverSlots.h"
 #include "Debugger/IDiagnosticsProvider.h"
 
 class HeldInputWatch;
 class IInputEventSink;
 class InputJournal;
 struct InputRecord;
+struct DeviceConfig;
+struct MachineConfig;
+class MemoryBus;
 
 
 
@@ -79,6 +81,7 @@ public:
 
     Byte Read     (Word address) override;
     void Write    (Word address, Byte value) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     Word GetStart () const override { return 0xC000; }
     Word GetEnd   () const override { return 0xC01F; }
     void Reset    () override;
@@ -166,10 +169,14 @@ public:
     // matching host key-up notification once.
     void EndKeyRepeat();
 
-    // Attach (or detach with nullptr) the Input Debug panel sink. Set from
+    // Attach (or detach with nullptr) the input event sink. Set from
     // the UI thread; read from the CPU thread on the device's null
-    // fast-path, matching the Disk2 event-sink convention.
-    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+    // fast-path, matching the Disk2 event-sink convention. The
+    // one-argument form sets the Panel slot; the History slot receives
+    // guest reads only.
+    void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
+    void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
+
 
     // Advance the auto-repeat timer by the real time that has passed since
     // the previous call (CPU thread). Re-arms the $C000 strobe with the
@@ -186,14 +193,15 @@ public:
     std::string  GetDiagnosticsTitle () const override { return "Keyboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
-    // IMachineState: the latch and strobe, the key held down, and the
-    // auto-repeat timer. The input panel's coalescing values are not saved;
-    // a load clears them so the panel hears the next read.
+    // IMachineState: the latch and strobe, the key down, the auto-repeat
+    // timer, and the read edges (ReadEdges), from version 2; an older state
+    // loads with none reported.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('K', 'B', 'D', ' ');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('K', 'B', 'D', ' ');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     // Fold one TYPED character to the case this keyboard can send. Never
@@ -242,13 +250,14 @@ protected:
     Byte           m_lastRepeatKey = 0;
 
 protected:
-    // Input Debug panel sink (null when no panel is open). Plain pointer
+    // Input event sink (null when nothing is observing). Plain pointer
     // per the Disk2 event-sink convention; written on the UI thread,
     // read on the CPU thread.
-    IInputEventSink * GetInputSink () const noexcept { return m_inputSink; }
+    IInputEventSink                         * GetInputSink  () const noexcept { return m_inputSinks.Get (ObserverSlot::Panel); }
+    const ObserverSlots<IInputEventSink>    & GetInputSinks () const noexcept { return m_inputSinks; }
 
 protected:
-    IInputEventSink * m_inputSink = nullptr;
+    ObserverSlots<IInputEventSink>  m_inputSinks;
 
     // Last-emitted values for guest-read coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.

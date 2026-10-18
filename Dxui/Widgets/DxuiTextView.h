@@ -2,9 +2,10 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
-#include "Core/DxuiIconImage.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
+
+struct DxuiIconImage;
 
 
 

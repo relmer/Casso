@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Apple2e/Apple2e.h"
 #include "Machines/Apple2/Apple2eEnhanced/Apple2eEnhanced.h"
 #include "Machines/Apple2/Apple2c/Apple2c.h"
+#include "Machines/MachineDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

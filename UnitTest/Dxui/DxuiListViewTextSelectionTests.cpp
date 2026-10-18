@@ -91,6 +91,32 @@ public:
     }
 
 
+    //  A Ctrl+drag selects only in the column the drag began in, however far
+    //  the pointer strays into the next.
+    TEST_METHOD (ACtrlDragSelectsOnlyItsColumn)
+    {
+        DxuiListView    list;
+        DxuiMouseEvent  ev;
+
+
+
+        ConfigureList (list);
+
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = At (list, 0, 1, 1);
+        ev.ctrl        = true;
+        (void) list.OnMouse (ev);
+
+        Send (list, DxuiMouseEventKind::Move, At (list, 1, 0, 2));
+        Send (list, DxuiMouseEventKind::Up,   At (list, 1, 0, 2));
+
+        Assert::IsTrue   (list.HasTextSelection());
+        Assert::IsFalse  (list.IsCellTextSelected (1, 0), L"the first column is not selected");
+        Assert::IsTrue   (list.GetSelectionText().starts_with (L"0400\r\n"), list.GetSelectionText().c_str());
+    }
+
+
     TEST_METHOD (ADragBackwardSelectsTheSameText)
     {
         DxuiListView  list;

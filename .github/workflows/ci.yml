@@ -58,8 +58,22 @@ jobs:
           if (-not $vstest) { throw 'vstest.console.exe not found' }
           Add-Content $env:GITHUB_PATH (Split-Path $vstest)
 
+      # The 64-bit compiler and linker (PreferredToolArchitecture=x64), not
+      # the 32-bit ones x86 MSBuild picks by default: link-time code
+      # generation of the larger outputs, the unit-test DLL first, outgrew a
+      # 32-bit process's memory (C1002 "compiler is out of heap space in pass
+      # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
+      # -RunCodeAnalysis does locally, so the two agree.
+      #
+      # -m builds the projects that do not depend on each other at the same
+      # time, as Build.ps1 does; without it they built one after another.
+      #
+      # Code analysis runs in the Release build alone: it compiles every file
+      # a second time, and doing that in all four builds made each one take
+      # most of the job's time limit. Release is the code that ships, and its
+      # asserts are compiled out, so the analyzer cannot lean on them.
       - name: Build
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false ${{ matrix.configuration == 'Release' && '-p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true' || '' }}
 
       # The ROMs are Apple's and are not in the repository. The suite reads
       # them from UnitTest/Fixtures, so they are fetched from their pinned
@@ -143,8 +157,10 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
 
+      # 64-bit tools, as the x64 build above uses and for the same reason.
+      # No code analysis: the x64 Release build runs it.
       - name: Build ARM64
-        run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
+        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
@@ -321,15 +337,18 @@ jobs:
           }
           if ($bad) { throw "Unsigned or tampered after signing: $($bad -join ', ')" }
 
-      - name: Warn that the release is unsigned
+      # A hard stop rather than a warning: Casso treats any executable without
+      # the publisher's signature as a developer build and never updates it in
+      # place, so an unsigned release would strand everyone who installs it.
+      - name: Fail an unsigned release
         if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID == ''
         shell: pwsh
         run: |
-          Write-Host ('::warning::AZURE_CLIENT_ID is not set, so this release ships UNSIGNED and ' +
-                      'SmartScreen will warn on first run. Add the AZURE_CLIENT_ID, ' +
-                      'AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID secrets, and register a ' +
-                      'federated credential for ' +
+          Write-Host ('::error::AZURE_CLIENT_ID is not set, so this release would ship unsigned. ' +
+                      'Add the AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID ' +
+                      'secrets, and register a federated credential for ' +
                       'repo:${{ github.repository }}:environment:release.')
+          throw 'Error: unsigned release. Every release must be signed, because Casso updates only signed copies in place.'
 
       # After signing: signing the bundle does not reach the executables
       # inside it. Skipped without a credential, since an unsigned
@@ -398,6 +417,23 @@ jobs:
               throw ("The bundle's Publisher and the signing certificate's subject differ, so " +
                      "Windows will reject the package.`n  manifest: $publisher`n  cert:     $subject`n" +
                      'Update Identity/@Publisher in Installer/Package.appxmanifest to the subject above.')
+          }
+
+          # The running Casso decides whether it is an official copy by
+          # comparing its own signer to a constant compiled into the core, so
+          # that constant has to match the certificate too.
+          $header = Get-Content -Raw CassoEmuCore/Update/AuthenticodeVerifier.h
+          $match  = [regex]::Match($header, 'kpszOfficialPublisher\s*=\s*L"([^"]+)"')
+          if (-not $match.Success) { throw 'kpszOfficialPublisher was not found in CassoEmuCore/Update/AuthenticodeVerifier.h.' }
+
+          $corePublisher = $match.Groups[1].Value
+          Write-Host "  core publisher:     $corePublisher"
+
+          if ($corePublisher -ne $subject) {
+              throw ("The publisher compiled into Casso and the signing certificate's subject differ, so " +
+                     "every release would count as a developer build and never update itself.`n" +
+                     "  core: $corePublisher`n  cert: $subject`n" +
+                     'Update kpszOfficialPublisher in CassoEmuCore/Update/AuthenticodeVerifier.h to the subject above.')
           }
 
       - name: Package release zips

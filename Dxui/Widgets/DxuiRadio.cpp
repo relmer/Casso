@@ -4,6 +4,9 @@
 #include "DxuiRadio.h"
 
 #include "Core/DxuiFocusRing.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
 
 
 

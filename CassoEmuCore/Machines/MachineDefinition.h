@@ -51,8 +51,14 @@ struct MachineDefinition
     //  can be attached. False on the //c.
     bool                         hasAnnunciators = false;
 
+    //  Cassette-in and cassette-out jacks on the motherboard. False on the //c.
+    bool                         hasCassettePort = false;
+
     //  Presentation facts the shell used to answer by asking whether the
     //  machine was a //c.
     bool                         hasCaseSwitches = false;
     bool                         hasBuiltInDrive = false;
+
+    //  The machine's bit in a WOZ image's compatible-hardware field.
+    uint16_t                     wozHardwareFlag = 0;
 };

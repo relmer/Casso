@@ -43,6 +43,76 @@ Disk2NibbleEngine::~Disk2NibbleEngine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekLatchAfter
+//
+//  A pending flux-track write is cleared on the copy before it runs, so the
+//  copy cannot put it in the image, neither on the way nor when it goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::PeekLatchAfter (uint32_t cpuCycles) const
+{
+    Disk2NibbleEngine  copy = *this;
+
+
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+
+    copy.Tick (cpuCycles);
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+
+    return copy.m_readLatch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekNibbles
+//
+//  One bit cell at a time on the copy, taking each nibble as it assembles,
+//  for at most a revolution and a half. A weak bit drawn on the way moves
+//  the copy's generator, so comparing the two generators finds a random
+//  region.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::PeekNibbles (int count, std::vector<Byte> & outNibbles, bool & outIsRandom) const
+{
+    constexpr int      kCellLimit = 75000;
+    Disk2NibbleEngine  copy       = *this;
+    uint8_t            nibble     = 0;
+
+
+
+    copy.m_burstActive = false;
+    copy.m_burstBits.clear();
+    outNibbles.clear();
+
+    for (int cell = 0; cell < kCellLimit && (int) outNibbles.size() < count; cell++)
+    {
+        copy.Tick (kCyclesPerBit);
+
+        if (copy.ConsumeFreshNibble (nibble))
+        {
+            outNibbles.push_back (nibble);
+        }
+    }
+
+    outIsRandom = copy.m_weakRngState != m_weakRngState;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDiskImage
 //
 //  Called by Disk2Controller on Mount / Eject / DriveSelect transitions.
@@ -59,7 +129,7 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
     m_headWindow  = 0;
 
     ResolveSlot();
-    PlaceHead (0, false);
+    PlaceHead (0);
 }
 
 
@@ -134,9 +204,8 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 //  Clamps to [kMinTrack, kMaxTrack]. Track is a quarter-track index
 //  (0..159); the controller passes the head's physical quarter-track
 //  position. ResolveQuarterTrack maps it to a backing storage slot (-1 ==
-//  unformatted). Switching tracks preserves rotational position: between
-//  two bit tracks by carrying the bit cursor modulo the new track's bit
-//  length, and to or from a flux track by the fraction of a revolution.
+//  unformatted). Switching tracks preserves rotational position as the
+//  fraction of a revolution, whatever kind and length either track is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,7 +213,6 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
     int      clamped  = track;
     double   angle    = 0;
-    bool     wasFlux  = false;
 
 
 
@@ -161,24 +229,21 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
     if (clamped != m_currentTrack)
     {
         // Real Disk II behavior: the head physically moves between
-        // tracks while the disk keeps spinning. The bit cursor (the
-        // rotational position of the disk under the head) carries
-        // over modulo the new track's bit length. Resetting m_bitPos
-        // to 0 here used to corrupt every track-change read because
-        // the read latch lost its sync alignment and had to spend
-        // an entire revolution finding the next address-field sync
-        // gap before any sector could be located -- which on a tight
-        // RWTS read loop frequently times out and reports a checksum
-        // error. Cap to the new track's bit length so we don't end
-        // up past the wrap.
+        // tracks while the disk keeps spinning, so the head lands on
+        // the new track at the same angle it left the old one.
+        // Resetting m_bitPos to 0 here used to corrupt every
+        // track-change read because the read latch lost its sync
+        // alignment and had to spend an entire revolution finding the
+        // next address-field sync gap before any sector could be
+        // located -- which on a tight RWTS read loop frequently times
+        // out and reports a checksum error.
         CommitPendingWrite();
 
         angle          = GetAngle();
-        wasFlux        = m_isFluxSlot;
         m_currentTrack = clamped;
 
         ResolveSlot();
-        PlaceHead (angle, wasFlux);
+        PlaceHead (angle);
     }
 }
 
@@ -218,13 +283,12 @@ void Disk2NibbleEngine::ResolveSlot()
 
 void Disk2NibbleEngine::RefreshSlot()
 {
-    double  angle   = GetAngle();
-    bool    wasFlux = m_isFluxSlot;
+    double  angle = GetAngle();
 
 
 
     ResolveSlot();
-    PlaceHead (angle, wasFlux);
+    PlaceHead (angle);
 }
 
 
@@ -267,14 +331,14 @@ double Disk2NibbleEngine::GetAngle() const
 //
 //  PlaceHead
 //
-//  Puts the head on the newly resolved track at the given angle. Moving from
-//  one bit track to another keeps the bit cursor modulo the new length, as it
-//  always has; anything involving a flux track goes by the angle, since a bit
-//  count and a tick count only meet as fractions of a revolution.
+//  Puts the head on the newly resolved track at the given angle. Every track
+//  change goes by the fraction of a revolution: tracks differ in length by up
+//  to a tenth, so carrying the bit index instead would land the head at the
+//  wrong point of the disk, and the error would grow with each step.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2NibbleEngine::PlaceHead (double angle, bool cameFromFlux)
+void Disk2NibbleEngine::PlaceHead (double angle)
 {
     size_t  newBits = 0;
 
@@ -291,15 +355,10 @@ void Disk2NibbleEngine::PlaceHead (double angle, bool cameFromFlux)
     if (newBits == 0)
     {
         m_bitPos = 0;
+        return;
     }
-    else if (cameFromFlux)
-    {
-        m_bitPos = static_cast<size_t> (angle * static_cast<double> (newBits)) % newBits;
-    }
-    else
-    {
-        m_bitPos = m_bitPos % newBits;
-    }
+
+    m_bitPos = static_cast<size_t> (llround (angle * static_cast<double> (newBits))) % newBits;
 }
 
 
@@ -354,8 +413,7 @@ void Disk2NibbleEngine::SeekFlux (double angle)
 
 uint8_t Disk2NibbleEngine::StepFluxPulse()
 {
-    constexpr uint64_t  kWeakWindowCells = 4;
-    constexpr uint64_t  kWeakWindowUnits = kWeakWindowCells * kFluxUnitsPerCell;
+    constexpr uint64_t  kWeakWindowUnits = kHeadWindowCells * kFluxUnitsPerCell;
 
 
 
@@ -514,7 +572,7 @@ void Disk2NibbleEngine::Reset()
     m_weakRngState   = 0xDEADBEEFu;
 
     ResolveSlot();
-    PlaceHead (0, false);
+    PlaceHead (0);
 }
 
 
@@ -823,13 +881,17 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 
 uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 {
+    constexpr uint8_t  kWindowMask = (1 << kHeadWindowCells) - 1;
+
+
+
     uint8_t   outBit = 0;
 
 
 
-    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & 0x0F);
+    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & kWindowMask);
 
-    if ((m_headWindow & 0x0F) != 0)
+    if ((m_headWindow & kWindowMask) != 0)
     {
         outBit = static_cast<uint8_t> ((m_headWindow >> 1) & 1);
     }
@@ -955,8 +1017,9 @@ HRESULT Disk2NibbleEngine::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
-    // Version 1 had no flux timeline.
-    CBREx (version == kStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    // Version 1 had no flux timeline and was never released, so it does not
+    // load.
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     reader.ReadByte   (currentTrack);
     reader.ReadBool   (motorOn);

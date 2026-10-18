@@ -5,6 +5,8 @@
 #include "Debugger/Reply.h"
 
 class AccessHeatMap;
+class Disk2NibbleRecord;
+class IDisk2EventSink;
 class DebugHook;
 class IDiagnosticsProvider;
 class IHeatAccessFinder;
@@ -15,6 +17,7 @@ class IRunObserver;
 class IWatchSink;
 class KeyframeStore;
 class Microcode;
+class TapeDeck;
 
 
 
@@ -45,6 +48,22 @@ struct DebugMachineInfo
     std::vector<std::string>  disks;
 };
 
+//  The Disk II controller's state, read from its getters, never through the
+//  bus: the selected drive, each drive's head, the motor, write mode, the
+//  magnets on, and each drive's disk.
+struct DebugDiskState
+{
+    int                          slot          = 0;
+    int                          selectedDrive = 0;
+    std::array<int, 2>           quarterTrack  = {};
+    bool                         isMotorOn     = false;
+    bool                         isWriteMode   = false;
+    Byte                         phases        = 0;
+    std::array<bool, 2>          isProtected   = {};
+    std::array<bool, 2>          hasDisk       = {};
+    std::array<std::string, 2>   imageName;
+};
+
 static constexpr size_t  s_kDebugPageCount = 256;
 
 using WatchedPages = std::array<bool, s_kDebugPageCount>;
@@ -72,6 +91,11 @@ public:
     virtual void                SetRegisters      (const Cpu6502Registers & registers) = 0;
 
     virtual bool                TryPeek           (Word address, Byte & value) const = 0;
+
+    //  A $C000-$C0FF switch's byte from its device's side-effect-free peek
+    //  (MemoryBus::TryPeekIo). TryPeek, and so every memory pane, never
+    //  reads I/O; only the trial run of the PC's instruction calls this.
+    virtual bool                TryPeekIo         (Word address, Byte & value) const { (void) address; value = 0; return false; }
     virtual bool                TryPoke           (Word address, Byte value) = 0;
 
     //  Everything TryPeek and GetRegion would answer, all at once. A target
@@ -123,9 +147,27 @@ public:
     // if none has since the CPU was reset.
     virtual bool                TryGetLastBranch  (Word & from) const = 0;
 
+    // Where that instruction sent PC; false when it is not known.
+    virtual bool                TryGetLastBranchTarget (Word & to) const   { (void) to; return false; }
+
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;
+
+    // The Disk II controller for disk breakpoints: its Breakpoints listener
+    // slot, its state, its recent nibbles, a look-ahead of a drive's next
+    // nibbles that moves nothing, and the address of the instruction
+    // running. A target with no controller has none of them.
+    virtual void                        SetDiskEventSink        (IDisk2EventSink *) {}
+    virtual bool                        TryGetDiskState         (DebugDiskState &) const { return false; }
+    virtual const Disk2NibbleRecord   * GetDiskRecord           () const { return nullptr; }
+    virtual bool                        PeekDiskNibbles         (int, int, std::vector<Byte> &, bool &) const { return false; }
+    virtual Word                        GetInstructionAddress   () const { return 0; }
+
+    // The cassette deck and the bus cycle its transport runs by; null on a
+    // target with no deck.
+    virtual TapeDeck          * GetTapeDeck       ()           { return nullptr; }
+    virtual uint64_t            GetBusCycle       () const     { return GetCycleCount(); }
 
     // The keyboard: a key is pending until the guest clears the strobe.
     virtual void                InjectKey         (Byte key) = 0;
@@ -139,6 +181,11 @@ public:
     virtual void                ClearTrace        () = 0;
     virtual size_t              GetTraceSize      () const = 0;
     virtual void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const = 0;
+
+    //  The index of the trace's first entry at or after cycle, when the
+    //  target can find it faster than a search through its entries; false
+    //  otherwise.
+    virtual bool                TryFindTraceCycle (uint64_t cycle, size_t & outIndex) const { (void) cycle; (void) outIndex; return false; }
 
     // The access heat map. On, every bus access and opcode fetch is counted;
     // off frees it, and the machine does no work for it. Fold brings the heat

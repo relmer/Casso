@@ -3,6 +3,7 @@
 #include "Core/RamPages.h"
 
 #include "Core/MemoryBus.h"
+#include "Core/StateWriter.h"
 
 
 

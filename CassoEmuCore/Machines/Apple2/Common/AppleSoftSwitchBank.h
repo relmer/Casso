@@ -3,9 +3,11 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
-#include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Debugger/IDiagnosticsProvider.h"
+
+struct DeviceConfig;
+struct MachineConfig;
 
 
 
@@ -27,6 +29,9 @@ public:
     AppleSoftSwitchBank ();
 
     Byte Read       (Word address) override;
+
+    // Every switch here reads the floating bus; the peek throws none.
+    bool TryPeekIo  (Word address, Byte & value) override { (void) address; value = ReadFloatingBus(); return true; }
     void Write      (Word address, Byte value) override;
     Word GetStart   () const override { return 0xC050; }
     Word GetEnd     () const override { return 0xC05F; }

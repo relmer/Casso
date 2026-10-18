@@ -50,7 +50,8 @@ void Cpu::Reset()
     SP = 0xFF;
     PC = 0;
 
-    m_hasLastBranch = false;
+    m_hasLastBranch   = false;
+    m_hasLastBranchTo = false;
 
     std::fill (memory.begin(), memory.end(), Byte (0));
 }
@@ -576,6 +577,8 @@ void Cpu::StepOne()
 
 
 
+    m_instructionStart = start;
+
     if (m_isFetchObserved)
     {
         ObserveFetch (opcode);
@@ -673,8 +676,10 @@ void Cpu::StepOne()
 
     if (PC != next || isJump || (m_lastPenalties & kPenaltyBranchTaken) != 0)
     {
-        m_lastBranchFrom = start;
-        m_hasLastBranch  = true;
+        m_lastBranchFrom  = start;
+        m_hasLastBranch   = true;
+        m_lastBranchTo    = PC;
+        m_hasLastBranchTo = true;
     }
 }
 

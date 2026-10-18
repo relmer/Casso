@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "ApplesoftTokenizer.h"
 #include "CommandLineHelp.h"
 #include "CommandLineOptions.h"
 #include "CommitPlan.h"
@@ -12,6 +11,10 @@
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+
+struct ApplesoftListingError;
+class ApplesoftTokenizer;
+struct FileEntry;
 
 //  Forward-declared rather than included: pulling VolumeImage.h in would drag
 //  DiskImage.h through this header and into the console project, which does not

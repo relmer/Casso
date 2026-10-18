@@ -3,6 +3,7 @@
 #include "DialogBodyContent.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 
 static constexpr int      s_kLineHeightDip = 18;   // == DxuiTheme::BodyLineHeightDip, so a run's block matches real text line flow
@@ -257,11 +258,11 @@ int DialogBodyContent::GetPreferredHeightDip() const
     {
         if (m_placement == ImagePlacement::TrailingBeside)
         {
-            besides = m_iconSizeDip;
+            besides = GetIconFitDip().cy;
         }
         else
         {
-            iconTop = m_iconSizeDip + s_kIconGapDip;
+            iconTop = GetIconFitDip().cy + s_kIconGapDip;
         }
     }
 
@@ -276,6 +277,36 @@ int DialogBodyContent::GetPreferredHeightDip() const
     }
 
     return iconTop + (std::max) (runs, besides);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::GetIconFitDip
+//
+//  The picture's size on screen: its longer side is the display size, and
+//  the shorter side is scaled to match, so a picture that is not square is
+//  drawn at its own aspect. A square icon is the display size each way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DialogBodyContent::GetIconFitDip() const
+{
+    SIZE  fit     = { m_iconSizeDip, m_iconSizeDip };
+    int   longest = (std::max) (m_iconSrcW, m_iconSrcH);
+
+
+
+    if (longest > 0)
+    {
+        fit.cx = MulDiv (m_iconSizeDip, m_iconSrcW, longest);
+        fit.cy = MulDiv (m_iconSizeDip, m_iconSrcH, longest);
+    }
+
+    return fit;
 }
 
 
@@ -360,23 +391,25 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
-        int  iconPx = scaler.ToPx (m_iconSizeDip);
-        int  cx     = (boundsPx.left + boundsPx.right) / 2;
+        SIZE  fitDip  = GetIconFitDip();
+        int   iconWPx = scaler.ToPx (fitDip.cx);
+        int   iconHPx = scaler.ToPx (fitDip.cy);
+        int   cx      = (boundsPx.left + boundsPx.right) / 2;
 
         if (m_placement == ImagePlacement::TrailingBeside)
         {
-            m_iconRectPx.left   = boundsPx.right - iconPx;
+            m_iconRectPx.left   = boundsPx.right - iconWPx;
             m_iconRectPx.top    = y;
             m_iconRectPx.right  = boundsPx.right;
-            m_iconRectPx.bottom = y + iconPx;
+            m_iconRectPx.bottom = y + iconHPx;
         }
         else
         {
-            m_iconRectPx.left   = cx - iconPx / 2;
+            m_iconRectPx.left   = cx - iconWPx / 2;
             m_iconRectPx.top    = y;
-            m_iconRectPx.right  = cx + iconPx / 2;
-            m_iconRectPx.bottom = y + iconPx;
-            y += iconPx + scaler.ToPx (s_kIconGapDip);
+            m_iconRectPx.right  = m_iconRectPx.left + iconWPx;
+            m_iconRectPx.bottom = y + iconHPx;
+            y += iconHPx + scaler.ToPx (s_kIconGapDip);
         }
     }
 

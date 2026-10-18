@@ -124,7 +124,7 @@ namespace DebuggerTests
 
         TEST_METHOD (TheDisassemblysResultIsLabeledAndColored)
         {
-            DxuiListView::Cell  cell = DebuggerWindow::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
+            DxuiListView::Cell  cell = DisassemblyCells::GetOperandAndResultCell ("A=00", "A=41", 0xFF00FFFF);
 
 
 

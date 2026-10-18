@@ -7,13 +7,13 @@
 #include "Debugger/Reverse/CallerLink.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
 
 class IHistoryObserver;
 class IReverseStopTest;
 class MachineHost;
+struct ReplayControl;
 
 
 
@@ -99,7 +99,9 @@ struct ReverseResult
 //  A history observer, when one is set, is told of each keyframe taken live
 //  before it is stored, and may give it side bytes to keep, and of each
 //  keyframe whose state a replay loads. Keyframe listeners are called with
-//  each keyframe taken live once it is stored.
+//  each keyframe taken live once it is stored, and live listeners each time
+//  the machine becomes live: at the end of history, or where a change made
+//  in the past cut it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +123,9 @@ public:
     //  Called, live, just after each keyframe is taken, with its position.
     using KeyframeListener = std::function<void (uint64_t position)>;
 
+    //  Called with the machine's position each time it becomes live.
+    using LiveListener = std::function<void (uint64_t position)>;
+
     explicit ReverseController (MachineHost & machine);
     ~ReverseController () override;
 
@@ -134,8 +139,10 @@ public:
     void      SetCallerLinksProbe (CallerLinksProbe probe) { m_callerLinksProbe = std::move (probe); }
     void      SetHistoryObserver  (IHistoryObserver * observer) { m_observer = observer; }
     void      SetKeyframeListener (const void * owner, KeyframeListener listener);
+    void      SetLiveListener     (const void * owner, LiveListener listener);
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
+    bool      IsRecordingLive     () const;
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
     bool      IsPaused            () const { return m_isPaused; }
 
@@ -193,7 +200,8 @@ private:
     bool      IsAtCallerLink     (const CallerLink & link);
     void      DiscardCallerLinks ();
     HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
-    HRESULT   CaptureNow         ();
+    HRESULT   CaptureNow         (bool isNotifying = true);
+    void      NotifyKeyframe     (uint64_t position);
     HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
     void      OnCaptureDue       (uint64_t cycle) override;
     void      OnArrived          () override;
@@ -226,6 +234,7 @@ private:
 
     //  Each owner's keyframe listener, in the order they were set.
     std::vector<std::pair<const void *, KeyframeListener>>  m_keyframeListeners;
+    std::vector<std::pair<const void *, LiveListener>>      m_liveListeners;
 
     size_t                     m_callerDepth       = 0;      // the links outside the call step back out last landed on
     uint64_t                   m_callerLanding     = UINT64_MAX;  // where it landed; any other position uses no link

@@ -6,6 +6,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiMenuBar.h"
 #include "Widgets/DxuiShadowedText.h"
+#include "Render/IDxuiPainter.h"
 
 
 

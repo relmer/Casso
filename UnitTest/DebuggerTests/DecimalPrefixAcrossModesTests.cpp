@@ -8,6 +8,8 @@
 #include "MockExpressionContext.h"
 
 #include "CppUnitTest.h"
+#include "Debugger/MonitorState.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -37,7 +39,7 @@ namespace DebuggerTests
 
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
         static int32_t Evaluate (const std::string & text)
@@ -120,7 +122,7 @@ namespace DebuggerTests
 
             Assert::AreEqual ((int) 0x300, (int) memory.a1);
             Assert::AreEqual ((uint32_t) 3, clear.count);
-            Assert::AreEqual ((uint64_t) 100, history.first.value_or (0));
+            Assert::AreEqual ((uint64_t) 100, history.fromCycle.value_or (0));
             Assert::AreEqual ((uint32_t) 20,  history.count);
         }
 

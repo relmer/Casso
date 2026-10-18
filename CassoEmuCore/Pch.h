@@ -108,6 +108,17 @@
 #include <compressapi.h>
 
 //
+//  Self-update: Authenticode verification, package identity, and the
+//  Windows Runtime package manager. WIN32_LEAN_AND_MEAN leaves wincrypt.h
+//  out of windows.h, and wintrust.h needs it first.
+//
+#include <wincrypt.h>
+#include <wintrust.h>
+#include <softpub.h>
+#include <appmodel.h>
+#include <windows.management.deployment.h>
+
+//
 //  Game controllers. These come last in this block deliberately: dinput.h
 //  drags in COM headers that leave propvarutil.h without the VARIANT macros
 //  it needs (V_VT, V_UNION) if it is parsed first, which broke MeshCreator,

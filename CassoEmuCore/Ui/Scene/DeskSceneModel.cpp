@@ -147,6 +147,10 @@ static constexpr float   s_kDriveLabelTopZMm = s_kFaceHmm - s_kFaceMarginMm;
 // reflection, enough to read as bright metal and far too dim to read as a
 // lamp.
 static constexpr float   s_kAcPinGlintRgb[3] = { 0.100f, 0.105f, 0.115f };
+
+// Polished chrome's finish: a negative pebble, which the scene shader reads
+// as a mirror and reflects its made-up room in.
+static constexpr float   s_kChromeFinish     = -1.0f;
 static constexpr float   s_kDriveLabelCapMm  = 3.1f;
 static constexpr float   s_kDriveLabelFrontY = -1.8f;
 
@@ -484,8 +488,9 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     float                                anchorHi      = -FLT_MAX;
     float                                frontLo       = FLT_MAX;
     float                                frontHi       = -FLT_MAX;
-    bool                                 lampFound     = false;
+    bool                                 lampOk        = false;
     bool                                 doorOk        = false;
+    bool                                 hasGeometry   = false;
 
 
 
@@ -578,6 +583,20 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             continue;
         }
 
+        if (part == s_kpszCassetteTitleAnchor)
+        {
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_cassetteTitleBox[axis]     = (std::min) (m_cassetteTitleBox[axis],     p[axis]);
+                    m_cassetteTitleBox[axis + 3] = (std::max) (m_cassetteTitleBox[axis + 3], p[axis]);
+                }
+            }
+
+            continue;
+        }
+
         if (IsMonitorKind (kind) && part == s_kpszGlass)
         {
             AppendFlatTri (m_glass, tri);
@@ -623,6 +642,113 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
                 {
                     m_door[i].pebble = 1.0f;
                 }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszKeyPrefix, 0) == 0 &&
+                 part.size() == strlen (s_kpszKeyPrefix) + 1 &&
+                 (size_t) (part.back() - '0') < kRecorderKeyCount)
+        {
+            // A key, kept apart so the scene can press it.
+            size_t                    key = (size_t) (part.back() - '0');
+            std::array<float, 6>   &  box = m_keyBoxes[key];
+
+            if (m_keys[key].empty())
+            {
+                box = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            }
+
+            AppendLitTri (m_keys[key], tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    box[axis]     = (std::min) (box[axis],     p[axis]);
+                    box[axis + 3] = (std::max) (box[axis + 3], p[axis]);
+                }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder &&
+                 (part == s_kpszLidGlass || part == s_kpszLidRelief ||
+                  std::find (std::begin (s_kpszLidParts), std::end (s_kpszLidParts), part) != std::end (s_kpszLidParts)))
+        {
+            // The door, kept apart so the scene can open it, and its pane
+            // apart again so the scene can draw it see-through.
+            AppendLitTri ((part == s_kpszLidGlass) ? m_lidGlass : (part == s_kpszLidRelief) ? m_lidRelief : m_lid, tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_lidBox[axis]     = (std::min) (m_lidBox[axis],     p[axis]);
+                    m_lidBox[axis + 3] = (std::max) (m_lidBox[axis + 3], p[axis]);
+                }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder &&
+                 (part.rfind (s_kpszSpindlePrefix, 0) == 0 || part.rfind (s_kpszHubPrefix, 0) == 0) &&
+                 (size_t) (part.back() - '0') < kRecorderReelCount)
+        {
+            // A spindle, or the cassette hub on it, kept apart so the scene
+            // can turn the two together. The spindle's box is the axis.
+            size_t  reel      = (size_t) (part.back() - '0');
+            bool    isSpindle = part.rfind (s_kpszSpindlePrefix, 0) == 0;
+
+            if (isSpindle && m_spindles[reel].empty())
+            {
+                m_spindleBoxes[reel] = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            }
+
+            AppendLitTri (isSpindle ? m_spindles[reel] : m_hubs[reel], tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; isSpindle && axis < 3; axis++)
+                {
+                    m_spindleBoxes[reel][axis]     = (std::min) (m_spindleBoxes[reel][axis],     p[axis]);
+                    m_spindleBoxes[reel][axis + 3] = (std::max) (m_spindleBoxes[reel][axis + 3], p[axis]);
+                }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszVolumeWheel, 0) == 0)
+        {
+            // The volume wheel and its mark, kept apart so the scene can turn
+            // them together.
+            AppendLitTri (m_volumeWheel, tri, corners);
+
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_volumeWheelBox[axis]     = (std::min) (m_volumeWheelBox[axis],     p[axis]);
+                    m_volumeWheelBox[axis + 3] = (std::max) (m_volumeWheelBox[axis + 3], p[axis]);
+                }
+            }
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part == s_kpszCassetteGlass)
+        {
+            // The cassette's window, kept apart so the scene can draw it
+            // see-through over what lies under the cassette.
+            AppendLitTri (m_cassetteGlass, tri, corners);
+        }
+        else if (kind == DeskDeviceKind::CassetteRecorder && part.rfind (s_kpszCassettePrefix, 0) == 0)
+        {
+            // The cassette, which goes out with the tape.
+            AppendLitTri (m_cassette, tri, corners);
+        }
+        else if (part.rfind (s_kpszChromePrefix, 0) == 0)
+        {
+            // Polished chrome, kept apart so its normals can be smoothed: the
+            // shader reflects a room in it, flagged by a negative pebble. It
+            // still casts a shadow like any other solid part.
+            size_t  first = m_chrome.size();
+
+            opaqueTris.push_back (t);
+            AppendLitTri (m_chrome, tri, corners);
+
+            for (size_t i = first; i < m_chrome.size(); i++)
+            {
+                m_chrome[i].pebble = s_kChromeFinish;
             }
         }
         else if (part.rfind (s_kpszAcPinPrefix, 0) == 0)
@@ -671,6 +797,8 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             AppendLitTri (m_opaque, tri, corners);
         }
     }
+
+    SmoothChromeNormals();
 
     // Glass tint is forced white: the picture must pass through unmodified,
     // whatever Kd identified the sheet.
@@ -764,8 +892,14 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     // refined model) is a broken asset, not a runtime condition. Likewise a
     // drive without its door assembly -- the mount/eject animation depends
     // on it.
-    lampFound = !m_lamp.empty();
-    CBRA (lampFound);
+    //
+    // The cassette recorder has no lamp, door or glass to lose, so the only
+    // thing it can be missing is itself.
+    lampOk = (kind == DeskDeviceKind::CassetteRecorder) || !m_lamp.empty();
+    CBRA (lampOk);
+
+    hasGeometry = !m_opaque.empty();
+    CBRA (hasGeometry);
 
     doorOk = !IsDriveKind (kind) || !m_door.empty();
     CBRA (doorOk);
@@ -891,7 +1025,12 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
         }
 
-        m_lamps.push_back (anchor);
+        // No lens, no anchor: a lampless device returns an empty list rather
+        // than one zero-sized lamp at its origin.
+        if (!m_lamp.empty())
+        {
+            m_lamps.push_back (anchor);
+        }
     }
 
     AddRegionBoxes();
@@ -2607,4 +2746,75 @@ void DeskSceneModel::ComputeGroundFootprint()
 
     m_footprintMin[0] = lo[0];  m_footprintMax[0] = hi[0];
     m_footprintMin[1] = lo[1];  m_footprintMax[1] = hi[1];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::SmoothChromeNormals
+//
+//  Gives the chrome one normal per point on its surface, averaged over every
+//  triangle that meets there. A mirror shows its normals directly, so the
+//  small differences the baked mesh leaves between neighboring triangles --
+//  invisible on matte plastic -- read on chrome as a grainy texture. Every
+//  edge of the handle is rounded, so there is no crease to keep sharp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::SmoothChromeNormals()
+{
+    constexpr float                                   kWeldPerMm = 100.0f;   // points this close are one point
+    std::map<std::array<int32_t, 3>, std::array<float, 3>>  sums;
+
+
+
+    auto  keyOf = [] (const Dxui3DRenderer::Vertex & v)
+    {
+        return std::array<int32_t, 3> { (int32_t) std::lround (v.x * kWeldPerMm),
+                                        (int32_t) std::lround (v.y * kWeldPerMm),
+                                        (int32_t) std::lround (v.z * kWeldPerMm) };
+    };
+
+    // Each triangle adds its face normal, unnormalized so a larger triangle
+    // counts for more, to each of its corners.
+    for (size_t i = 0; i + 2 < m_chrome.size(); i += 3)
+    {
+        const Dxui3DRenderer::Vertex &  a  = m_chrome[i];
+        const Dxui3DRenderer::Vertex &  b  = m_chrome[i + 1];
+        const Dxui3DRenderer::Vertex &  c  = m_chrome[i + 2];
+        float                           ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        float                           vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        std::array<float, 3>            n  = { uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx };
+
+        // Outward along the baked normal, whichever way the corners are wound.
+        if (n[0] * a.nx + n[1] * a.ny + n[2] * a.nz < 0.0f)
+        {
+            n = { -n[0], -n[1], -n[2] };
+        }
+
+        for (size_t k = 0; k < 3; k++)
+        {
+            std::array<float, 3> &  sum = sums[keyOf (m_chrome[i + k])];
+
+            sum[0] += n[0];
+            sum[1] += n[1];
+            sum[2] += n[2];
+        }
+    }
+
+    for (Dxui3DRenderer::Vertex & v : m_chrome)
+    {
+        const std::array<float, 3> &  sum = sums[keyOf (v)];
+        float                         len = std::sqrt (sum[0] * sum[0] + sum[1] * sum[1] + sum[2] * sum[2]);
+
+        if (len > 0.0f)
+        {
+            v.nx = sum[0] / len;
+            v.ny = sum[1] / len;
+            v.nz = sum[2] / len;
+        }
+    }
 }

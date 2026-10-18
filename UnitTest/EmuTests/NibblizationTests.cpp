@@ -4,6 +4,8 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
+#include "HResultAssert.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

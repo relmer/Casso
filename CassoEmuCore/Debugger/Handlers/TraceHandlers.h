@@ -3,6 +3,7 @@
 #include "Debugger/IDebugCommandHandler.h"
 
 class DebugSession;
+class IDebugTarget;
 
 
 
@@ -25,13 +26,22 @@ class TraceHandlers : public IDebugCommandHandler
 public:
     static constexpr uint32_t  kDefaultCount = 20;
 
+    //  HISTORY SAVE writes at most the newest this many: with history the
+    //  trace runs to millions of instructions.
+    static constexpr size_t    kMaxSaved     = 1'000'000;
+
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
     //  Fills each entry's instruction text and symbols.
     static void       Describe   (DebugSession & session, std::vector<TraceRecord> & entries);
 
-    //  The window HISTORY first count reports, without the command.
+    //  The count entries from the place in the trace first, without the
+    //  command.
     static TraceData  MakeWindow (DebugSession & session, size_t first, size_t count);
+
+    //  The place in the trace of the first entry at or after cycle; the
+    //  trace's size when every entry is before it.
+    static size_t     FindCycle  (IDebugTarget & target, uint64_t cycle);
 
 private:
     static void  Show   (DebugSession & session, const DebugCommand & command, Reply & reply);

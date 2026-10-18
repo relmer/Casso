@@ -6,6 +6,8 @@
 #include "Core/Prng.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Core/MachineConfig.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -93,6 +95,74 @@ Byte Disk2Controller::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Q6, Q7 and the drive as they are after the switch at address, then the
+//  byte HandleReadDispatch returns for those: the data latch, run forward
+//  to the CPU's cycle on a copy of the drive; the sense line or the IWM
+//  status; or 0 with Q7 on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::TryPeekIo (Word address, Byte & value)
+{
+    int       offset = (address - m_ioStart) & 0x0F;
+    bool      q6     = m_q6;
+    bool      q7     = m_q7;
+    int       drive  = m_activeDrive;
+    uint64_t  delta  = 0;
+    Byte      sense  = 0;
+
+
+
+    switch (offset)
+    {
+        case 0xA: drive = 0;     break;
+        case 0xB: drive = 1;     break;
+        case 0xC: q6    = false; break;
+        case 0xD: q6    = true;  break;
+        case 0xE: q7    = false; break;
+        case 0xF: q7    = true;  break;
+        default:                 break;
+    }
+
+    value = 0;
+
+    if (q7)
+    {
+        return true;
+    }
+
+    if (q6)
+    {
+        sense = m_activeDisk[drive]->IsWriteProtected() ? 0x80 : 0x00;
+        value = m_iwmMode ? static_cast<Byte> (sense | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F))
+                          : sense;
+        return true;
+    }
+
+    if (m_engine[drive].IsWriteMode())
+    {
+        return false;
+    }
+
+    if (drive == m_activeDrive && m_cpuCycleSource != nullptr && *m_cpuCycleSource > m_lastCpuSync)
+    {
+        delta = *m_cpuCycleSource - m_lastCpuSync;
+    }
+
+    //  A motor turned on from rest starts the spin-up, which reads $80.
+    value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : m_engine[drive].PeekLatchAfter (static_cast<uint32_t> (delta));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 //  Soft-switch side effects fire on writes too. When Q7=1 + Q6=1, the
@@ -102,7 +172,9 @@ Byte Disk2Controller::Read (Word address)
 
 void Disk2Controller::Write (Word address, Byte value)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
+    int   offset      = (address - m_ioStart) & 0x0F;
+    bool  isModeLoad  = false;
+    bool  isLatchLoad = false;
 
 
 
@@ -112,6 +184,9 @@ void Disk2Controller::Write (Word address, Byte value)
 
     if (m_q7 && m_q6)
     {
+        isModeLoad  = m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0);
+        isLatchLoad = !isModeLoad && m_motorOn;
+
         // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
         // instead of the write latch; with the motor on it is the data-field
         // write path, same as a Disk II card.
@@ -121,14 +196,44 @@ void Disk2Controller::Write (Word address, Byte value)
         // reads it back until the two agree; judged by the spin-down instead,
         // the write was refused for a second and the machine sat in that
         // loop at every reset, power cycle and launch.
-        if (m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0))
+        if (isModeLoad)
         {
             m_iwmModeReg = value;
         }
         else
         {
             m_engine[m_activeDrive].WriteLatch (value);
+            m_addrMarkWatcher.ObserveWrittenNibble (value);
         }
+
+        if (isLatchLoad)
+        {
+            OnLatchLoad (m_activeDrive, value, GetQuarterTrack(), m_activeDisk[m_activeDrive]->IsWriteProtected());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLatchLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped)
+{
+    Byte  flags = static_cast<Byte> (Disk2NibbleRecord::kWritten | (isDropped ? Disk2NibbleRecord::kDropped : 0));
+
+
+
+    UNREFERENCED_PARAMETER (quarterTrack);
+
+    if (m_activeDisk[drive]->IsLoaded())
+    {
+        m_nibbleRecord.Add (drive, nibble, flags, GetInstructionAddress());
     }
 }
 
@@ -176,9 +281,9 @@ void Disk2Controller::HandleSwitch (int offset)
             // (when the motor is already off or already spinning
             // down). OnMotorDisengaged fires later from Tick() when
             // the spindown timer actually expires.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnMotorCommandOff();
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorCommandOff(); });
             }
 
             break;
@@ -208,9 +313,12 @@ void Disk2Controller::HandleSwitch (int offset)
                 m_engine[m_activeDrive].SetMotorOn (true);
                 UpdateEngineWriteMode();
 
+                //  The drive enabled now, the phases already on pull its
+                //  head.
                 if (edge)
                 {
                     m_motorSpinupRemaining = kMotorSpinupCycles;
+                    MoveHeadToPull();
                 }
 
                 if (edge && m_audioSink != nullptr)
@@ -223,13 +331,13 @@ void Disk2Controller::HandleSwitch (int offset)
                 // already-engaged motor); OnMotorEngaged fires only
                 // on the off->on edge, co-located with the audio
                 // edge detector above.
-                if (m_eventSink != nullptr)
+                if (m_eventSinks.IsAny())
                 {
-                    m_eventSink->OnMotorCommandOn();
+                    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorCommandOn(); });
 
                     if (edge)
                     {
-                        m_eventSink->OnMotorEngaged();
+                        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorEngaged(); });
                     }
                 }
             }
@@ -238,22 +346,24 @@ void Disk2Controller::HandleSwitch (int offset)
         case 0xA:
             m_activeDrive = 0;
             UpdateEngineSelection();
+            MoveHeadIfEnabled();
 
             // Spec-006 FR-006: drive-select event fires after the
             // engine selection has been propagated.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnDriveSelect (m_activeDrive);
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
             }
 
             break;
         case 0xB:
             m_activeDrive = 1;
             UpdateEngineSelection();
+            MoveHeadIfEnabled();
 
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnDriveSelect (m_activeDrive);
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
             }
 
             break;
@@ -266,10 +376,28 @@ void Disk2Controller::HandleSwitch (int offset)
             m_engine[m_activeDrive].SetShiftLoadMode (true);
             break;
         case 0xE:
+            if (m_q7 && m_eventSinks.IsAny())
+            {
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (m_activeDrive, false); });
+            }
+
             m_q7 = false;
             UpdateEngineWriteMode();
             break;
         case 0xF:
+            if (!m_q7 && m_eventSinks.IsAny())
+            {
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (m_activeDrive, true); });
+            }
+
+            // Writing turned on with a write-protected disk in the drive:
+            // the nibbles go nowhere. RWTS checks the sense line first, so
+            // only a program that does not check gets here.
+            if (!m_q7 && m_eventSinks.IsAny() && m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsWriteProtected())
+            {
+                m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnWriteProtected(); });
+            }
+
             m_q7 = true;
             UpdateEngineWriteMode();
             break;
@@ -296,10 +424,11 @@ void Disk2Controller::HandleSwitch (int offset)
 
 Byte Disk2Controller::HandleReadDispatch()
 {
-    Byte     nibble = 0;
-    Byte     sense  = 0;
-    Byte     result = 0;      // Q7=1 (both shift-load and write mode) reads 0
-    uint8_t  fresh  = 0;
+    Byte     nibble  = 0;
+    Byte     sense   = 0;
+    Byte     result  = 0;     // Q7=1 (both shift-load and write mode) reads 0
+    uint8_t  fresh   = 0;
+    bool     isFresh = false;
 
 
 
@@ -326,9 +455,19 @@ Byte Disk2Controller::HandleReadDispatch()
         // own rising-edge marker so each assembled nibble reaches
         // the watcher exactly once, in order. Byte-identical for
         // the CPU-visible read path.
-        if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
+        isFresh = m_engine[m_activeDrive].ConsumeFreshNibble (fresh);
+
+        if (isFresh)
         {
-            m_addrMarkWatcher.ObserveNibble (fresh);
+            m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0, GetInstructionAddress());
+        }
+
+        // The recent nibbles: each one the CPU takes, with the instruction
+        // that took it, flagged while the motor spins up and the CPU reads $80.
+        if (isFresh && m_activeDisk[m_activeDrive]->IsLoaded())
+        {
+            m_nibbleRecord.AddRead (m_activeDrive, fresh, (m_motorSpinupRemaining > 0) ? Disk2NibbleRecord::kSpinUp : 0, GetInstructionAddress(),
+                                    m_engine[m_activeDrive].GetReadNibbles());
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
@@ -370,112 +509,193 @@ Byte Disk2Controller::HandleReadDispatch()
 //
 //  HandlePhase
 //
-//  Update the phase mask, walk the head toward the newly-energized phase,
-//  clamp to legal range, then push the resulting quarter-track index into
-//  the active drive's engine.
+//  Update the phase mask and, while the selected drive is enabled, move its
+//  head to where the energized phases pull it (MoveHeadToPull).
+//
+//  A DRIVE'S STEPPER WORKS ONLY WHILE THE DRIVE IS ENABLED: ENABLE' low,
+//  which is the motor running, its spin-down included (Sather, Understanding
+//  the Apple IIe, chapter 9, "The Drive ENABLE' Input": at the enabled drive
+//  "head positioning is enabled"). The controller latches the phases either
+//  way, so the ones on when the drive is next enabled pull its head then
+//  (GH #176).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::HandlePhase (int phase, bool on)
 {
-    // Stepper model ported clean-room from apple2js (MIT), disk2.ts
-    // setPhase + PHASE_DELTA. UTAIIe ch. 9 / Sather p. 9-12.
-    //
-    // The cog tracks the last-energized phase magnet (m_phase), NOT a
-    // position-derived magnet index. On each phase-ON event the head
-    // moves PHASE_DELTA[m_phase][phase] half-tracks (= *2 quarter-tracks)
-    // toward the newly-energized magnet, then remembers the new phase.
-    // Phase-OFF events do not move the head -- the cog holds its detent.
-    //
-    // Because every delta is an even number of quarter-tracks, a normal
-    // two-phase DOS step lands the head on a whole- or half-track detent
-    // (quarter-track index even); it can never get marooned on an odd
-    // quarter-track between detents. The previous position-derived model
-    // (`(m_quarterTrack / 2) & 3`) could not distinguish qt N from qt N+1
-    // and would leave the head stuck one quarter-track off a real track,
-    // serving unformatted noise on narrow-band protected disks.
-    static constexpr int  kPhaseDelta[kPhaseCount][kPhaseCount] =
-    {
-        {  0,  1,  2, -1 },
-        { -1,  0,  1,  2 },
-        { -2, -1,  0,  1 },
-        {  1, -2, -1,  0 },
-    };
-
-
-
-    int  prevQt  = m_quarterTrack;
-    int  qtDelta = 0;
-    int  postRaw = prevQt;
-
     if (on)
     {
         m_phases = static_cast<uint8_t> (m_phases | (1 << phase));
+        m_phase  = phase;
     }
     else
     {
         m_phases = static_cast<uint8_t> (m_phases & ~(1 << phase));
     }
 
-    if (on)
+    if (m_motorOn)
     {
-        qtDelta = kPhaseDelta[m_phase][phase] * 2;
-        m_phase = phase;
+        MoveHeadToPull();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveHeadToPull
+//
+//  Move the selected drive's head to where the energized phases pull it,
+//  clamp to the legal range, then push the resulting quarter-track index
+//  into that drive's engine. The other drive's head stays where it is.
+//
+//  THE HEAD FOLLOWS THE MAGNETS THAT ARE ON. Phase p's magnets sit at the
+//  quarter tracks where qt mod 8 is 2p, so each energized phase pulls the
+//  head toward its nearest magnet, up to three quarter tracks either way,
+//  and the head comes to rest at the average of the pulls (GetPull). With
+//  one phase on, the head rests on that phase's track; with two adjacent
+//  phases on, it rests on the quarter track between them, the only way to a
+//  quarter track. A phase directly opposite the head pulls neither way, and
+//  with none on, or with two opposite ones, the head does not move. A phase
+//  turned off can move the head as well as one turned on: a DOS seek turns
+//  the next phase on before it turns the last one off, so the head stops on
+//  the quarter track between, and the last one going off finishes the
+//  half-track step.
+//
+//  The step sound fires on a move that ends on a half-track position, so a
+//  DOS seek's two moves sound as the one step they make (UTAIIe ch. 9,
+//  Sather p. 9-12).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::MoveHeadToPull()
+{
+    int   & head    = m_quarterTrack[m_activeDrive];
+    int     prevQt  = head;
+    int     target  = prevQt;
+    bool    bumped  = false;
+
+
+
+    target  = prevQt + GetPull (m_phases, prevQt);
+    bumped  = target < 0 || target > kMaxQuarterTrack;
+    head    = std::clamp (target, 0, kMaxQuarterTrack);
+
+    m_engine[m_activeDrive].SetCurrentTrack (head);
+
+    if (target == prevQt)
+    {
+        return;
     }
 
-    postRaw         = prevQt + qtDelta;
-    m_quarterTrack += qtDelta;
+    m_addrMarkWatcher.NoteHeadMoved (head);
 
-    if (m_quarterTrack < 0)
-    {
-        m_quarterTrack = 0;
-    }
-
-    if (m_quarterTrack > kMaxQuarterTrack)
-    {
-        m_quarterTrack = kMaxQuarterTrack;
-    }
-
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
-
-    // Audio sink (FR-003 / FR-004). Fire only when the head actually
-    // moved (qtDelta != 0). Distinguish a normal step from a track-0 /
-    // max-track bump by checking the *unclamped* target position
-    // against the legal range -- if the raw move would have walked
+    // Audio sink (FR-003 / FR-004). Distinguish a normal step from a
+    // track-0 / max-track bump by checking the *unclamped* target
+    // position against the legal range -- if the move would have walked
     // past a travel stop, the stepper is energized but the head can't
-    // move, producing the audible "thunk." Mutually exclusive: a
-    // single phase event produces either a step or a bump, never both.
-    if (qtDelta != 0 && m_audioSink != nullptr)
+    // move, producing the audible "thunk." Mutually exclusive: a single
+    // phase event produces either a step or a bump, never both.
+    if (m_audioSink != nullptr)
     {
-        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
-
         if (bumped)
         {
             m_audioSink->OnHeadBump();
         }
-        else
+        else if (head % kQuarterTracksPerHalfTrack == 0)
         {
-            m_audioSink->OnHeadStep (m_quarterTrack);
+            m_audioSink->OnHeadStep (head);
         }
     }
 
-    // Spec-006 FR-006: head-step / head-bump are mutually exclusive
-    // for any single HandlePhase invocation. Reuses the same bumped
-    // discriminator the audio sink uses above so the two sinks stay
-    // semantically aligned (a real bump is a bump for both).
-    if (qtDelta != 0 && m_eventSink != nullptr)
+    // Spec-006 FR-006: head-step / head-bump are mutually exclusive for
+    // any single HandlePhase invocation; every quarter-track move is a
+    // step.
+    if (m_eventSinks.IsAny())
     {
-        bool  bumped = (postRaw < 0) || (postRaw > kMaxQuarterTrack);
-
         if (bumped)
         {
-            m_eventSink->OnHeadBump (m_quarterTrack);
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadBump (head); });
         }
         else
         {
-            m_eventSink->OnHeadStep (prevQt, m_quarterTrack);
+            m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnHeadStep (prevQt, head); });
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveHeadIfEnabled
+//
+//  A drive selected while the motor runs is enabled at once, so the phases
+//  on pull its head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::MoveHeadIfEnabled()
+{
+    if (m_motorOn)
+    {
+        MoveHeadToPull();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPull
+//
+//  How far, in quarter tracks, the energized phases move a head at
+//  quarterTrack: the average of each phase's distance to its nearest
+//  magnet, rounded to the nearest quarter track. A phase four quarter tracks
+//  away, directly opposite, is left out, since it pulls neither way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Disk2Controller::GetPull (uint8_t phases, int quarterTrack)
+{
+    constexpr int  kMagnetCycle = kPhaseCount * kQuarterTracksPerHalfTrack;
+    constexpr int  kOpposite    = kMagnetCycle / 2;
+    int            sum          = 0;
+    int            count        = 0;
+    int            distance     = 0;
+
+
+
+    for (int phase = 0; phase < kPhaseCount; phase++)
+    {
+        if ((phases & (1 << phase)) == 0)
+        {
+            continue;
+        }
+
+        distance = ((phase * kQuarterTracksPerHalfTrack - quarterTrack) % kMagnetCycle + kMagnetCycle) % kMagnetCycle;
+
+        if (distance == kOpposite)
+        {
+            continue;
+        }
+
+        sum += (distance > kOpposite) ? distance - kMagnetCycle : distance;
+        count++;
+    }
+
+    if (count == 0)
+    {
+        return 0;
+    }
+
+    return (2 * sum + ((sum >= 0) ? count : -count)) / (2 * count);
 }
 
 
@@ -487,8 +707,9 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 //  UpdateEngineSelection
 //
 //  Drive select changes which engine sees motor-on. The non-selected
-//  engine freezes; the selected engine inherits the controller's motor
-//  state and the current track.
+//  engine freezes; the selected engine is set to the controller's motor
+//  state and to its own drive's head position. Each Disk II drive has its
+//  own stepper, so selecting a drive moves neither head.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,7 +721,7 @@ void Disk2Controller::UpdateEngineSelection()
 
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack[m_activeDrive]);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
     UpdateEngineWriteMode();
 }
@@ -584,9 +805,9 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
             // Spec-006 FR-006: OnMotorDisengaged fires on the
             // true->false motor transition, which happens only here
             // when the spindown counter actually expires.
-            if (m_eventSink != nullptr)
+            if (m_eventSinks.IsAny())
             {
-                m_eventSink->OnMotorDisengaged();
+                m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorDisengaged(); });
             }
 
             // Motor-idle auto-flush: the operation is complete and this is
@@ -759,13 +980,14 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+    m_nibbleRecord.NoteDiskChange (drive);
 
     // Spec-006 FR-006: disk-insert event fires after the mount
     // succeeds. Place before the Error label so we don't fire on a
     // failed mount.
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskInserted (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskInserted (drive); });
     }
 
 Error:
@@ -794,12 +1016,13 @@ void Disk2Controller::EjectDisk (int drive)
     m_disks[drive].Eject();
     m_activeDisk[drive] = &m_disks[drive];
     m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+    m_nibbleRecord.NoteDiskChange (drive);
 
     // Spec-006 FR-006: disk-eject event fires after the slot has
     // been physically detached and the engine repointed.
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskEjected (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskEjected (drive); });
     }
 }
 
@@ -847,6 +1070,7 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
     {
         m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);
+        m_nibbleRecord.NoteDiskChange (drive);
     }
 }
 
@@ -894,9 +1118,9 @@ void Disk2Controller::NotifyDiskInserted (int drive)
         return;
     }
 
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskInserted (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskInserted (drive); });
     }
 }
 
@@ -919,9 +1143,9 @@ void Disk2Controller::NotifyDiskEjected (int drive)
         return;
     }
 
-    if (m_eventSink != nullptr)
+    if (m_eventSinks.IsAny())
     {
-        m_eventSink->OnDiskEjected (drive);
+        m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDiskEjected (drive); });
     }
 }
 
@@ -945,7 +1169,6 @@ void Disk2Controller::Reset()
 
     m_phases       = 0;
     m_phase        = 0;
-    m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;
     m_motorSpinupRemaining = 0;
@@ -955,9 +1178,12 @@ void Disk2Controller::Reset()
 
     for (i = 0; i < kDriveCount; i++)
     {
+        m_quarterTrack[i] = 0;
         m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }
+
+    m_addrMarkWatcher.ResetState();
 }
 
 
@@ -1006,6 +1232,7 @@ void Disk2Controller::PowerCycle (Prng & prng)
     UNREFERENCED_PARAMETER (prng);
 
     Reset();
+    m_nibbleRecord.Clear();
 
     for (drive = 0; drive < kDriveCount; drive++)
     {
@@ -1052,16 +1279,17 @@ unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, M
 //  through the same sink, keeping the event stream chronologically
 //  interleaved on the dialog's ring.
 //
-//  Only the thread holding the disk store. Pass nullptr to detach.
+//  Call only on the disk store's owning thread. Pass nullptr to detach. The
+//  one-argument form sets the Panel slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::SetEventSink (IDisk2EventSink * sink)
+void Disk2Controller::SetEventSink (ObserverSlot slot, IDisk2EventSink * sink)
 {
     ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
-    m_eventSink = sink;
-    m_addrMarkWatcher.SetEventSink (sink);
+    m_eventSinks.Set (slot, sink);
+    m_addrMarkWatcher.SetEventSink (slot, sink);
 }
 
 
@@ -1104,7 +1332,9 @@ Error:
 //  Disk2Controller::GetDiagnostics
 //
 //  Q6 and Q7 together select what the sequencer does: read, sense the write
-//  protect, shift out a write, or load the write latch.
+//  protect, shift out a write, or load the write latch. With the motor on,
+//  Q7 is whether the drive is reading or writing (FR-216). The last address
+//  field is the one the watcher decoded last; a field not yet seen is "?".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1115,24 +1345,31 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     constexpr int                 kHundredth = 25;      // hundredths of a track in a quarter
     const Disk2NibbleEngine     & engine     = m_engine[m_activeDrive];
     int                           mode       = ((int) m_q7 << 1) | (int) m_q6;
+    const char                  * activity   = !m_motorOn ? "idle" : (m_q7 ? "writing" : "reading");
     DiagnosticsGroup              drive      { "Drive", {} };
     DiagnosticsGroup              head       { "Head", {} };
     DiagnosticsGroup              sequencer  { "Sequencer", {} };
+    auto                          field      = [] (char prefix, int value) { return (value < 0) ? std::format ("{}?", prefix) : std::format ("{}{}", prefix, value); };
 
 
 
     ASSERT_THREAD_OWNERSHIP (*m_ownership);
 
     drive.rows.push_back (MakeTextRow ("Active drive",   std::format ("{}", m_activeDrive + 1)));
+    drive.rows.push_back (MakeTextRow ("Activity",       activity));
     drive.rows.push_back (MakeFlagRow ("Motor",          m_motorOn));
     drive.rows.push_back (MakeFlagRow ("At speed",       IsMotorAtSpeed()));
     drive.rows.push_back (MakeTextRow ("Spin-up left",   std::format ("{} cycles", m_motorSpinupRemaining)));
     drive.rows.push_back (MakeTextRow ("Spin-down left", std::format ("{} cycles", m_motorSpindownCycles)));
     drive.rows.push_back (MakeFlagRow ("Disk in drive",  m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsLoaded()));
 
-    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", m_quarterTrack)));
-    head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", m_quarterTrack / kQuarters, (m_quarterTrack % kQuarters) * kHundredth)));
+    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", GetQuarterTrack())));
+    head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", GetQuarterTrack() / kQuarters, (GetQuarterTrack() % kQuarters) * kHundredth)));
+    head.rows.push_back (MakeTextRow ("Other drive",   std::format ("quarter track {}", m_quarterTrack[m_activeDrive ^ 1])));
     head.rows.push_back (MakeByteRow ("Phases",        m_phases, { "", "", "", "", "PH3", "PH2", "PH1", "PH0" }));
+    head.rows.push_back (MakeTextRow ("Last address field", std::format ("{} {} {}", field ('T', m_addrMarkWatcher.GetCachedTrack()),
+                                                                                    field ('S', m_addrMarkWatcher.GetCachedSector()),
+                                                                                    field ('V', m_addrMarkWatcher.GetCachedVolume()))));
 
     sequencer.rows.push_back (MakeTextRow ("Mode",            kModes[mode]));
     sequencer.rows.push_back (MakeFlagRow ("Q6",              m_q6));
@@ -1145,7 +1382,7 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     snapshot.groups.push_back (std::move (drive));
     snapshot.groups.push_back (std::move (head));
     snapshot.groups.push_back (std::move (sequencer));
-    snapshot.visual = DiagnosticsDiskHead { m_quarterTrack, kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
+    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
 }
 
 
@@ -1171,7 +1408,8 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
 
     writer.WriteByte   (m_phases);
     writer.WriteByte   (static_cast<Byte> (m_phase));
-    writer.WriteByte   (static_cast<Byte> (m_quarterTrack));
+    writer.WriteByte   (static_cast<Byte> (m_quarterTrack[0]));
+    writer.WriteByte   (static_cast<Byte> (m_quarterTrack[1]));
     writer.WriteBool   (m_motorOn);
     writer.WriteUInt32 (m_motorSpindownCycles);
     writer.WriteUInt32 (m_motorSpinupRemaining);
@@ -1190,6 +1428,12 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
         CHR (hr);
     }
 
+    hr = m_addrMarkWatcher.SaveState (writer);
+    CHR (hr);
+
+    hr = m_nibbleRecord.SaveState (writer);
+    CHR (hr);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -1206,10 +1450,12 @@ Error:
 //  LoadState
 //
 //  The engines load inside this section and check their own fields; this
-//  checks the phase mask, phase, head position and drive select, and that the
-//  saved machine had the same IWM wiring. Nothing goes through Reset or the
-//  switch handlers, so no sink hears a motor or drive change and the motor-off
-//  flush does not run.
+//  checks the phase mask, phase, head positions and drive select, and that
+//  the saved machine had the same IWM wiring. The address-mark watcher's
+//  section is read inside it too, from version 2 on. Before version 3 there
+//  was one head position for both drives, which each drive takes. Nothing goes through Reset or
+//  the switch handlers, so no sink hears a motor or drive change and the
+//  motor-off flush does not run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1226,7 +1472,8 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     int       drive                   = 0;
     Byte      phases                  = 0;
     Byte      phase                   = 0;
-    Byte      quarterTrack            = 0;
+    Byte      quarterTrack            = 0;     // drive 1's head, or both drives' before version 3
+    Byte      quarterTrack2           = 0;
     bool      motorOn                 = false;
     uint32_t  motorSpindownCycles     = 0;
     uint32_t  motorSpinupRemaining    = 0;
@@ -1247,6 +1494,16 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     reader.ReadByte   (phases);
     reader.ReadByte   (phase);
     reader.ReadByte   (quarterTrack);
+
+    if (version >= kPerDriveHeadStateVersion)
+    {
+        reader.ReadByte (quarterTrack2);
+    }
+    else
+    {
+        quarterTrack2 = quarterTrack;
+    }
+
     reader.ReadBool   (motorOn);
     reader.ReadUInt32 (motorSpindownCycles);
     reader.ReadUInt32 (motorSpinupRemaining);
@@ -1265,18 +1522,43 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
         CHR (hr);
     }
 
+    // Version 1 had no watcher state: its machines start from Idle.
+    if (version >= kWatcherStateVersion)
+    {
+        hr = m_addrMarkWatcher.LoadState (reader);
+        CHR (hr);
+    }
+    else
+    {
+        m_addrMarkWatcher.ResetState();
+        m_addrMarkWatcher.NoteHeadMoved (quarterTrack);
+    }
+
+    // Before version 3 the state had no recent nibbles.
+    if (version >= kNibbleRecordStateVersion)
+    {
+        hr = m_nibbleRecord.LoadState (reader);
+        CHR (hr);
+    }
+    else
+    {
+        m_nibbleRecord.Clear();
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
-    CBREx (phases       <  kPhaseMaskLimit,  HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (phase        <  kPhaseCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (quarterTrack <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (activeDrive  <  kDriveCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (iwmMode      == m_iwmMode,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (phases        <  kPhaseMaskLimit,  HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (phase         <  kPhaseCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (quarterTrack  <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (quarterTrack2 <= kMaxQuarterTrack, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (activeDrive   <  kDriveCount,      HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (iwmMode       == m_iwmMode,        HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_phases                  = phases;
     m_phase                   = phase;
-    m_quarterTrack            = quarterTrack;
+    m_quarterTrack[0]         = quarterTrack;
+    m_quarterTrack[1]         = quarterTrack2;
     m_motorOn                 = motorOn;
     m_motorSpindownCycles     = motorSpindownCycles;
     m_motorSpinupRemaining    = motorSpinupRemaining;
@@ -1287,6 +1569,14 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     m_cyclesSinceIdleCallback = cyclesSinceIdleCallback;
     m_busySinceIdleCallback   = busySinceIdleCallback;
     m_lastCpuSync             = lastCpuSync;
+
+    // The drive not selected when an older state was saved had its engine on
+    // whatever track it was last selected on; both heads are at the one saved
+    // position now.
+    if (version < kPerDriveHeadStateVersion)
+    {
+        m_engine[m_activeDrive ^ 1].SetCurrentTrack (quarterTrack);
+    }
 
 Error:
     return hr;

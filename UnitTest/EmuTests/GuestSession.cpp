@@ -8,6 +8,8 @@
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "HResultAssert.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -647,7 +649,6 @@ void GuestSession::Mount (MachineHost              & host,
 
     image = host.GetDiskStore().GetImage (kSlot6, kDrive1);
     Assert::IsNotNull (image, L"the mounted image must be present");
-    host.GetRefs().diskController->SetExternalDisk (kDrive1, image);
 
     //  Between mounting and starting the processor, and nowhere else: this is
     //  the last moment at which a hopeless image costs milliseconds instead of
@@ -733,7 +734,6 @@ void GuestSession::MountWoz (MachineHost              & host,
 
     image = host.GetDiskStore().GetImage (kSlot6, kDrive1);
     Assert::IsNotNull (image, L"the mounted image must be present");
-    host.GetRefs().diskController->SetExternalDisk (kDrive1, image);
 
     AssertTheDrivePresentsWhatWasMounted (*image, expectedSectors, L"the WOZ this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,                  L"the WOZ this gate mounts");

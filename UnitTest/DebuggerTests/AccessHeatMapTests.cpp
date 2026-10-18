@@ -25,9 +25,11 @@ namespace DebuggerTests
     {
     public:
 
-        static constexpr Byte  kLdaAbsolute = 0xAD;
-        static constexpr Byte  kStaAbsolute = 0x8D;
-        static constexpr Byte  kNop         = 0xEA;
+        static constexpr Byte  kLdaAbsolute  = 0xAD;
+        static constexpr Byte  kStaAbsolute  = 0x8D;
+        static constexpr Byte  kStaIndirectY = 0x91;
+        static constexpr Byte  kIncAbsolute  = 0xEE;
+        static constexpr Byte  kNop          = 0xEA;
 
         static void Read  (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Read,  std::nullopt); }
         static void Write (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Write, std::nullopt); }
@@ -88,6 +90,41 @@ namespace DebuggerTests
 
             Assert::AreEqual (2.0f, map.GetHeat (HeatKind::Write, 0x2000));
             Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Read,  0x2000));
+        }
+
+
+
+        //  A store through a pointer reads its target before it writes it, as
+        //  the CPU does; that read is not data, and RAM nothing wrote is not
+        //  read before written by it. A read-modify-write's read is data.
+        TEST_METHOD (AStoresReadOfItsTargetIsNotData)
+        {
+            AccessHeatMap  map;
+
+
+
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            // $0300: STA ($06),Y, the pointer read, then the target read
+            // and written.
+            Run   (map, 0x0300, kStaIndirectY, 1);
+            Read  (map, 0x0006);
+            Read  (map, 0x0007);
+            Read  (map, 0x2000);
+            Write (map, 0x2000);
+
+            // $0302: INC $2001
+            Run   (map, 0x0302, kIncAbsolute, 2);
+            Read  (map, 0x2001);
+            Write (map, 0x2001);
+            map.Fold (0);
+
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Read,          0x0006), L"the pointer is data");
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Read,          0x2000), L"the store's read of its target");
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Write,         0x2000));
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::UnwrittenRead, 0x2000), L"not read before written");
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Read,          0x2001), L"INC reads what it changes");
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Write,         0x2001));
         }
 
 

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Cassque/Model/IFolderWatcher.h"
+class IFolderWatcher;
 
 
 

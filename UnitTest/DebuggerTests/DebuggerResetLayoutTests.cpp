@@ -119,7 +119,7 @@ namespace DebuggerResetLayoutTests
     //
     //  DebuggerResetLayoutTests
     //
-    //  Window > Reset window layout puts every pane back, closed ones too.
+    //  View > Reset window layout puts every pane back, closed ones too.
     //
     ////////////////////////////////////////////////////////////////////////////////
 

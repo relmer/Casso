@@ -6,6 +6,8 @@
 #include "Debugger/HeatMapRangeSets.h"
 #include "resource.h"
 #include "Core/TextEncoding.h"
+#include "Shell/CpuManager.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 
@@ -42,7 +44,7 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuCommandTargets & targets)
 {
     HRESULT  hr = S_OK;
 
@@ -51,7 +53,7 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
     switch (cmd.id)
     {
         case IDM_FILE_OPEN:
-            hr = target.SwitchMachine (TextEncoding::NarrowToWide (cmd.payload));
+            hr = targets.machine.SwitchMachine (TextEncoding::NarrowToWide (cmd.payload));
             if (FAILED (hr))
             {
                 DEBUGMSG (L"SwitchMachine failed: 0x%08X\n", hr);
@@ -64,62 +66,37 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
             // for: "open", "closed", both, or nothing. They are held through
             // the reset so the firmware sees them however the host's key
             // state moves around the click.
-            target.HoldAppleKeysThroughReset (cmd.payload.find ("open")   != std::string::npos,
-                                              cmd.payload.find ("closed") != std::string::npos);
-            target.RemountDisks();
-            target.SoftReset();
+            targets.machine.HoldAppleKeysThroughReset (cmd.payload.find ("open")   != std::string::npos,
+                                                       cmd.payload.find ("closed") != std::string::npos);
+            targets.disks.RemountDisks();
+            targets.machine.SoftReset();
             break;
 
         case IDM_MACHINE_POWERCYCLE:
-            target.PowerCycle();
-            target.RemountDisks();
+            targets.machine.PowerCycle();
+            targets.disks.RemountDisks();
             break;
 
         case IDM_MACHINE_STEP:
-            target.StepInstruction();
+            targets.machine.StepInstruction();
             break;
 
         case IDM_DEBUG_SAVE_TRACE:
-            target.SaveTrace();
+            targets.machine.SaveTrace();
             break;
-
-        case IDM_AUDIO_DRIVE_ENABLE:
-        case IDM_AUDIO_DRIVE_DISABLE:
-            target.SetDriveAudioEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
-            break;
-
-        case IDM_AUDIO_DRIVE_MECHANISM:
-            // "shugart" or "alps", canonical lower-case from the settings
-            // state; the mixer matches case-insensitively anyway.
-            hr = target.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
-            IGNORE_RETURN_VALUE (hr, S_OK);
-            break;
-
-        case IDM_AUDIO_DRIVE_VOLUMES:
-            DispatchDriveVolumes (cmd.payload, target);
-            break;
-
-        case IDM_AUDIO_DRIVE_PAN:
-            DispatchDrivePan (cmd.payload, target);
-            break;
-
-        case IDM_AUDIO_DRIVE_TEST:
-            DispatchDriveTest (cmd.payload, target);
-            break;
-
 
         case IDM_FILE_SAVE_STATE:
-            target.SaveMachineState (PayloadToPath (cmd.payload));
+            targets.machine.SaveMachineState (PayloadToPath (cmd.payload));
             break;
 
         case IDM_FILE_LOAD_STATE:
-            target.LoadMachineState (PayloadToPath (cmd.payload));
+            targets.machine.LoadMachineState (PayloadToPath (cmd.payload));
             break;
 
         default:
-            if (!DispatchDiskCommand (cmd, target))
+            if (!DispatchDriveCommand (cmd, targets.disks, targets.driveAudio) && !DispatchDebugCommand (cmd, targets.debug))
             {
-                DispatchDebugCommand (cmd, target);
+                DispatchTapeCommand (cmd, targets.tape);
             }
 
             break;
@@ -132,15 +109,15 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, ICpuCommandTar
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchDiskCommand
+//  DispatchDriveCommand
 //
-//  The disk commands: insert, eject, the two write-protect commands, the
-//  answer to a question about a changed image, and salvage. Gives back
-//  whether the id was one of them.
+//  The Disk II commands: insert, eject, the two write-protect commands, the
+//  answer to a question about a changed image, salvage, and the drive
+//  sounds. Returns whether the id was one of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuCommandDispatcher::DispatchDiskCommand (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+bool CpuCommandDispatcher::DispatchDriveCommand (const EmulatorCommand & cmd, ICpuDiskCommands & disks, ICpuDriveAudioCommands & driveAudio)
 {
     HRESULT  hr        = S_OK;
     bool     isHandled = true;
@@ -151,38 +128,62 @@ bool CpuCommandDispatcher::DispatchDiskCommand (const EmulatorCommand & cmd, ICp
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
-            hr = target.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
+            hr = disks.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
-            target.EjectDisk ((cmd.id == IDM_DISK_EJECT1) ? 0 : 1);
+            disks.EjectDisk ((cmd.id == IDM_DISK_EJECT1) ? 0 : 1);
             break;
 
         case IDM_DISK_WRITEPROTECT1:
         case IDM_DISK_WRITEPROTECT2:
-            target.SetDriveUserWriteProtect ((cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1,
-                                             !cmd.payload.empty() && cmd.payload[0] == '1');
+            disks.SetDriveUserWriteProtect ((cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1,
+                                                    !cmd.payload.empty() && cmd.payload[0] == '1');
             break;
 
         case IDM_DISK_WP1:
         case IDM_DISK_WP2:
-            hr = target.ToggleImageWriteProtect ((cmd.id == IDM_DISK_WP1) ? 0 : 1);
+            hr = disks.ToggleImageWriteProtect ((cmd.id == IDM_DISK_WP1) ? 0 : 1);
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
         case IDM_DISK_RESOLVE_CHANGE:
-            DispatchResolveChange (cmd.payload, target);
+            DispatchResolveChange (cmd.payload, disks);
             break;
 
         case IDM_DISK_SALVAGE1:
         case IDM_DISK_SALVAGE2:
-            target.AssessSalvage ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            disks.AssessSalvage ((cmd.id == IDM_DISK_SALVAGE1) ? 0 : 1);
             break;
 
         case IDM_DISK_SALVAGE_WRITE:
-            DispatchSalvageWrite (cmd.payload, target);
+            DispatchSalvageWrite (cmd.payload, disks);
+            break;
+
+        case IDM_AUDIO_DRIVE_ENABLE:
+        case IDM_AUDIO_DRIVE_DISABLE:
+            driveAudio.SetDriveAudioEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
+            break;
+
+        case IDM_AUDIO_DRIVE_MECHANISM:
+            // "shugart" or "alps", canonical lower-case from the settings
+            // state; the mixer matches case-insensitively anyway.
+            hr = driveAudio.SetDriveAudioMechanism (TextEncoding::NarrowToWide (cmd.payload));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            break;
+
+        case IDM_AUDIO_DRIVE_VOLUMES:
+            DispatchDriveVolumes (cmd.payload, driveAudio);
+            break;
+
+        case IDM_AUDIO_DRIVE_PAN:
+            DispatchDrivePan (cmd.payload, driveAudio);
+            break;
+
+        case IDM_AUDIO_DRIVE_TEST:
+            DispatchDriveTest (cmd.payload, driveAudio);
             break;
 
         default:
@@ -202,11 +203,11 @@ bool CpuCommandDispatcher::DispatchDiskCommand (const EmulatorCommand & cmd, ICp
 //  DispatchDebugCommand
 //
 //  The debugger's commands, from a console line to a divergence from
-//  history. Gives back whether the id was one of them.
+//  history. Returns whether the id was one of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuCommandDispatcher::DispatchDebugCommand (const EmulatorCommand & cmd, ICpuCommandTarget & target)
+bool CpuCommandDispatcher::DispatchDebugCommand (const EmulatorCommand & cmd, IDebugCommandTarget & debug)
 {
     bool  isHandled = true;
 
@@ -222,46 +223,108 @@ bool CpuCommandDispatcher::DispatchDebugCommand (const EmulatorCommand & cmd, IC
 
             if (DebugCommandPayload::TryDecode (cmd.payload, decoded))
             {
-                target.RunDebugCommand (decoded.clientId, decoded.line, decoded.mode);
+                debug.RunDebugCommand (decoded.clientId, decoded.line, decoded.mode);
             }
 
             break;
         }
 
         case IDM_DEBUG_PAUSE_CHANGED:
-            target.NotifyDebugPauseChanged (cmd.payload == "1");
+            debug.NotifyDebugPauseChanged (cmd.payload == "1");
             break;
 
         case IDM_DEBUG_OPEN:
-            target.OpenDebugChannel();
+            debug.OpenDebugChannel();
             break;
 
         case IDM_DEBUG_CLOSE:
-            target.CloseDebugChannel (cmd.payload == "detach");
+            debug.CloseDebugChannel (cmd.payload == "detach");
             break;
 
         case IDM_DEBUG_PAUSE:
-            target.PauseDebugRun();
+            debug.PauseDebugRun();
             break;
 
         case IDM_DEBUG_ACTION:
-            target.RunDebugActions();
+            debug.RunDebugActions();
             break;
 
         case IDM_DEBUG_VIEW:
-            DispatchDebugView (cmd.payload, target);
+            DispatchDebugView (cmd.payload, debug);
             break;
 
         case IDM_DEBUG_REVERSE:
-            DispatchReverse (cmd.payload, target);
+            DispatchReverse (cmd.payload, debug);
             break;
 
         case IDM_DEBUG_REVERSE_OPTIONS:
-            DispatchReverseOptions (cmd.payload, target);
+            DispatchReverseOptions (cmd.payload, debug);
             break;
 
         case IDM_DEBUG_DIVERGE:
-            target.DivergeHistory();
+            debug.DivergeHistory();
+            break;
+
+        default:
+            isHandled = false;
+            break;
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchTapeCommand
+//
+//  The cassette recorder's commands. Returns whether the id was one of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::DispatchTapeCommand (const EmulatorCommand & cmd, ICpuTapeCommands & tape)
+{
+    bool  isHandled = true;
+
+
+
+    switch (cmd.id)
+    {
+        case IDM_TAPE_INSERT:
+            tape.ControlTape (TapeCommand::Insert);
+            break;
+
+        case IDM_TAPE_EJECT:
+            // "keep" unloads without forgetting, for a machine switch.
+            tape.ControlTape (cmd.payload == "keep" ? TapeCommand::Unload : TapeCommand::Eject);
+            break;
+
+        case IDM_TAPE_PLAY:
+            tape.ControlTape (TapeCommand::Play);
+            break;
+
+        case IDM_TAPE_STOP:
+            tape.ControlTape (TapeCommand::Stop);
+            break;
+
+        case IDM_TAPE_REWIND:
+            tape.ControlTape (TapeCommand::Rewind);
+            break;
+
+        case IDM_TAPE_RECORD:
+            // "1" arms record, anything else releases it.
+            tape.ControlTape (cmd.payload == "1" ? TapeCommand::ArmRecord : TapeCommand::ReleaseRecord);
+            break;
+
+        case IDM_TAPE_SEEK:
+            tape.ControlTape (TapeCommand::Seek);
+            break;
+
+        case IDM_TAPE_FASTFORWARD:
+            tape.ControlTape (TapeCommand::FastForward);
             break;
 
         default:
@@ -365,7 +428,7 @@ bool CpuCommandDispatcher::TryGetJournalInput (const EmulatorCommand & cmd, Inpu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, ICpuDiskCommands & disks)
 {
     std::istringstream  reader (payload);
     int                 slot   = 0;
@@ -389,7 +452,7 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
         savePath.erase (savePath.begin());
     }
 
-    target.ResolvePendingChange (slot, drive, action, savePath);
+    disks.ResolvePendingChange (slot, drive, action, savePath);
 }
 
 
@@ -406,7 +469,7 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, ICpuDiskCommands & disks)
 {
     std::istringstream  reader (payload);
     int                 drive   = 0;
@@ -434,7 +497,7 @@ void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, IC
         return;
     }
 
-    target.WriteSalvagedCopy (drive, mediaId, path);
+    disks.WriteSalvagedCopy (drive, mediaId, path);
 }
 
 
@@ -451,7 +514,7 @@ void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, IC
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDriveVolumes (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchDriveVolumes (const std::string & payload, ICpuDriveAudioCommands & driveAudio)
 {
     int  motorPct = 0;
     int  headPct  = 0;
@@ -461,9 +524,9 @@ void CpuCommandDispatcher::DispatchDriveVolumes (const std::string & payload, IC
 
     if (sscanf_s (payload.c_str(), "%d,%d,%d", &motorPct, &headPct, &doorPct) == 3)
     {
-        target.SetDriveAudioVolumes ((float) motorPct / 100.0f,
-                                     (float) headPct  / 100.0f,
-                                     (float) doorPct  / 100.0f);
+        driveAudio.SetDriveAudioVolumes ((float) motorPct / 100.0f,
+                                         (float) headPct  / 100.0f,
+                                         (float) doorPct  / 100.0f);
     }
 }
 
@@ -479,7 +542,7 @@ void CpuCommandDispatcher::DispatchDriveVolumes (const std::string & payload, IC
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDrivePan (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchDrivePan (const std::string & payload, ICpuDriveAudioCommands & driveAudio)
 {
     int  pan0 = 0;
     int  pan1 = 0;
@@ -488,8 +551,8 @@ void CpuCommandDispatcher::DispatchDrivePan (const std::string & payload, ICpuCo
 
     if (sscanf_s (payload.c_str(), "%d,%d", &pan0, &pan1) == 2)
     {
-        target.SetDriveAudioPan (0, (float) pan0 / 100.0f);
-        target.SetDriveAudioPan (1, (float) pan1 / 100.0f);
+        driveAudio.SetDriveAudioPan (0, (float) pan0 / 100.0f);
+        driveAudio.SetDriveAudioPan (1, (float) pan1 / 100.0f);
     }
 }
 
@@ -506,7 +569,7 @@ void CpuCommandDispatcher::DispatchDrivePan (const std::string & payload, ICpuCo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuDriveAudioCommands & driveAudio)
 {
     int  drive = 0;
     int  kind  = 0;
@@ -515,7 +578,7 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuC
 
     if (sscanf_s (payload.c_str(), "%d,%d", &drive, &kind) == 2)
     {
-        target.PlayDriveTestSound (drive, kind);
+        driveAudio.PlayDriveTestSound (drive, kind);
     }
 }
 
@@ -678,7 +741,7 @@ bool CpuCommandDispatcher::TryGetHeatMapIgnore (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, ICpuCommandTarget & target)
+void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCommandTarget & target)
 {
     std::vector<std::pair<Word, Word>>  spans;
 
@@ -707,14 +770,15 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, ICpuComm
 //  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
 //  hover" gives the cell under the mouse, and the words HeatAccessJump makes
 //  ask about a cell's last access; "heatmap ignore" gives the spans whose
-//  reads before written are left out. "beam" asks for
-//  the stopped picture to be drawn again with the beam mark turned on or off.
+//  reads before written are left out. "basic on" and "basic off" turn the
+//  reading of the Applesoft program for the BASIC panes on and off. "beam"
+//  is a request for the stopped picture to be drawn again with the beam mark turned on or off.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebugCommandTarget & target)
 {
     static constexpr size_t  kMaxEntryDigits = 18;
     size_t                   space           = payload.find (' ');
@@ -732,7 +796,15 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
 
 
 
-    if (view == "heatmap")
+    if (view == "basic" && TryGetHeatMapShown (where, isShown))
+    {
+        target.SetDebugBasicShown (isShown);
+    }
+    else if (view == "heatcolumns" && TryGetHeatMapShown (where, isShown))
+    {
+        target.SetDebugHeatColumnsShown (isShown);
+    }
+    else if (view == "heatmap")
     {
         if (TryGetHeatMapShown (where, isShown))
         {
@@ -765,6 +837,12 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, ICpuC
     if (view == "beam")
     {
         target.RedrawDebugFrame();
+        return;
+    }
+
+    if (view == "disklog" || view == "inputlog")
+    {
+        target.SetDebugEventLog ((view == "disklog") ? DebugLogKind::Disk : DebugLogKind::Input, where);
         return;
     }
 
@@ -942,7 +1020,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchReverse (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchReverse (const std::string & payload, IDebugCommandTarget & target)
 {
     ReverseCommand  command  = ReverseCommand::StepBack;
     uint64_t        argument = 0;
@@ -1025,7 +1103,7 @@ bool CpuCommandDispatcher::TryParseReverseOptionsPayload (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, ICpuCommandTarget & target)
+void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target)
 {
     bool  isRecording = false;
     int   budgetMb    = 0;

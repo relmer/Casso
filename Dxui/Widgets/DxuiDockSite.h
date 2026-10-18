@@ -198,6 +198,9 @@ public:
     //  The pane whose control holds `content`, or empty.
     std::wstring  GetPaneOf (const IDxuiControl * content) const;
 
+    //  A pane's control, or null for a pane the site does not have.
+    IDxuiControl * GetPaneContent (const std::wstring & pane) const;
+
     //  The pane shown at a point, or empty.
     std::wstring  GetPaneAt (POINT pointDip) const;
 

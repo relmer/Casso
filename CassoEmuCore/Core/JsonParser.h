@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "JsonValue.h"
+class JsonValue;
 
 
 

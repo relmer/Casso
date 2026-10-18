@@ -3,6 +3,8 @@
 #include "Capture/CapturedImage.h"
 
 #include "../EhmTestHelper.h"
+#include "HResultAssert.h"
+#include "Devices/Printer/RgbaImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

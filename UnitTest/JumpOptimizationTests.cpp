@@ -5,6 +5,7 @@
 #include "Assembler.h"
 #include "Directive.h"
 #include "MerlinDialect.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -103,7 +104,7 @@ namespace JumpOptimizationTests
             {
                 std::string  line = "[" + std::to_string (error.lineNumber) + "] " + error.message + "; ";
 
-                text += std::wstring (line.begin(), line.end());
+                text += TextEncoding::NarrowToWide (line);
             }
 
             return text;

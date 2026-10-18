@@ -2,6 +2,7 @@
 
 #include "Debugger/IRunDriver.h"
 #include "Ui/UiCommandTypes.h"
+#include "Debugger/Reply.h"
 
 class CpuManager;
 class DebugHook;

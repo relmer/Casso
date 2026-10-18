@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "EhmTestHelper.h"
 #include "AppleTextCodec.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

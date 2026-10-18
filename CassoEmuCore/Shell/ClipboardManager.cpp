@@ -4,6 +4,9 @@
 
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Shell/Input/CapsLockTracker.h"
+#include "Capture/CapturedImage.h"
+#include "Core/MemoryBus.h"
+#include "Seams/IHostClipboard.h"
 
 
 
@@ -55,33 +58,54 @@ ClipboardManager::ClipboardManager (
 //
 //  ClipboardManager::DecodeScreenByte
 //
-//  Map one raw text-screen byte to a printable wchar. Normal, inverse, and
-//  flashing glyphs all live in the $80-$FF span, so strip the high bit and
-//  blank anything outside printable ASCII.
+//  The character on screen for a text-screen byte, whatever its video. Each
+//  $40-byte quarter of the primary set has the same 64 characters, @-_ and
+//  space-?, inverse at $00-$3F, flashing at $40-$7F, normal at $80-$BF, and
+//  normal again at $C0-$FF with lowercase at $E0-$FF on a //e. The //e's
+//  alternate set has MouseText at $40-$5F, which has no character to copy
+//  and copies as a space, and inverse lowercase at $60-$7F.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
+wchar_t ClipboardManager::DecodeScreenByte (Byte ch, bool isAltCharset)
 {
-    constexpr Byte  kInverseHighStart = 0xA0;
+    constexpr Byte  kQuarter      = 0x40;
+    constexpr Byte  kHalfQuarter  = 0x20;
+    constexpr Byte  kFlashing     = 0x40;
+    constexpr Byte  kLowercase    = 0x60;
+    Byte            shown         = 0;
 
 
 
-    if (ch >= kInverseHighStart)
+    if (ch >= kHighBitMask)
     {
-        ch -= kHighBitMask;
+        shown = static_cast<Byte> (ch - kHighBitMask);
     }
-    else if (ch >= kHighBitMask)
+    else if (isAltCharset && ch >= kLowercase)
     {
-        ch -= kHighBitMask;
+        shown = ch;
+    }
+    else if (isAltCharset && ch >= kFlashing)
+    {
+        shown = ' ';
+    }
+    else
+    {
+        shown = static_cast<Byte> (ch % kQuarter);
     }
 
-    if (ch < kPrintableLow || ch > kPrintableHigh)
+    //  The first half of a quarter is @-_, the second space-?.
+    if (shown < kHalfQuarter)
     {
-        ch = ' ';
+        shown = static_cast<Byte> (shown + kQuarter);
     }
 
-    return static_cast<wchar_t> (ch);
+    if (shown < kPrintableLow || shown > kPrintableHigh)
+    {
+        shown = ' ';
+    }
+
+    return static_cast<wchar_t> (shown);
 }
 
 
@@ -98,7 +122,7 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
+std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte * auxRam) const
 {
     constexpr int   kTextRows          = 24;
     constexpr int   kTextCols          = 40;
@@ -119,6 +143,12 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
     bool  eighty = (auxRam != nullptr)
                 && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
+
+    // The //e's alternate character set (RDALTCHAR, $C01E bit 7), read where
+    // there is an aux bank, as RD80VID is.
+    bool  isAlt  = (auxRam != nullptr)
+                && ((m_memoryBus.ReadByte (kRdAltChar) & kHighBitMask) != 0);
+
     cols = eighty ? kTextCols80 : kTextCols;
 
 
@@ -131,24 +161,23 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 
         for (int col = 0; col < cols; col++)
         {
-            Byte  ch = 0;
+            Byte  ch   = 0;
+            Word  addr = static_cast<Word> (eighty ? base + col / 2 : base + col);
 
-            if (eighty)
+            // Even 80-column columns come from aux memory; everything else is
+            // main. Main is read from its buffer when there is one, because
+            // the bus follows the CPU's banking: under RAMRD, or 80STORE with
+            // PAGE2, the text page it serves is aux.
+            if (eighty && (col & 1) == 0)
             {
-                Word  addr = static_cast<Word> (base + col / 2);
-
-                // Even columns come from aux memory, odd from main. The bus
-                // returns main at $0400-$07FF the same way the 40-column path
-                // relies on, so the aux read is the only new access.
-                ch = ((col & 1) == 0) ? auxRam[addr]
-                                      : m_memoryBus.ReadByte (addr);
+                ch = auxRam[addr];
             }
             else
             {
-                ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
+                ch = (mainRam != nullptr) ? mainRam[addr] : m_memoryBus.ReadByte (addr);
             }
 
-            text += DecodeScreenByte (ch);
+            text += DecodeScreenByte (ch, isAlt);
         }
 
         while (!text.empty() && text.back() == L' ')
@@ -171,16 +200,16 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 //  CopyScreenText
 //
 //  Scrape the emulated text screen (BuildScreenText) and hand it to the host
-//  clipboard as Unicode. Reads via the memory bus rather than the CPU's
-//  internal memory[] buffer: on the //e the MMU owns its own RAM device(s), so
-//  firmware writes land in the bus-side buffer while the CPU mirror stays
-//  uninitialized.
+//  clipboard as Unicode. Main is read from the MMU's buffer when one is given,
+//  and through the memory bus otherwise -- never the CPU's internal memory[]
+//  buffer: on the //e the MMU owns its own RAM device(s), so firmware writes
+//  land in the bus-side buffer while the CPU mirror stays uninitialized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
+void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * mainRam, const Byte * auxRam) const
 {
-    bool  placed = m_clipboard.SetText (hwnd, BuildScreenText (auxRam));
+    bool  placed = m_clipboard.SetText (hwnd, BuildScreenText (mainRam, auxRam));
 
 
 

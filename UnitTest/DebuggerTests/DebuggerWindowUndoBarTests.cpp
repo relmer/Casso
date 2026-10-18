@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/UndoBarCommands.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

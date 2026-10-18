@@ -2,8 +2,11 @@
 
 #include "Pch.h"
 #include "Debugger/Reverse/HistoryStatus.h"
-#include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/UiCommandTypes.h"
+
+struct ReplayControl;
+struct ReplayProgress;
 
 
 
@@ -36,6 +39,9 @@ public:
     static constexpr uint64_t  kProgressDelayMs = 200;
 
     static std::wstring  GetZoomText     (float zoom);
+
+    //  The emulator's speed as its menu writes it: 1x, 2x or Maximum.
+    static std::wstring  GetSpeedText    (SpeedMode speed);
 
     //  Where the beam is: "Scanline:cycle 192:1 ($0C0:01)", the place in
     //  decimal and then in hex as VIDEOINFO gives it, or empty with no beam.

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/AppleWinCommandTable.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -31,11 +32,11 @@ namespace DebuggerTests
             "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "SOUNDLOG", "STOPWATCH", "VIDEOLOG", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
             "T-", "P-", "GU-", "G-", "LIVE",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
-            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
-            "BENCHMARK", "DISASM", "LOAD", "SAVE", "PWD", "CD",
+            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BPBASIC", "BPBASICVAR", "BRKBASIC", "BPNAME", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
+            "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",
-            "DISK",
+            "DISK", "TAPE",
             "CL", "CLC", "CLZ", "CLI", "CLD", "CLB", "CLR", "CLV", "CLN", "SE", "SEC", "SEZ", "SEI", "SED", "SEB", "SER", "SEV", "SEN",
             "?", "HELP", "VERSION", "MOTD",
             "MC", "ME", "MEB", "MEW", "BLOAD", "M", "BSAVE", "S", "@", "SH", "F", "TSAVE",
@@ -46,12 +47,12 @@ namespace DebuggerTests
             "STARTUP",
             "INPUT", "RC", "RZ", "RI", "RD", "RB", "RR", "RV", "RN", "SC", "SZ", "SI", "SD", "SB", "SR", "SV", "SN",
             "D", "ME8", "ME16", "MM", "MS", "P0", "P1", "P2", "P3", "P4", "REGISTER", "TRACE", "SYMDOS", "SYMPRO", "ZAP",
-            "BENCH", "EXITBENCH", "MDB",
+            "MDB",
             "BPV", "BPBEAM", "FRAME", "VIDEOINFO",
             "MODE", "PAUSE", "BUDGET", "SWITCHES", "MAP", "STACK", "PATCH", "SRC", "SKIP", "CALLS", "HISTORY", "PANEL",
             "OUTPUT",
             "SAVESTATE",
-            "LOADSTATE",
+            "LOADSTATE", "PROJECT", "BASICSTEP", "BASICLINE", "BASICOUT", "BASICVARS", "BASICSTACK",
         };
 
         static constexpr const char * kWindowOnlyNames[] =
@@ -64,7 +65,7 @@ namespace DebuggerTests
             "BW", "COLOR", "FONT", "HCOLOR", "MONO",
         };
 
-        static constexpr const char * kNotAvailableNames[] = { "SHR", "SOURCE", "SYNC", "NTSC" };
+        static constexpr const char * kNotAvailableNames[] = { "SHR", "SOURCE", "SYNC", "NTSC", "DISASM" };
 
         // Verbs no AppleWin name produces directly: Monitor-mode forms, and
         // operations reached through another command's arguments (R A=41,
@@ -123,7 +124,7 @@ namespace DebuggerTests
             {
                 const AppleWinCommand * command = AppleWinCommandTable::Find (name);
                 std::string             narrow (name);
-                std::wstring            where  (narrow.begin(), narrow.end());
+                std::wstring            where  = TextEncoding::NarrowToWide (narrow);
 
 
 
@@ -164,7 +165,7 @@ namespace DebuggerTests
 
                 Assert::IsNotNull (command);
                 Assert::IsNotNull (command->reason);
-                Assert::IsTrue    (std::string (command->reason).starts_with (name));
+                Assert::IsTrue    (std::string (command->reason).ends_with ("."), L"the reason is a complete sentence");
             }
         }
 

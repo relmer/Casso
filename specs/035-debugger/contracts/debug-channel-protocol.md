@@ -108,7 +108,7 @@ Clients format them.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, `flags` (`{"n":bool,"v":…,"b":…,"d":…,"i":…,"z":…,"c":…}`) |
 | `memory` | `rows`: `[{"address":int,"bytes":[int],"region":"mainRam"|"auxRam"|"lcBank1"|"lcBank2"|"rom"|"slotRom"|"io"}]`; an unreadable I/O byte is `null` |
 | `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"operandAddress":int|null,"operandSymbol":str|null,"target":int|null,"label":str|null,"documented":bool}]`. `operand` is always numeric; `operandSymbol` names `operandAddress` when a symbol is loaded, and `label` names `address` (or the data block the line starts). |
-| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits","disk","resolved"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint. Kind `disk` (`BPDISK`) has a `disk` object, the breakpoint's definition (below), and, for an RWTS or driver call, `resolved`: the routine it stops at now, absent while its vector holds no target |
+| `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits","disk","resolved"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint. Kind `disk` (`BPDISK`) has a `disk` object, the breakpoint's definition (below), and, for an RWTS or driver call, `resolved`: the routine it stops at now, absent while its vector has no target |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `[{"id","address","enabled","value"}]` |
 | `searchHits` | `addresses`: `[int]` |
 | `stack` | `sp`, `entries`: `[{"address":int,"value":int}]` |
@@ -120,7 +120,7 @@ Clients format them.
 | `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
 | `callStack` | `mechanism`: `"RECORDED"`, `"WALK"` or `"HYBRID"`; `rows`, innermost first, each a frame `{"callSite","target","type":"JSR"|"BRK"|"IRQ"|"NMI","provenance":"recorded"|"guessed","stackLevel","verified":bool,"symbol":str|null,"note":str|null}` or a break `{"break":"txs"|"pulledReturn"|"endedByJump"|"returnMismatch"|"stackWrap"|"reset"|"trackingBegan"|"powerOn"|"historyBegan"|"trackingRestarted","pc","opcode","text"}`, where the `text` of a `historyBegan` break is `Calls before history starts at $xxxx are not available.` and that of a `trackingRestarted` break, where recording began again after a move through history that no rebuild replaced, is `Calls before $xxxx are not available.`; `lastReturn`: the last frame that returned with a note (past inline parameters), or `null` (`CALLS`) |
 | `callStackMode` | `mechanism` (`CALLS MODE`) |
-| `trace` | `on`: bool, `total`: entries retained, `entries`: `[{"index","cycles","pc","bytes","instruction","symbol","a","x","y","sp","p","interrupt","access"}]` oldest first, where `bytes` is the opcode and the two bytes after it, `symbol` is null where none holds `pc`, `interrupt` marks an interrupt handler's first instruction, and `access` is `{"address","direction":"read"\|"write","data","symbol"}` or null for an instruction that made no data access (`HISTORY`) |
+| `trace` | `on`: bool, `total`: entries retained, `entries`: `[{"cycles","pc","bytes","instruction","symbol","a","x","y","sp","p","interrupt","access"}]` oldest first, where `bytes` is the opcode and the two bytes after it, `symbol` is null where no symbol is at `pc`, `interrupt` marks an interrupt handler's first instruction, and `access` is `{"address","direction":"read"\|"write","data","symbol"}` or null for an instruction that made no data access (`HISTORY`); an entry history could not replay, or is replaying now, is `{"available":false,"rebuilding":bool}` |
 | `message` | no fields beyond `text` |
 
 New kinds may be added; a client that does not recognize a kind uses `text`.
@@ -170,7 +170,7 @@ A disk breakpoint's definition, the `disk` object of `breakpointSet` and
 | `options` | the options given, as strings: `passed`, `badChecksum`, `wrongTrack`, `bump`, `every` |
 | `addressMarks`, `dataMarks` | three entries each, a number or `null` for `??` |
 | `format` | 13 or 16: the data-field length `SECTORS` gave, for custom address marks |
-| `unresolved` | `true` while an RWTS or driver breakpoint's vector holds no target |
+| `unresolved` | `true` while an RWTS or driver breakpoint's vector has no target |
 
 The definition has no slot, since `BPDISK` takes none, and no condition other
 than the breakpoint's own `condition`: an RWTS or driver breakpoint's request
@@ -242,3 +242,22 @@ connection stays open.
 `protocol` increases only when an existing field changes meaning or is
 removed. Added fields, data kinds, notification types and stop reasons do not
 change it.
+
+## Applesoft stops and debug projects (User Stories 21 and 22)
+
+- New stop reasons: `basicStep` (a BASIC step ended) and `basicError`; BASIC
+  breakpoints stop with `breakpoint`, the entry's `kind` being `basicLine` or
+  `basicVariable`, and `BRKBASIC ON`'s entry has kind `basicError`. Each
+  Applesoft stop has a `basic` object: `line` (`null` in direct mode); for a
+  variable, `variable`, `changeLine`, `previous` and `value`; for an error,
+  `code`, `error` (the message) and `handled` (ONERR on).
+- Breakpoint entries gain `line` (kind `basicLine`) and `variable` (kind
+  `basicVariable`).
+- New data kinds: `basicVariables` (`variables` and `arrays`, each value as
+  PRINT writes it) and `basicStack` (`frames`: `gosub` or `for`, its line,
+  and a FOR frame's variable, limit and step).
+- `breakpointSet` and `breakpointList` entries gain `name` (string, empty for
+  the default).
+- A `project` data kind (`scope`, `key`, `label`, `file`, `isAutomatic`)
+  answers `PROJECT`; `scope` is `debugFile`, `binary`, `machineBoot` or
+  `machine`.

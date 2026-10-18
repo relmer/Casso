@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "Cassque/Model/Location.h"
-#include "Config/IFileSystem.h"
-#include "Core/JsonValue.h"
+class JsonValue;
+struct Location;
+class IFileSystem;
 
 
 

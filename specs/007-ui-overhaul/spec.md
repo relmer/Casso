@@ -2,7 +2,7 @@
 
 **Feature Branch**: `007-ui-overhaul`  
 **Created**: 2026-05-20  
-**Status**: Draft  
+**Status**: Shipped in 1.4.1171 (2026-05-26)
 **Input**: User description: Full UI overhaul, Uber Settings Dialog, Full Custom D3D Chrome, JSON/File-Based Theme System
 
 ---

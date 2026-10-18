@@ -187,11 +187,41 @@ uint32_t DebuggerTextColors::GetChangedOn (const Set & set, uint32_t fill)
 
 DebuggerTextColors::Ranges DebuggerTextColors::GetInstructionRanges (const std::wstring & instruction, const Set & set)
 {
+    return ToRanges (instruction, SourceSyntax::GetInstructionRuns (instruction), set);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerTextColors::GetOperandRanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerTextColors::Ranges DebuggerTextColors::GetOperandRanges (const std::wstring & operand, const Set & set)
+{
+    return ToRanges (operand, SourceSyntax::GetOperandRuns (operand), set);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerTextColors::ToRanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerTextColors::Ranges DebuggerTextColors::ToRanges (const std::wstring & instruction, const std::vector<SourceSyntax::Run> & runs, const Set & set)
+{
     Ranges  ranges;
 
 
 
-    for (const SourceSyntax::Run & run : SourceSyntax::GetInstructionRuns (instruction))
+    for (const SourceSyntax::Run & run : runs)
     {
         uint32_t  argb        = set.syntax.Get (run.token);
         bool      isImmediate = instruction[(size_t) run.start] == L'#' || (run.start > 0 && instruction[(size_t) run.start - 1] == L'#');

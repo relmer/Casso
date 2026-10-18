@@ -9,8 +9,15 @@
 #include "Debugger/ReplyJson.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Shell/DebugEventLogs.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/IRomSource.h"
+#include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Tape/ITapeAudioDecoder.h"
+#include "Devices/Tape/TapeDeck.h"
+#include "Devices/Tape/TapeImageLoader.h"
+#include "Debugger/MachineDebugTarget.h"
+#include "Debugger/SynchronousRunDriver.h"
 
 
 
@@ -27,6 +34,20 @@ DebugBatchRunner::DebugBatchRunner (const IRomSource & roms, IFileSystem & files
     m_files (files)
 {
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugBatchRunner::~DebugBatchRunner
+//
+//  Here, where the run driver it owns is complete; the header only declares it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugBatchRunner::~DebugBatchRunner() = default;
 
 
 
@@ -89,6 +110,12 @@ HRESULT DebugBatchRunner::Prepare (const CommandLineOptions::DebugOptions & opti
         CHR (hr);
     }
 
+    if (!options.tape.empty())
+    {
+        hr = InsertTape (options.tape, result);
+        CHR (hr);
+    }
+
 Error:
     return hr;
 }
@@ -102,7 +129,8 @@ Error:
 //  DebugBatchRunner::Execute
 //
 //  One session over the machine with every command family, the option's
-//  budget and its starting mode, then the lines. A command that returns
+//  budget and its starting mode, and event logs started at the first
+//  instruction for VIDEOLOG and SOUNDLOG, then the lines. A command that returns
 //  error or unknown sets status 1; a last run that ended on its budget sets
 //  3 unless 1 is already set.
 //
@@ -115,6 +143,7 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     DebugCommand              mode;
     OutputFormat              output = OutputFormat::AppleWin;
     DebugSession              session (*m_target, m_sink, RunState::Paused);
+    DebugEventLogs            logs    (*m_host);
 
 
 
@@ -122,6 +151,9 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     m_sink.SetSession (&session);
     m_handlers.Attach (session);
     session.SetFileSystem (&m_files);
+
+    logs.Start (nullptr);
+    session.SetIoEventSource (&logs);
 
     //  A batch run is the debugger attached from the first instruction.
     session.SetCallRecording (true);
@@ -153,6 +185,7 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    logs.Stop();
     m_sink.SetSession (nullptr);
 }
 
@@ -312,6 +345,50 @@ HRESULT DebugBatchRunner::MountDisk (const std::string & path, int drive, DebugB
         }
 
         result.exitStatus = kNothingStarted;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugBatchRunner::InsertTape
+//
+//  The tape is inserted stopped, at its start. An MP3 cannot be inserted
+//  here: its decoder is the emulator's, and a batch run has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebugBatchRunner::InsertTape (const std::string & path, DebugBatchResult & result)
+{
+    HRESULT               hr       = S_OK;
+    NullTapeAudioDecoder  mp3;
+    TapeImage             image;
+    std::string           content;
+    std::string           error;
+    bool                  hasJacks = m_host->GetRefs().cassettePort != nullptr;
+
+
+
+    CBRFEx (hasJacks, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), error = "This machine has no cassette jacks.");
+
+    hr = m_files.ReadAllText (TextEncoding::NarrowToWide (path), content);
+    CHRF (hr, error = std::format ("{} could not be read.", path));
+
+    hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), path, true, mp3, image, error);
+    CHR (hr);
+
+    m_host->GetTapeDeck().Insert (std::move (image));
+
+Error:
+    if (FAILED (hr))
+    {
+        result.diagnostics += std::format ("Error: {}\n", error);
+        result.exitStatus   = kNothingStarted;
     }
 
     return hr;

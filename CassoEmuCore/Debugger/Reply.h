@@ -1,8 +1,10 @@
 #pragma once
 
 #include "I6502DebugInfo.h"
+#include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/DebugCommand.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
+#include "Debugger/RoutineProfile.h"
 #include "Disassembler.h"
 
 class LineTable;
@@ -46,10 +48,13 @@ enum class BreakpointKind
     Opcode,
     Register,
     Memory,
-    Io,
     Brk,
     Interrupt,
     MemoryValue,
+    Disk,
+    BasicLine,
+    BasicVariable,
+    BasicError,
 };
 
 enum class WatchAccess
@@ -96,6 +101,10 @@ struct MessageData
 struct RegistersData
 {
     Cpu6502Registers  registers = {};
+
+    //  One register to show, as WinDbg's `r a` asks for: A, X, Y, S, PC or P.
+    //  Empty for all of them.
+    std::string       only;
 };
 
 struct MemoryRow
@@ -150,6 +159,17 @@ struct BreakpointInfo
     bool                 temporary = false;         // cleared when it fires
     bool                 stops     = true;          // false: counts hits only
     uint32_t             hits      = 0;
+    std::string          symbol;                    // the symbol an address breakpoint was set by
+    std::string          name;                      // BPNAME's; empty for the default
+
+    // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
+    // breakpoint stops at now, absent while its vector has no target.
+    std::optional<DiskBreakSpec>  disk;
+    std::optional<Word>           resolved;
+
+    // Kind BasicVariable: the variable or array element, as BPBASICVAR was
+    // given it. Kind BasicLine has its line number in address.
+    std::string                   basicName;
 };
 
 struct BreakpointSetData
@@ -159,15 +179,23 @@ struct BreakpointSetData
 
 struct BreakpointListData
 {
-    std::vector<BreakpointInfo>  breakpoints;
+    std::vector<BreakpointInfo>                    breakpoints;
+
+    //  A BPV scanline break, first and last line. The session has it, not a
+    //  table, so it has no id.
+    std::optional<std::pair<uint32_t, uint32_t>>  videoBreak;
 };
 
+//  A BASIC watch has its variable's name, and its value as PRINT writes it,
+//  a string in quotes, while the machine is stopped in a running program.
 struct WatchEntry
 {
-    int                   id      = 0;
-    Word                  address = 0;
-    bool                  enabled = true;
-    std::optional<Word>   value;
+    int                         id      = 0;
+    Word                        address = 0;
+    bool                        enabled = true;
+    std::optional<Word>         value;
+    std::string                 basicName;
+    std::optional<std::string>  basicValue;
 };
 
 struct WatchListData
@@ -310,12 +338,60 @@ struct ProfileAddressEntry
     uint64_t     cycles  = 0;
 };
 
-// PROFILE LIST, or with isByAddress PROFILE LIST ADDR. The cycles total
-// includes the penalties.
+// One routine: where it starts and how it was entered, the cycles of its own
+// instructions, the cycles of it and every routine it called, counted once
+// per call chain, and how many times it was called.
+struct ProfileRoutineEntry
+{
+    Word         address = 0;
+    RoutineKind  kind    = RoutineKind::Top;
+    std::string  symbol;
+    uint64_t     self    = 0;
+    uint64_t     total   = 0;
+    uint64_t     calls   = 0;
+
+    //  Top level, the symbol or the address, with BRK or Interrupt ahead of
+    //  a routine entered that way.
+    std::string  GetName () const;
+};
+
+// One node of the call tree: its routine, an index in ProfileData::routines,
+// and its depth under Top level. The nodes are in depth-first order, each
+// node's callees after it by their totals.
+struct ProfileTreeEntry
+{
+    size_t       routine = 0;
+    int          depth   = 0;
+    uint64_t     self    = 0;
+    uint64_t     total   = 0;
+    uint64_t     calls   = 0;
+};
+
+// One video frame's cycles by routine, an index in ProfileData::routines, and
+// the cycles of the routines it had no room for.
+struct ProfileFrameEntry
+{
+    uint64_t                                  index = 0;
+    std::vector<std::pair<size_t, uint64_t>>  shares;
+    uint64_t                                  other = 0;
+};
+
+// The table PROFILE LIST prints: by opcode, by address (ADDR), by routine
+// (ROUTINES) or as the call tree (TREE).
+enum class ProfileList
+{
+    Opcodes,
+    Addresses,
+    Routines,
+    Tree,
+};
+
+// PROFILE LIST and its tables. The cycles total includes the penalties. The
+// routines, the call tree and the frames are there whatever the list.
 struct ProfileData
 {
     bool                              isOn         = false;
-    bool                              isByAddress  = false;
+    ProfileList                       list         = ProfileList::Opcodes;
     uint64_t                          instructions = 0;
     uint64_t                          cycles       = 0;
     uint64_t                          pageCross    = 0;
@@ -323,6 +399,9 @@ struct ProfileData
     uint64_t                          branchCross  = 0;
     std::vector<ProfileEntry>         opcodes;
     std::vector<ProfileAddressEntry>  addresses;
+    std::vector<ProfileRoutineEntry>  routines;
+    std::vector<ProfileTreeEntry>     tree;
+    std::vector<ProfileFrameEntry>    frames;
 };
 
 struct CalcData
@@ -442,7 +521,6 @@ struct CallStackModeData
 // and the symbols are filled by the command that reports it.
 struct TraceRecord
 {
-    uint64_t     index         = 0;
     uint64_t     cycles        = 0;
     Word         pc            = 0;
     Byte         opcode        = 0;
@@ -455,6 +533,8 @@ struct TraceRecord
     Byte         sp            = 0;
     Byte         p             = 0;
     bool         isInterrupt   = false;   // the first instruction of an interrupt handler
+    bool         isAvailable   = true;    // false when history could not be replayed there, or not yet
+    bool         isRebuilding  = false;   // history's rebuild of it is running
     bool         hasAccess     = false;
     bool         accessIsWrite = false;
     Byte         accessData    = 0;
@@ -471,6 +551,30 @@ struct TraceData
     bool                      isOn  = false;
     uint64_t                  total = 0;
     std::vector<TraceRecord>  entries;
+};
+
+// PROJECT: the debug project open: what it is for, its file, and whether
+// that is its scope's automatic file.
+struct ProjectData
+{
+    std::string   scope;
+    std::string   key;
+    std::string   label;
+    std::string   file;
+    bool          isAutomatic = true;
+};
+
+// BASICVARS: the Applesoft program's simple variables and arrays.
+struct BasicVariablesData
+{
+    std::vector<BasicVariable>  variables;
+    std::vector<BasicArray>     arrays;
+};
+
+// BASICSTACK: its GOSUB and FOR frames, newest first.
+struct BasicStackData
+{
+    std::vector<BasicFrame>  frames;
 };
 
 using ReplyData = std::variant<MessageData,
@@ -496,7 +600,10 @@ using ReplyData = std::variant<MessageData,
                                StepFilterData,
                                CallStackData,
                                CallStackModeData,
-                               TraceData>;
+                               TraceData,
+                               BasicVariablesData,
+                               BasicStackData,
+                               ProjectData>;
 
 
 
@@ -568,6 +675,128 @@ enum class StopReason
     Brk,
     InvalidOpcode,
     Reset,
+    Disk,
+    BasicStep,
+    BasicError,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskFieldEvent
+//
+//  A field the disk breakpoints' tracker followed to its last nibble: an
+//  address field to its checksum, a data field to its checksum nibble, or a
+//  data prologue written after an address field was read. The instructions
+//  are those that read the address prologue's first nibble, the data
+//  prologue's first nibble and the event's last nibble; isPassed is the read
+//  test's answer, the first and the last being one instruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DiskFieldEventKind
+{
+    AddressField,
+    DataChecksum,
+    WritePrologue,
+};
+
+struct DiskFieldEvent
+{
+    DiskFieldEventKind  kind                 = DiskFieldEventKind::AddressField;
+    DiskFieldKind       format               = DiskFieldKind::Sixteen;
+    Byte                track                = 0;
+    Byte                sector               = 0;
+    Byte                volume               = 0;
+    Byte                storedChecksum       = 0;
+    Byte                expectedChecksum     = 0;
+    bool                isChecksumRead       = true;      // both of the address checksum's nibbles were read
+    Byte                storedDataChecksum   = 0;
+    Byte                expectedDataChecksum = 0;
+    bool                isDataChecksumGood   = false;
+    bool                isWrongTrack         = false;
+    Word                addressInstruction   = 0;
+    Word                dataInstruction      = 0;
+    Word                lastInstruction      = 0;
+    bool                isPassed             = false;
+    int                 drive                = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCallRequest
+//
+//  The request of an RWTS or driver call, read at the routine's entry: the
+//  IOB for RWTS, $42-$47 for ProDOS's driver.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DiskCallRequest
+{
+    bool  isDriver = false;
+    int   slot     = 0;
+    int   drive    = 0;
+    Byte  volume   = 0;
+    Byte  track    = 0;
+    Byte  sector   = 0;
+    Byte  command  = 0;
+    Byte  unit     = 0;
+    Word  buffer   = 0;
+    Word  block    = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskReport
+//
+//  The stop of a disk breakpoint: the lowest disk id that matched, the
+//  event, the controller's state at it, the instruction responsible and what
+//  the event has of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DiskSectorOrder
+{
+    Dos33,
+    ProDos,
+};
+
+struct DiskReport
+{
+    int                             breakpointId         = 0;
+    DiskEvent                       event                = DiskEvent::SectorRead;
+    int                             slot                 = 0;
+    int                             drive                = 0;
+    int                             quarterTrack         = 0;
+    int                             previousQuarterTrack = 0;
+    bool                            isMotorOn            = false;
+    bool                            isProtected          = false;
+    bool                            isBump               = false;
+    std::optional<DiskMotorEvent>   motorEvent;
+    Byte                            phases               = 0;
+    Word                            instruction          = 0;
+    std::optional<DiskFieldEvent>   field;
+    std::array<Byte, 3>             epilogue             = {};
+    bool                            isEpilogueRandom     = false;
+    std::optional<Byte>             logicalSector;
+    std::optional<Word>             block;
+    std::vector<Byte>               physicalSectors;
+    DiskSectorOrder                 order                = DiskSectorOrder::Dos33;
+    std::optional<DiskCallRequest>  request;
+    Word                            vector               = 0;
+    int                             previousDrive        = 0;
+    std::string                     imageName;
 };
 
 struct WatchHit
@@ -581,6 +810,23 @@ struct WatchHit
     WatchMode               mode        = WatchMode::After;
     std::optional<int32_t>  conditionValue;       // the IF expression's value, when there is one
     bool                    isUnwritten = false;  // a read of RAM nothing had written, BRKUNINIT's stop
+};
+
+//  An Applesoft stop's report: the line being run, none in direct
+//  mode; for a variable breakpoint the variable, the line of the statement
+//  that changed it and its value before and after; for an error stop the
+//  error's code and message, and whether ONERR was on to handle it.
+struct BasicStopReport
+{
+    std::optional<Word>  line;
+    std::string          variable;
+    std::optional<Word>  changeLine;
+    std::string          previous;
+    std::string          value;
+    std::optional<Byte>  errorCode;
+    std::string          error;
+    bool                 isHandled   = false;
+    bool                 isBasicStop = false;     // the Applesoft entry or step made the stop, not another beside it
 };
 
 struct StopEvent
@@ -605,6 +851,13 @@ struct StopEvent
     //  Present when a reverse execution command moved the machine through its
     //  history: how the command ended. The reason is Step.
     std::optional<ReverseOutcome>  history;
+    //  A disk breakpoint's report: present with the reason Disk, and with
+    //  Breakpoint or Watchpoint when an entry of another kind matched at the
+    //  same stop.
+    std::optional<DiskReport>      disk;
+
+    //  Present for an Applesoft breakpoint, step or error stop.
+    std::optional<BasicStopReport> basic;
 };
 
 

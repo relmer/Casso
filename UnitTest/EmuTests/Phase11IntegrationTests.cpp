@@ -2,6 +2,7 @@
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -113,8 +114,6 @@ public:
 
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
-
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Ensure INTCXROM=0 so $C600 surfaces the Disk2.rom boot ROM
         // (CxxxRomRouter unshadowed per audit C1).
@@ -303,6 +302,36 @@ public:
         Assert::IsFalse (store.IsMounted (kSlot6, kDrive1),
             L"PowerCycle must unmount everything");
         Assert::IsFalse (store.IsMounted (kSlot6, kDrive2));
+    }
+
+
+
+    //  The machine's store re-points the slot 6 controller on every bay
+    //  change, with no SetExternalDisk call from the caller: a mount attaches
+    //  the store's image, and a failed remount, which frees that image, puts
+    //  the drive back on the controller's own empty disk.
+    TEST_METHOD (StoreMounts_RepointTheController_AndAFailedRemountDetachesIt)
+    {
+        TestMachine          machine ("Apple2e");
+        Disk2Controller   *  disk    = machine.GetRefs().diskController;
+        vector<Byte>         raw     = BuildSyntheticDsk();
+        vector<Byte>         junk (kSentinelOffset, kSentinelByte);
+        HRESULT              hr      = S_OK;
+
+
+
+        Assert::IsNotNull (disk);
+
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2, "b.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (disk->GetDisk (kDrive2) == machine.GetDiskStore().GetImage (kSlot6, kDrive2),
+                        L"a mount attaches the store's image");
+
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2, "junk.dsk", DiskFormat::Dsk, junk);
+
+        Assert::IsTrue  (FAILED (hr),                     L"too few bytes for a .dsk");
+        Assert::IsFalse (disk->HasExternalDisk (kDrive2), L"the freed image is no longer attached");
     }
 };
 

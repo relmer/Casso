@@ -2,6 +2,9 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiIconButton.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Render/IDxuiPainter.h"
+#include "Core/DxuiEvents.h"
 
 
 

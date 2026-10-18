@@ -2,15 +2,16 @@
 
 #include "Pch.h"
 
-#include "Capture/CaptureOutcome.h"
-#include "Capture/CapturedImage.h"
 #include "Capture/ScreenshotPlan.h"
-#include "Devices/Printer/PngMetadata.h"
-#include "Seams/IHostDialogs.h"
 
 
 class D3DRenderer;
 class ClipboardManager;
+struct CaptureOutcome;
+struct CapturedImage;
+class IHostDialogs;
+struct MetadataEntry;
+class PngMetadata;
 
 
 

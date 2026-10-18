@@ -8,7 +8,6 @@
 #include "Cassque/CassqueNamedControl.h"
 #include "Cassque/CassqueNewDiskDialog.h"
 #include "Cassque/Model/FocusRing.h"
-#include "Cassque/Model/CassquePrefs.h"
 #include "Config/IFileSystem.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
@@ -18,6 +17,8 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Cassque/Model/FolderWatch.h"
 #include "Cassque/Model/RefreshAnchor.h"
+
+struct CassquePrefs;
 
 
 

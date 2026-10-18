@@ -3,6 +3,9 @@
 ###############################################################################
 * text=auto
 
+# Machine state files are binary; never normalize their bytes.
+*.cassostate binary
+
 ###############################################################################
 # Git hooks are run through sh, which rejects a CRLF shebang line with
 # "bad interpreter: /bin/sh^M". They must keep LF endings on checkout even

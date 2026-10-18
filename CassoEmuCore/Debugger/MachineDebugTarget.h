@@ -37,6 +37,7 @@ public:
     void                SetRegisters      (const Cpu6502Registers & registers) override;
 
     bool                TryPeek           (Word address, Byte & value) const override;
+    bool                TryPeekIo         (Word address, Byte & value) const override;
     bool                TryPoke           (Word address, Byte value) override;
     bool                TryPatch          (Word address, Byte value) override;
     MemoryRegion        GetRegion         (Word address) const override;
@@ -59,6 +60,7 @@ public:
     uint64_t            GetCycleCount     () const override;
     Byte                GetLastPenalties  () const override;
     bool                TryGetLastBranch  (Word & from) const override;
+    bool                TryGetLastBranchTarget (Word & to) const override;
     DebugCpuKind        GetCpuKind        () const override;
     const Microcode   * GetInstructionSet () const override;
     DebugMachineInfo    GetMachineInfo    () const override;
@@ -67,7 +69,16 @@ public:
     void                SetTraceOn        (bool on) override;
     bool                IsTraceOn         () const override { return m_trace.IsOn(); }
     void                ClearTrace        () override       { m_trace.Clear(); }
+    TapeDeck          * GetTapeDeck       () override;
+
+    void                        SetDiskEventSink        (IDisk2EventSink * sink) override;
+    bool                        TryGetDiskState         (DebugDiskState & state) const override;
+    const Disk2NibbleRecord   * GetDiskRecord           () const override;
+    bool                        PeekDiskNibbles         (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const override;
+    Word                        GetInstructionAddress   () const override;
+    uint64_t            GetBusCycle       () const override;
     size_t              GetTraceSize      () const override { return m_trace.GetSize(); }
+    bool                TryFindTraceCycle (uint64_t cycle, size_t & outIndex) const override { return m_trace.TryFindCycle (cycle, outIndex); }
     void                GetTraceWindow    (size_t first, size_t count, std::vector<TraceRecord> & entries) const override;
 
     TraceController   & GetTrace          () { return m_trace; }

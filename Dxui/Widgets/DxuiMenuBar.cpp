@@ -4,6 +4,8 @@
 #include "DxuiMenuBar.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Window/DxuiHwndSource.h"
+#include "Core/DxuiThread.h"
+#include "Core/DxuiCommand.h"
 
 
 

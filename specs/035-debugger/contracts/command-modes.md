@@ -33,7 +33,7 @@ reachable in every mode:
 | `CALLS MODE RECORDED\|WALK\|HYBRID` | choose the mechanism; `CALLS MODE` reports it; hybrid is the default |
 | `SKIP name\|addr\|first.last` | add a routine to the step filter; `SKIP` lists it; `SKIP - name` removes one; `SKIP CLEAR` empties it (FR-070) |
 | `HISTORY ON` / `HISTORY OFF` | start the instruction trace, which keeps the newest 100,000 instructions with their cycle count, registers before execution and last memory access, or stop it; stopping keeps the retained entries until the trace starts again or the machine changes (FR-045, FR-046) |
-| `HISTORY [first [count]]` | the state, the number of entries retained, and `count` entries (20 by default) from entry `first`, oldest first; a bare `HISTORY` shows the newest. Both numbers are decimal. Each line: entry, cycles, address and its symbol, instruction, registers, and `R` or `W` with the accessed address, byte and symbol (FR-047) |
+| `HISTORY [cycle [count]]` | the state, the number of entries retained, and `count` entries (20 by default) from the first at or after `cycle`, oldest first; a bare `HISTORY` shows the newest. Both numbers are decimal. Each line: cycles, address and its symbol, instruction, registers, and `R` or `W` with the accessed address, byte and symbol (FR-047) |
 | `HISTORY SAVE file` | write every retained entry, one `HISTORY` line each, oldest first (FR-048) |
 | `PANEL` / `PANEL LIST` / `PANEL name` / `PANEL CLOSE name` | list the current machine's device panels, open one, or close one, by provider id (`disk`, `mmu`) or title, either case (FR-049 to FR-053). Carried out by the window, which runs it from its command box and its panel menu; batch and the pipe return `notAvailable` with `PANEL needs the debugger window.` A name the machine lacks is an error that points at `PANEL LIST` |
 | `OUTPUT APPLEWIN\|MONITOR\|GSSQUARED` | set the output format alone (FR-013); `OUTPUT` reports it; `MODE x` sets both mode and format |
@@ -244,9 +244,9 @@ are unknown symbols, an `invalid condition` error when set in an `IF`.
 BPDISK D1 READ 11 0
 Set disk breakpoint #3 (sector read, track $11 sector $00, drive 1)
 BPL
-#3  E  on disk sector read, track $11 sector $00, drive 1
+#3 enabled  on disk sector read, track $11 sector $00, drive 1, hits 0
 BPDISK RWTS 11 0 READ
-Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), unresolved: $03D9 holds no JMP yet
+Set disk breakpoint #4 (RWTS call, track $11 sector $00, read), unresolved: $03D9 has no JMP yet
 ```
 
 A stop:
@@ -266,7 +266,7 @@ In GSSquared's `bp` listing a disk breakpoint shows `disk` as its kind and the
 event where the address goes; in WinDbg's `bl`, `disk` stands where the
 address does, then the hit counts, then the event. Every listing gives the
 same event text, and shows `unresolved` for an RWTS or driver breakpoint
-whose vector holds no target.
+whose vector has no target.
 
 **Errors**:
 
@@ -280,3 +280,72 @@ Error: invalid arguments
 
 A wrong argument gives the syntax line of the event typed, as FR-127 has every
 command do.
+
+## Debug projects and names (User Story 21)
+
+| Command | Modes | Effect |
+|---|---|---|
+| `BPNAME id "text"` | every mode (a Casso command; AppleWin mode lists it among its own) | Sets breakpoint or watchpoint `id`'s name; an empty text returns it to the default. |
+| `PROJECT` | every mode | Shows the open project: its scope, file and whether it is automatic or named. |
+| `PROJECT SAVEAS file` | every mode | Writes a copy of the open project to `file` and makes it the open one. |
+| `PROJECT OPEN file` | every mode | Switches to the project in `file`. |
+| `PROJECT MERGE` | every mode | Adds the breakpoints, watches, zero-page pointers, bookmarks, step filters and data directives of the project open before the last switch to the open one. |
+
+`BPSAVE`, AppleWin's `SAVE` and `LOAD` are unchanged and never carry names.
+
+## Applesoft (User Story 22)
+
+| Command | Modes | Effect |
+|---|---|---|
+| `BPBASIC line` | every mode | Breaks as BASIC line `line` begins. |
+| `BPBASICVAR name` | every mode | Breaks after the statement that changes BASIC variable `name` (`A`, `A%`, `A$`, `A(3)`). |
+| `BASICSTEP` / `BASICLINE` / `BASICOUT` | every mode | Steps a statement, a line, or out of the active GOSUB. |
+| `BASICVARS`, `BASICSTACK` | every mode | Lists the variables or the GOSUB and FOR stack. |
+| `BRKBASIC ON|OFF` | every mode | Breaks on a BASIC error, handled by ONERR or not. |
+
+`BPBASIC` takes a line number from 0 to 63999 in decimal. `BPBASICVAR` takes a
+name as a program writes it; Applesoft compares the first two characters and
+the type, and a variable that does not exist yet reads as 0 or "". The value
+is compared at each statement's start with the value at the start of the one
+before, both in the program, so the stop comes as the next statement begins.
+A line, variable or step stop is at $D81D, NEWSTT's call of CHRGET; an error
+stop is at ERROR, $D412, with the code in X. `BRKBASIC` alone reports the
+setting. `BPL` lists them as other breakpoints, `on BASIC line 100`,
+`on BASIC variable A changing` and `on BASIC error`, and `BPSAVE` writes the
+commands that set them.
+
+**Output** (AppleWin layout):
+
+```text
+Breakpoint #0 at BASIC line 100
+Breakpoint #1: A changed from 0 to 1 in line 10, stopped at line 20
+BASIC step to line 30
+BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
+
+> BASICVARS
+A = 1
+N$ = "HI"
+X(2,3) = 0, .25, .5, 10, 10.25, 10.5, 20, 20.25, 20.5, 30, 30.25, 30.5
+
+> BASICSTACK
+FOR I TO 3 STEP 1 in line 100
+GOSUB in line 20
+```
+
+An array lists its first 16 values and then how many more there are.
+
+**Errors**:
+
+```text
+Error: cannot step
+       Applesoft is not in memory: the $D000 bank has other code.
+
+Error: cannot step
+       No GOSUB is active, so there is nothing to step out of.
+
+Error: no Applesoft
+       Applesoft is not in memory: the $D000 bank has other code.
+
+Error: invalid arguments
+       BPBASIC takes a line number, 0 to 63999.
+```

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/DxuiCommand.h"
 #include "Theme/DxuiMenuMetrics.h"
 #include "Core/IDxuiControl.h"
 
 
 class DxuiHwndSource;
 class DxuiPopupHost;
+struct DxuiCommand;
 
 
 

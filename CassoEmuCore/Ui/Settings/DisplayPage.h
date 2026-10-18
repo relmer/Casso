@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "SettingsPanelState.h"
 #include "Config/CrtTypes.h"
 #include "Ui/ColorUtil.h"
 
@@ -10,6 +9,7 @@
 
 class IDxuiTheme;
 class DxuiHwndSource;
+class SettingsPanelState;
 
 
 

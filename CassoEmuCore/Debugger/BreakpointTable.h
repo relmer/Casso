@@ -34,6 +34,23 @@ struct Breakpoint
     bool                 temporary = false;       // cleared once it fires
     bool                 stops     = true;        // false: counts hits only
     uint32_t             hits      = 0;
+    std::string          symbol;                  // the symbol an address breakpoint was set by
+    std::string          name;                    // BPNAME's; empty for the default
+
+    // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
+    // breakpoint stops at now, absent while its vector has no target.
+    std::optional<DiskBreakSpec>  disk;
+    std::optional<Word>           resolved;
+
+    // Kind BasicVariable: the variable or array element. Kind BasicLine has
+    // its line number in first.
+    std::string                   basicName;
+
+    bool  IsBasic() const { return kind == BreakpointKind::BasicLine || kind == BreakpointKind::BasicVariable || kind == BreakpointKind::BasicError; }
+
+    // An RWTS or driver breakpoint, which stops before its routine rather
+    // than after the instruction that made a disk event.
+    bool  IsDiskCall() const { return disk.has_value() && (disk->event == DiskEvent::RwtsCall || disk->event == DiskEvent::DriverCall); }
 };
 
 
@@ -62,9 +79,12 @@ public:
     int   AddMemoryValue   (Word address, Byte value, const Expression & condition = {});
     int   AddOpcode        (Byte opcode);
     int   AddCondition     (const Expression & condition);
-    int   AddIo            (Word first, Word last);
     int   AddBrk           ();
     int   AddInterrupt     ();
+    int   AddDisk          (const DiskBreakSpec & spec, const Expression & condition = {});
+    int   AddBasicLine     (Word line);
+    int   AddBasicVariable (const std::string & name);
+    int   AddBasicError    ();
 
     //  Adds a copy of an entry under a new id, its hit count started afresh,
     //  for an undo that brings back a deleted breakpoint as it was.
@@ -75,12 +95,20 @@ public:
     void  ClearKind        (BreakpointKind kind);
     bool  TrySetEnabled    (int id, bool enabled);
     bool  TrySetFlags      (int id, bool temporary, bool stops);
+    bool  TrySetSymbol     (int id, const std::string & symbol);
+    bool  TrySetName       (int id, const std::string & name);
+    bool  TryMove          (int id, Word first);
+    bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;
     bool  HasOpcode        (Byte opcode) const;
 
     //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
     //  breakpoint's id across its new definition. Fails if the id is taken.
     bool  TryAdopt         (const Breakpoint & entry);
+
+    //  Changes an entry's id, as a debug project restores each breakpoint's
+    //  saved id. Fails if the id is taken.
+    bool  TryChangeId      (int from, int to);
     bool  TryFind          (int id, Breakpoint & entry) const;
 
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }
@@ -113,11 +141,31 @@ public:
     //  an interrupt. Counts hits as TryMatchBeforeInstruction does.
     bool  TryMatchInterrupt (int & hitId);
 
+    //  True when an enabled Disk entry that isMatch accepts, its IF
+    //  expression, if any, being true, stops. Every such entry counts the
+    //  hit; hitId receives the lowest id of the ones that stop, and
+    //  conditionValue its expression's value.
+    bool  TryMatchDisk     (const std::function<bool (const Breakpoint &)> & isMatch,
+                            const IDebugExpressionContext                   & context,
+                            int                                             & hitId,
+                            std::optional<int32_t>                          & conditionValue);
+
     //  The same tests as TryMatchBeforeInstruction and TryMatchWrite, for a
     //  replay of history: true when an enabled entry that stops matches. No
-    //  hit is counted and nothing is remembered.
-    bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context) const;
+    //  hit is counted and no state changes. With routines, an RWTS or
+    //  driver entry stops at the routine the map has for its id, which a
+    //  replay takes from the vector as it was then, and at none when the map
+    //  has none.
+    bool  IsStopBefore     (Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context,
+                            const std::map<int, Word> * routines = nullptr) const;
     bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
+    bool  IsDiskStop       (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
+
+    //  True when an enabled Applesoft entry that isMatch accepts stops. Every
+    //  such entry counts the hit; hitId receives the lowest id of the ones
+    //  that stop. IsBasicStop is the same for a replay, counting nothing.
+    bool  TryMatchBasic    (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId);
+    bool  IsBasicStop      (const std::function<bool (const Breakpoint &)> & isMatch) const;
 
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.
@@ -129,7 +177,8 @@ private:
 
     int   Add              (Breakpoint entry);
     void  RebuildAddressBits ();
-    bool  TryMatchEntry    (const Breakpoint & entry, Word pc, std::optional<Byte> opcode, const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
+    bool  TryMatchEntry    (const Breakpoint & entry, std::optional<Word> routine, Word pc, std::optional<Byte> opcode,
+                            const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;

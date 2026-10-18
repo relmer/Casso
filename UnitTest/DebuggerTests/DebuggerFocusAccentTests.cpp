@@ -38,6 +38,9 @@ namespace DebuggerFocusAccentTests
         using DebuggerWindow::GetCommandBox;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::OnWindowFocusChanged;
+        using DebuggerWindow::OnMouse;
+        using DebuggerWindow::GetHeatMapView;
+        using DebuggerWindow::ShowPane;
 
         DxuiDockSite * FindDockSite()
         {
@@ -155,6 +158,41 @@ namespace DebuggerFocusAccentTests
 
             window.OnWindowFocusChanged (false);
             Assert::IsTrue (window.HasAccentOnFocusedPane(), (L"losing the focus to another application keeps it there, " + window.DescribeGroups()).c_str());
+        }
+
+
+        //  After a press on the heat map its pane has the focus, and so the
+        //  accent, as after a press on any other pane's content.
+        TEST_METHOD (APressOnTheHeatMapFocusesItsPane)
+        {
+            CassoTheme              theme  = CassoTheme::MakeSkeuomorphic();
+            NullDebuggerWindowHost  host;
+            AccentWindow            window (theme, host);
+            DxuiDpiScaler           scaler;
+            DxuiMouseEvent          press;
+            RECT                    map    = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane     (DebuggerLayout::kHeatMap);
+            window.Layout       (RECT { 0, 0, 1400, 900 }, scaler);
+            window.FocusControl (window.GetCommandBox());
+
+            map = window.GetHeatMapView()->GetBounds();
+            Assert::IsTrue (window.GetHeatMapView()->IsVisible() && map.right > map.left, L"the heat map is open");
+
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Left;
+            press.positionDip = POINT { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+            (void) window.OnMouse (press);
+
+            press.kind = DxuiMouseEventKind::Up;
+            (void) window.OnMouse (press);
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kHeatMap), window.GetPaneOfFocus());
         }
     };
 }

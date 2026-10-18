@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
-#include "Debugger/DebugFile.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/WatchpointTable.h"
 
 class DebugSession;
 class Microcode;
+struct DebugFile;
 
 
 
@@ -18,7 +18,8 @@ class Microcode;
 //
 //  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, BRK, BRKOP,
 //  BRKINT, BRKUNINIT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
-//  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE. Saving: BPSAVE.
+//  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE, BPNAME. Saving: BPSAVE,
+//  whose script has no name in it, as AppleWin's SAVE has none.
 //
 //  Breakpoints and watchpoints share one numbering, so every command that
 //  takes an id looks in both tables.
@@ -39,6 +40,11 @@ public:
     static std::string     MakeDefinition (const BreakpointInfo & info);
     static std::string     MakeScript     (DebugSession & session);
     static std::string     Describe       (const BreakpointInfo & info);
+
+    //  Moves each breakpoint set by a symbol to where the symbols put it
+    //  now, after symbols are loaded, with a line for each one moved or
+    //  whose symbol is no longer defined.
+    static void            FollowSymbols  (DebugSession & session, std::vector<std::string> & lines);
 
     // One entry of either table as it stands, kept so an undo can add it
     // back exactly as it was, with no definition built or parsed.
@@ -72,12 +78,16 @@ private:
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list);
+    static bool  TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes);
     static void  SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetDisk        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enable         (DebugSession & session, const DebugCommand & command, bool enabled, Reply & reply);
     static void  Edit           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Change         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SetName        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Save           (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);
@@ -93,6 +103,6 @@ private:
     static bool  TryFindInfo    (DebugSession & session, int id, BreakpointInfo & info);
     static bool  TryMakeEntry   (const DebugCommand & definition, int id, const BreakpointInfo & old, Breakpoint & breakpoint, Watchpoint & watchpoint, bool & isWatchpoint);
     static bool  IsBrkOn        (const std::string & text);
-    static void  SetNoSuch      (Reply & reply, int id);
+    static void  SetNoSuch      (const DebugSession & session, Reply & reply, int id);
     static WatchMode  GetMode   (const DebugCommand & command);
 };

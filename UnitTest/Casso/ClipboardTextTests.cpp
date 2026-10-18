@@ -48,13 +48,14 @@ TEST_CLASS (ClipboardTextTests)
     // to $0400, $0401, ... in each bank. Seed a distinctive interleave:
     //   aux[$0400]='A' main[$0400]='B' aux[$0401]='C' main[$0401]='D'
     // so an 80-column read yields "ABCD" and a main-only read yields "BD".
-    static constexpr Word  kRow0 = 0x0400;
+    static constexpr Word  kRow0  = 0x0400;
+    static constexpr Byte  kBlank = 0xA0;   // a normal space; a zero byte is an inverse @ on screen
 
     static Byte  Screen (char c) { return static_cast<Byte> (c) | 0x80; }   // normal glyph
 
     static void  MapMainTextPages (MemoryBus & bus, std::vector<Byte> & main)
     {
-        main.assign (0x10000, 0);
+        main.assign (0x10000, kBlank);
         for (int page = 0x04; page <= 0x07; ++page)
         {
             bus.SetReadPage (page, main.data() + page * 0x100);
@@ -94,7 +95,7 @@ public:
         MemoryBus          bus;
         std::vector<Byte>  main;
         std::wstring       row;
-        std::vector<Byte>  aux (0x10000, 0);
+        std::vector<Byte>  aux (0x10000, kBlank);
         Rd80VidStub        rd80 (/*on*/ true);
         // Construction only wires references; nothing is read until
         // BuildScreenText, so the manager can bind before the bus is set up.
@@ -105,7 +106,7 @@ public:
         aux[kRow0 + 0] = Screen ('A');   // even display column 0
         aux[kRow0 + 1] = Screen ('C');   // even display column 2
 
-        row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (nullptr, aux.data()));
 
         Assert::AreEqual (std::wstring (L"ABCD"), row,
                           L"80-column scrape must interleave aux(even)+main(odd)");
@@ -123,7 +124,7 @@ public:
         bus.AddDevice (&rd80);
 
         // No aux bank (nullptr) => plain 40-column main-page read.
-        row = FirstRow (clip.BuildScreenText (nullptr));
+        row = FirstRow (clip.BuildScreenText (nullptr, nullptr));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"40-column scrape reads the main text page unchanged");
@@ -134,7 +135,7 @@ public:
         MemoryBus          bus;
         std::vector<Byte>  main;
         std::wstring       row;
-        std::vector<Byte>  aux (0x10000, 0);
+        std::vector<Byte>  aux (0x10000, kBlank);
         Rd80VidStub        rd80 (/*on*/ false);
         ClipboardManager   clip = MakeClipboard (bus);
 
@@ -145,9 +146,93 @@ public:
         aux[kRow0 + 0] = Screen ('A');
         aux[kRow0 + 1] = Screen ('C');
 
-        row = FirstRow (clip.BuildScreenText (aux.data()));
+        row = FirstRow (clip.BuildScreenText (nullptr, aux.data()));
 
         Assert::AreEqual (std::wstring (L"BD"), row,
                           L"RD80VID clear must gate off the aux interleave");
+    }
+
+    // RAMRD, or 80STORE with PAGE2, re-points the bus's text page at aux. The
+    // scrape reads main from the buffer it is given, not the bank the CPU is
+    // reading.
+    static void  BankTextPageToOther (MemoryBus & bus, std::vector<Byte> & other)
+    {
+        other.assign (0x10000, kBlank);
+        other[kRow0 + 0] = Screen ('X');
+        other[kRow0 + 1] = Screen ('Y');
+
+        for (int page = 0x04; page <= 0x07; ++page)
+        {
+            bus.SetReadPage (page, other.data() + page * 0x100);
+        }
+    }
+
+    TEST_METHOD (BuildScreenText_FortyColumn_ReadsMainBufferWhileTheBusServesAux)
+    {
+        MemoryBus          bus;
+        std::vector<Byte>  main;
+        std::vector<Byte>  banked;
+        std::wstring       row;
+        Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
+
+        MapMainTextPages (bus, main);
+        bus.AddDevice (&rd80);
+        BankTextPageToOther (bus, banked);
+
+        row = FirstRow (clip.BuildScreenText (main.data(), nullptr));
+
+        Assert::AreEqual (std::wstring (L"BD"), row,
+                          L"the 40-column scrape reads main, not the bank the CPU is reading");
+    }
+
+    TEST_METHOD (BuildScreenText_EightyColumn_ReadsMainBufferWhileTheBusServesAux)
+    {
+        MemoryBus          bus;
+        std::vector<Byte>  main;
+        std::vector<Byte>  banked;
+        std::wstring       row;
+        std::vector<Byte>  aux (0x10000, kBlank);
+        Rd80VidStub        rd80 (/*on*/ true);
+        ClipboardManager   clip = MakeClipboard (bus);
+
+        MapMainTextPages (bus, main);
+        bus.AddDevice (&rd80);
+        BankTextPageToOther (bus, banked);
+        aux[kRow0 + 0] = Screen ('A');
+        aux[kRow0 + 1] = Screen ('C');
+
+        row = FirstRow (clip.BuildScreenText (main.data(), aux.data()));
+
+        Assert::AreEqual (std::wstring (L"ABCD"), row,
+                          L"the odd 80-column cells come from main, not the bank the CPU is reading");
+    }
+
+
+    //  Inverse and flashing characters copy as the characters on screen,
+    //  not blanks or other characters.
+    TEST_METHOD (DecodeScreenByte_InverseAndFlashingAreTheCharactersShown)
+    {
+        Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0x01), L"inverse A");
+        Assert::AreEqual (L'@', ClipboardManager::DecodeScreenByte (0x00), L"inverse @");
+        Assert::AreEqual (L'1', ClipboardManager::DecodeScreenByte (0x31), L"inverse 1");
+        Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0x41), L"flashing A");
+        Assert::AreEqual (L'?', ClipboardManager::DecodeScreenByte (0x7F), L"flashing ?");
+        Assert::AreEqual (L' ', ClipboardManager::DecodeScreenByte (0x60), L"flashing space");
+        Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0x81), L"normal A at $81");
+        Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0xC1), L"normal A");
+        Assert::AreEqual (L'a', ClipboardManager::DecodeScreenByte (0xE1), L"normal a");
+        Assert::AreEqual (L'!', ClipboardManager::DecodeScreenByte (0xA1), L"normal !");
+    }
+
+
+
+    //  The //e's alternate set: inverse lowercase where the primary set
+    //  flashes, and MouseText, which copies as a space.
+    TEST_METHOD (DecodeScreenByte_AlternateSetHasInverseLowercaseAndMouseText)
+    {
+        Assert::AreEqual (L'a', ClipboardManager::DecodeScreenByte (0x61, true), L"inverse a");
+        Assert::AreEqual (L' ', ClipboardManager::DecodeScreenByte (0x41, true), L"MouseText");
+        Assert::AreEqual (L'A', ClipboardManager::DecodeScreenByte (0x01, true), L"inverse A in either set");
     }
 };

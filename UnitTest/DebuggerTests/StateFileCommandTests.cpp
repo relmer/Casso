@@ -5,6 +5,7 @@
 #include "HandlerTestRig.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -90,7 +91,7 @@ namespace DebuggerTests
 
                 reply = session.ExecuteLine (each.line);
 
-                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, (label + L": " + std::wstring (reply.error.detail.begin(), reply.error.detail.end())).c_str());
+                Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, (label + L": " + TextEncoding::NarrowToWide (reply.error.detail)).c_str());
                 Assert::AreEqual (1, taken.calls, label.c_str());
                 Assert::IsTrue   (taken.request == each.request, label.c_str());
                 Assert::IsTrue   (taken.path.ends_with (L"game.cassostate"), taken.path.c_str());

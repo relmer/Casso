@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinParser.h"
 #include "MockExpressionContext.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -24,20 +25,20 @@ namespace DebuggerTests
         static AppleWinParseResult ParseOk (const std::string & line)
         {
             MockExpressionContext  context;
-            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
-            std::wstring           where (line.begin(), line.end());
+            AppleWinParseResult    result  = AppleWinParser::Parse (line, context);
+            std::wstring           where   = TextEncoding::NarrowToWide (line);
 
 
 
-            Assert::AreEqual ((int) ParseStatus::Ok, (int) result.status, (where + L": " + std::wstring (result.error.begin(), result.error.end())).c_str());
+            Assert::AreEqual ((int) ParseStatus::Ok, (int) result.status, (where + L": " + TextEncoding::NarrowToWide (result.error)).c_str());
             return result;
         }
 
         static AppleWinParseResult ParseFails (const std::string & line, ParseStatus status)
         {
             MockExpressionContext  context;
-            AppleWinParseResult    result = AppleWinParser::Parse (line, context);
-            std::wstring           where (line.begin(), line.end());
+            AppleWinParseResult    result  = AppleWinParser::Parse (line, context);
+            std::wstring           where   = TextEncoding::NarrowToWide (line);
 
 
 
@@ -124,7 +125,7 @@ namespace DebuggerTests
         {
             Assert::AreEqual ((Word) 0x0302, ParseOk ("BP PC+2").command.a1);
             Assert::AreEqual ((Word) 0xFC58, ParseOk ("BP HOME").command.a1);
-            Assert::AreEqual ((Word) 10,     ParseOk ("BP #10").command.a1);
+            Assert::AreEqual ((Word) 10,     ParseOk ("BP 0n10").command.a1);
         }
 
 
@@ -169,7 +170,7 @@ namespace DebuggerTests
         {
             AppleWinParseResult  set  = ParseOk ("R A=41");
             AppleWinParseResult  pc   = ParseOk ("r pc = FA62");
-            AppleWinParseResult  hash = ParseOk ("R A #10");
+            AppleWinParseResult  dec  = ParseOk ("R A 0n10");
 
 
 
@@ -179,7 +180,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x41,        set.command.a1);
             Assert::AreEqual (std::string ("PC"), pc.command.text);
             Assert::AreEqual ((Word) 0xFA62,      pc.command.a1);
-            Assert::AreEqual ((Word) 10,          hash.command.a1);
+            Assert::AreEqual ((Word) 10,          dec.command.a1);
             ParseFails ("R Q 1", ParseStatus::Invalid);
         }
 
@@ -381,11 +382,11 @@ namespace DebuggerTests
 
 
 
-        //  A $ or # prefix is not a digit: $41 and #65 search for one byte.
+        //  A $ or # prefix is not a digit: $41 and #41 search for one byte.
         TEST_METHOD (Search_PrefixedByteIsOneByte)
         {
             Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 $41").command.values);
-            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 #65").command.values);
+            Assert::IsTrue (std::vector<Byte> ({ 0x41 })       == ParseOk ("S 300,100 #41").command.values);
             Assert::IsTrue (std::vector<Byte> ({ 0x41, 0x01 }) == ParseOk ("S 300,100 $141").command.values);
         }
 
@@ -511,7 +512,7 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) bare.command.verb);
-            Assert::IsFalse  (bare.command.first.has_value());
+            Assert::IsFalse  (bare.command.fromCycle.has_value());
             Assert::AreEqual ((uint32_t) 0,                 bare.command.count);
 
             Assert::AreEqual ((int) DebugVerb::SetHistory,  (int) on.command.verb);
@@ -523,9 +524,9 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("trace.txt"),    save.command.text);
 
             Assert::AreEqual ((int) DebugVerb::ShowHistory, (int) window.command.verb);
-            Assert::AreEqual ((uint64_t) 99990,             window.command.first.value(), L"entry numbers are decimal and pass 16 bits");
+            Assert::AreEqual ((uint64_t) 99990,             window.command.fromCycle.value(), L"cycles are decimal and pass 16 bits");
             Assert::AreEqual ((uint32_t) 25,                window.command.count);
-            Assert::AreEqual ((uint64_t) 100,               from.command.first.value());
+            Assert::AreEqual ((uint64_t) 100,               from.command.fromCycle.value());
             Assert::AreEqual ((uint32_t) 0,                 from.command.count);
 
             ParseFails ("HISTORY SAVE",       ParseStatus::Invalid);

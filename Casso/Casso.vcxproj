@@ -72,7 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)$(CassoBuildFlavor)\</IntDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. Cassque's
        entry point lives in the same library, and a library keeps only one
@@ -93,7 +93,7 @@
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ALTERNATENAME:wWinMain=wCassoMain %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -115,7 +115,7 @@
       <AdditionalOptions>/ALTERNATENAME:wWinMain=wCassoMain %(AdditionalOptions)</AdditionalOptions>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -133,7 +133,7 @@
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ALTERNATENAME:wWinMain=wCassoMain %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -155,7 +155,7 @@
       <AdditionalOptions>/ALTERNATENAME:wWinMain=wCassoMain %(AdditionalOptions)</AdditionalOptions>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <!-- Resource compiler needs CassoCore on its include path so Casso.rc can
@@ -208,6 +208,26 @@
     re-baked. When a model DOES change, Casso.rc is touched, because the
     resource compiler tracks the .rc file and not the RCDATA payloads it
     names, so without that the build would embed the previous blob.
+
+    MeshCreator.exe IS ONE OF THE INPUTS, so a change to the baker re-bakes
+    every blob. It has to be built in a target of its own ahead of this one
+    to be any use as an input: a target's Inputs are stamped when the target
+    is reached, so building the tool inside the body would compare against
+    the PREVIOUS exe and skip the re-bake until some later build happened to
+    want it. The cost of hoisting it is that an up-to-date MeshCreator is
+    now built on every Casso build rather than only when a model changed,
+    which is about a second of msbuild saying there is nothing to do.
+
+    On a from-scratch build the exe does not exist when the stamp is taken.
+    A missing input makes a target out of date, which is the safe direction:
+    the bake runs, and BuildMeshCreator has produced the tool by then.
+
+    CleanBakedMeshes exists because Clean would otherwise leave the blobs.
+    The C++ Clean is the CppClean task sweeping $(IntDir) by file pattern
+    plus whatever the last build recorded in its tlogs; a bare Exec records
+    nothing and .dmesh is not a pattern it sweeps, so 40 MB of baked mesh
+    survived every Clean. Deleting them here keeps "Clean" honest, and
+    keeps a stale blob from outliving the baker that wrote it.
   -->
   <ItemGroup>
     <BakedMesh Include="Monitor2" />
@@ -215,17 +235,27 @@
     <BakedMesh Include="DiskII" />
     <BakedMesh Include="Disk2c" />
     <BakedMesh Include="DuoDisk" />
+    <BakedMesh Include="CassetteRecorder" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
-  <Target Name="BakeMeshes"
-          BeforeTargets="ResourceCompile"
-          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl')"
-          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
+  <PropertyGroup>
+    <MeshCreatorExe>$(SolutionDir)x64\$(Configuration)$(CassoBuildFlavor)\MeshCreator.exe</MeshCreatorExe>
+  </PropertyGroup>
+  <Target Name="BuildMeshCreator" BeforeTargets="BakeMeshes">
     <MSBuild Projects="..\MeshCreator\MeshCreator.vcxproj"
              Properties="Configuration=$(Configuration);Platform=x64" />
+  </Target>
+  <Target Name="BakeMeshes"
+          BeforeTargets="ResourceCompile"
+          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl');$(MeshCreatorExe)"
+          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
     <MakeDir Directories="$(IntDir)Models" />
-    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)$(CassoBuildFlavor)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
+    <Exec Command="&quot;$(MeshCreatorExe)&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
     <Touch Files="Casso.rc" />
+  </Target>
+  <Target Name="CleanBakedMeshes" AfterTargets="Clean">
+    <Delete Files="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')" />
+    <RemoveDir Directories="$(IntDir)Models" Condition="Exists('$(IntDir)Models')" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "Core/IDxuiControl.h"
+
+class IDxuiControl;
 
 
 

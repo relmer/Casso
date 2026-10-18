@@ -4,6 +4,7 @@
 #include "Core/CpuFactory.h"
 #include "Core/MemoryBus.h"
 #include "ICpu.h"
+#include "HResultAssert.h"
 
 // Each Harness embeds a MemoryBus (64K RAM array) + a 65C02; several are
 // stack-allocated per TEST_METHOD (one per scoped sub-case), which sums past

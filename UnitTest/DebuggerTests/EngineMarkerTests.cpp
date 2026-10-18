@@ -10,6 +10,7 @@
 #include "MockExpressionContext.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -44,7 +45,7 @@ namespace DebuggerTests
     public:
         static std::wstring Widen (const std::string & text)
         {
-            return std::wstring (text.begin(), text.end());
+            return TextEncoding::NarrowToWide (text);
         }
 
         static std::vector<std::string> GetEngineNames()
@@ -96,6 +97,28 @@ namespace DebuggerTests
             Assert::IsFalse (AppleWinCommandTable::IsEngineCommand ("FROB"));
         }
 
+        //  BPDISK, a Casso command, is bare in AppleWin and GSSquared modes,
+        //  /bpdisk in Monitor mode and !bpdisk in WinDbg mode, and each sets
+        //  the same breakpoint.
+        TEST_METHOD (BpdiskReachesTheSameCommandInEveryMode)
+        {
+            MockExpressionContext  context;
+            std::string            line      = "BPDISK D1 READ 11 0 PASSED";
+            AppleWinParseResult    appleWin  = AppleWinParser::Parse (line, context);
+            MonitorState           state;
+            MonitorParseResult     monitor   = MonitorParser::Parse ("/" + ToLower (line), state);
+            AppleWinParseResult    viaSlash  = AppleWinParser::Parse (monitor.appleWinLine, context);
+            GSSquaredParseResult   gssquared = GSSquaredParser::Parse (ToLower (line), context);
+            WinDbgParseResult      windbg    = WinDbgParser::Parse ("!" + ToLower (line), context);
+
+
+
+            Assert::IsTrue (appleWin.status == ParseStatus::Ok && appleWin.command.verb == DebugVerb::SetDiskBreakpoint);
+            Assert::IsTrue (viaSlash.status == ParseStatus::Ok && viaSlash.command.disk == appleWin.command.disk, L"/bpdisk");
+            Assert::IsTrue (gssquared.status == ParseStatus::Ok && gssquared.commands.front().disk == appleWin.command.disk, L"bpdisk");
+            Assert::IsTrue (windbg.status == ParseStatus::Ok && windbg.command.disk == appleWin.command.disk, L"!bpdisk");
+        }
+
         //  Each mode's marker reaches the same command AppleWin mode parses.
         TEST_METHOD (EveryEngineCommand_IsReachableInEveryMode_WithItsMarker)
         {
@@ -144,7 +167,7 @@ namespace DebuggerTests
             {
                 std::string    line       = GetSampleLine (name);
                 Reply          replies[4];
-                CommandStatus  expected   = CommandStatus::Ok;
+                CommandStatus  status     = CommandStatus::Ok;
                 int            i          = 0;
 
 
@@ -172,12 +195,19 @@ namespace DebuggerTests
                     Assert::AreEqual (replies[0].data.index(),       reply.data.index(),       Widen (line).c_str());
                 }
 
-                //  PANEL is carried out by the window, and SAVESTATE and LOADSTATE
-                //  by the emulator, so a session alone reports them not available
-                //  -- the same way in every mode.
-                expected = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+                //  The window runs PANEL, the emulator SAVESTATE and LOADSTATE,
+                //  and the window's shell has the video and sound logs, so a
+                //  session alone returns them as not available, the same way in
+                //  every mode. The mock target's memory has no Applesoft, so
+                //  the BASIC commands fail, the same way in every mode.
+                status = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG" || name == "PROJECT") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
-                Assert::AreEqual ((int) expected, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
+                if (name.starts_with ("BASIC"))
+                {
+                    status = CommandStatus::Error;
+                }
+
+                Assert::AreEqual ((int) status, (int) replies[0].status, Widen (line + ": " + replies[0].error.detail).c_str());
             }
         }
 

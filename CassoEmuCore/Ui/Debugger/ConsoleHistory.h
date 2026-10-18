@@ -28,6 +28,10 @@ public:
 
     const std::vector<std::wstring> & GetLines () const { return m_lines; }
 
+    //  Lines saved before, oldest first; the newest kLimit stay, and a walk
+    //  under way ends.
+    void  SetLines (std::vector<std::wstring> lines);
+
 private:
     void  EndWalkIfEdited (const std::wstring & typed);
 

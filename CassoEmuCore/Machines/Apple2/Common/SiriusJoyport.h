@@ -55,7 +55,12 @@ public:
     void  OnMachineReset();
 
     bool  TryReadButton    (int index, Byte & value) const;
-    bool  IsDrivingPaddles () const;
+
+    //  The values TryReadButton and IsDrivingPaddles return, with nothing
+    //  watched or journaled: the debugger's peek.
+    bool  TryPeekButton      (int index, Byte & value) const;
+    bool  IsDrivingPaddles   () const;
+    bool  PeekDrivingPaddles () const;
 
     // Reverse execution: while attached, the first read to see a jack, the
     // attached setting or the rear sockets as another thread changed them

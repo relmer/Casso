@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 #include "Video/VideoOutput.h"
-#include "Core/MemoryBus.h"
+
+class MemoryBus;
 
 
 

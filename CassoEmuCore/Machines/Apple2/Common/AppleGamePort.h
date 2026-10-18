@@ -3,14 +3,17 @@
 #include "Pch.h"
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
-#include "Core/MachineConfig.h"
-#include "Core/MemoryBus.h"
+#include "Core/ObserverSlots.h"
 
 class HeldInputWatch;
 class IInputEventSink;
+class CassettePort;
 class SiriusJoyport;
 class InputJournal;
 struct InputRecord;
+struct DeviceConfig;
+struct MachineConfig;
+class MemoryBus;
 
 
 
@@ -20,7 +23,8 @@ struct InputRecord;
 //
 //  AppleGamePort
 //
-//  Apple ][/][+ game-I/O strip: pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
+//  Apple ][/][+ game-I/O strip: the cassette input ($C060 and its mirror
+//  $C068, read from the cassette port), pushbuttons PB0-PB2 ($C061-$C063, bit 7 =
 //  pressed), analog paddles PDL0-PDL3 ($C064-$C067) and the PTRIG strobe
 //  ($C070). The original Apple ][/][+ has no game port in its soft-switch
 //  bank (unlike the //e, whose Apple2eSoftSwitchBank owns the paddles and
@@ -40,8 +44,9 @@ public:
     AppleGamePort () = default;
 
     Byte Read      (Word address) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     void Write     (Word address, Byte value) override;
-    Word GetStart  () const override { return s_kwFirstButtonAddress; }
+    Word GetStart  () const override { return s_kwCassetteInputAddress; }
     Word GetEnd    () const override { return s_kwPaddleTimerStrobe; }
     void Reset     () override;
     void SoftReset () override;
@@ -50,7 +55,9 @@ public:
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
     // Attach the input-debug notification sink.
-    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+    void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
+    void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
+
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
@@ -81,25 +88,32 @@ public:
     // the input held back would change is reported to the watch.
     void SetHeldInputWatch (HeldInputWatch * watch) { m_heldInputWatch = watch; }
 
+    // The cassette port that supplies reads of $C060 and $C068.
+    void SetCassettePort (CassettePort * port) { m_cassettePort = port; }
+
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     static constexpr Byte s_knPaddleCenter = 127;
 
-    // IMachineState: the paddle trigger cycle and the staged buttons and
-    // paddle positions.
+    // IMachineState: the paddle trigger cycle, the staged buttons and paddle
+    // positions, and the read edges (ReadEdges), from version 2; an older
+    // state loads with none reported.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('G', 'P', 'R', 'T');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('G', 'P', 'R', 'T');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
-    static constexpr Word     s_kwFirstButtonAddress = 0xC061;
-    static constexpr int      s_knButtonCount        = 3;
-    static constexpr int      s_knHostButtonCount    = 2;
-    static constexpr Word     s_kwPaddle0Address     = 0xC064;
-    static constexpr int      s_knPaddleAxisCount    = 4;
-    static constexpr Word     s_kwPaddleTimerStrobe  = 0xC070;
+    static constexpr Word     s_kwCassetteInputAddress  = 0xC060;
+    static constexpr Word     s_kwCassetteMirrorAddress = 0xC068;
+    static constexpr Word     s_kwFirstButtonAddress    = 0xC061;
+    static constexpr int      s_knButtonCount           = 3;
+    static constexpr int      s_knHostButtonCount       = 2;
+    static constexpr Word     s_kwPaddle0Address        = 0xC064;
+    static constexpr int      s_knPaddleAxisCount       = 4;
+    static constexpr Word     s_kwPaddleTimerStrobe     = 0xC070;
 
     // PREAD's poll loop advances its counter once per ~11 CPU cycles, so an
     // axis holds bit 7 for position*11 cycles to yield a returned count equal
@@ -108,6 +122,8 @@ protected:
 
     Byte ReadButton         (Word address);
     Byte ReadPaddle         (Word address);
+    Byte PeekButton         (Word address) const;
+    Byte PeekPaddle         (Word address) const;
     void ObserveButton      (int index, bool pressed);
     void ObservePaddle      (int axis, Byte position);
     void SyncObservedInputs ();
@@ -121,18 +137,19 @@ protected:
     // with no potentiometer connected reads forever.
     static constexpr Byte     s_knPaddleTiming = 0x80;
 
-    IInputEventSink      * m_inputSink                                  = nullptr;
-    const SiriusJoyport  * m_joyport                                    = nullptr;
-    const uint64_t       * m_cpuCycleSource                             = nullptr;
-    InputJournal         * m_inputJournal                               = nullptr;
-    HeldInputWatch       * m_heldInputWatch                             = nullptr;
-    bool                   m_observedButton[s_knButtonCount]            = {};
-    Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
-    uint64_t               m_paddleTriggerCycle                         = 0;
-    atomic<bool>           m_buttonState[s_knButtonCount]               = {};
-    atomic<Byte>           m_paddlePosition[s_knPaddleAxisCount];
-    int                    m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
-    int                    m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
-    int                    m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
-    int                    m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    ObserverSlots<IInputEventSink>    m_inputSinks;
+    const SiriusJoyport             * m_joyport                                    = nullptr;
+    CassettePort                    * m_cassettePort                               = nullptr;
+    const uint64_t                  * m_cpuCycleSource                             = nullptr;
+    InputJournal                    * m_inputJournal                               = nullptr;
+    HeldInputWatch                  * m_heldInputWatch                             = nullptr;
+    bool                              m_observedButton[s_knButtonCount]            = {};
+    Byte                              m_observedPaddle[s_knPaddleAxisCount]        = {};
+    uint64_t                          m_paddleTriggerCycle                         = 0;
+    atomic<bool>                      m_buttonState[s_knButtonCount]               = {};
+    atomic<Byte>                      m_paddlePosition[s_knPaddleAxisCount];
+    int                               m_lastEmittedButton[s_knButtonCount]         = { -1, -1, -1 };
+    int                               m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                               m_lastEmittedHostButton[s_knHostButtonCount] = { -1, -1 };
+    int                               m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

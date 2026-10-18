@@ -81,6 +81,15 @@ struct DeskSceneMetrics
     float                 monitorPadDepthMm = 0.0f;
     float                 drivePadSideMm    = 0.0f;
     float                 drivePadDepthMm   = 0.0f;
+
+    // The cassette recorder, on the desk to the right of the stack. Absent
+    // unless `hasRecorder`, which is how a machine with no cassette jacks
+    // composes exactly as it did before the recorder existed.
+    bool                  hasRecorder         = false;
+    float                 recorderMin[3]      = {};
+    float                 recorderMax[3]      = {};
+    float                 recorderPadSideMm   = 0.0f;
+    float                 recorderPadDepthMm  = 0.0f;
 };
 
 
@@ -158,6 +167,12 @@ struct DeskSceneComposition
     // here: the name has to sit at the drive's own distance before the
     // monitor's case can stand in front of it.
     float  driveLabelWorld[2][3] = {};
+
+    // The cassette recorder beside the stack. An int for the same memcmp
+    // reason as glassOnly; zero leaves the matrix and rect unused.
+    int    hasRecorder        = 0;
+    float  recorderWorld[16]  = {};
+    RECT   recorderRectPx     = {};
 };
 
 
@@ -272,6 +287,13 @@ public:
 
     static constexpr float  kDriveGapMm            = 32.0f;    // between the two drives
 
+    // Desk space between the stack's right edge and the cassette recorder,
+    // and how far the recorder's key end stands forward of the drives'
+    // front plane, so it reads as set down on the desk in front of the
+    // stack's corner rather than lined up with it.
+    static constexpr float  kRecorderGapMm         = 40.0f;
+    static constexpr float  kRecorderForwardMm     = 30.0f;
+
     // Air over a risen door, on top of the rise itself. Enough that the gap
     // reads as a gap rather than as two parts just failing to touch.
     static constexpr float  kDoorRiseMarginMm      =  6.0f;
@@ -334,11 +356,24 @@ public:
     // Pixels go IN and world corners come out, which is the inversion the
     // whole fix rests on: the name is specified in the units it has to be
     // legible in, and the scene is told where that lands.
+    //
+    // `offsetXPx` moves the quad's center that many pixels right of the
+    // anchor, for a part that sits beside the name rather than under it.
     static bool     TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
                                            int                          drive,
                                            const SIZE                 & labelPx,
                                            int                          gapPx,
-                                           float                        outCorners[4][3]);
+                                           float                        outCorners[4][3],
+                                           int                          offsetXPx = 0);
+
+    // The same quad hung under any world point: a constant pixel size,
+    // facing the camera, `gapPx` below the point.
+    static bool     TryMakeLabelQuad      (const DeskSceneComposition & comp,
+                                           const float                  anchor[3],
+                                           const SIZE                 & labelPx,
+                                           int                          gapPx,
+                                           float                        outCorners[4][3],
+                                           int                          offsetXPx = 0);
 
 private:
     static void     SolveStandoff (const float             sceneMin[3],
@@ -368,6 +403,22 @@ private:
                                           int                      displayW,
                                           int                      displayH,
                                           float                    aspect);
+
+    // Places the cassette recorder beside the stack and grows the bounds.
+    static void     PlaceRecorder   (const DeskSceneMetrics & metrics,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out);
+
+    static void     ProjectModelBox (const float    world[16],
+                                     const float    boxMin[3],
+                                     const float    boxMax[3],
+                                     const float    viewProj[16],
+                                     const RECT   & viewportPx,
+                                     RECT         & outPx);
 
     // One full composition solve at a specific drive drop; Compute wraps it
     // with the gap-reserving correction.

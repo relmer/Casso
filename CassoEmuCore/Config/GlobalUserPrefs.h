@@ -2,11 +2,14 @@
 
 #include "Pch.h"
 
+#include "Config/DebuggerSettings.h"
+
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
-#include "Config/IFileSystem.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/ColorUtil.h"
+
+class IFileSystem;
 
 
 
@@ -87,7 +90,7 @@ struct GlobalUserPrefs
     std::string  audioDownloadConsent  = "ask";
 
     // Whether to offer a replacement for a ROM Casso itself installed and
-    // has since corrected. The machine boots on the old file, so the offer
+    // has since updated. The machine boots on the old file, so the offer
     // is optional: "ask" until the user skips it, then "decline".
     // AssetBootstrap::RunStartupDownloader reads + writes this.
     std::string  romRefreshConsent     = "ask";
@@ -237,62 +240,8 @@ struct GlobalUserPrefs
     bool         screenshotSaveFile       = true;
     std::string  screenshotFolder;
 
-    // The debugger window's keyboard scheme, by name: "VisualStudio",
-    // "AppleWin" or "GSSquared". Stored as the name for the same reason as
-    // screenshotMode; the window reads an unknown name as the default.
-    std::string  debuggerKeyScheme        = "VisualStudio";
-
-    // The debugger window's own theme, by name, from DebuggerThemes. Empty
-    // follows the emulator's theme; the window reads an unknown name the same.
-    std::string  debuggerTheme;
-
-    // The debugger window's pane arrangement, in DxuiPaneLayout's text form,
-    // which carries its own version. Empty until the user moves a pane; text
-    // the window cannot read gives the default arrangement.
-    std::string  debuggerLayout;
-
-    // The debugger's fixed panes the user closed, as pane ids separated by
-    // spaces, so they stay closed in the next session.
-    std::string  debuggerClosedPanes;
-
-    // Where the debugger's command bar is docked: its edge and its place
-    // along it, as "left 120".
-    std::string  debuggerCommandBarDock;
-    // Where the debugger's history timeline is docked, in the same form.
-    std::string  debuggerTimelineDock;
-    // The debugger pane that had the keys when its window closed, by its
-    // layout id; empty gives the console.
-    std::string  debuggerFocusedPane;
-    // The debugger's disassembly viewing options turned on, as keys separated
-    // by spaces; empty gives the defaults.
-    std::string  debuggerDisassemblyOptions;
-    // The debugger's heat map options, in HeatMapOptions' text; empty gives
-    // the defaults, and marks a layout saved before the heat map opened by
-    // default.
-    std::string  debuggerHeatMapOptions;
-
-    // The heat map's sets of ranges and the set it shows, in
-    // HeatMapRangeSets' text; empty until the ranges pane first opens.
-    std::string  debuggerHeatMapRanges;
-
-    // Which of the debugger's optional views were open, so a restart brings
-    // them back where they were: disassembly views 2 to 4 and the one
-    // following the PC, memory windows 2 to 4, and device panels. The layout
-    // above says where each view sits; this says which exist.
-    std::string  debuggerOpenViews;
-
-    // The debugger panes' text size, as a whole percentage, within the
-    // smallest and largest sizes the debugger's zoom offers.
-    static constexpr int  kMinDebuggerTextZoomPercent = 50;
-    static constexpr int  kMaxDebuggerTextZoomPercent = 300;
-
-    int          debuggerTextZoomPercent  = 100;
-
-    // Folders where the debugger found source files, most-recent-first: for
-    // every program, and for each program by its debug file's SHA-1. A
-    // program's own list is searched before the global one.
-    std::vector<std::string>                          debuggerSourceFolders;
-    std::map<std::string, std::vector<std::string>>   debuggerProgramSourceFolders;
+    // What the debugger keeps between sessions, under the same keys as before.
+    DebuggerSettings  debugger;
 
     // Master output volume (the chrome toolbar's slider + mute): one gain over
     // the completed audio mix, so speaker, drives, printer, and Mockingboard
@@ -307,17 +256,31 @@ struct GlobalUserPrefs
     int          settingsWidthDip         = 0;
     int          settingsHeightDip        = 0;
 
-    // REVERSE EXECUTION'S HISTORY, read when the emulator starts. Recording
-    // is on unless turned off here; the budget is the memory the keyframes
-    // may hold, and the interval is how many video frames apart they are
-    // taken. A step back replays at most one interval.
-    static constexpr int  kMinReverseBudgetMb       = 4;
-    static constexpr int  kMaxReverseBudgetMb       = 4096;
-    static constexpr int  kMaxReverseIntervalFrames = 600;
-
     bool         reverseRecording         = true;
     int          reverseBudgetMb          = 64;
     int          reverseIntervalFrames    = 10;
+
+    // THE UPDATE CHECK. Whether the once-a-day check runs at all; when it last
+    // ran (Unix seconds, 0 == never); the newest release it found, so the
+    // title-bar indicator can show between checks without a request; and the
+    // release the user chose to skip. Both versions are bare "1.30.0" strings,
+    // empty when unknown or nothing is skipped.
+    bool          autoUpdateCheck          = true;
+    std::int64_t  lastUpdateCheckUtc       = 0;
+    std::string   latestKnownVersion;
+    std::string   skippedVersion;
+
+    // Whether each machine's state is saved at exit and on a switch away
+    // from it, and resumed at startup and on a switch to it.
+    bool          autoSaveMachineState     = true;
+
+    // AN UPDATE APPLIED WHEN CASSO CLOSES. The version it installs and how
+    // ("zip" or "msix"), empty when none is waiting, and the failure of a zip
+    // swap at exit as an UpdateFailure value (0 == none), for the next launch
+    // to report.
+    std::string   pendingUpdateVersion;
+    std::string   pendingUpdateKind;
+    int           pendingUpdateFailure     = 0;
 
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;

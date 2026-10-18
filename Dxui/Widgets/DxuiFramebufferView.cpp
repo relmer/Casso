@@ -3,6 +3,8 @@
 #include "DxuiFramebufferView.h"
 
 #include "Theme/IDxuiTheme.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Core/DxuiEvents.h"
 
 
 

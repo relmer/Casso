@@ -56,6 +56,8 @@ public:
 
         IDM_MACHINE_PAUSE,
         IDM_MACHINE_STEP,
+        IDM_VIEW_DISK2_LOG,
+        IDM_VIEW_INPUT_LOG,
 
         IDM_DISK_INSERT1,
         IDM_DISK_EJECT1,
@@ -64,11 +66,11 @@ public:
 
         IDM_VIEW_FULLSCREEN,
         IDM_VIEW_RESET_SIZE,
-        IDM_VIEW_DISK2_DEBUG,
         IDM_VIEW_DEBUGGER,
         IDM_DEBUG_RESTART,
 
         IDM_HELP_KEYMAP,
+        IDM_HELP_CHECK_UPDATES,
         IDM_HELP_ABOUT,
     };
 
@@ -117,6 +119,14 @@ public:
         { L"IDM_DISK_SALVAGE2",             IDM_DISK_SALVAGE2             },
         { L"IDM_DISK_RESOLVE_CHANGE",       IDM_DISK_RESOLVE_CHANGE       },
         { L"IDM_DISK_OPEN_CASSQUE",         IDM_DISK_OPEN_CASSQUE         },
+        { L"IDM_TAPE_INSERT",               IDM_TAPE_INSERT               },
+        { L"IDM_TAPE_NEW",                  IDM_TAPE_NEW                  },
+        { L"IDM_TAPE_EJECT",                IDM_TAPE_EJECT                },
+        { L"IDM_TAPE_PLAY",                 IDM_TAPE_PLAY                 },
+        { L"IDM_TAPE_STOP",                 IDM_TAPE_STOP                 },
+        { L"IDM_TAPE_REWIND",               IDM_TAPE_REWIND               },
+        { L"IDM_TAPE_FASTFORWARD",          IDM_TAPE_FASTFORWARD          },
+        { L"IDM_TAPE_RECORD",               IDM_TAPE_RECORD               },
         { L"IDM_VIEW_COLOR",                IDM_VIEW_COLOR                },
         { L"IDM_VIEW_GREEN",                IDM_VIEW_GREEN                },
         { L"IDM_VIEW_AMBER",                IDM_VIEW_AMBER                },
@@ -124,8 +134,8 @@ public:
         { L"IDM_VIEW_FULLSCREEN",           IDM_VIEW_FULLSCREEN           },
         { L"IDM_VIEW_CRT_SHADER",           IDM_VIEW_CRT_SHADER           },
         { L"IDM_VIEW_RESET_SIZE",           IDM_VIEW_RESET_SIZE           },
-        { L"IDM_VIEW_INPUT_DEBUG",          IDM_VIEW_INPUT_DEBUG          },
-        { L"IDM_VIEW_DISK2_DEBUG",          IDM_VIEW_DISK2_DEBUG          },
+        { L"IDM_VIEW_INPUT_LOG",            IDM_VIEW_INPUT_LOG            },
+        { L"IDM_VIEW_DISK2_LOG",            IDM_VIEW_DISK2_LOG            },
         { L"IDM_VIEW_DEBUGGER",             IDM_VIEW_DEBUGGER             },
         { L"IDM_DEBUG_RESTART",             IDM_DEBUG_RESTART             },
         { L"IDM_DEBUG_COMMAND",             IDM_DEBUG_COMMAND             },
@@ -146,6 +156,8 @@ public:
         { L"IDM_DRIVE_EXTERNAL_DISCONNECT", IDM_DRIVE_EXTERNAL_DISCONNECT },
         { L"IDM_MOUSE_CONNECT",             IDM_MOUSE_CONNECT             },
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
+        { L"IDM_STORAGE_DRIVE2",            IDM_STORAGE_DRIVE2            },
+        { L"IDM_STORAGE_RECORDER",          IDM_STORAGE_RECORDER          },
 
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },
@@ -160,6 +172,7 @@ public:
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
         { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },
+        { L"IDM_HELP_CHECK_UPDATES",       IDM_HELP_CHECK_UPDATES        },
         { L"IDM_HELP_ABOUT",                IDM_HELP_ABOUT                },
     };
 
@@ -245,6 +258,12 @@ public:
     {
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE1) == WindowCommandRoute::Disk);
         Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_DISK_SALVAGE2) == WindowCommandRoute::Disk);
+    }
+
+
+    TEST_METHOD (Check_For_Updates_Routes_To_The_Help_Handler)
+    {
+        Assert::IsTrue (WindowCommandManager::GetCommandRoute (IDM_HELP_CHECK_UPDATES) == WindowCommandRoute::Help);
     }
 
 

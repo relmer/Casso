@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/TraceLookahead.h"
+#include "Disassembler.h"
 
 
 

@@ -1,9 +1,14 @@
-﻿<#
+<#
 .SYNOPSIS
     Builds the Casso solution using MSBuild.
 
 .PARAMETER Configuration
-    The build configuration. Valid values are 'Debug' or 'Release'.
+    The build configuration. Valid values are 'Debug', 'Release', or 'All'.
+    'All' builds Debug and then Release, for the selected platform only --
+    the quick "is Release still good" pass, without the ARM64 legs that
+    -Target BuildAll adds. A -Target that names its own configurations
+    (BuildAll, RebuildAll, CleanAll, BuildAllRelease, RebuildAllRelease)
+    overrides this.
     Default: Debug
 
 .PARAMETER Platform
@@ -26,7 +31,7 @@
 .PARAMETER RunCodeAnalysis
     If set, enables C++ Core Check code analysis during build, with analysis
     warnings treated as errors. These are the same three MSBuild properties CI
-    sets, and it compiles on the x86-hosted compiler as CI does, so a clean
+    sets, and it compiles on the 64-bit compiler as CI does, so a clean
     run here is the same verdict CI reaches FOR THE CONFIGURATION AND
     PLATFORM BUILT. Use -Target Rebuild: an incremental build does not
     reanalyze unchanged files.
@@ -37,11 +42,13 @@
     compile, and ARM64 is build-only here, so nothing else exercises it.
 
 .PARAMETER Sanitize
-    Build the AddressSanitizer flavor of Debug x64 (-p:CassoSanitize=Address)
-    into x64\DebugAsan\, beside the plain Debug build rather than over it. Debug
-    x64 and a single-configuration target only. It builds the whole solution, so
-    Casso.exe and CassoCli.exe land beside UnitTest.dll, which the suite needs.
-    Run it with RunTests.ps1 -Build -Sanitize. See docs/testing.md.
+    Build the AddressSanitizer flavor (-p:CassoSanitize=Address) into
+    x64\DebugAsan\ or x64\ReleaseAsan\, beside the plain build rather than over
+    it. x64 only, with -Target Build, Clean or Rebuild. With -Configuration All
+    it builds DebugAsan and ReleaseAsan, and not the plain builds. It builds the
+    whole solution, so Casso.exe and CassoCli.exe land beside UnitTest.dll,
+    which the suite runs. Run it with RunTests.ps1 -Build -Sanitize. See
+    docs/testing.md.
 
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
@@ -59,9 +66,13 @@
 .EXAMPLE
     .\Build.ps1 -Configuration Release -Target Rebuild
     Rebuilds Release configuration for x64.
+
+.EXAMPLE
+    .\Build.ps1 -Configuration All
+    Builds Debug and then Release, both for x64.
 #>
 param(
-    [ValidateSet('Debug', 'Release')]
+    [ValidateSet('Debug', 'Release', 'All')]
     [string]$Configuration = 'Debug',
 
     [ValidateSet('x64', 'ARM64', 'Auto')]
@@ -90,8 +101,8 @@ if ($Platform -eq 'Auto') {
 
 $ErrorActionPreference = 'Stop'
 
-if ($Sanitize -and ($Configuration -ne 'Debug' -or $Platform -ne 'x64')) {
-    throw '-Sanitize builds Debug x64 only.'
+if ($Sanitize -and $Platform -ne 'x64') {
+    throw '-Sanitize builds x64 only.'
 }
 
 if ($Sanitize -and $Target -notin @('Build', 'Clean', 'Rebuild')) {
@@ -232,114 +243,88 @@ if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Sys
 }
 
 #
-#  ANALYSIS RUNS ON THE X86-HOSTED COMPILER, AS CI'S DOES. CI's msbuild is
-#  the x86 one setup-msbuild puts on PATH, so it compiles with
-#  HostX86\x64\CL.exe, and the two hosts' analyzers do not agree: on
-#  b6154afb the x86 host reports three C6011s that the x64 host, at the
-#  same MSVC 14.51.36231 and on a clean Rebuild, does not report at any
-#  level. Matching the host is what makes a local pass mean a CI pass.
+#  EVERY BUILD, ANALYSIS INCLUDED, RUNS ON THE 64-BIT TOOLS, AS CI'S DO
+#  (PreferredToolArchitecture=x64 in ci.yml). Analysis once ran here on the
+#  x86-hosted compiler to match CI's default, since the two hosts' analyzers
+#  can disagree (on b6154afb the x86 host reported three C6011s the x64 host
+#  did not); CI moved to the 64-bit tools when link-time code generation
+#  outgrew a 32-bit process. The same host on both sides is what makes a
+#  local pass mean a CI pass.
 #
-if ($RunCodeAnalysis) {
-    $preferredArch = 'x86'
-}
 
 $scriptExitCode = 0
 
-if ($Target -eq 'BuildAllRelease' -or $Target -eq 'CleanAll' -or $Target -eq 'RebuildAllRelease' -or
-    $Target -eq 'BuildAll' -or $Target -eq 'RebuildAll') {
-    $platformsToBuild = @('x64', 'ARM64')
+#
+#  ONE LOOP FOR EVERY SHAPE OF BUILD. All that varies between a plain
+#  `.\Build.ps1` and `-Target RebuildAll` is which configurations to build,
+#  which platforms, and which msbuild target, so those three are resolved
+#  here and the invocation below is written once. It was two copies of the
+#  invocation before, and -Configuration All would have made it three.
+#
+#  -Configuration All widens the configuration list and leaves the platform
+#  where it was: it answers "does Release still build" on the machine in
+#  front of you, without paying for the ARM64 legs. The -Target *All*
+#  values are the CI-coverage ones, and each one names its own
+#  configurations and both platforms, so when a target and -Configuration
+#  All are both given, the target decides.
+#
+$platformsToBuild = @($Platform)
+$configsToBuild   = if ($Configuration -eq 'All') { @('Debug', 'Release') } else { @($Configuration) }
+$msbuildTarget    = $Target
 
-    if ($Target -eq 'CleanAll') {
-        $configsToBuild = @('Debug', 'Release')
-        $msbuildTarget = 'Clean'
-    }
-    elseif ($Target -eq 'RebuildAllRelease') {
-        $configsToBuild = @('Release')
-        $msbuildTarget = 'Rebuild'
-    }
-    elseif ($Target -eq 'RebuildAll') {
-        $configsToBuild = @('Debug', 'Release')
-        $msbuildTarget = 'Rebuild'
-    }
-    elseif ($Target -eq 'BuildAll') {
-        $configsToBuild = @('Debug', 'Release')
-        $msbuildTarget = 'Build'
-    }
-    else {
-        $configsToBuild = @('Release')
-        $msbuildTarget = 'Build'
-    }
+switch ($Target) {
+    'BuildAllRelease'   { $platformsToBuild = @('x64', 'ARM64'); $configsToBuild = @('Release');           $msbuildTarget = 'Build' }
+    'RebuildAllRelease' { $platformsToBuild = @('x64', 'ARM64'); $configsToBuild = @('Release');           $msbuildTarget = 'Rebuild' }
+    'BuildAll'          { $platformsToBuild = @('x64', 'ARM64'); $configsToBuild = @('Debug', 'Release');  $msbuildTarget = 'Build' }
+    'RebuildAll'        { $platformsToBuild = @('x64', 'ARM64'); $configsToBuild = @('Debug', 'Release');  $msbuildTarget = 'Rebuild' }
+    'CleanAll'          { $platformsToBuild = @('x64', 'ARM64'); $configsToBuild = @('Debug', 'Release');  $msbuildTarget = 'Clean' }
+}
 
-    foreach ($config in $configsToBuild) {
-        foreach ($platformToBuild in $platformsToBuild) {
-            $msbuildArgs = @(
-                $solutionPath,
-                "-m",
-                "-p:Configuration=$config",
-                "-p:Platform=$platformToBuild",
-                "-p:PreferredToolArchitecture=$preferredArch",
-                "-t:$msbuildTarget"
-            ) + $msbuildNodeArgs
+#  Timed around the whole run, not around each leg, so a multi-leg build
+#  reports what it cost rather than what its last leg cost.
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-            if ($RunCodeAnalysis) {
-                $msbuildArgs += '-p:EnableCppCoreCheck=true'
-                $msbuildArgs += '-p:RunCodeAnalysis=true'
-                $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
-            }
+foreach ($config in $configsToBuild) {
+    foreach ($platformToBuild in $platformsToBuild) {
+        #  -m builds projects that do not depend on each other at the same
+        #  time; /MP (Directory.Build.props) parallelizes the files within a
+        #  project. Neither was set, so a full build used one core out of
+        #  eight.
+        $msbuildArgs = @(
+            $solutionPath,
+            "-m",
+            "-p:Configuration=$config",
+            "-p:Platform=$platformToBuild",
+            "-p:PreferredToolArchitecture=$preferredArch",
+            "-t:$msbuildTarget"
+        ) + $msbuildNodeArgs
 
-            Write-Host "Building: $solutionPath ($config|$platformToBuild) Target=$msbuildTarget" -ForegroundColor Cyan
-
-            $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            & $msbuildPath @msbuildArgs
-            $stopwatch.Stop()
-
-            if ($LASTEXITCODE -ne 0) {
-                $scriptExitCode = $LASTEXITCODE
-                break
-            }
+        if ($RunCodeAnalysis) {
+            $msbuildArgs += '-p:EnableCppCoreCheck=true'
+            $msbuildArgs += '-p:RunCodeAnalysis=true'
+            $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
         }
 
-        if ($scriptExitCode -ne 0) { break }
+        if ($Sanitize) {
+            $msbuildArgs += '-p:CassoSanitize=Address'
+        }
+
+        $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }
+
+        Write-Host "Building: $solutionPath ($config|$platformToBuild$flavorText) Target=$msbuildTarget" -ForegroundColor Cyan
+
+        & $msbuildPath @msbuildArgs
+
+        if ($LASTEXITCODE -ne 0) {
+            $scriptExitCode = $LASTEXITCODE
+            break
+        }
     }
+
+    if ($scriptExitCode -ne 0) { break }
 }
-else {
-    #  -m builds projects that do not depend on each other at the same time;
-    #  /MP (Directory.Build.props) parallelizes the files within a project.
-    #  Neither was set, so a full build used one core out of eight.
-    $msbuildArgs = @(
-        $solutionPath,
-        "-m",
-        "-p:Configuration=$Configuration",
-        "-p:Platform=$Platform",
-        "-p:PreferredToolArchitecture=$preferredArch"
-    ) + $msbuildNodeArgs
 
-    if ($RunCodeAnalysis) {
-        $msbuildArgs += '-p:EnableCppCoreCheck=true'
-        $msbuildArgs += '-p:RunCodeAnalysis=true'
-        $msbuildArgs += '-p:CodeAnalysisTreatWarningsAsErrors=true'
-    }
-
-    if ($Sanitize) {
-        $msbuildArgs += '-p:CassoSanitize=Address'
-    }
-
-    if ($Target -ne 'Build') {
-        $msbuildArgs += "-t:$Target"
-    }
-
-    $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }
-
-    Write-Host "Building: $solutionPath ($Configuration|$Platform$flavorText) Target=$Target"
-
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $msbuildPath @msbuildArgs
-    $stopwatch.Stop()
-
-    if ($LASTEXITCODE -ne 0) {
-        $scriptExitCode = $LASTEXITCODE
-    }
-}
+$stopwatch.Stop()
 
 $minutes  = [int][Math]::Floor($stopwatch.Elapsed.TotalMinutes)
 $timeText = "{0:00}:{1:00}.{2:000}" -f $minutes, $stopwatch.Elapsed.Seconds, $stopwatch.Elapsed.Milliseconds

@@ -6,6 +6,7 @@
 #include "OpcodeTable.h"
 #include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Disassembler.h"
 #include "Debugger/EffectiveAddress.h"
 #include "Debugger/IDebugCommandHandler.h"
@@ -18,11 +19,14 @@
 #include "Debugger/GSSquaredParser.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/CommandSuggestion.h"
+#include "Debugger/DiskCallVector.h"
+#include "Debugger/DiskValueSymbols.h"
 #include "Debugger/WinDbgFormatter.h"
 #include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/DebugSessionView.h"
 
 
 
@@ -53,6 +57,8 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetContext          (this);
     m_watchpoints.SetValueBreakpoints (&m_breakpoints);
     m_watchpoints.SetTarget           (&m_target);
+    m_diskMonitor.SetNotice           ([this] (const std::string & line) { m_sink.OnDiskNotice (line); });
+    m_watchpoints.SetVectorWriteSink  ([this] { ResolveDiskCalls(); });
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
     m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
@@ -256,6 +262,12 @@ Reply DebugSession::Execute (const DebugCommand & command)
     {
         if (handler->TryExecute (*this, command, reply))
         {
+            if (IsMachineWrite (command.verb))
+            {
+                ResolveDiskCalls();
+                m_basicMonitor.TakeValues (*this);
+            }
+
             return reply;
         }
     }
@@ -333,6 +345,9 @@ bool DebugSession::IsStepVerb (DebugVerb verb)
     case DebugVerb::StepOver:
     case DebugVerb::StepOut:
     case DebugVerb::RunFrame:
+    case DebugVerb::BasicStep:
+    case DebugVerb::BasicStepLine:
+    case DebugVerb::BasicStepOut:
         return true;
 
     default:
@@ -1076,6 +1091,53 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::NoteSymbolLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::NoteSymbolLoad (SymbolTableId table, const std::wstring & path, int offset)
+{
+    std::erase_if (m_symbolLoads, [&] (const SymbolLoad & load) { return load.table == table && load.path == path; });
+    m_symbolLoads.push_back ({ table, path, offset });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ForgetSymbolLoads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ForgetSymbolLoads (SymbolTableId table)
+{
+    std::erase_if (m_symbolLoads, [table] (const SymbolLoad & load) { return load.table == table; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::NoteBinaryLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::NoteBinaryLoad (const std::string & hash, Word address, const std::string & name)
+{
+    m_binaryKey  = std::format ("{}@{:04X}", hash, address);
+    m_binaryName = name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::OnStopConditionsChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1125,13 +1187,14 @@ void DebugSession::ClearAllBreakpoints()
 //  during the instruction reports as its access PC: recorded here rather
 //  than only in ShouldStopBefore, because the first instruction of a run is
 //  never asked whether to stop, and a read it makes was reported from $0000.
-//  Recording runs only during a run the debugger started.
+//  Recording runs only during a run the debugger started, and profiling in
+//  any run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::OnInstruction (Word pc)
 {
-    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling();
 
 
 
@@ -1165,7 +1228,7 @@ void DebugSession::OnInstruction (Word pc)
 
 void DebugSession::OnInterrupt (Word pc)
 {
-    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping;
+    bool  isDebuggerRun = m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling();
 
 
 
@@ -1316,6 +1379,10 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_stepCycles    = 0;
     m_isStepPending = false;
     m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
+    m_basicMonitor.EndStep();
+    m_basicMonitor.ClearStop();
+    m_basicMonitor.Rebase();
+    m_isBasicStop   = false;
     m_target.ClearTrace();
     m_target.ClearHeatMap();
     m_isStepOutOnRecord = false;
@@ -1363,6 +1430,7 @@ void DebugSession::OnReset (bool isPowerCycle)
 
     m_monitorReturn.reset();
     m_monitorReturned = false;
+    m_basicMonitor.Rebase();
     UpdateHookInstalled();
 
     if (m_callRecorder.IsActive())
@@ -1471,21 +1539,42 @@ void DebugSession::SetAttached (bool isAttached)
 
 bool DebugSession::ShouldStopBefore (Word pc)
 {
-    Byte  opcode   = 0;
-    int   hitId    = -1;
-    bool  isHit    = false;
-    bool  isPeeked = false;
+    Byte  opcode     = 0;
+    int   hitId      = -1;
+    bool  isHit      = false;
+    bool  isDiskHit  = false;
+    bool  isBasicHit = false;
+    bool  isPeeked   = false;
 
 
 
     m_watchpoints.SetAccessPc (pc);
     isPeeked = m_target.TryPeek (pc, opcode);
 
-    isHit = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
+    //  A disk event the last instruction made stops here, after it, as a
+    //  watchpoint hit does; with an address breakpoint here as well, the stop
+    //  has the breakpoint's reason and the disk report beside it. Applesoft's
+    //  boundary is polled here too, so its variable entries take every
+    //  boundary's values.
+    isDiskHit  = m_diskMonitor.Poll (*this);
+    isBasicHit = m_basicMonitor.Poll (pc, *this);
+    isHit      = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
 
     if (isHit)
     {
         m_lastBreakpointId = hitId;
+        return true;
+    }
+
+    if (isDiskHit)
+    {
+        m_isDiskStop = true;
+        return true;
+    }
+
+    if (isBasicHit)
+    {
+        m_isBasicStop = true;
         return true;
     }
 
@@ -1588,6 +1677,30 @@ void DebugSession::SetVideoBreak (uint32_t first, uint32_t last)
     //  break waits for the beam to come round again.
     m_videoBreak = VideoBreak { first, last, scanline };
     UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetVideoBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<uint32_t, uint32_t>> DebugSession::GetVideoBreak() const
+{
+    std::optional<std::pair<uint32_t, uint32_t>>  range;
+
+
+
+    if (m_videoBreak.has_value())
+    {
+        range = std::pair<uint32_t, uint32_t> (m_videoBreak->first, m_videoBreak->last);
+    }
+
+    return range;
 }
 
 
@@ -1966,13 +2079,15 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
         event.breakpointId = m_lastBreakpointId;
 
-        //  BRK ON and BRKOP stops keep their breakpoint's id and say which
-        //  kind of stop they are. A stop at the Monitor's own return, with no
-        //  breakpoint behind it, is the program coming back: a run to there.
+        //  A BRK ON or BRKOP stop has its breakpoint's id and a reason of its
+        //  own, as an RWTS or driver call's stop does. A stop
+        //  at the Monitor's own return, with no breakpoint behind it, is the
+        //  program coming back: a run to there.
         if (m_lastBreakpointId.has_value() && m_breakpoints.TryFind (*m_lastBreakpointId, breakpoint))
         {
             event.reason = (breakpoint.kind == BreakpointKind::Brk)    ? StopReason::Brk
                          : (breakpoint.kind == BreakpointKind::Opcode) ? StopReason::InvalidOpcode
+                         : (breakpoint.IsDiskCall())                   ? StopReason::Disk
                          :                                                StopReason::Breakpoint;
         }
         else if (!m_lastBreakpointId.has_value() && m_monitorReturned)
@@ -1990,6 +2105,9 @@ void DebugSession::OnStopped (const StopEvent & stop)
         }
     }
 
+    AttachBasicReport (event);
+    AttachDiskCallReport (event);
+    AttachDiskReport (event);
     AttachCondition (event);
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
@@ -2029,6 +2147,217 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_sink.OnStopped (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachBasicReport
+//
+//  An Applesoft stop's report: a stop of its own when its breakpoint, step
+//  or error stop made it, beside another stop at the same boundary
+//  otherwise. Any stop ends a BASIC step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachBasicReport (StopEvent & event)
+{
+    if (m_basicMonitor.HasStop())
+    {
+        event.basic = m_basicMonitor.GetStop().report;
+
+        if (m_isBasicStop)
+        {
+            event.basic->isBasicStop = true;
+            event.reason             = m_basicMonitor.GetStop().reason;
+            event.breakpointId       = m_basicMonitor.GetStop().breakpointId;
+        }
+    }
+
+    m_basicMonitor.ClearStop();
+    m_basicMonitor.EndStep();
+    m_isBasicStop = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteBasicStep
+//
+//  BASICSTEP, BASICLINE and BASICOUT run as G does, the step armed, and stop
+//  where it ends unless something else stops the run first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ExecuteBasicStep (const DebugCommand & command, Reply & reply)
+{
+    DebugCommand   run   = command;
+    BasicStepKind  kind  = (command.verb == DebugVerb::BasicStepLine) ? BasicStepKind::Line
+                         : (command.verb == DebugVerb::BasicStepOut)  ? BasicStepKind::Out
+                         :                                              BasicStepKind::Statement;
+    std::string    error;
+
+
+
+    run.verb  = DebugVerb::Go;
+    run.hasA1 = false;
+    run.hasA2 = false;
+    run.hasA3 = false;
+    run.count = 0;
+
+    //  During a run, G's error is returned, with how to stop the run.
+    if (m_state != RunState::DebugRun && m_state != RunState::Stepping && !m_basicMonitor.TryBeginStep (kind, *this, error))
+    {
+        SetError (reply, CommandStatus::Error, "cannot step", error);
+        return;
+    }
+
+    ExecuteRun (run, reply);
+
+    if (reply.status != CommandStatus::Ok)
+    {
+        m_basicMonitor.EndStep();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachDiskReport
+//
+//  The last instruction's disk events, for a stop that came another way,
+//  then the disk report: a stop of its own when the disk breakpoint made it
+//  or ended a step, beside a breakpoint's or watchpoint's stop otherwise
+//  (FR-153).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachDiskReport (StopEvent & event)
+{
+    bool  isDiskReason = false;
+
+
+
+    m_diskMonitor.Poll (*this);
+
+    if (m_diskMonitor.HasStop() && !event.disk.has_value())
+    {
+        isDiskReason       = m_isDiskStop || event.reason == StopReason::Step || event.reason == StopReason::Pause;
+        event.disk         = m_diskMonitor.GetReport();
+        event.reason       = isDiskReason ? StopReason::Disk : event.reason;
+        event.breakpointId = isDiskReason ? std::optional<int> (event.disk->breakpointId) : event.breakpointId;
+    }
+
+    m_diskMonitor.ClearStop();
+    m_isDiskStop = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::AttachDiskCallReport
+//
+//  The request of the RWTS or driver call the PC is at: the stop of that
+//  breakpoint, or of an address breakpoint on the same routine, whose stop
+//  has its own reason and the report of the lowest RWTS or driver id whose
+//  request matches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::AttachDiskCallReport (StopEvent & event)
+{
+    DebugDiskState  state;
+    DiskReport      report;
+    Breakpoint      entry;
+    bool            isStopped = event.breakpointId.has_value() && m_breakpoints.TryFind (*event.breakpointId, entry);
+    auto            found     = std::ranges::find_if (m_breakpoints.GetAll(), [&] (const Breakpoint & candidate)
+    {
+        return candidate.enabled && candidate.IsDiskCall() && candidate.resolved == event.pc && DiskCallVector::IsRequestMatch (*candidate.disk, *this);
+    });
+
+
+
+    if (!isStopped || (!entry.IsDiskCall() && found == m_breakpoints.GetAll().end()))
+    {
+        return;
+    }
+
+    entry = entry.IsDiskCall() ? entry : *found;
+    m_target.TryGetDiskState (state);
+
+    report.breakpointId = entry.id;
+    report.event        = entry.disk->event;
+    report.request      = DiskCallVector::ReadRequest (*entry.disk, *this);
+    report.vector       = DiskCallVector::GetVectorAddress (*entry.disk, state.slot);
+    report.slot         = state.slot;
+    report.drive        = std::clamp (report.request->drive - 1, 0, 1);
+    report.quarterTrack = state.quarterTrack[report.drive];
+    report.isMotorOn    = state.isMotorOn;
+    report.isProtected  = state.isProtected[report.drive];
+    report.phases       = state.phases;
+    report.imageName    = state.imageName[report.drive];
+    report.instruction  = event.pc;
+    event.disk          = report;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ResolveDiskCalls
+//
+//  A machine with no Disk II controller resolves a driver breakpoint as
+//  slot 6's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ResolveDiskCalls()
+{
+    static constexpr int  kDefaultSlot = 6;
+    DebugDiskState        state;
+    std::vector<Word>     bytes;
+    std::vector<int>      ids;
+    int                   slot         = m_target.TryGetDiskState (state) ? state.slot : kDefaultSlot;
+
+
+
+    for (const Breakpoint & entry : m_breakpoints.GetAll())
+    {
+        if (entry.IsDiskCall())
+        {
+            ids.push_back (entry.id);
+            DiskCallVector::AddVectorBytes (*entry.disk, slot, bytes);
+        }
+    }
+
+    for (int id : ids)
+    {
+        Breakpoint  entry;
+
+
+
+        m_breakpoints.TryFind (id, entry);
+        m_breakpoints.TrySetResolved (id, DiskCallVector::TryResolve (*entry.disk, slot, *this));
+    }
+
+    std::ranges::sort (bytes);
+    bytes.erase (std::unique (bytes.begin(), bytes.end()), bytes.end());
+    m_watchpoints.SetVectorBytes (bytes);
+    RefreshHookFilter();
 }
 
 
@@ -2160,10 +2489,27 @@ bool DebugSession::TryPeek (Word address, Byte & value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::TryPeekIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryPeekIo (Word address, Byte & value) const
+{
+    return m_target.TryPeekIo (address, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::TryResolveSymbol
 //
-//  @n is the nth search result, counted from 1; any other name is looked up
-//  in the enabled symbol tables.
+//  The disk values come first, ahead of any program symbol with the same
+//  name, and are unknown on a machine with no Disk II. @n is the nth search
+//  result, counted from 1; any other name is looked up in the enabled symbol
+//  tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2173,6 +2519,11 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
     SymbolTableId  table = SymbolTableId::Main;
 
 
+
+    if (DiskValueSymbols::IsDiskValue (name))
+    {
+        return DiskValueSymbols::TryResolve (name, m_target, address);
+    }
 
     if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
     {
@@ -2188,6 +2539,29 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
     address = m_searchResults[index - 1];
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetSymbolRevision
+//
+//  A disk value or a search result is worked out at each lookup; any other
+//  name changes only with the symbol tables.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DebugSession::GetSymbolRevision (const std::string & name) const
+{
+    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@'))
+    {
+        return 0;
+    }
+
+    return m_symbols.GetRevision();
 }
 
 
@@ -2252,6 +2626,22 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
     case DebugVerb::RemoveStepFilter:
     case DebugVerb::ClearStepFilter:
         ExecuteStepFilter (command, reply);
+        return true;
+
+    case DebugVerb::BasicStep:
+    case DebugVerb::BasicStepLine:
+    case DebugVerb::BasicStepOut:
+        ExecuteBasicStep (command, reply);
+        return true;
+
+    case DebugVerb::Project:
+        if (!m_projectRequester)
+        {
+            SetError (reply, CommandStatus::NotAvailable, "no debug projects", "Only the emulator's debugger has debug projects.");
+            return true;
+        }
+
+        m_projectRequester (command.text, reply);
         return true;
 
     default:
@@ -2400,10 +2790,10 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
-        // Monitor mode reaches PAUSE only through the `/` escape.
+        //  PAUSE as the line's mode types it: /PAUSE in Monitor mode, !PAUSE in
+        //  WinDbg mode.
         SetError (reply, CommandStatus::Error, "already running",
-                  command.mode == CommandMode::Monitor ? "A run is in progress. Use /PAUSE to stop it."
-                                                       : "A run is in progress. Use PAUSE to stop it.");
+                  std::format ("A run is in progress. Use {} to stop it.", CommandModeHelp::GetTypedName (command.mode, "PAUSE")));
         return;
     }
 
@@ -2915,6 +3305,11 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.callMechanism    = m_callMechanism;
     out.callRecord       = m_callRecorder.GetRecord();
     out.callRebuild      = m_callRebuildProgress;
+    out.cycleMarker      = m_cycleMarker;
+    out.searchResults    = m_searchResults;
+    out.searchSerial     = m_searchSerial;
+    out.compareResults   = m_compareResults;
+    out.compareSerial    = m_compareSerial;
     out.fileSystem       = m_fileSystem;
     out.currentDirectory = m_currentDirectory;
 
@@ -2975,6 +3370,11 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_assemblyAddress  = view.assemblyAddress;
     m_stepBySource     = view.isStepBySource;
     m_callMechanism    = view.callMechanism;
+    m_cycleMarker      = view.cycleMarker;
+    m_searchResults    = view.searchResults;
+    m_searchSerial     = view.searchSerial;
+    m_compareResults   = view.compareResults;
+    m_compareSerial    = view.compareSerial;
     m_fileSystem       = view.fileSystem;
     m_currentDirectory = view.currentDirectory;
 
@@ -3091,19 +3491,22 @@ Byte DebugSession::PeekByte (Word address) const
 //  DebugSession::UpdateHookInstalled
 //
 //  The hook is installed while the debugger is attached and any enabled stop
-//  condition exists or a run is active, and removed otherwise, so a machine with no debugger interest pays
-//  only the null test. The call record does not need it: the CPU reports the
-//  instructions it needs (OnWatchedFetch).
+//  condition exists, a run is active or profiling is on, and removed
+//  otherwise, so a machine with no debugger interest pays only the null test.
+//  The call record is fed without it: the CPU reports the instructions the
+//  record uses (OnWatchedFetch).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping);
+    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling());
 
 
 
-    RefreshHookFilter();
+    m_diskMonitor.Refresh();
+    m_diskMonitor.SetPaused (m_state == RunState::Paused);
+    ResolveDiskCalls();
 
     if (shouldInstall != m_hookInstalled)
     {
@@ -3121,8 +3524,9 @@ void DebugSession::UpdateHookInstalled()
 //  DebugSession::RefreshHookFilter
 //
 //  The instructions the session needs to see. Every one during a run the
-//  debugger started, and while a watchpoint, a value breakpoint, a video
-//  break or a breakpoint on anything but an address or an opcode is armed:
+//  debugger started or while profiling is on, and while a watchpoint, a value
+//  breakpoint, a video break or a breakpoint on anything but an address or
+//  an opcode is armed:
 //  those are tested before or during any instruction, and a watchpoint hit
 //  reports the address of the instruction that made it. Otherwise only the
 //  pages holding an address breakpoint or the Monitor's return, and the
@@ -3133,7 +3537,7 @@ void DebugSession::UpdateHookInstalled()
 void DebugSession::RefreshHookFilter()
 {
     bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() ||
-                    m_isUnwrittenBreak;
+                    m_isUnwrittenBreak || IsProfiling();
 
 
 
@@ -3163,6 +3567,21 @@ void DebugSession::RefreshHookFilter()
             m_hookFilter.opcodesStop           = true;
             break;
 
+        //  A disk event is raised during an instruction and reported at the
+        //  next boundary, as a watchpoint hit is; an RWTS or driver call stops
+        //  before its routine, whose page the filter marks once it is resolved.
+        case BreakpointKind::Disk:
+            isEvery = isEvery || !entry.IsDiskCall();
+            m_hookFilter.pages[entry.resolved.value_or (0) >> 8] = m_hookFilter.pages[entry.resolved.value_or (0) >> 8] || entry.resolved.has_value();
+            break;
+
+        //  Applesoft's entries are tested where the interpreter passes, on
+        //  the pages the monitor marks below.
+        case BreakpointKind::BasicLine:
+        case BreakpointKind::BasicVariable:
+        case BreakpointKind::BasicError:
+            break;
+
         default:
             isEvery = true;
             break;
@@ -3173,6 +3592,8 @@ void DebugSession::RefreshHookFilter()
     {
         m_hookFilter.pages[*m_monitorReturn >> 8] = true;
     }
+
+    m_basicMonitor.MarkPages (m_hookFilter.pages);
 
     //  With only opcode breakpoints armed, the host asks about an instruction
     //  only when its opcode is one of theirs. An address breakpoint beside
@@ -3189,6 +3610,21 @@ void DebugSession::RefreshHookFilter()
     {
         m_hookFilter.pages = DebugHookFilter::s_kAllMarked;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::HasStopConditions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsProfiling() const
+{
+    return m_instructionObserver != nullptr && m_instructionObserver->IsProfiling();
 }
 
 

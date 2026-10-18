@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "HResultAssert.h"
 
 // Disk2Controller carries two DiskImage instances; per-test heap allocation
 // keeps the C6262 stack-frame budget happy.
@@ -92,6 +93,39 @@ static size_t WriteBytesThroughLss (Disk2Controller & disk, const Byte * data, i
     }
 
     return startBit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Helper: step the selected drive's head outward one half-track at a
+//  time, energizing each next phase and releasing it as DOS RWTS does.
+//  The head starts on an even quarter-track, so its cog phase is
+//  (quarterTrack / 2) & 3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void StepOutward (Disk2Controller & disk, int halfTracks)
+{
+    int    i       = 0;
+    int    phase   = 0;
+    Word   onAddr  = 0;
+    Word   offAddr = 0;
+
+
+
+    for (i = 0; i < halfTracks; i++)
+    {
+        phase   = ((disk.GetQuarterTrack() / 2) + 1) & 3;
+        onAddr  = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
+        offAddr = static_cast<Word> (s_kSlot6Base + phase * 2);
+
+        disk.Read (onAddr);
+        disk.Read (offAddr);
+    }
 }
 
 
@@ -330,6 +364,53 @@ public:
 
         disk->Read (s_kDrive1);
         Assert::AreEqual (0, disk->GetActiveDrive(), L"$C0EA selects drive 1");
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    //  Each Disk II drive has its own stepper and head. Phase changes move
+    //  only the selected drive, and selecting a drive restores that
+    //  drive's own position rather than the other drive's.
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DriveSelectKeepsEachDrivesHeadPosition)
+    {
+        constexpr int   kTrack20QuarterTrack = 80;
+        constexpr int   kTrack5QuarterTrack  = 20;
+        constexpr int   kTrack20HalfTracks   = 40;
+        constexpr int   kTrack5HalfTracks    = 10;
+        constexpr int   kTrack20             = 20;
+        constexpr int   kTrack5              = 5;
+
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+
+
+        disk->Read (s_kMotorOn);
+        disk->Read (s_kDrive1);
+        StepOutward (*disk, kTrack20HalfTracks);
+        Assert::AreEqual (kTrack20, disk->GetCurrentTrack(),
+            L"Drive 1 must seek to track 20");
+
+        disk->Read (s_kDrive2);
+        Assert::AreEqual (0, disk->GetQuarterTrack(),
+            L"Selecting drive 2 must not move its head to drive 1's track");
+
+        StepOutward (*disk, kTrack5HalfTracks);
+        Assert::AreEqual (kTrack5, disk->GetCurrentTrack(),
+            L"Drive 2 must seek to track 5");
+
+        disk->Read (s_kDrive1);
+        Assert::AreEqual (kTrack20, disk->GetCurrentTrack(),
+            L"Drive 1's head must still be on track 20 after drive 2 seeks");
+        Assert::AreEqual (kTrack20QuarterTrack, disk->GetEngine (0).GetCurrentTrack(),
+            L"Drive 1's engine must read from track 20");
+        Assert::AreEqual (kTrack5QuarterTrack, disk->GetEngine (1).GetCurrentTrack(),
+            L"Drive 2's engine must stay on track 5 while drive 1 is selected");
+
+        StepOutward (*disk, 1);
+        disk->Read (s_kDrive2);
+        Assert::AreEqual (kTrack5QuarterTrack, disk->GetQuarterTrack(),
+            L"A step on drive 1 must not move drive 2's head");
     }
 
     TEST_METHOD (Q7ClearQ6ClearReadsNibble)

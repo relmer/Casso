@@ -50,6 +50,9 @@ public:
     //  one it means to exercise.
     bool         failNextWrite       = false;
     bool         failNextReplace     = false;
+    bool         failNextMetadata    = false;
+    bool         failNextFlush       = false;
+    bool         failNextRename      = false;
     bool         reportHeldByOther   = false;
 
     //  WHICH failure the replace reports, because the reason is not
@@ -67,9 +70,16 @@ public:
     //  second process.
     bool         mutateStampOnNextStat = false;
 
-    int          writeCount   = 0;
-    int          replaceCount = 0;
-    int          removeCount  = 0;
+    int          writeCount    = 0;
+    int          replaceCount  = 0;
+    int          removeCount   = 0;
+    int          metadataCount = 0;
+    int          flushCount    = 0;
+    int          renameCount   = 0;
+
+    //  The paths flushed, in order, so a test can see the temporary was made
+    //  durable before it became the target.
+    vector<std::string>  flushedPaths;
 
     HRESULT  ReadAllBytes (const std::string & path, vector<Byte> & outBytes) override
     {
@@ -156,6 +166,64 @@ public:
         {
             failNextReplace = false;
             return nextReplaceError;
+        }
+
+        if (found == files.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        files[targetPath]  = found->second;
+        stamps[targetPath] = FileStamp { found->second.size(), 2 };
+
+        files.erase (tempPath);
+        stamps.erase (tempPath);
+
+        return S_OK;
+    }
+
+    HRESULT  FlushToStorage (const std::string & path) override
+    {
+        flushCount++;
+        flushedPaths.push_back (path);
+
+        if (failNextFlush)
+        {
+            failNextFlush = false;
+            return HRESULT_FROM_WIN32 (ERROR_IO_DEVICE);
+        }
+
+        return Exists (path) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+    }
+
+    HRESULT  CopyFileMetadata (const std::string & fromPath, const std::string & toPath) override
+    {
+        metadataCount++;
+
+        if (failNextMetadata)
+        {
+            failNextMetadata = false;
+            return E_ACCESSDENIED;
+        }
+
+        return (Exists (fromPath) && Exists (toPath)) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+    }
+
+    HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override
+    {
+        auto  found = files.find (tempPath);
+
+        renameCount++;
+
+        if (failNextRename)
+        {
+            failNextRename = false;
+            return HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+        }
+
+        if (Exists (targetPath))
+        {
+            return HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS);
         }
 
         if (found == files.end())

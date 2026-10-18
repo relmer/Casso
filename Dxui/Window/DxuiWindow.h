@@ -6,6 +6,7 @@
 #include "Core/DxuiKeyMap.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
+#include "Core/DxuiEvents.h"
 
 
 class DxuiButton;
@@ -270,6 +271,11 @@ public:
     void     FitToMaxSize ();
 
     //
+    //  A client size plus the frame around the window's client.
+    //
+    SIZE     AddFrameSizePx (const SIZE & clientPx) const;
+
+    //
     //  The window rect grown to maxPx in whichever dimension maxPx exceeds
     //  it, cut to the work area and kept inside it; false when it would not
     //  grow in either dimension.
@@ -308,6 +314,10 @@ public:
 
 
 protected:
+    //  Whether the first key of a two-key chord was pressed and the second
+    //  is awaited.
+    bool  IsKeyPrefixPending () const { return m_keyPrefix.has_value(); }
+
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
     //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part

@@ -8,6 +8,8 @@
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Render/IDxuiPainter.h"
+#include "Core/DxuiEvents.h"
 
 
 
@@ -81,6 +83,8 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
     m_columns = std::move (cols);
     m_measuredWPx.clear();
     m_overrideWPx.assign (m_columns.size(), -1);
+
+    RequeueFitTexts();
 
     // NOTE: deliberately does NOT ResetAutoFit. Consumers re-issue
     // SetColumns on width / visibility changes (and per mouse-move
@@ -291,6 +295,10 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
 
 void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 {
+    int  perCharPx = std::max (1, (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm));
+
+
+
     if (m_autoMaxChars.size() != m_columns.size())
     {
         m_autoMaxChars.assign (m_columns.size(), 0);
@@ -305,7 +313,8 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
             continue;
         }
 
-        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size();
+        //  A checkbox or icon ahead of the text takes its room in characters.
+        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size() + (GetCellLeadPx (cells[c]) + perCharPx - 1) / perCharPx;
 
         if (m_showHeader)
         {
@@ -608,6 +617,48 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 
         m_measuredWPx[c] = std::max (m_measuredWPx[c], wpx + padPx);
     }
+
+    for (const auto & [c, noted] : m_pendingFitTexts)
+    {
+        if (c < m_columns.size())
+        {
+            hr = text.MeasureString (noted.c_str(), fontDip, GetBodyFace(), w, h);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            m_measuredWPx[c] = std::max (m_measuredWPx[c], (int) std::ceil (w) + padPx);
+        }
+    }
+
+    m_pendingFitTexts.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteFitText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::NoteFitText (size_t idx, const std::wstring & text)
+{
+    if (idx >= m_columns.size() || text.empty())
+    {
+        return;
+    }
+
+    if (m_notedFitTexts.size() != m_columns.size())
+    {
+        m_notedFitTexts.assign (m_columns.size(), {});
+    }
+
+    if (m_notedFitTexts[idx].insert (text).second)
+    {
+        m_pendingFitTexts.push_back ({ idx, text });
+        m_measureDirty = true;
+    }
 }
 
 
@@ -696,6 +747,41 @@ void DxuiListView::ResetAutoFit()
     m_autoMaxChars.clear();
     m_measuredWPx.clear();
     m_measureDirty = true;
+
+    RequeueFitTexts();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequeueFitTexts
+//
+//  The measured widths were dropped, so every noted text is measured again
+//  at the next paint; with a different count of columns the noted text no
+//  longer applies and is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::RequeueFitTexts()
+{
+    m_pendingFitTexts.clear();
+
+    if (m_notedFitTexts.size() != m_columns.size())
+    {
+        m_notedFitTexts.clear();
+        return;
+    }
+
+    for (size_t c = 0; c < m_notedFitTexts.size(); c++)
+    {
+        for (const std::wstring & noted : m_notedFitTexts[c])
+        {
+            m_pendingFitTexts.push_back ({ c, noted });
+        }
+    }
 }
 
 
@@ -947,6 +1033,45 @@ void DxuiListView::SetSelectedRows (std::vector<int> rows, int anchor)
     m_selectedRow = m_anchorRow;
 
     EnsureVisible (m_selectedRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreSelectedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::RestoreSelectedRows (std::vector<int> rows, int anchor, int keyboardRow)
+{
+    int   count     = GetRowCount();
+    auto  isInList  = [count] (int r) { return r >= 0 && r < count; };
+
+
+
+    std::erase_if (rows, [&isInList] (int r) { return !isInList (r); });
+    std::sort (rows.begin(), rows.end());
+    rows.erase (std::unique (rows.begin(), rows.end()), rows.end());
+
+    if (!m_multiSelect && rows.size() > 1)
+    {
+        rows.assign (1, std::ranges::binary_search (rows, keyboardRow) ? keyboardRow : rows.back());
+    }
+
+    m_selectedRows = std::move (rows);
+
+    if (m_selectedRows.empty())
+    {
+        m_selectedRow = -1;
+        m_anchorRow   = -1;
+        return;
+    }
+
+    m_anchorRow   = isInList (anchor)      ? anchor      : m_selectedRows.back();
+    m_selectedRow = isInList (keyboardRow) ? keyboardRow : m_selectedRows.back();
 }
 
 
@@ -2877,7 +3002,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     pal = MakePalette();
 
-    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty))
+    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty) || !m_pendingFitTexts.empty())
     {
         MeasureColumnsPx (text);
         m_measureDirty = false;
@@ -3330,6 +3455,9 @@ void DxuiListView::PaintDataRows (
                 iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }
 
+            //  The cell's own face where it has one, for every run drawn in it.
+            const wchar_t * cellFace = (cells[c].face != nullptr) ? cells[c].face : GetBodyFace();
+
             //  Selected characters, as a text box draws them: the selection
             //  color behind the text, placed by measuring the text before it.
             if (int s = 0, e = 0; m_hasTextSel && m_columns[c].align == DxuiTextHAlign::Left &&
@@ -3347,11 +3475,11 @@ void DxuiListView::PaintDataRows (
 
                 if (s > 0)
                 {
-                    hrS = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, GetBodyFace(), wS, hIgnore);
+                    hrS = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, cellFace, wS, hIgnore);
                     IGNORE_RETURN_VALUE (hrS, S_OK);
                 }
 
-                hrS = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, GetBodyFace(), wE, hIgnore);
+                hrS = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, cellFace, wE, hIgnore);
                 IGNORE_RETURN_VALUE (hrS, S_OK);
 
                 hx = cellX + wS;
@@ -3387,12 +3515,12 @@ void DxuiListView::PaintDataRows (
                     if (s > 0)
                     {
                         hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(),
-                                                  fontPx, GetBodyFace(), wS, hIgnore);
+                                                  fontPx, cellFace, wS, hIgnore);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
                     hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(),
-                                              fontPx, GetBodyFace(), wE, hIgnore);
+                                              fontPx, cellFace, wE, hIgnore);
                     IGNORE_RETURN_VALUE (hrM, S_OK);
 
                     hx = cellX + wS;
@@ -3453,7 +3581,7 @@ void DxuiListView::PaintDataRows (
 
                     if (pos > 0)
                     {
-                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, GetBodyFace(), offset, hIgnore);
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, cellFace, offset, hIgnore);
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
@@ -3469,7 +3597,7 @@ void DxuiListView::PaintDataRows (
                                           rowH,
                                           colors[(size_t) pos],
                                           fontPx,
-                                          GetBodyFace(),
+                                          cellFace,
                                           DxuiTextHAlign::Left,
                                           DxuiTextVAlign::CenterOnCapHeight,
                                           DxuiFontWeight::Normal,
@@ -3489,7 +3617,7 @@ void DxuiListView::PaintDataRows (
                                   rowH,
                                   argb,
                                   fontPx,
-                                  (cells[c].face != nullptr) ? cells[c].face : GetBodyFace(),
+                                  cellFace,
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
                                   cells[c].weight,
@@ -3923,6 +4051,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     {
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
+        m_rowPressed    = true;
 
         //  A press on text starts a selection there. Nothing is selected
         //  until the pointer moves, so a plain click only picks its row and
@@ -3931,6 +4060,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         {
             m_hasTextSel  = false;
             m_textPressed = true;
+            m_isColumnSel = ev.ctrl;
             m_textPressPx = POINT { lx, ly };
             m_textAnchor  = HitTestText (lx, ly);
             m_textFocus   = m_textAnchor;
@@ -4046,6 +4176,15 @@ bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
         if (m_hasTextSel || abs (lx - m_textPressPx.x) > slop || abs (ly - m_textPressPx.y) > slop)
         {
             m_textFocus  = HitTestText (lx, ly);
+
+            //  A Ctrl+drag stays in its column: the pointer's row, and the
+            //  character under it as the column's cell has it.
+            if (m_isColumnSel && m_textFocus.row >= 0)
+            {
+                m_textFocus.col = m_textAnchor.col;
+                m_textFocus.ch  = HitTestCharInCell (m_textFocus.row, (size_t) m_textAnchor.col, lx);
+            }
+
             m_hasTextSel = m_textFocus != m_textAnchor;
         }
     }
@@ -4127,10 +4266,8 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     bool  handled = true;
     int   row     = inside ? HitTestRow (lx, ly) : -1;
     bool  ranged  = m_dragSelecting && m_selectedRows.size() > 1;
-
-
-
     bool  dragged = m_textPressed && m_hasTextSel;
+    bool  pressed = m_rowPressed;
 
 
 
@@ -4138,6 +4275,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     //  them; only a plain click collapses the selection to its row.
     m_dragSelecting = false;
     m_textPressed   = false;
+    m_rowPressed    = false;
 
     //  A drag that selected text is finished; it is not also a click.
     if (dragged)
@@ -4179,7 +4317,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     {
         EndHorzThumbDrag();
     }
-    else if (row >= 0)
+    else if (row >= 0 && pressed)
     {
         bool  activate = true;
 
@@ -4648,10 +4786,10 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift)
             SetSelectedRow (next);
         }
 
-        //  Reported only with multiple selection on, where a keyboard move is
-        //  a selection change like any click; a single-select list has always
-        //  left keyboard moves unreported.
-        if (m_multiSelect && m_onSelectionChanged)
+        //  Reported with multiple selection on, where a keyboard move is a
+        //  selection change like any click, and in a single-select list that
+        //  opted in with SetKeyboardMoveNotify.
+        if ((m_multiSelect || m_kbMoveNotify) && m_onSelectionChanged)
         {
             m_onSelectionChanged (next);
         }
@@ -5197,7 +5335,7 @@ bool DxuiListView::GetCellTextSelection (int row, size_t col, int length, int & 
 
 
 
-    if (!m_hasTextSel || to < lo || from > hi)
+    if (!m_hasTextSel || to < lo || from > hi || (m_isColumnSel && (int) col != m_textAnchor.col))
     {
         return false;
     }

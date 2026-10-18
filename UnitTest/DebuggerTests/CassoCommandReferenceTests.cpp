@@ -2,6 +2,7 @@
 
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/CassoCommandReference.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,7 +34,7 @@ namespace DebuggerTests
             //  and CONSOLE bring a pane forward, so they are listed.
             static constexpr const char * kOnlyReported[] =
             {
-                "BENCHMARK", "EXITBENCH", "SOURCE1", "SOURCE2", "WIN", "WINDOW", "\\",
+                "SOURCE1", "SOURCE2", "WIN", "WINDOW", "\\",
             };
 
             bool  isRunnable = command.availability == CommandAvailability::Headless ||
@@ -57,7 +58,7 @@ namespace DebuggerTests
 
 
 
-            return std::wstring (narrow.begin(), narrow.end());
+            return TextEncoding::NarrowToWide (narrow);
         }
 
 
@@ -165,6 +166,17 @@ namespace DebuggerTests
             Assert::AreEqual  (std::string ("BP"), std::string (bp->name));
         }
 
+
+
+        TEST_METHOD (BpdiskIsInTheBreakpointsSection)
+        {
+            const CassoCommandReference::Entry  * entry = CassoCommandReference::Find ("bpdisk");
+
+
+
+            Assert::IsNotNull (entry);
+            Assert::IsTrue    (entry->category == HelpCategory::Breakpoints, L"beside BPBEAM");
+        }
 
 
         TEST_METHOD (Find_ReportedAndUnknownNames_AreNull)

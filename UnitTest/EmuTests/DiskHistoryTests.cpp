@@ -3,6 +3,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

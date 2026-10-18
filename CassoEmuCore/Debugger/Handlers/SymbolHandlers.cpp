@@ -6,6 +6,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
 #include "Sha1.h"
 
@@ -277,14 +278,15 @@ void SymbolHandlers::List (DebugSession & session, const DebugCommand & command,
 
 void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem   * files  = session.GetFileSystem();
-    SymbolTableId   table  = SymbolTableId::User;
-    std::string     name;
-    std::string     content;
-    std::string     error;
-    int             offset = 0;
-    size_t          loaded = 0;
-    HRESULT         hr     = S_OK;
+    IFileSystem               * files  = session.GetFileSystem();
+    SymbolTableId               table  = SymbolTableId::User;
+    std::string                 name;
+    std::string                 content;
+    std::string                 error;
+    int                         offset = 0;
+    size_t                      loaded = 0;
+    HRESULT                     hr     = S_OK;
+    std::vector<std::string>    lines;
 
 
 
@@ -333,8 +335,13 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     }
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
+    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")) } };
+    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
+    AddRegisterNameNote (session, table, lines);
+    BreakpointHandlers::FollowSymbols (session, lines);
+
+    reply.data = MessageData { lines };
 }
 
 
@@ -355,10 +362,11 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                     const std::string & content, int offset, bool isListing, Reply & reply)
 {
-    DebugFile    file;
-    std::string  error;
-    size_t       loaded = 0;
-    size_t       lines  = 0;
+    DebugFile                 file;
+    std::string               error;
+    size_t                    loaded = 0;
+    size_t                    lines  = 0;
+    std::vector<std::string>  message;
     size_t       slash  = name.find_last_of ("/\\");
     std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
     HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
@@ -407,8 +415,66 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
         session.GetSymbols().AddOrigin (table, base);
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} symbols into {} and {} source lines{}.",
-                                              loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")) } };
+    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
+
+    message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
+                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
+    AddRegisterNameNote (session, table, message);
+    BreakpointHandlers::FollowSymbols (session, message);
+
+    reply.data = MessageData { message };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::AddRegisterNameNote
+//
+//  A symbol with a register's name comes before the register in an
+//  expression, so the load reports each one and that @ and the name is the
+//  register.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolHandlers::AddRegisterNameNote (DebugSession & session, SymbolTableId table, std::vector<std::string> & lines)
+{
+    static constexpr const char * s_kpszRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
+    std::vector<std::string>  found;
+    std::string               names;
+    std::string               ats;
+    Word                      address = 0;
+
+
+
+    for (const char * pszRegister : s_kpszRegisters)
+    {
+        if (session.GetSymbols().TryResolveIn (table, pszRegister, address))
+        {
+            found.push_back (pszRegister);
+        }
+    }
+
+    if (found.empty())
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < found.size(); ++i)
+    {
+        std::string_view  separator = (i == 0) ? "" : (i + 1 == found.size()) ? " and " : ", ";
+
+
+
+        names += std::format ("{}{}", separator, found[i]);
+        ats   += std::format ("{}@{}", separator, found[i]);
+    }
+
+    lines.push_back (found.size() == 1
+                         ? std::format ("The file defines {0}, a register's name. {0} is now the symbol; {1} is the register.", names, ats)
+                         : std::format ("The file defines {0}, the names of registers. Each is now the symbol; {1} are the registers.", names, ats));
 }
 
 
@@ -502,6 +568,7 @@ void SymbolHandlers::Clear (DebugSession & session, const DebugCommand & command
 
     TryGetTable (command, table);
     session.GetSymbols().Clear (table);
+    session.ForgetSymbolLoads (table);
 
     if (session.GetDebugFileTable() == table)
     {

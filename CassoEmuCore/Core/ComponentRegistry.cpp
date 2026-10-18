@@ -6,6 +6,7 @@
 #include "../Devices/RomDevice.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
+#include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
@@ -127,6 +128,7 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("apple2-family-speaker",       AppleSpeaker::Create);
     registry.Register ("apple2-family-softswitches",  AppleSoftSwitchBank::Create);
     registry.Register ("apple2-family-gameport",      AppleGamePort::Create);
+    registry.Register ("apple2-family-cassette",      CassettePort::Create);
     registry.Register ("apple2e-family-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);

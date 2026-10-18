@@ -5,6 +5,8 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Core/TextEncoding.h"
+#include "Cassque/Model/Location.h"
+#include "Config/IFileSystem.h"
 
 
 

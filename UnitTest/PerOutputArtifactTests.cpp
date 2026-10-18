@@ -4,6 +4,8 @@
 #include "TestCpu65C02.h"
 #include "Assembler.h"
 #include "Cli/ArtifactWriter.h"
+#include "Debugger/DebugFileWriter.h"
+#include "Debugger/DebugFile.h"
 
 
 

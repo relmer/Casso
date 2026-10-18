@@ -3,6 +3,7 @@
 #include "CppUnitTest.h"
 
 #include "Ui/Dialogs/KeyboardMapText.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

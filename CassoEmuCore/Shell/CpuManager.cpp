@@ -416,6 +416,21 @@ void CpuManager::SetSpeedMode (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetEffectiveSpeedMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SpeedMode CpuManager::GetEffectiveSpeedMode() const noexcept
+{
+    return IsMaximumOverride() ? SpeedMode::Maximum : GetSpeedMode();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrainCommandQueue
 //
 //  Swaps the pending command vector onto the stack under the mutex,
@@ -780,7 +795,7 @@ void CpuManager::ThreadProc()
             continue;
         }
 
-        speed = m_speedMode.load (std::memory_order_acquire);
+        speed = GetEffectiveSpeedMode();
 
         if (speed != SpeedMode::Maximum)
         {

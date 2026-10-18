@@ -8,11 +8,12 @@
 #include "MountedImageState.h"
 #include "ChangePrompt.h"
 #include "PreservedCopy.h"
-#include "IImageWatcher.h"
 #include "IDiskFileIo.h"
-#include "MountDiagnosis.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
+#include "IImageWatcher.h"
+
+class MountDiagnosis;
 
 
 
@@ -716,6 +717,12 @@ private:
 
     //  Milliseconds now, through the injected clock when one is installed.
     int64_t        GetNowMs () const;
+
+    //  Loads bytes into a bay for MountFromBytes and Mount, which each call the
+    //  bay-change sink after a successful load, in their own order.
+    HRESULT        LoadIntoBay (int slot, int drive, const string & virtualPath,
+                                DiskFormat fmt, const vector<Byte> & bytes,
+                                MountDiagnosis & outDiagnosis);
 
     //  Tells the shell a bay's disk changed, when a sink is installed. The one
     //  chokepoint every mutation path calls, so the door and its sounds cannot

@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/CharacterRomData.h"
 
 #include "../FixtureProvider.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

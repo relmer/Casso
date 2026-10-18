@@ -59,6 +59,7 @@ namespace BreakpointColumnsTests
         {
             Assert::AreEqual (std::wstring (L"Hit count"), BreakpointColumns::GetHeading (Column::HitCount));
             Assert::AreEqual (std::wstring (L"Kind"),      BreakpointColumns::GetHeading (Column::Kind));
+            Assert::AreEqual (std::wstring (L"Trigger"),   BreakpointColumns::GetHeading (Column::Trigger));
             Assert::AreEqual (std::wstring (L"Symbol"),    BreakpointColumns::GetHeading (Column::Symbol));
             Assert::AreEqual (std::wstring (L"When hit"),  BreakpointColumns::GetHeading (Column::WhenHit));
         }
@@ -81,9 +82,29 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::Data));
             Assert::AreEqual (std::string ("$FA62"),       Cell (snapshot, 0, Column::Address));
             Assert::AreEqual (std::string ("RESET"),       Cell (snapshot, 0, Column::Symbol));
-            Assert::AreEqual (std::string ("Address"),     Cell (snapshot, 0, Column::Kind), L"a symbol at the address makes no function breakpoint");
+            Assert::AreEqual (std::string ("Breakpoint"),  Cell (snapshot, 0, Column::Kind), L"a symbol at the address makes no function breakpoint");
+            Assert::AreEqual (std::string ("Execute"),     Cell (snapshot, 0, Column::Trigger));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 0, Column::File));
             Assert::AreEqual (std::string ("Break"),       Cell (snapshot, 0, Column::WhenHit));
+        }
+
+
+        //  A breakpoint set by a symbol has that symbol in Name and Symbol,
+        //  whichever of the address's symbols the view's label is; its Kind
+        //  is Breakpoint.
+        TEST_METHOD (ASymbolABreakpointWasSetByIsItsName)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Address, 0xFDED));
+            snapshot.breakpoints[0].label       = "PRINTCHAR";
+            snapshot.breakpoints[0].info.symbol = "COUT";
+
+            Assert::AreEqual (std::string ("COUT $FDED"), Cell (snapshot, 0, Column::Name));
+            Assert::AreEqual (std::string ("COUT"),       Cell (snapshot, 0, Column::Symbol));
+            Assert::AreEqual (std::string ("Breakpoint"), Cell (snapshot, 0, Column::Kind));
         }
 
 
@@ -103,9 +124,9 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (7, BreakpointKind::Address, 0x0803));
 
             Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::Name));
-            Assert::AreEqual (std::string ("src/main.s:12"),       Cell (snapshot, 0, Column::File));
+            Assert::AreEqual (std::string ("src/main.s, line 12"), Cell (snapshot, 0, Column::File), L"written as Name writes it");
             Assert::AreEqual (std::string ("$0803"),               Cell (snapshot, 0, Column::Address));
-            Assert::AreEqual (std::string ("Source line"),         Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string ("Breakpoint"),          Cell (snapshot, 0, Column::Kind), L"the line is in the File column, so it is no kind of its own");
         }
 
 
@@ -118,9 +139,8 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Memory, 0x0300, 0x03FF));
             snapshot.breakpoints.push_back (MakeLine (2, BreakpointKind::Opcode, 0));
             snapshot.breakpoints.push_back (MakeLine (3, BreakpointKind::Register, 0));
-            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Io, 0xC030));
-            snapshot.breakpoints.push_back (MakeLine (5, BreakpointKind::Brk, 0));
-            snapshot.breakpoints.push_back (MakeLine (6, BreakpointKind::Interrupt, 0));
+            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Brk, 0));
+            snapshot.breakpoints.push_back (MakeLine (5, BreakpointKind::Interrupt, 0));
             snapshot.breakpoints[0].info.access    = WatchAccess::Write;
             snapshot.breakpoints[1].info.opcode    = 0xEA;
             snapshot.breakpoints[2].info.condition = "X=00";
@@ -131,21 +151,25 @@ namespace BreakpointColumnsTests
             Assert::AreEqual (std::string (""),            Cell (snapshot, 1, Column::Address), L"an opcode stops anywhere");
             Assert::AreEqual (std::string ("X=00"),        Cell (snapshot, 2, Column::Name));
             Assert::AreEqual (std::string (""),            Cell (snapshot, 2, Column::Condition), L"the condition is the name");
-            Assert::AreEqual (std::string ("I/O $C030"),   Cell (snapshot, 3, Column::Name));
-            Assert::AreEqual (std::string ("BRK"),         Cell (snapshot, 4, Column::Name));
-            Assert::AreEqual (std::string ("Interrupt"),   Cell (snapshot, 5, Column::Name));
+            Assert::AreEqual (std::string ("BRK"),         Cell (snapshot, 3, Column::Name));
+            Assert::AreEqual (std::string ("Interrupt"),   Cell (snapshot, 4, Column::Name));
         }
 
 
-        TEST_METHOD (KindGivesEachSortOfBreakpointTheEngineHolds)
+        TEST_METHOD (KindAndTriggerGiveEachSortOfBreakpointTheEngineHolds)
         {
             DebuggerViewSnapshot               snapshot;
             DebuggerViewSnapshot::SourceState  source;
             DebugSourceFile                    file;
-            std::vector<std::string>           expected =
+            std::vector<std::string>           kinds    =
             {
-                "Address", "Address", "Source line", "Address", "Data read", "Data write", "Data read or write",
-                "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt",
+                "Breakpoint", "Breakpoint", "Breakpoint", "Breakpoint", "Memory", "Memory", "Memory",
+                "Memory", "Register", "Opcode", "BRK", "Interrupt",
+            };
+            std::vector<std::string>           triggers =
+            {
+                "Execute", "Execute", "Execute", "Execute", "Read", "Write", "Read or write",
+                "Value", "Condition", "Execute", "Execute", "IRQ or NMI",
             };
 
 
@@ -166,14 +190,12 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (8,  BreakpointKind::MemoryValue, 0x0400));
             snapshot.breakpoints.push_back (MakeLine (9,  BreakpointKind::Register,    0));
             snapshot.breakpoints.push_back (MakeLine (10, BreakpointKind::Opcode,      0));
-            snapshot.breakpoints.push_back (MakeLine (11, BreakpointKind::Io,          0xC030));
-            snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Brk,         0));
-            snapshot.breakpoints.push_back (MakeLine (13, BreakpointKind::Interrupt,   0));
+            snapshot.breakpoints.push_back (MakeLine (11, BreakpointKind::Brk,         0));
+            snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Interrupt,   0));
 
             //  A symbol at the address makes no execution breakpoint a
             //  function, whether at one address or at a range's start, and a
-            //  breakpoint on a source line stays one when its address has a
-            //  symbol.
+            //  breakpoint on a source line is an execution breakpoint too.
             snapshot.breakpoints[1].label       = "BUFFER";
             snapshot.breakpoints[2].label       = "START";
             snapshot.breakpoints[3].label       = "COUT";
@@ -181,35 +203,33 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints[5].info.access = WatchAccess::Write;
             snapshot.breakpoints[6].info.access = WatchAccess::ReadWrite;
 
-            for (size_t i = 0; i < expected.size(); i++)
+            for (size_t i = 0; i < kinds.size(); i++)
             {
-                Assert::AreEqual (expected[i], Cell (snapshot, i, Column::Kind), std::format (L"breakpoint {}", i + 1).c_str());
+                Assert::AreEqual (kinds[i],    Cell (snapshot, i, Column::Kind),    std::format (L"breakpoint {}", i + 1).c_str());
+                Assert::AreEqual (triggers[i], Cell (snapshot, i, Column::Trigger), std::format (L"breakpoint {}", i + 1).c_str());
             }
         }
 
 
-        TEST_METHOD (EveryKindHasItsOwnText)
+        TEST_METHOD (EveryKindHasItsOwnKindAndTrigger)
         {
-            std::vector<std::string>  expected =
-            {
-                "Address", "Source line", "Data read", "Data write", "Data read or write",
-                "Data value", "Register condition", "Opcode", "I/O", "BRK", "Interrupt",
-            };
-            std::set<std::string>     texts;
+            std::set<std::string>  pairs;
+            size_t                 longest = 0;
 
 
-
-            Assert::AreEqual (expected.size(), (size_t) BreakpointColumns::RowKind::Count);
 
             for (size_t i = 0; i < (size_t) BreakpointColumns::RowKind::Count; i++)
             {
-                std::string  text = BreakpointColumns::GetKindText ((BreakpointColumns::RowKind) i);
+                std::string  kind    = BreakpointColumns::GetKindText    ((BreakpointColumns::RowKind) i);
+                std::string  trigger = BreakpointColumns::GetTriggerText ((BreakpointColumns::RowKind) i);
 
-                Assert::AreEqual (expected[i], text);
-                texts.insert (text);
+                Assert::IsFalse (kind.empty() || trigger.empty(), std::format (L"kind {}", i).c_str());
+                pairs.insert (kind + "/" + trigger);
+                longest = (std::max) (longest, (std::max) (kind.size(), trigger.size()));
             }
 
-            Assert::AreEqual (expected.size(), texts.size(), L"no two kinds share a text");
+            Assert::AreEqual ((size_t) BreakpointColumns::RowKind::Count, pairs.size(), L"no two kinds share a Kind and a Trigger");
+            Assert::IsTrue   (longest <= 15, L"short enough not to be cut in a narrow pane: \"Variable change\", the longest, is FR-175's");
         }
 
 
@@ -277,7 +297,7 @@ namespace BreakpointColumnsTests
 
             //  By the kinds' order, not their text, which would put BRK second.
             order = BreakpointColumns::GetOrder (snapshot, Column::Kind, false);
-            Assert::IsTrue (order == std::vector<size_t> { 1, 3, 0, 4, 5, 2 }, L"Address, Data write, Opcode, BRK; each kind in the engine's order");
+            Assert::IsTrue (order == std::vector<size_t> { 1, 3, 0, 4, 5, 2 }, L"Execution, Memory, Opcode, BRK; each kind in the engine's order");
 
             order = BreakpointColumns::GetOrder (snapshot, Column::Kind, true);
             Assert::IsTrue (order == std::vector<size_t> { 2, 5, 0, 4, 1, 3 }, L"the kinds turned around, each still in the engine's order");
@@ -316,7 +336,7 @@ namespace BreakpointColumnsTests
         }
 
 
-        TEST_METHOD (TheDefaultColumnsAreNameConditionHitCountAndKind)
+        TEST_METHOD (TheDefaultColumnsAreNameConditionHitCountKindAndTrigger)
         {
             BreakpointColumns::Shown  shown = BreakpointColumns::GetDefaultShown();
 
@@ -325,7 +345,8 @@ namespace BreakpointColumnsTests
             for (size_t i = 0; i < BreakpointColumns::kCount; i++)
             {
                 Column  column   = (Column) i;
-                bool    expected = column == Column::Name || column == Column::Condition || column == Column::HitCount || column == Column::Kind;
+                bool    expected = column == Column::Name || column == Column::Condition || column == Column::HitCount ||
+                                   column == Column::Kind || column == Column::Trigger;
 
                 Assert::AreEqual (expected, shown[i], BreakpointColumns::GetHeading (column).c_str());
             }
@@ -344,12 +365,13 @@ namespace BreakpointColumnsTests
 
             shown[(size_t) Column::HitCount] = false;
             shown[(size_t) Column::Kind]     = false;
+            shown[(size_t) Column::Trigger]  = false;
             shown[(size_t) Column::Symbol]   = true;
             shown[(size_t) Column::File]     = true;
             text                             = "follow=1" + BreakpointColumns::FormatShown (shown) + " memory2=0400";
 
             Assert::IsTrue (BreakpointColumns::ParseShown (text) == shown);
-            Assert::IsTrue (text.find (" bpcols2=") != std::string::npos, L"written under the token whose bits follow the columns' order now");
+            Assert::IsTrue (text.find (" bpcols3=") != std::string::npos, L"written under the token whose bits follow the columns' order now");
         }
 
 
@@ -365,6 +387,7 @@ namespace BreakpointColumnsTests
             Assert::IsTrue  (shown[(size_t) Column::Symbol],    L"Labels was chosen");
             Assert::IsTrue  (shown[(size_t) Column::Data],      L"Data was chosen");
             Assert::IsTrue  (shown[(size_t) Column::Kind],      L"Kind is new, so it shows as it does by default");
+            Assert::IsTrue  (shown[(size_t) Column::Trigger],   L"so is Trigger");
             Assert::IsFalse (shown[(size_t) Column::Condition], L"Condition was hidden");
             Assert::IsFalse (shown[(size_t) Column::HitCount],  L"Hit count was hidden");
             Assert::IsFalse (shown[(size_t) Column::WhenHit],   L"Filter's bit does not move to the column after it");
@@ -398,6 +421,29 @@ namespace BreakpointColumnsTests
 
             Assert::IsTrue (BreakpointColumns::ParseShown ("bpcols=215" + saved) == shown,             L"the old token first");
             Assert::IsTrue (BreakpointColumns::ParseShown (saved.substr (1) + " bpcols=215") == shown, L"the old token last");
+            Assert::IsTrue (BreakpointColumns::ParseShown ("bpcols2=1 " + saved.substr (1) + " bpcols=215") == shown, L"all three tokens");
+        }
+
+
+        TEST_METHOD (AChoiceSavedWithKindAloneShowsTriggerWithKind)
+        {
+            //  The "bpcols2" bits: Name 0, Condition 1, Hit count 2, Kind 3,
+            //  Symbol 4, When hit 5, Function 6, File 7, Address 8, Data 9.
+            BreakpointColumns::Shown  withKind    = BreakpointColumns::ParseShown ("bpcols2=119");
+            BreakpointColumns::Shown  withoutKind = BreakpointColumns::ParseShown ("bpcols2=111");
+
+
+
+            Assert::IsTrue  (withKind[(size_t) Column::Kind]);
+            Assert::IsTrue  (withKind[(size_t) Column::Trigger],     L"Trigger holds half of what Kind held");
+            Assert::IsTrue  (withKind[(size_t) Column::Symbol],      L"Symbol's bit moved up one");
+            Assert::IsTrue  (withKind[(size_t) Column::Address]);
+            Assert::IsFalse (withKind[(size_t) Column::Condition]);
+            Assert::IsFalse (withKind[(size_t) Column::HitCount]);
+            Assert::IsFalse (withoutKind[(size_t) Column::Kind]);
+            Assert::IsFalse (withoutKind[(size_t) Column::Trigger],  L"hidden with Kind");
+            Assert::IsTrue  (withoutKind[(size_t) Column::Symbol]);
+            Assert::IsTrue  (BreakpointColumns::ParseShown ("bpcols2=111 bpcols=215") == withoutKind, L"bpcols2 wins over bpcols");
         }
     };
 }

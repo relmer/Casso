@@ -2,10 +2,10 @@
 
 #include "Pch.h"
 
-#include "DialogDefinition.h"
-
-
 class IDxuiControl;
+struct DialogImage;
+struct DialogTextRun;
+struct DialogDefinition;
 
 
 
@@ -135,6 +135,7 @@ private:
     // the tallest of their heights, so their pictures are evenly spaced
     // however long one row's text runs.
     int          GetItemHeightDip  (const Item & item) const;
+    SIZE         GetIconFitDip     () const;
 
     // Centers a strip run's pieces across the line, each picture and label
     // centered on the line's height.

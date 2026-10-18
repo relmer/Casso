@@ -2,6 +2,8 @@
 
 #include "Debugger/Source/SourceService.h"
 #include "Sha1.h"
+#include "Debugger/DebugFile.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 

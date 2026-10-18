@@ -21,8 +21,11 @@ The debugger reads each line in one of five modes.
 
 - **AppleWin** (the default) uses AppleWin's debugger command names: `BP`, `G`,
   `T`, `D`, `U`, `SYM` and so on. Values may be expressions and symbols. A
-  bare number is hex; `$` also marks hex, and `#` or `0n` marks decimal, as in
-  `0n192`. Casso mode reads numbers the same way.
+  bare number is hex; `$` or `#` also marks hex, as in AppleWin, and `0n`
+  marks decimal, as in `0n192`. A name is a loaded symbol first, as in AppleWin, then a register,
+  then a hex number, so with Applesoft's symbols loaded `FADD` is the routine
+  and `$FADD` the number. `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` are always
+  the register. A name resolves the same way in Casso and GSSquared modes.
 - **Monitor** uses the Apple II Monitor's own syntax: `300.30F`,
   `300: A9 41`, `300L`, `300G`, `^E`. Values are plain hex digits; there are
   no expressions or symbols. Control-key commands are typed as `^` and a letter.
@@ -103,7 +106,9 @@ Each command has the effect of the AppleWin command beside it.
 | `l+s`, `l-s`, `lsa` | step by source line on, off; the line at PC | `SRC` |
 
 - A bare number is hex; `0x300` and `$300` are the same, and `0n10` is
-  decimal. A length is `l` and a count in the command's own units.
+  decimal. A loaded symbol comes before a number, and `@a`, `@x`, `@y`, `@sp`,
+  `@pc` and `@fl` are the registers. A length is `l` and a count in the
+  command's own units.
 - The prompt is `0:000>`. A stop prints AppleWin's stop line, then `r`'s.
 - Threads, modules, exceptions, the kernel, dump files, types and scripting
   (`~`, `lm`, `sxe`, `!pte`, `.dump`, `dt`, `.foreach` and the like) reply
@@ -306,6 +311,13 @@ relative, and then as the absolute path it resolved to.
 bytes: `300.3FFR "data.bin"`. In batch and on the channel, `R` and `W` need a
 file name; the debugger window asks for one when it is missing.
 
+In the debugger window, **File > Load file into memory...**, or its button at
+the end of the toolbar, runs `BLOAD` of a file you pick, with the format,
+address and length typed in a dialog after it; it is off while the machine
+runs. **File > Save memory to file...** runs `BSAVE` of the address and length
+typed. The dialogs open with the fields typed last time, and the console has
+the command each one ran and its reply.
+
 ## Batch mode
 
 `CassoCli debug` builds a machine, stops it at power-on, runs the script's lines
@@ -332,6 +344,10 @@ STACK
 - Every run carries the `--max-cycles` budget (default 100,000,000), so a
   script that never reaches its breakpoint still ends.
 - Guest disk writes go to an in-memory copy unless `--write-disks` is given.
+- `--tape file` puts a WAV, AIFF or FLAC recording in the cassette recorder,
+  stopped at its start. `TAPE PLAY`, `TAPE STOP`, `TAPE REWIND` and `TAPE EJECT`
+  work the transport, `TAPE INSERT file` loads another tape, and `TAPE` reports
+  the transport, the place and the length. The //c has no cassette jacks.
 - `--json` prints one JSON record per reply and stop, in the format the debug
   channel uses.
 
@@ -339,7 +355,7 @@ STACK
 |---|---|
 | 0 | every command returned ok or not available |
 | 1 | at least one command returned error or unknown |
-| 2 | usage error, or the machine or a disk could not be loaded |
+| 2 | usage error, or the machine, a disk or a tape could not be loaded |
 | 3 | the last run ended on its cycle budget |
 
 `CassoCli debug --attach <pid>` runs the same kind of script against a running
@@ -366,9 +382,72 @@ first hit.
 `BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
 other write.
 
+## Breakpoint name
+
+After `BPNAME 3 "Loop top"`, breakpoint or watchpoint #3 has that name, and
+`BPL`, the Breakpoints pane's Name column and the channel use it in place of
+the default; `BPNAME 3` with no name returns it to the default. In the pane,
+F2, a double-click on the Name cell or Rename on the row's menu edits the name
+in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
+survives `BPEDIT`. `BPSAVE` writes no name, so its script is one AppleWin
+reads.
+
+## Debug projects
+
+A debug project, one for each program, has the debugger's configuration:
+
+- breakpoints and the name of each, watches, zero-page pointers, bookmarks,
+  data directives, step filters, loaded symbol files and which symbol tables
+  are on;
+- the command mode, the `CD` directory, the instruction trace and trace file,
+  the profiler, the stopwatch and where the trip count starts;
+- the pane layout, the closed panes, the pane with the focus, where the
+  command bar and the timeline are docked, and the open views;
+- the console history, each pane's find history and options, the column
+  widths you set, and the undo history of the breakpoints, the watches, the
+  registers, the stack and the memory windows;
+- the disassembly options, the heat map's options and range sets, and the
+  Disk II and input logs' filters and columns.
+
+Each breakpoint, watchpoint, watch and bookmark comes back under the number it
+had, and the next one you add takes the number it would have taken before.
+The key scheme, the theme, the text size and the history settings are yours
+rather than a program's, and are the same for every project. The program is
+the most specific of these:
+
+1. the debug or symbol file `SYM LOAD` last loaded, by its content rather
+   than its path, so moving the file loses nothing;
+2. the binary `BLOAD` last loaded, by its content and address;
+3. the machine with the disk drive 1 had at its last power-on, by the disk's
+   path;
+4. the machine.
+
+Projects are saved in `%LOCALAPPDATA%\Casso\DebugProjects` two seconds after a
+change and when the debugger is closed. Loading a more specific program that
+has a project replaces the debugger's items with that project's; answer Yes to
+the prompt that follows to add the items set before as well. A program with no
+project yet starts from the items set so far.
+
+File > Save project as... writes the project to a file of your choosing, and
+that file is the program's project from then on; File > Open project... opens
+one. `PROJECT` lists the open project and its file, `PROJECT SAVEAS file` and
+`PROJECT OPEN file` match the two menu items, and `PROJECT MERGE` adds the
+items of the project open before the last switch.
+
+File > Project settings... lists the startup commands, each with its command
+mode, which run in order each time the project opens. The list is edited in
+place, as the heat map's ranges are: the last row, **Add startup command**,
+adds one, a click on a command or its mode edits it, a mode left empty is
+AppleWin, a row's gripper drags it to another place in the order, and Delete
+or the row's menu deletes it. A project file that
+cannot be read is copied to the same name with `.unreadable-` and the date
+appended, and an empty project opens in its place.
+
 ## Breaking on opcodes
 
-`BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode. `BRK 1
+`BRK ON` stops on the `BRK` instruction, and `BRKOP op` on any opcode: a byte,
+or a mnemonic for every opcode of it on the machine's CPU (`BRKOP JSR` is
+`$20`; `BRKOP LDA` is each `LDA`). `BRKOP 00` and `BRKOP BRK` are `BRK ON`. `BRK 1
 ON`, `BRK 2 ON` and `BRK 3 ON` add an opcode breakpoint for each undocumented
 opcode of that instruction length on the machine's CPU, `BRK ALL ON` adds all
 of them plus `BRK`, and `BRK` alone reports which lengths are on. The length is
@@ -380,6 +459,183 @@ the one the CPU executes:
   Only the twelve `JAM` opcodes, which halt the CPU, are one byte.
 - **65C02**: every opcode is defined, and the undocumented ones are `NOP`s: 32
   one-byte, eleven two-byte and three three-byte (`$5C`, `$DC`, `$FC`).
+
+## Disk breakpoints
+
+`BPDISK` stops on what the Disk II controller does: a sector read, an address
+field, a head move, a write, a DOS 3.3 sector, a ProDOS block, a call to RWTS
+or to ProDOS's disk driver, the motor, a drive select, and a disk going in or
+out. It is a Casso command, `/bpdisk` in Monitor mode, `bpdisk` in GSSquared
+mode and `!bpdisk` in WinDbg mode. `D1` or `D2` before the event limits it to
+one drive; numbers are hex, and `*` matches any.
+
+| Example | Stops |
+|---|---|
+| `BPDISK READ 11 0` | after the instruction that reads the checksum nibble of track $11's physical sector 0 |
+| `BPDISK READ 11 0 PASSED` | the same, and also on a data field the program's search passed over |
+| `BPDISK ADDRESS 11 * FE BADSUM` | after an address field of track $11, volume $FE, whose checksum is wrong (`WRONGTRACK`: one whose track is not the head's) |
+| `BPDISK HEAD T 11` | when the head arrives on track $11 (`QT 44` in quarter tracks, `HALF` on any half track, `BUMP` on a step against the end stop) |
+| `BPDISK WRITE`, `BPDISK WRITE 11 0`, `BPDISK WRITE BLOCKED` | on entering write mode, on a data prologue written after track $11 sector 0's address field, and on a write a write-protected disk drops |
+| `BPDISK DOS 11 5` | when DOS 3.3's logical sector 5 of track $11 is read, through the physical sector it is stored in |
+| `BPDISK BLOCK 7` | when both halves of ProDOS block 7 are read on one visit to its track |
+| `BPDISK RWTS 11 5 READ` | before RWTS's first instruction, when its IOB's request is that track, sector and command |
+| `BPDISK DRIVER BLOCK 2 WRITE` | before the ProDOS driver's first instruction, for that block and command |
+| `BPDISK MOTOR ON` | when the motor starts (`OFF` when it is switched off, `STOPPED` when it stops a second later) |
+| `BPDISK SELECT` | when the drive selected changes (`EVERY` on each selection) |
+| `BPDISK D2 INSERT`, `BPDISK EJECT` | when a disk goes into drive 2, or out of either |
+
+Custom marks follow the event: `ADDR D5 AA ?? DATA D5 AA AD` matches fields with
+those prologues in place of the standard ones, and `SECTORS 13` reads a 5-and-3
+data field after custom address marks. `IF` adds a condition, as on any
+breakpoint. `BPL`, `BPC`, `BPD`, `BPE`, `BPCHANGE`, `BPEDIT` and `BPSAVE` treat
+a disk breakpoint as they treat any other, and the Breakpoints pane has "Disk
+event..." on its New menu.
+
+**The stop.** A disk breakpoint stops at the instruction boundary after the event,
+as a watchpoint does; an RWTS or driver breakpoint stops before the routine
+runs. The report has the event, the track, sector and volume of the field, the
+address and data checksums as stored and as computed, the three nibbles after
+the data field, the head's position, the motor, and the addresses of the
+instructions that found the address prologue, the data prologue and the
+checksum nibble:
+
+```text
+Disk breakpoint #3: sector read, track $11 (17) sector $00 volume $FE, drive 1, 16-sector
+  address checksum $EF, expected $EF; data checksum $2C, expected $2C; epilogue DE AA EB
+  head on track 17 (quarter track $44), motor on; read by $B925, address field found by $B94F, data field by $B8E1
+```
+
+A breakpoint or watchpoint that stops at the same boundary has its own reason,
+with the disk report after its line.
+
+**Which reads count.** RWTS and the boot ROM search for a sector by reading every
+field that passes, so most data fields go by unread. A data field counts as
+read when the instruction that read its checksum nibble is not the one that
+found its address field: the search loop that passes a field over reads both
+in one place, and the read routine reads the data in another. `PASSED` counts
+the fields passed over as well.
+
+**Disk values.** Any expression (an `IF`, `CALC`, an address) can read
+`DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`, `DISK.QTRACK2`, `DISK.MOTOR`,
+`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ATRACK`,
+`DISK.ASECTOR` and `DISK.AVOLUME`, the selected drive's last address field
+with a good checksum ($FFFF while there is none). They come from the
+controller, never through the bus, so reading them changes nothing, and they
+take precedence over a program symbol of the same name. On a machine with no
+Disk II they are unknown.
+
+```text
+BPDISK MOTOR ON IF DISK.QTRACK == 0
+CALC DISK.ATRACK
+```
+
+**RWTS and driver breakpoints follow their vectors.** DOS 3.3 can be loaded at
+other addresses, and a program can patch RWTS or install its own, so
+`BPDISK RWTS` stops at the routine the `JMP` at $03D9 leads to, and
+`BPDISK DRIVER` at the routine slot 6's device vector has ($BF1C for drive 1,
+$BF2C for drive 2) once ProDOS's global page begins with its `JMP`. The
+routine is taken again whenever a vector's bytes change. Until the vector
+has a target the breakpoint is unresolved, which `BPL` and the pane's Address
+column indicate, and it stops on nothing. A call that does not go through the
+vector, as DOS's own calls through $B7B5 do, stops at the routine too.
+
+**The head.** Casso's stepper moves the head in half-track steps, so a head
+breakpoint matches whole and half tracks only; a `QT` range matches whatever
+positions in it the head arrives at.
+
+**Reverse continue** stops on disk breakpoints of every kind, at the boundary a
+forward run stops at, including a sector whose reading began before the
+snapshot the replay starts from. Replays count no hits.
+
+**Not yet.** Three kinds wait for the disk inspector's preservation work:
+
+- **A nibble sequence with `??` wildcards.** What a protection check reads
+  depends on where the latch frames the bits, which the inspector displays and
+  searches; built here, it would be a second matcher that ignores framing.
+- **A field passing under the head with no CPU read.** It depends on where each
+  field lies on the track, which the inspector's analyzer finds.
+- **A latch read during the motor's spin-up.** The spin-up window is a
+  constant taken from AppleWin's model, while real cards vary up to about three
+  times as long, so the breakpoint would stop on an approximation.
+
+## Applesoft
+
+The debugger stops an Applesoft program where the interpreter itself passes:
+as a line begins, after a statement changes a variable, and on an error. The
+commands are Casso's own: `/bpbasic` in Monitor mode, `bpbasic` in GSSquared
+mode and `!bpbasic` in WinDbg mode.
+
+| Command | Effect |
+|---|---|
+| `BPBASIC 100` | stops as line 100 begins, before its first statement runs |
+| `BPBASICVAR A`, `BPBASICVAR N$`, `BPBASICVAR X(2,3)` | stops after the statement that changes the variable or array element |
+| `BRKBASIC ON` | stops on an error, whether `ONERR` handles it or not; `BRKBASIC OFF` removes the stop |
+| `BASICSTEP` | runs to the start of the next statement, into a subroutine a `GOSUB` calls |
+| `BASICLINE` | runs to the start of the next line |
+| `BASICOUT` | runs to the statement after the newest `GOSUB` returns |
+| `BASICVARS` | lists the simple variables and the arrays, each value as `PRINT` writes it |
+| `BASICSTACK` | lists the active `GOSUB` returns and `FOR` loops, newest first |
+
+```text
+Breakpoint #0 at BASIC line 100
+Breakpoint #1: A changed from 0 to 1 in line 10, stopped at line 20
+BASIC step to line 30
+BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
+```
+
+- A variable is matched as Applesoft matches it, by the first two characters
+  of its name and its type, so `BPBASICVAR COUNT` watches `CO`. A variable
+  that does not exist yet reads as 0 or the empty string, so a breakpoint set
+  before the program runs stops the first time the program sets another
+  value.
+- A variable's value at each statement's start is compared with its value at
+  the start of the statement before. A value typed at the prompt, and the
+  variables `RUN` clears, stop nothing.
+- A line breakpoint may be set before the line is in the program.
+- After a line, variable or step stop the PC is $D81D, where the interpreter
+  starts each statement; after an error stop it is $D412, before the message
+  is printed or `ONERR`'s handler runs.
+- The steps and the two lists work only with Applesoft in the $D000 bank. On
+  a machine with other code there, they report that Applesoft is not in
+  memory.
+- `BPL`, `BPC`, `BPD`, `BPE`, `BPCHANGE`, `BPEDIT` and `BPSAVE` treat these
+  breakpoints as any other. In the Breakpoints pane their Kind is "BASIC" and
+  their Trigger "Line", "Variable change" or "Error", and its New menu has
+  "BASIC line...", "BASIC variable change..." and "BASIC error...".
+- Reverse continue stops on them where a forward run does. A change made
+  before the snapshot a replay starts from, by a statement that ends after
+  it, is not found. The BASIC steps run forward only.
+- With none set, nothing is tested: the interpreter's pages are watched only
+  while a BASIC breakpoint or step is active.
+
+**In the window.** View > BASIC program opens the program in a pane, which
+stays open across restarts until closed. The pane also opens by itself at the
+line when the machine stops in the interpreter while a program runs, and when
+a BASIC line breakpoint is set.
+
+- **BASIC program**, a tab beside the disassembly, lists the program as LIST
+  prints it, colored, read from memory as the program changes. The line being
+  run has the PC's row color and arrow; its statement is in full color and the
+  line's other statements are muted. Enter or a double-click on a row sets a
+  line breakpoint there, or clears the one there. With the keys in this pane,
+  Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
+- **Watches** lists the variables while the machine is stopped in a running
+  program. The Automatic section has the ones the statement being run uses.
+  `W` with a variable or array element as Applesoft writes it, such as `A$`,
+  `N%` or `X(2,3)`, watches it, as it does a plain name the stopped program
+  has, unless a symbol has the name; text typed in the add row is read the
+  same way.
+  `W BASIC name` always watches the variable. `WL` lists each with its value,
+  and the debug project saves them as `WA BASIC name`. The BASIC variables
+  heading expands to every simple variable and array element, each value as
+  `PRINT` writes it. Applesoft reads only a name's first two
+  characters, so `HIGH` and `HI` are one variable, and the characters past the
+  second are dimmed.
+- **Call stack** lists the active `GOSUB` returns and `FOR` loops first,
+  newest first, each with its line; Enter or a double-click brings the line
+  into view in the program pane.
+
+At the `]` prompt no line is marked.
 
 ## Source-level debugging
 
@@ -427,8 +683,12 @@ source view.
 - Source is colored with the grammar of the assembler that wrote it: as65,
   Merlin or ca65, chosen from the file's directives, labels and origin. Text
   that shows none of them, or as many of one as another, is read as as65's;
-  the file's extension plays no part. The Syntax entry on a document's tab
-  menu sets it for that document.
+  the file's extension does not affect the choice among them. The Syntax
+  entry on a document's tab menu sets it for that document.
+- A `.c` or `.h` file is colored as C: keywords in the mnemonic color, types
+  and preprocessor lines in the directive color, and numbers, strings,
+  characters and comments in their own colors. A block comment runs over as
+  many lines as it spans.
 - A Merlin or ca65 listing shown as source keeps its address and byte
   columns, colored as an address and bytes, ahead of its colored source.
 - The operand and result column shows a result after `Result: `, in the
@@ -514,30 +774,54 @@ into stops on the handler's first instruction.
 100,000: the cycle count, the registers before it, and the memory access it
 made, with symbols. `HISTORY OFF` stops recording and keeps what it has.
 
+While history recording is on (Tools > Options), the trace starts where history
+starts, `HISTORY ON` or not: older instructions are rebuilt from
+history by replaying it, at once while the machine is stopped and in the
+background while it runs, and the 100,000 newest are a cache that makes the
+newest quick to list. While the machine runs, the trace ends at history's
+newest keyframe unless `HISTORY ON` is set, and then the ring has the
+instructions since. A row
+history cannot replay, because its disks were changed since, reads "Not
+available". `HISTORY SAVE` writes at most the newest 1,000,000 entries.
+
 ```text
-HISTORY               the newest 20 entries
-HISTORY 5000 40       40 entries from entry 5000 (decimal)
-HISTORY SAVE run.txt  every retained entry
+HISTORY                  the newest 20 entries
+HISTORY 1175751201 40    40 entries from the first at or after that cycle (decimal)
+HISTORY SAVE run.txt     every retained entry
 ```
+
+Each entry is known by its cycle count, which no later instruction changes.
 
 The trace costs nothing while it is off.
 
-The window's trace pane lists its keys above its rows. With the pane focused,
-`Space`, `O` and `R` step into, over and out, `Return` runs, `T` turns the
-trace off and on, `B` shows and hides the bytes column, and `S` saves the
-trace to a file you pick, as `HISTORY SAVE` does. While the machine is
+The window's trace pane lists its keys above its rows, and a click on a key
+there does what the key does. With the pane focused, `Space`, `O` and `R` step
+into, over and out, `Return` runs, `T` turns the trace off and on, `B` turns
+the bytes column off and on, and `S` saves the trace to a file you pick, as
+`HISTORY SAVE` does. While the machine is
 stopped, the next few instructions from the PC follow the last entry, taking
 each branch the way the current flags send it and ending at one an earlier
 instruction may have changed the flags for.
 
 ## Profiling
 
-`PROFILE ON` counts every instruction a debugger-driven run executes, and
-`PROFILE OFF` stops. `PROFILE LIST` shows the count, cycles and share for each
-mnemonic and addressing mode, and the penalty cycles apart: page crossings on
-indexed reads, taken branches, and branches that cross a page. `PROFILE LIST
-ADDR` shows the twenty hottest addresses; `PROFILE SAVE file` writes both
-tables; `PROFILE RESET` clears them.
+`PROFILE ON` counts every instruction the machine executes, in a run the
+debugger starts or one the machine makes on its own, and `PROFILE OFF` stops.
+The machine runs slower while profiling is on. `PROFILE LIST` lists the
+count, cycles and share for each mnemonic and addressing mode, and the penalty
+cycles apart: page crossings on indexed reads, taken branches, and branches
+that cross a page. `PROFILE LIST ADDR` lists the twenty hottest addresses.
+
+Profiling also counts the cycles of each routine. A JSR, a BRK or an interrupt
+starts a routine at the address it lands on, and the routine ends when the
+stack pointer rises back to where it was before the call, so RTS, RTI and a
+routine that pulls its own return address all end it. Code outside any call
+is Top level. `PROFILE LIST ROUTINES` lists each routine's own cycles, its
+total with every routine it called, its calls and its cycles per call; a
+routine that calls itself is counted once in its own total. `PROFILE LIST
+TREE` lists the call tree, each routine under its caller. `PROFILE SAVE file`
+writes every table; `PROFILE RESET` clears them.
+
 ## The stopwatch
 
 `STOPWATCH start [stop]` times every pass from one address to another in runs
@@ -556,23 +840,31 @@ the second, and `CYCLES PART` gives the cycles in between.
 
 ## Video and sound logs
 
-`VIDEOLOG ON` records each change of video mode -- `TEXT`, `MIXED`, `PAGE2`,
-`HIRES`, `80COL`, `DHIRES`, `ALTCHARSET` and `80STORE` -- with the machine's
-cycle count and the scanline and cycle within the line the beam was at,
-grouped under the frame each fell in. An access that leaves the mode as it was
-records nothing. `SOUNDLOG ON` records each speaker toggle and each write to
-the Mockingboard's 6522s, with its cycle count and the cycles since the last
-entry of its kind; a port B write that clocks a value into an AY register also
-records that write, with the register and the value. Both logs follow the
-machine whether the debugger started the run or not.
+The video log has an entry for each change of video mode -- `TEXT`, `MIXED`,
+`PAGE2`, `HIRES`, `80COL`, `DHIRES`, `ALTCHARSET` and `80STORE` -- with the
+machine's cycle count and the scanline and cycle within the line the beam was
+at, grouped under the frame each fell in. An access that does not change the
+mode makes no entry. The sound log has an entry for each speaker toggle and each
+write to the Mockingboard's 6522s, with its cycle count and the cycles since
+the last entry of its kind; a port B write that clocks a value into an AY
+register also makes an entry for that write, with the register and the value.
+Entries are added to both logs all the time, from the start of the session,
+whether or not the debugger started the run.
 
-Each log takes `ON`, `OFF`, `CLEAR`, `LIST [n]` (the last `n` entries, 100
-unless given; a bare `VIDEOLOG` or `SOUNDLOG` lists) and `SAVE [file]`, which
-writes every entry the log holds (`VideoLog.txt` or `SoundLog.txt` unless
-given). A log keeps its last 100,000 entries, and the listing gives how many
-were recorded in all. The count and beam position are those at the start of
-the instruction that made the access. While both logs are off they cost
-nothing: the I/O page goes back to the bus's ordinary path.
+`VIDEOLOG` and `SOUNDLOG` take `CLEAR`, which hides the entries made so far,
+`LIST [n]` (the last `n` entries, 100 unless given; a bare `VIDEOLOG` or
+`SOUNDLOG` lists) and `SAVE [file]`, which writes every entry since the log
+was cleared (`VideoLog.txt` or `SoundLog.txt` unless given). The newest entries
+are in memory; older ones are rebuilt from history for each listing, as far
+back as history goes, and a rewind drops the entries after the position it
+rewinds to. A listing stops rebuilding after five seconds, and its first line
+then ends `older history was not searched:`. The cycle count and beam position
+are those at the access.
+
+A speaker toggle costs about fourteen nanoseconds of host time, so a program
+playing a note runs one to three percent slower at maximum speed, and a loop
+that toggles the speaker as fast as a 6502 can about a sixth slower. Other
+I/O, a keyboard poll among it, costs nothing measurable.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7
@@ -639,6 +931,27 @@ Ctrl+Break as well as Shift+F5. The AppleWin scheme uses Alt+Space,
 Ctrl+Alt+Space, Alt+Shift+Space and Alt+Enter; the GSSquared scheme uses
 Alt+Space, Alt+O, Alt+R and Alt+Enter. In those two schemes the debugger window
 keeps Alt+Space and Alt+Enter, so they do not open the window menu.
+Every scheme has the same keys to open a pane, or bring it forward, and focus
+it, and the View menu has each pane's key beside it. They are Visual Studio's
+where it has the window, and keys of the same kind where it does not. A chord's
+second key may be pressed with the first key's Ctrl and Alt down.
+
+| Pane | Key |
+|---|---|
+| Disassembly | Ctrl+Alt+D |
+| Breakpoints | Ctrl+Alt+B |
+| Call stack | Ctrl+Alt+C |
+| Watches | Ctrl+Alt+W, 1 |
+| Memory 1 to 4 | Ctrl+Alt+M, 1 to 4 |
+| Registers | Ctrl+Alt+G |
+| Console | Ctrl+\` or Ctrl+Alt+I |
+| Stack | Ctrl+Alt+K |
+| Trace | Ctrl+Alt+T |
+| Heat map | Ctrl+Alt+H |
+| Heat map ranges | Ctrl+Alt+R |
+| Disk II log, Input log | Ctrl+Alt+L, D and Ctrl+Alt+L, I |
+| BASIC program | Ctrl+Alt+P, P |
+
 Keys and the mouse button let go of while the machine is behind live are
 released in the machine when it goes live again; a key still held stays down.
 Drag its grab handle to move it along its edge or, pulled well away, to float
@@ -676,6 +989,8 @@ A status bar runs along the bottom of the window. From the right:
   A click anywhere else, or Escape, closes the slider; the arrow keys move it
   while it is open. The size is saved and comes back the next time the
   debugger opens.
+- **Speed**, the emulator's: 1x, 2x or Maximum. Clicking it opens a menu of
+  the three, which sets the speed as the emulator's own speed menu does.
 - **History full**, how much of the reverse-execution memory budget the
   recorded history holds, with a meter that is green while empty and blends
   smoothly to blue as it fills. A full budget is not a fault: the oldest
@@ -717,7 +1032,80 @@ sessions.
 
 The panes are the disassembly, the source, the console, registers,
 breakpoints, watches, the stack, the call stack, the trace, the heat map, up to
-four memory windows, and one panel for each device the machine has.
+four memory windows, and one panel for each device the machine has. The View
+menu also opens these, which stay closed until first opened:
+
+- **Symbols**, each symbol table under a heading with its count and a check
+  box that runs `SYM<table> ON` or `OFF`, and its symbols under it. A
+  symbol's menu has **Go to** and **Remove**, and any row's has **Clear
+  table** and **Save table...**; Find searches the symbols.
+- **Bookmarks**, each bookmark's number, address and symbol, with **Go to**
+  and **Delete**. Ctrl+K, K adds or removes a bookmark on the selected
+  disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the
+  previous bookmark.
+- **Profiler**, the profile as `PROFILE` lists it, read while the machine
+  is paused. Its bar turns profiling on and off with **Profile**, starts the
+  counts over with **Reset**, writes them to a text file with **Save...**, and
+  chooses **Opcodes**, **Addresses**, **Routines**, **Call tree** or **Flame
+  graph**. A timeline of the last 600 frames runs across the top, each frame a
+  bar of its cycles by routine, the eight hottest in color and the rest in
+  gray; resting the pointer on a frame lists its routines. The flame graph
+  draws Top level across the top and each routine under its caller, as wide as
+  its total: a click zooms into a routine, a click on Top level or a caller
+  above zooms back out, and a double-click goes to the routine's code. In
+  every view, activating a routine moves the disassembly to it.
+- **Data ranges**, each range marked as data, with **Go to** and **Delete**.
+
+**Debug > Step filters...** lists the routines a step goes over, each a
+symbol, an address or a range as `SKIP` takes it; one is added on the last
+row and deleted with Delete or its row's menu.
+
+Under the registers, **Cycles** is the CPU's count since power-on and **Trip**
+the count since the trip count was last reset, by **Reset trip count** on
+either row's menu or by `RCC`; the total is never reset. **Last branch** is
+the last instruction that sent the PC elsewhere, a taken branch, a jump, a
+call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
+**Go to branch** and **Go to target**. While the machine is stopped, the stack
+pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
+`PUSH`, `POP` and `PPOP`.
+
+A disassembly row's menu also has these, each on the row, or on the selected
+rows when it is among them:
+
+- **Mark as bytes**, **words**, **addresses**, **text** or **floats** and
+  **Clear data marking**, which run `DB`, `DW`, `DA`, `ASC`, `DF` and `X`
+  over the rows' bytes.
+- **Add symbol here...**, which runs `SYM name = addr`.
+- **Never step into this routine**, which runs `SKIP` on the routine a `JSR`
+  row calls, or on the row's own address; the call stack's menu has it for a
+  frame's routine.
+- **Add bookmark** or **Remove bookmark**, which run `BMA` and `BMC`.
+- **Start stopwatch here**, then **Stop stopwatch here** on another row,
+  which runs `STOPWATCH start stop`.
+- While the machine is stopped, **Call subroutine here**, which runs `JSR`;
+  **Edit instruction...**, which assembles an instruction over the row's,
+  padded with NOP when it is shorter and, when it is longer, written only
+  after a question that lists the instructions it covers; and **Replace with
+  NOPs**. Neither changes ROM, both write only over the bytes in the rows,
+  and **Undo** and **Redo** on the menu put the bytes back and write them
+  again.
+
+A drag selects text across the columns; a Ctrl+drag selects only in the
+column it began in.
+
+The Breakpoints pane's **New** drop-down also has **Read of memory never
+written...**, **Video line...**, **Beam position...** and **Execute and
+watch...**, which run `BRKUNINIT ON`, `BPV`, `BPBEAM` and `BPA`. The first
+three are stops of the session, not rows of the pane, so the console's reply
+is the only sign of them; `BPA` adds a breakpoint and a watchpoint, each a row.
+
+Each row of the Watches pane has a check box, which runs `WE` or `WD`. Under
+**Zero-page pointers** the pane lists the zero-page pointers: each zero-page
+address, then the address its two bytes form and the first four bytes there,
+as `$0800: 00 00 00 00`, with a check box running `ZPE` or `ZPD` and Remove on
+its menu running `ZPC`. **Add zero-page pointer...** on the pane's menu, and
+**Add as pointer watch** on a Memory pane's menu over a byte in zero page,
+run `ZP`.
 
 ### The heat map
 
@@ -841,28 +1229,32 @@ the address in memory all work in every range as on the whole map.
 **Edit ranges...** on the bar, or **View > Heat map ranges**, opens the pane
 that edits the sets; it stays closed until first opened. Its bar holds the
 set being edited as a drop-down, **New set**, **Rename set** and **Delete
-set**, then **New**, **Edit**, **Remove**, **Move up** and **Move down** for
-the set's ranges. The list shows each range's **Name**, **Start**, **End**,
-**Size** and whether it is **Built-in**, with a check box in front that
-includes the range in the map or leaves it out.
+set**, then **Edit**, **Remove**, **Move up** and **Move down** for the set's
+ranges. The list has each range's **Name**, **Start**, **End**, **Size** and
+whether it is **Built-in**, with a check box in front to include the range in
+the map or not.
 
 Every set holds the built-in ranges: **Zero page**, **Stack**, **Text page
 1**, **Text page 2**, **Hi-res page 1**, **Hi-res page 2**, **I/O**,
 **Language Card**, and **My program**, which spans the symbols loaded from
-files and is listed only while some are loaded. A new set starts with all of
-them left out. A built-in range can be checked in or out and moved, but not
-edited or removed.
+files and is listed only while some are loaded. The first time the pane is
+used there is a set called **Default** with all of them included; a new set
+starts with all of them left out. A built-in range can be checked in or out
+and moved, but not edited or removed.
 
-**New** adds a range and opens its start for typing. A start accepts a whole
-span: `$6000-$95FF`, `ZP_VARS..+$20` (a symbol and a length), the console's
+The list's last row, **Add new range**, adds a range: a click opens its cell
+for typing, Enter or Tab goes on along the row, and once it has a start the
+range is added and a new last row follows it. A start accepts a whole span: `$6000-$95FF`, `ZP_VARS..+$20` (a symbol and a length), the console's
 `$300:$3FF` and `$300,$100`, or a symbol alone, which takes the size its
-cc65 debug file gave it. Double-clicking a cell, **Edit** or F2 edits a
-range's name, start, end or size in place; a size is kept as a length. Every
-start and end is read by the console's own evaluator, so symbols, decimal
-and arithmetic work as in any command. A range that does not read is
-refused with the reason under the bar, and the box stays open; Escape leaves
-the range as it was. Delete removes the selected range and Insert adds one.
-The sets and the set shown are kept between sessions.
+cc65 debug file has for it. A click on a cell, **Edit** or F2 edits a
+range's name, start, end or size in place; a size is stored as a length.
+Every start and end is read by the console's own evaluator, so symbols,
+decimal and arithmetic work as in any command. For a range that does not
+read, the reason is under the bar and the box stays open; Escape cancels the
+edit. The gripper at a row's left drags it to another place in the set.
+Delete, or **Delete** on the row's menu, removes the selected range, and
+Insert starts a new one. The sets, and the set on the map, are saved between
+sessions.
 
 The machine records for the heat map only while its pane is open and in
 front. Closed, or behind another tab, it records nothing and costs nothing,
@@ -1023,6 +1415,20 @@ fading heat is rebuilt; none while it is closed. Which RAM was written adds
 little to history: kept whole, with the edited and opcode marks, only at
 the keyframes where any of them changed, it packs to about 64 bytes each.
 
+### Heat columns
+
+**Show heat** on a disassembly view's bar adds a column after the margin with
+a block for each byte of the line, in the heat map's colors: a byte run as
+code is a block in the code color, and a byte read or written as data more
+than it is run is `r` or `w` in the read or write color. With **Show heat**
+on, the source view has the same strip ahead of each line's number, over the
+first range of bytes the line assembled to, and the BASIC program pane has a
+**Heat** column over each line's tokens, where the interpreter's reads of them
+count as the line running. **Heat** on a memory window's bar tints each byte
+by its heat. The columns follow the heat map's fade or cumulative choice and
+read the CPU's address space, and the heat is counted while any of them is
+on, as it is while the heat map is shown.
+
 ### Memory windows
 
 Each memory window has Visual Studio's bar. The **Address** box takes an
@@ -1034,7 +1440,20 @@ shows each value as a byte, a word or a long. View > Memory opens
 another window, up to four; a window closes from its tab. What does not fit
 a narrow pane moves into the bar's **...** menu. Type over the hex or the
 text to edit memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that
-window.
+window and Ctrl+Y redoes it. Neither writes over a byte that has changed since
+the edit; that byte's address appears in the console instead.
+
+**Edit > Find**, Ctrl+F or **Find...** on the window's menu searches all of
+memory as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
+bit set), `??` for any byte and `?n` or `n?` for half of one. The window goes
+to the first match and selects it, and F3 and Shift+F3 walk the matches, round
+to the other end. On a selection, while the machine is stopped, **Fill
+selection...** fills it with the bytes typed, repeated, as `F` does, and
+**Copy selection to...** copies it to the address typed, as `M` does.
+**Compare with...** compares the selection with the range at the address
+typed, as `MC` does: the bytes that differ are drawn in the result color, and
+each one's tip has the other range's value. **View the other range's values**
+draws those values in their place, and **Clear comparison** ends it.
 
 A window reads the bytes around its rows as it scrolls. Until a read reaches
 rows scrolled into view, they show what an earlier read left there, in the
@@ -1058,9 +1477,9 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 ### Device panels
 
-**Window > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
+**View > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
-printer card and the clock. Each opens as a pane showing its registers and
+printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same

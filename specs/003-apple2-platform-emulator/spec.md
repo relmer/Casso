@@ -2,7 +2,7 @@
 
 **Feature Branch**: `003-apple2-platform-emulator`  
 **Created**: 2025-07-22  
-**Status**: In Progress  
+**Status**: Shipped in 1.0.244 (2026-05-03)
 **Last Updated**: 2025-07-27  
 **Input**: User description: "Add a GUI-based Apple II platform emulator (Casso) to the Casso 6502 emulator project"
 

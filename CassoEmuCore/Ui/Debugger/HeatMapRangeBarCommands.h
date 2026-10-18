@@ -27,7 +27,6 @@ public:
     static constexpr int  kNewSet    = 2;
     static constexpr int  kRenameSet = 3;
     static constexpr int  kDeleteSet = 4;
-    static constexpr int  kNew       = 5;
     static constexpr int  kEdit      = 6;
     static constexpr int  kRemove    = 7;
     static constexpr int  kUp        = 8;

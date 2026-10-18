@@ -61,6 +61,7 @@ DxuiKeyMatch DxuiKeyMap::Match (
     int                                 & outCommandId) const
 {
     DxuiKeyStroke  second;
+    DxuiKeyStroke  released = stroke;
 
 
 
@@ -69,19 +70,32 @@ DxuiKeyMatch DxuiKeyMap::Match (
         return DxuiKeyMatch::Modifier;
     }
 
-    for (const DxuiKeyChord & chord : m_chords)
+    //  A second key pressed with the first key's modifiers down, as
+    //  Ctrl+Alt+W then Ctrl+Alt+1, is the second key without them when it
+    //  is not a chord of its own.
+    if (pending.has_value())
     {
-        second = DxuiKeyStroke { chord.vk, chord.ctrl, chord.alt, chord.shift };
+        released.ctrl  = stroke.ctrl  && !pending->ctrl;
+        released.alt   = stroke.alt   && !pending->alt;
+        released.shift = stroke.shift && !pending->shift;
+    }
 
-        if (!IsSameStroke (second, stroke))
+    for (const DxuiKeyStroke & each : { stroke, released })
+    {
+        for (const DxuiKeyChord & chord : m_chords)
         {
-            continue;
-        }
+            second = DxuiKeyStroke { chord.vk, chord.ctrl, chord.alt, chord.shift };
 
-        if (pending.has_value() ? IsSameStroke (chord.prefix, *pending) : chord.prefix.vk == 0)
-        {
-            outCommandId = chord.id;
-            return DxuiKeyMatch::Command;
+            if (!IsSameStroke (second, each))
+            {
+                continue;
+            }
+
+            if (pending.has_value() ? IsSameStroke (chord.prefix, *pending) : chord.prefix.vk == 0)
+            {
+                outCommandId = chord.id;
+                return DxuiKeyMatch::Command;
+            }
         }
     }
 
@@ -191,6 +205,7 @@ std::wstring DxuiKeyMap::GetKeyName (WPARAM vk)
         case VK_CANCEL:    name = L"Break";     break;
         case VK_OEM_PLUS:  name = L"+";         break;
         case VK_OEM_MINUS: name = L"-";         break;
+        case VK_OEM_3:     name = L"`";         break;
         default:           name = L"Key " + std::to_wstring (vk); break;
         }
     }

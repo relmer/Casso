@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/ObserverSlots.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 
 class Apple2eMmu;
@@ -57,6 +58,7 @@ public:
     };
 
     Byte Read      (Word address) override;
+    bool TryPeekIo (Word address, Byte & value) override;
     void Write     (Word address, Byte value) override;
     Word GetEnd    () const override { return 0xC07F; }
     void Reset     () override;
@@ -93,8 +95,13 @@ public:
     // The game-port adapter, asked first for every paddle read.
     void SetJoyport (const SiriusJoyport * joyport) { m_joyport = joyport; }
 
+    // The cassette port, for the $C068 mirror of its input.
+    void SetCassettePort (class CassettePort * port) { m_cassettePort = port; }
+
     // Attach the input-debug notification sink.
-    void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
+    void SetInputEventSink (IInputEventSink * sink) noexcept                    { m_inputSinks.Set (ObserverSlot::Panel, sink); }
+    void SetInputEventSink (ObserverSlot slot, IInputEventSink * sink) noexcept { m_inputSinks.Set (slot, sink); }
+
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
     void SetPaddle (int axis, Byte position);
@@ -128,8 +135,10 @@ public:
     uint64_t GetPaddleTriggerCycle () const          { return m_paddleTriggerCycle; }
     Byte     GetPaddle             (int axis) const;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'W', 'E');
-    static constexpr uint16_t  kStateVersion = 1;
+    //  Version 2 adds the paddles' read edges (ReadEdges).
+    static constexpr uint32_t  kStateTag          = IMachineState::MakeTag ('S', 'S', 'W', 'E');
+    static constexpr uint16_t  kStateVersion      = 2;
+    static constexpr uint16_t  kReadEdgesVersion  = 2;
 
 protected:
     std::string  GetModeName () const override;
@@ -150,6 +159,8 @@ private:
     static constexpr Byte     s_knPaddleTiming        = 0x80;
 
     Byte ReadStatusRegister (Word address);
+    Byte GetStatusBit       (Word address);
+    Byte PeekPaddle         (Word address) const;
     Byte ReadPaddle         (Word address);
     void ObservePaddle      (int axis, Byte position);
     void SyncObservedInputs ();
@@ -157,24 +168,25 @@ private:
     void EmitPaddleTrigger  ();
     void EmitPaddleRead     (Word address, Byte value);
 
-    MemoryBus            * m_bus                                        = nullptr;
-    Apple2eMmu           * m_mmu                                        = nullptr;
-    IRomBankSwitch       * m_romBank                                    = nullptr;
-    class AppleMouse     * m_mouse                                      = nullptr;
-    Apple2eKeyboard      * m_keyboard                                   = nullptr;
-    LanguageCard         * m_lc                                         = nullptr;
-    IVideoTiming         * m_videoTiming                                = nullptr;
-    IInputEventSink      * m_inputSink                                  = nullptr;
-    const uint64_t       * m_cpuCycleSource                             = nullptr;
-    const SiriusJoyport  * m_joyport                                    = nullptr;
-    InputJournal         * m_inputJournal                               = nullptr;
-    HeldInputWatch       * m_heldInputWatch                             = nullptr;
-    Byte                   m_observedPaddle[s_knPaddleAxisCount]        = {};
-    uint64_t               m_paddleTriggerCycle                         = 0;
-    bool                   m_80colMode                                  = false;
-    bool                   m_doubleHiRes                                = false;
-    bool                   m_altCharSet                                 = false;
-    atomic<Byte>           m_paddlePosition[s_knPaddleAxisCount];
-    int                    m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
-    int                    m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    MemoryBus                       * m_bus                                        = nullptr;
+    Apple2eMmu                      * m_mmu                                        = nullptr;
+    IRomBankSwitch                  * m_romBank                                    = nullptr;
+    class AppleMouse                * m_mouse                                      = nullptr;
+    Apple2eKeyboard                 * m_keyboard                                   = nullptr;
+    LanguageCard                    * m_lc                                         = nullptr;
+    IVideoTiming                    * m_videoTiming                                = nullptr;
+    ObserverSlots<IInputEventSink>    m_inputSinks;
+    const uint64_t                  * m_cpuCycleSource                             = nullptr;
+    const SiriusJoyport             * m_joyport                                    = nullptr;
+    InputJournal                    * m_inputJournal                               = nullptr;
+    HeldInputWatch                  * m_heldInputWatch                             = nullptr;
+    Byte                              m_observedPaddle[s_knPaddleAxisCount]        = {};
+    class CassettePort              * m_cassettePort                               = nullptr;
+    uint64_t                          m_paddleTriggerCycle                         = 0;
+    bool                              m_80colMode                                  = false;
+    bool                              m_doubleHiRes                                = false;
+    bool                              m_altCharSet                                 = false;
+    atomic<Byte>                      m_paddlePosition[s_knPaddleAxisCount];
+    int                               m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                               m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

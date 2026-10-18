@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "Render/IDxuiTextRenderer.h"
 
 
 
@@ -139,6 +140,9 @@ public:
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
 
+    //  A fill behind a byte, by its offset, or 0 for none.
+    using ByteFillFn = std::function<uint32_t (uint64_t offset)>;
+
     //  Told the offset of a value the source would not take.
     using WriteRefusedFn = std::function<void (uint64_t offset)>;
 
@@ -160,6 +164,12 @@ public:
     //  default, for addresses that run on past the end.
     void      SetAddressSpace  (uint64_t bytes);
     uint64_t  GetAddressSpace  () const { return m_addressSpace; }
+
+    //  The row addresses, or line numbers, in the proportional face, left
+    //  aligned in their column; the values and characters stay in the grid
+    //  of the fixed-width face. Off by default.
+    void      SetProportionalOffsets (bool on)  { m_isProportionalOffsets = on; }
+    bool      IsProportionalOffsets  () const   { return m_isProportionalOffsets; }
 
     //  Bytes across a row, and how many of them sit together between spaces.
     //  A grouping that does not divide the row evenly is refused.
@@ -238,6 +248,10 @@ public:
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
     void  SetMarkColor     (MarkColorFn fn)   { m_markColor = std::move (fn); }
+
+    //  A byte's fill in the value and text columns, under the selection and
+    //  the caret, which are drawn over it.
+    void  SetByteFill      (ByteFillFn fn)    { m_byteFill = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     //  Outlines around the source's regions, off unless the host turns them
@@ -506,20 +520,25 @@ private:
     //  full width a row needs; and the width left for rows beside the
     //  vertical scrollbar, whose room is always kept.
     int   GetHeightDip      () const;
+
+    //  The face the row addresses are drawn in: `grid`, or the proportional
+    //  face at its size.
+    DxuiFontHandle  GetOffsetFont (const DxuiFontHandle & grid) const;
     int   GetContentWidthPx () const;
     int   GetViewWidthPx    () const;
     void  KeepCaretInView   ();
 
-    const IDxuiHexSource  * m_source        = nullptr;
-    uint64_t                m_originAddress = 0;
-    uint64_t                m_addressSpace  = 0;
-    int                     m_bytesPerRow   = kDefaultBytesPerRow;
-    int                     m_grouping      = kDefaultGrouping;
-    int                     m_columns       = s_kFixedRowWidth;
-    ValueFormat             m_format        = ValueFormat::Hex;
-    bool                    m_showValues    = true;
-    float                   m_zoom          = 1.0f;
-    bool                    m_breakLines    = false;
+    const IDxuiHexSource  * m_source                = nullptr;
+    uint64_t                m_originAddress         = 0;
+    uint64_t                m_addressSpace          = 0;
+    bool                    m_isProportionalOffsets = false;
+    int                     m_bytesPerRow           = kDefaultBytesPerRow;
+    int                     m_grouping              = kDefaultGrouping;
+    int                     m_columns               = s_kFixedRowWidth;
+    ValueFormat             m_format                = ValueFormat::Hex;
+    bool                    m_showValues            = true;
+    float                   m_zoom                  = 1.0f;
+    bool                    m_breakLines            = false;
 
     mutable std::vector<Bookmark>  m_bookmarks;
     mutable std::vector<uint8_t>   m_scanBuffer;
@@ -551,6 +570,7 @@ private:
     DxuiScrollbar                  m_horzScroll;
     int                            m_leftPx         = 0;
     MarkColorFn                    m_markColor;
+    ByteFillFn                     m_byteFill;
     ContextMenuFn                  m_onContextMenu;
     std::function<void ()>  m_onSelectionChanged;
     std::vector<uint8_t>    m_rowBytes;

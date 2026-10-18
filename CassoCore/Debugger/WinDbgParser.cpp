@@ -811,8 +811,8 @@ bool WinDbgParser::TryBuildDump (
 //  WinDbgParser::TryBuildAccess
 //
 //  `ba r1|w1|e1 addr [IF expr]`: a watchpoint on reads and writes (WinDbg's
-//  r covers both) or on writes, or for execute a breakpoint. A size above
-//  one covers that many bytes; it is decimal, as WinDbg reads it.
+//  r covers both) or on writes, or for execute a breakpoint. The size is 1,
+//  2, 4 or 8 bytes, the sizes WinDbg takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -824,9 +824,9 @@ bool WinDbgParser::TryBuildAccess (const Tokens & args, const IDebugExpressionCo
 
 
 
-    build.error = "ba takes an access and a size, then an address: ba r1 C000, ba w1 400, ba e1 300.";
+    build.error = "ba takes an access and a size of 1, 2, 4 or 8, then an address: ba r1 C000, ba w2 400, ba e1 300.";
 
-    if (args.size() < 2 || size.empty() || size.find_first_not_of ("0123456789") != std::string::npos || size == "0")
+    if (args.size() < 2 || (size != "1" && size != "2" && size != "4" && size != "8"))
     {
         return false;
     }
@@ -1083,7 +1083,7 @@ bool WinDbgParser::TrySetLength (Word address, uint32_t length, DebugCommand & c
 //
 //  WinDbgParser::TryBuildRegister
 //
-//  `r` shows the registers; `r a=41` sets one. WinDbg's names for the stack
+//  `r` shows the registers, `r a` one of them, and `r a=41` sets one. WinDbg's names for the stack
 //  pointer and the flags are sp and fl.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1109,6 +1109,14 @@ bool WinDbgParser::TryBuildRegister (const std::string & rest, const IDebugExpre
         return true;
     }
 
+    //  WinDbg's r takes several registers, separated by commas; Casso's takes
+    //  one.
+    if (rest.find (',') != std::string::npos)
+    {
+        build.error = "r sets one register at a time: r a=1, then r x=2.";
+        return false;
+    }
+
     std::replace (joined.begin(), joined.end(), '=', ' ');
     split = joined.find_first_of (" \t");
     name  = ToLower (joined.substr (0, split));
@@ -1121,9 +1129,10 @@ bool WinDbgParser::TryBuildRegister (const std::string & rest, const IDebugExpre
             continue;
         }
 
-        //  A name alone shows the registers, that one among them.
+        //  A name alone shows that register.
         if (value.find_first_not_of (" \t") == std::string::npos)
         {
+            command.text = register6502;
             return true;
         }
 
@@ -1319,9 +1328,12 @@ bool WinDbgParser::TryEvaluate (
         return false;
     }
 
+    //  The evaluator's values are 32-bit and signed, so a hex value of
+    //  80000000 or more comes back below zero although nothing negated it.
     if (result < 0)
     {
-        error = std::format ("{} is negative.", text);
+        error = (text.find ('-') == std::string::npos) ? std::format ("{} is too large.", text)
+                                                       : std::format ("{} is negative.", text);
         return false;
     }
 

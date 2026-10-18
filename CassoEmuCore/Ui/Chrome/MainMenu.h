@@ -2,8 +2,10 @@
 
 #include "Pch.h"
 
-#include "CassoTheme.h"
 #include "EmulatorCommands.h"
+
+struct ChromeVisualState;
+struct CassoTheme;
 
 
 

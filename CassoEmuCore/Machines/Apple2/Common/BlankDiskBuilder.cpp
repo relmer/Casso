@@ -419,7 +419,7 @@ Error:
 //  changes the WOZ arm: a disk with no structure gets full-capacity all-zero
 //  bit tracks instead of a nibblized image of a buffer that holds nothing.
 //
-//  luxTrackMask stores the whole tracks it selects as flux, in WOZ only.
+//  `fluxTrackMask` stores the whole tracks it selects as flux, in WOZ only.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

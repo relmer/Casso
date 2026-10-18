@@ -17,6 +17,30 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/MemoryBarCommands.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Debugger/LineAssembler.h"
+#include "OpcodeTable.h"
+#include "Ui/Debugger/Panes/BasicPanes.h"
+#include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/HeatStrip.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/ProfileTimeline.h"
+#include "Ui/Debugger/Panes/DiagnosticsPane.h"
+#include "Ui/Debugger/ColorKeyButton.h"
+#include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/HeatMapRangeBarCommands.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/ToolbarCheckEntry.h"
+#include "Ui/Debugger/UndoBarCommands.h"
+#include "Ui/Debugger/BreakpointBarCommands.h"
 
 
 
@@ -89,6 +113,21 @@ static bool TryParseHexWord (std::wstring text, Word & value)
     value = (Word) parsed;
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DebuggerWindow
+//
+//  Here, where the panes and bars it owns are complete; the header only
+//  declares most of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerWindow::DebuggerWindow() = default;
 
 
 
@@ -208,7 +247,7 @@ void DebuggerWindow::OnCreate()
     m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
     m_heatMapView       = CreateChild<HeatMapView>   ();
     m_heatRangeError    = CreateChild<DxuiLabel>     ();
-    m_heatRangeList     = CreateChild<DxuiListView>  ();
+    m_heatRangeList     = CreateChild<DxuiEditableGrid> ();
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
@@ -269,7 +308,11 @@ void DebuggerWindow::OnCreate()
     m_callStackPane = std::make_unique<CallStackPane> (
         m_callStackList, m_callStackButton,
         [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
-        [this] (Word address)             { ShowCode (address); });
+        [this] (Word address)             { ShowCode (address); },
+        [this] (Word line)                { ShowBasicLine (line); });
+
+    CreateBasicPanes();
+    CreateToolPanes();
 
     //  Every device panel the window can place; each shows while its device
     //  is present and its panel open.
@@ -284,6 +327,7 @@ void DebuggerWindow::OnCreate()
         list->SetVisible (false);
     }
 
+    CreateEventLogs();
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -295,6 +339,12 @@ void DebuggerWindow::OnCreate()
     m_watchEditor->SetOverText     (true);
     m_watchEditor->SetHwnd         (GetHwnd());
     m_watchEditor->SetMaxLength    (64);
+
+    m_nameEditor = CreateChild<DxuiTextInput>();
+    m_nameEditor->SetVisible       (false);
+    m_nameEditor->SetOverText      (true);
+    m_nameEditor->SetHwnd          (GetHwnd());
+    m_nameEditor->SetMaxLength     (64);
 
     //  The stack's and the registers' value boxes, drawn over their rows the
     //  same way.
@@ -350,6 +400,9 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureMemoryBar();
     ConfigureBreakpointBar();
     ConfigureUndoBars();
+    ConfigureEventLogs();
+    ConfigureBasicPanes();
+    ConfigureToolPanes();
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -442,13 +495,22 @@ void DebuggerWindow::ConfigureWidgets()
     m_consoleView->SetLineSpacing   (kConsoleLineSpacing);
     m_consoleView->SetPaneTextInset (true);
 
-    //  Activating a breakpoint shows its address; its checkbox turns it on
-    //  and off, as Visual Studio's Breakpoints window does.
+    //  Activating a breakpoint brings its address into view, or on its Name
+    //  opens the rename box; its checkbox turns it on and off, as in Visual
+    //  Studio's Breakpoints window.
     m_breakpointList->SetOnActivateRow ([this] (int row)
     {
-        const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
+        const DebuggerViewSnapshot::BreakpointLine  * bp   = GetBreakpointOfRow (row);
+        RECT                                          name = {};
+        RECT                                          list = m_breakpointList->GetBounds();
+        bool                                          isOn = m_breakpointList->GetCellTextRectPx (row, 0, name) && m_lastPressPx.x - list.left >= name.left &&
+                                                             m_lastPressPx.x - list.left < name.right;
 
-        if (bp != nullptr)
+        if (bp != nullptr && isOn)
+        {
+            BeginNameEdit (row);
+        }
+        else if (bp != nullptr)
         {
             ShowCode (bp->address);
         }
@@ -464,6 +526,24 @@ void DebuggerWindow::ConfigureWidgets()
         }
     });
 
+    //  A watch's or a zero-page pointer's check enables or disables it.
+    m_watchList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
+    {
+        if (row < 0 || row >= (int) m_watchRows.size())
+        {
+            return;
+        }
+
+        if (m_watchRows[(size_t) row].kind == WatchRowKind::Manual)
+        {
+            RunAction (DebuggerActions::GetEnableWatch (m_watchRows[(size_t) row].index, checked, GetMode()));
+        }
+        else if (m_watchRows[(size_t) row].kind == WatchRowKind::ZeroPage)
+        {
+            RunAction (DebuggerActions::GetEnableZeroPagePointer (m_watchRows[(size_t) row].index, checked, GetMode()));
+        }
+    });
+
     //  A click on a heading sorts by that column, and a second click on the
     //  same one turns the order around.
     m_breakpointList->SetOnSortColumn ([this] (int column) { SortBreakpoints ((BreakpointColumns::Column) column); });
@@ -471,6 +551,16 @@ void DebuggerWindow::ConfigureWidgets()
     for (DxuiListView * list : GetLists())
     {
         MakeDense (list);
+    }
+
+    //  Every list but the disassemblies is in the proportional face, as
+    //  Visual Studio's Breakpoints, Watch and Call Stack windows are. Each
+    //  column is aligned on its own, so a column lines up in either face.
+    //  The event logs' fitted columns are measured from the labels the panes
+    //  note (EventLogPane::NoteFitTexts).
+    for (DxuiListView * list : GetTextLists())
+    {
+        list->SetMonospace (false);
     }
 
     //  A disassembly opens with its glyph margin for the breakpoints and the
@@ -485,7 +575,8 @@ void DebuggerWindow::ConfigureWidgets()
     m_registerList->SetShowHeader (false);
 
     m_tracePane->Configure();
-    m_traceHint->SetPairs (TracePane::GetKeyPairs());
+    m_traceHint->SetPairs  (TracePane::GetKeyPairs());
+    m_traceHint->SetOnPick ([this] (int id) { (void) RunTraceAction (id); });
 
     for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
     {
@@ -503,6 +594,22 @@ void DebuggerWindow::ConfigureWidgets()
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
     m_focusMgr.SetFocused (m_commandBox);
+
+    //  A list's column widths, once the user sizes one, are saved with the
+    //  project; the event logs' are in their own options.
+    for (DxuiListView * list : GetLists())
+    {
+        if (list != m_diskLog.list && list != m_inputLog.list)
+        {
+            list->SetOnColumnResized ([this, list] (int, int)
+            {
+                m_columnWidths[GetPaneOfControl (list)].clear();
+                SaveColumnWidths();
+            });
+        }
+    }
+
+    RestoreWindowState (false);
 }
 
 
@@ -535,7 +642,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
     m_tooltip.SetTheme            (*m_theme);
-    m_tooltip.SetMonospace        (true);
+    m_tooltip.SetMonospace        (false);
     m_tooltip.ApplyVisualStudioLook();
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
@@ -604,6 +711,7 @@ void DebuggerWindow::ConfigureMemoryBar()
     handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
     handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
     handlers.isEnabled = [this] (int id) { return IsMemoryBarEnabled (id); };
+    handlers.isChecked = [this] (int id) { return id == MemoryBarCommands::kHeat && GetActiveMemoryPane() != nullptr && GetActiveMemoryPane()->IsHeatOn(); };
     handlers.getTip    = [this] (int id) { return GetMemoryBarTip (id); };
 
     m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
@@ -804,6 +912,11 @@ void DebuggerWindow::RunMemoryBarEntry (int id)
         UndoMemoryEdit (GetActiveMemoryPane(), id == MemoryBarCommands::kRedo);
         break;
 
+    case MemoryBarCommands::kHeat:
+        GetActiveMemoryPane()->SetHeatOn (!GetActiveMemoryPane()->IsHeatOn());
+        SyncHeatMapRecording();
+        break;
+
     default:
         break;
     }
@@ -945,6 +1058,12 @@ void DebuggerWindow::RunCommandBarEntry (int id)
         return;
     }
 
+    if (id == DebuggerCommands::kLoadFile)
+    {
+        LoadFileIntoMemory();
+        return;
+    }
+
     (void) OnMappedCommand (id);
 }
 
@@ -980,9 +1099,10 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
         return !paused || (m_host != nullptr && m_host->IsReplayingHistory());
     }
 
+    //  A load writes memory, which BLOAD does only with the machine stopped.
     if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
         id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext ||
-        id == DebuggerCommands::kRunFrame)
+        id == DebuggerCommands::kRunFrame || id == DebuggerCommands::kLoadFile)
     {
         return paused;
     }
@@ -1021,7 +1141,38 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList };
+                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList,
+                                           m_symbolList, m_bookmarkList, m_profilerList, m_dataBlockList };
+
+
+
+    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
+    {
+        lists.push_back (pane->GetList());
+    }
+
+    return lists;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextLists
+//
+//  Every list but the disassemblies, whose columns are code laid out as
+//  Visual Studio lays out its own. Each column is aligned on its own, so a
+//  column lines up in either face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
+{
+    std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
+                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList,
+                                           m_symbolList, m_bookmarkList, m_profilerList, m_dataBlockList };
 
 
 
@@ -1109,6 +1260,14 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
     list->SetRefitOnSetRows          (true);
     list->SetHorizontalScrollEnabled (true);
     list->SetPaneTextInset           (true);
+
+    //  The arrows, the page keys, Home and End move the selection, and Ctrl+C
+    //  copies it, so F9, run to cursor and the edit keys can act on a row
+    //  chosen without the mouse. A keyboard move is reported as a click is,
+    //  so the pane's record of the selection, which each snapshot restores,
+    //  follows it.
+    list->SetKeyboardColumnNav       (true);
+    list->SetKeyboardMoveNotify      (true);
 }
 
 
@@ -1209,7 +1368,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox });
 
     //  Every pane's find widget, open or not, its buttons before its box: the
     //  option toggles lie inside the box, and a press on one is the toggle's.
@@ -1337,6 +1496,8 @@ void DebuggerWindow::ApplyMemoryWindows()
         }
     }
 
+    ApplyMemoryResults();
+
     m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
     m_stackHistory.OnSnapshot    (m_snapshot->isPaused, m_snapshot->pc);
 
@@ -1344,14 +1505,20 @@ void DebuggerWindow::ApplyMemoryWindows()
     {
         m_machine = m_snapshot->machine;
 
-        //  Every undo record holds the old machine's values and addresses,
-        //  the watch pane's as much as the memory windows'.
-        for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+        //  Every undo record has the old machine's values and addresses, the
+        //  watch pane's as much as the memory windows', unless the histories
+        //  were restored for the new machine since the last change.
+        if (!m_isHistoryRestored)
         {
-            pane->ClearHistory();
+            for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+            {
+                pane->ClearHistory();
+            }
+
+            m_watchHistory.Clear();
         }
 
-        m_watchHistory.Clear();
+        m_isHistoryRestored = false;
     }
 
     for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
@@ -1361,6 +1528,7 @@ void DebuggerWindow::ApplyMemoryWindows()
             open[(size_t) (window.id - 1)] = true;
             m_memoryPanes[(size_t) (window.id - 1)]->SetTextColors   (GetTextColors());
             m_memoryPanes[(size_t) (window.id - 1)]->SetPaused       (m_snapshot->isPaused);
+            m_memoryPanes[(size_t) (window.id - 1)]->SetHeat         (m_snapshot->heatColumns, GetHeatPalette());
 
             //  Bytes are edited while the machine is stopped, as Visual
             //  Studio's memory window allows: a running machine would
@@ -1459,6 +1627,7 @@ void DebuggerWindow::ApplySource()
                                        GetResultArgb(), GetPcIcon (nullptr) });
         document.pane->SetFile     (m_documents.GetFileId (slot));
         document.pane->SetMacroLevel (m_macroLevel);
+        document.pane->SetHeat     (m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ? std::optional<HeatMapView::Palette> (GetHeatPalette()) : std::nullopt);
         document.pane->Apply       (*m_snapshot);
 
         //  Each document's tab is titled with its file's name.
@@ -1961,7 +2130,7 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
 
     if (m_snapshot->source->stepBySource != isSource)
     {
-        m_host->RunDebuggerCommand (DebuggerViewState::GetSourceStepLine (isSource, m_snapshot->mode));
+        RunAction (DebuggerActions::GetSourceStepping (isSource, m_snapshot->mode));
     }
 }
 
@@ -2109,7 +2278,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Symbols)
         {
-            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (path)), CommandMode::AppleWin);
+            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));
             continue;
         }
 
@@ -2174,7 +2343,7 @@ void DebuggerWindow::OpenSourcePath (const std::wstring & path)
     {
         if (m_host->DoesDebuggerFileExist (beside))
         {
-            m_host->RunDebuggerCommandInMode (std::format ("SYM LOAD \"{}\"", SourcePathList::WideToUtf8 (beside)), CommandMode::AppleWin);
+            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), GetMode()));
             m_pendingLooseSource = path;
             break;
         }
@@ -2297,6 +2466,8 @@ void DebuggerWindow::ToggleCodeOption (DisassemblyOptions::Option option)
     {
         m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
     }
+
+    SyncHeatMapRecording();
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {
@@ -2536,7 +2707,7 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+    for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
     {
         if (focused != nullptr && focused == box)
         {
@@ -2770,6 +2941,47 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 
 
 
+    //  The bookmark keys (FR-189).
+    if (action == DebuggerKeySchemes::Action::ToggleBookmark || action == DebuggerKeySchemes::Action::NextBookmark ||
+        action == DebuggerKeySchemes::Action::PreviousBookmark)
+    {
+        if (m_snapshot != nullptr && action == DebuggerKeySchemes::Action::ToggleBookmark)
+        {
+            ToggleBookmarkAtCursor();
+        }
+        else if (m_snapshot != nullptr)
+        {
+            GoToBookmark (action == DebuggerKeySchemes::Action::PreviousBookmark);
+        }
+
+        return true;
+    }
+
+    //  A pane's key opens it, or brings it forward, and focuses it.
+    if (!DebuggerKeySchemes::GetPaneOfAction (action).empty())
+    {
+        ShowPane  (DebuggerKeySchemes::GetPaneOfAction (action));
+        FocusPane (DebuggerKeySchemes::GetPaneOfAction (action));
+        return true;
+    }
+
+    //  In a Memory pane, Find searches memory and F3 and Shift+F3 walk the
+    //  matches.
+    if (GetFocusedMemoryPane() != nullptr && (action == DebuggerKeySchemes::Action::Find || action == DebuggerKeySchemes::Action::FindNext ||
+                                              action == DebuggerKeySchemes::Action::FindPrevious))
+    {
+        if (action != DebuggerKeySchemes::Action::Find && m_memoryFind.pane == GetFocusedMemoryPane()->GetId())
+        {
+            StepMemoryFind (action == DebuggerKeySchemes::Action::FindNext);
+        }
+        else
+        {
+            FindInMemory (GetFocusedMemoryPane());
+        }
+
+        return true;
+    }
+
     //  Find acts on the window, not the machine.
     if (action == DebuggerKeySchemes::Action::Find)
     {
@@ -2801,7 +3013,8 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         active.code = GetCodeLines (m_activeCode);
     }
 
-    taken = DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
+    taken = GetBasicStep (action);
+    taken = taken.has_value() ? taken : DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
 
     if (taken.has_value())
     {
@@ -3047,6 +3260,8 @@ void DebuggerWindow::CreateFindWidget (const std::wstring & pane)
     {
         return;
     }
+
+    ApplySavedFind (pane, state);
 
     //  The widget floats over its pane's text, so it comes after every
     //  pane's controls: its plate, then what sits on the plate.
@@ -3467,6 +3682,7 @@ void DebuggerWindow::RecordFindHistory()
     }
 
     m_findHistoryAt = -1;
+    SaveFindStates();
 }
 
 
@@ -3939,6 +4155,7 @@ void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRege
     m_findMatchCase = matchCase;
     m_findWholeWord = wholeWord;
     m_findRegex     = isRegex;
+    SaveFindStates();
 
     m_findCaseButton->SetEmphasis  (matchCase);
     m_findWordButton->SetEmphasis  (wholeWord);
@@ -4120,6 +4337,16 @@ void DebuggerWindow::OnWindowClose()
     SavePlacementIfMoved();
     SaveFocusedPane();
 
+    //  The logs' column widths, which a drag changes without telling; and
+    //  the machine's thread stops sending deltas until the window opens.
+    if (m_diskLogPane != nullptr)
+    {
+        SaveEventLogOptions (DebugLogKind::Disk);
+        SaveEventLogOptions (DebugLogKind::Input);
+        m_diskLogPane->SetShown  (false);
+        m_inputLogPane->SetShown (false);
+    }
+
     Hide();
 
     for (const auto & entry : m_floats)
@@ -4129,7 +4356,10 @@ void DebuggerWindow::OnWindowClose()
 
     m_barHost.Hide();
     m_timelineHost.Hide();
-    m_timelineStrip.HidePreview();
+
+    //  OnMouseLeave clears the hover with the preview; with the hover set,
+    //  the next frame's Sync opens the preview again for that cell.
+    m_timelineStrip.OnMouseLeave();
 
     if (m_host != nullptr && m_host->GetHistoryThumbnails() != nullptr)
     {
@@ -4242,7 +4472,9 @@ void DebuggerWindow::LayoutWidgets()
     PlaceBreakpointBar();
     PlaceHeatMapBar();
     PlaceHeatRangeBar();
+    PlaceEventLogBars();
     PlaceUndoBars();
+    PlaceProfilerBar();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -4817,6 +5049,39 @@ void DebuggerWindow::ClipPaneControls()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetPaneMinimum
+//
+//  A framed pane's least height: a tool window's title bar, its tab band
+//  and the lines round them, over the least height the frame's parts fit in
+//  at its width. A pane of one control has no minimum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE DebuggerWindow::GetPaneMinimum (const std::wstring & pane) const
+{
+    const DebuggerPaneFrame  * frame  = dynamic_cast<const DebuggerPaneFrame *> (m_dockSite->GetPaneContent (pane));
+    RECT                       bounds = {};
+    long                       chrome = 0;
+
+
+
+    if (frame == nullptr)
+    {
+        return SIZE {};
+    }
+
+    bounds = frame->GetBounds();
+    chrome = m_scaler.ToPx (DxuiTabGroup::kTitleDip + DxuiTabGroup::kStripDip) + 2 * DxuiPaneMetrics::GetLinePx (m_scaler);
+
+    return SIZE { 0, chrome + frame->GetMinimumHeightPx ((int) (bounds.right - bounds.left), m_scaler) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ReadSavedLayout
 //
 //  The saved layout text, with the closed panes read into m_closedPanes from
@@ -5018,6 +5283,33 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kHeatMap,     L"Heat map",    m_heatMapFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kHeatRanges,  L"Heat map ranges", m_heatRangeFrame.get());
 
+    //  The event logs are each their bar over their rows; between them, the
+    //  Disk II log has a line listing the filter tokens not taken, only when
+    //  there are any.
+    for (EventLogWidgets * log : { &m_diskLog, &m_inputLog })
+    {
+        bool  isDisk = log == &m_diskLog;
+
+        log->slot  = std::make_unique<DebuggerPaneFrame> (L"Event log commands");
+        log->frame = std::make_unique<DebuggerPaneFrame> (isDisk ? L"Disk II log" : L"Input log");
+        log->frame->AddPart (log->slot.get(), barHeight);
+
+        if (isDisk)
+        {
+            log->frame->AddPart (m_diskLogError, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); },
+                                 [this] { return !m_diskLogError->GetText().empty(); });
+            log->frame->SetPartTextAligned (m_diskLogError);
+        }
+
+        log->frame->AddPart (log->list);
+    }
+
+    m_dockSite->AddPane (DebuggerLayout::kDiskLog,  L"Disk II log", m_diskLog.frame.get());
+    m_dockSite->AddPane (DebuggerLayout::kInputLog, L"Input log",   m_inputLog.frame.get());
+
+    AddBasicPanes();
+    AddToolPanes();
+
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
     //  pane, are put in the bar of the one they act on (PlaceMemoryBar).
@@ -5041,6 +5333,10 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
+
+    //  The site lays a pane out no shorter than its bar and bands, so a sash
+    //  dragged over it stops before its controls run past its edge.
+    m_dockSite->SetMinSizeFn  ([this] (const std::wstring & pane) { return GetPaneMinimum (pane); });
 
     //  Source and Disassembly are documents, the rest tool windows, each with
     //  a title bar whose menu is the pane's Dock To menu (FR-084).
@@ -5115,6 +5411,16 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (pane == DebuggerLayout::kHeatRanges)
     {
         return m_isHeatRangesOpened;
+    }
+
+    if (DebuggerLayout::IsOpenedLater (pane))
+    {
+        return m_basicOpened.contains (pane);
+    }
+
+    if (GetEventLogOf (pane) != nullptr)
+    {
+        return GetEventLogOf (pane)->isOpened;
     }
 
     if (GetSourceSlotOf (pane) >= 0)
@@ -5198,7 +5504,9 @@ bool DebuggerWindow::HasTopLayer() const
     {
         for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
         {
-            if (m_codeOpen[(size_t) view] && line.isCurrent && line.target.has_value())
+            //  The PC's branch, or the one a step just took to the PC, which
+            //  can be out of the lines built for the view.
+            if (m_codeOpen[(size_t) view] && line.isCurrent && (line.target.has_value() || m_snapshot->branchedFrom.has_value()))
             {
                 return true;
             }
@@ -5268,35 +5576,30 @@ bool DebuggerWindow::HasDragLayer() const
 //  DebuggerWindow::GetBranchArrow
 //
 //  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
-//  where it goes. Either end scrolled out of view runs the line to that edge
-//  of the rows, so the arrow stays drawn while any part of it crosses them.
-//  A view past the code views is a source document's, whose pane places it.
+//  where it goes, or with isBranchedFrom, the arrow of the one a step just
+//  took to the PC. Either end scrolled out of view runs the line to that
+//  edge of the rows, so the arrow stays drawn while any part of it crosses
+//  them. A view past the code views is a source document's, whose pane
+//  places the PC's arrow alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken) const
+bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
 {
-    DxuiListView                                       * list     = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
-    int                                                  current  = -1;
-    int                                                  target   = -1;
-    int                                                  firstRow = 0;
-    int                                                  endRow   = 0;
-    RECT                                                 bounds   = {};
-    RECT                                                 column   = {};
-    RECT                                                 cell     = {};
-    float                                                scale    = 1.0f;
-    float                                                top      = 0.0f;
-    float                                                bottom   = 0.0f;
-    int                                                  rowPx    = 0;
+    DxuiListView  * list = (view < DebuggerViewState::kMaxCodeViews) ? m_codeLists[(size_t) view] : nullptr;
 
 
+
+    if (!m_codeOptions.IsOn (DisassemblyOptions::Option::BranchArrow))
+    {
+        return false;
+    }
 
     if (view >= DebuggerViewState::kMaxCodeViews)
     {
         const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
 
-        return document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
+        return !isBranchedFrom && document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
     }
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
@@ -5304,71 +5607,13 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
         return false;
     }
 
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        current = lines[i].isCurrent ? (int) i : current;
-    }
-
-    firstRow = list->GetTopRow();
-
-    if (current < 0 || !lines[(size_t) current].target.has_value() ||
-        !list->GetCellTextRectPx (firstRow, kCodeInstructionColumn, column))
+    if (isBranchedFrom && (m_snapshot == nullptr || !m_snapshot->branchedFrom.has_value()))
     {
         return false;
     }
 
-    goesTo  = *lines[(size_t) current].target;
-    isTaken = lines[(size_t) current].isTargetTaken;
-
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        target = (lines[i].address == goesTo) ? DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], (int) i) : target;
-    }
-
-    //  From here on, rows: a source row shown above an instruction moves it.
-    current = DisassemblyOptions::GetRowOfLine (m_codeRows[(size_t) view], current);
-
-    bounds = list->GetBounds();
-    rowPx  = column.bottom - column.top;
-    scale  = (float) rowPx / (float) (std::max) (1, list->GetRowHeightDip());
-    endRow = firstRow + (std::min) (list->GetVisibleRowCapacity(), list->GetRowCount() - firstRow);
-    top    = (float) (bounds.top + column.top);
-    bottom = top + (float) ((endRow - firstRow) * rowPx);
-
-    input.mnemonicX     = (float) (bounds.left + column.left);
-    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) GetCodeLineOfRow (view, current)].address;
-    input.edgeY         = input.isTargetBelow ? bottom : top;
-    input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
-    input.marginPx     *= scale;
-    input.stubPx       *= scale;
-    input.radiusPx     *= scale;
-    input.headPx       *= scale;
-    input.slopPx       *= scale;
-
-    //  A source out of view counts only while the line runs on across the
-    //  rows: above them toward a target below, or below toward one above.
-    if (current < firstRow || current >= endRow)
-    {
-        bool  above = current < firstRow;
-
-        if (above != input.isTargetBelow ||
-            (target >= 0 && (above ? target < firstRow : target >= endRow)))
-        {
-            return false;
-        }
-    }
-    else if (list->GetCellTextRectPx (current, kCodeInstructionColumn, cell))
-    {
-        input.sourceY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
-    }
-
-    if (target >= 0 && list->GetCellTextRectPx (target, kCodeInstructionColumn, cell))
-    {
-        input.targetY = (float) (bounds.top + (cell.top + cell.bottom) / 2);
-    }
-
-    //  Scrolled sideways past the mnemonics, there is no room for it.
-    return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_codeRows[(size_t) view], input, goesTo, isTaken,
+                                                isBranchedFrom ? m_snapshot->branchedFrom : std::nullopt);
 }
 
 
@@ -5379,40 +5624,29 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 //
 //  DebuggerWindow::PaintBranchArrow
 //
-//  The arrow from GetBranchArrow, in the PC marker's color, or in the
-//  disabled color for a branch the flags as they stand will not take.
+//  The arrows from GetBranchArrow, the one a step just took, dotted, and the
+//  PC's, in the PC marker's color, or in the disabled color for a branch
+//  that the current flags do not take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
 {
-    BranchArrow::Input   input;
-    BranchArrow::Result  arrow;
-    Word                 goesTo  = 0;
-    bool                 isTaken = true;
-    uint32_t             argb    = 0;
-    float                width   = 1.5f;
+    BranchArrow::Input  input;
+    Word                goesTo  = 0;
+    bool                isTaken = true;
 
 
 
-    if (!GetBranchArrow (view, input, goesTo, isTaken))
+    for (bool isBranchedFrom : { true, false })
     {
-        return;
-    }
+        input = BranchArrow::Input();
 
-    argb  = isTaken ? GetPcMarkerArgb() : ((m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080);
-    width = 1.5f * input.radiusPx / BranchArrow::Input().radiusPx;
-    arrow = BranchArrow::Build (input);
-
-    for (const BranchArrow::Segment & segment : arrow.segments)
-    {
-        painter.DrawLine (segment.x0, segment.y0, segment.x1, segment.y1, width, argb);
-    }
-
-    if (arrow.hasHead)
-    {
-        painter.FillConvexQuad (arrow.head[0], arrow.head[1], arrow.head[2], arrow.head[3],
-                                arrow.head[4], arrow.head[5], arrow.head[4], arrow.head[5], argb);
+        if (GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
+        {
+            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, GetPcMarkerArgb(), (m_theme != nullptr) ? m_theme->ForegroundDisabled() : 0xFF808080,
+                                                isBranchedFrom);
+        }
     }
 }
 
@@ -5594,6 +5828,15 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
     panes.push_back (DebuggerLayout::kTrace);
     panes.push_back (DebuggerLayout::kHeatMap);
     panes.push_back (DebuggerLayout::kHeatRanges);
+    panes.push_back (DebuggerLayout::kDiskLog);
+    panes.push_back (DebuggerLayout::kInputLog);
+    panes.push_back (DebuggerLayout::kBasicProgram);
+
+    for (const std::wstring & tool : DebuggerLayout::GetToolPaneIds())
+    {
+        panes.push_back (tool);
+    }
+
     panes.push_back (DebuggerLayout::kConsole);
 
     if (m_snapshot != nullptr)
@@ -5641,6 +5884,19 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
     {
         m_isHeatRangesOpened = true;
         SaveHeatRanges();
+    }
+
+    //  A BASIC or tool pane is added to the open views the same way.
+    if (DebuggerLayout::IsOpenedLater (pane))
+    {
+        m_basicOpened.insert (pane);
+    }
+
+    //  The event logs the same, with their options.
+    if (GetEventLogOf (pane) != nullptr && !GetEventLogOf (pane)->isOpened)
+    {
+        GetEventLogOf (pane)->isOpened = true;
+        SaveEventLogOptions ((pane == DebuggerLayout::kDiskLog) ? DebugLogKind::Disk : DebugLogKind::Input);
     }
 
     if (!IsPaneShown (pane))
@@ -6025,9 +6281,17 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
             continue;
         }
 
+        if (ShowColumnMenu (list, clientPx))
+        {
+            return true;
+        }
+
         row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
 
-        if (row >= 0)
+        //  As in Explorer: a right-click on a selected row does not change
+        //  the selection, so Copy copies every selected row; on any other
+        //  row it selects that row alone.
+        if (row >= 0 && !list->IsRowSelected (row))
         {
             list->SetSelectedRow (row);
         }
@@ -6050,6 +6314,26 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
         items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
         items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
+        items.push_back ({ L"Find...",                [this, memory] { FindInMemory (memory); } });
+
+        //  On a selection: F and M write the machine, so only while it is
+        //  stopped; MC reads it, so at any time.
+        if (memory->GetSelectedRange().has_value())
+        {
+            if (m_snapshot->isPaused)
+            {
+                items.push_back ({ L"Fill selection...",    [this, memory] { FillMemorySelection (memory); } });
+                items.push_back ({ L"Copy selection to...", [this, memory] { CopyMemorySelection (memory); } });
+            }
+
+            items.push_back ({ L"Compare with...", [this, memory] { CompareMemorySelection (memory); } });
+        }
+
+        if (memory->HasComparison())
+        {
+            items.push_back ({ memory->IsShowingOther() ? L"View this range's values" : L"View the other range's values", [memory] { memory->ToggleShowOther(); } });
+            items.push_back ({ L"Clear comparison", [memory] { memory->ClearComparison(); } });
+        }
 
         if (memory->CanUndo())
         {
@@ -6062,6 +6346,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         }
 
         byte = memory->GetAddressAt (clientPx);
+
+        //  A byte in zero page can be the low byte of a pointer.
+        if (byte.has_value() && *byte < 0x100)
+        {
+            items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { RunAction (DebuggerActions::GetAddZeroPagePointer (at, GetMode())); } });
+        }
 
         if (byte.has_value())
         {
@@ -6091,6 +6381,60 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     {
         m_menuCommands.push_back (MakeMenuCommand (label, false, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowColumnMenu
+//
+//  On the headings of a list whose columns can be chosen, a check for each
+//  column. False when the point is not on the headings or the list has no
+//  such menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
+{
+    std::vector<std::shared_ptr<DxuiCommand>>  commands;
+    std::vector<DxuiPopupMenuItem>             menu;
+    RECT                                       bounds   = list->GetBounds();
+
+
+
+    if (!list->IsHeaderShown() || clientPx.y - bounds.top >= list->GetHeaderHeightPx())
+    {
+        return false;
+    }
+
+    if (list != m_breakpointList && list != m_diskLog.list && list != m_inputLog.list)
+    {
+        return false;
+    }
+
+    m_menuCommands.clear();
+    SetWindowMenus();
+
+    if (list == m_breakpointList)
+    {
+        AddBreakpointColumnItems (commands);
+    }
+    else
+    {
+        AddEventLogColumnItems (list, commands);
+    }
+
+    for (const std::shared_ptr<DxuiCommand> & command : commands)
+    {
+        m_menuCommands.push_back (command);
+        menu.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
@@ -6221,6 +6565,416 @@ void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetCodeSelection
+//
+//  The first address of the first selected line through the last byte of
+//  the last, or the clicked line's bytes when it is not among the selected;
+//  none when no row is a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<Word, Word>> DebuggerWindow::GetCodeSelection (int view, int row) const
+{
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines    = GetCodeLines (view);
+    const std::vector<int>                             & selected = GetCodeList (view)->GetSelectedRows();
+    std::vector<int>                                     rows     = std::ranges::find (selected, row) != selected.end() ? selected : std::vector<int> { row };
+    std::optional<Word>                                  first;
+    Word                                                 last     = 0;
+
+
+
+    for (int each : rows)
+    {
+        int  index = GetCodeLineOfRow (view, each);
+
+
+
+        if (index < 0)
+        {
+            continue;
+        }
+
+        const DebuggerViewSnapshot::CodeLine  & line  = lines[(size_t) index];
+        Word                                    count = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
+
+
+
+        first = first.has_value() ? std::min (*first, line.address) : line.address;
+        last  = std::max (last, (Word) (line.address + count - 1));
+    }
+
+    if (!first.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return std::pair<Word, Word> { *first, std::max (last, *first) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddCodeEditItems
+//
+//  The code pane's menu entries that change the session's tables for a
+//  line: data marking (FR-182), a symbol (FR-183), a routine never stepped
+//  into (FR-184), a bookmark (FR-189), the stopwatch and a call (FR-197).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row,
+                                       std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    static constexpr std::pair<const wchar_t *, const char *>  kMarks[] =
+    {
+        { L"Mark as bytes", "DB" }, { L"Mark as words", "DW" }, { L"Mark as addresses", "DA" }, { L"Mark as text", "ASC" }, { L"Mark as floats", "DF" },
+    };
+    Word                   at       = line.address;
+    Word                   count    = (Word) std::max<size_t> (1, (line.bytes.size() + 1) / 3);
+    std::pair<Word, Word>  range    = GetCodeSelection (view, row).value_or (std::pair<Word, Word> { at, (Word) (at + count - 1) });
+    bool                   isCall   = line.instruction.starts_with ("JSR") && line.target.has_value();
+    Word                   routine  = isCall ? *line.target : at;
+    std::string            name     = isCall ? line.shownOperand : line.label;
+    auto                   bookmark = std::ranges::find_if (m_snapshot->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
+
+
+
+    //  The routine is skipped by its symbol, not by an address written in hex.
+    if (name.starts_with ('$') || name.empty() || !std::isalpha ((unsigned char) name[0]))
+    {
+        name.clear();
+    }
+
+    for (const auto & [label, directive] : kMarks)
+    {
+        items.push_back ({ label, [this, range, directive] { RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, GetMode())); } });
+    }
+
+    items.push_back ({ L"Clear data marking", [this, range] { RunAction (DebuggerActions::GetClearData (range.first, range.second, GetMode())); } });
+    items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolAt (at); } });
+    items.push_back ({ L"Never step into this routine", [this, name, routine] { RunAction (DebuggerActions::GetSkipRoutine (name, routine, GetMode())); } });
+
+    if (bookmark != m_snapshot->bookmarks.end())
+    {
+        items.push_back ({ L"Remove bookmark", [this, id = bookmark->id] { RunAction (DebuggerActions::GetClearBookmark (id, GetMode())); } });
+    }
+    else
+    {
+        items.push_back ({ L"Add bookmark", [this, at] { RunAction (DebuggerActions::GetAddBookmark (at, GetMode())); } });
+    }
+
+    items.push_back ({ L"Start stopwatch here", [this, at] { m_stopwatchStart = at; } });
+
+    if (m_stopwatchStart.has_value())
+    {
+        items.push_back ({ L"Stop stopwatch here", [this, at]
+        {
+            RunAction (DebuggerActions::GetStopwatch (*m_stopwatchStart, at, GetMode()));
+            m_stopwatchStart.reset();
+        } });
+    }
+
+    if (m_snapshot->isPaused)
+    {
+        items.push_back ({ L"Call subroutine here", [this, at] { RunAction (DebuggerActions::GetCallSubroutine (at, GetMode())); } });
+        items.push_back ({ L"Edit instruction...",  [this, view, line]  { EditInstruction (view, line); } });
+        items.push_back ({ L"Replace with NOPs",    [this, view, range] { ReplaceWithNops (view, range); } });
+    }
+
+    if (!m_codeUndo.empty())
+    {
+        items.push_back ({ L"Undo " + m_codeUndo.back().text, [this] { UndoCodeEdit (false); } });
+    }
+
+    if (!m_codeRedo.empty())
+    {
+        items.push_back ({ L"Redo " + m_codeRedo.back().text, [this] { UndoCodeEdit (true); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetCodeBytes
+//
+//  The bytes from first through last, as the view's lines have them; false
+//  where the lines do not cover the range without a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetCodeBytes (int view, Word first, Word last, std::vector<Byte> & bytes) const
+{
+    uint32_t  next = first;
+
+
+
+    bytes.clear();
+
+    for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+    {
+        std::vector<Byte>  lineBytes;
+
+
+
+        if (line.address != next || next > last || !TextDialog::TryParseBytes (Widen (line.bytes), lineBytes))
+        {
+            continue;
+        }
+
+        bytes.insert (bytes.end(), lineBytes.begin(), lineBytes.end());
+        next += (uint32_t) lineBytes.size();
+    }
+
+    if (next <= last)
+    {
+        return false;
+    }
+
+    bytes.resize ((size_t) (last - first + 1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditInstruction
+//
+//  The typed instruction assembled over the line's (FR-185): a shorter one
+//  padded with NOP to the line's end, and a longer one written only after
+//  Yes to a question listing the instructions it covers, padded to the last
+//  one's end. ROM is not changed. The write requires the bytes that
+//  were there, and the edit can be undone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line)
+{
+    static constexpr Byte        kNop    = 0xEA;
+    std::optional<std::wstring>  typed;
+    std::vector<Byte>            bytes;
+    std::vector<Byte>            before;
+    std::vector<std::string>     covered;
+    std::string                  error;
+    uint32_t                     end     = 0;
+
+
+
+    if (line.isRom)
+    {
+        ShowMessageBox (GetHwnd(), std::format (L"${:04X} is in ROM, which an instruction edit does not change.", line.address),
+                        L"Edit instruction", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (m_snapshot == nullptr || m_snapshot->instructionSet == nullptr)
+    {
+        return;
+    }
+
+    OpcodeTable    opcodes   (m_snapshot->instructionSet);
+    LineAssembler  assembler (opcodes);
+
+
+
+    typed = RunTextDialog (L"Edit instruction", L"Instruction", Widen (line.instruction), [&assembler, &line] (const std::wstring & text, std::wstring & message)
+    {
+        std::vector<Byte>  trial;
+        std::string        problem;
+        bool               isOk    = assembler.TryAssemble (line.address, TextEncoding::WideToNarrow (text), trial, problem) == LineAssemblyStatus::Ok;
+
+
+
+        message = Widen (problem);
+        return isOk;
+    });
+
+    if (!typed.has_value() || assembler.TryAssemble (line.address, TextEncoding::WideToNarrow (*typed), bytes, error) != LineAssemblyStatus::Ok)
+    {
+        return;
+    }
+
+    //  The lines the new instruction covers, its own first.
+    end = line.address;
+
+    for (const DebuggerViewSnapshot::CodeLine & each : GetCodeLines (view))
+    {
+        std::vector<Byte>  lineBytes;
+
+
+
+        if (each.address != end || end >= (uint32_t) line.address + std::max<size_t> (bytes.size(), 1) || !TextDialog::TryParseBytes (Widen (each.bytes), lineBytes))
+        {
+            continue;
+        }
+
+        if (each.address != line.address)
+        {
+            covered.push_back (each.instruction);
+        }
+
+        end += (uint32_t) lineBytes.size();
+    }
+
+    if (end > 0x10000 || end < (uint32_t) line.address + bytes.size())
+    {
+        return;
+    }
+
+    if (!covered.empty())
+    {
+        std::wstring  list;
+
+
+
+        for (size_t i = 0; i < covered.size(); i++)
+        {
+            list += std::format (L"{}{}", (i == 0) ? L"" : (i + 1 == covered.size()) ? L" and " : L", ", Widen (covered[i]));
+        }
+
+        if (ShowMessageBox (GetHwnd(), std::format (L"{} is longer than {}, and also overwrites {}. Write it?", *typed, Widen (line.instruction), list),
+                            L"Edit instruction", MB_YESNO | MB_ICONQUESTION) != IDYES)
+        {
+            return;
+        }
+    }
+
+    bytes.resize ((size_t) (end - line.address), kNop);
+
+    if (!TryGetCodeBytes (view, line.address, (Word) (end - 1), before))
+    {
+        return;
+    }
+
+    m_codeUndo.push_back ({ line.address, before, bytes, std::format (L"edit at ${:04X}", line.address) });
+    m_codeRedo.clear();
+    RunAction (DebuggerActions::GetPatch (line.address, bytes, GetMode(), before));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ReplaceWithNops
+//
+//  Every byte of the selected lines (FR-186), undoably; nothing in ROM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ReplaceWithNops (int view, std::pair<Word, Word> range)
+{
+    static constexpr Byte  kNop  = 0xEA;
+    std::vector<Byte>      before;
+    std::vector<Byte>      after;
+    bool                   isRom = false;
+
+
+
+    for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
+    {
+        isRom = isRom || (line.isRom && line.address >= range.first && line.address <= range.second);
+    }
+
+    if (isRom)
+    {
+        ShowMessageBox (GetHwnd(), L"The selection is in ROM, which Replace with NOPs does not change.", L"Replace with NOPs", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    if (!TryGetCodeBytes (view, range.first, range.second, before))
+    {
+        return;
+    }
+
+    after.assign (before.size(), kNop);
+    m_codeUndo.push_back ({ range.first, before, after, std::format (L"NOPs at ${:04X}", range.first) });
+    m_codeRedo.clear();
+    RunAction (DebuggerActions::GetPatch (range.first, after, GetMode(), before));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoCodeEdit
+//
+//  The bytes put back, or written again, only over the bytes the step left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoCodeEdit (bool redo)
+{
+    std::vector<CodeEdit>  & from = redo ? m_codeRedo : m_codeUndo;
+    std::vector<CodeEdit>  & to   = redo ? m_codeUndo : m_codeRedo;
+
+
+
+    if (from.empty())
+    {
+        return;
+    }
+
+    CodeEdit  edit = from.back();
+
+
+
+    from.pop_back();
+    RunAction (redo ? DebuggerActions::GetPatch (edit.address, edit.after, GetMode(), edit.before)
+                    : DebuggerActions::GetPatch (edit.address, edit.before, GetMode(), edit.after));
+    to.push_back (std::move (edit));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddSymbolAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddSymbolAt (Word address)
+{
+    std::optional<std::wstring>  typed;
+
+
+
+    typed = RunTextDialog (L"Add symbol", L"Name", L"LOOP", [] (const std::wstring & text, std::wstring & error)
+    {
+        bool  isName = !text.empty() && iswalpha (text[0]) &&
+                       std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
+
+
+
+        error = isName ? std::wstring() : std::wstring (L"A symbol name starts with a letter and has letters, digits, _ and . after it.");
+        return isName;
+    });
+
+    if (typed.has_value())
+    {
+        RunAction (DebuggerActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::AddListMenuItems
 //
 //  A list pane's menu, for the row under the pointer where there is one.
@@ -6233,6 +6987,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     auto                          copy = [this, list] { DxuiClipboard::SetText (GetHwnd(), list->GetSelectionText()); };
 
 
+
+    if (AddToolMenuItems (list, row, items))
+    {
+        items.push_back ({ L"Copy", copy });
+        return;
+    }
 
     if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
     {
@@ -6264,10 +7024,20 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
         items.push_back ({ L"Copy",                copy });
 
+        AddCodeEditItems (view, line, row, items);
+
         if (view > 0)
         {
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
+    }
+    else if (list == m_diskLog.list || list == m_inputLog.list)
+    {
+        AddEventLogMenuItems (list, row, items);
+    }
+    else if (list == m_heatRangeList && m_heatRangeList->CanDeleteRow (row))
+    {
+        items.push_back ({ L"Delete", [this, row] { m_heatRangeList->DeleteRow (row); Invalidate(); } });
     }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
@@ -6291,6 +7061,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         }
 
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode()) }, {} }); } });
+        items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
         items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearBreakpoint (bp.id, GetMode()) }, {} }); } });
 
         //  Its type and the fields that type needs, in a dialog; the result is
@@ -6298,7 +7069,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
         //  (FR-094).
         items.push_back ({ L"Edit...", [this, bp]
         {
-            std::optional<std::string>  definition = BreakpointDialog::Ask (GetHwnd(), m_theme, bp.info);
+            std::optional<std::string>  definition = BreakpointDialog::RunModal (GetHwnd(), m_theme, bp.info);
 
             if (definition.has_value())
             {
@@ -6326,6 +7097,11 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
                 items.push_back ({ L"Remove", [this, watch] { RunAction (DebuggerActions::GetClearWatch (watch.id, GetMode())); } });
             }
         }
+        else if (what.kind == WatchRowKind::ZeroPage)
+        {
+            items.push_back ({ L"Remove", [this, slot = what.index] { RunAction (DebuggerActions::GetClearZeroPagePointer (slot, GetMode())); } });
+        }
+
         else if (what.kind == WatchRowKind::Automatic && what.index < (int) s.autoWatches.size() &&
                  s.autoWatches[(size_t) what.index].key.starts_with ("M:"))
         {
@@ -6334,10 +7110,12 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             AddShowInMemory (L"$" + Widen (hex), hex, items);
         }
 
-        if (what.kind != WatchRowKind::Heading)
+        if (what.kind != WatchRowKind::Heading && what.kind != WatchRowKind::BasicHeading)
         {
             items.push_back ({ L"Copy", copy });
         }
+
+        items.push_back ({ L"Add zero-page pointer...", [this] { AddZeroPagePointer(); } });
 
         if (m_watchHistory.CanUndo())
         {
@@ -6349,16 +7127,28 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ GetUndoLabel (true, m_watchHistory.GetRedoText()), [this] { UndoWatchEdit (true); } });
         }
     }
-    else if (list == m_stackList && row >= 0 && row < (int) s.stack.size())
+    else if (list == m_stackList)
     {
-        Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
+        if (row >= 0 && row < (int) s.stack.size())
+        {
+            Word  at = s.stack[s.stack.size() - 1 - (size_t) row].address;
 
-        AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
-        items.push_back ({ L"Copy", copy });
+            AddShowInMemory (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
+            items.push_back ({ L"Copy", copy });
 
+            if (s.isPaused)
+            {
+                items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
+            }
+        }
+
+        //  PUSH, POP and PPOP, which write the machine, so only while it is
+        //  stopped.
         if (s.isPaused)
         {
-            items.push_back ({ L"Edit value", [this, row] { BeginValueEdit (m_stackList, row); } });
+            items.push_back ({ L"Push byte...", [this] { PushStackByte(); } });
+            items.push_back ({ L"Pop byte",     [this] { RunAction (DebuggerActions::GetPopByte (GetMode())); } });
+            items.push_back ({ L"Pop word",     [this] { RunAction (DebuggerActions::GetPopWord (GetMode())); } });
         }
 
         if (m_stackHistory.CanUndo())
@@ -6371,12 +7161,25 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ GetUndoLabel (true, m_stackHistory.GetRedoText()), [this] { UndoStackEdit (true); } });
         }
     }
-    else if (list == m_callStackList && row >= 0 && row < (int) CallStackPane::GetRows (s.callStack).size())
+    else if (list == m_callStackList && row >= 0 && row < (int) m_callStackPane->GetShownRows().size())
     {
-        Word  at = CallStackPane::GetRows (s.callStack)[(size_t) row].address;
+        //  The pane's own rows: the BASIC frames come before the machine's.
+        const CallStackPane::Row  frame = m_callStackPane->GetShownRows()[(size_t) row];
 
-        items.push_back ({ L"Show call site", [this, at] { ShowCode (at); } });
-        items.push_back ({ L"Copy",           copy });
+        if (!frame.basicLine.has_value())
+        {
+            items.push_back ({ L"Show call site", [this, at = frame.address] { ShowCode (at); } });
+        }
+
+        if (frame.routineAddress.has_value())
+        {
+            items.push_back ({ L"Never step into this routine", [this, frame]
+            {
+                RunAction (DebuggerActions::GetSkipRoutine (frame.routineSymbol, *frame.routineAddress, GetMode()));
+            } });
+        }
+
+        items.push_back ({ L"Copy", copy });
     }
     else if (list == m_registerList && row >= 0 && row < (int) s.registers.size())
     {
@@ -6387,9 +7190,26 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ L"Show in code", [this] { ShowCode (std::nullopt); } });
         }
 
-        if (name != DebuggerViewState::kCyclesRegister)
+        if (!DebuggerViewState::IsReadOnlyRegister (name))
         {
             AddShowInMemory (Widen (name), name, items);
+        }
+
+        //  The trip count starts again from here, as RCC starts it; the
+        //  total never does.
+        if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
+        {
+            items.push_back ({ L"Reset trip count", [this] { RunAction (DebuggerActions::GetResetCycles (GetMode())); } });
+        }
+
+        if (name == DebuggerViewState::kLastBranchRegister && s.lastBranchFrom.has_value())
+        {
+            items.push_back ({ L"Go to branch", [this, at = *s.lastBranchFrom] { ShowCode (at); } });
+
+            if (s.lastBranchTo.has_value())
+            {
+                items.push_back ({ L"Go to target", [this, at = *s.lastBranchTo] { ShowCode (at); } });
+            }
         }
 
         items.push_back ({ L"Copy",           copy });
@@ -6440,6 +7260,13 @@ void DebuggerWindow::RenderFrame()
         return;
     }
 
+    SaveUndoHistories();
+
+    if (m_host->TakeDebuggerProjectState())
+    {
+        ReloadProjectState();
+    }
+
     if (m_host->TakeDebuggerUpdate (snapshot, console))
     {
         hasUpdate = true;
@@ -6466,6 +7293,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     SyncHeatMapRecording();
+    SyncBasicReading();
 
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
@@ -6481,7 +7309,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6531,6 +7359,7 @@ void DebuggerWindow::RenderFrame()
     }
 
     m_tracePane->FollowScroll();
+    ApplyEventLogs();
 
     isAnimating = m_heatMapView->TickScrollbars (now) || m_timelineScrub.IsScrubbing() || isAnimating;
 
@@ -6543,7 +7372,9 @@ void DebuggerWindow::RenderFrame()
     PlaceBreakpointBar();
     PlaceHeatMapBar();
     PlaceHeatRangeBar();
+    PlaceEventLogBars();
     PlaceUndoBars();
+    PlaceProfilerBar();
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -6640,26 +7471,29 @@ void DebuggerWindow::RequestPaint()
 
 void DebuggerWindow::ApplyCodeView (int view)
 {
-    DxuiListView                                       * list       = m_codeLists[(size_t) view];
-    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines      = GetCodeLines (view);
+    DxuiListView                                       * list          = m_codeLists[(size_t) view];
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines         = GetCodeLines (view);
     std::vector<std::vector<DxuiListView::Cell>>         rows;
-    int                                                  current    = -1;
-    int                                                  selected   = -1;
+    int                                                  current       = -1;
+    int                                                  selected      = -1;
     std::optional<Word>                                  target;
-    DebuggerTextColors::Set                              textColors = GetTextColors();
-    SourceSyntax::Colors                                 syntax     = textColors.syntax;
-    bool                                                 symbols    = m_codeOptions.IsOn (DisassemblyOptions::Option::Symbols);
-    bool                                                 source   = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
-                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
-    bool                                                 numbers  = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
-                                                                    IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    DebuggerTextColors::Set                              textColors    = GetTextColors();
+    bool                                                 source        = m_codeOptions.IsOn (DisassemblyOptions::Option::Source) &&
+                                                                         IsCodeOptionEnabled (DisassemblyOptions::Option::Source);
+    bool                                                 numbers       = m_codeOptions.IsOn (DisassemblyOptions::Option::LineNumbers) &&
+                                                                         IsCodeOptionEnabled (DisassemblyOptions::Option::LineNumbers);
+    bool                                                 hasSourceRows = false;
     std::wstring                                         text;
+    std::optional<HeatMapView::Palette>                  heatPalette;
 
 
 
-    list->SetColumnVisible (kCodeAddressColumn, m_codeOptions.IsOn (DisassemblyOptions::Option::Addresses));
-    list->SetColumnVisible (kCodeBytesColumn,   m_codeOptions.IsOn (DisassemblyOptions::Option::CodeBytes));
-    list->SetColumnVisible (kCodeLabelColumn,   symbols);
+    DisassemblyCells::ShowColumns (*list, m_codeOptions);
+
+    if (m_codeOptions.IsOn (DisassemblyOptions::Option::Heat))
+    {
+        heatPalette = GetHeatPalette();
+    }
 
     for (const DebuggerViewSnapshot::CodeLine & line : lines)
     {
@@ -6671,6 +7505,8 @@ void DebuggerWindow::ApplyCodeView (int view)
 
     m_codeRows[(size_t) view] = DisassemblyOptions::BuildRows (lines, source,
                                                               [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
+
+    hasSourceRows = std::ranges::any_of (m_codeRows[(size_t) view], [] (const DisassemblyOptions::Row & row) { return row.codeLine < 0; });
 
     for (const DisassemblyOptions::Row & each : m_codeRows[(size_t) view])
     {
@@ -6684,28 +7520,14 @@ void DebuggerWindow::ApplyCodeView (int view)
         //  colors, from the first column shown after the glyph margin.
         if (each.codeLine < 0)
         {
-            std::wstring  prefix = numbers ? std::format (L"{:>5}  ", each.sourceLine) : std::wstring();
-            size_t        column = kCodeFirstTextColumn;
-
             hasText = TryGetSourceText (each.fileId, each.sourceLine, text);
             text    = hasText ? text : std::wstring();
 
-            while (column < kCodeColumnCount - 1 && !list->IsColumnVisible (column))
-            {
-                column++;
-            }
+            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u);
 
-            cells[column].text     = prefix + text;
-            cells[column].spansRow = true;
-
-            if (numbers)
+            if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, true, false))
             {
-                cells[column].colorRanges.push_back ({ 0, (int) prefix.size(), (m_theme != nullptr) ? m_theme->ForegroundMuted() : 0u });
-            }
-
-            for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (text))
-            {
-                cells[column].colorRanges.push_back ({ (int) prefix.size() + run.start, (int) prefix.size() + run.start + run.length, syntax.Get (run.token) });
+                DisassemblyCells::DimRow (cells, m_theme->Foreground(), m_theme->TextViewBackground());
             }
 
             rows.push_back (std::move (cells));
@@ -6751,17 +7573,17 @@ void DebuggerWindow::ApplyCodeView (int view)
             rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
         }
 
-        cells[kCodeAddressColumn].text     = std::format (L"{:04X}", line->address);
-        cells[kCodeBytesColumn].text       = Widen (line->bytes);
-        cells[kCodeLabelColumn].text       = Widen (line->label);
-        cells[kCodeInstructionColumn].text = Widen (DisassemblyOptions::GetInstructionText (*line, symbols));
-        cells[kCodeOperandColumn]          = GetOperandAndResultCell (line->annotation, line->effect, GetResultArgb());
+        (void) DisassemblyCells::FillCodeRow (cells, *line, m_codeOptions, textColors);
 
-        cells[kCodeOperandColumn].argb     = GetAnnotationArgb();
-        cells[kCodeLabelColumn].argb       = syntax.symbol;
-        cells[kCodeAddressColumn].argb     = syntax.address;
-        cells[kCodeBytesColumn].argb       = syntax.bytes;
-        cells[kCodeInstructionColumn].argb = syntax.address;
+        if (heatPalette.has_value() && m_snapshot->heatColumns != nullptr)
+        {
+            cells[kCodeHeatColumn] = HeatStrip::GetCell (*m_snapshot->heatColumns, line->address, std::max<size_t> (1, HeatStrip::CountBytes (line->bytes)), *heatPalette, false);
+        }
+
+        if (m_theme != nullptr && DisassemblyCells::IsDimmed (m_codeOptions, hasSourceRows, false, line->isCurrent))
+        {
+            DisassemblyCells::DimRow (cells, m_theme->Foreground(), m_theme->TextViewBackground());
+        }
 
         //  A byte that changed shows in the changed color, whether code or an
         //  edit changed it.
@@ -6770,18 +7592,15 @@ void DebuggerWindow::ApplyCodeView (int view)
             cells[kCodeBytesColumn].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
         }
 
-        cells[kCodeInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kCodeInstructionColumn].text, textColors);
-
         //  What each color on the row means, for the tip over its cell: the
-        //  row's fill on every cell, then a changed byte's color and the
-        //  operand's and result's colors where they show.
+        //  row's fill on every cell, then a changed byte's color. The
+        //  operand's and result's colors are the same on every row, so the
+        //  column's heading has them.
         cells[kCodeAddressColumn].tip     = rowTip;
         cells[kCodeLabelColumn].tip       = rowTip;
         cells[kCodeInstructionColumn].tip = rowTip;
+        cells[kCodeOperandColumn].tip     = rowTip;
         cells[kCodeBytesColumn].tip       = ColorLegend::JoinLines ({ cells[kCodeBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
-        cells[kCodeOperandColumn].tip     = ColorLegend::JoinLines ({ line->annotation.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Annotation),
-                                                                      line->effect.empty()     ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Result),
-                                                                      rowTip });
 
         for (DxuiListView::Cell & cell : cells)
         {
@@ -6882,6 +7701,14 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     m_watchHistory.OnSnapshot (*m_snapshot);
 
     PlaceLateFocus();
+
+    //  At a stop, focus moves from the console to the disassembly unless the
+    //  console received the last input; at a stop in a running BASIC program,
+    //  to the program pane, where the steps are BASIC's.
+    if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && GetPaneOfFocus() == DebuggerLayout::kConsole)
+    {
+        FocusPane (m_isBasicStop ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (m_activeCode));
+    }
 
     //  The drop-downs carry the mode and the panels they were built with, so
     //  they are rebuilt when either changes.
@@ -7041,17 +7868,48 @@ void DebuggerWindow::ShowHeatMapAddress (Word address)
 
 void DebuggerWindow::SyncHeatMapRecording()
 {
-    bool  isWanted = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapView->IsVisible();
+    bool  isWanted        = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapView->IsVisible();
+    bool  isColumnsWanted = IsAnyHeatColumnOn();
 
 
 
-    if (isWanted == m_isHeatMapRecording || m_host == nullptr)
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    if (isColumnsWanted != m_isHeatColumnsRecording)
+    {
+        m_isHeatColumnsRecording = isColumnsWanted;
+        m_host->SetDebuggerHeatColumnsShown (isColumnsWanted);
+    }
+
+    if (isWanted == m_isHeatMapRecording)
     {
         return;
     }
 
     m_isHeatMapRecording = isWanted;
     m_host->SetDebuggerHeatMapShown (isWanted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsAnyHeatColumnOn
+//
+//  Show heat in the disassembly views, which the source and BASIC views
+//  follow, or Heat in a memory window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsAnyHeatColumnOn() const
+{
+    return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ||
+           std::ranges::any_of (m_memoryPanes, [] (const std::unique_ptr<MemoryPane> & pane) { return pane != nullptr && pane->IsHeatOn(); });
 }
 
 
@@ -7093,6 +7951,13 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 
     isUsed = m_heatMapView->OnMouse (ev);
 
+    //  A press on the map focuses it, as a press in any pane focuses that
+    //  pane, so the pane takes the accent.
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    {
+        SetFocusedControl (m_heatMapView);
+    }
+
     //  Painted once the messages waiting are handled, so a wheel spun hard
     //  moves the map by every notch before it is drawn, rather than drawing
     //  each notch while the rest wait.
@@ -7120,13 +7985,10 @@ bool DebuggerWindow::RouteHeatMapMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ApplyHeatMap()
+HeatMapView::Palette DebuggerWindow::GetHeatPalette() const
 {
-    const DebuggerViewSnapshot::HeatMapState  & state      = m_snapshot->heatMap;
-    DebuggerTextColors::Set                     colors     = GetTextColors();
-    HeatMapView::Palette                        palette;
-    std::vector<HeatMapView::Breakpoint>        breakpoints;
-    bool                                        isNewHover = false;
+    DebuggerTextColors::Set  colors  = GetTextColors();
+    HeatMapView::Palette     palette;
 
 
 
@@ -7144,6 +8006,28 @@ void DebuggerWindow::ApplyHeatMap()
     palette.selfModifying = colors.heatSelfModifying;
     palette.unwritten     = colors.heatUnwritten;
     palette.changed       = colors.heatChanged;
+
+    return palette;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyHeatMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyHeatMap()
+{
+    const DebuggerViewSnapshot::HeatMapState  & state      = m_snapshot->heatMap;
+    HeatMapView::Palette                        palette    = GetHeatPalette();
+    std::vector<HeatMapView::Breakpoint>        breakpoints;
+    bool                                        isNewHover = false;
+
+
 
     for (const DebuggerViewSnapshot::BreakpointLine & line : m_snapshot->breakpoints)
     {
@@ -7287,14 +8171,20 @@ void DebuggerWindow::ApplySnapshot()
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
         bool                isCycles = reg.name == DebuggerViewState::kCyclesRegister;
+        bool                isCount  = isCycles || reg.name == DebuggerViewState::kTripRegister;
+        bool                isBranch = reg.name == DebuggerViewState::kLastBranchRegister;
         DxuiListView::Cell  value    = { Widen (reg.value) };
         DxuiListView::Cell  flags    = { reg.name == "P" ? L"Flags: " + Widen (m_snapshot->flags) : L"" };
         std::wstring        delta;
         uint64_t            count    = 0;
 
-        if (isCycles)
+        //  The flags in the fixed-width face, so each letter and dot has a
+        //  column of its own in a list otherwise in the proportional face.
+        flags.face = DxuiTheme::kMonoFace;
+
+        if (isCount)
         {
-            delta = Widen (m_stopChanges.GetDelta ("R:" + reg.name));
+            delta = isCycles ? Widen (m_stopChanges.GetDelta ("R:" + reg.name)) : std::wstring();
 
             if (std::from_chars (reg.value.data(), reg.value.data() + reg.value.size(), count).ec == std::errc())
             {
@@ -7305,12 +8195,27 @@ void DebuggerWindow::ApplySnapshot()
             value.spansRow  = true;
         }
 
-        if (!isCycles && m_stopChanges.IsChanged ("R:" + reg.name))
+        //  From and to, as Visual Studio's Registers window has its last
+        //  branch; Go to is on the row's menu.
+        if (isBranch)
+        {
+            value.text     = !m_snapshot->lastBranchFrom.has_value() ? L"None" :
+                             std::format (L"${:04X} {} {}", *m_snapshot->lastBranchFrom, s_kpszRightArrow,
+                                          m_snapshot->lastBranchTo.has_value() ? std::format (L"${:04X}", *m_snapshot->lastBranchTo) : std::wstring (L"?"));
+            value.spansRow = true;
+        }
+
+        //  On P's row only the flags that changed are in the changed color.
+        if (!isCount && !isBranch && m_stopChanges.IsChanged ("R:" + reg.name))
         {
             value.argb = GetChangedArgb();
-            flags.argb = GetChangedArgb();
             value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
             flags.tip  = value.tip;
+        }
+
+        if (reg.name == "P")
+        {
+            AddChangedFlagRanges (m_stopChanges.GetChangedBits ("R:P"), flags);
         }
 
         rows.push_back ({ { Widen (reg.name) }, value, flags });
@@ -7333,87 +8238,14 @@ void DebuggerWindow::ApplySnapshot()
     }
 
     m_tracePane->SetColors  (GetTextColors());
+    m_tracePane->SetPcStyle (GetPcIcon (nullptr), GetPcRowArgb());
     m_tracePane->Apply      (m_snapshot->trace);
 
     ApplyHeatMap();
 
     ApplyBreakpoints();
 
-    rows.clear();
-
-    //  What the instruction at the PC and the one just executed touch, then
-    //  the watches the user added, each section under a heading of its own
-    //  (FR-095). A value that changed since the last stop is drawn in the
-    //  changed color (FR-098); one the instruction touched and left as it was
-    //  is shown plainly, since it was still an input or an output.
-    m_watchRows.clear();
-
-    if (!m_snapshot->autoWatches.empty())
-    {
-        rows.push_back (MakeWatchHeading (L"Automatic"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-
-        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
-        {
-            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
-            DxuiListView::Cell                          name  = { Widen (line.label) };
-            DxuiListView::Cell                          value = { Widen (line.value) };
-
-            //  What the previous instruction touched is in italics, apart
-            //  from a disabled watch's muted text.
-            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
-            value.weight = name.weight;
-            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
-
-            if (m_stopChanges.IsChanged ("A:" + line.key))
-            {
-                value.argb = GetChangedArgb();
-                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            }
-
-            rows.push_back ({ name, value });
-            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
-        }
-
-        rows.push_back (MakeWatchHeading (L"Watches"));
-        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
-    }
-
-    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-    {
-        DxuiListView::Cell  name  = { std::format (L"#{} ${:04X}", watch.id, watch.address) };
-        DxuiListView::Cell  value = { Widen (watch.value) };
-
-        //  A disabled watch is dimmed, as a disabled breakpoint is.
-        name.dim  = !watch.enabled;
-        value.dim = !watch.enabled;
-        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
-
-        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
-        {
-            value.argb = GetChangedArgb();
-        }
-
-        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
-                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
-
-        rows.push_back ({ name, value });
-        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
-    }
-
-    //  As in Visual Studio, the last row adds a watch: an expression typed
-    //  into it in place becomes one.
-    {
-        DxuiListView::Cell  prompt = { L"Add item to watch" };
-
-        prompt.dim    = true;
-        prompt.face   = DxuiTheme::kBodyFace;
-        prompt.weight = DxuiFontWeight::Italic;
-        rows.push_back ({ prompt, { L"" } });
-        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
-    }
-
-    m_watchList->SetRows (std::move (rows));
+    ApplyWatches();
 
     rows.clear();
 
@@ -7434,7 +8266,11 @@ void DebuggerWindow::ApplySnapshot()
 
     m_stackList->SetRows (std::move (rows));
     m_callStackPane->SetColors (GetTextColors());
-    m_callStackPane->Apply     (m_snapshot->callStack);
+    m_callStackPane->Apply     (m_snapshot->callStack, BasicWatches::IsStoppedInProgram (m_snapshot->basic) ? m_snapshot->basic->frames : std::vector<BasicFrame>());
+
+    FollowBasicProgram();
+    ApplyBasicPanes();
+    ApplyToolPanes();
 
     ApplyMemoryWindows();
     ApplySource();
@@ -7461,6 +8297,206 @@ void DebuggerWindow::ApplySnapshot()
             SetFocusedControl (m_commandBox);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddChangedFlagRanges
+//
+//  The flags are the last eight letters of the cell, N first, so bit 7 is
+//  the first of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const
+{
+    static constexpr int  kFlagCount = 8;
+    int                   start      = (int) flags.text.size() - kFlagCount;
+    int                   at         = 0;
+
+
+
+    if (start < 0)
+    {
+        return;
+    }
+
+    for (int bit = kFlagCount - 1; bit >= 0; bit--)
+    {
+        at = start + (kFlagCount - 1 - bit);
+
+        if (((changedBits >> bit) & 1u) != 0)
+        {
+            flags.colorRanges.push_back ({ at, at + 1, GetChangedArgb() });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyWatches
+//
+//  What the instruction at the PC and the one just executed touch, then
+//  the watches the user added, each section under a heading of its own
+//  (FR-095), and while the machine is stopped in a running Applesoft
+//  program, its variables (FR-176).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyWatches()
+{
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    bool                                          isInProgram = BasicWatches::IsStoppedInProgram (m_snapshot->basic);
+    std::vector<BasicWatches::Item>               basicAutos  = isInProgram ? BasicWatches::GetStatementItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>();
+
+
+
+    //  What the instruction at the PC and the one just executed touch, then
+    //  the watches the user added, each section under a heading of its own
+    //  (FR-095). A value that changed since the last stop is drawn in the
+    //  changed color (FR-098); one the instruction touched and left as it was
+    //  is shown plainly, since it was still an input or an output.
+    m_watchRows.clear();
+
+    if (!m_snapshot->autoWatches.empty() || !basicAutos.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Automatic"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (size_t i = 0; i < m_snapshot->autoWatches.size(); i++)
+        {
+            const DebuggerViewSnapshot::AutoWatchLine & line  = m_snapshot->autoWatches[i];
+            DxuiListView::Cell                          name  = { Widen (line.label) };
+            DxuiListView::Cell                          value = { Widen (line.value) };
+
+            //  What the previous instruction touched is in italics, apart
+            //  from a disabled watch's muted text.
+            name.weight  = line.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
+            value.weight = name.weight;
+            name.tip     = line.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousAutoWatch) : L"";
+
+            //  A memory watch's symbol and address in the colors the code
+            //  pane draws them in.
+            if (line.key.starts_with ("M:"))
+            {
+                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+            }
+
+            if (m_stopChanges.IsChanged ("A:" + line.key))
+            {
+                value.argb = GetChangedArgb();
+                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+            }
+
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::Automatic, (int) i });
+        }
+
+        //  The BASIC variables the statement being run uses.
+        for (const BasicWatches::Item & item : basicAutos)
+        {
+            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
+            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
+        }
+
+        rows.push_back (MakeWatchHeading (L"Watches"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
+    {
+        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"#{} ${:04X}", watch.id, watch.address) }
+                                                            : BasicWatches::MakeNameCell (watch.basicName);
+        DxuiListView::Cell  value = { Widen (watch.value) };
+
+        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
+        //  one's address is in the color the code pane draws addresses in.
+        name.dim  = !watch.enabled;
+        value.dim = !watch.enabled;
+        name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
+
+        if (watch.enabled && watch.basicName.empty())
+        {
+            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, GetTextColors());
+
+            //  The #n before it is the watch's number, not an immediate.
+            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
+        }
+
+        if (m_stopChanges.IsChanged (std::format ("W:{}", watch.id)))
+        {
+            value.argb = GetChangedArgb();
+        }
+
+        value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
+                                              value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
+
+        name.check = watch.enabled;
+        rows.push_back ({ name, value });
+        m_watchRows.push_back ({ WatchRowKind::Manual, watch.id });
+    }
+
+
+    //  The zero-page pointers under their own heading: each the zero-page
+    //  address, then the address its two bytes form and the bytes there.
+    if (!m_snapshot->zeroPagePointers.empty())
+    {
+        rows.push_back (MakeWatchHeading (L"Zero-page pointers"));
+        m_watchRows.push_back ({ WatchRowKind::Heading, 0 });
+
+        for (const DebuggerViewSnapshot::WatchLine & pointer : m_snapshot->zeroPagePointers)
+        {
+            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
+            DxuiListView::Cell  value = { Widen (pointer.value) };
+
+            name.check = pointer.enabled;
+            name.dim   = !pointer.enabled;
+            value.dim  = !pointer.enabled;
+            rows.push_back ({ name, value });
+            m_watchRows.push_back ({ WatchRowKind::ZeroPage, pointer.id });
+        }
+    }
+
+    //  Every BASIC variable and array element, under a heading a click
+    //  expands or collapses.
+    if (isInProgram)
+    {
+        std::vector<DxuiListView::Cell>  heading = MakeWatchHeading (std::format (L"{} BASIC variables",
+                                                                                 m_isBasicVariablesExpanded ? s_kpszTriangleDown : s_kpszTriangleRight));
+
+
+
+        rows.push_back (heading);
+        m_watchRows.push_back ({ WatchRowKind::BasicHeading, 0 });
+
+        for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*m_snapshot->basic) : std::vector<BasicWatches::Item>())
+        {
+            rows.push_back ({ BasicWatches::MakeNameCell (item.name), { Widen (item.value) } });
+            m_watchRows.push_back ({ WatchRowKind::BasicItem, 0 });
+        }
+    }
+
+    //  As in Visual Studio, the last row adds a watch: an expression typed
+    //  into it in place becomes one.
+    {
+        DxuiListView::Cell  prompt = { L"Add item to watch" };
+
+        prompt.dim    = true;
+        prompt.face   = DxuiTheme::kBodyFace;
+        prompt.weight = DxuiFontWeight::Italic;
+        rows.push_back ({ prompt, { L"" } });
+        m_watchRows.push_back ({ WatchRowKind::Add, 0 });
+    }
+
+    m_watchList->SetRows (std::move (rows));
 }
 
 
@@ -7527,7 +8563,14 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
 
     what = m_watchRows[(size_t) row];
 
-    if (what.kind == WatchRowKind::Heading || (what.kind == WatchRowKind::Automatic && column == 0))
+    if (what.kind == WatchRowKind::BasicHeading)
+    {
+        m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
+        ApplyWatches();
+        return;
+    }
+
+    if (what.kind == WatchRowKind::Heading || what.kind == WatchRowKind::BasicItem || (what.kind == WatchRowKind::Automatic && column == 0))
     {
         return;
     }
@@ -7551,9 +8594,17 @@ void DebuggerWindow::BeginWatchEdit (int row, int column)
     {
         for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
         {
+            //  A BASIC watch's value is the program's to change.
+            if (watch.id == what.index && column != 0 && !watch.basicName.empty())
+            {
+                return;
+            }
+
             if (watch.id == what.index)
             {
-                text = (column == 0) ? std::format (L"{:04X}", watch.address) : Widen (watch.value);
+                text = (column != 0)              ? Widen (watch.value)
+                     : watch.basicName.empty()    ? std::format (L"{:04X}", watch.address)
+                     :                              Widen (watch.basicName);
             }
         }
     }
@@ -7609,6 +8660,8 @@ void DebuggerWindow::EndWatchEdit (bool commit)
         std::string  expression = TextEncoding::WideToNarrow (typed);
 
         expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
+
+        expression.erase (expression.find_last_not_of (" \t") + 1);
 
         if (!expression.empty())
         {
@@ -7851,6 +8904,7 @@ void DebuggerWindow::KeepOpenViews()
     text += m_documents.Format (nameOf);
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
     text += BreakpointColumns::FormatShown (m_breakpointShown);
+    text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
 
     if (!text.empty() && text.front() == ' ')
     {
@@ -7865,6 +8919,7 @@ void DebuggerWindow::KeepOpenViews()
         views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
         m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
+        m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
 
         SetBreakpointColumns();
 
@@ -8262,6 +9317,7 @@ void DebuggerWindow::SubmitCommandBox()
     }
 
     m_consoleHistory.Add (typed);
+    SaveConsoleHistory();
 
     //  Running a command shows its output, however far back the console was
     //  scrolled.
@@ -8338,7 +9394,7 @@ std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) c
 
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        if (reg.name == name && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
+        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
         {
             return (Byte) value;
         }
@@ -8377,7 +9433,7 @@ void DebuggerWindow::EditRegister (int row, bool onFlags)
     name  = m_snapshot->registers[(size_t) row].name;
     value = GetRegisterByte (name);
 
-    if (name == DebuggerViewState::kCyclesRegister)
+    if (DebuggerViewState::IsReadOnlyRegister (name))
     {
         return;
     }
@@ -8655,7 +9711,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -8711,6 +9767,9 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
     m_operandColorTip = nullptr;
 
+    //  Only the P register's flags color their lines.
+    tip.SetLineColors ({});
+
     if (IsAnyMenuOpen())
     {
         tip.HideImmediate();
@@ -8758,6 +9817,16 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         barTip = m_heatRangeBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
+    //  And the event logs'.
+    for (auto [log, logPane] : { std::pair { &m_diskLog, DebuggerLayout::kDiskLog }, std::pair { &m_inputLog, DebuggerLayout::kInputLog } })
+    {
+        if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (logPane) &&
+            log->bar != nullptr && log->bar->IsVisible())
+        {
+            barTip = log->bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        }
+    }
+
     //  And the registers, stack and watch panes'.
     for (const PaneUndoBar & each : m_undoBars)
     {
@@ -8766,6 +9835,13 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         {
             barTip = each.bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
         }
+    }
+
+    //  And the profiler's.
+    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) &&
+        m_profilerBar != nullptr && m_profilerBar->IsVisible())
+    {
+        barTip = m_profilerBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And the console's.
@@ -8843,7 +9919,7 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
             return;
         }
 
-        tip.SetMonospace   (true);
+        tip.SetMonospace   (false);
         tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
@@ -8860,13 +9936,24 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         p = GetRegisterByte ("P");
     }
 
-    //  A tip of its own over a colored cell says what the color means as well.
+    //  Over P's flags, a line for each flag, a flag that changed since the
+    //  last stop in the changed color, as its letter is in the cell.
     if (p.has_value())
     {
+        uint32_t               changed = m_stopChanges.GetChangedBits ("R:P");
+        std::vector<uint32_t>  colors;
+
+
+
+        for (const FlagsDialog::Flag & flag : FlagsDialog::GetFlags())
+        {
+            colors.push_back ((changed & flag.bit) != 0 ? GetChangedArgb() : 0);
+        }
+
         OffsetRect (&cell, bounds.left, bounds.top);
-        (void) TryGetCellTip (clientPx, spot, colorTip);
-        tip.SetMonospace (true);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ FlagsDialog::Describe (*p), colorTip }), now);
+        tip.SetMonospace   (false);
+        tip.SetLineColors  (std::move (colors));
+        tip.RequestShow    (cell, FlagsDialog::Describe (*p), now);
         return;
     }
 
@@ -8885,6 +9972,15 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
+    //  Over the profiler's timeline or flame graph, the frame or the routine
+    //  there, at once and following the pointer.
+    if (TryGetProfilerTip (clientPx, text))
+    {
+        tip.SetMonospace   (false);
+        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
+        return;
+    }
+
     //  Over a memory map's strips, the run of pages there and what it is, at
     //  once and following the pointer, as a memory window's byte does.
     if (TryGetMemoryMapTip (clientPx, text))
@@ -8898,11 +9994,21 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     //  means.
     if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
     {
-        cell              = GetColorTipAnchor (cell);
         m_operandColorTip = m_hasOperandTip ? &tip : nullptr;
 
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        //  A sector's hex dump in the Disk II log lines up in columns.
+        tip.SetMonospace (m_diskLog.list->IsVisible() && DxuiDockSite::Contains (m_diskLog.list->GetBounds(), clientPx));
+
+        //  Under the operand tip when there is one, so the two stack.
+        if (m_hasOperandTip)
+        {
+            tip.RequestShow (GetColorTipAnchor (cell), text, now, false);
+        }
+        else
+        {
+            tip.RequestShow  (cell, text, now);
+        }
+
         return;
     }
 
@@ -9938,8 +11044,9 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 //
 //  DebuggerWindow::TryGetCellTip
 //
-//  The tip a list's rows gave the cell under the point, which says what its
-//  color means.
+//  The tip of the cell under the point, which indicates what its color
+//  means, or the tip of the heading under it. Past the last column there is
+//  none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9950,6 +11057,7 @@ bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring 
     RECT                                     bounds = {};
     int                                      row    = -1;
     int                                      column = -1;
+    int                                      right  = 0;
 
 
 
@@ -9969,8 +11077,27 @@ bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
     column = GetColumnAt (list, clientPx.x - bounds.left);
+    right  = list->GetPaneLeadPx() - list->GetLeftPx();
 
-    if (row < 0 || row >= list->GetRowCount() || column < 0)
+    for (size_t c = 0; c < list->GetColumnCount(); c++)
+    {
+        right += list->GetColumnEffectiveWidthPx (c);
+    }
+
+    if (column < 0 || clientPx.x - bounds.left >= right)
+    {
+        return false;
+    }
+
+    if (clientPx.y - bounds.top < list->GetHeaderHeightPx())
+    {
+        text   = list->GetColumnAt ((size_t) column).tip;
+        anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+
+        return !text.empty();
+    }
+
+    if (row < 0 || row >= list->GetRowCount())
     {
         return false;
     }
@@ -10183,16 +11310,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
         }
     });
 
-    //  Every column fits its contents and none stretches, so a pane is as wide
-    //  as what it shows and no wider (FR-026a). The glyph margin alone has a
-    //  set width, since its glyphs are not text a fit could measure; it holds
-    //  the breakpoints and the PC's arrow, and the address follows it.
-    list->SetColumns ({ { L"",            kGutterColumnDip, false, DxuiTextHAlign::Left },
-                        { L"Address",     0, false, DxuiTextHAlign::Left },
-                        { L"Bytes",       0, false, DxuiTextHAlign::Left },
-                        { L"Label",       0, false, DxuiTextHAlign::Left },
-                        { L"Instruction", 0, false, DxuiTextHAlign::Left },
-                        { L"Operand and result", 0, false, DxuiTextHAlign::Left } });
+    DisassemblyCells::Configure (*list);
 
     //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
     //  The rest of the pane is TEXT (FR-076): a drag selects characters, a
@@ -10201,11 +11319,6 @@ void DebuggerWindow::ConfigureCodeList (int view)
     list->SetActivateOnDoubleClick (true);
     list->SetTextSelection         (true);
     list->SetOwnerWindow           (GetHwnd());
-
-    //  The breakpoint column is a glyph margin, as an editor's is, and the
-    //  rows are code on a text view's background.
-    list->SetGlyphCenterDip        (kGlyphCenterDip);
-    list->SetTextViewSurface       (true);
 }
 
 
@@ -10725,7 +11838,7 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::share
 
 uint32_t DebuggerWindow::GetPcMarkerArgb() const
 {
-    return IsDarkTheme() ? 0xFFFFE34D : 0xFFA88300;
+    return DisassemblyCells::GetPcMarkerArgb ((m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000);
 }
 
 
@@ -10849,40 +11962,6 @@ uint32_t DebuggerWindow::GetResultArgb() const
 uint32_t DebuggerWindow::GetAnnotationArgb() const
 {
     return GetTextColors().annotation;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetOperandAndResultCell
-//
-//  What an instruction reads, then what it would leave behind, in one cell:
-//  the result follows the operand after "Result: ", both in the result
-//  color, so it needs no column of its own to push the pane wide.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::Cell DebuggerWindow::GetOperandAndResultCell (const std::string & annotation, const std::string & effect, uint32_t resultArgb)
-{
-    DxuiListView::Cell  cell;
-    std::wstring        result = Widen (effect);
-
-
-
-    cell.text = Widen (annotation);
-
-    if (!result.empty())
-    {
-        result     = SourcePane::kpszResultPrefix + result;
-        cell.text += cell.text.empty() ? L"" : L"  ";
-        cell.colorRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()), resultArgb);
-        cell.text += result;
-    }
-
-    return cell;
 }
 
 
@@ -11032,7 +12111,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
         tip->SetPopupHost (window.GetPopupHost());
         tip->SetTheme     (*m_theme);
         tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
-        tip->SetMonospace (true);
+        tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();
         m_floatTips[kBarFloatKey] = std::move (tip);
     });
@@ -11198,6 +12277,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_openingFocus.OnUserInput();
+        m_stopFocus.OnInput ((m_routingPane.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_routingPane) == DebuggerLayout::kConsole);
         m_lastPressPx = POINT { x, y };
     }
 
@@ -11236,6 +12316,24 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
         {
             EndWatchEdit (true);
+        }
+    }
+
+    //  So does a breakpoint being renamed.
+    if (m_nameEdit.row >= 0)
+    {
+        RECT  box = m_nameEditor->GetBounds();
+
+        if (DxuiDockSite::Contains (box, POINT { x, y }))
+        {
+            m_nameEditor->OnMouse (ev);
+            Invalidate();
+            return true;
+        }
+
+        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+        {
+            EndNameEdit (true);
         }
     }
 
@@ -11333,8 +12431,25 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Then the event logs'.
+    if (RouteEventLogBarMouse (ev))
+    {
+        return true;
+    }
+
     //  Then the registers, stack and watch panes' Undo and Redo.
     if (RouteUndoBarMouse (ev))
+    {
+        return true;
+    }
+
+    //  Then the profiler's, and its flame graph.
+    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) && RouteProfilerBarMouse (ev))
+    {
+        return true;
+    }
+
+    if (RouteFlameGraphMouse (ev))
     {
         return true;
     }
@@ -11460,7 +12575,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         HoverGutter   (ev.positionDip);
         DragPcMarker  (ev.positionDip);
 
-        for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+        for (DxuiTextInput * box : { m_commandBox, m_memoryBox, m_diskTrackBox, m_diskSectorBox })
         {
             if (IsRoutable (box))
             {
@@ -11491,6 +12606,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             m_callStackButton->SetMouse (x, y, m_callStackButton->HitTest (x, y) && lbDown);
         }
 
+        //  The trace's key hints light under the pointer.
+        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
+        {
+            Invalidate();
+        }
+
         return true;
 
     case DxuiMouseEventKind::Down:
@@ -11501,6 +12622,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (ClickGutter (ev))
         {
+            return true;
+        }
+
+        //  A trace key hint is a button; the keys stay with the trace's rows.
+        if (IsRoutable (m_traceHint) && m_traceHint->IsVisible() && m_traceHint->OnMouse (ev))
+        {
+            SetFocusedControl (m_traceList);
+            Invalidate();
             return true;
         }
 
@@ -11532,6 +12661,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left && DropPcMarker (ev))
         {
+            return true;
+        }
+
+        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
+        {
+            Invalidate();
             return true;
         }
 
@@ -11659,13 +12794,30 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
     if (pane == DebuggerLayout::kRegisters)   { return { m_undoBars[kRegisterUndoBar].slot.get(), m_registerList, m_registerEditor, m_undoBars[kRegisterUndoBar].bar }; }
-    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar }; }
+    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar, m_nameEditor }; }
     if (pane == DebuggerLayout::kWatches)     { return { m_undoBars[kWatchUndoBar].slot.get(), m_watchList, m_watchEditor, m_undoBars[kWatchUndoBar].bar }; }
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
     if (pane == DebuggerLayout::kHeatMap)     { return { m_heatMapBarSlot.get(), m_heatMapView, m_heatMapBar, m_heatViewBar }; }
     if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }
+    if (pane == DebuggerLayout::kDiskLog)     { return { m_diskLog.slot.get(), m_diskLogError, m_diskLog.list, m_diskLog.bar, m_diskTrackBox, m_diskSectorBox }; }
+    if (pane == DebuggerLayout::kInputLog)    { return { m_inputLog.slot.get(), m_inputLog.list, m_inputLog.bar }; }
+
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        return { GetBasicList (pane) };
+    }
+
+    if (pane == DebuggerLayout::kProfiler)
+    {
+        return { m_profilerSlot.get(), m_profileTimeline, m_profilerList, m_flameGraph, m_profilerBar };
+    }
+
+    if (GetToolList (pane) != nullptr)
+    {
+        return { GetToolList (pane) };
+    }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
     {
@@ -11737,6 +12889,21 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_heatRangeFrame.get();
     }
 
+    if (GetEventLogOf (pane) != nullptr)
+    {
+        return GetEventLogOf (pane)->frame.get();
+    }
+
+    if (DebuggerLayout::IsBasicPane (pane))
+    {
+        return GetBasicFrame (pane);
+    }
+
+    if (GetToolFrame (pane) != nullptr)
+    {
+        return GetToolFrame (pane);
+    }
+
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -11793,6 +12960,13 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kTrace)       { return L"Trace";       }
     if (pane == DebuggerLayout::kHeatMap)     { return L"Heat map";    }
     if (pane == DebuggerLayout::kHeatRanges)  { return L"Heat map ranges"; }
+    if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
+    if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
+    if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
+    if (pane == DebuggerLayout::kSymbols)        { return L"Symbols";         }
+    if (pane == DebuggerLayout::kBookmarks)      { return L"Bookmarks";       }
+    if (pane == DebuggerLayout::kProfiler)       { return L"Profiler";        }
+    if (pane == DebuggerLayout::kDataBlocks)     { return L"Data ranges";     }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {
@@ -12271,6 +13445,19 @@ void DebuggerWindow::SyncFloats()
 
 void DebuggerWindow::OnWindowFocusChanged (bool focused)
 {
+    //  Input in another window comes next, so the console did not receive
+    //  the last of it; a click or key routed back from a floating console
+    //  marks it again.
+    if (!focused)
+    {
+        m_stopFocus.OnInput (false);
+
+        //  The pointer can move off the timeline while another window is
+        //  active, and the strip then gets no OnMouseLeave, so it is called
+        //  here.
+        m_timelineStrip.OnMouseLeave();
+    }
+
     m_accentOwner.OnMainFocusChanged (focused);
     ShowFocusAccent();
     Invalidate();
@@ -13258,13 +14445,28 @@ bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
 
 bool DebuggerWindow::RouteTraceKey (const DxuiKeyEvent & ev)
 {
+    return RunTraceAction ((int) TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunTraceAction
+//
+//  A trace key's action, from the key or a click on its hint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RunTraceAction (int action)
+{
     using Action = DebuggerKeySchemes::Action;
 
-    TracePane::KeyAction  action = TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift);
 
 
-
-    switch (action)
+    switch ((TracePane::KeyAction) action)
     {
     case TracePane::KeyAction::StepInto:    return OnMappedCommand ((int) Action::StepInto);
     case TracePane::KeyAction::StepOver:    return OnMappedCommand ((int) Action::StepOver);
@@ -13413,6 +14615,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {
         m_openingFocus.OnUserInput();
+        m_stopFocus.OnInput (GetPaneOfFocus() == DebuggerLayout::kConsole);
     }
 
     //  A key can scroll, step or resize what the operand tip lies over, so
@@ -13426,6 +14629,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  stays where it was.
     if (m_routingPane.empty() && m_dockSite->OnDragKey (ev))
     {
+        return true;
+    }
+
+    //  The second key of a chord goes to the key scheme before any box or
+    //  list, so the 1 of Ctrl+Alt+M, 1 opens Memory 1 rather than typing,
+    //  and the character it would type goes too.
+    if (ev.kind == DxuiKeyEventKind::Down && IsKeyPrefixPending())
+    {
+        m_swallowChordChar = ev.vk != VK_CONTROL && ev.vk != VK_MENU && ev.vk != VK_SHIFT;
+        (void) RouteMappedKey (ev);
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Char && m_swallowChordChar)
+    {
+        m_swallowChordChar = false;
         return true;
     }
 
@@ -13490,6 +14709,22 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  So does a breakpoint being renamed.
+    if (m_nameEdit.row >= 0)
+    {
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+        {
+            EndNameEdit (ev.vk == VK_RETURN);
+        }
+        else
+        {
+            m_nameEditor->OnKey (ev);
+        }
+
+        Invalidate();
+        return true;
+    }
+
     //  So does a stack byte or a register being edited.
     if (m_valueEdit.row >= 0)
     {
@@ -13516,6 +14751,13 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && ev.shift && !ev.ctrl && !ev.alt && ClosePaneOfFocus())
     {
+        return true;
+    }
+
+    //  F2 renames the selected breakpoint, as in Visual Studio.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_breakpointList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    {
+        BeginNameEdit (m_breakpointList->GetSelectedRow());
         return true;
     }
 
@@ -13569,6 +14811,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down && focused == m_registerList && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y'))
     {
         UndoRegisterEdit (ev.vk == 'Y');
+        return true;
+    }
+
+    //  Ctrl+C in an event log copies its selected rows.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'C' && CopyEventLog (focused, false))
+    {
         return true;
     }
 
@@ -13644,7 +14892,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  floating window keeps its own focused flag after a click back here.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return (focused == m_commandBox || focused == m_memoryBox) && focused->OnKey (ev);
+        return (focused == m_commandBox || focused == m_memoryBox || focused == m_diskTrackBox || focused == m_diskSectorBox) && focused->OnKey (ev);
     }
 
     //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).

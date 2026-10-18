@@ -14,6 +14,7 @@
 #include "../Dxui/MockDxuiTheme.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -259,6 +260,61 @@ namespace DebuggerReviewPolishTests
             Assert::AreEqual  ((uint32_t) theme.Foreground(), desc->argb, L"what it does in the text color");
             Assert::IsTrue    (next->x - (desc->x + 9.0f * 7.0f) >= KeyHintLine::kPairGapDip, L"a wide space before the next pair");
             Assert::AreEqual  (TracePane::GetKeyHint(), line.GetText(), L"the label's text is the whole line");
+        }
+
+
+        //  Each pair is a button: a press and release over it picks its
+        //  action, and a release over another pair picks nothing.
+        TEST_METHOD (APairClickedPicksItsAction)
+        {
+            KeyHintLine               line;
+            MockDxuiPainter           painter;
+            MockDxuiTextRenderer      text;
+            MockDxuiTheme             theme;
+            DxuiDpiScaler             scaler;
+            std::vector<int>          picked;
+            const RecordedTextCall  * over   = nullptr;
+            const RecordedTextCall  * run    = nullptr;
+            DxuiMouseEvent            ev;
+
+
+
+            scaler.SetDpi (96);
+            line.SetPairs  (TracePane::GetKeyPairs());
+            line.SetOnPick ([&picked] (int id) { picked.push_back (id); });
+            line.Layout    (RECT { 0, 0, 2000, 20 }, scaler);
+            line.Paint     (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.text == L"step over") { over = &call; }
+                if (call.text == L"run")       { run  = &call; }
+            }
+
+            Assert::IsNotNull (over);
+            Assert::IsNotNull (run);
+
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (LONG) over->x + 2, 10 };
+
+            ev.kind = DxuiMouseEventKind::Down;
+            Assert::IsTrue (line.OnMouse (ev), L"a press on a pair is the line's");
+
+            ev.kind = DxuiMouseEventKind::Up;
+            Assert::IsTrue (line.OnMouse (ev));
+            Assert::IsTrue (picked == std::vector<int> { (int) TracePane::KeyAction::StepOver }, L"O's action, as the key's");
+
+            ev.kind = DxuiMouseEventKind::Down;
+            (void) line.OnMouse (ev);
+
+            ev.kind        = DxuiMouseEventKind::Up;
+            ev.positionDip = POINT { (LONG) run->x + 2, 10 };
+            (void) line.OnMouse (ev);
+            Assert::AreEqual ((size_t) 1, picked.size(), L"released over another pair, nothing");
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.positionDip = POINT { 1990, 10 };
+            Assert::IsFalse (line.OnMouse (ev), L"a press past the pairs is not the line's");
         }
     };
 
@@ -522,6 +578,59 @@ namespace DebuggerReviewPolishTests
             }
 
             Assert::IsTrue (outlined, L"the box's edge is drawn");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PaneListKeyTests
+    //
+    //  The panes' lists take the arrow keys, so a row is chosen without the
+    //  mouse.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (PaneListKeyTests)
+    {
+    public:
+
+        TEST_METHOD (DownMovesTheSelectionInAFocusedList)
+        {
+            CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
+            PolishHost                                host;
+            PolishWindow                              window   (theme, host);
+            auto                                      snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::AutoWatchLine       a;
+            DebuggerViewSnapshot::AutoWatchLine       x;
+            int                                       before   = 0;
+
+
+
+            a.label = "A";
+            a.value = "00";
+            a.key   = "A";
+            x.label = "X";
+            x.value = "01";
+            x.key   = "X";
+            snapshot->autoWatches = { a, x };
+
+            window.Build();
+            window.TakeSnapshot (snapshot);
+            window.FocusControl (window.GetWatchList());
+            window.GetWatchList()->SetSelectedRow (1);
+
+            before = window.GetWatchList()->GetSelectedRow();
+            window.Chord (VK_DOWN, false, false);
+
+            Assert::AreEqual (before + 1, window.GetWatchList()->GetSelectedRow(), L"Down selects the next row");
+
+            window.Chord (VK_UP, false, false);
+
+            Assert::AreEqual (before, window.GetWatchList()->GetSelectedRow(), L"Up selects the row above");
         }
     };
 }

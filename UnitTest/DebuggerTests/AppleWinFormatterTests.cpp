@@ -323,7 +323,6 @@ namespace DebuggerTests
 
 
 
-            write.index         = 41;
             write.cycles        = 5678;
             write.pc            = 0x0302;
             write.opcode        = 0x8D;
@@ -339,7 +338,6 @@ namespace DebuggerTests
             write.accessAddress = 0x0400;
             write.accessData    = 0x05;
             write.accessSymbol  = "SCREEN";
-            entry.index         = 42;
             entry.cycles        = 5682;
             entry.pc            = 0x0305;
             entry.opcode        = 0xE8;
@@ -355,8 +353,8 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 3, lines.size());
             Assert::AreEqual (std::string ("Trace off, 100000 entries retained."), lines[0]);
-            Assert::AreEqual (std::string ("    41        5678  0302  8D 00 04  START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
-            Assert::AreEqual (std::string ("    42        5682  0305  E8                 INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),
+            Assert::AreEqual (std::string ("        5678  0302  8D 00 04  START    STA $0400      A=00 X=00 Y=00 SP=FF ..RB....  W 0400=05 SCREEN"), lines[1]);
+            Assert::AreEqual (std::string ("        5682  0305  E8                 INX            A=00 X=00 Y=00 SP=00 ........  [interrupt]"),
                               lines[2], L"only the instruction's own byte, not the one after it");
         }
 
@@ -454,10 +452,18 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Page crossing                                   2    6.7%"), Render (profile)[5]);
             Assert::AreEqual ((size_t) 8,                                       Render (profile).size(), L"three penalty rows, even when zero");
             Assert::AreEqual ((size_t) 1,                                       Render (ProfileData()).size());
-            profile.isByAddress  = true;
+            profile.list         = ProfileList::Addresses;
             profile.addresses    = { { 0x0300, "LOOP", 30 } };
             Assert::AreEqual (std::string ("Address Symbol                   Cycles Percent"), Render (profile)[1]);
             Assert::AreEqual (std::string ("$0300   LOOP                         30  100.0%"), Render (profile)[2]);
+            profile.list         = ProfileList::Routines;
+            profile.routines     = { { 0, RoutineKind::Top, "", 12, 30, 0 }, { 0x0310, RoutineKind::Call, "PLOT", 18, 18, 3 } };
+            profile.tree         = { { 0, 0, 12, 30, 0 }, { 1, 1, 18, 18, 3 } };
+            Assert::AreEqual (std::string ("Routine                        Self Percent      Total Percent    Calls Per call"), Render (profile)[1]);
+            Assert::AreEqual (std::string ("Top level                        12   40.0%         30  100.0%        0        -"), Render (profile)[2]);
+            Assert::AreEqual (std::string ("PLOT                             18   60.0%         18   60.0%        3        6"), Render (profile)[3]);
+            profile.list         = ProfileList::Tree;
+            Assert::AreEqual (std::string ("  PLOT                                           18         18   60.0%        3"), Render (profile)[3], L"a callee two spaces in");
             Assert::AreEqual (std::string ("$0041  0z01000001     65  'A'"),             Render (CalcData { 0x41 })[0]);
             Assert::AreEqual (std::string ("$000D  0z00001101     13  ' ' (Ctrl)"),      Render (CalcData { 0x0D })[0]);
             Assert::AreEqual (std::string ("$00C1  0z11000001    193  'A' (High)"),      Render (CalcData { 0xC1 })[0]);

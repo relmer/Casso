@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/IDebugExpressionContext.h"
+
+struct Expression;
+class DebugExpressionEvaluator;
 
 
 
@@ -42,9 +44,10 @@ public:
                               bool                              hasValue,
                               std::string                     & error);
 
-    bool  TryGetRegister   (const std::string & name, Word & value) const override;
-    bool  TryPeek          (Word address, Byte & value) const override;
-    bool  TryResolveSymbol (const std::string & name, Word & address) const override;
+    bool      TryGetRegister    (const std::string & name, Word & value) const override;
+    bool      TryPeek           (Word address, Byte & value) const override;
+    bool      TryResolveSymbol  (const std::string & name, Word & address) const override;
+    uint64_t  GetSymbolRevision (const std::string & name) const override;
 
 private:
     static constexpr Word  kIoFirst = 0xC000;

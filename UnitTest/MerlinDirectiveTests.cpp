@@ -9,6 +9,8 @@
 #include "Assembler.h"
 #include "DialectRegistry.h"
 #include "DialectProfile.h"
+#include "HResultAssert.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -170,7 +172,7 @@ namespace MerlinDirectiveTests
                 text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message;
             }
 
-            wide.assign (text.begin(), text.end());
+            wide = TextEncoding::NarrowToWide (text);
 
             return wide;
         }

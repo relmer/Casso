@@ -6,6 +6,7 @@
 #include "Ui/Debugger/MemoryBarCommands.h"
 
 #include "CppUnitTest.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -104,6 +105,7 @@ namespace DebuggerTests
         using DebuggerWindow::GetFindBox;
         using DebuggerWindow::GetFindControls;
         using DebuggerWindow::IsFindOpen;
+        using DebuggerWindow::IsMemoryBarEnabled;
 
         void  Build()
         {
@@ -230,6 +232,40 @@ namespace DebuggerTests
         }
 
 
+        //  The undo history the window opens with is the machine's the first
+        //  snapshot is from, so that snapshot clears none of it; a later
+        //  change of machine does.
+        TEST_METHOD (ARestoredUndoHistoryOutlastsTheFirstSnapshot)
+        {
+            class RestoringHost : public MemoryBarHost
+            {
+            public:
+                std::string  GetDebuggerWindowState (const std::string & name) override
+                {
+                    return (name == "undo") ? std::string ("memory1=0300:00:A9|\n") : std::string();
+                }
+            };
+
+            CassoTheme                          theme  = CassoTheme::MakeSkeuomorphic();
+            RestoringHost                       host;
+            MemoryBarWindow                     window (theme, host);
+            auto                                other  = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::MemoryWindow  memory;
+
+
+
+            window.Build();
+            Assert::IsTrue  (window.IsMemoryBarEnabled (MemoryBarCommands::kUndo), L"the restored edit is there to undo");
+
+            other->machine  = "Apple2c";
+            other->isPaused = true;
+            memory.id       = 1;
+            other->memoryWindows.push_back (memory);
+            window.TakeSnapshot (other);
+            Assert::IsFalse (window.IsMemoryBarEnabled (MemoryBarCommands::kUndo), L"another machine's snapshot clears it");
+        }
+
+
         TEST_METHOD (EnteredAddressesAreKeptNewestFirstAndOnce)
         {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
@@ -278,7 +314,7 @@ namespace DebuggerTests
                 (void) (window.OnKey (key) || window.RouteMappedKey (key));
             }
 
-            Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : std::wstring (host.lines[0].begin(), host.lines[0].end()).c_str());
+            Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : TextEncoding::NarrowToWide (host.lines[0]).c_str());
         }
 
 

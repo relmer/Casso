@@ -3,6 +3,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/UndoBarCommands.h"
 
 
 

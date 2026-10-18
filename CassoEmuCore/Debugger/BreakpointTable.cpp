@@ -3,6 +3,7 @@
 #include "Debugger/BreakpointTable.h"
 
 #include "Debugger/ConditionContext.h"
+#include "Debugger/DiskCallVector.h"
 #include "Debugger/IDebugExpressionContext.h"
 
 
@@ -109,32 +110,6 @@ int BreakpointTable::AddCondition (const Expression & condition)
 
     entry.kind      = BreakpointKind::Register;
     entry.condition = condition;
-    return Add (entry);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointTable::AddIo
-//
-//  Stored for listing and for the session's watch mask. An I/O access is
-//  reported by the bus, not seen before an instruction, so this entry never
-//  matches in TryMatchBeforeInstruction.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int BreakpointTable::AddIo (Word first, Word last)
-{
-    Breakpoint  entry;
-
-
-
-    entry.kind  = BreakpointKind::Io;
-    entry.first = first;
-    entry.last  = last;
     return Add (entry);
 }
 
@@ -329,6 +304,330 @@ bool BreakpointTable::TrySetFlags (int id, bool temporary, bool stops)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TrySetSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetName (int id, const std::string & name)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->name = name;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TrySetSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetSymbol (int id, const std::string & symbol)
+{
+    bool  isFound = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.symbol = symbol;
+            isFound      = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMove
+//
+//  The entry starts at first, its range the same length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMove (int id, Word first)
+{
+    bool  isFound = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (entry.id == id)
+        {
+            entry.last  = (Word) (first + (entry.last - entry.first));
+            entry.first = first;
+            isFound     = true;
+        }
+    }
+
+    RebuildAddressBits();
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddDisk
+//
+//  The condition is the user's IF alone: an RWTS or driver breakpoint's
+//  request is in its spec, never in its condition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddDisk (const DiskBreakSpec & spec, const Expression & condition)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind      = BreakpointKind::Disk;
+    entry.disk      = spec;
+    entry.condition = condition;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddBasicLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicLine (Word line)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind  = BreakpointKind::BasicLine;
+    entry.first = line;
+    entry.last  = line;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddBasicVariable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicVariable (const std::string & name)
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind      = BreakpointKind::BasicVariable;
+    entry.basicName = name;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::AddBasicError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointTable::AddBasicError()
+{
+    Breakpoint  entry;
+
+
+
+    entry.kind = BreakpointKind::BasicError;
+    return Add (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMatchBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId)
+{
+    bool  isHit = false;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        if (!entry.enabled || !entry.IsBasic() || !isMatch (entry))
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops || isHit)
+        {
+            continue;
+        }
+
+        hitId = entry.id;
+        isHit = true;
+        m_lastConditionValue.reset();
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsBasicStop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsBasicStop (const std::function<bool (const Breakpoint &)> & isMatch) const
+{
+    return std::ranges::any_of (m_entries, [&] (const Breakpoint & entry) { return entry.enabled && entry.stops && entry.IsBasic() && isMatch (entry); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TrySetResolved
+//
+//  An RWTS or driver breakpoint's routine: the address its vector has now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetResolved (int id, std::optional<Word> routine)
+{
+    auto  found = std::find_if (m_entries.begin(), m_entries.end(), [id] (const Breakpoint & entry) { return entry.id == id; });
+    bool  isCall = found != m_entries.end() && found->IsDiskCall();
+
+
+
+    if (isCall)
+    {
+        found->resolved = routine;
+    }
+
+    return isCall;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryMatchDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryMatchDisk (
+    const std::function<bool (const Breakpoint &)> & isMatch,
+    const IDebugExpressionContext                   & context,
+    int                                             & hitId,
+    std::optional<int32_t>                          & conditionValue)
+{
+    bool                    isHit = false;
+    std::optional<int32_t>  entryValue;
+
+
+
+    for (Breakpoint & entry : m_entries)
+    {
+        bool  isTarget = entry.enabled && entry.kind == BreakpointKind::Disk && isMatch (entry);
+
+
+
+        if (!isTarget || !ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, entryValue))
+        {
+            continue;
+        }
+
+        ++entry.hits;
+
+        if (!entry.stops || isHit)
+        {
+            continue;
+        }
+
+        hitId          = entry.id;
+        conditionValue = entryValue;
+        isHit          = true;
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::IsDiskStop
+//
+//  TryMatchDisk for a replay of history: no hit is counted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::IsDiskStop (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const
+{
+    std::optional<int32_t>  entryValue;
+
+
+
+    return std::any_of (m_entries.begin(), m_entries.end(), [&] (const Breakpoint & entry)
+    {
+        return entry.enabled && entry.stops && entry.kind == BreakpointKind::Disk && isMatch (entry) &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, entryValue);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::AddCopy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,6 +664,34 @@ bool BreakpointTable::TryAdopt (const Breakpoint & entry)
     }
 
     m_entries.push_back (entry);
+    std::sort (m_entries.begin(), m_entries.end(), [] (const Breakpoint & a, const Breakpoint & b) { return a.id < b.id; });
+    RebuildAddressBits();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointTable::TryChangeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TryChangeId (int from, int to)
+{
+    Breakpoint  existing;
+    auto  found = std::ranges::find_if (m_entries, [from] (const Breakpoint & entry) { return entry.id == from; });
+
+
+
+    if (found == m_entries.end() || (from != to && TryFind (to, existing)))
+    {
+        return false;
+    }
+
+    found->id = to;
     std::sort (m_entries.begin(), m_entries.end(), [] (const Breakpoint & a, const Breakpoint & b) { return a.id < b.id; });
     RebuildAddressBits();
     return true;
@@ -418,7 +745,8 @@ bool BreakpointTable::HasEnabledStopCondition() const
 //  BreakpointTable::TryMatchBeforeInstruction
 //
 //  Two passes keep the order of precedence: address entries first, through
-//  the bitmap, then every other kind.
+//  the bitmap, then every other kind. A disk entry other than a call stops
+//  only after an event, so it is passed over here without a test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -439,15 +767,16 @@ bool BreakpointTable::TryMatchBeforeInstruction (
         for (Breakpoint & entry : m_entries)
         {
             bool  isAddressKind = entry.kind == BreakpointKind::Address;
+            bool  isDiskEvent   = entry.kind == BreakpointKind::Disk && !entry.IsDiskCall();
 
 
 
-            if (!entry.enabled || isAddressKind != (pass == 0))
+            if (!entry.enabled || isAddressKind != (pass == 0) || isDiskEvent)
             {
                 continue;
             }
 
-            if (TryMatchEntry (entry, pc, opcode, context, conditionValue))
+            if (TryMatchEntry (entry, entry.resolved, pc, opcode, context, conditionValue))
             {
                 ++entry.hits;
 
@@ -568,7 +897,8 @@ bool BreakpointTable::TryMatchWrite (
 bool BreakpointTable::IsStopBefore (
     Word                            pc,
     std::optional<Byte>             opcode,
-    const IDebugExpressionContext & context) const
+    const IDebugExpressionContext & context,
+    const std::map<int, Word>     * routines) const
 {
     std::optional<int32_t>  conditionValue;
 
@@ -576,7 +906,15 @@ bool BreakpointTable::IsStopBefore (
 
     for (const Breakpoint & entry : m_entries)
     {
-        if (entry.enabled && entry.stops && TryMatchEntry (entry, pc, opcode, context, conditionValue))
+        auto                 found       = (routines != nullptr) ? routines->find (entry.id) : std::map<int, Word>::const_iterator();
+        std::optional<Word>  routine     = (routines == nullptr) ? entry.resolved
+                                         : (found != routines->end()) ? std::optional<Word> (found->second)
+                                         :                              std::nullopt;
+        bool                 isDiskEvent = entry.kind == BreakpointKind::Disk && !entry.IsDiskCall();
+
+
+
+        if (entry.enabled && entry.stops && !isDiskEvent && TryMatchEntry (entry, routine, pc, opcode, context, conditionValue))
         {
             return true;
         }
@@ -628,12 +966,15 @@ bool BreakpointTable::IsStopOnWrite (
 //  BreakpointTable::TryMatchEntry
 //
 //  An address entry's IF expression is evaluated only once PC is in its
-//  range, so a false one costs nothing elsewhere.
+//  range, so a false one costs nothing elsewhere. An RWTS or driver entry
+//  matches at its routine when the call's request equals its spec's, and
+//  only then is its IF expression evaluated.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BreakpointTable::TryMatchEntry (
     const Breakpoint              & entry,
+    std::optional<Word>             routine,
     Word                            pc,
     std::optional<Byte>             opcode,
     const IDebugExpressionContext & context,
@@ -660,6 +1001,10 @@ bool BreakpointTable::TryMatchEntry (
     case BreakpointKind::Register:
         hr = DebugExpressionEvaluator::Evaluate (entry.condition, context, value, error);
         return SUCCEEDED (hr) && value != 0;
+
+    case BreakpointKind::Disk:
+        return entry.IsDiskCall() && routine == pc && DiskCallVector::IsRequestMatch (*entry.disk, context) &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, conditionValue);
 
     default:
         return false;

@@ -29,7 +29,7 @@ private:
     static constexpr Byte  kStackTop  = 0xFF;
     static constexpr Word  kMaxByte   = 0xFF;
 
-    static void  ShowRegisters (IDebugTarget & target, Reply & reply);
+    static void  ShowRegisters (IDebugTarget & target, const std::string & only, Reply & reply);
     static void  SetRegister   (IDebugTarget & target, const DebugCommand & command, Reply & reply);
     static void  ChangeFlag    (IDebugTarget & target, const DebugCommand & command, bool isSet, Reply & reply);
     static void  Pop           (IDebugTarget & target, bool isWord, Reply & reply);

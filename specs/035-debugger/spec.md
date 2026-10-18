@@ -106,7 +106,7 @@ competitors in the parts a user sees first would waste the launch.
 - Q: How does an auto-hidden pane open? -> A: Its edge tab is a button: a click slides the pane out over the others, which do not move, and a second click slides it back; a hover does nothing.
 - Q: What does the selected tab look like? -> A: As Visual Studio's: it opens into its pane with no line between them, flared into the pane's border and rounded at the far corners; the pane's border runs on round it, in the accent color while the group has focus.
 - Q: Which commands does help list? -> A: Only what can be typed in the dialect in force, written as it is typed. Each dialect lists its own commands, then the Casso commands it has no equivalent for, all of which run from it -- DISK among them in GSSquared. A new Casso dialect holds Casso's complete native set. Every help uses one layout: by category, alphabetical within each, syntax then description.
-- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out.
+- Q: What should the Breakpoints pane be? -> A: Visual Studio's Breakpoints window: a checkbox and mark per row, chosen columns, and a toolbar -- New (address, function, data, register condition, opcode, I/O), Delete, Delete all, Enable all, Disable all, Undo, Redo, Go to source code, Go to disassembly, Show columns, Export and Import. Visual Studio's labels, filters, search box, and process and language columns are left out. (The column drop-down moved to the column headings' context menu 2026-10-14, FR-118.)
 
 ### Session 2026-10-08 (disk breakpoints)
 
@@ -120,7 +120,98 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-10-08 (Breakpoints pane columns)
 
-- Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, with Name, Condition, Hit count and Kind shown by default (owner decision 2026-10-08, confirming the layout as built). The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what sort of breakpoint a row is, a disk breakpoint's event among them. Symbol sits after Kind rather than where Labels was, between Condition and Hit count: the build put it there, and the owner kept it. A column choice saved before the change keeps its columns, with Labels as Symbol, and shows Kind; whether such a choice shows Kind is still the owner's to confirm (T736).
+- Q: Which columns does the Breakpoints pane have? -> A: Name, Condition, Hit count, Kind, Symbol, When hit, Function, File, Address and Data, in that order, with Name, Condition, Hit count and Kind shown by default (owner decision 2026-10-08, confirming the layout as built), and Trigger after Kind, also shown by default (owner decision 2026-10-08, later the same day). The owner asked for a Kind column, for Visual Studio's Filter, always empty in Casso, to be dropped, and for Labels to become Symbol, since it shows the one symbol at the address. Kind gives what a row's breakpoint watches and Trigger what about it stops the machine, so neither needs long values ("Memory" and "Read or write" rather than "Data read or write"); a breakpoint on a source line is an Execution breakpoint like any other, its File column giving the line. Symbol sits after Kind rather than where Labels was, between Condition and Hit count: the build put it there, and the owner kept it. A column choice saved before the change keeps its columns, with Labels as Symbol, and shows Kind; whether such a choice shows Kind is still the owner's to confirm (T736).
+
+### Session 2026-10-09 (owner review: projects, Applesoft, UI reach)
+
+- Q: Is all debugger state kept between sessions? -> A: Yes, in a debug project, as a Visual Studio solution keeps it, in the first release (moved out of the follow-on list). The right project is recognized and loaded with no user action, from the most specific signal known: a loaded debug or symbol file; else a binary the debugger loaded; else the machine and its boot configuration (the disk in drive 1 at power-on), accepted although it can be broader than the program. It saves itself as the user works, as Visual Studio and Mesen2 do, and is never in an unsaved state; Save project as and Open project handle named copies. Mesen2 keeps an automatic workspace per ROM; FCEUX a file per ROM; MAME only comments; AppleWin, VICE, Stella and GSSquared were found to keep none.
+- Q: How are breakpoints named? -> A: The Name column is editable (F2, a double-click, or Rename). A name set in the window, or in any mode but AppleWin, persists through the debug project. A console naming command serves AppleWin-mode users; AppleWin's own save and load commands keep AppleWin's formats, which hold no names.
+- Q: Which high-level languages are debugged at source level? -> A: Applesoft BASIC in the first release; Integer BASIC with SWEET16, Apple Pascal, Forth, Logo and the Applesoft compilers later, one spec each, in order of popularity (follow-on-spec-input.md item 7). C from cc65 debug files is already stepped at source level; its source view gains syntax coloring.
+- Q: Does every console command need a way in from the window? -> A: Yes, unless it is console-only by nature. The audit is ui-entry-point-audit.md; the owner kept the entries FR-180 to FR-198 list and dropped LOAD and SAVE of the debugger configuration (debug projects replace them), IN and OUT, TSAVE, BUDGET, TF, the Monitor ROM idioms (I, N, IN#, PR#, BASIC cold and warm start, Ctrl-Y), and BENCHMARK, which is removed.
+- Q: What is the "(+3)" after the cycle count? -> A: The cycles since the stop before, which a step's own cost usually is. The disassembly's result annotation also gives the cycles the instruction on that row will take.
+- Q: Are the trace pane's next-instruction rows meant to show while tracing is off? -> A: Yes, as User Story 19 has them; the owner may revisit.
+- Q: Is there a heat map range set to start from? -> A: Yes, one called Default holding the built-in ranges, enabled.
+
+### Session 2026-10-10 (owner review: one source of debug events, shell separation)
+
+- Q: Where do debug views get their events? -> A: From recorded history alone, the single source; each view of past activity is computed by replaying history with that view's probe, as the heat map and call stack already are. A view may keep the newest events the running machine produces, but only as a cache: always recording, cut back on rewind, never a second record (FR-210 to FR-212).
+- Q: What becomes of the emulator's Disk II and Input debug windows? -> A: They are replaced by debugger panes reimplemented from their features, not moved: a Disk II event log and an input log, live and as deep as history, stamped in cycles; the features are listed first and each kept, changed or dropped with the owner (FR-213 to FR-217).
+- Q: Do the video and sound logs and the trace buffer change? -> A: Yes, they follow the same rule (FR-198 amended).
+- Q: Does the debugger stay inside the emulator's shell? -> A: No; it becomes one component the shell holds through a narrow interface, as does input, with no measurable cost to emulation speed and host time (FR-218, SC-052).
+
+### Session 2026-10-12 (owner: automatic save and resume of machine states)
+
+- Q: Can a machine continue across a restart of Casso? -> A: Yes, with a setting on the General page, "Automatically save the machine state at exit and resume at startup", on by default. Each machine kind has its own automatic state, saved at exit and on switching away from that machine, and resumed at startup or on switching to it (FR-219 to FR-221).
+- Q: What if the automatic state cannot be resumed? -> A: A notice with the reason appears, the machine starts cold, and the file is not modified; the next automatic save replaces it (FR-222).
+- Q: What does a launch with disks or a tape on the command line do? -> A: It starts cold with the command line's media, so the automatic state is not resumed. At exit the existing automatic state is replaced only if the user chooses to replace it, in a prompt with that state's date and time and a thumbnail of its screen. A command line with only a machine option resumes that machine (FR-223).
+- Q: Where do state files go? -> A: %LOCALAPPDATA%\Casso\SavedState\ by default, the automatic states included; the Save state and Load state dialogs open there (FR-225). Every state file includes when it was saved and a thumbnail of its screen (FR-224).
+- Q: Does a newer Casso load a state an older one saved? -> A: Yes, from the first release that ships state files on, for the same machine kind and ROM images; a fixture test of saved states from each release guards it (FR-226, SC-059).
+
+### Session 2026-10-13 (owner review: DISASM, disassembly annotations)
+
+- Q: Does Casso support AppleWin's DISASM settings? -> A: No. The disassembly view takes its options from its own check boxes, and DISASM's settings (BRANCH, CLICK, COLON, OPCODE, POINTER, SPACES, TARGET) set the layout of AppleWin's text console, which the view does not have. DISASM is reported as not available, as other AppleWin commands with no meaning in Casso are; the view's options are set by its check boxes and the Disassembly tab of Tools > Options (FR-200, FR-228).
+- Q: Which rows have a branch's direction and an instruction's cycles? -> A: The PC's row only. Its branch has a glyph for the way it goes, and its result annotation has the cycles the instruction will take with the current registers, a taken or not-taken branch and a page crossing counted (FR-201, FR-202).
+- Q: What does the debugger's Tools > Options have? -> A: Tabs, as Casso's Settings sheet has: History, with recording on or off and the memory history may use as a slider from 1 MB to the lower of 90% of the memory available and the memory available less 4 MB, in 1 MB steps with about ten tick marks; and Disassembly (FR-227).
+- Q: Which options does the Disassembly tab have? -> A: A check box for each: the toolbar's Addresses, Code bytes, Source, Symbols and Line numbers, the same settings as the toolbar's; and Operand values, Pointers and Branch arrow, on by default, and Address colon, off by default. AppleWin's SPACES is not offered, since packed opcode bytes misread as one little-endian number (FR-228).
+- Q: Where is the keyboard focus when the machine stops? -> A: In the console only if the console received the last input: a command typed there, or a click in it. A click or key anywhere else in the debugger, or another window taking the focus, means the stop moves the focus from the console to the disassembly view with the PC (FR-229).
+- Q: How large can the History slider go, and how is its estimate written? -> A: No larger than the memory a busy program fills in about 48 hours (7649 MB at the measured rate), besides the 90% and available-less-4-MB limits. The estimate is in minutes below two hours and in hours from two hours on, such as "95 minutes to 3 hours" (FR-227).
+- Q: How does the Disassembly tab show what its check boxes do? -> A: A live preview under them: a short sample program drawn as a disassembly view draws it, with source lines, symbols, an indirect load with its pointer and operand value, and the PC on a taken branch with its arrow, following every check box as set in the dialog (FR-228).
+- Q: What size does the Options dialog open at? -> A: Large enough for its largest tab, within the work area of the monitor it opens on, and placed with no part off that monitor or under the taskbar; a tab scrolls only when the monitor is too small for it (FR-227).
+- Q: Are hidden columns padded with spaces, and is source text reformatted? -> A: Neither. A hidden column is removed, as in Visual Studio, and a source line is shown as written in its file, with only tabs expanded to every fourth column (FR-228).
+- Q: Can the disassembly set source rows and instruction rows apart? -> A: Yes: an option dims Source lines, Disassembly lines, or Neither while the view has source rows, Disassembly lines by default. With no source rows nothing is dimmed, and the PC's row is never dimmed (FR-230).
+- Q: How is the History estimate worked out, now that history grows at very different rates? -> A: From the recording's own rate once it covers 30 emulated seconds; before that, as a range from the busiest measured program (a loop redrawing the whole hi-res screen, 69,540 bytes a second) to the idlest (the DOS prompt, 694). The 48-hour cap uses the busiest rate. Tabs in source lines expand to every fourth column (FR-227, FR-228).
+
+### Session 2026-10-14 (owner review: event log panes)
+
+- Q: What is the PC line's result for an instruction that reads I/O? -> A: The value a side-effect-free device peek returns: a device whose soft switch can be read without operating it (paddle timers, buttons, keyboard data, status reads) is peeked, so the result for LDA PADDL0,X has A, its flags and its cycles. A switch whose read operates the machine (PTRIG, the Disk II, the speaker) is not peeked; whatever its value feeds is written as "?", and the rest of the result, the cycles and the PC among it, is written in full. I/O in the memory panes is unreadable, as it is today (FR-111).
+- Q: Which switch's title and description go with an indexed I/O operand? -> A: Those of the switch at the address the instruction touches, after indexing: LDA PADDL0,X with X=1 gets paddle 1's (FR-112).
+- Q: Should an indexed operand's annotation write out the index arithmetic, as `$65+X=$0066`? -> A: No. The annotation of INC $65,X is `X=01 $0066=0D` (FR-078).
+- Q: Does the Disk II log have a Quarter-tracks option? -> A: No; it is removed. A quarter-track is typed as a decimal track, such as 17.25, read as text and never as floating point (FR-213).
+- Q: What are a sector's read and write events called, and how is a sector recognized? -> A: Sector read and Sector write. A sector is recognized by the nibble patterns on the track, not by a DOS version: both 6-and-2 (16-sector) and 5-and-3 (13-sector) fields, with the size taken from the decoded field. The Detail cell has T/S/V, the size and the first bytes; its tooltip has the whole decoded sector as a hex dump; the row's context menu has Copy sector bytes. A track in a custom format yields motor and head events only (FR-231).
+- Q: Which errors and warnings does the Disk II log list, and how are they set apart? -> A: Address field checksum mismatch and data field checksum mismatch (errors); a data field cut off before its epilogue, a data field with no address field before it, a write to a write-protected disk, and a read stall (warnings). A Severity column (Info, Warning, Error), warning rows on a yellowish background and error rows on a reddish one, both from the theme, and a Severity filter on the log's bar (FR-232).
+- Q: Can the emulated head rest on a quarter track? -> A: Yes. The stepper is modeled by magnet pull: the head moves to the position the energized phases pull it to: two adjacent phases put it on the quarter track between them, and a set with no net pull (none, or two opposite phases) does not move it. A head step event is reported for each quarter-track move (FR-233).
+- Q: Where are a list's columns chosen? -> A: From the column headings' context menu, a check for each column, in the Breakpoints pane and both event logs; the drop-down that listed the columns is removed. The logs' Copy is on their rows' context menu only, and the Disk II log's Event column fits the widest label drawn in it (FR-118, FR-234).
+- Q: Which I/O reads does the PC line's result peek, and where is "?" written? -> A: Every address in `$C000-$CFFF` is read through its device's side-effect-free peek, which returns the byte the read would return. "?" is written only where no peek exists: a Disk II latch while the drive writes (FR-111).
+- Q: Which columns come first in the event logs, and how is the time written? -> A: Time first, the host clock in the user's locale time format with the milliseconds after the seconds; Cycle second, hidden by default. No column is called "Wall time" (FR-215).
+- Q: What does a log's selection do while rows arrive, and on a right-click? -> A: Its anchor and keyboard row are the same rows through each refresh, so Shift+arrow and a drag extend the range they began; a right-click on a selected row does not change the selection; a mouse release with no press in the list selects nothing (FR-234).
+- Q: How is a head position written in the Disk II log? -> A: As a track with its quarter-track fraction, 17.25, never in quarter-track units (FR-213).
+- Q: Where is a hover tip placed? -> A: Clear of the pointer where it came to rest, as the system's tips are, not against the item under it; a move within the same item does not move it. The color tip under an operand tip stacks under it (FR-235).
+- Q: Which panes and tips use the proportional face? -> A: The panes of text rather than code (Breakpoints, Watches, Call stack, Heat map ranges, both event logs, the diagnostics panes) and the tips of text. Disassembly, source, trace, memory, registers, stack and console, and the tips of code or bytes (a memory address, a symbol, a sector's hex dump), are monospace. A tip with columns separated by tabs lines them up in either face, as the P register's flag table does (FR-236).
+- Q: After a step that took a branch, is its arrow drawn? -> A: Yes: the arrow of the branch, jump or call a step just ran is drawn to where the PC landed, beside the PC's own arrow (FR-237).
+- Q: Do the address checksum, cut-off data and read stall events while Karateka boots come from the disk or from the emulator? -> A: From the disk image: its track 0 has one D5 AA B5 and one D5 AA 96 address field, both with stored checksums that do not match their fields, and its track 1 has no standard fields. The Disk II boot ROM does not check an address field's checksum, so the disk boots.
+- Q: Where is a tip placed now that 040-disk-inspector places its tips by the pointer? -> A: Every hover tip, a control's or a cell's, is placed by the pointer where it came to rest, as 040-disk-inspector places them. A timed notice and a tip stacked under another tip are placed against their anchor (FR-235).
+- Q: Which panes use the proportional face, and does the console? -> A: Every list but the disassemblies: registers, stack, watches, call stack, breakpoints, trace, heat map ranges, both event logs and the diagnostics panes. A memory window's addresses are proportional and its bytes monospace. The console is monospace: its text is a grid of fixed-width cells, with dumps and tables lined up by spaces (FR-236).
+- Q: Is a stepped branch's arrow drawn when the PC's own line has no arrow? -> A: Yes (FR-237).
+- Q: How are a watch's symbol and address colored? -> A: As the code pane colors them: a symbol in the symbol color and an address in the operand color (FR-238).
+- Q: Does a press on the heat map focus its pane? -> A: Yes, and the pane is drawn with the focus accent (FR-239).
+- Q: Why did the MMU panel list each switch twice? -> A: It had a row with the switches packed into a byte as well as a row for each. The switches are not one register, so the packed row is removed and each switch is listed once (FR-240).
+- Q: How is the arrow of the branch that brought the PC drawn, beside the PC's own? -> A: It is drawn in round dots as wide as the line, centered two widths apart, in the same color; the PC's own arrow is solid (FR-237).
+- Q: Is that arrow drawn at a breakpoint stop or after a run, not only after a step? -> A: Yes: at any stop, from the CPU's record of the last branch, jump or call, when its target is the PC. A source line out of view has its arrow run in from the view's edge (FR-237).
+- Q: Are P's flags drawn in the proportional face? -> A: No: the flags cell on the P register's row is monospace, so the letters line up; the rest of the registers pane is proportional (FR-236).
+- Q: How is a flag that changed since the last stop drawn in P's tip? -> A: Its line in the changed color, as its letter is in the cell, with no line explaining the color (FR-081).
+- Q: Is the repo's Karateka.woz a corrupted copy? -> A: No. It is byte for byte the archive.org Woz-A-Day preservation copy (the same SHA-1), so its address checksum errors are on the original disk.
+
+### Session 2026-10-16 (owner review: BASIC in the standard panes, names in expressions)
+
+- Q: Is there a separate pane for BASIC variables? -> A: No. They are in the Watches pane: one is added in the add row as Applesoft writes it (`A$`, `N%`, `X(2,3)`), the Automatic section lists the variables the current statement uses, and every variable is under a heading that expands. The BASIC variables pane is removed (FR-176, FR-095).
+- Q: Which pane lists the active GOSUB returns and FOR loops? -> A: The Call stack pane, while the machine is stopped in BASIC. The BASIC stack pane is removed (FR-177).
+- Q: How is a variable name longer than two characters drawn, since Applesoft reads only the first two? -> A: The characters past the second are dimmed, so in `HIGH` only `HI` is drawn at full strength (FR-176).
+- Q: Do the BASIC views come forward without the user opening them? -> A: Yes: when the machine stops inside a running Applesoft program, and as soon as a BASIC line breakpoint is set, the BASIC program pane comes forward at the line, with the variables in Watches and the frames in the Call stack (FR-173).
+- Q: How is a name in an expression read when it could be a symbol, a register or a hex number? -> A: In every mode whose commands take symbols, a defined symbol first, as AppleWin does, then a register, then a hex number; `@A`, `@X`, `@Y`, `@P`, `@S` and `@PC` always mean the register, in every mode including WinDbg. A BASIC variable is read by name only in the Watches pane while the machine is stopped in a running Applesoft program and no symbol has the name; a name with `$`, `%` or a subscript is always a BASIC variable (FR-241).
+- Q: Where is a BASIC watch saved, and how is a name the program and a symbol share read? -> A: A BASIC watch is a watch in the session's watch list, so WL, the debug channel, the debug project and undo have it as any watch; the session reads the text, a symbol first as FR-241 has it, and `W BASIC name` always watches the variable (FR-176).
+- Q: What does `#` before a value mean? -> A: What it means in AppleWin: a hex number, with no register or symbol lookup, so `#A` is $0A. AppleWin has no decimal prefix; `0n` marks decimal in every mode (FR-241).
+- Q: How is the user warned that a symbol hides a register? -> A: Loading a symbol file that defines a register's name reports each such name, and that `@` and the name mean the register (FR-242).
+- Q: When is the earlier project's items offered on a switch to a more specific project? -> A: Only when the user loads the symbol file, debug file or binary that brings the switch, not when restoring a project loads it, and only when the earlier project has a breakpoint, watch, bookmark or zero-page pointer (FR-169).
+
+### Session 2026-10-17 (owner review: the Profiler pane, the heat map)
+
+- Q: How does the Profiler pane start, stop, reset and save profiling? -> A: From a bar over its list: Profile turns profiling on and off, Reset starts the counts over, Save... writes them to a text file, and a drop-down lists them by opcode or by address. While profiling is off and nothing has been read, the pane has a note on how to start it (FR-193).
+- Q: Does profiling count while the machine runs on its own, not in a run the debugger started? -> A: Yes. While profiling is on the per-instruction hook is installed and every instruction is counted, whoever started the run, as R-026 has it; the cost is paid only while profiling is on. Trace-to-file writes lines only for runs the debugger starts, since the file is written only at a stop (FR-193).
+- Q: Is a store's read of its own target a data read in the heat map? -> A: No. The CPU reads a store's target before it writes it, except at an absolute address; that read is removed from the heat map's counts when the store writes the address, so it is neither a read nor a read before written.
+- Q: Does the profiler count cycles by routine? -> A: Yes. While profiling is on, each instruction's cycles go to the routine running it. A JSR, a BRK or an interrupt starts a routine at the address it lands on, and the routine ends when the stack pointer rises back to where it was before the call, so RTS, RTI and stack tricks such as PLA PLA RTS end it; code outside any call is Top level. The profile has a call tree (each routine under its caller, with self cycles, total cycles and calls), the routines (self, total, calls and cycles per call, each counted once per call chain) and a timeline of the last 600 video frames with each frame's cycles by routine. `PROFILE LIST ROUTINES` and `PROFILE LIST TREE` list them, `PROFILE SAVE` writes them, and the debug channel's profile reply has them (FR-243, FR-244).
+- Q: How does the Profiler pane present the routines? -> A: Its view drop-down chooses Opcodes, Addresses, Routines, Call tree or Flame graph. A timeline of frames runs across the top, each frame a bar of its cycles stacked by routine, with a tip listing the frame's routines. The flame graph draws each routine as a bar as wide as its total, under its caller, with a tip giving its self, total and calls; a click zooms into a routine and a click on Top level zooms out. Activating a routine in any view moves the disassembly to it (FR-193, FR-245).
+- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
+- Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -840,7 +931,7 @@ confirm it disables without being removed.
 11. **Given** several breakpoints, **When** the user chooses Disable all,
     **Then** every row's checkbox clears in one step, and one Undo checks them
     all again.
-12. **Given** the Show columns drop-down, **When** the user checks Address and
+12. **Given** the column headings' context menu, **When** the user checks Address and
     unchecks Condition, **Then** the list shows an Address column and no
     Condition column, and does so again after the debugger reopens.
 13. **Given** a breakpoint set from a source line, **When** the user chooses
@@ -851,11 +942,12 @@ confirm it disables without being removed.
     same enabled states, conditions and When hit settings.
 15. **Given** a write watchpoint, a breakpoint on a line of the loaded source
     and one at `COUT`, **When** the pane opens, **Then** their Kind cells are
-    "Data write", "Source line" and "Address" (a symbol at the address does
-    not make a function breakpoint); **and when** the user clicks the Kind
+    "Memory", "Breakpoint" and "Breakpoint", and their Trigger cells "Write",
+    "Execute" and "Execute" (a symbol at the address does not make a
+    function breakpoint); **and when** the user clicks the Kind
     heading, **Then** the rows group by kind in FR-117's order, each kind's
     rows in the order they were set. Added 2026-10-08, and amended the same
-    day.
+    day, and again when Trigger was added.
 
 ---
 
@@ -1045,8 +1137,8 @@ lands on the same instruction with the hit count unchanged.
     **Then** it is the same breakpoint, listed by each mode's list command in
     that mode's layout; **and when** the user chooses New > Disk event... in
     the Breakpoints pane, **Then** a dialog sets the same kinds with the same
-    fields, the row's Kind gives its event ("Disk sector read" for
-    `BPDISK READ 11 0`), Export writes it as a `BPDISK` line, and Import
+    fields, the row's Kind is "Disk" and its Trigger gives the event
+    ("Sector read" for `BPDISK READ 11 0`), Export writes it as a `BPDISK` line, and Import
     reads it back.
 14. **Given** a disk breakpoint that stopped a run, **When** the user runs on
     past it and then reverse continues, **Then** the machine stops at the same
@@ -1070,8 +1162,218 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 
 ---
 
+### User Story 21 - Pick up where I left off (Priority: P1)
+
+A developer sets breakpoints, names them, adds watches, loads symbols, arranges
+the panes and writes a few startup commands while debugging a program. The
+next day they boot the same disk, or load the same binary or debug file, and
+everything is back as they left it, without opening or saving anything.
+
+**Why this priority**: setting up a debugging session again by hand every time
+is the friction that makes people give up on a debugger; Visual Studio and
+Mesen2 both keep this state for the user.
+
+**Independent Test**: Load a binary and its debug file, set three breakpoints
+(one renamed), two watches and a bookmark, rearrange the panes, add a startup
+command, close Casso, start it again and load the same binary: every one of
+them is back and the startup command has run.
+
+**Acceptance Scenarios**:
+
+1. **Given** a debug file is loaded, **When** the user sets breakpoints,
+   watches and bookmarks, **Then** they are saved to that program's project
+   without any save command, and loading the same debug file in a later
+   session restores them.
+2. **Given** no debug file or debugger-loaded binary, **When** the machine
+   boots a disk, **Then** the project for that machine and boot disk is
+   opened, and changes made while it is open are kept in it.
+3. **Given** the user is working in the boot disk's project, **When** they load
+   a debug file, **Then** the program's own project takes over, and Casso
+   offers to bring the breakpoints and watches set so far into it.
+4. **Given** a breakpoint row, **When** the user presses F2, double-clicks its
+   Name, or chooses Rename, **Then** its name can be edited in place; an
+   emptied name returns to the default; the name survives in the project.
+5. **Given** a project with startup commands, **When** it is loaded, **Then**
+   the commands run in order, in their mode, and their output appears in the
+   console.
+6. **Given** File > Save project as..., **When** the user names a file,
+   **Then** a copy of the current project is written there; File > Open
+   project... switches to a chosen one.
+
+---
+
+### User Story 22 - Debug an Applesoft BASIC program at source level (Priority: P2)
+
+A user typing in or loading an Applesoft program sees its listing in the
+debugger with the line being run marked, steps it a statement or a line at a
+time, stops on a line or when a variable changes, and reads its variables and
+its GOSUB and FOR stack, without reading 6502 code or the interpreter's tables.
+
+**Why this priority**: Applesoft is the language most Apple II users write;
+debugging it today means reading the interpreter in disassembly.
+
+**Independent Test**: Type a ten-line program with a GOSUB, a FOR loop, a
+string, an integer and an array; set a breakpoint on line 40 and RUN; the
+listing shows line 40 marked, the variables show their values, the stack shows
+the GOSUB and the FOR; step a statement and the mark moves to the next one.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Applesoft program in memory, **When** the BASIC view opens,
+   **Then** it shows the program's listing as LIST would print it, with the
+   line being run marked while the program runs or stops.
+2. **Given** the program is stopped, **When** the user steps a statement or a
+   line, **Then** it runs until the interpreter begins the next statement or
+   the next line, and stops there.
+3. **Given** a breakpoint on a line number, **When** the program runs, **Then**
+   it stops as that line begins, before its first statement runs.
+4. **Given** a breakpoint on a variable changing, **When** the program assigns
+   it a different value, **Then** it stops after that statement.
+5. **Given** the program is stopped, **Then** the variables view lists its
+   simple variables (real, integer and string) and arrays with their values,
+   and the stack view lists the active GOSUB returns and FOR loops.
+6. **Given** an error or an ONERR handler, **When** an error occurs, **Then**
+   the debugger can stop there, showing the error and the line.
+
+---
+
+### User Story 23 - Reach every feature from the window (Priority: P2)
+
+A user who never types a console command can still do everything the
+debugger does: load a binary, search memory, mark data, manage symbols and
+step filters, patch an instruction, bookmark code, compare memory, time code
+and set every kind of breakpoint, from menus, toolbars, context menus and
+panes, with the same keys Visual Studio uses.
+
+**Why this priority**: a feature with only a console command is invisible to
+most users; the audit found seventy.
+
+**Independent Test**: Walk the entries FR-180 to FR-198 require, without the
+console: each one does what its console command does, and each menu item with
+a key shows that key from the active key scheme.
+
+**Acceptance Scenarios**:
+
+1. **Given** the debugger window, **When** the user chooses File > Load file
+   into memory... or its toolbar button, **Then** a dialog takes the file, its
+   format and an address, and loads it as BLOAD does.
+2. **Given** a disassembly row, **When** the user chooses Edit instruction and
+   types a new instruction, **Then** it is assembled over the old one; a
+   shorter one is padded with NOP, a longer one first says which instructions
+   it overwrites; Escape cancels; Undo restores the bytes.
+3. **Given** a Memory pane selection, **When** the user chooses Compare
+   with... and gives an address, **Then** differing cells are colored, a
+   toggle shows the other range's values in their place, and hovering a cell
+   shows the other range's value.
+4. **Given** the Visual Studio key scheme, **When** the user presses
+   Ctrl+Alt+D, Ctrl+Alt+B or Ctrl+`, **Then** the Disassembly, Breakpoints or
+   console pane opens or takes focus, and the View menu shows those keys.
+
+---
+
+### User Story 24 - See every disk and input event, now or hours back (Priority: P2)
+
+A user debugging a disk loader or an input routine opens the Disk II event log
+or the input log in the debugger and sees what happened: address marks and
+sectors read, head steps, keys pressed, paddles moved and what the program
+read back. The events were recorded whether or not the pane was open, and the
+user can scroll back through them as far as history reaches, or rewind and see
+the log as it stood then.
+
+**Why this priority**: the emulator's two standalone debug windows show these
+events today, but only from the moment they are opened, outside the debugger,
+on wall-clock time and with no tie to history. Debug views computed from one
+source agree with each other and with every rewind.
+
+**Independent Test**: Boot a DOS 3.3 disk with no debugger pane open, then open
+the Disk II event log: the boot's address marks and sector reads are there,
+stamped in machine cycles. Rewind to the middle of the boot: the log ends where
+the machine now stands. Scroll back past the newest events: older ones fill in
+without the scrolling stalling.
+
+**Acceptance Scenarios**:
+
+1. **Given** a machine that has booted a disk with no debugger pane open,
+   **When** the user opens the Disk II event log, **Then** it lists the boot's
+   events, newest last, each with its cycle count.
+2. **Given** a running machine and the Disk II event log open, **When** the
+   drive reads, **Then** new events appear as they happen.
+3. **Given** a log scrolled back past its most recent events, **When** the user
+   keeps scrolling, **Then** older events appear as far back as history
+   reaches, with no pause long enough to interrupt the scrolling.
+4. **Given** the user rewinds, **When** the log redraws, **Then** it ends at
+   the machine's new position, and running forward again records the events
+   the new run produces.
+5. **Given** a program polling the keyboard in a loop, **When** the user
+   presses a key, **Then** the input log shows the key press once and the
+   program's read of it once, not one row per poll.
+6. **Given** the Disk II diagnostics pane, **When** the drive reads, **Then**
+   it shows the last address field read (volume, track, sector) and whether
+   the drive is reading or writing.
+
+---
+
+### User Story 25 - Pick up the machine where I left it (Priority: P2)
+
+A user playing a game or partway through a program closes Casso. With the
+automatic save setting on, the next time Casso starts the same machine is back
+at the same point, the same disks in its drives with the same contents, and the
+program continues from there. Switching to another machine and back returns
+each one to where it was left.
+
+**Why this priority**: the machine state files built for T464 already save and
+load a whole machine; doing it at exit and startup removes the steps between
+closing Casso and continuing, and saves one machine's progress when the user
+moves to another.
+
+**Independent Test**: Turn the setting on, boot a //e from a disk and run a
+program to a recognizable screen, and close Casso. Start Casso: the //e's
+screen matches the one at exit and the program continues, with no file dialog. Switch to the //c,
+run something, switch back to the //e: it is where it was left.
+
+**Acceptance Scenarios**:
+
+1. **Given** the setting on and a running machine, **When** the user closes
+   Casso and starts it again, **Then** the machine resumes at the point where
+   Casso closed, with the same disks and disk contents, and no file dialog
+   appears.
+2. **Given** the setting on and two machine kinds used in one session,
+   **When** the user switches from one to the other and back, **Then** each
+   resumes where it was left.
+3. **Given** an automatic state saved with ROM images that have since changed,
+   **When** Casso starts, **Then** a notice with the reason appears, the
+   machine starts cold, and the automatic state file is not modified.
+4. **Given** the setting on and an automatic state for the //e, **When** Casso
+   starts with a disk on the command line, **Then** the //e starts cold with
+   that disk, and at exit a prompt with the saved state's date, time and
+   screen thumbnail offers to replace it or not.
+5. **Given** the setting off, **When** the user closes and starts Casso,
+   **Then** no state is saved or resumed, and automatic states saved earlier
+   are left on disk untouched.
+6. **Given** a machine state file saved before this change, **When** the user
+   loads it, **Then** it loads.
+
+---
+
 ### Edge Cases
 
+- **A copy-protected disk's fields**: A disk whose address fields have
+  checksums that do not match, data fields cut short or tracks with no
+  standard fields (Karateka) yields error and warning events in the Disk II
+  log; the fault is in the disk image, not the emulator.
+- **An event older than history**: Scrolling a log back past the oldest
+  history kept ends the log there, with a row saying history begins at that
+  point; nothing older is shown.
+- **A gap in history**: Where recording paused (Maximum speed chosen by the
+  user), a log shows a row marking the gap, as the timeline does, and no
+  events inside it.
+- **A rewound log**: Events after the machine's position are not shown once
+  the user rewinds, and they go when the machine runs forward on a different
+  path, as history after that point does.
+- **A disk changed since**: A log rebuilt from history shows the events the
+  machine saw against the disk as it was then, never as it is now.
+- **A keyboard polled in a loop**: A guest read is logged only when the value
+  read differs from the previous read of the same source.
 - **A word two modes use differently**: When a word the user types is not a
   command of the current mode but is one in more than one other mode, the
   reply lists each mode's meaning and suggests the current mode's equivalent
@@ -1218,9 +1520,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **Motor off**: no nibble passes the head, so the field kinds cannot stop;
   a program reading the latch with the motor off reads the same byte again,
   which is not a new nibble. A head breakpoint stops whenever Casso's model
-  moves the head, and its report gives the motor's state; whether a real
-  drive's stepper moves while the drive is not enabled is unchecked
-  (Assumptions), and this spec requires neither behavior.
+  moves the head, which, as a real drive's stepper, it does only while the
+  drive is enabled (Assumptions, GH #176); its report includes the motor's
+  state.
 - **A head between two phases**: Casso's stepper moves the head in half-track
   steps, so the head reaches whole- and half-track positions only, apart from
   the outer stop at quarter track 139 and the steps back from it; there is no
@@ -1284,6 +1586,41 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **The Disk ][ debug window opened or closed while a disk breakpoint is
   armed**: neither affects the other; closing the window does not disarm the
   breakpoint, and the window's rows are unchanged by it.
+
+- **A project file that cannot be read**: the debugger opens an empty project
+  in its place, keeps the unreadable file under a dated name, and says so in
+  the console; it never deletes it.
+- **One disk booted on two machine types**: each machine and disk pair has its
+  own project (FR-167).
+- **A debug file loaded from a new folder**: the project is the program's,
+  found by the debug file's content, not its path, and its source folders are
+  updated.
+- **Two Casso windows on one project**: the last save wins; neither crashes or
+  damages the file (FR-168).
+- **Applesoft not active**: with Integer BASIC or no BASIC running, the BASIC
+  view says no Applesoft program is in memory and offers nothing to step.
+- **A BASIC program changed while stopped**: the listing and the line mark
+  follow the change at the next stop; a line breakpoint on a deleted line is
+  kept, shown as not found.
+- **RUN, CLEAR or NEW**: the variables view empties as the interpreter clears
+  them; variable-change breakpoints stay set.
+- **Edit instruction over ROM or a soft switch**: refused, saying why.
+- **Compare with an overlapping range**: allowed; each cell compares with the
+  byte at its offset in the other range as it was when compared.
+- **Automatic save setting turned off**: automatic states already saved are
+  not deleted, written or resumed; turning the setting on again resumes them.
+- **Exit prompt closed without a choice**: the existing automatic state is
+  not replaced.
+- **Disk image file changed outside Casso since the automatic save**: the
+  resumed machine has the disk as the state saved it, as loading a state does;
+  the change is seen once the disk is mounted again.
+- **Machine kind no longer available** (its definition removed or renamed):
+  its automatic state is not resumed; FR-222 applies when that machine was the
+  one running at exit.
+- **Casso closed by a crash or by ending its process**: no automatic state is
+  written, and the one saved before stays.
+- **Two copies of Casso running the same machine kind**: each saves at its own
+  exit, and the last to exit replaces the other's automatic state.
 
 ## Requirements *(mandatory)*
 
@@ -1643,8 +1980,10 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   pane to the PC.
 - **FR-081**: The registers pane MUST show the flags decoded, one letter per
   flag (N V - B D I Z C), in a third column on the P register's row, labeled
-  "Flags:". Hovering them MUST show each flag's name and value, one per line.
-  Double-clicking P MUST open an editor with a checkbox per flag, and
+  "Flags:". Hovering them MUST raise a tip with each flag's name and value, one per line,
+  the line of a flag that changed since the last stop in the changed color,
+  as its letter is in the cell, with no line explaining the color (amended
+  2026-10-14). Double-clicking P MUST open an editor with a checkbox per flag, and
   double-clicking S an editor for the stack pointer; each writes through `R`.
   The flags remain settable by command (`SEC`, `CLC` and the other set and
   clear forms, `R P`).
@@ -1720,31 +2059,42 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   is: an address or range with the symbol there where one is known, a source
   file and line, an opcode, a register condition, an I/O range, BRK, an
   interrupt, or a disk event, FR-163), Condition, Hit count (the hits so far,
-  "count only" for one that does not stop), Kind (what sort of breakpoint the
-  row is), Symbol (the symbol at the address), When hit (break, break once,
+  "count only" for one that does not stop), Kind (what the breakpoint
+  watches), Trigger (what about it stops the machine), Symbol (the symbol at
+  the address), When hit (break, break once,
   count), Function (the symbol an execution breakpoint stops at), File (the
   source file and line, where one is known), Address (the address or range)
-  and Data (what a data breakpoint watches). Kind MUST be one of these, in
-  sentence case: "Address" for an execution breakpoint, or "Source line" for
-  one whose address a line of the loaded source produced; "Data read", "Data
-  write" or "Data read or write" for a data breakpoint; "Data value" for a
-  value breakpoint (FR-062); "Register condition"; "Opcode"; "I/O"; "BRK";
-  "Interrupt"; or a disk kind (FR-163). A symbol at an execution
+  and Data (what a data breakpoint watches). Kind and Trigger MUST be one of
+  these pairs, in sentence case: "Breakpoint" and "Execute" for an execution
+  breakpoint (amended 2026-10-14), whether or not a line of the loaded source produced the code
+  at its address (File shows the line); "Memory" and "Read", "Write" or
+  "Read or write" for a data breakpoint; "Memory" and "Value" for a value
+  breakpoint (FR-062); "Register" and "Condition"; "Opcode" and "Execute";
+  "BRK" and "Execute"; "Interrupt" and "IRQ or NMI"; or "Disk" and a disk
+  event (FR-163). There is no I/O kind: the New drop-down's I/O range is a
+  memory watchpoint over $C000-$C0FF, as AppleWin's `BPIO` is (amended
+  2026-10-14). A symbol at an execution
   breakpoint's address MUST NOT make its Kind "Function": the engine keeps
   the address, not how it was given, and the symbol may label a loop or data
   as well as a routine. Clicking a column's heading MUST sort by it; Kind
-  sorts by kind, in the order listed here, and within a kind in the order
-  the breakpoints were set. Amended 2026-10-08 to the columns as built, and
+  sorts by the pairs in the order listed here, and within a pair in the
+  order the breakpoints were set. Amended 2026-10-08 to the columns as built, and
   again the same day on the owner's request: Kind added, Filter (always
   empty, since Casso has no process or thread to filter on) dropped, and
   Labels became Symbol, which the build also moved from after Condition to
   after Kind. The column order is the owner's decision of 2026-10-08,
-  confirming the layout as built.
-- **FR-118**: A Show columns drop-down MUST choose which columns show, apart from
-  Name, which always does; the choice MUST be kept across sessions. Condition,
-  Hit count and Kind show by default (owner decision 2026-10-08). A choice
-  saved before Kind was added MUST come back with the same columns, Labels as
-  Symbol, no Filter and Kind shown (T736). Amended 2026-10-08.
+  confirming the layout as built. Amended again 2026-10-08 on the owner's
+  request: Kind split into Kind and Trigger, so no value is long enough to be
+  cut in a narrow pane, and "Source line" dropped as a kind.
+- **FR-118**: Which columns are visible MUST be chosen from the column
+  headings' context menu, a check for each column; Name is always visible.
+  The choice MUST persist across sessions. The pane has no column drop-down
+  (amended 2026-10-14). Condition,
+  Hit count, Kind and Trigger show by default (owner decision 2026-10-08). A
+  choice saved before Kind was added MUST come back with the same columns,
+  Labels as Symbol, no Filter, and Kind and Trigger shown (T736); one saved
+  before Trigger was added MUST come back with Trigger shown when Kind was.
+  Amended 2026-10-08.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
   with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
   offering a breakpoint at an address, a function breakpoint by symbol name, a
@@ -1753,7 +2103,7 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   asking only for what that kind needs; Delete, for the selected rows; Delete
   all; Enable all;
   Disable all; Undo; Redo; Go to source code and Go to disassembly, for the
-  selected row; Show columns; Export; and Import. A button that cannot act --
+  selected row; Export; and Import. A button that cannot act --
   nothing selected, nothing to undo, no source line for the selection -- MUST
   be disabled.
 - **FR-120**: Undo and Redo MUST reverse and repeat the breakpoint changes made
@@ -1815,10 +2165,16 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   without touching the machine and its writes captured rather than performed.
   A SECOND DESCRIPTION OF WHAT AN INSTRUCTION DOES MUST NOT EXIST: a table
   written beside the CPU can disagree with it, and a prediction that disagrees
-  with the machine is worse than none. Where a read cannot be answered without
-  a side effect, the line MUST be left unannotated.
+  with the machine is worse than none. A read anywhere in `$C000-$CFFF` MUST
+  be served by its device's side-effect-free peek, the byte the read would
+  return without what the read does. Only where no peek exists (a Disk II
+  latch while the drive writes) MUST whatever the value feeds be written as
+  `?`, with the rest of the result, the cycles and the PC among it, written
+  in full. I/O in the memory panes MUST be unreadable (amended 2026-10-14).
 - **FR-112**: An operand in `$C000-$C0FF` MUST be shown as the soft switch the
-  instruction operates, with its title and description, chosen by whether it
+  instruction operates -- the switch at the address it touches after indexing,
+  not the one at its symbol (amended 2026-10-14) -- with its title and
+  description, chosen by whether it
   reads or writes it, since one address is two switches (`$C000` read is the
   keyboard, `$C000` written is 80STORE off). Such an operand MUST NOT be
   annotated with a byte value, which does not exist to be read, and a write
@@ -1837,7 +2193,9 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   a value changed. The previous instruction is the one that just ran, known
   only when the stop is exactly where it would have left the machine -- a
   step; after a free run it is left out rather than shown for an
-  instruction that did not just run.
+  instruction that did not just run. While the machine is stopped in a
+  running Applesoft program, the automatic watches MUST also list the BASIC
+  variables the current statement uses.
 - **FR-096**: A manual watch MUST edit in place: double-clicking its expression
   replaces the expression with what is typed, and double-clicking its value
   writes what is typed to the watched address. A manual watch MUST be
@@ -2319,11 +2677,10 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   options the chosen event takes, and the condition, giving back the `BPDISK`
   definition `BPEDIT` reads. The pane's columns (FR-117) MUST show a disk
   breakpoint with its event and arguments in Name ("Disk sector read, track
-  $11 sector $00, drive 1"); its event in Kind, as one of "Disk sector read",
-  "Disk address field", "Disk head position", "Disk write", "Disk DOS 3.3
-  sector", "Disk ProDOS block", "Disk RWTS call", "Disk ProDOS driver call",
-  "Disk motor", "Disk drive select", "Disk inserted" and "Disk ejected",
-  which sort after "Interrupt" in that order; the routine an RWTS or driver
+  $11 sector $00, drive 1"); "Disk" in Kind and its event in Trigger, as one
+  of "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS
+  block", "RWTS call", "Driver call", "Motor", "Drive select", "Insert" and
+  "Eject", which sort after "Interrupt" in that order; the routine an RWTS or driver
   breakpoint resolved to, or "unresolved", in Address; that routine's symbol
   in Function and Symbol; the controller's slot and the drive in Data; and
   the other columns as for any breakpoint. Go to disassembly MUST go to that
@@ -2332,7 +2689,7 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   treat disk breakpoints as they treat every other kind: a deleted one comes
   back with its event, arguments, marks, condition, enabled state and When
   hit setting, and Import reads `BPDISK` lines in any mode's form. Amended
-  2026-10-08 for FR-117's Kind and Symbol columns.
+  2026-10-08 for FR-117's Kind, Trigger and Symbol columns.
 - **FR-164**: With no disk breakpoint armed, the Disk ][ debug window closed
   and the trace off, emulation MUST run as FR-064 requires, its one exception
   included: keeping the recent nibbles of FR-158 MUST fit within SC-008. With
@@ -2384,6 +2741,448 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   two-level macro with both Casso assemblers and confirm the debug file's
   line entries resolve every emitted address to its invocation line and its
   body line, and that cc65's own reader accepts the file.
+
+- **FR-166**: The debugger MUST keep a debug project holding: breakpoints and
+  watchpoints with their names, conditions, enabled states and When hit
+  settings; watches, including zero-page pointer watches; bookmarks; the
+  symbol and debug files loaded and their source folders; data directives;
+  step filters; heat map range sets; disassembly options; the pane layout; and
+  a list of startup commands (FR-171). Added 2026-10-09 (owner).
+- **FR-167**: The project MUST be chosen with no user action, from the most
+  specific signal known: a loaded debug or symbol file; else a binary the
+  debugger loaded (BLOAD or FR-180); else the machine and its boot
+  configuration, the machine type with the disk in drive 1 at power-on. Without
+  a disk the machine alone is the signal.
+- **FR-168**: The project MUST save itself as it changes, within 2 seconds of
+  the last change, so it is never in an unsaved state; a save MUST replace the
+  file whole, so a crash or a power loss leaves the old project or the new one,
+  never a damaged one.
+- **FR-169**: When a more specific signal appears while a project is open (a
+  debug file loaded while working in the boot disk's project), its project
+  MUST take over. When the user loaded the symbol file, debug file or binary
+  that brought the switch, and the earlier project has a breakpoint, watch,
+  bookmark or zero-page pointer, Casso MUST offer to bring them into it. A
+  switch that restoring a project brings, as when a machine's project loads a
+  debug file, MUST NOT offer it.
+- **FR-170**: File > Save project as... MUST write a copy of the current
+  project to a chosen file and make it the open one; File > Open project...
+  MUST switch to a chosen project file. A project's paths MUST be relative to
+  its file where they lie beside or below it, so a project moves with its
+  program.
+- **FR-171**: A project's startup commands MUST run in order, each in the mode
+  it was written for, when the project loads, with their output in the
+  console; File > Project settings... MUST edit the list.
+- **FR-172**: A breakpoint's Name MUST be editable in place (F2, a
+  double-click on Name, or Rename in the row's context menu); an emptied name
+  MUST return to the default name. A name set in the window or in any mode but
+  AppleWin MUST persist through the project. A console naming command MUST let
+  AppleWin-mode users name a breakpoint; AppleWin's breakpoint save and load
+  commands and its LOAD and SAVE MUST keep AppleWin's behavior and formats.
+- **FR-173**: When an Applesoft program is in memory, a BASIC view MUST show
+  its listing as LIST would print it, read from memory without side effects,
+  with the line being run marked, and MUST follow edits made by the guest.
+  The BASIC view MUST come forward at the line, with the BASIC variables in
+  the Watches pane and the BASIC frames in the Call stack pane, when the
+  machine stops inside a running Applesoft program and as soon as a BASIC
+  line breakpoint is set.
+- **FR-174**: Stepping in the BASIC view MUST run to the start of the next
+  statement, or of the next line, as the interpreter begins it; Step out MUST
+  run to the statement after the active GOSUB's return.
+- **FR-175**: A breakpoint MUST be settable on a BASIC line number, stopping as
+  the line begins, and on a BASIC variable changing, stopping after the
+  statement that changed it; the Breakpoints pane MUST show them with Kind
+  "BASIC" and Trigger "Line" or "Variable change".
+- **FR-176**: The Watches pane MUST list BASIC variables: a variable or array
+  element added in the add row as Applesoft writes it (`A$`, `N%`,
+  `X(2,3)`), and, under a heading that expands, every simple variable (real,
+  integer and string) and array element with its value, decoded from the
+  interpreter's tables. A name's characters past the second MUST be dimmed,
+  since Applesoft reads only the first two. There is no separate BASIC
+  variables pane.
+- **FR-177**: While the machine is stopped in BASIC, the Call stack pane MUST
+  list the active GOSUB returns and FOR loops (variable, limit, step and
+  line); there is no separate BASIC stack pane. The debugger MUST be able to stop on
+  a BASIC error, showing the error and its line, whether or not ONERR handles
+  it.
+- **FR-178**: The source view MUST color C sources' syntax (keywords, types,
+  literals, comments, preprocessor lines) as it colors assembly, using the
+  theme's source colors.
+- **FR-179**: Every debugger console command MUST have a way in from the
+  debugger window or the emulator window, unless it is console-only by nature
+  (help, echo, print, calculate, scripts, output format) or one of these the
+  owner dropped: LOAD and SAVE of the debugger configuration, IN, OUT, TSAVE,
+  BUDGET, TF, and the Monitor ROM idioms I, N, IN#, PR#, BASIC cold and warm
+  start and Ctrl-Y. BENCHMARK MUST be removed. ui-entry-point-audit.md lists
+  each command and its entry.
+- **FR-180**: File > Load file into memory... and a toolbar button MUST load a
+  host file as BLOAD does, with its format and, for raw bytes, an address and
+  length; File > Save memory to file... MUST save a range as BSAVE does.
+- **FR-181**: Edit > Find in a Memory pane MUST search memory for hex bytes,
+  text or a pattern with wildcards; F3 and Shift+F3 MUST walk the matches.
+- **FR-182**: The code pane's context menu MUST mark a selection as data
+  (bytes, words, addresses, text, floats) or clear its marking, and a data
+  list MUST show every marked range with Go to and Delete.
+- **FR-183**: A Symbols pane MUST list the symbol tables with their counts,
+  enable or disable each, search them, and add, remove, clear and save
+  symbols; the code pane's context menu MUST offer Add symbol here.
+- **FR-184**: The code pane's and the call stack's context menus MUST offer
+  Never step into this routine, and Debug > Step filters... MUST list the
+  filters with Add and Delete.
+- **FR-185**: Edit instruction, in a disassembly row's context menu, MUST
+  assemble a typed instruction over the row's; a shorter one MUST be padded
+  with NOP, a longer one MUST first say which instructions it overwrites;
+  Escape MUST cancel; ROM MUST be refused; Undo MUST restore the bytes.
+- **FR-186**: Replace with NOPs MUST overwrite the selected disassembly rows'
+  bytes with NOP, undoably. A drag MUST select text across columns as now,
+  and a Ctrl+drag MUST select only within the column the drag began in
+  (address, bytes or instruction).
+- **FR-187**: The Breakpoints pane's New drop-down MUST also set a break on
+  reading memory never written, on a video line, on a beam position, and an
+  execution breakpoint with a watch over a range.
+- **FR-188**: Each watch row MUST have a checkbox that enables or disables it;
+  a watch MUST be able to be a zero-page pointer, showing the address its two
+  bytes form and the bytes there; a Memory pane's context menu on zero page
+  MUST offer Add as pointer watch.
+- **FR-189**: Bookmarks MUST be toggled on a code row (context menu and a
+  key), walked with Next and Previous bookmark, and listed in a Bookmarks pane
+  with Go to and Delete.
+- **FR-190**: A Memory pane's context menu on a selection MUST offer Fill
+  selection... (a byte or a pattern) and Copy selection to... (an address).
+- **FR-191**: Compare with... on a Memory pane selection MUST color the cells
+  that differ from a range at a given address, a toggle MUST show that range's
+  values in their place, and hovering a cell MUST show the other range's
+  value; Clear comparison MUST end it.
+- **FR-192**: The status bar MUST show the run speed and open a popup choosing
+  1x, 2x or Maximum.
+- **FR-193**: A Profiler pane MUST start, stop, reset and save profiling from
+  a bar, and list its results as PROFILE does, by opcode, by address, by
+  routine, as a call tree or as a flame graph (FR-245).
+- **FR-194**: The Registers pane MUST show a Trip cycle count beside the total,
+  reset from its context menu or by RCC, the total never reset.
+- **FR-195**: The Registers pane MUST show the last branch taken, from and to,
+  with Go to.
+- **FR-196**: The Stack pane's context menu MUST offer Push byte..., Pop byte
+  and Pop word.
+- **FR-197**: The code pane's context menu MUST offer Start stopwatch here and
+  Stop stopwatch here, timing in cycles whatever the run speed, and Call
+  subroutine here, running the routine as JSR does.
+- **FR-198**: The video log and the sound log MUST record all the time, and
+  the Video and Mockingboard panels MUST show them with Clear and Save;
+  recording MUST cost no measurable emulation speed (SC-008). *(Amended
+  2026-10-10)*: they MUST follow FR-210 and FR-211, their recorded entries a
+  cache over history and their depth that of history, as MUST the trace
+  buffer.
+- **FR-199**: Copy text from the emulator window MUST render inverse and
+  flashing characters as the characters they show, not as other characters.
+- **FR-200**: DISASM MUST be reported as not available, as other AppleWin
+  commands with no meaning in Casso are: the disassembly view's check boxes
+  and the Disassembly tab of Tools > Options set its options (FR-228).
+  *(Amended 2026-10-13.)*
+- **FR-201**: The PC's row MUST have a glyph for the way its branch goes (up or
+  down), while the Branch arrow option is on (FR-228). *(Amended 2026-10-13.)*
+- **FR-202**: The PC row's result annotation MUST also have the cycles its
+  instruction will take with the current registers: for a branch, taken or
+  not taken, and a page crossing where one applies. Other rows have no
+  cycles. The cycle count's "(+n)" in the Registers pane is the
+  cycles since the stop before. *(Amended 2026-10-13.)*
+- **FR-203**: Each key scheme MUST bind keys to open or focus each pane;
+  the Visual Studio scheme MUST use Visual Studio's (Ctrl+Alt+D disassembly,
+  Ctrl+Alt+B breakpoints, Ctrl+Alt+C call stack, Ctrl+Alt+W then 1-4 watch,
+  Ctrl+Alt+M then 1-4 memory, Ctrl+Alt+G registers, and the rest Visual
+  Studio has), and every scheme MUST bind Ctrl+` to the console.
+- **FR-204**: Every menu item with a key in the active scheme MUST show that
+  key, and a change of scheme MUST update them.
+- **FR-205**: Dragging a docked pane by its title MUST tear off its whole group
+  with all its tabs and move it with the pointer as it goes; any tab MUST be
+  draggable, selected or not; a torn-off pane MUST float at the size it had
+  docked.
+- **FR-206**: Panes MUST be drawn as Visual Studio draws them, as measured from
+  the owner's screenshots: the gap and margin around and between panes, the
+  tab band across the whole pane, rounded corners, the focus outline round the
+  pane and its selected tab, every text in a pane starting at its title's x,
+  glyph gutters inset as Visual Studio's; a selected tab and a hovered one MUST
+  show their pin and close buttons; a floating window MUST keep Windows'
+  standard corners and take the focus outline while it has focus; drop guides
+  MUST show the cross only over the pane under the pointer, with the window
+  edge guides throughout; tooltips in the emulator and debugger MUST take
+  Visual Studio's colors while Casso Explorer's keep File Explorer's.
+- **FR-207**: A heat map range set called Default holding the built-in ranges,
+  enabled, MUST exist from the first use.
+- **FR-208**: The range list MUST be an editable grid, a reusable control: one
+  trailing row hinting "Add new range"; a click on any cell edits it in place;
+  a row with its required fields complete leaves editing and a new trailing row
+  appears; Delete in a row's context menu; rows reordered by dragging a
+  gripper. It replaces the + button.
+- **FR-209**: These defects from the owner's review MUST be fixed: edit boxes
+  draw their corners dim; the range list's columns are sized wrong; Add item to
+  watch needs a double click and works only with the Watches pane focused (it
+  MUST take one click, focused or not); the Skip unchanged writes tooltip
+  shows at once instead of after the usual delay; a new range set's name is
+  drawn over the set drop-down; with every range shown, a short range's title
+  overlaps its row address labels.
+
+**One source of debug events (User Story 24, owner decisions 2026-10-10)**
+
+- **FR-210**: Recorded history MUST be the single source of every debug event.
+  Every view of past machine activity (disk events, input, video and sound
+  logs, trace, heat, calls) MUST be computed from it, by replaying the history
+  it covers on a machine of its own with that view's probe attached.
+- **FR-211**: A view MAY keep the newest events the running machine produces
+  as it produces them, but only as a cache of what FR-210's replay would give.
+  The cache MUST record from the start of the session, whether or not any pane
+  is open; MUST cost no guest time and no more host time than SC-052 allows;
+  and MUST be cut back to the machine's position when the user rewinds.
+- **FR-212**: Events older than a view's cache MUST be rebuilt on demand as
+  the user scrolls back to them, newest first, the neighboring history fetched
+  ahead in the background, so that a view reaches as far back as history does.
+- **FR-213**: The debugger MUST have a Disk II event log pane showing every
+  kind of event the emulator's Disk II debug window shows today (among them
+  address marks, sector reads and writes, and head steps), with its filters,
+  the track and sector filter among them, and its columns; live while the
+  machine runs and rebuilt from history per FR-210 to FR-212. A quarter-track
+  in the track filter MUST be typed as a decimal track (17.25) and read as
+  text, never as floating point; there is no Quarter-tracks option. A head
+  position MUST be written as a track with its quarter-track fraction
+  (17.25), never in quarter-track units (amended 2026-10-14).
+- **FR-214**: The debugger MUST have an input log pane showing the host's
+  input (keys, mouse, game controllers, paddles and joysticks, with the
+  per-pair paddle or joystick view) from the input journal, and the guest's
+  reads of the keyboard and game port, a read shown only when its value
+  differs from the previous read of the same source; live and rebuilt per
+  FR-210 to FR-212.
+- **FR-215**: Event logs MUST stamp each event with the host clock and the
+  machine's cycle count. The first column MUST be Time, in the user's locale
+  time format with the milliseconds after the seconds; the second MUST be
+  Cycle, hidden by default (amended 2026-10-14).
+- **FR-216**: The Disk II diagnostics pane MUST show the last address field
+  read (volume, track, sector) and whether the drive is reading or writing.
+- **FR-217**: Before FR-213 and FR-214 are built, every feature of the
+  emulator's Disk II and Input debug windows MUST be listed from their code,
+  tests and spec 006, and each kept, changed or dropped with the owner's
+  approval. *(Amended 2026-10-10)*: the two windows, the emulator's code that
+  opens and wires them, and their menu items are removed ahead of the panes,
+  by the refactor of the emulator's shell on master, so the inventory MUST be
+  read from the last commit that holds them; the device feeds they used stay.
+- **FR-218**: The debugger MUST be one component the emulator's shell holds
+  through a narrow interface, the shell's header including none of the
+  debugger's own headers; the shell's input handling MUST be one component held the same
+  way. Neither MUST add a call through an interface to any path run per
+  instruction or per cycle, and SC-052 MUST hold across the change.
+- **FR-219**: The Settings sheet's General page MUST have a setting labeled
+  "Automatically save the machine state at exit and resume at startup", on by
+  default and saved with the user's other preferences.
+- **FR-220**: With the setting on, each machine kind MUST have at most one
+  automatic state, a machine state file written when Casso exits and when the
+  user switches from that machine to another. Writing it MUST NOT write any
+  disk image file, as saving a state does today.
+- **FR-221**: With the setting on, Casso MUST start the machine that was
+  running at exit by resuming its automatic state when one exists, and
+  switching to a machine MUST resume that machine's automatic state when one
+  exists, each in place of a cold boot. Resuming MUST be the same as loading a
+  machine state: the disks come from the state's own bytes, and history starts
+  again at the resumed point.
+- **FR-222**: An automatic state that cannot be resumed (different ROM images,
+  a newer format, a damaged or cut-short file, a machine that cannot be
+  opened) MUST NOT be modified or deleted; a notice with the reason MUST
+  appear, and the machine MUST start cold. The next automatic save replaces the file.
+- **FR-223**: A launch whose command line mounts a disk or a tape MUST start
+  cold with that media and MUST NOT resume the automatic state. When that
+  session ends, or the user switches away from that machine, an existing
+  automatic state for it MUST be replaced only after a prompt with the
+  existing state's saved date and time and its screen thumbnail offers to
+  replace it and the user accepts; with no existing automatic state it is
+  written with no prompt. A command line with only a machine option MUST resume
+  that machine's automatic state.
+- **FR-224**: Every machine state file MUST record the date and time it was
+  saved and a thumbnail of the emulated screen at that moment. A file saved
+  before this change MUST load; a prompt about such a file has its file time
+  and no thumbnail.
+- **FR-225**: Machine state files MUST default to %LOCALAPPDATA%\Casso\SavedState\.
+  The automatic states MUST be saved there, one per machine kind, and the Save
+  state and Load state dialogs MUST open in that folder by default. An
+  automatic state MUST be replaced only by a complete new file, so after a
+  save that fails partway the previous one is intact, and a failed save MUST
+  NOT stop Casso from closing.
+- **FR-226**: A machine state file saved by any released version of Casso MUST
+  load in every later version, for the same machine kind and ROM images. A
+  part of the machine whose saved state changes MUST load each earlier
+  released form of it, with what the earlier form lacked set to its cold-boot
+  value. A state from a newer version of Casso, or saved
+  with different ROM images, MUST fail with a message that distinguishes the
+  two cases from each other and from a damaged file.
+
+**The debugger's options (owner decisions 2026-10-13)**
+
+- **FR-227**: The debugger's Tools > Options MUST be a dialog with tabs, built
+  as Casso's Settings sheet is, with a History tab and a Disassembly tab. The
+  History tab has the setting that turns history recording on and off, and
+  the memory history may use with the estimate of the history it has room
+  for, in minutes below two hours and in hours from two hours on. Once the
+  recording covers 30 emulated seconds the estimate uses its own rate;
+  before that it runs from the busiest measured program, one that redraws
+  the whole hi-res screen, to the idlest, one waiting for a key. The memory
+  is a slider from 1 MB to the lowest of 90% of the memory available, the
+  memory available less 4 MB, and the memory the busiest measured program
+  fills in about 48 hours (11,460 MB), and never less than 1 MB, the
+  memory available read as the dialog opens. It moves in 1 MB steps, a tenth
+  of its range for Page Up and Page Down, with about ten tick marks. A saved
+  value above the slider's maximum puts the slider at its maximum, and the
+  saved value changes only when the slider moves. The dialog opens large
+  enough for its largest tab, within the work area of the monitor it opens
+  on, placed with no part off that monitor or under the taskbar; a tab
+  scrolls only when the monitor is too small for it (amended 2026-10-13).
+- **FR-228**: The Disassembly tab MUST have a check box for each disassembly
+  view option: the disassembly toolbar's Addresses, Code bytes, Source,
+  Symbols and Line numbers, each the same setting as its toolbar check box;
+  Operand values, the address an operand touches and the value there, in the
+  annotation; Pointers, the pointer an indirect mode reads, in the
+  annotation; Branch arrow, the PC's branch arrow; and Address colon, a colon
+  after each address. Operand values, Pointers and Branch arrow are on by
+  default and Address colon is off (amended 2026-10-13). A hidden column is
+  removed from the view, not left as blank space, as in Visual Studio. No option packs
+  opcode bytes together, as AppleWin's DISASM SPACES does: the bytes would
+  misread as one little-endian number. Under the check boxes, a live preview
+  draws a short sample program as a disassembly view draws it, with source
+  lines, symbols, an indirect load with its pointer and operand value, and
+  the PC on a taken branch with its arrow, following every check box as set
+  in the dialog (amended 2026-10-13).
+- **FR-229**: When the machine stops (a breakpoint, the end of a step, or
+  Pause), the keyboard focus MUST be in the console only if the console
+  received the last input: a command typed there, or a click in it. A click
+  or key anywhere else in the debugger, or another window taking the focus,
+  MUST make the stop move the focus from the console to the disassembly view
+  with the PC.
+- **FR-230**: The Disassembly tab MUST offer a choice of the rows to dim
+  while a disassembly view has source rows: Source lines, Disassembly lines,
+  or Neither, Disassembly lines by default, saved with the other disassembly
+  options and followed by the preview. A view with no source rows MUST dim
+  nothing, and the PC's row MUST never be dimmed.
+- **FR-231**: A sector MUST be recognized by the nibble patterns on its track,
+  not by a DOS version: both 6-and-2 (16-sector) and 5-and-3 (13-sector)
+  fields, its size taken from the decoded field. Its events MUST be called
+  Sector read and Sector write. The Detail cell MUST have the track, sector,
+  volume, size and first bytes; its tooltip MUST have the whole decoded sector
+  as a hex dump; the row's context menu MUST have Copy sector bytes. A track
+  in a custom format MUST yield motor and head events only.
+- **FR-232**: The Disk II log MUST list errors and warnings among its events:
+  address field checksum mismatch and data field checksum mismatch as errors;
+  a data field cut off before its epilogue, a data field with no address
+  field before it, a write to a write-protected disk and a read stall as
+  warnings. A Severity column MUST contain Info, Warning or Error, warning rows
+  MUST be on a yellowish background and error rows on a reddish one, both
+  from the theme, and the log's bar MUST have a Severity filter.
+- **FR-233**: The Disk II head stepper MUST be modeled by magnet pull: the head
+  moves to the position the energized phases pull it to, so two adjacent
+  phases put it on the quarter track between them, and a set with no net
+  pull (none, or two opposite phases) does not move it. A head step event
+  MUST be reported for each quarter-track move.
+- **FR-234**: In both event logs the columns MUST be chosen from the column
+  headings' context menu, a check for each column, and Copy MUST be on the
+  rows' context menu only. The Disk II log's Event column MUST fit the widest
+  label drawn in it. A log's selection, its anchor and its keyboard row MUST
+  be the same rows through each refresh, so Shift+arrow and a drag extend the
+  range they began; a right-click on a selected row MUST NOT change the
+  selection, and a mouse release with no press in the list MUST select
+  nothing.
+- **FR-235**: Every hover tip, a control's or a cell's, MUST be placed clear
+  of the pointer where it came to rest, as the system's tips are and as
+  040-disk-inspector places them, not against the item under it, and a move
+  within the same item MUST NOT move it. A timed notice and a color tip
+  stacked under an operand tip MUST be placed against their anchor (amended
+  2026-10-14).
+- **FR-236**: Every list but the disassemblies (registers, stack, watches,
+  call stack, breakpoints, trace, heat map ranges, both event logs and the
+  diagnostics panes) and the tips of text MUST use the proportional face. A
+  memory window's addresses MUST be proportional and its bytes monospace.
+  The flags cell on the P register's row MUST be monospace, so its letters
+  line up. The disassemblies, the source panes, the console and the tips of code or
+  bytes MUST be monospace; the console's text is a grid of fixed-width cells
+  with dumps and tables lined up by spaces. A tip with columns separated by
+  tabs MUST line them up in either face (amended 2026-10-14).
+- **FR-237**: At any stop (a step, a breakpoint, a pause) where the last
+  branch, jump or call the CPU took went to the PC, that instruction's arrow
+  MUST be drawn to the PC, beside the PC's own arrow, and drawn when the
+  PC's own line has no arrow. It MUST be drawn in round dots as wide as the
+  line, centered two widths apart, in the same color, unlike the PC's own
+  solid arrow. A source line out of view MUST have its arrow run in from
+  the view's edge (amended 2026-10-14).
+- **FR-238**: A watch's symbol and address MUST be colored as the code pane
+  colors them: a symbol in the symbol color, an address in the operand
+  color.
+- **FR-239**: A press on the heat map MUST focus its pane, so the pane is
+  drawn with the focus accent.
+- **FR-240**: The MMU panel MUST list each switch once; the switches are not
+  one register and MUST NOT be packed into a byte.
+- **FR-241**: In every command mode whose commands take symbols, a name in an
+  expression MUST be read as a defined symbol first, as AppleWin reads it,
+  then as a register, then as a hex number. `@A`, `@X`, `@Y`, `@P`, `@S` and
+  `@PC` MUST mean the register in every mode, WinDbg's included. `#` before a
+  value MUST mean a hex number with no register or symbol lookup, as in
+  AppleWin, and `0n` a decimal number. A BASIC
+  variable MUST be read by name only in the Watches pane while the machine is
+  stopped in a running Applesoft program and no symbol has the name; a name
+  with `$`, `%` or a subscript MUST always be read as a BASIC variable.
+- **FR-242**: Loading a symbol file that defines a register's name MUST report
+  each such name and that `@` and the name mean the register.
+- **FR-243**: While profiling is on, each instruction's cycles MUST be counted
+  to the routine running it. A JSR, a BRK or an interrupt starts a routine at
+  the address it lands on; the routine ends when the stack pointer rises back
+  to its value before the call; code outside any call is Top level. The
+  profile MUST have a call tree of routines under their callers with self
+  cycles, total cycles and calls; the routines with self, total, calls and
+  cycles per call, a routine's total counted once per call chain; and the
+  last 600 video frames' cycles by routine. `PROFILE RESET` clears them all.
+- **FR-244**: `PROFILE LIST ROUTINES` MUST list the routines and `PROFILE LIST
+  TREE` the call tree, indented under their callers; `PROFILE SAVE` MUST
+  write both after the opcode and address tables, and the debug channel's
+  profile reply MUST have the routines, the tree and the frames.
+- **FR-245**: The Profiler pane's view drop-down MUST choose Opcodes,
+  Addresses, Routines, Call tree or Flame graph. A timeline of frames MUST
+  run across the pane's top, each frame a bar of its cycles stacked by
+  routine, with a tip listing the frame's routines. The flame graph MUST draw
+  each routine as a bar as wide as its total, under its caller, with a tip
+  giving its self, total and calls; a click MUST zoom into a routine and a
+  click on Top level zoom out. Activating a routine in any view MUST move the
+  disassembly to it.
+- **FR-246**: A disassembly view MUST offer Show heat on its bar, off by
+  default and saved with its options: a strip with a block per byte of the
+  line, in the heat map's color for that byte, and `r` or `w` in place of the
+  block for a byte read or written as data more than it is run.
+- **FR-247**: While Show heat is on in any disassembly view, the source view
+  MUST have the heat strip over the bytes its line assembled to, up to four
+  blocks, and the BASIC program pane over the bytes of the line's tokens, the
+  interpreter's reads of them counting as the line running.
+- **FR-248**: A memory window MUST offer Heat on its bar, which tints each
+  byte by its heat. Every heat column MUST follow the heat map's fade or
+  cumulative mode and read the CPU's address space, and the heat map MUST
+  record while any heat column is shown.
+- **FR-249**: Each debug pane MUST be its own controller class behind one
+  pane interface that creates and configures its controls, adds itself to
+  the dock, applies a snapshot, places its bar, routes a mouse event and a
+  key, returns its tip at a point, adds its context menu rows, lists its
+  controls, and saves and restores its state. A pane MUST call the window
+  only through a pane host interface: run an action, go to an address, the
+  theme and the heat palette, the popup host, the scaler and a repaint
+  request.
+- **FR-250**: The window MUST contain the dock, the menus, the command bar,
+  the timeline, the status bar and the list of panes; its mouse, key, tip,
+  snapshot and placement code MUST be loops over the panes, with no pane
+  referenced by its id.
+- **FR-251**: Tooltip coordination, the mouse and key routing for floating
+  and slid-out panes, the View menu's rows, and the placing, routing and tips
+  of a pane's bar MUST each be a class of their own; one bar helper MUST
+  serve every pane's bar.
+- **FR-252**: A pane class larger than about 1,500 lines MUST be split
+  further, with pure logic out of its controller; the split of each pane is
+  settled when its task comes up, from what is in it. The Disk II and input
+  event logs MUST share one base class.
+- **FR-253**: The debugger's behavior, look and saved settings MUST match the
+  build before the refactor: every debugger test MUST pass after each step,
+  no test is deleted to make a step pass, tests that read the window's
+  internals move to the pane classes, and the moved panes are exercised on
+  screen, docked, floating and slid out, after each step.
+- **FR-254**: `/bigobj` MUST be removed from `DebuggerWindow.cpp` once the
+  last pane has moved.
 
 ### Key Entities
 
@@ -2452,6 +3251,29 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
   optionally with bit decodes and a visual.
 - **Layout**: The tree of split groups, tab groups, floating panes and
   auto-hidden panes, with sizes and monitors, saved between sessions.
+
+- **Debug project**: the saved state of FR-166, its scope signal (FR-167), its
+  file, and its startup commands; saved automatically, one open at a time.
+- **BASIC program view**: the Applesoft program's lines, the line and
+  statement being run, its variables and arrays, and its GOSUB and FOR stack,
+  all read from memory without side effects.
+- **Editable grid row**: a range set entry being edited in place, with its
+  required fields and whether it is the trailing "Add new range" row.
+- **Debug event**: One thing a view reports the machine did, with its cycle
+  count and the facts its kind has: a disk event (drive, kind, track, sector,
+  address field, value), an input event (source, kind, value, host or guest),
+  a video or sound log entry, a trace entry.
+- **Event cache**: A view's newest debug events as the running machine
+  produced them, bounded, recorded from the start of the session and cut back
+  on rewind; a cache of what replaying history would produce, never a second
+  record.
+- **Automatic state**: The machine state file for one machine kind in the
+  state folder, written at exit and on switching away from that machine, and
+  resumed at startup or on switching to it while the automatic save setting is
+  on.
+- **Machine state file** (amended 2026-10-12): in addition to the machine and
+  its disks, the date and time it was saved and a thumbnail of the emulated
+  screen at that moment.
 
 ## Success Criteria *(mandatory)*
 
@@ -2575,10 +3397,64 @@ with no CPU read, and a stop on a latch read during the motor's spin-up.
 - **SC-044**: After one drive's head moves and the other drive is selected,
   the other drive's head is where it was in 100% of cases, and the scenario
   suite's DOS 3.3 and ProDOS boots still pass.
+- **SC-045**: After Casso closes and starts again, 100% of a project's FR-166
+  state is restored when the same debug file, binary or boot disk is loaded,
+  with no user action.
+- **SC-046**: After a crash, no more than the last 2 seconds of debugger state
+  changes are lost, and the project file is never damaged.
+- **SC-047**: For every fixture Applesoft program, the BASIC view's listing
+  matches LIST's output line for line, and a statement step stops at 100% of
+  the program's statements in order.
+- **SC-048**: At every stop in the fixture programs, every variable the BASIC
+  view shows equals what PRINT gives for it.
+- **SC-049**: 100% of the entries FR-180 to FR-198 require work without typing
+  a console command.
+- **SC-050**: 100% of menu items with a key in the active scheme show it.
+- **SC-051**: A user adds three ranges to a set with the editable grid in under
+  a minute without using the + button or a dialog.
+- **SC-052**: With history recording on and every event cache recording,
+  emulation speed at maximum is unchanged within measurement noise from before
+  User Story 24 and FR-218, and the host's processor time at normal speed rises
+  by no more than measurement noise, both measured idle at a DOS prompt and
+  during a disk boot.
+- **SC-053**: For a recorded run, the Disk II event log rebuilt from history
+  shows the same events, in the same order and at the same cycles, as the
+  log recorded live.
+- **SC-054**: Scrolling a log back through history shows each newly reached
+  screen of events within a quarter second.
+- **SC-055**: Every feature on the approved FR-217 list works in the new
+  panes, and neither standalone debug window remains.
+
+- **SC-056**: With the automatic save setting on, a user who closes Casso
+  mid-program and starts it again is back at the same point, with the same
+  screen and disk contents and the program continuing, with no action beyond
+  starting Casso.
+- **SC-057**: Starting Casso by resuming an automatic state takes no more than
+  one second longer than starting the same machine cold, with two 140 KB disks
+  mounted.
+- **SC-058**: In every tested case (a resume that fails, a session started
+  with command-line media, a save at exit that fails partway) the previous
+  automatic state is intact afterward unless the user chose to replace it.
+
+- **SC-059**: For every release of Casso that saves machine states, a state
+  that release saved for each machine kind is in the test suite, and every
+  later build loads each one and runs it for one second of emulated time
+  without error.
+
+- **SC-060**: The project builds with `/bigobj` on no file.
+- **SC-061**: No debugger window source file is over about 3,000 lines, and
+  no pane class is over about 1,500.
+- **SC-062**: Adding a pane takes its class and one line in the pane list,
+  with no other edit to the window, as a unit test with a trivial test pane
+  demonstrates.
+
+**Out of scope for the automatic states**: a state picker or browser, more than
+one automatic state per machine kind, and states saved on a timer.
 
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
-files with seamless scroll-back, debug projects, and an MCP adapter over the
+files with seamless scroll-back (kept in User Story 21's debug projects),
+source-level debugging of languages other than Applesoft, and an MCP adapter over the
 debug channel.
 
 ## Assumptions
@@ -2601,7 +3477,7 @@ debug channel.
     - Breakpoints: `BRK`, `BRKOP`, `BRKINT`, `BP`, `BPA`, `BPR`, `BPX`, `BPIO`,
       `BPM`, `BPMR`, `BPMW`, `BPC`, `BPD`, `BPEDIT`, `BPE`, `BPL`, `BPSAVE`,
       `BPCHANGE`.
-    - Config: `BENCHMARK`, `DISASM`, `LOAD`, `SAVE`, `PWD`, `CD`.
+    - Config: `BENCHMARK`, `LOAD`, `SAVE`, `PWD`, `CD`.
     - Cycles: `CYCLES`, `RCC`.
     - Disassembler data: `Z`, `X`, `B`, `DB`, `DB2`, `DB4`, `DB8`, `DW`, `DW2`,
       `DW4`, `ASC`, `DF`, `DA`.
@@ -2641,7 +3517,9 @@ debug channel.
   - **Not available** (accepted, reported as not available, and tracked as
     follow-ups): `SHR` (needs a IIgs), `SYNC` (needs an assembler-listing
     link beyond what the source pane provides), `NTSC` (AppleWin's palette
-    file has no Casso equivalent). `BPV` and `VIDEOINFO` are phase 1, served
+    file has no Casso equivalent), `DISASM` (its settings set the layout of
+    AppleWin's text console; the disassembly view's check boxes set its
+    options, FR-200). `BPV` and `VIDEOINFO` are phase 1, served
     from the machine's video timing. `SOURCE` becomes the source documents.
   - The table is consulted for names and behavior only; `RUN` runs a script of
     commands through the same engine batch mode uses.
@@ -2783,17 +3661,36 @@ debug channel.
   entry at the JMP's target and every call to RDADR16 on a real boot, and
   scenario 9 and the "A relocated DOS" edge case change with the owner if a
   call reaches RWTS's routines by another entry.
-- **The stepper with the motor off**: Casso's `Disk2Controller::HandlePhase`
-  moves the head whatever the motor's state. Whether a real drive's stepper
-  moves while its drive is not enabled has not been checked against Sather's
-  *Understanding the Apple IIe*, chapter 9; this spec requires neither
-  behavior, and T714 checks the book and files a GitHub issue if the model
-  differs from it.
-- **The Disk ][ debug window's rows** belong to spec 006 and are not changed
-  here. Its "Data read" event fires after the full DE AA EB epilogue, which a
-  DOS read may never reach, so its rows may show sectors passed over rather
-  than sectors read; the story's first task checks this on a DOS 3.3 boot and
-  files a GitHub issue if so.
+- **The stepper with the motor off**: per Sather's *Understanding the Apple
+  IIe*, chapter 9 ("The Drive ENABLE' Input"), head positioning is enabled
+  only at the drive whose ENABLE' is low, which is while its motor runs, its
+  spin-down included. `Disk2Controller::HandlePhase` latches the phases
+  either way and moves the selected drive's head only then; the phases on
+  when a drive is next enabled pull its head at that moment (GH #176, fixed
+  2026-10-15).
+- **The Disk II log's "Sector read" rows** follow the read test (research
+  R-041): a data field after an address field is a sector read when an
+  instruction other than the one that read its address prologue reads its
+  checksum nibble, and is logged then. The DE AA epilogue that spec 006's
+  window waited for is never read by the boot ROM or ProDOS, and the
+  searches read it for every sector they pass over (GH #175, fixed
+  2026-10-15); a DOS 3.3 boot now logs the 98 sectors it requests and no
+  others.
+
+- **Exit**: closing the main window by any route (its close button, Alt+F4,
+  File > Exit, or the restart that applies an update) counts as exit for
+  FR-220. A crash or an ended process does not.
+- **The machine running at exit** is the one the existing preferences already
+  record as last used, so FR-221 requires no new record of it.
+- **Switching away from a command-line session's machine** is treated as its
+  end for FR-223's prompt, since a silent automatic save there would replace
+  the earlier state the prompt exists to protect. The owner's decision was
+  about exit; this extends it to the switch, which has the same effect.
+- **The thumbnail** is of the emulated screen alone, without the window's
+  chrome or the desk scene, small enough to add little to the file.
+- **Compatibility starts at the first release with state files.** Forms of
+  the saved state written only by unreleased builds, among them `DiskImage`
+  versions 1 and 2 and `Disk2NibbleEngine` version 1, are not read by FR-226.
 
 ### References
 

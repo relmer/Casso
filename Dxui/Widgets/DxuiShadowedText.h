@@ -52,6 +52,10 @@ public:
     void  SetTextColor   (uint32_t argb)             { m_textArgb = argb; }
     void  SetDpi         (UINT dpi)                  { m_dpi = dpi; }
 
+    // The whole line, shadow and ink together, 0 to 1, for a caller that
+    // fades it in and out.
+    void  SetOpacity     (float opacity)             { m_opacity = opacity; }
+
     // How far the shadow reaches, in PIXELS at the size the text is drawn.
     //
     // SCALE IT WITH THE FONT. The default suits body text; a caller drawing
@@ -64,6 +68,16 @@ public:
     {
         m_hAlign = h;
         m_vAlign = v;
+    }
+
+    // A line too long for its rect, scrolled: drawn twice `periodPx` apart
+    // from the left, clipped to the rect, and slid `offsetPx` along, so the
+    // caller can run a marquee without a seam. A period of 0 is the ordinary
+    // aligned line.
+    void  SetMarquee     (float periodPx, float offsetPx)
+    {
+        m_marqueePeriodPx = periodPx;
+        m_marqueeOffsetPx = offsetPx;
     }
 
     // The text spans `boundsDip` and aligns inside it. The glow reaches
@@ -91,7 +105,8 @@ public:
                                 const wchar_t     * face,
                                 DxuiTextHAlign      hAlign,
                                 DxuiTextVAlign      vAlign,
-                                int                 reachPx);
+                                int                 reachPx,
+                                float               opacity = 1.0f);
 
     // MatrixRain's glowLayers: ten rings, ring r at r PIXELS out with alpha
     // 1 - r/10, so the outermost contributes nothing and the innermost is
@@ -109,11 +124,14 @@ public:
 
 private:
     std::wstring     m_text;
-    const wchar_t *  m_fontFace    = nullptr;   // null = the theme's body face
-    uint32_t         m_textArgb    = 0xFFFFFFFF;
-    float            m_fontSizeDip = kFontDip;
-    UINT             m_dpi         = 96;
-    int              m_reachPx     = kGlowReachPx;
-    DxuiTextHAlign   m_hAlign      = DxuiTextHAlign::Center;
-    DxuiTextVAlign   m_vAlign      = DxuiTextVAlign::Center;
+    const wchar_t *  m_fontFace        = nullptr;   // null = the theme's body face
+    uint32_t         m_textArgb        = 0xFFFFFFFF;
+    float            m_fontSizeDip     = kFontDip;
+    UINT             m_dpi             = 96;
+    int              m_reachPx         = kGlowReachPx;
+    DxuiTextHAlign   m_hAlign          = DxuiTextHAlign::Center;
+    DxuiTextVAlign   m_vAlign          = DxuiTextVAlign::Center;
+    float            m_marqueePeriodPx = 0.0f;
+    float            m_marqueeOffsetPx = 0.0f;
+    float            m_opacity         = 1.0f;
 };

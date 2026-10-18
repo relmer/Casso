@@ -3,9 +3,12 @@
 #include "Pch.h"
 
 #include "Debugger/CallStack.h"
-#include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
-#include "Debugger/Reverse/ReplayDiskCopier.h"
+
+struct InputRecord;
+class InputJournal;
+struct ReplayDisk;
+class ReplayDiskCopier;
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "TestMachine.h"
 #include "FixtureProvider.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

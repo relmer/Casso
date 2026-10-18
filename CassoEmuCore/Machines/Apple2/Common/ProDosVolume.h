@@ -3,7 +3,9 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
-#include "Devices/Disk/ChainWalkGuard.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+
+class ChainWalkGuard;
 
 
 

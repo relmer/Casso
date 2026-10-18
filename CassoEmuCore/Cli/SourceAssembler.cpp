@@ -7,6 +7,8 @@
 #include "Assembler.h"
 #include "DiagnosticFormatter.h"
 #include "DialectRegistry.h"
+#include "DialectReporting.h"
+#include "CommandLineOptions.h"
 
 
 

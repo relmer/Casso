@@ -10,6 +10,7 @@
 #include "Parser.h"
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -314,7 +315,7 @@ namespace DialectMechanismTests
                 text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message;
             }
 
-            wide.assign (text.begin(), text.end());
+            wide = TextEncoding::NarrowToWide (text);
 
             return wide;
         }
@@ -863,7 +864,7 @@ namespace DialectMechanismTests
                 {
                     const DialectProfile  &  profile = DialectRegistry::Get (entry.id);
                     Directive                claimed = profile.GetDirectiveForSpelling (mnemonic);
-                    std::wstring             what    = std::wstring (mnemonic.begin(), mnemonic.end())
+                    std::wstring             what    = TextEncoding::NarrowToWide (mnemonic)
                                                        + L" is an instruction and this dialect's directive table"
                                                          L" claims it, so which one it is depends on lookup order";
 
@@ -1197,7 +1198,7 @@ namespace DialectMechanismTests
                     AssemblyResult  result  = AssembleWith (DialectId::Merlin,
                                                             "         ORG $0300\n         " + spelling + " 1\n");
                     std::wstring    message = L"Merlin resolved the AS65-only spelling "
-                                            + std::wstring (spelling.begin(), spelling.end());
+                                            + TextEncoding::NarrowToWide (spelling);
 
                     Assert::IsFalse (result.success, message.c_str());
                     Assert::IsTrue (DiagnosticsMention (result, spelling), message.c_str());
@@ -1244,7 +1245,7 @@ namespace DialectMechanismTests
                 AssemblyResult  result  = AssembleWith (DialectId::Merlin, specimen.source);
                 std::string     opener  = specimen.opener;
                 std::wstring    message = L"Merlin steered conditional assembly with "
-                                        + std::wstring (opener.begin(), opener.end());
+                                        + TextEncoding::NarrowToWide (opener);
 
                 Assert::IsFalse (result.success, message.c_str());
                 Assert::IsTrue (DiagnosticsMention (result, opener), message.c_str());
@@ -1418,7 +1419,7 @@ namespace DialectMechanismTests
                 text = "line " + std::to_string (result.errors[0].lineNumber) + ": " + result.errors[0].message;
             }
 
-            wide.assign (text.begin(), text.end());
+            wide = TextEncoding::NarrowToWide (text);
 
             return wide;
         }
