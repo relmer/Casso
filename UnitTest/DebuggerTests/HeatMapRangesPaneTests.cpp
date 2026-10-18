@@ -10,6 +10,7 @@
 #include "Ui/Debugger/HeatMapRangeBarCommands.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -162,14 +163,18 @@ namespace HeatMapRangesPaneTests
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
         }
 
+        //  Laid out, and the grid's columns measured as a paint measures them,
+        //  since they are as wide as their content.
         static void Relayout (RangesWindow & window)
         {
-            DxuiDpiScaler  scaler;
+            DxuiDpiScaler          scaler;
+            MockDxuiTextRenderer   text;
 
 
 
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+            window.GetHeatRangesPane().GetList()->MeasureColumnsPx (text);
         }
 
         //  Built, the pane open, and one set made and named.

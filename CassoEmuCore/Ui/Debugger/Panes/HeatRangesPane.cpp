@@ -112,11 +112,11 @@ void HeatRangesPane::Configure()
     HeatMapRangeBarCommands::Handlers                  handlers;
     std::vector<DxuiEditableGrid::GridColumn>          columns =
     {
-        { { L"Name",     kNameDip } },
-        { { L"Start",    kSpanDip }, true, true },
-        { { L"End",      kSpanDip } },
-        { { L"Size",     kSizeDip } },
-        { { L"Built-in", kSizeDip }, false },
+        { { L"Name",     0 } },
+        { { L"Start",    0 }, true, true },
+        { { L"End",      0 } },
+        { { L"Size",     0 } },
+        { { L"Built-in", 0 }, false },
     };
 
 
@@ -378,6 +378,8 @@ void HeatRangesPane::OpenForShownSet()
 //
 //  HeatRangesPane::AddMenuItems
 //
+//  A built-in range cannot be deleted, so its Delete is disabled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatRangesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
@@ -390,6 +392,10 @@ bool HeatRangesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
     if (m_list->CanDeleteRow (row))
     {
         items.push_back ({ L"Delete", [this, row] { m_list->DeleteRow (row); m_host.Repaint(); } });
+    }
+    else if (row >= 0 && GetEditedSet() != nullptr && row < (int) GetEditedSet()->ranges.size())
+    {
+        items.push_back ({ L"Delete", nullptr });
     }
 
     return true;

@@ -68,6 +68,7 @@ public:
     void                         Open              () override;
     IDxuiControl               * GetContent        () const override;
     std::vector<IDxuiControl *>  GetControls       () const override;
+    std::vector<IDxuiControl *>  GetOverlays       () const override { return { m_editor }; }
     std::vector<DxuiListView *>  GetLists          () const override;
     std::vector<DxuiToolbar *>   GetBars           () const override { return { m_bar.GetBar() }; }
     void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
@@ -87,9 +88,6 @@ private:
     };
 
     static constexpr int  kEditMaxChars = 64;
-    static constexpr int  kNameDip      = 150;
-    static constexpr int  kSpanDip      = 130;
-    static constexpr int  kSizeDip      = 70;
     static constexpr int  kErrorDip     = 20;
 
     void                     LoadSets        ();

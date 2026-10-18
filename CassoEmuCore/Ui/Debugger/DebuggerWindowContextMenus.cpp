@@ -237,9 +237,14 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     m_menuCommands.clear();
     SetWindowMenus();
 
+    //  A row with no action is disabled, such as Delete on a row that cannot
+    //  be deleted.
     for (auto & [label, action] : items)
     {
+        bool  isEnabled = (bool) action;
+
         m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 

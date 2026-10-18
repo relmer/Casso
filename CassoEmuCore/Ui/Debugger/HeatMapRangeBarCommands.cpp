@@ -30,9 +30,9 @@ const std::vector<HeatMapRangeBarCommands::Row> & HeatMapRangeBarCommands::GetRo
     static const std::vector<Row>  rows =
     {
         { kSet,       L"Set",        nullptr,        L"The set of ranges this pane edits",                       DxuiToolbar::Kind::DropDown, 0, false },
-        { kNewSet,    L"New set",    nullptr,        L"Make a set, starting with every built-in range left out", DxuiToolbar::Kind::Command,  0, false },
-        { kRenameSet, L"Rename set", nullptr,        L"Rename this set",                                         DxuiToolbar::Kind::Command,  0, false },
-        { kDeleteSet, L"Delete set", nullptr,        L"Delete this set and its ranges",                          DxuiToolbar::Kind::Command,  0, false },
+        { kNewSet,    L"New",        nullptr,        L"Make a set, starting with every built-in range left out", DxuiToolbar::Kind::Command,  0, false },
+        { kRenameSet, L"Rename",     nullptr,        L"Rename this set",                                         DxuiToolbar::Kind::Command,  0, false },
+        { kDeleteSet, L"Delete",     nullptr,        L"Delete this set and its ranges",                          DxuiToolbar::Kind::Command,  0, false },
         { kEdit,      L"Edit",       s_kGlyphEdit,   L"Edit the selected range",                                 DxuiToolbar::Kind::Command,  1, true  },
         { kRemove,    L"Remove",     s_kGlyphRemove, L"Remove the selected range",                               DxuiToolbar::Kind::Command,  1, true  },
         { kUp,        L"Move up",    s_kGlyphUp,     L"Move the selected range up the map",                      DxuiToolbar::Kind::Command,  2, true  },
