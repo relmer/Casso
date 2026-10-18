@@ -54,10 +54,49 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
 
     for (const auto & [label, field] : m_rows)
     {
+        label->SetVisible (field->IsVisible());
+
+        if (!field->IsVisible())
+        {
+            continue;
+        }
+
         label->Layout (RECT { boundsDip.left, y, split, y + row }, scaler);
         field->Layout (RECT { split, y, boundsDip.right, y + row }, scaler);
         y += row + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetVisibleFields
+//
+//  What MakeDefinition reads for the type: a watchpoint's mode, a disk
+//  breakpoint's event and drive, the address (a disk breakpoint's
+//  arguments), the value, and the IF condition of the types that take one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
+{
+    VisibleFields  shown;
+    bool           isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
+
+
+
+    shown.event     = type == Type::Disk;
+    shown.drive     = type == Type::Disk;
+    shown.mode      = isWatched;
+    shown.value     = type == Type::Value || type == Type::Register || type == Type::Opcode || type == Type::Beam;
+    shown.condition = type == Type::Execute || isWatched || type == Type::Value || type == Type::Disk;
+    shown.address   = type == Type::Execute || isWatched || type == Type::Value || type == Type::Disk || type == Type::BasicLine ||
+                      type == Type::BasicVariable || type == Type::VideoLine || type == Type::Beam || type == Type::ExecuteWatch;
+
+    return shown;
 }
 
 
@@ -227,31 +266,37 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
 //
 //  BreakpointDialog::ShowFieldsForType
 //
-//  The value field means what the type needs it to, and only a watchpoint
-//  can stop before its access. A disk breakpoint takes an event, a drive
-//  and the event's arguments in the address field, whose placeholder is
-//  the event's syntax line.
+//  Only the fields the type uses are visible, and the value field's label
+//  is the type's meaning for it. A disk breakpoint takes an event, a drive
+//  and the event's arguments in the address field, whose placeholder is the
+//  event's syntax line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointDialog::ShowFieldsForType()
 {
-    Type    type      = (Type) m_type.GetSelectedIndex();
-    bool    isWatched = type == Type::Read || type == Type::Write || type == Type::ReadWrite;
-    bool    isDisk    = type == Type::Disk;
-    bool    isBasic   = type == Type::BasicLine || type == Type::BasicVariable || type == Type::BasicError;
-    bool    isMachine = type == Type::UnwrittenRead || type == Type::VideoLine || type == Type::Beam || type == Type::ExecuteWatch;
-    size_t  event     = std::clamp<size_t> (m_event.GetSelectedIndex(), 0, DiskBreakSpecText::GetEventWords().size() - 1);
+    Type           type  = (Type) m_type.GetSelectedIndex();
+    VisibleFields  shown = GetVisibleFields (type);
+    size_t         event = std::clamp<size_t> (m_event.GetSelectedIndex(), 0, DiskBreakSpecText::GetEventWords().size() - 1);
 
 
 
-    m_mode.SetEnabled      (isWatched);
-    m_event.SetEnabled     (isDisk);
-    m_drive.SetEnabled     (isDisk);
-    m_value.SetEnabled     (!isDisk && !isBasic && (!isMachine || type == Type::Beam));
-    m_address.SetEnabled   (type != Type::BasicError && type != Type::UnwrittenRead);
-    m_condition.SetEnabled (!isBasic && !isMachine);
-    m_address.SetPlaceholder (isDisk ? SourcePathList::Utf8ToWide (DiskBreakSpecText::GetEventWords()[event].syntax) : std::wstring());
+    m_mode.SetVisible      (shown.mode);
+    m_event.SetVisible     (shown.event);
+    m_drive.SetVisible     (shown.drive);
+    m_value.SetVisible     (shown.value);
+    m_address.SetVisible   (shown.address);
+    m_condition.SetVisible (shown.condition);
+    m_address.SetPlaceholder (shown.event ? SourcePathList::Utf8ToWide (DiskBreakSpecText::GetEventWords()[event].syntax) : std::wstring());
+
+    //  The rows close up over the hidden fields.
+    if (m_body != nullptr)
+    {
+        DxuiDpiScaler  scaler;
+
+        scaler.SetDpi  (GetDpi());
+        m_body->Layout (m_body->GetBounds(), scaler);
+    }
 
     switch (type)
     {
@@ -269,7 +314,7 @@ void BreakpointDialog::ShowFieldsForType()
     case Type::Register: m_valueLabel.SetText (L"Register test (A=41)");  break;
     case Type::Opcode:   m_valueLabel.SetText (L"Opcode or mnemonic");    break;
     case Type::Beam:     m_valueLabel.SetText (L"Cycle in the line (hex)"); break;
-    default:             m_valueLabel.SetText (L"Value (unused)");        break;
+    default:             m_valueLabel.SetText (L"Value");                 break;
     }
 }
 
@@ -372,7 +417,10 @@ void BreakpointDialog::OnCreate()
         EndDialog (IDOK);
     });
 
-    SetInitialFocus (&m_address);
+    //  The first text field the type uses.
+    SetInitialFocus (GetVisibleFields (fields.type).address ? (IDxuiControl *) &m_address
+                   : GetVisibleFields (fields.type).value   ? (IDxuiControl *) &m_value
+                   :                                          (IDxuiControl *) &m_type);
 }
 
 

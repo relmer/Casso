@@ -10,7 +10,8 @@
 //
 //  BreakpointDialogPanel
 //
-//  A label beside each field, one field a row.
+//  A label beside each field, one field a row; a hidden field's row is
+//  left out, so the rows of the visible ones are together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +66,20 @@ public:
         int          drive     = 0;
         std::string  arguments;
     };
+
+    //  The fields a type uses, which are the dialog's only visible fields
+    //  besides the type.
+    struct VisibleFields
+    {
+        bool  event     = false;
+        bool  drive     = false;
+        bool  mode      = false;
+        bool  address   = false;
+        bool  value     = false;
+        bool  condition = false;
+    };
+
+    static VisibleFields  GetVisibleFields (Type type);
 
     //  The definition for a type and its fields, as BPEDIT takes it.
     static std::string  MakeDefinition (const Fields & fields);

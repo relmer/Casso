@@ -161,6 +161,34 @@ public:
 
 
 
+    //  The dialog has only the fields a type's definition reads: a BASIC
+    //  variable change, its variable; a register test, its test; a disk
+    //  event, its event, drive, arguments and condition.
+    TEST_METHOD (TheBreakpointDialogHasOnlyTheFieldsATypeUses)
+    {
+        using Type = BreakpointDialog::Type;
+
+        BreakpointDialog::VisibleFields  variable = BreakpointDialog::GetVisibleFields (Type::BasicVariable);
+        BreakpointDialog::VisibleFields  reg      = BreakpointDialog::GetVisibleFields (Type::Register);
+        BreakpointDialog::VisibleFields  disk     = BreakpointDialog::GetVisibleFields (Type::Disk);
+        BreakpointDialog::VisibleFields  brk      = BreakpointDialog::GetVisibleFields (Type::Brk);
+
+
+
+        Assert::IsTrue  (variable.address);
+        Assert::IsFalse (variable.value || variable.condition || variable.mode || variable.event || variable.drive);
+
+        Assert::IsTrue  (reg.value);
+        Assert::IsFalse (reg.address || reg.condition);
+
+        Assert::IsTrue  (disk.event && disk.drive && disk.address && disk.condition);
+        Assert::IsFalse (disk.value || disk.mode);
+
+        Assert::IsFalse (brk.address || brk.value || brk.condition, L"BRK ON takes nothing");
+        Assert::IsTrue  (BreakpointDialog::GetVisibleFields (Type::Read).mode, L"a watchpoint stops before or after");
+    }
+
+
     //  A Memory pane's Find, Fill, Copy and Compare: S's hits, F's bytes, M's
     //  copy and MC's differences, the hits and differences in the snapshot
     //  for the pane.
