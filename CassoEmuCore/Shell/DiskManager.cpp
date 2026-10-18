@@ -297,6 +297,38 @@ Disk2Controller * DiskManager::FindSlot6Controller()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PublishDriveStatus
+//
+//  Publishes the drive status from the store and the slot 6 controller, on
+//  the thread that has the store's token, and calls m_statusWake when a bay
+//  changed, so an idle window draws the change at once.
+//
+//  Code on this thread that posts a message whose handler reads the drive
+//  status publishes first, as MountDiskInSlot6 does before its completion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DriveStatusChange DiskManager::PublishDriveStatus (bool isActivityDue)
+{
+    DriveStatusChange  change = m_statusPublisher.Publish (m_diskStore, FindSlot6Controller(), isActivityDue);
+    bool               isWake = change == DriveStatusChange::Bays && m_statusWake;
+
+
+
+    if (isWake)
+    {
+        m_statusWake();
+    }
+
+    return change;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MountCommandLineDisks
 //
 //  Resolves the per-drive image to mount: explicit command-line path
@@ -475,6 +507,9 @@ Error:
     // Last, and on the way out of both paths, so anything the callback does
     // (raising a dialog, say) sees the drive in its settled state -- fully
     // mounted, or left as the failure left it.
+    //  Published first, so the completion's handler finds the mount.
+    (void) PublishDriveStatus (true);
+
     if (attempted && m_onMountCompleted)
     {
         m_onMountCompleted (drive, path, hr, diagnosis);

@@ -3,6 +3,7 @@
 #include "HResultAssert.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Shell/DriveStatusPublisher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -184,6 +185,48 @@ public:
         Assert::IsFalse (store->CanSeatMedia (s_kHoldSlot, s_kHoldDrive, mediaId));
     }
 
+
+    //  An eject, seating a retained disk and discarding unsaved writes each
+    //  change the bay, and each publish after them has the bay as the store
+    //  has it.
+    TEST_METHOD (ThePublishedStatusFollowsSeatingDiscardAndEject)
+    {
+        auto                  store     = std::make_unique<DiskImageStore>();
+        DriveStatusPublisher  publisher;
+        Files                 files;
+        uint64_t              mediaId   = 0;
+        uint64_t              now       = 0;
+        bool                  changed   = false;
+
+
+
+        PrepareDirtyDisk (*store, files);
+
+        store->SetPositionSource (&now);
+        store->SetMediaRetention (true);
+        mediaId = store->GetMediaId (s_kHoldSlot, s_kHoldDrive);
+
+        (void) publisher.Publish (*store, nullptr, true);
+        Assert::IsTrue (publisher.Take()->GetBay (s_kHoldSlot, s_kHoldDrive).isMounted, L"the disk is published");
+
+        store->Eject (s_kHoldSlot, s_kHoldDrive);
+
+        Assert::IsTrue (publisher.Publish (*store, nullptr, true) == DriveStatusChange::Bays, L"the eject is a bay change");
+        Assert::IsFalse (publisher.Take()->GetBay (s_kHoldSlot, s_kHoldDrive).isMounted,     L"and the bay is published empty");
+
+        AssertSucceeded (store->SeatMedia (s_kHoldSlot, s_kHoldDrive, mediaId, changed), L"SeatMedia");
+
+        Assert::IsTrue (publisher.Publish (*store, nullptr, true) == DriveStatusChange::Bays, L"seating the disk is a bay change");
+        Assert::IsTrue (publisher.Take()->GetBay (s_kHoldSlot, s_kHoldDrive).isMounted,      L"and the disk is published again");
+
+        Dirty (*store);
+        store->SetFlushHold (true);
+        AssertSucceeded (store->DiscardHeldWrites(), L"DiscardHeldWrites");
+
+        Assert::IsTrue (publisher.Publish (*store, nullptr, true) == DriveStatusChange::Bays, L"discarding is a bay change");
+        Assert::IsTrue (publisher.Take()->GetBay (s_kHoldSlot, s_kHoldDrive) == store->GetBayStatus (s_kHoldSlot, s_kHoldDrive),
+                        L"and the published bay is the store's");
+    }
 
     TEST_METHOD (WithoutRetentionAnEjectedDiskIsGone)
     {

@@ -269,6 +269,10 @@ private:
     // CPU thread entry point and helpers
     void RunOneFrame();
     void RunCpuThreadFrame();
+
+    // The CPU manager's service function: the debugger's service work, then
+    // the drive status.
+    void ServiceCpuThread();
     void ExecuteCpuSlices();
 
     // One slice of a frame, watching input held back behind live.

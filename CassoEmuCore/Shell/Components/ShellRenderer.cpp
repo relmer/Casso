@@ -1629,20 +1629,22 @@ void ShellRenderer::RedrawStoppedFrame()
 //  ShellRenderer::PublishFrameIfChanged
 //
 //  A steady screen renders nothing: the throttle, then a few cheap
-//  comparisons of what goes into the picture.
+//  comparisons of what goes into the picture. Returns whether the throttle
+//  allowed a frame, which is also when drive activity is due.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellRenderer::PublishFrameIfChanged()
+bool ShellRenderer::PublishFrameIfChanged()
 {
     FrameSignature  current;
     FrameSignature  lastRendered;
+    bool            isPublishDue = ShouldPublishFrame();
 
 
 
-    if (!ShouldPublishFrame())
+    if (!isPublishDue)
     {
-        return;
+        return isPublishDue;
     }
 
     current.videoDirty    = m_shell.m_machine.GetMemoryBus().IsVideoDirty();
@@ -1655,7 +1657,7 @@ void ShellRenderer::PublishFrameIfChanged()
 
     if (!FramePacing::NeedsRender (current, lastRendered))
     {
-        return;
+        return isPublishDue;
     }
 
     RenderFramebuffer();
@@ -1665,6 +1667,8 @@ void ShellRenderer::PublishFrameIfChanged()
     m_lastRenderModeSig  = current.modeSig;
     m_lastRenderFlashOn  = current.flashOn;
     m_lastRenderColorSig = current.colorSig;
+
+    return isPublishDue;
 }
 
 

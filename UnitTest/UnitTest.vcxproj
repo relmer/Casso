@@ -161,6 +161,8 @@
     <ClCompile Include="EmuTests\ThreadOwnershipTests.cpp" />
     <ClCompile Include="EmuTests\OwnerThreadStandIn.cpp" />
     <ClCompile Include="EmuTests\DiskOwnershipTests.cpp" />
+    <ClCompile Include="EmuTests\DriveStatusPublisherTests.cpp" />
+    <ClCompile Include="EmuTests\DiskManagerDriveStatusTests.cpp" />
     <ClCompile Include="UiTests\StoragePageTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
@@ -595,6 +597,7 @@
     <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
     <ClInclude Include="Cassque\FakeFolderWatcher.h" />
     <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
+    <ClInclude Include="EmuTests\DiskManagerRig.h" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />

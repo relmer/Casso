@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/BayChange.h"
+#include "Shell/DriveStatusPublisher.h"
 
 
 class CpuManager;
@@ -134,6 +135,15 @@ public:
 
     void     UpdateDriveWidgets ();
 
+    //  The drive status for the window. PublishDriveStatus runs on the thread
+    //  that has the disk store's token and returns what the publish changed;
+    //  TakeLatestDriveStatus may run on any thread; GetShownDriveStatus is the
+    //  window thread's copy for the frame. SetStatusWake installs the call
+    //  made when a publish changes a bay.
+    DriveStatusChange                   PublishDriveStatus    (bool isActivityDue);
+    void                                SetStatusWake         (std::function<void ()> wake) { m_statusWake = std::move (wake); }
+    std::shared_ptr<const DriveStatus>  TakeLatestDriveStatus () const { return m_statusPublisher.Take(); }
+    const DriveStatus &                 GetShownDriveStatus   () const { return *m_shownStatus; }
     // Cold-boot mount window (FR-013): suppress door-close FX while
     // command-line / autoload mounts are running at app launch.
     void     SetColdBootMountWindow (bool value) noexcept { m_coldBootMountWindow = value; }
@@ -205,5 +215,8 @@ private:
     std::array<std::string, 2>  m_lastDriveSourcePath  {};
 
     bool                     m_coldBootMountWindow  = true;
-    bool                     m_programmaticRemount  = false;
+
+    DriveStatusPublisher                m_statusPublisher;
+    std::function<void ()>              m_statusWake;
+    std::shared_ptr<const DriveStatus>  m_shownStatus = m_statusPublisher.Take();    bool                     m_programmaticRemount  = false;
 };

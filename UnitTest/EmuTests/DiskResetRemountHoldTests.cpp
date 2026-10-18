@@ -15,6 +15,7 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
 #include "EmuTests/OwnerThreadStandIn.h"
+#include "EmuTests/DiskManagerRig.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "WasapiAudio.h"
 
@@ -47,19 +48,8 @@ TEST_CLASS (DiskResetRemountHoldTests)
 {
 public:
 
-    struct Shell
-    {
-        std::vector<std::unique_ptr<Disk2AudioSource>>  audioSources;
-        WasapiAudio                                     audio;
-        DriveWidgetController                           widgets;
-        std::array<DriveWidgetState, 2>                 widgetState;
-        std::array<DriveWidget, 2>                      chrome;
-        CpuManager                                      cpuManager;
-        std::wstring                                    machineName;
-        UserConfigStore                                 config { L"C:\\Casso\\User" };
-        InMemoryFileSystem                              fs;
-        std::array<bool, 2>                             writeProtect {};
-    };
+    using Shell = DiskManagerRig;
+
 
 
     TEST_METHOD (RemountUnderHoldWritesNothingAndKeepsTheDisk)

@@ -46,7 +46,7 @@ public:
     // CPU thread, once a frame: the picture rendered and published when what
     // went into it changed since the last one, and the frame's video RAM
     // marked clean.
-    void  PublishFrameIfChanged ();
+    bool  PublishFrameIfChanged ();
 
     // The event the CPU thread sets after publishing a frame, which the idle
     // UI loop waits on. Created before the CPU thread starts and destroyed

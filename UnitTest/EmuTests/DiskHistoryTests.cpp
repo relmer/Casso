@@ -4,6 +4,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "HResultAssert.h"
+#include "Shell/DriveStatusPublisher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -427,6 +428,52 @@ public:
         Assert::AreEqual<size_t> (liveCount, log.count, L"and wrote nothing to the file");
     }
 
+
+    //  A seek moves the disk without a bay change notice, and the next publish
+    //  has the bay as the seek left it.
+    TEST_METHOD (SeekingAcrossAnEjectRepublishesTheEmptyBay)
+    {
+        TestMachine           machine    ("Apple2e");
+        ReverseController     controller (machine);
+        DriveStatusPublisher  publisher;
+        FlushLog              log;
+        ReverseResult         result;
+        HRESULT               hr         = S_OK;
+        uint64_t              before     = 0;
+        uint64_t              liveEnd    = 0;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+        before = machine.GetPosition();
+
+        machine.StepOne();
+        Eject (machine);
+        machine.RunCycles (s_kDiskAfterCycles);
+        liveEnd = machine.GetPosition();
+
+        (void) publisher.Publish (machine.GetDiskStore(), machine.GetRefs().diskController, true);
+        Assert::IsFalse (publisher.Take()->GetBay (6, 0).isMounted, L"at the live end the bay is empty");
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition before the eject");
+
+        Assert::IsTrue (publisher.Publish (machine.GetDiskStore(), machine.GetRefs().diskController, true) == DriveStatusChange::Bays,
+                        L"seeking back is a bay change");
+        Assert::IsTrue (publisher.Take()->GetBay (6, 0).isMounted, L"and the disk is back in the published bay");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition past the eject");
+
+        Assert::IsTrue (publisher.Publish (machine.GetDiskStore(), machine.GetRefs().diskController, true) == DriveStatusChange::Bays,
+                        L"seeking forward is a bay change");
+        Assert::IsFalse (publisher.Take()->GetBay (6, 0).isMounted, L"and the published bay is empty again");
+    }
 
     //  A mount replays from memory, never from the file: going forward across
     //  it gives the disk the machine had, with the writes made after it.

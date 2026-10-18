@@ -895,7 +895,7 @@ int EmulatorShell::RunMessageLoop()
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
-    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_debugger->ServiceHistoryThumbnails(); });
+    m_cpuManager.SetServiceFunction ([this] { ServiceCpuThread(); });
     m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
 
     // Cold-boot mount window is closed once the UI message loop is

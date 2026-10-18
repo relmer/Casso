@@ -392,6 +392,28 @@ void EmulatorShell::RunOneFrame()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ServiceCpuThread
+//
+//  The CPU thread's service pass, on every pass through its loop, paused or
+//  running: the debug channel, the history thumbnails, and then the drive
+//  status, with activity due on every pass while paused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ServiceCpuThread()
+{
+    m_debugger->ServiceDebugger();
+    m_debugger->ServiceHistoryThumbnails();
+
+    (void) m_disks->GetManager()->PublishDriveStatus (m_cpuManager.IsPaused());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunCpuThreadFrame
 //
 //  The CPU thread's per-frame callback. Always advances the emulation
@@ -405,6 +427,10 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
+    bool  isPublishDue = false;
+
+
+
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
     m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
@@ -412,7 +438,11 @@ void EmulatorShell::RunCpuThreadFrame()
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
 
-    m_renderer->PublishFrameIfChanged();
+    isPublishDue = m_renderer->PublishFrameIfChanged();
+
+    // The drives' activity publishes at the picture's cadence; a bay change
+    // made in the frame publishes regardless.
+    (void) m_disks->GetManager()->PublishDriveStatus (isPublishDue);
 }
 
 

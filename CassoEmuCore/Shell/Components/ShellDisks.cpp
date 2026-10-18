@@ -129,6 +129,10 @@ void ShellDisks::Initialize (UserConfigStore & configStore, IFileSystem & fileSy
                                                    m_userWriteProtect);
 
     m_diskManager->InstallSharedImageSupport (imageWatchDisabled);
+
+    // A bay change sets the frame event, so the window loop, which may be
+    // waiting on it with nothing else to draw, runs at once.
+    m_diskManager->SetStatusWake ([this] { SetEvent (m_shell.m_renderer->GetFrameReadyEvent()); });
 }
 
 

@@ -740,6 +740,10 @@ HRESULT EmulatorShell::Initialize (
     m_isCommandLineMediaSession = !disk1Path.empty() || !disk2Path.empty() || !tapePath.empty();
     ResumeAutoState (true);
 
+    // The window's first frame has the disks the launch mounted. The CPU
+    // thread has not started, so the store's token is the window thread's.
+    (void) m_disks->GetManager()->PublishDriveStatus (true);
+
 Error:
     return hr;
 }
