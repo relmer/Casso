@@ -441,9 +441,9 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 
     //  Each arrival at a quarter track counts once per drive, for the
     //  inspector's Reads marks.
-    if (m_quarterTrack != prevQt)
+    if (quarterTrack != prevQt)
     {
-        m_visits[m_activeDrive][m_quarterTrack]++;
+        m_visits[m_activeDrive][quarterTrack]++;
     }
 
     // Audio sink (FR-003 / FR-004). Fire only when the head actually
