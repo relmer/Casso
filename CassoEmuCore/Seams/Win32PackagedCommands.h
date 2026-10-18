@@ -121,6 +121,7 @@ private:
     static void     AddStoreEntry    (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries);
     static void     AddStaticVerbs   (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries);
     static HRESULT  AddStaticVerb    (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static HRESULT  AddStoreVerb     (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries);
     static HRESULT  ReadString       (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
     static bool     HasValue         (const std::wstring & key, const wchar_t * value);
     static HRESULT  OpenNewMenu      (const std::wstring & folder, IContextMenu3 ** outMenu, HMENU & outPopup, HMENU & outChoices);

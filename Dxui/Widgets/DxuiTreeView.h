@@ -218,6 +218,10 @@ public:
     //  label shows, or before the tree has painted.
     bool  GetClippedLabelRect (int flatRow, RECT & outRect) const;
 
+    //  Where the row's label text is drawn, past its icon, in client pixels.
+    //  False for a row scrolled out of view, or before the tree has painted.
+    bool  GetLabelTextRect    (int flatRow, RECT & outRect) const;
+
     //  The row's icon and label as the row draws them, the box's top-left at
     //  the origin; and the fill behind them, opaque.
     void      PaintLabel      (int flatRow, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;

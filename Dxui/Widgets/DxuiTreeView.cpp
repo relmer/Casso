@@ -1509,6 +1509,37 @@ bool DxuiTreeView::GetClippedLabelRect (int flatRow, RECT & outRect) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTreeView::GetLabelTextRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTreeView::GetLabelTextRect (int flatRow, RECT & outRect) const
+{
+    int                   rowY = m_boundsDip.top + (flatRow - m_topRow) * m_rowHeightPx;
+    const DxuiTreeNode  * node = GetNodeAt (flatRow);
+    int                   icon = 0;
+
+
+
+    if (node == nullptr || flatRow >= (int) m_labelSpans.size() || m_labelSpans[(size_t) flatRow].y == 0 ||
+        flatRow < m_topRow || rowY + m_rowHeightPx > m_boundsDip.top + GetContentHeightPx())
+    {
+        return false;
+    }
+
+    icon    = node->icon ? (int) std::lround (m_scaler.ToPxf ((float) s_kIconDip) + m_scaler.ToPxf (m_iconGapDip)) : 0;
+    outRect = RECT { m_boundsDip.left + m_labelSpans[(size_t) flatRow].x - m_leftPx + icon, rowY,
+                     m_boundsDip.left + m_labelSpans[(size_t) flatRow].y - m_leftPx,        rowY + m_rowHeightPx };
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTreeView::GetLabelFill
 //
 //  Explorer's is a raised surface, as its menus are, not the row's hover.

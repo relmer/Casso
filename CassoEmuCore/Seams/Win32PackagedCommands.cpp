@@ -12,6 +12,11 @@ static constexpr const wchar_t *  s_kpszManifestName = L"AppxManifest.xml";
 static constexpr const wchar_t *  s_kpszCommandStoreKey = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell";
 static constexpr const wchar_t *  s_kpszSendToPhone     = L"Windows.SendToMyPhone";
 static constexpr const wchar_t *  s_kpszCompressTo      = L"Windows.CompressTo";
+
+
+//  The command store's commands that run a verb of the selection's own menu,
+//  in File Explorer's order: Rotate right, then Rotate left.
+static constexpr const wchar_t *  s_kpszStoreVerbs[]    = { L"Windows.rotate90", L"Windows.rotate270" };
 static constexpr std::wstring_view  s_kMsResourceScheme = L"ms-resource:";
 
 //  The shell's handler for Start's Pin and Unpin on a folder or a program.
@@ -887,6 +892,8 @@ void Win32PackagedCommands::AddEntry (IExplorerCommand * command, IShellItemArra
 //  File Explorer's order for a file: Send to My Phone, the type's own Windows
 //  verbs with Add to Favorites last among them, then Compress to. A folder
 //  has only Compress to here; its pin and tab rows are the window's own.
+//  File Explorer's Share with is left out: its handler, in ntshrui.dll,
+//  faults when created outside File Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -907,6 +914,7 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetWindowsEntri
     if (isFile)
     {
         AddStoreEntry  (s_kpszSendToPhone, L"windows.sendtomyphone", items.Get(), entries);
+
         AddStaticVerbs (paths[0], items.Get(), entries);
     }
 
@@ -1035,6 +1043,82 @@ void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellIte
             }
         }
     }
+
+    //  Rotate goes before Add to Favorites, which ends Windows' own verbs.
+    {
+        std::vector<Entry>  rotate;
+        auto                favorites = std::find_if (outEntries.begin(), outEntries.end(), [] (const Entry & known) { return _stricmp (known.verb.c_str(), "pintohomefile") == 0; });
+        ptrdiff_t           at        = favorites - outEntries.begin();
+
+        for (const wchar_t * name : s_kpszStoreVerbs)
+        {
+            hr = AddStoreVerb (name, items, rotate);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        outEntries.insert (outEntries.begin() + at, std::make_move_iterator (rotate.begin()), std::make_move_iterator (rotate.end()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::AddStoreVerb
+//
+//  A command store command with no handler of its own, which runs the verb
+//  of its name on the selection's menu: its title and icon from the store,
+//  and whether it applies from its command state handler.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PackagedCommands::AddStoreVerb (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries)
+{
+    HRESULT                                         hr      = S_OK;
+    std::wstring                                    key     = std::wstring (s_kpszCommandStoreKey) + L"\\" + name;
+    std::wstring                                    handler;
+    std::wstring                                    title;
+    CLSID                                           clsid   = {};
+    EXPCMDSTATE                                     state   = ECS_HIDDEN;
+    Microsoft::WRL::ComPtr<IExplorerCommandState>   stateHandler;
+    Entry                                           entry;
+    std::wstring                                    verb    = name;
+
+
+
+    hr = ReadString (HKEY_LOCAL_MACHINE, key, L"CommandStateHandler", handler);
+    CHR (hr);
+
+    hr = CLSIDFromString (handler.c_str(), &clsid);
+    CHR (hr);
+
+    hr = CoCreateInstance (clsid, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&stateHandler));
+    CHR (hr);
+
+    //  A verb that does not apply is omitted, as in File Explorer: Rotate for
+    //  a text file is reported as disabled rather than hidden.
+    hr = stateHandler->GetState (items, TRUE, &state);
+    CHR (hr);
+    BAIL_OUT_IF ((state & (ECS_HIDDEN | ECS_DISABLED)) != 0, S_OK);
+
+    hr = ReadString (HKEY_LOCAL_MACHINE, key, L"MUIVerb", title);
+    CHR (hr);
+
+    hr = ReadString (HKEY_LOCAL_MACHINE, key, L"Icon", entry.icon);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    verb               = verb.substr (verb.find (L'.') + 1);
+    entry.title        = LoadIndirectString (title);
+    entry.verb         = TextEncoding::WideToNarrow (verb);
+    entry.explorerIcon = std::wstring (L"windows.") + verb;
+    hr                 = S_OK;
+
+    outEntries.push_back (std::move (entry));
+
+Error:
+    return hr;
 }
 
 

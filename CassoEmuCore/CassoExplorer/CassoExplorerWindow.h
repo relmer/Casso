@@ -491,7 +491,7 @@ private:
     void  AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
 
     //  Open in new tab and new window, and the pins, for a folder or image.
-    void  AddOpenRows       (std::vector<DxuiPopupMenuItem> & items, const Location & location);
+    void  AddOpenRows       (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen);
 
     //  New's choices for a location, as File Explorer's New lists them.
     void  AddNewChoices     (std::vector<DxuiPopupMenuItem> & items, const Location & target,
@@ -571,6 +571,9 @@ private:
     static const wchar_t *            GetUndoLabel              (UndoStep::Kind kind);
     static std::vector<std::wstring>  ReadExplorerTypedPaths    ();
     void                              PasteHere                 (const std::wstring & folder);
+    void                              BeginTreeRename           (const std::wstring & id);
+    bool                              IsRenaming                () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
+    void                              ShowHostProperties        (const std::vector<std::wstring> & paths);
     void                              PasteIntoVolume           ();
     void                              PushPutUndo               (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
     static void                       WriteExplorerTypedPath    (const std::wstring & path);
@@ -607,7 +610,7 @@ private:
     void  UpdateCommandBar();
     void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
     void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+    void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id);
     void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool  AddWindowsCommands      (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     bool  GetSelectionKind        (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
@@ -750,7 +753,7 @@ private:
     static const wchar_t *  GetVerbGlyph (CassoExplorerActions::Verb verb);
     static int              GetIconOrder (CassoExplorerActions::Verb verb);
     std::wstring  GetPasteFolder () const;
-    void  CreateDiskFromSelection (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    void  CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk);
     void  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
     void  SizeListIcons          ();
@@ -1010,6 +1013,7 @@ private:
     //  F2 opens one. The row being renamed, or -1.
     DxuiTextInput        * m_renameBox       = nullptr;
     int                    m_renameRow       = -1;
+    std::wstring           m_renameTreeId;
     DxuiLabel            * m_listMessage     = nullptr;
     bool                   m_listMessageTop  = false;
     DxuiSplitter         * m_previewSplitter = nullptr;
