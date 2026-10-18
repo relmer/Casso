@@ -710,6 +710,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiSlider                            m_zoomSlider;
     bool                                  m_zoomOpen            = false;
     bool                                  m_isSpeedPressed      = false;
+    bool                                  m_isHistoryPressed    = false;
     RECT                                  m_zoomRect            = {};
     bool                                  m_isHistoryFitted     = false;
 

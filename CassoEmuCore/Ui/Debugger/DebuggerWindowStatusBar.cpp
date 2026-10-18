@@ -32,6 +32,7 @@ void DebuggerWindow::CreateStatusBar()
     fields[kStatusBeam].widthDip    = kStatusBeamDip;
     fields[kStatusBeam].onClick     = [this] (const RECT &) { ToggleBeamMark(); };
     fields[kStatusHistory].widthDip = kStatusHistoryDip;
+    fields[kStatusHistory].onClick  = [this] (const RECT &) { m_isHistoryPressed = true; };
     fields[kStatusSpeed].widthDip   = kStatusSpeedDip;
     fields[kStatusSpeed].onClick    = [this] (const RECT &) { m_isSpeedPressed = true; };
     fields[kStatusZoom].widthDip    = kStatusZoomDip;
@@ -306,6 +307,19 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
             {
                 return true;
             }
+        }
+    }
+
+    //  Options opens at its History page as a click on the history field
+    //  ends, so the release does not land in the dialog.
+    if (ev.kind == DxuiMouseEventKind::Up && m_isHistoryPressed)
+    {
+        m_isHistoryPressed = false;
+
+        if (m_statusBar->FindFieldAt (point) == (int) kStatusHistory)
+        {
+            OpenOptions();
+            return true;
         }
     }
 
