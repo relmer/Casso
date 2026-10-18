@@ -1211,6 +1211,9 @@ HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
     CHR (hr);
 
 Error:
+    //  A full or partial load rewrote the disks' write-protect flags.
+    m_diskStore->MarkStatusChanged();
+
     return hr;
 }
 

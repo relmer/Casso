@@ -11,6 +11,7 @@
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
+#include "BayStatus.h"
 #include "IImageWatcher.h"
 
 class MountDiagnosis;
@@ -269,6 +270,18 @@ public:
 
     std::vector<MountedSource>  GetMountedSourcePaths() const;
 
+    //  One bay's status for display, built on the thread that has the store's
+    //  token. The generation moves on every write to a bay's path, mount
+    //  state, format, salvage verdict, image or write-protect cause, so an
+    //  unmoved generation means no bay's status changed.
+    BayStatus     GetBayStatus        (int slot, int drive) const;
+    uint64_t      GetStatusGeneration () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_statusGeneration; }
+    void          MarkStatusChanged   ()       { ASSERT_THREAD_OWNERSHIP (m_ownership); m_statusGeneration++; }
+
+    //  Write-protect flags set on the mounted image without saving it: the
+    //  user's setting, and the file's read-only and permission state.
+    void          SetUserWriteProtectFlag (int slot, int drive, bool isProtected);
+    void          SetFileWriteProtect     (int slot, int drive, bool isReadOnly, bool hasNoPermission);
     void          SetFlushSink      (FlushSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_flushSink = std::move (sink); }
 
     //  Read counterpart to SetFlushSink: redirects every backing-file read
@@ -755,6 +768,9 @@ private:
     bool                     m_isReplaying    = false;
     bool                     m_isRetaining    = false;
     ThreadOwnership          m_ownership;
+
+    //  Starts at 1, so the first publish builds the bay table.
+    uint64_t                 m_statusGeneration = 1;
 
     //  Guards the pending records alone. A watcher thread records a change
     //  while the CPU thread reads it, and those two fields are the whole of

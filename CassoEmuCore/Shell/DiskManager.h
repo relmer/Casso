@@ -146,7 +146,7 @@ public:
     // mounted image: the user's per-drive preference plus the backing
     // file's read-only / no-write-permission status (probed from the
     // host filesystem). The image's own embedded flag is left untouched.
-    void     ApplyExternalWriteProtect (int drive, DiskImage * image, const std::string & path);
+    void     ApplyExternalWriteProtect (int drive, const std::string & path);
 
     // Write-protects the mounted image (the WOZ flag, or the read-only
     // attribute for formats with no flag), or write-enables it by clearing

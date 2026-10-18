@@ -925,10 +925,6 @@ bool ShellDisks::IsWriteProtectToggleOffered (int drive)
 
 void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
 {
-    DiskImage *  image = nullptr;
-
-
-
     if (drive < 0 || drive >= (int) m_userWriteProtect.size())
     {
         return;
@@ -939,12 +935,7 @@ void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
     // Apply to whatever is mounted right now so the toggle takes effect
     // without a remount; a later mount re-applies the standing preference
     // via DiskManager::MountDiskInSlot6.
-    image = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
-
-    if (image != nullptr)
-    {
-        image->SetUserWriteProtected (wp);
-    }
+    m_shell.m_machine.GetDiskStore().SetUserWriteProtectFlag (6, drive, wp);
 }
 
 

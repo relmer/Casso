@@ -1248,6 +1248,68 @@ public:
     }
 
 
+    //  A bay's published status copies the bay as it is: nothing for an empty
+    //  or invalid bay, and the path, format, write-protect causes and salvage
+    //  verdict for a mounted one.
+    TEST_METHOD (BayStatusReportsEmptyInvalidAndMountedBays)
+    {
+        DiskImageStore     store;
+        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        BayStatus          empty;
+        BayStatus          invalid;
+        BayStatus          mounted;
+        HRESULT            hr = S_OK;
+
+
+
+        hr = store.MountFromBytes (kSlot, kDrive, "status.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        empty   = store.GetBayStatus (kSlot, 1);
+        invalid = store.GetBayStatus (DiskImageStore::kSlotCount, 0);
+        mounted = store.GetBayStatus (kSlot, kDrive);
+
+        Assert::IsTrue  (empty == BayStatus(),   L"an empty bay reports nothing");
+        Assert::IsTrue  (invalid == BayStatus(), L"an invalid bay reports nothing");
+        Assert::IsTrue  (mounted.isMounted,      L"the mounted bay reports its disk");
+        Assert::AreEqual (std::string ("status.dsk"), mounted.path);
+        Assert::IsTrue  (mounted.format == DiskFormat::Dsk, L"and its format");
+        Assert::IsTrue  (mounted.writeProtect == store.GetImage (kSlot, kDrive)->GetWriteProtectInfo(), L"and its write-protect causes");
+        Assert::AreEqual (store.IsSalvageOffered (kSlot, kDrive), mounted.isSalvageOffered, L"and its salvage verdict");
+    }
+
+
+    //  Reads, an idle reload walk and a flush with nothing to save change no
+    //  bay, so the status generation does not move and an idle publish costs
+    //  only the compare.
+    TEST_METHOD (TheStatusGenerationStaysPutOnReadsIdleWalksAndCleanFlushes)
+    {
+        DiskImageStore     store;
+        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        uint64_t           before = 0;
+        HRESULT            hr     = S_OK;
+
+
+
+        hr = store.MountFromBytes (kSlot, kDrive, "idle.dsk", DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        before = store.GetStatusGeneration();
+
+        (void) store.GetImage (kSlot, kDrive);
+        (void) store.IsMounted (kSlot, kDrive);
+        (void) store.GetSourcePath (kSlot, kDrive);
+        (void) store.GetMountedSourcePaths();
+        (void) store.IsSalvageOffered (kSlot, kDrive);
+        (void) store.GetBayStatus (kSlot, kDrive);
+        store.ApplyPendingReload();
+
+        hr = store.Flush (kSlot, kDrive);
+        AssertSucceeded (hr, L"Flush of a clean disk");
+
+        Assert::AreEqual (before, store.GetStatusGeneration(), L"nothing a bay shows changed");
+    }
+
     TEST_METHOD (SalvageToFile_AfterTheBayChanged_WritesNothing)
     {
         // The copy is of the disk the user saw assessed. If another disk went

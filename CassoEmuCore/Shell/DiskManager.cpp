@@ -150,21 +150,13 @@ void DiskManager::ProbeFileWritability (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskManager::ApplyExternalWriteProtect (
-    int                 drive,
-    DiskImage         * image,
-    const std::string & path)
+void DiskManager::ApplyExternalWriteProtect (int drive, const std::string & path)
 {
     bool  readOnly     = false;
     bool  noPermission = false;
     bool  userWp       = false;
 
 
-
-    if (image == nullptr)
-    {
-        return;
-    }
 
     if (drive >= 0 && drive < static_cast<int> (m_userWriteProtect.size()))
     {
@@ -173,8 +165,8 @@ void DiskManager::ApplyExternalWriteProtect (
 
     ProbeFileWritability (path, readOnly, noPermission);
 
-    image->SetUserWriteProtected (userWp);
-    image->SetFileWriteProtect   (readOnly, noPermission);
+    m_diskStore.SetUserWriteProtectFlag (6, drive, userWp);
+    m_diskStore.SetFileWriteProtect     (6, drive, readOnly, noPermission);
 }
 
 
@@ -266,7 +258,7 @@ Error:
     // the file and the effective state.
     if (image != nullptr)
     {
-        ApplyExternalWriteProtect (drive, image, path);
+        ApplyExternalWriteProtect (drive, path);
     }
 
     if (completed && m_onWriteProtectChanged)
@@ -567,7 +559,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     //  the user's per-drive preference plus the backing file's read-only state.
     if (inserted && image != nullptr)
     {
-        ApplyExternalWriteProtect (drive, image, m_diskStore.GetSourcePath (6, drive));
+        ApplyExternalWriteProtect (drive, m_diskStore.GetSourcePath (6, drive));
     }
 
     //  The debug event fires whichever way the disk went, and is not held at

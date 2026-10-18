@@ -106,6 +106,31 @@ public:
     }
 
 
+    //  A state load rewrites the disk's write-protect flags, so the drive
+    //  status generation moves and the published status has the loaded flags.
+    TEST_METHOD (LoadingAStateMovesTheDriveStatusGeneration)
+    {
+        TestMachine        machine ("Apple2e");
+        DiskImageStore   & store   = machine.GetDiskStore();
+        std::vector<Byte>  saved;
+        uint64_t           before  = 0;
+        HRESULT            hr      = S_OK;
+
+
+
+        MountPatternDisk (machine);
+        saved = Save (machine);
+
+        store.SetUserWriteProtectFlag (s_kDiskSlot, s_kDiskDrive, true);
+        before = store.GetStatusGeneration();
+
+        hr = Load (machine, saved);
+        AssertSucceeded (hr, L"Load");
+
+        Assert::IsTrue  (store.GetStatusGeneration() != before, L"the load moved the generation");
+        Assert::IsFalse (store.GetBayStatus (s_kDiskSlot, s_kDiskDrive).writeProtect.userSetting, L"the saved flag is the one shown");
+    }
+
     TEST_METHOD (LoadingAStateRestoresTheDiskBits)
     {
         constexpr int      kTrack = 3;

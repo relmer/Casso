@@ -214,6 +214,7 @@ public:
     std::string  GetDiagnosticsTitle () const override { return "Disk II"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
     Disk2NibbleEngine &  GetEngine (int drive)  { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_engine[drive]; }
+    const Disk2NibbleEngine &  GetEngine (int drive) const { ASSERT_THREAD_OWNERSHIP (*m_ownership); return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 

@@ -355,6 +355,8 @@ HRESULT DiskImageStore::LoadIntoBay (
 
             entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
         }
+
+        MarkStatusChanged();
     }
 
 Error:
@@ -1306,6 +1308,7 @@ HRESULT DiskImageStore::PreserveConflictingCopy (Entry & entry, FlushMoment mome
 
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    MarkStatusChanged();
 
     isPreserved = true;
 
@@ -1378,6 +1381,7 @@ void DiskImageStore::RecordCommittedFile (Entry & entry)
 {
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    MarkStatusChanged();
 
     if (entry.sharedState.GetIdentity().recorded)
     {
@@ -1609,6 +1613,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // The live image follows the file, and only once the file has
         // actually changed -- so a failed write leaves the two agreeing.
         entry.image->SetImageWriteProtected (writeProtected);
+        MarkStatusChanged();
 
         //  THIS STORE JUST WROTE THE FILE, so the identity it watches has to
         //  move with it, exactly as FlushEntry does after its own commit.
@@ -2324,6 +2329,7 @@ HRESULT DiskImageStore::SeatMedia (int slot, int drive, uint64_t mediaId, bool &
         entry.salvageOffered = kept.salvageOffered;
         entry.sharedState    = kept.sharedState;
 
+        MarkStatusChanged();
         BeginWatching (slot, drive);
     }
 
@@ -2427,6 +2433,8 @@ void DiskImageStore::RetireBay (Entry & entry)
     entry.mounted        = false;
     entry.salvageOffered = false;
     entry.sharedState.Eject();
+
+    MarkStatusChanged();
 }
 
 
@@ -2707,6 +2715,99 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBayStatus
+//
+//  A copy of the bay, with nothing in it for an empty or invalid bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BayStatus DiskImageStore::GetBayStatus (int slot, int drive) const
+{
+    BayStatus  status;
+    bool       isValid = IsValidBay (slot, drive);
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    if (isValid)
+    {
+        const Entry &  entry = GetEntry (slot, drive);
+
+        if (entry.mounted)
+        {
+            status.isMounted        = true;
+            status.path             = entry.path;
+            status.format           = entry.format;
+            status.writeProtect     = (entry.image != nullptr) ? entry.image->GetWriteProtectInfo() : WriteProtectInfo();
+            status.isSalvageOffered = entry.salvageOffered;
+        }
+    }
+
+    return status;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetUserWriteProtectFlag
+//
+//  The user's write-protect setting on the mounted image. Nothing is saved:
+//  unsaved writes remain in the image when the setting turns on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetUserWriteProtectFlag (int slot, int drive, bool isProtected)
+{
+    bool  isValid = IsValidBay (slot, drive);
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    if (isValid && GetEntry (slot, drive).image != nullptr)
+    {
+        GetEntry (slot, drive).image->SetUserWriteProtected (isProtected);
+        MarkStatusChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFileWriteProtect
+//
+//  The backing file's read-only and permission state on the mounted image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetFileWriteProtect (int slot, int drive, bool isReadOnly, bool hasNoPermission)
+{
+    bool  isValid = IsValidBay (slot, drive);
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    if (isValid && GetEntry (slot, drive).image != nullptr)
+    {
+        GetEntry (slot, drive).image->SetFileWriteProtect (isReadOnly, hasNoPermission);
+        MarkStatusChanged();
+    }
 }
 
 
@@ -3794,6 +3895,8 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
 
+    MarkStatusChanged();
+
     //  The disk in the drive was replaced under the running machine. Swapped,
     //  not Inserted: the door opens and closes rather than only closing,
     //  because from the user's seat a disk came out and another went in.
@@ -3849,6 +3952,7 @@ HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & ne
         //  old one. Mount is what records both.
         entry.sharedState.Mount (ReadIdentity (newPath));
 
+        MarkStatusChanged();
         BeginWatching (slot, drive);
     }
 

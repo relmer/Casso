@@ -488,7 +488,6 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     bool         isHostState  = record.kind == InputKind::HostState;
     bool         isDriveWp    = record.kind == InputKind::DriveWriteProtect;
     bool         isMedia      = record.kind == InputKind::DiskMount || record.kind == InputKind::DiskEject || record.kind == InputKind::ImageWriteProtect;
-    DiskImage  * image        = nullptr;
 
 
 
@@ -500,12 +499,8 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
 
     if (isDriveWp)
     {
-        image = m_machine.GetDiskStore().GetImage (kDiskControllerSlot, record.value);
-
-        if (image != nullptr)
-        {
-            image->SetUserWriteProtected (record.detail != 0);
-        }
+        //  The flag alone: a replay never saves.
+        m_machine.GetDiskStore().SetUserWriteProtectFlag (kDiskControllerSlot, record.value, record.detail != 0);
     }
     else if (isHostState)
     {
