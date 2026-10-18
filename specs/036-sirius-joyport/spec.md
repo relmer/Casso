@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-24
 
-**Status**: Draft
+**Status**: Shipped in 1.28.0 and 1.29.0 (2026-09-25, 2026-09-29)
 
 **Input**: Emulate the Sirius Software Joyport (1981), the game-port adapter that let an Apple ][, ][+ or //e read two Atari CX40-style digital joysticks, so the thirty-odd games written for it can be played with the controllers Casso already supports (spec 034). The Joyport multiplexes ten switches onto the game port's three pushbutton inputs, using two annunciator outputs as select lines.
 

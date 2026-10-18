@@ -96,7 +96,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 - [X] T029 [US1] Add `static std::bitset<2> GetFireKeyButtons (bool xDown, bool zDown, bool leftAltDown, bool rightAltDown, bool isJoyportAttached)` to `CassoEmuCore/Controllers/InputModeRules.h/.cpp`; make `EmulatorShell::UpdateJoystickButtonsFromKeys` in `CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp` read the four keys and submit its result, and call `UpdateJoystickButtonsFromKeys` from `SetGamePortAdapter` while arrows-to-joystick is on, so a held Alt is dropped or restored at the moment of attaching or detaching
 - [X] T030 [US1] In `CassoEmuCore/Ui/Chrome/EmulatorCommands.h/.cpp`, add `SetJoyportFns (isOn, isOffered, toggle)` and the checkable **Sirius Joyport** `DxuiCommand` in `GetPaddlePickerItems` at the position T023 tests; wire it in `CassoEmuCore/Shell/Window/EmulatorWindow.cpp` beside `SetMouseModeFns`, with `isOffered` from the running machine's `hasAnnunciators` and the toggle flipping `SetGamePortAdapter`
 - [X] T031 [US1] Create `Disks/Casso/JoyportTest.bas` in the style of `Disks/Casso/JoystickTest.bas` (uppercase only, for the ][+): for each jack (AN0 off, on) and each AN1 state, `POKE` the annunciators and `PEEK(49249)`-`PEEK(49251)`, and print a two-column table of UP, DOWN, LEFT, RIGHT and FIRE reading CLOSED or OPEN, redrawn in a loop with a Ctrl-C note; build `Disks/Casso/JoyportTest.dsk` with the three `CassoCli disk` commands in `quickstart.md`, and boot it once on the //e to confirm it runs
-- [ ] T032 [US1] (Automated part done, including the `GuestVisibleJoyportTests` scenario for SC-001; V1 and V2 with a real controller still to run.) Build x64 Debug and x64 Release, run `scripts/RunTests.ps1`, run quickstart V1 and V2 on the //e and the ][+ with a real controller (ask the user to hold the directions if no controller input can be scripted), record the results in a new `specs/036-sirius-joyport/validation.md`, then commit: `feat(joyport): Drive the Joyport's switches from one controller`
+- [X] T032 (waived by the owner, 2026-10-13) [US1] (Automated part done, including the `GuestVisibleJoyportTests` scenario for SC-001; V1 and V2 with a real controller still to run.) Build x64 Debug and x64 Release, run `scripts/RunTests.ps1`, run quickstart V1 and V2 on the //e and the ][+ with a real controller (ask the user to hold the directions if no controller input can be scripted), record the results in a new `specs/036-sirius-joyport/validation.md`, then commit: `feat(joyport): Drive the Joyport's switches from one controller`
 
 **Checkpoint**: a Joyport game is playable with one controller from a picker click. Do not ship without US2: on the //e a Ctrl-Reset still needs the reset window's validation.
 
@@ -116,7 +116,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 ### Implementation for User Story 2
 
 - [X] T035 [US2] Confirm `MachineHost::SoftReset`/`PowerCycle` (T013) are the only paths the Ctrl-Reset, power-cycle and machine-switch entry points in `CassoEmuCore/Shell/MachineManager.cpp` take, so every reset reaches `OnMachineReset`; fix any path the tests show missing. (Applying the saved adapter to a new machine belongs to T044.)
-- [ ] T036 [US2] (Automated part done; V3 in the running app still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V3 on the //e (20 Ctrl-Resets, 20 power cycles, one Open Apple reset), record in `validation.md`, then commit: `feat(joyport): Release the Joyport's lines after every reset`
+- [X] T036 (waived by the owner, 2026-10-13) [US2] (Automated part done; V3 in the running app still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V3 on the //e (20 Ctrl-Resets, 20 power cycles, one Open Apple reset), record in `validation.md`, then commit: `feat(joyport): Release the Joyport's lines after every reset`
 
 **Checkpoint**: US1 and US2 together are the shippable MVP.
 
@@ -145,7 +145,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 - [X] T046 [US4] Implement `ApplyGamePortAdapter` in `CassoEmuCore/Ui/Settings/SettingsApplyAdapter.h/.cpp` by posting the matching IDM as `WM_COMMAND`, and add it to the test `RecordingSink`
 - [X] T047 [US4] In `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp`, add the `supportsGamePortAdapter` and `adapter` parameters to `BuildNodes`, pass them from `Rebuild`, and route the two labels in `SetOnToggle` to `SetGamePortAdapter`, ignoring a toggle that would leave neither checked
 - [X] T048 [US4] In `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`'s `OnDialogTick`, call `ObserveLiveGamePortAdapter` with the shell's live value and rebuild the Machine tab when it returns true
-- [ ] T049 [US4] (Automated part done; V5 and V9 in the running app still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V5 and V9, record in `validation.md`, then commit: `feat(joyport): Save the Joyport per machine and show it on the Machine tab`
+- [X] T049 (waived by the owner, 2026-10-13) [US4] (Automated part done; V5 and V9 in the running app still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V5 and V9, record in `validation.md`, then commit: `feat(joyport): Save the Joyport per machine and show it on the Machine tab`
 
 **Checkpoint**: attach and detach from either place, saved per machine, never offered on the //c.
 
@@ -164,7 +164,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 ### Implementation for User Story 3
 
 - [X] T051 [US3] (Landed with T026 in `AddJoyportSwitches`.) Extend the jack placement in `CassoEmuCore/Controllers/ControllerInputService.cpp` for live multiplayer: slot 1's driver on the left jack and slot 2's on the right, from each driver's pre-merge `logical->switches`, all open for an absent or disconnected slot
-- [ ] T052 [US3] (Automated part done with Phase 3; V4 with two controllers still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
+- [X] T052 (waived by the owner, 2026-10-13) [US3] (Automated part done with Phase 3; V4 with two controllers still to run.) Build x64 Debug and x64 Release, run the suite, run quickstart V4 with two controllers, record in `validation.md`, then commit: `feat(joyport): Give each multiplayer slot its own Joyport jack`
 
 **Checkpoint**: two-player Joyport games work.
 
@@ -184,7 +184,7 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 - [X] T054 [US5] Add `GetJoyportJack()` (a free `enum class JoyportJack { None, Left, Right, Both }` in the same header, and a pure `GetJoyportHeading`) to `CassoEmuCore/Ui/Settings/ControllersPageState.h/.cpp`
 - [X] T055 [US5] In `CassoEmuCore/Ui/Settings/ControllersPage.h/.cpp`, add `SetJoyportAttachedFn` and five `ButtonLightView`s in a cross over the stick's square (Up, Down, Left, Right around Fire), with the Joystick heading reading "Joyport: left jack", "right jack" or "both jacks"; in `Layout`, show them and hide the stick, the button lights and their headings while attached; in `Poll`, light them from `reading.switches` and `Relayout` when the attach state changes. Wire the function in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp` to `EmulatorShell::GetGamePortAdapter`
-- [ ] T056 [US5] (Automated part done; V8 and the screenshot still to run, since opening Settings comes up over the user's work.) Build x64 Debug and x64 Release, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
+- [X] T056 (waived by the owner, 2026-10-13) [US5] (Automated part done; V8 and the screenshot still to run, since opening Settings comes up over the user's work.) Build x64 Debug and x64 Release, run the suite, run quickstart V8, capture a screenshot of the page with the Joyport attached (DPI-aware `PrintWindow` of the sheet), record in `validation.md`, then commit: `feat(joyport): Show the Joyport's switches on the Controllers page`
 
 **Checkpoint**: all five stories done.
 
@@ -192,8 +192,8 @@ description: "Task list for 036 Sirius Joyport emulation"
 
 ## Phase 8: Polish and Cross-Cutting Concerns
 
-- [ ] T057 Run quickstart V6 (Wavy Navy on the ][+), V7 (Boulder Dash on the //e) and V10 (detached, `JoystickTest.dsk`), with the user supplying the game disks; restore the machine's `disk1Path` afterward; record in `validation.md`, including a note for SC-002 that the switches ride the same `Submit` and flush as the controller buttons whose latency spec 034 measured, so no separate measurement was made
-- [ ] T058 [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
+- [X] T057 (waived by the owner, 2026-10-13) Run quickstart V6 (Wavy Navy on the ][+), V7 (Boulder Dash on the //e) and V10 (detached, `JoystickTest.dsk`), with the user supplying the game disks; restore the machine's `disk1Path` afterward; record in `validation.md`, including a note for SC-002 that the switches ride the same `Submit` and flush as the controller buttons whose latency spec 034 measured, so no separate measurement was made
+- [X] T058 (shipped in 1.28.0) [P] Add the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only) and a README headline for the Joyport, and show both to the user for approval before any push
 - [X] T059 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release, `scripts/RunTests.ps1` Debug and Release (full suite, not filtered), `scripts/CheckStyle.ps1 -Mode Tree`, and `rg -n '\w \(\)'` over the new code; ARM64 build only
 - [X] T060 Reconcile `spec.md`, `plan.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results (036-sirius-joyport)`
 
@@ -337,10 +337,10 @@ Phases 9-15 cover the difference between the 1.28.0 design above and the spec's 
 
 ## Phase 14: Validation and gate (2026-09-27 design)
 
-- [ ] T109 Run quickstart V11-V20 in the running app (V16 needs a DirectInput gamepad and a flight stick, V18 two controllers, V19 the Bandits disk from the user), restoring the global `gamePortAdapter` and `disk1Path` afterward; record in `validation.md` under a new "2026-09-27 design" heading, including SC-009 (V18) and SC-010 (V19)
-- [ ] T110 [P] Draft the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only, `GH #156:` first) and the README headline change, and show both to the user for approval before any push
-- [ ] T111 Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release; `scripts/RunTests.ps1` Debug and Release, full suite, not filtered; `scripts/RunTests.ps1 -Build -Scenario`, since the Joyport is guest-visible; `git add` the new files (not `.specify/feature.json`), then `scripts/CheckStyle.ps1 -Mode Tree`; ARM64 Debug build only; `rg -n '\w \(\)'` over the new code. Record every result in `validation.md`, including any suite that could not run and why
-- [ ] T112 Reconcile `spec.md`, `plan.md`, `research.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results for the GH #156 design (036-sirius-joyport)`
+- [X] T109 (waived by the owner, 2026-10-13) Run quickstart V11-V20 in the running app (V16 needs a DirectInput gamepad and a flight stick, V18 two controllers, V19 the Bandits disk from the user), restoring the global `gamePortAdapter` and `disk1Path` afterward; record in `validation.md` under a new "2026-09-27 design" heading, including SC-009 (V18) and SC-010 (V19)
+- [X] T110 (shipped in 1.29.0) [P] Draft the CHANGELOG `[Unreleased]` entry (terse, user-visible effect only, `GH #156:` first) and the README headline change, and show both to the user for approval before any push
+- [X] T111 (run as spec 034's T256; see its validation.md, Phase 31) Run the merge gate: `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis` for x64 Debug and Release; `scripts/RunTests.ps1` Debug and Release, full suite, not filtered; `scripts/RunTests.ps1 -Build -Scenario`, since the Joyport is guest-visible; `git add` the new files (not `.specify/feature.json`), then `scripts/CheckStyle.ps1 -Mode Tree`; ARM64 Debug build only; `rg -n '\w \(\)'` over the new code. Record every result in `validation.md`, including any suite that could not run and why
+- [X] T112 (waived by the owner, 2026-10-13) Reconcile `spec.md`, `plan.md`, `research.md` and `tasks.md` with what was built, then commit: `docs(spec): Validation results for the GH #156 design (036-sirius-joyport)`
 
 ---
 

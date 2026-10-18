@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-08
 
-**Status**: Draft
+**Status**: Shipped in 1.8.0 (2026-07-15)
 
 **Tracking**: #9 (65C02 core). Per-phase commits reference this issue (constitution Commit Discipline).
 

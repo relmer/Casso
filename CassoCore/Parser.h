@@ -80,6 +80,11 @@ struct ParsedLine
     int                                  labelColumn     = 0;
     int                                  mnemonicColumn  = 0;
     int                                  operandColumn   = 0;
+
+    // Where the comment began, 1-based, or 0 for none or for a dialect that
+    // records none. A field-based dialect needs no introducer for a comment
+    // after the operand, so its start is known only to the dialect.
+    int                                  commentColumn   = 0;
 };
 
 
@@ -157,6 +162,7 @@ public:
     // Lexical helpers shared with the dialect profiles, which need exactly the
     // same primitives to segment a line.
     static std::string              StripComments (const std::string & line);
+    static size_t                   FindUnquoted  (const std::string & text, char target);
     static std::string              Trim          (const std::string & s);
     static std::string              ToUpper       (const std::string & s);
 

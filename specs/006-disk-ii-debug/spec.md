@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/006-disk-ii-debug`
 **Created**: 2026-05-17
-**Status**: Draft
+**Status**: Shipped in 1.3.764 (2026-05-19); replaced by 011, and removed on 2026-10-10 in favor of the debugger
 **Input**: User description: "Add a debug window to the Casso //e emulator that surfaces a live, scrolling, append-only log of Disk II controller events (motor on/off, head step, head bump at track-0 or upper stop, address-mark sighting, data-mark read, data-mark write, drive select, disk insert/eject). The window opens from View → Disk II Debug..., is modeless, lives alongside the main emulator window, and uses a Win32 virtual-mode ListView for the log. The event source is a new IDiskIIEventSink interface fired by DiskIIController; a passive nibble-stream watcher inside the controller decodes 4-and-4 address marks and detects 6-and-2 data-mark prologues so address-mark and data-mark events can be emitted without disturbing the existing nibble engine. Cross-thread delivery uses a lock-free single-producer single-consumer ring buffer drained on a UI timer. Auto-tail behavior keeps the view pinned to newest events unless the user has scrolled back into history. Filter checkboxes (Motor, Head, Sector R/W, Door, DriveSelect), Pause/Resume, and Clear buttons. Single controller in v1."
 
 **Reference research**: [`research.md`](./research.md), Disk II nibble-format anchors (D5 AA 96 / D5 AA AD), Win32 virtual-mode ListView idioms, SPSC ring patterns, and the Casso-specific touch points fingerprinted in `DiskIIController.{h,cpp}` and the shell.

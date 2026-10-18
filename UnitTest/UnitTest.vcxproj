@@ -99,8 +99,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -265,6 +265,7 @@
     <ClCompile Include="JumpOptimizationTests.cpp" />
     <ClCompile Include="DialectMechanismTests.cpp" />
     <ClCompile Include="DialectReportingTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceSyntaxDefaultAssemblerTests.cpp" />
     <ClCompile Include="MerlinDiagnosticTests.cpp" />
     <ClCompile Include="MerlinDirectiveTests.cpp" />
     <ClCompile Include="MerlinCorpus\MerlinFixture.cpp" />
@@ -445,6 +446,7 @@
     <ClCompile Include="EmuTests\EmulatorShellResetTests.cpp" />
     <ClCompile Include="EmuTests\CapsLockTrackerTests.cpp" />
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
+    <ClCompile Include="EmuTests\VideoScannerTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="EmuTests\MachineIdle.cpp" />

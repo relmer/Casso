@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-24
 
-**Status**: Draft
+**Status**: Shipped in 1.19.0 (2026-08-27); speech validation open, waiting on outside recordings and titles
 
 **Input**: User description: "Add the SSI-263 voice chip to the existing Mockingboard emulation, and make the sound+speech card the default. Two card variants: the sound-only Mockingboard A we ship today, and a new Mockingboard C. Compatibility with sound-only software is the headline requirement." (Tracked by GitHub issue #123; picks up the item GH #66 deferred.)
 

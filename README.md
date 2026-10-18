@@ -589,6 +589,9 @@ Either way, Casso checks for new releases and updates itself in place.
 # Build Release
 .\scripts\Build.ps1 -Configuration Release
 
+# Build both configurations for this architecture
+.\scripts\Build.ps1 -Configuration All
+
 # Build all platforms
 .\scripts\Build.ps1 -Target BuildAllRelease
 

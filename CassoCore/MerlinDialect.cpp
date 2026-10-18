@@ -1117,6 +1117,7 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
     // is a semicolon beginning a field.
     if ((line[0] == s_kLineCommentIntroducer) || (line[0] == s_kCommentIntroducer))
     {
+        result.commentColumn = 1;
         return result;
     }
 
@@ -1173,6 +1174,14 @@ ParsedLine MerlinDialect::ParseLine (const std::string & line, int lineNumber) c
         }
 
         opcode = Parser::ToUpper (result.mnemonic);
+    }
+
+    // Whatever is left is the comment field, introduced or not.
+    SkipFieldSpace (line, pos);
+
+    if (pos < line.size())
+    {
+        result.commentColumn = (int) pos + 1;
     }
 
     // An equate puts its sign in the OPCODE field, with the name beside it in

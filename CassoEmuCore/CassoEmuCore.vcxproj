@@ -98,8 +98,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -390,6 +390,7 @@
     <ClCompile Include="Machines\Apple2\Common\AppleHiResMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Apple80ColTextMode.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleDoubleHiResMode.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\VideoScanner.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VideoTiming.cpp" />
     <ClCompile Include="Audio\AudioEndpointNotifier.cpp" />
     <ClCompile Include="Audio\AudioGenerator.cpp" />
@@ -449,6 +450,7 @@
     <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceSyntax.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\ProfileDialogOverlay.cpp" />
@@ -795,6 +797,7 @@
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
     <ClInclude Include="Devices\Disk\WriteProtectChange.h" />
     <ClInclude Include="Machines\Apple2\Common\IVideoTiming.h" />
+    <ClInclude Include="Machines\Apple2\Common\VideoScanner.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
     <ClInclude Include="Devices\RamDevice.h" />
     <ClInclude Include="Devices\RomDevice.h" />
@@ -931,6 +934,7 @@
     <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />
+    <ClInclude Include="Ui\Debugger\SourceSyntax.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />

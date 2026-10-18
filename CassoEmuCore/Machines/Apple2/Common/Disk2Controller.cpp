@@ -380,9 +380,9 @@ void Disk2Controller::HandlePhase (int phase, bool on)
     // Stepper model ported clean-room from apple2js (MIT), disk2.ts
     // setPhase + PHASE_DELTA. UTAIIe ch. 9 / Sather p. 9-12.
     //
-    // The cog tracks the last-energized phase magnet (m_phase), NOT a
-    // position-derived magnet index. On each phase-ON event the head
-    // moves PHASE_DELTA[m_phase][phase] half-tracks (= *2 quarter-tracks)
+    // Each drive's cog tracks its last-energized phase magnet (m_phase), NOT
+    // a position-derived magnet index. On each phase-ON event the selected
+    // drive's head moves PHASE_DELTA[m_phase][phase] half-tracks (= *2 quarter-tracks)
     // toward the newly-energized magnet, then remembers the new phase.
     // Phase-OFF events do not move the head -- the cog holds its detent.
     //
@@ -403,9 +403,11 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 
 
 
-    int  prevQt  = m_quarterTrack;
-    int  qtDelta = 0;
-    int  postRaw = prevQt;
+    int  & quarterTrack = m_quarterTrack[m_activeDrive];
+    int  & cogPhase     = m_phase[m_activeDrive];
+    int    prevQt       = quarterTrack;
+    int    qtDelta      = 0;
+    int    postRaw      = prevQt;
 
     if (on)
     {
@@ -418,24 +420,24 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 
     if (on)
     {
-        qtDelta = kPhaseDelta[m_phase][phase] * 2;
-        m_phase = phase;
+        qtDelta  = kPhaseDelta[cogPhase][phase] * 2;
+        cogPhase = phase;
     }
 
-    postRaw         = prevQt + qtDelta;
-    m_quarterTrack += qtDelta;
+    postRaw       = prevQt + qtDelta;
+    quarterTrack += qtDelta;
 
-    if (m_quarterTrack < 0)
+    if (quarterTrack < 0)
     {
-        m_quarterTrack = 0;
+        quarterTrack = 0;
     }
 
-    if (m_quarterTrack > kMaxQuarterTrack)
+    if (quarterTrack > kMaxQuarterTrack)
     {
-        m_quarterTrack = kMaxQuarterTrack;
+        quarterTrack = kMaxQuarterTrack;
     }
 
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+    m_engine[m_activeDrive].SetCurrentTrack (quarterTrack);
 
     //  Each arrival at a quarter track counts once per drive, for the
     //  inspector's Reads marks.
@@ -461,7 +463,7 @@ void Disk2Controller::HandlePhase (int phase, bool on)
         }
         else
         {
-            m_audioSink->OnHeadStep (m_quarterTrack);
+            m_audioSink->OnHeadStep (quarterTrack);
         }
     }
 
@@ -475,11 +477,11 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 
         if (bumped)
         {
-            m_eventSink->OnHeadBump (m_quarterTrack);
+            m_eventSink->OnHeadBump (quarterTrack);
         }
         else
         {
-            m_eventSink->OnHeadStep (prevQt, m_quarterTrack);
+            m_eventSink->OnHeadStep (prevQt, quarterTrack);
         }
     }
 }
@@ -493,8 +495,9 @@ void Disk2Controller::HandlePhase (int phase, bool on)
 //  UpdateEngineSelection
 //
 //  Drive select changes which engine sees motor-on. The non-selected
-//  engine freezes; the selected engine inherits the controller's motor
-//  state and the current track.
+//  engine freezes; the selected engine is set to the controller's motor
+//  state and to its own drive's head position. Each Disk II drive has its
+//  own stepper, so selecting a drive moves neither head.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -506,7 +509,7 @@ void Disk2Controller::UpdateEngineSelection()
 
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
-    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
+    m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack[m_activeDrive]);
     m_engine[m_activeDrive].SetShiftLoadMode (m_q6);
     UpdateEngineWriteMode();
 }
@@ -1020,8 +1023,6 @@ void Disk2Controller::Reset()
 
 
     m_phases       = 0;
-    m_phase        = 0;
-    m_quarterTrack = 0;
     m_motorOn      = false;
     m_motorSpindownCycles = 0;
     m_motorSpinupRemaining = 0;
@@ -1031,6 +1032,9 @@ void Disk2Controller::Reset()
 
     for (i = 0; i < kDriveCount; i++)
     {
+        m_phase[i]        = 0;
+        m_quarterTrack[i] = 0;
+
         m_engine[i].Reset();
         m_engine[i].SetDiskImage (m_activeDisk[i]);
     }

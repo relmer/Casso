@@ -18,6 +18,7 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- Changed the drive strip's hotkey from Ctrl+D to F8.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
   window. The shell owns them, routes window messages and runs the CPU
@@ -29,6 +30,14 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Selecting the other Disk II drive no longer moves its head to the previous
+  drive's track. Each drive has its own head position, as on real hardware.
+- Mounting an unreadable disk image over a disk already in the drive no longer
+  risks a crash.
+- as65: a colon or semicolon inside a quoted string, as in `.text "A:B;C"`, is
+  assembled as data rather than parsed as a label or a comment.
+- as65: a `.byte` line that mixes values with forward `<` or `>` references
+  reserves a byte for every argument, so later labels are no longer misplaced.
 - On the //c, writes to the IWM mode register while the disk motor was running
   (even if only spinning down) caused 0 bits to be written at the head's
   current position, causing disk corruption.

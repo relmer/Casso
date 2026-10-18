@@ -61,11 +61,14 @@ MemoryBus::MemoryBus()
 //  memory, language-card banks, and 80STORE all re-point PAGES rather than
 //  re-registering devices, so the fast path never has to know they exist.
 //
-//  Unmapped I/O returns the FLOATING BUS -- the last value any device drove --
-//  because that is what real hardware does: nothing pulls the lines, so they
-//  hold their last state. Software genuinely depends on it (the classic
-//  video-sync detection reads undriven $C0xx). Outside that window an unmapped
-//  address reads as zero instead, since there is no bus to float.
+//  Unmapped I/O returns the FLOATING BUS. On an Apple II that is the byte the
+//  video scanner fetched in the same cycle, which the data bus retains when
+//  nothing drives it, and the machine supplies it through the floating-bus
+//  source. Software genuinely depends on it: video-sync detection reads
+//  undriven $C0xx, and slot probes wait for a status that the screen's bytes
+//  satisfy. Without a source, the last value any device drove is returned.
+//  Outside that window an unmapped address reads as zero, since there is no
+//  bus to float.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,10 +103,10 @@ Byte MemoryBus::ReadByte (Word address)
         }
         else if (address >= 0xC000 && address <= 0xCFFF)
         {
-            // Unmapped I/O: the bus holds whatever the last device drove.
-            // Outside that window an unmapped address reads as 0 instead --
-            // there is no bus to float.
-            value = m_floatingBusValue;
+            // Unmapped I/O: the video scanner's byte, or the last byte a
+            // device drove without a source. Outside that window an unmapped
+            // address reads as 0 instead -- there is no bus to float.
+            value = m_floatingBusSource ? m_floatingBusSource() : m_floatingBusValue;
         }
     }
 
