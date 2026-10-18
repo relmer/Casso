@@ -164,8 +164,14 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     for (i = 0; i < m_fields.size() && i < m_fieldRects.size(); i++)
     {
         const RECT &  r      = m_fieldRects[i];
-        float         boxW   = (float) (r.right - r.left) - 2.0f * padPx;
+        float         left   = (float) r.left + padPx;
+        float         boxW   = 0.0f;
         std::wstring  shown;
+
+        //  A field after flowing ones starts past their text, which is as
+        //  wide as it is rather than as wide as their rectangles.
+        left = (i > 0 && m_fields[i - 1].flow) ? (std::max) (left, flowX) : left;
+        boxW = (float) r.right - padPx - left;
 
         if (i > 0 && m_dividers)
         {
@@ -208,7 +214,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
         shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::GetUiFace(), boxW, DxuiElide::Tail);
 
-        hr = text.DrawString (shown.c_str(), (float) r.left + padPx, (float) r.top, boxW,
+        hr = text.DrawString (shown.c_str(), left, (float) r.top, boxW,
                               (float) (r.bottom - r.top), theme.ForegroundMuted(), fontPx,
                               DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                               DxuiFontWeight::Normal, false);
