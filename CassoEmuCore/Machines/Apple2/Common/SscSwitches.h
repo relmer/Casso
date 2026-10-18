@@ -78,8 +78,8 @@ public:
     int     GetBaudCode    () const;
     bool    IsIrqConnected () const;
 
-    // "off off off on on on on": SW-1 first. TryParseBankText does not alter the bank
-    // untouched and returns false for anything but seven on/off words.
+    // "off off off on on on on": SW-1 first. For anything but seven on/off
+    // words, TryParseBankText returns false and does not alter the bank.
     string  GetBankText      (SscBank bank) const;
     bool    TryParseBankText (SscBank bank, const string & text);
 
