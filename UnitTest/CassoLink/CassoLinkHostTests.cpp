@@ -622,6 +622,42 @@ public:
     }
 
 
+    //  ADTPro's client writes each 40 blocks to its disk before it requests
+    //  the next, which at the Apple's own speed takes longer than a reply's
+    //  timeout; the transfer waits for it.
+    TEST_METHOD (AGetWaitsForTheClientBetweenChunks)
+    {
+        InMemoryCassoLinkFolder  folder;
+        std::vector<Byte>        payload = Name ("GAME.PO");
+        std::vector<Byte>        wire;
+        std::vector<Byte>        first;
+        std::vector<Byte>        second;
+        Session                  session (folder);
+
+        session.host->SetReplyTimeout (100);
+        folder.files["GAME.PO"] = TestImage (4);
+        AssertSucceeded (CassoLinkCodec::EncodeImageData (0, std::span<const Byte> (folder.files["GAME.PO"]).first (1024), first));
+        AssertSucceeded (CassoLinkCodec::EncodeImageData (2, std::span<const Byte> (folder.files["GAME.PO"]).subspan (1024, 1024), second));
+
+        payload.push_back (2);
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kGet, payload, wire));
+        session.Send (wire);
+        Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyOk }));
+
+        wire.clear();
+        AssertSucceeded (CassoLinkCodec::EncodeAcknowledge (CassoLinkCodec::kAck, 0, wire));
+        session.Send (wire);
+        Assert::IsTrue (session.Receive (first.size()) == first);
+
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+
+        wire.clear();
+        AssertSucceeded (CassoLinkCodec::EncodeAcknowledge (CassoLinkCodec::kAck, 2, wire));
+        session.Send (wire);
+        Assert::IsTrue (session.Receive (second.size()) == second, L"blocks 2 and 3, after the pause");
+    }
+
+
     //  The client stops partway through a send: after the timeout nothing is
     //  written, and the next send, with neither end restarted, succeeds.
     TEST_METHOD (AStalledTransferWritesNothingAndTheNextSucceeds)
@@ -632,7 +668,7 @@ public:
         std::vector<Byte>        wire;
         Session                  session (folder);
 
-        session.host->SetReplyTimeout (200);
+        session.host->SetOperationTimeout (200);
 
         payload.push_back (8);
         payload.push_back (0);

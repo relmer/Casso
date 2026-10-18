@@ -162,8 +162,10 @@ public:
     void     SetVirtualDrive (int drive, const std::string & name);
     void     SetReplyTimeout (DWORD timeoutMs) { m_replyTimeoutMs = timeoutMs; }
 
-    //  How long an operation for Casso's client waits for each packet. The
-    //  default allows for a machine paused in a debugger.
+    //  How long an operation for Casso's client waits for each packet, and an
+    //  ADTPro transfer for the client's next packet. The default allows for a
+    //  machine paused in a debugger, and for ADTPro's client reading or
+    //  writing its disk between packets.
     void     SetOperationTimeout (DWORD timeoutMs) { m_operationTimeoutMs = timeoutMs; }
 
     //  Casso's client, once one has sent Ready.

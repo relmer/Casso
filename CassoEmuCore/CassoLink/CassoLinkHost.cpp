@@ -767,7 +767,7 @@ HRESULT CassoLinkHost::ServeGet (const CassoLinkPacket & packet)
         size_t             block = 0;
         size_t             count = 0;
 
-        hr = ReadPacket (m_replyTimeoutMs, reply);
+        hr = ReadPacket (m_operationTimeoutMs, reply);
         CBREx (hr != HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr);
 
         if (FAILED (hr) || reply.command != CassoLinkCodec::kAcknowledge || reply.payload.size() < 3)
@@ -903,7 +903,7 @@ HRESULT CassoLinkHost::ServeNibblePut (const CassoLinkPacket & packet, bool batc
 
     do
     {
-        hr = ReadPacket (m_replyTimeoutMs, summary);
+        hr = ReadPacket (m_operationTimeoutMs, summary);
     }
     while (SUCCEEDED (hr) && summary.command != CassoLinkCodec::kSummary && summary.command != CassoLinkCodec::kHome);
 
@@ -1101,7 +1101,7 @@ HRESULT CassoLinkHost::ReceiveImage (std::vector<Byte> & image, bool untilSummar
         size_t           size  = 0;
         bool             fits  = false;
 
-        hr = ReadPacket (m_replyTimeoutMs, packet);
+        hr = ReadPacket (m_operationTimeoutMs, packet);
         CBREx (hr != HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr);
 
         if (FAILED (hr))
