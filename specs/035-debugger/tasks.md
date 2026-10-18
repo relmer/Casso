@@ -1690,14 +1690,14 @@ Smallest first. Each task is a commit, or a short run of commits, that builds, p
 The owner's hands-on review of the refactored build. Each task is a commit that builds and passes, checked on screen where it is drawn.
 
 - [X] T913 Fix the machine failing to load when the user's settings have an enablement for a slot card the machine's config no longer has: UserConfigStore::MergeHardwareArray drops a user slot entry with no device or ROM (CassoEmuCore/Config/UserConfigStore.cpp), with a test in UnitTest/UiTests/UserConfigStoreTests.cpp
-- [ ] T914 Place the heat map ranges pane's new set name editor in its bar without covering the set drop-down (CassoEmuCore/Ui/Debugger/Panes/HeatRangesPane.cpp), FR-263
-- [ ] T915 [P] Make the heat map ranges bar's buttons read New, Rename and Delete (CassoEmuCore/Ui/Debugger/HeatMapRangeBarCommands.cpp), FR-263
-- [ ] T916 Give a built-in heat map range's row a context menu of one disabled Delete item (Panes/HeatRangesPane.cpp), FR-263
-- [ ] T917 Autosize the heat map ranges pane's columns and the trace pane's columns to their content (Panes/HeatRangesPane.cpp, Panes/TracePaneController.cpp), FR-255, FR-263
-- [ ] T918 [P] Put the heat map and the heat map ranges in one tab group in the default layout (CassoEmuCore/Ui/Debugger/DebuggerLayout.cpp), FR-264
+- [X] T914 Place the heat map ranges pane's new set name editor in its bar without covering the set drop-down (CassoEmuCore/Ui/Debugger/Panes/HeatRangesPane.cpp), FR-263
+- [X] T915 [P] Make the heat map ranges bar's buttons read New, Rename and Delete (CassoEmuCore/Ui/Debugger/HeatMapRangeBarCommands.cpp), FR-263
+- [X] T916 Give a built-in heat map range's row a context menu of one disabled Delete item (Panes/HeatRangesPane.cpp), FR-263
+- [X] T917 Autosize the heat map ranges pane's columns and the trace pane's columns to their content (Panes/HeatRangesPane.cpp, Panes/TracePaneController.cpp), FR-255, FR-263. The trace's columns were fitted only to their headings: the window turned precise fitting back on for every list after the trace turned it off, and a precise fit never measures a provider's rows; a ConfigureLists pane hook now runs after the window's settings
+- [X] T918 [P] Put the heat map and the heat map ranges in one tab group in the default layout (CassoEmuCore/Ui/Debugger/DebuggerLayout.cpp), FR-264. The default already had both beside the memory windows; a saved layout lacking one now restores it beside the other
 - [ ] T919 Make the watch pane's add row read "Add new watch" and start the edit on one click, on the editable list control the heat map ranges pane uses (Panes/WatchesPane.cpp), FR-259
-- [ ] T920 [P] Open Options at the History page on a click on the status bar's history section (CassoEmuCore/Ui/Debugger/DebuggerWindowStatusBar.cpp), FR-261
-- [ ] T921 [P] Draw the beam line brighter, with a dark edge (the beam overlay in CassoEmuCore), FR-260
+- [X] T920 [P] Open Options at the History page on a click on the status bar's history section (CassoEmuCore/Ui/Debugger/DebuggerWindowStatusBar.cpp), FR-261
+- [X] T921 [P] Draw the beam line brighter, with a dark edge (the beam overlay in CassoEmuCore), FR-260
 - [ ] T922 Align the Options > Disassembly preview's source lines to the disassembly's columns, and darken dimmed lines there and in the views in the skeuomorphic theme (CassoEmuCore/Ui/Debugger/DisassemblyPreview.cpp, DebuggerTextColors), FR-262
 - [ ] T923 Show only the fields the chosen type uses in the breakpoint dialog, changing them with the type (CassoEmuCore/Ui/Debugger/BreakpointDialog.cpp), FR-257
 - [ ] T924 Detach a tab that is not the active one in its group on its first press and drag (Dxui/Docking dock site and tab group), FR-256
