@@ -177,6 +177,30 @@ public:
     //  listings match.
     virtual bool                   IsCodeHeatOn     () const = 0;
 
+    //  The PC marker's color and an instruction result's in the theme.
+    virtual uint32_t               GetPcMarkerArgb  () const = 0;
+    virtual uint32_t               GetResultArgb    () const = 0;
+
+    //  A pane's tab: its title, and the mark ahead of the title with the
+    //  tab's tip.
+    virtual void                   SetPaneTitle     (const std::wstring & pane, const std::wstring & title) = 0;
+    virtual void                   SetPaneTabMark   (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) = 0;
+
+    //  SYM LOAD of a file the user picks, a source given then matched against
+    //  it once it loads.
+    virtual void                   OpenSymbolFile   (const std::wstring & thenShow) = 0;
+
+    //  Sets the steps to follow a view, by source line for a source document
+    //  and by instruction for the disassembly.
+    virtual void                   NoteViewFocus    (bool isSource) = 0;
+
+    //  Builds the window's menus again, after what they list changes.
+    virtual void                   UpdateWindowMenus () = 0;
+
+    //  The Find entry for a pane's toolbar, which opens the pane's find
+    //  widget.
+    virtual DxuiToolbar::Entry     GetFindEntry     (const std::wstring & pane) = 0;
+
     //  Runs a key scheme's action, as its key does, true when it acted; and a
     //  command bar entry, as a click on it does.
     virtual bool                   RunKeyAction     (DebuggerKeySchemes::Action action) = 0;

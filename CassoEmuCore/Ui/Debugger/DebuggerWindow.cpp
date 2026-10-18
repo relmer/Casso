@@ -26,6 +26,7 @@
 #include "OpcodeTable.h"
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
@@ -193,33 +194,6 @@ void DebuggerWindow::OnCreate()
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
-    //  A document per source file, each shown only while it holds one (FR-054).
-    for (SourceDocument & document : m_sourceDocs)
-    {
-        document.view   = CreateChild<DxuiTextView>();
-        document.banner = CreateChild<DxuiActionBanner>();
-        document.bar    = CreateChild<DxuiToolbar>();
-        document.pane   = std::make_unique<SourcePane> (
-            document.view, document.banner,
-            [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
-            {
-                return (m_host != nullptr) ? m_host->FindDebuggerSource (record, path, key) : SourceLookup();
-            },
-            [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
-            [this] (Word address)             { ShowCode (address); });
-
-        document.pane->SetOnToggleBody   ([this] { ToggleMacroBody(); });
-        document.view->SetGutter         (kGutterColumnDip, kBreakpointIconDip);
-        document.view->SetGlyphCenterDip (kGlyphCenterDip);
-        document.view->SetVisible   (false);
-        document.banner->SetVisible (false);
-    }
-
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        m_sourceDocs[(size_t) slot].pane->SetOnLoadSymbols ([this, slot] { LoadSymbolsFor (slot); });
-    }
-
     CreatePanes();
 
     //  Last, so its strips and the drop overlay paint over the panes.
@@ -264,18 +238,12 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureMenuBar();
     ConfigureCommandBar();
     ConfigureConsoleBar();
-    ConfigureSourceBars();
     ConfigureCodeBars();
 
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->Configure();
-    }
-
-    for (SourceDocument & document : m_sourceDocs)
-    {
-        document.pane->Configure (GetHwnd());
     }
 
     SetAcceptsDroppedFiles  (true);
@@ -736,11 +704,6 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
         pane->SetTextZoom (m_textZoom);
     }
 
-    for (SourceDocument & document : m_sourceDocs)
-    {
-        document.view->SetZoom (m_textZoom);
-    }
-
     m_consoleView->SetZoom (m_textZoom);
 
     //  The status bar's zoom and its slider follow a change from the keys or
@@ -827,342 +790,6 @@ void DebuggerWindow::ApplyUndoHistories()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ApplySource
-//
-//  The documents take the snapshot, and the layout changes when a document or
-//  its banner comes or goes, or a banner's text or actions change: a new
-//  action has no place until it is laid out. Another debug file closes every
-//  document, since a file's id belongs to the debug file it came from.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplySource()
-{
-    const std::optional<DebuggerViewSnapshot::SourceState> & source    = m_snapshot->source;
-    std::wstring                                             loadedFor;
-    bool                                                     relayout  = false;
-
-
-
-    if (source.has_value())
-    {
-        loadedFor = source->debugFilePath + SourcePathList::Utf8ToWide (source->programKey);
-    }
-
-    if (loadedFor != m_sourceLoadedFor)
-    {
-        m_sourceLoadedFor = loadedFor;
-        m_documents.Clear();
-        m_looseSources.clear();
-        m_pcPlace         = { -1, 0 };
-        m_macroLevel      = 0;
-    }
-
-    if (source.has_value())
-    {
-        m_macroLevel = SourcePane::GetMacroLevel (*source, m_macroLevel);
-
-        RestoreSourceDocuments();
-        FollowPcSource();
-    }
-
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        SourceDocument             & document    = m_sourceDocs[(size_t) slot];
-        bool                         shown       = false;
-        bool                         bannerShown = false;
-        bool                         holdsPc     = false;
-        std::wstring                 bannerKey;
-        std::wstring                 title;
-        DxuiTabGroup::LeadingMark    mark;
-
-        document.pane->SetStyle    ({ GetPcMarkerArgb(), GetPcRowArgb(), GetBreakpointIcon (true), GetBreakpointIcon (false), GetSyntaxColors(),
-                                       GetResultArgb(), GetPcIcon (nullptr) });
-        document.pane->SetFile     (m_documents.GetFileId (slot));
-        document.pane->SetMacroLevel (m_macroLevel);
-        document.pane->SetHeat     (m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ? std::optional<HeatMapView::Palette> (GetHeatPalette()) : std::nullopt);
-        document.pane->Apply       (*m_snapshot);
-
-        //  Each document's tab is titled with its file's name.
-        title = L"Source";
-
-        if (source.has_value())
-        {
-            for (const DebugSourceFile & record : source->files)
-            {
-                title = (record.id == m_documents.GetFileId (slot)) ? SourcePathList::Utf8ToWide (record.name) : title;
-            }
-        }
-
-        if (m_looseSources.contains (m_documents.GetFileId (slot)))
-        {
-            title = fs::path (m_looseSources.at (m_documents.GetFileId (slot))).filename().wstring();
-        }
-
-        if (title != document.title)
-        {
-            document.title = title;
-            m_dockSite->SetTitle (DebuggerLayout::GetSourcePaneId (slot), title);
-        }
-
-        bannerKey   = document.banner->GetText() + (document.banner->GetAction (0) != nullptr ? document.banner->GetAction (0)->GetAccessibleName() : L"");
-        shown       = document.pane->IsActive();
-        bannerShown = shown && document.pane->HasBanner();
-
-        if (shown != document.shown)
-        {
-            document.shown       = shown;
-            document.bannerShown = bannerShown;
-            document.bannerKey   = bannerKey;
-            relayout             = true;
-        }
-        else if (bannerShown != document.bannerShown || bannerKey != document.bannerKey)
-        {
-            document.bannerShown = bannerShown;
-            document.bannerKey   = bannerKey;
-            document.frame->Relayout();
-        }
-
-        //  The document the PC is in carries the PC's own marker ahead of its
-        //  title, as the following disassembly view's tab does (FR-113).
-        holdsPc = shown && source.has_value() && m_documents.GetFileId (slot) == source->fileId;
-
-        if (holdsPc)
-        {
-            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, GetPcMarkerArgb() };
-        }
-
-        m_dockSite->SetLeadingMark (DebuggerLayout::GetSourcePaneId (slot), mark);
-        m_dockSite->SetTabTip      (DebuggerLayout::GetSourcePaneId (slot), holdsPc ? L"The PC is in this file" : L"");
-    }
-
-    if (relayout)
-    {
-        m_dockSite->Relayout();
-    }
-
-    //  A source opened before its debug file loaded, shown again against it.
-    if (source.has_value() && !m_pendingLooseSource.empty())
-    {
-        std::wstring  pending = std::move (m_pendingLooseSource);
-
-        m_pendingLooseSource.clear();
-        ShowDroppedSource (pending);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::FollowPcSource
-//
-//  At each stop at a new place, the file the PC is in comes to the front,
-//  opened if it is not open yet -- the body's file while the body is shown.
-//  A running machine moves nothing, so the documents do not churn under it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::FollowPcSource()
-{
-    const DebuggerViewSnapshot::SourceState & source = *m_snapshot->source;
-    std::pair<int, int>                       place  = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
-
-
-
-    if (!m_snapshot->isPaused || place.first < 0 || place == m_pcPlace)
-    {
-        return;
-    }
-
-    m_pcPlace = place;
-    OpenSourceDocument (place.first, 0, true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OpenSourceDocument
-//
-//  The file's document, opened if it is not, brought to the front of its
-//  group when asked, and scrolled so `line` is at its top when one is given.
-//  The PC's file is never the one closed to make room.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OpenSourceDocument (int fileId, int line, bool activate)
-{
-    int  keep = m_snapshot != nullptr && m_snapshot->source.has_value() ? m_snapshot->source->fileId : -1;
-    int  slot = m_documents.Open (fileId, keep);
-
-
-
-    if (slot < 0)
-    {
-        return;
-    }
-
-    m_sourceDocs[(size_t) slot].pane->SetFile (fileId);
-
-    if (line > 0)
-    {
-        m_sourceDocs[(size_t) slot].pane->SetTopSourceLine (line);
-    }
-
-    if (activate)
-    {
-        (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetSourcePaneId (slot));
-        m_activeSource = slot;
-        m_dockSite->Relayout();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::CloseSourceDocument
-//
-//  Only that file's document goes (FR-113). The PC's place is kept, so a
-//  document closed while the PC is in it stays closed until the next stop
-//  somewhere else in that file opens it again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CloseSourceDocument (int slot)
-{
-    if (!m_documents.IsOpen (slot))
-    {
-        return;
-    }
-
-    m_documents.Close (slot);
-    m_sourceDocs[(size_t) slot].pane->SetFile (-1);
-
-    if (m_snapshot != nullptr)
-    {
-        ApplySource();
-        KeepOpenViews();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RestoreSourceDocuments
-//
-//  The documents open when the debugger last closed, once a debug file with
-//  files of their names is loaded; until then they wait. A saved file that
-//  is gone reopens with its not-found notice.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RestoreSourceDocuments()
-{
-    const DebuggerViewSnapshot::SourceState & source = *m_snapshot->source;
-
-
-
-    if (m_pendingSourceDocs.empty() || source.files.empty())
-    {
-        return;
-    }
-
-    for (const SourceDocuments::Saved & saved : m_pendingSourceDocs)
-    {
-        for (const DebugSourceFile & record : source.files)
-        {
-            if (record.name == saved.name)
-            {
-                OpenSourceDocument (record.id, saved.line, false);
-            }
-        }
-    }
-
-    m_pendingSourceDocs.clear();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ToggleMacroBody
-//
-//  One choice for every document: the body's file comes forward, or the
-//  invocation's again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ToggleMacroBody()
-{
-    if (m_snapshot != nullptr && m_snapshot->source.has_value())
-    {
-        m_macroLevel = SourcePane::GetNextMacroLevel (m_macroLevel, SourcePane::GetMacroLevel (*m_snapshot->source, -1));
-    }
-
-    m_pcPlace = { -1, 0 };
-
-    if (m_snapshot != nullptr && m_snapshot->source.has_value())
-    {
-        ApplySource();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowSourceLine
-//
-//  A disassembly line was selected: its source line is selected in its
-//  file's document, opened behind the others if it is not open (FR-054).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowSourceLine (int fileId, int line)
-{
-    int  slot = m_documents.Find (fileId);
-
-
-
-    if (fileId < 0 || line <= 0)
-    {
-        return;
-    }
-
-    if (slot < 0)
-    {
-        OpenSourceDocument (fileId, 0, false);
-        ApplySource();
-        slot = m_documents.Find (fileId);
-    }
-
-    if (slot >= 0)
-    {
-        m_sourceDocs[(size_t) slot].pane->ShowLine (fileId, line);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetSourceSlotOf
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1178,142 +805,6 @@ int DebuggerWindow::GetSourceSlotOf (const std::wstring & pane) const
     }
 
     return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetSourceSlotAt
-//
-//  The shown document whose text or banner is under a point, or -1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DebuggerWindow::GetSourceSlotAt (POINT atDip) const
-{
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        const SourceDocument & document = m_sourceDocs[(size_t) slot];
-
-        if (document.shown && document.view->IsVisible() &&
-            (DxuiDockSite::Contains (document.view->GetBounds(), atDip) || DxuiDockSite::Contains (document.banner->GetBounds(), atDip)))
-        {
-            return slot;
-        }
-    }
-
-    return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RouteSourceMouse
-//
-//  The banner's actions, then the text: a click moves the code pane to the
-//  line, a second click on the same place within the double-click time
-//  toggles the line's breakpoint, and a drag selects text as it does in any
-//  text view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteSourceMouse (const DxuiMouseEvent & ev)
-{
-    POINT             at       = ev.positionDip;
-    int               slot     = GetSourceSlotAt (at);
-    uint64_t          now      = GetTickCount64();
-    bool              isDouble = false;
-    bool              inside   = false;
-    bool              onBanner = false;
-    SourceDocument  * document = nullptr;
-
-
-
-    //  A drag or a press on a scrollbar keeps going to the document it began
-    //  in, wherever the pointer goes.
-    for (int each = 0; each < SourceDocuments::kMaxDocuments; each++)
-    {
-        if (m_sourceDocs[(size_t) each].view->IsInteracting())
-        {
-            slot = each;
-        }
-    }
-
-    if (slot < 0)
-    {
-        return false;
-    }
-
-    document = &m_sourceDocs[(size_t) slot];
-
-    inside   = DxuiDockSite::Contains (document->view->GetBounds(),   at);
-    onBanner = DxuiDockSite::Contains (document->banner->GetBounds(), at);
-
-    //  A document behind another tab takes no input.
-    if (!document->shown || !document->view->IsVisible() || !IsRoutable (document->view))
-    {
-        return false;
-    }
-
-    if (document->bannerShown && (onBanner || ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Move))
-    {
-        (void) document->banner->OnMouse (ev);
-
-        //  An action changes what the pane shows while the machine is paused,
-        //  when no snapshot is coming to show it.
-        if (onBanner && ev.kind == DxuiMouseEventKind::Up && m_snapshot != nullptr)
-        {
-            ApplySource();
-        }
-
-        if (onBanner && ev.kind == DxuiMouseEventKind::Down)
-        {
-            return true;
-        }
-    }
-
-    if (document->view->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
-    {
-        (void) document->view->OnMouse (ev);
-        return true;
-    }
-
-    if (!inside || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
-    {
-        return false;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
-    {
-        isDouble = (now - m_sourceClickMs) <= (uint64_t) GetDoubleClickTime() &&
-                   std::abs (at.x - m_sourceClickAt.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-                   std::abs (at.y - m_sourceClickAt.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
-
-        m_sourceClickMs = isDouble ? 0 : now;
-        m_sourceClickAt = at;
-
-        if (isDouble)
-        {
-            document->pane->OnDoubleClick (at);
-        }
-        else
-        {
-            document->pane->OnClick (at);
-        }
-
-        m_activeSource = slot;
-        SetFocusedControl (document->view);
-        NoteViewFocus (true);
-    }
-
-    (void) document->view->OnMouse (ev);
-    return true;
 }
 
 
@@ -1433,7 +924,7 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
 
     if (slot >= 0)
     {
-        m_activeSource = slot;
+        m_sources->SetActive (slot);
         NoteViewFocus (true);
         return;
     }
@@ -1519,7 +1010,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (kind == DroppedFiles::Kind::Source)
         {
-            OpenSourcePath (path);
+            m_sources->OpenSourcePath (path);
             continue;
         }
 
@@ -1535,7 +1026,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
             continue;
         }
 
-        OpenLooseFile (path, opening == DroppedFiles::Opening::Hex ? DroppedFiles::FormatHexDump (lookup.text) : lookup.text, false);
+        m_sources->OpenLooseFile (path, opening == DroppedFiles::Opening::Hex ? DroppedFiles::FormatHexDump (lookup.text) : lookup.text, false);
     }
 
     return true;
@@ -1556,141 +1047,6 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 bool DebuggerWindow::IsSymbolFile (const std::wstring & path)
 {
     return DroppedFiles::GetKind (path) == DroppedFiles::Kind::Symbols;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OpenSourcePath
-//
-//  With a debug file loaded, the source opens in the document for the record
-//  it matches. With none, a debug or symbol file beside it is loaded first,
-//  and the source shows meanwhile with no symbols; once that debug file is
-//  in, the source is matched against it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OpenSourcePath (const std::wstring & path)
-{
-    SourceLookup  lookup;
-    int           index  = -1;
-    bool          loaded = m_snapshot != nullptr && m_snapshot->source.has_value();
-
-
-
-    if (m_host == nullptr)
-    {
-        return;
-    }
-
-    if (loaded)
-    {
-        ShowDroppedSource (path);
-        return;
-    }
-
-    for (const std::wstring & beside : DroppedFiles::GetSymbolFilesBeside (path))
-    {
-        if (m_host->DoesDebuggerFileExist (beside))
-        {
-            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), GetMode()));
-            m_pendingLooseSource = path;
-            break;
-        }
-    }
-
-    lookup = m_host->MatchDroppedDebuggerSource ({}, path, std::string(), index);
-    OpenLooseFile (path, lookup.text, true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OpenLooseFile
-//
-//  A file with no debug file record, in a document of its own titled with its
-//  name. The same file opened again goes to the document it is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OpenLooseFile (const std::wstring & path, const std::string & text, bool isSource)
-{
-    int  fileId = -1;
-    int  slot   = -1;
-
-
-
-    for (const auto & [id, open] : m_looseSources)
-    {
-        fileId = (_wcsicmp (open.c_str(), path.c_str()) == 0) ? id : fileId;
-    }
-
-    if (fileId < 0)
-    {
-        fileId = m_nextLooseId++;
-        m_looseSources[fileId] = path;
-    }
-
-    OpenSourceDocument (fileId, 0, true);
-    slot = m_documents.Find (fileId);
-
-    if (slot < 0)
-    {
-        return;
-    }
-
-    m_sourceDocs[(size_t) slot].pane->ShowLoose (path, text, isSource);
-
-    if (m_snapshot != nullptr)
-    {
-        ApplySource();
-    }
-
-    SetWindowMenus();
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::IsLooseSource
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::IsLooseSource (int slot) const
-{
-    return m_looseSources.contains (m_documents.GetFileId (slot));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::LoadSymbolsFor
-//
-//  A source document's Load symbols button: the user picks the debug or
-//  symbol file, and the source is matched against it once it loads.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::LoadSymbolsFor (int slot)
-{
-    auto  found = m_looseSources.find (m_documents.GetFileId (slot));
-
-
-
-    OpenSymbolFile (found != m_looseSources.end() ? found->second : std::wstring());
 }
 
 
@@ -1845,41 +1201,6 @@ bool DebuggerWindow::TryGetSourceText (int fileId, int line, std::wstring & text
 
     text = m_codeSourceText[fileId][(size_t) (line - 1)];
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowDroppedSource
-//
-//  The document for the record the file matches; a file that matches none
-//  opens on its own, saying it has no symbols.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowDroppedSource (const std::wstring & path)
-{
-    const DebuggerViewSnapshot::SourceState & source = *m_snapshot->source;
-    SourceLookup                              lookup;
-    int                                       index  = -1;
-
-
-
-    lookup = m_host->MatchDroppedDebuggerSource (source.files, path, source.programKey, index);
-
-    if (index < 0 || index >= (int) source.files.size())
-    {
-        OpenLooseFile (path, lookup.text, true);
-        return;
-    }
-
-    OpenSourceDocument (source.files[(size_t) index].id, 0, true);
-
-    m_sourceDocs[(size_t) m_activeSource].pane->ShowDropped (lookup, index);
-    ApplySource();
 }
 
 
@@ -2768,7 +2089,7 @@ DxuiTextView * DebuggerWindow::GetFindView() const
 
 
 
-    return (slot >= 0) ? m_sourceDocs[(size_t) slot].view : m_consoleView;
+    return (slot >= 0) ? m_sources->GetDocument (slot).GetView() : m_consoleView;
 }
 
 
@@ -2989,7 +2310,7 @@ DebuggerPaneFrame * DebuggerWindow::GetFindFrame() const
 
 
 
-    return (slot >= 0) ? m_sourceDocs[(size_t) slot].frame.get() : m_consoleFrame.get();
+    return (slot >= 0) ? m_sources->GetDocument (slot).GetFrame() : m_consoleFrame.get();
 }
 
 
@@ -3661,7 +2982,6 @@ void DebuggerWindow::LayoutWidgets()
     }
 
     PlaceConsoleBar();
-    PlaceSourceBars();
     PlaceCodeBars();
     PlaceColorKeys();
     PlaceFindBar();
@@ -4201,23 +3521,6 @@ void DebuggerWindow::ConfigureDockSite()
 
 
 
-    //  A source document is its toolbar and its banner over its text. Its
-    //  find widget floats over the text (PlaceFindBar).
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        SourceDocument  & document = m_sourceDocs[(size_t) slot];
-        SourceDocument  * each     = &document;
-        std::wstring      id       = DebuggerLayout::GetSourcePaneId (slot);
-
-        document.frame    = std::make_unique<DebuggerPaneFrame> (L"Source");
-        document.barSlot  = std::make_unique<DebuggerPaneFrame> (L"Source commands");
-        document.frame->AddPart (document.barSlot.get(), barHeight);
-        document.frame->AddPart (document.banner,
-                                 [each] (int width, const DxuiDpiScaler & scaler) { return (int) each->banner->GetPreferredHeightPx ((float) width, scaler); },
-                                 [each] { return each->bannerShown; });
-        document.frame->AddPart (document.view);
-    }
-
     m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
     //  The console's toolbar, which holds its dialect, is a place held at the
     //  pane's top, which PlaceConsoleBar fills.
@@ -4248,11 +3551,6 @@ void DebuggerWindow::ConfigureDockSite()
 
         m_dockSite->AddPane (DebuggerLayout::GetCodePaneId (view), std::format (L"Disassembly {}", view + 1),
                              m_codeFrames[(size_t) view].get());
-    }
-
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        m_dockSite->AddPane (DebuggerLayout::GetSourcePaneId (slot), L"Source", m_sourceDocs[(size_t) slot].frame.get());
     }
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
@@ -4349,11 +3647,6 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     }
 
 
-    if (GetSourceSlotOf (pane) >= 0)
-    {
-        return m_sourceDocs[(size_t) GetSourceSlotOf (pane)].shown;
-    }
-
     for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
     {
         if (pane == DebuggerLayout::GetCodePaneId (view))
@@ -4381,7 +3674,7 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     //  Under a slid-out pane, which lies over the disassembly and the source.
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
         PaintBranchArrow (painter, view);
     }
@@ -4426,9 +3719,11 @@ bool DebuggerWindow::HasTopLayer() const
         }
     }
 
-    for (const SourceDocument & document : m_sourceDocs)
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
-        if (document.shown && document.pane->IsActive() && m_snapshot != nullptr &&
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+        if (document.IsShown() && document.GetModel().IsActive() && m_snapshot != nullptr &&
             m_snapshot->source.has_value() && m_snapshot->source->pcTarget.has_value())
         {
             return true;
@@ -4510,9 +3805,9 @@ bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word 
 
     if (view >= DebuggerViewState::kMaxCodeViews)
     {
-        const SourceDocument & document = m_sourceDocs[(size_t) (view - DebuggerViewState::kMaxCodeViews)];
+        const SourceDocumentPane & document = m_sources->GetDocument (view - DebuggerViewState::kMaxCodeViews);
 
-        return !isBranchedFrom && document.shown && IsRoutable (document.view) && document.pane->GetBranchArrow (input, goesTo, isTaken);
+        return !isBranchedFrom && document.IsShown() && IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
     }
 
     if (list == nullptr || !m_codeOpen[(size_t) view] || !list->IsVisible() || !IsRoutable (list))
@@ -4584,7 +3879,7 @@ bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
 
 
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
         input = BranchArrow::Input();
 
@@ -4718,7 +4013,7 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 
     for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
-        if (m_documents.IsOpen (slot))
+        if (m_sources->IsOpen (slot))
         {
             panes.push_back (DebuggerLayout::GetSourcePaneId (slot));
         }
@@ -4889,7 +4184,7 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
 
     if (slot >= 0)
     {
-        CloseSourceDocument (slot);
+        m_sources->Close (slot);
         return;
     }
 
@@ -4975,14 +4270,6 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         return DebuggerLayout::kConsole;
     }
 
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        if (focused == m_sourceDocs[(size_t) slot].view)
-        {
-            return DebuggerLayout::GetSourcePaneId (slot);
-        }
-    }
-
     //  A pane docked as a frame -- a disassembly view, the call stack, a
     //  memory window -- holds its focusable controls inside the frame, so
     //  the dock site, which knows only the frame, cannot place them.
@@ -5052,10 +4339,10 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     }
 
     //  A source document's own items.
-    if (slot >= 0 && m_documents.IsOpen (slot))
+    if (slot >= 0 && m_sources->IsOpen (slot))
     {
         std::vector<DxuiPopupMenuItem>  syntax;
-        SourcePane                    * source = m_sourceDocs[(size_t) slot].pane.get();
+        SourcePane                    * source = &m_sources->GetDocument (slot).GetModel();
 
 
 
@@ -5929,15 +5216,6 @@ void DebuggerWindow::RenderFrame()
         }
     }
 
-    for (SourceDocument & document : m_sourceDocs)
-    {
-        if (document.bar->WantsTick())
-        {
-            document.bar->TickMenus (now);
-            isAnimating = true;
-        }
-    }
-
     if (m_menuBar->WantsTick())
     {
         m_menuBar->TickMenus (now);
@@ -5983,16 +5261,12 @@ void DebuggerWindow::RenderFrame()
     }
 
     PlaceConsoleBar();
-    PlaceSourceBars();
     PlaceCodeBars();
     PlaceColorKeys();
     PlaceFindBar();
     ClipPaneControls();
 
-    for (SourceDocument & document : m_sourceDocs)
-    {
-        document.pane->FollowMarkedLine();
-    }
+    m_sources->FollowMarkedLines();
 
 
     for (const auto & entry : m_floats)
@@ -6561,7 +5835,7 @@ void DebuggerWindow::ApplySnapshot()
 
 
     ApplyUndoHistories();
-    ApplySource();
+    m_sources->Apply();
     KeepOpenViews();
     ShowPendingPane();
 
@@ -6625,23 +5899,9 @@ void DebuggerWindow::KeepOpenViews()
         return;
     }
 
-    //  The source documents open, each at the line at its top (FR-113). One
-    //  that cannot say, behind another tab, keeps the line it last gave.
-    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
-    {
-        int  line = m_sourceDocs[(size_t) slot].pane->GetTopSourceLine();
-
-        if (line > 0)
-        {
-            m_documents.SetLine (slot, line);
-        }
-    }
-
-    //  Documents still waiting for their debug file are kept in the text, so
-    //  a save before it loads does not lose them.
+    //  The source documents open, each at the line at its top (FR-113).
     text  = DebuggerViewState::FormatOpenViews (*m_snapshot);
-    text += m_documents.Format (nameOf);
-    text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
+    text += m_sources->FormatOpen (nameOf);
     text += BreakpointColumns::FormatShown (m_breakpointsPane->GetShown());
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
 
@@ -6656,9 +5916,9 @@ void DebuggerWindow::KeepOpenViews()
         m_openViewsSaved    = m_host->GetDebuggerOpenViews();
         m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
         views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
-        m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
         m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
 
+        m_sources->SetSaved         (SourceDocuments::Parse (m_openViewsSaved));
         m_breakpointsPane->SetShown (BreakpointColumns::ParseShown (m_openViewsSaved));
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
@@ -7032,11 +6292,6 @@ bool DebuggerWindow::IsAnyMenuOpen() const
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
 
-    for (const SourceDocument & document : m_sourceDocs)
-    {
-        open = open || (document.bar != nullptr && document.bar->IsMenuOpen());
-    }
-
     for (const auto & [floatPane, window] : m_floats)
     {
         DxuiHwndSource  * floatPopups = (window != nullptr) ? window->GetPopupHost() : nullptr;
@@ -7111,17 +6366,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         DxuiToolbar  * bar = m_codeBars[(size_t) view];
 
         if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetCodePaneId (view)) && bar != nullptr && bar->IsVisible())
-        {
-            barTip = bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-        }
-    }
-
-    //  And each source document's.
-    for (int slot = 0; slot < (int) m_sourceDocs.size() && (barTip == nullptr || *barTip == L'\0'); slot++)
-    {
-        DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
-
-        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetSourcePaneId (slot)) && bar != nullptr && bar->IsVisible())
         {
             barTip = bar->GetTooltipAt (clientPx.x, clientPx.y, cell);
         }
@@ -8329,7 +7573,7 @@ bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstrin
         }
     }
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + (int) m_sourceDocs.size(); view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
         input = BranchArrow::Input();
 
@@ -8436,7 +7680,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
         if (GetCodeLineOfRow (view, row) >= 0)
         {
             m_codeSelected[(size_t) view] = lines[(size_t) GetCodeLineOfRow (view, row)].address;
-            ShowSourceLine (lines[(size_t) GetCodeLineOfRow (view, row)].sourceFileId, lines[(size_t) GetCodeLineOfRow (view, row)].sourceLine);
+            m_sources->ShowLine (lines[(size_t) GetCodeLineOfRow (view, row)].sourceFileId, lines[(size_t) GetCodeLineOfRow (view, row)].sourceLine);
         }
     });
 
@@ -9458,15 +8702,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  And each source document's.
-    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
-    {
-        if (m_routingPane == GetBarRoutingPane (DebuggerLayout::GetSourcePaneId (slot)) && RouteSourceBarMouse (m_sourceDocs[(size_t) slot].bar, ev))
-        {
-            return true;
-        }
-    }
-
     //  A press on a disassembly or source tab sets the step mode as a press
     //  inside that pane does.
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
@@ -9517,7 +8752,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  The find widget floats over its pane's text, so a press on it is the
     //  widget's, not the text's.
     if (!std::ranges::any_of (m_findStates, [&] (const auto & entry) { const FindWidgetPlate * plate = entry.second.plate; return plate != nullptr && IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), ev.positionDip); }) &&
-        (RouteSourceMouse (ev) || RouteConsoleMouse (ev)))
+        (m_sources->RouteMouse (ev) || RouteConsoleMouse (ev)))
     {
         return true;
     }
@@ -9744,13 +8979,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
         }
     }
 
-    if (GetSourceSlotOf (pane) >= 0)
-    {
-        const SourceDocument & document = m_sourceDocs[(size_t) GetSourceSlotOf (pane)];
-
-        return { document.barSlot.get(), document.bar, document.banner, document.view };
-    }
-
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
 
     if (FindPane (pane) != nullptr)
@@ -9779,11 +9007,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     std::vector<IDxuiControl *>  controls;
 
 
-
-    if (GetSourceSlotOf (pane) >= 0)
-    {
-        return m_sourceDocs[(size_t) GetSourceSlotOf (pane)].frame.get();
-    }
 
     if (pane == DebuggerLayout::kConsole)
     {
@@ -9820,7 +9043,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
 std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
 {
     if (pane == DebuggerLayout::kCode)        { return L"Disassembly"; }
-    if (GetSourceSlotOf (pane) >= 0)          { return m_sourceDocs[(size_t) GetSourceSlotOf (pane)].title; }
     if (pane == DebuggerLayout::kConsole)     { return L"Console";     }
     if (pane == DebuggerLayout::kRegisters)   { return L"Registers";   }
     if (pane == DebuggerLayout::kBreakpoints) { return L"Breakpoints"; }

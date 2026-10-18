@@ -73,6 +73,7 @@ class StackPane;
 class WatchesPane;
 class SymbolsPane;
 class BreakpointsPane;
+class SourceDocumentGroup;
 class MemoryPane;
 class TracePaneController;
 
@@ -168,7 +169,7 @@ protected:
     void             CloseFind       ();
     void             FindInPane      (bool forward);
     std::wstring     GetFindPane     () const { return m_findPane; }
-    DxuiTextView   * GetSourceView   (int slot) const { return m_sourceDocs[(size_t) slot].view; }
+    DxuiTextView   * GetSourceView   (int slot) const;
     bool             IsFindOpen      () const { return m_findOpen; }
     bool             IsFindOpenIn    (const std::wstring & pane) const;
     DxuiTextInput  * GetFindBoxOf    (const std::wstring & pane) const;
@@ -213,7 +214,7 @@ protected:
     void                OpenSourcePath      (const std::wstring & path);
     void                LoadSymbolsFor      (int slot);
     bool                IsLooseSource       (int slot) const;
-    const SourcePane &  GetSourcePane       (int slot) const { return *m_sourceDocs[(size_t) slot].pane; }
+    const SourcePane &  GetSourcePane       (int slot) const;
 
     //  Protected so a test can see which pane the watch editor goes with.
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
@@ -421,7 +422,7 @@ protected:
     DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
     std::wstring                          GetModeText        () const { return m_dialectCommand->label; }
     static std::wstring                   GetModeLabel       (const wchar_t * mode);
-    DxuiToolbar *                         GetSourceBar       (int slot) const { return m_sourceDocs[(size_t) slot].bar; }
+    DxuiToolbar *                         GetSourceBar       (int slot) const;
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
     //  The console's modes in its drop-down's order: alphabetical by label,
@@ -529,12 +530,6 @@ protected:
     mutable DebuggerTextColors::Cache  m_textColors;
 
 private:
-    //  The ids of files opened with no debug file record, above any a debug
-    //  file gives.
-    static constexpr int  kFirstLooseFileId = 1 << 20;
-
-    //  A source document (FR-054): its text and banner, the pane over them,
-    //  the frame the dock shows, and whether each is shown now.
     //  Each searchable pane's own find widget: its controls, whether it is
     //  open, its options, its count and its history. The m_find members
     //  hold a copy of the active one's.
@@ -567,20 +562,6 @@ private:
     static constexpr int     kFindWidgetHeightDip = 34;
     static constexpr int     kFindWidgetScrollDip = 18;
     static constexpr int     kFindCountDip        = 74;
-
-    struct SourceDocument
-    {
-        DxuiTextView                        * view        = nullptr;
-        DxuiActionBanner                    * banner      = nullptr;
-        DxuiToolbar                         * bar         = nullptr;
-        std::unique_ptr<SourcePane>           pane;
-        std::unique_ptr<DebuggerPaneFrame>    frame;
-        std::unique_ptr<DebuggerPaneFrame>    barSlot;
-        bool                                  shown       = false;
-        bool                                  bannerShown = false;
-        std::wstring                          bannerKey;
-        std::wstring                          title       = L"Source";
-    };
 
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
@@ -696,7 +677,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ResetPaneLayout      ();
     void     OpenSourceFile       ();
     void     OpenOptions          ();
-    void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring());
+    void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring()) override;
     void     LoadFileIntoMemory   ();
 
     //  The window's state a debug project saves with no setting of its own:
@@ -713,15 +694,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
-    void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
     void     ConfigureCodeBars    ();
     void     PlaceCodeBars        ();
     void     ConfigureConsoleBar  ();
     void     PlaceConsoleBar      ();
     bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
-    void     ConfigureSourceBars  ();
-    void     PlaceSourceBars      ();
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
@@ -791,20 +769,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiTooltip &    GetRoutedTooltip ();
     void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
-    bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
-    void     NoteViewFocus      (bool isSource);
+    void     NoteViewFocus      (bool isSource) override;
     void     NoteTabFocus       (POINT pointDip);
     static IDxuiControl * FindFirstFocusable (IDxuiControl * node);
-    void     ApplySource        ();
-    void     FollowPcSource     ();
-    void     OpenSourceDocument (int fileId, int line, bool activate);
-    void     CloseSourceDocument (int slot);
-    void     RestoreSourceDocuments ();
-    void     ToggleMacroBody    ();
-    void     ShowSourceLine     (int fileId, int line);
     int      GetSourceSlotOf    (const std::wstring & pane) const;
-    int      GetSourceSlotAt    (POINT atDip) const;
     bool     IsRestoringViews   () const override;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
@@ -864,7 +833,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The PC's arrow for the glyph margin, over `dot` when the line has one.
     std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
     bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
-    uint32_t  GetPcMarkerArgb      () const;
+    uint32_t  GetPcMarkerArgb      () const override;
     uint32_t  GetPcRowArgb         () const override;
     uint32_t  GetNavigatedRowArgb  () const;
     uint32_t  GetTargetRowArgb     () const;
@@ -874,7 +843,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The disassembly views' bytes, for the changed color in their bytes
     //  column.
     void      UpdateCodeChanges    ();
-    uint32_t  GetResultArgb        () const;
+    uint32_t  GetResultArgb        () const override;
     SourceSyntax::Colors  GetSyntaxColors () const override;
     DebuggerTextColors::Set  GetTextColors () const override;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
@@ -1106,7 +1075,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const DxuiDpiScaler & GetPaneScaler         () const override { return m_scaler; }
     bool                 IsBarRouted            (const std::wstring & pane) const override { return m_routingPane == GetBarRoutingPane (pane); }
     void                 Repaint                () override { Invalidate(); }
-    void                 OpenSource             (int fileId, int line) override { OpenSourceDocument (fileId, line, true); }
+    void                 OpenSource             (int fileId, int line) override;
+    void                 SetPaneTitle           (const std::wstring & pane, const std::wstring & title) override { m_dockSite->SetTitle (pane, title); }
+    void                 SetPaneTabMark         (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
+    void                 UpdateWindowMenus      () override { SetWindowMenus(); }
+    DxuiToolbar::Entry   GetFindEntry           (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }
     std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
     bool                 IsCodeHeatOn           () const override { return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat); }
@@ -1179,21 +1152,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                                          m_findInSelection     = false;
     int                                                           m_findHistoryAt       = -1;
     std::map<std::wstring, FindState>                             m_findStates;
-    std::array<SourceDocument, SourceDocuments::kMaxDocuments>    m_sourceDocs;
-    SourceDocuments                                               m_documents;
-    int                                                           m_macroLevel          = 0;
-    std::wstring                                                  m_sourceLoadedFor;
-    std::pair<int, int>                                           m_pcPlace             = { -1, 0 };
-    std::vector<SourceDocuments::Saved>                           m_pendingSourceDocs;
-    int                                                           m_activeSource        = 0;
-    std::map<int, std::wstring>                                   m_looseSources;
-    int                                                           m_nextLooseId         = kFirstLooseFileId;
-    std::wstring                                                  m_pendingLooseSource;
+    std::unique_ptr<SourceDocumentGroup>                          m_sources;
     MemoryFileDialog::Fields                                      m_loadFileFields;
     MemoryFileDialog::Fields                                      m_saveFileFields;
     bool                                                          m_showSourceCode      = true;
-    uint64_t                                                      m_sourceClickMs       = 0;
-    POINT                                                         m_sourceClickAt       = {};
 
     //  The fixed panes closed from their close buttons, which the View menu
     //  shows again where the layout still keeps them, and a pane the View

@@ -13,6 +13,7 @@
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 
 
@@ -776,7 +777,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
     BAIL_OUT_IF (!picked, S_OK);
 
     RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
-    m_pendingLooseSource = thenShow;
+    m_sources->SetPendingLoose (thenShow);
 
 Error:
     return;
@@ -1323,75 +1324,6 @@ void DebuggerWindow::PlaceCodeBars()
         bar->Layout            (GetBarStrip (DebuggerLayout::GetCodePaneId (view), place), m_scaler);
 
         host->SetChildClip (bar, place);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ConfigureSourceBars
-//
-//  Each source document's toolbar: its search button.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureSourceBars()
-{
-    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
-    {
-        DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
-
-        bar->SetTextRenderer  (GetTextRenderer());
-        bar->SetPopupHost     (GetPopupHost());
-        bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
-        bar->SetCompact       (true);
-        bar->SetPaneTextInset (true);
-        bar->SetEntries       ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
-        bar->SetVisible       (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceSourceBars
-//
-//  As the console's: each bar sits in the place held at the top of its
-//  document and goes with the document into a floating window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceSourceBars()
-{
-    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
-    {
-        SourceDocument  & document = m_sourceDocs[(size_t) slot];
-        bool              shown    = document.barSlot != nullptr && document.barSlot->IsVisible();
-        DxuiWindow      * host     = nullptr;
-        RECT              place    = {};
-
-        document.bar->SetVisible (shown);
-
-        if (!shown)
-        {
-            continue;
-        }
-
-        host  = GetPaneHost (DebuggerLayout::GetSourcePaneId (slot));
-        place = document.barSlot->GetBounds();
-
-        document.bar->SetTextRenderer   (host->GetTextRenderer());
-        document.bar->SetPopupHost      (host->GetPopupHost());
-        document.bar->SetHostClientRect (host->GetBounds());
-        document.bar->Layout            (GetBarStrip (DebuggerLayout::GetSourcePaneId (slot), place), m_scaler);
-
-        host->SetChildClip (document.bar, place);
     }
 }
 

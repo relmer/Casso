@@ -13,6 +13,7 @@
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
@@ -51,6 +52,13 @@ void DebuggerWindow::CreatePanes()
     std::unique_ptr<BasicProgramController>  basic    = std::make_unique<BasicProgramController> (host);
 
 
+
+    m_sources = std::make_unique<SourceDocumentGroup> (host);
+
+    for (std::unique_ptr<IDebuggerPane> & document : m_sources->CreateDocuments())
+    {
+        m_panes.push_back (std::move (document));
+    }
 
     m_profilerPane    = profiler.get();
     m_heatMapPane     = heatMap.get();
@@ -858,6 +866,142 @@ void DebuggerWindow::ApplyBreakpoints()
 void DebuggerWindow::ShowBasicLine (Word line)
 {
     m_basicProgram->ShowLine (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenSource (int fileId, int line)
+{
+    m_sources->Open (fileId, line, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetPaneTabMark
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetPaneTabMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip)
+{
+    m_dockSite->SetLeadingMark (pane, mark);
+    m_dockSite->SetTabTip      (pane, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenSourcePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenSourcePath (const std::wstring & path)
+{
+    m_sources->OpenSourcePath (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowDroppedSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowDroppedSource (const std::wstring & path)
+{
+    m_sources->ShowDropped (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadSymbolsFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadSymbolsFor (int slot)
+{
+    m_sources->LoadSymbolsFor (slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsLooseSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsLooseSource (int slot) const
+{
+    return m_sources->IsLoose (slot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSourcePane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const SourcePane & DebuggerWindow::GetSourcePane (int slot) const
+{
+    return m_sources->GetDocument (slot).GetModel();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSourceView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView * DebuggerWindow::GetSourceView (int slot) const
+{
+    return m_sources->GetDocument (slot).GetView();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSourceBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetSourceBar (int slot) const
+{
+    return m_sources->GetDocument (slot).GetBar();
 }
 
 

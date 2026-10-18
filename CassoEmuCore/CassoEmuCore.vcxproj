@@ -236,6 +236,7 @@
     <ClCompile Include="Ui\Debugger\Panes\TracePaneController.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\BasicProgramController.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DevicePanelController.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\SourceDocumentPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
@@ -888,6 +889,7 @@
     <ClInclude Include="Ui\Debugger\Panes\TracePaneController.h" />
     <ClInclude Include="Ui\Debugger\Panes\BasicProgramController.h" />
     <ClInclude Include="Ui\Debugger\Panes\DevicePanelController.h" />
+    <ClInclude Include="Ui\Debugger\Panes\SourceDocumentPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\UndoListPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\WatchesPane.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
