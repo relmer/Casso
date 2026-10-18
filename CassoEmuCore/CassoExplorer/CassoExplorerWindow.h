@@ -571,6 +571,7 @@ private:
     static const wchar_t *            GetUndoLabel              (UndoStep::Kind kind);
     static std::vector<std::wstring>  ReadExplorerTypedPaths    ();
     void                              PasteHere                 (const std::wstring & folder);
+    void                              PasteIntoVolume           ();
     void                              PushPutUndo               (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
     static void                       WriteExplorerTypedPath    (const std::wstring & path);
 
@@ -729,6 +730,7 @@ private:
     std::wstring  FormatActivity (size_t lines) const;
     void  ShowActivityLog ();
     void  ApplyAdtProSettings ();
+    void  StartLinksForAdtPro ();
     std::wstring  GetAdtProFolder () const;
     bool  IsLinkReplying        (const std::string & name) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);

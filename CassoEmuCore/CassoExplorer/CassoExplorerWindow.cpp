@@ -1432,17 +1432,33 @@ void CassoExplorerWindow::RevealLocationInTree()
     size_t                known    = 0;
     std::wstring          knownId;
     int                   row      = -1;
+    std::wstring          link;
+    int                   slot     = 0;
+    int                   drive    = 0;
+    bool                  inAdtPro = false;
 
 
 
-    //  A root is a node of its own.
+    //  A root is a node of its own. A CassoLink connection or one of its
+    //  drives is under CassoLink, which is opened down to it.
     if (location.kind == Location::Kind::Root)
     {
+        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && TreeModel::StripLinkCopy (current) != location.path)
+        {
+            m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kCassoLinkRootId), true);
+
+            if (drive != 0)
+            {
+                m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::MakeLinkId (link)), true);
+            }
+        }
+
         row = m_tree->FindRowById (location.path);
 
         if (row >= 0 && TreeModel::StripLinkCopy (current) != location.path)
         {
             m_tree->HighlightRow (row);
+            ScrollTreeToRow (row);
         }
 
         return;
@@ -1464,12 +1480,29 @@ void CassoExplorerWindow::RevealLocationInTree()
     }
 
     //  The ADTPro node is where the folder and everything in it are, under
-    //  CassoLink.
-    if (m_addressRoot.adtProPath.size() > 0 && TreeModel::StripLinkCopy (current).starts_with (TreeModel::kAdtProId)
-        && path.size() >= m_addressRoot.adtProPath.size() && _wcsnicmp (path.c_str(), m_addressRoot.adtProPath.c_str(), m_addressRoot.adtProPath.size()) == 0)
+    //  CassoLink, as the address bar has them.
+    inAdtPro = m_addressRoot.adtProPath.size() > 0 && path.size() >= m_addressRoot.adtProPath.size()
+            && _wcsnicmp (path.c_str(), m_addressRoot.adtProPath.c_str(), m_addressRoot.adtProPath.size()) == 0
+            && (path.size() == m_addressRoot.adtProPath.size() || path[m_addressRoot.adtProPath.size()] == L'\\');
+
+    if (inAdtPro && TreeModel::StripLinkCopy (current).starts_with (TreeModel::kAdtProId))
     {
         ScrollTreeToRow (m_tree->GetHighlight());
         return;
+    }
+
+    if (inAdtPro)
+    {
+        m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kCassoLinkRootId), true);
+        row = m_tree->FindRowById (TreeModel::kAdtProId + m_addressRoot.adtProPath);
+        row = (row >= 0 && path.size() > m_addressRoot.adtProPath.size() + 1) ? WalkTreeLabels (row, path.substr (m_addressRoot.adtProPath.size() + 1)) : row;
+
+        if (row >= 0)
+        {
+            m_tree->HighlightRow (row);
+            ScrollTreeToRow (row);
+            return;
+        }
     }
 
     //  Casso's known folders come first: the deepest one that holds the
@@ -3037,6 +3070,15 @@ void CassoExplorerWindow::FillStatus()
         detail = (chars == 1) ? std::wstring (L"1 character selected") : std::format (L"{} characters selected", chars);
     }
 
+    //  A link operation's progress has the field while one is pending, so a
+    //  refill on a hover or a selection does not replace it between its
+    //  updates.
+    if (m_context.links != nullptr && !m_context.links->GetPendingJobs().empty())
+    {
+        detail          = CassoLinkConnections::DescribeJobs (m_context.links->GetPendingJobs());
+        m_linkJobsShown = true;
+    }
+
     m_status->SetText (kStatusCount,    status.selection);
     m_status->SetText (kStatusSelected, status.selected);
     m_status->SetText (kStatusFree,     status.freeSpace);
@@ -4578,7 +4620,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kUndo:              return !m_undo.empty();
         case CassoExplorerCommands::kCutItems:          return IsListVerbOffered (CassoExplorerActions::Verb::Cut);
         case CassoExplorerCommands::kCopyItems:         return IsListVerbOffered (CassoExplorerActions::Verb::Copy) || IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_browser.AreSelectedRowsSearchMatches();
-        case CassoExplorerCommands::kPasteItems:        return !m_browser.IsImageLocation() && m_browser.GetLocation().kind == Location::Kind::HostFolder
+        case CassoExplorerCommands::kPasteItems:        return (m_browser.IsVolumeLocation() || m_browser.GetLocation().kind == Location::Kind::HostFolder)
                                                          && m_shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
@@ -5838,6 +5880,12 @@ void CassoExplorerWindow::Dispatch (int id)
         //  selected, as Explorer's do; a folder's own menu pastes into it.
         case CassoExplorerCommands::kPasteItems:
         {
+            if (m_browser.IsVolumeLocation())
+            {
+                PasteIntoVolume();
+                break;
+            }
+
             PasteHere (m_browser.GetLocation().path);
             break;
         }
@@ -9305,6 +9353,12 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Paste:
+            if (m_browser.IsVolumeLocation())
+            {
+                PasteIntoVolume();
+                break;
+            }
+
             PasteHere (GetPasteFolder());
             break;
 
@@ -10605,10 +10659,8 @@ std::wstring CassoExplorerWindow::GetAdtProFolder() const
 //  CassoExplorerWindow::ApplyAdtProSettings
 //
 //  With ADTPro's client served, its folder is made if it is missing, with
-//  its help, and listed under CassoLink; every saved connection with a port
-//  or an address is opened, so an Apple that starts ADTPro finds the PC.
-//  A serial connection with no port is left alone: opening it searches
-//  every COM port.
+//  its help, and listed under CassoLink, and the connections are opened for
+//  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10651,11 +10703,35 @@ void CassoExplorerWindow::ApplyAdtProSettings()
         }
     }
 
+    StartLinksForAdtPro();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::StartLinksForAdtPro
+//
+//  With ADTPro's client served, every connection with a port or an address
+//  is opened, a running Casso found on its own included, so an Apple that
+//  starts ADTPro finds the PC. A serial connection with no port is left
+//  alone: opening it searches every COM port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::StartLinksForAdtPro()
+{
+    HRESULT  hr = S_OK;
+
+
+
     for (const CassoLinkSettings & settings : (m_context.links != nullptr && m_prefs.emulateAdtPro) ? m_context.links->GetLinks() : std::vector<CassoLinkSettings>())
     {
         bool  addressed = settings.transport != LinkTransport::Serial || !settings.port.empty();
 
-        if (addressed && !m_context.links->IsDiscovered (settings.name) && !m_context.links->IsStarted (settings.name))
+        if (addressed && !m_context.links->IsStarted (settings.name))
         {
             hr = m_context.links->Start (settings.name);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -11206,6 +11282,7 @@ void CassoExplorerWindow::OnRunningChanged()
 
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
     RefreshTree();
+    StartLinksForAdtPro();
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -13295,6 +13372,65 @@ void CassoExplorerWindow::PasteHere (const std::wstring & folder)
         PushUndo (std::move (step));
     }
 
+    RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PasteIntoVolume
+//
+//  The clipboard's files into the disk image or the linked Apple's drive
+//  open in the list, by the rules a drop there follows: another image's
+//  entries are copied byte for byte, and host files go in by Put's rules.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PasteIntoVolume()
+{
+    HRESULT                        hr         = S_OK;
+    ComPtr<IDataObject>            data;
+    DropSource                     source;
+    Location                       location   = m_browser.GetLocation();
+    VolumeKind                     targetKind = VolumeKind::Unknown;
+    std::string                    inner;
+    VolumeListing                  listing;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    hr = OleGetClipboard (&data);
+
+    if (FAILED (hr) || !ReadDropSource (data.Get(), source))
+    {
+        return;
+    }
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        outcome = source.fromImage ? m_actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+                                   : m_actions.PutFiles (source.hostPaths, MakeAddressPrompt());
+
+        ReportOutcome (outcome, L"Put");
+        return;
+    }
+
+    inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
+
+    if (!m_browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
+    {
+        ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
+        return;
+    }
+
+    outcome = source.fromImage ? m_actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner)
+                               : m_actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
+
+    PushPutUndo (outcome, location.path, inner);
+    ReportOutcome (outcome, L"Put");
     RefreshAfterHostChange();
 }
 
