@@ -257,13 +257,14 @@ public:
         //  says what it meant by one, and a real session that gets both gets
         //  them in this order.
         void  FireAndSettle (const std::string & path,
-                             ExternalChangeIntent        intent = ExternalChangeIntent::Unstated)
+                             ExternalChangeIntent        intent = ExternalChangeIntent::Unstated,
+                             bool                        fromCassoExplorer = false)
         {
             watcher.Fire (kDirectory, path);
 
             if (intent != ExternalChangeIntent::Unstated)
             {
-                store.NoteExternalChange (path, intent);
+                store.NoteExternalChange (path, intent, fromCassoExplorer);
             }
 
             nowMs += MountedImageState::kQuietPeriodMs;
@@ -912,6 +913,27 @@ public:
                           L"a disk changing under a running program is not something "
                           L"to do silently");
         Assert::AreEqual (0, rig.restarts);
+    }
+
+
+
+    //  Casso Explorer states its intent as the command line does, and passes a
+    //  window for the reply; the notice credits the change to it, not to
+    //  CassoCli.
+    TEST_METHOD (AChangeStatedByCassoExplorerIsReportedAsItsOwn)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace, true);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (L"Casso Explorer modified") != std::wstring::npos, rig.reports[0].message.c_str());
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos);
     }
 
 

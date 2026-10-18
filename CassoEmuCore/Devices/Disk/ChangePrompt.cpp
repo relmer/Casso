@@ -262,16 +262,18 @@ ChangePrompt ChangePrompt::ComposeReloadReport (const std::string & imagePath, i
     //  program did all of it; in the other the program did the modifying and
     //  the user did the inserting, so claiming the insertion for the writer
     //  would tell them somebody else pressed the button they just pressed.
-    if (author == ChangeAuthor::CassoCli)
+    if (author != ChangeAuthor::AnotherProgram)
     {
+        std::wstring  writer = (author == ChangeAuthor::CassoExplorer) ? L"Casso Explorer" : L"CassoCli";
+
         if (machineRebooted)
         {
-            prompt.message = L"CassoCli modified " + file + L", inserted it into " + where
+            prompt.message = writer + L" modified " + file + L", inserted it into " + where
                            + L", and rebooted " + reboot + L".";
         }
         else
         {
-            prompt.message = L"CassoCli modified " + file + L" and inserted it into " + where
+            prompt.message = writer + L" modified " + file + L" and inserted it into " + where
                            + L".";
         }
     }

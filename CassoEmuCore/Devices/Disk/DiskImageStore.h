@@ -324,7 +324,7 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer = false);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.

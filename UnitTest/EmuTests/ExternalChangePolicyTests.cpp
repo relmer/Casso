@@ -819,6 +819,17 @@ public:
 
 
 
+    TEST_METHOD (TheReloadNoticeNamesCassoExplorerForItsOwnWrite)
+    {
+        ChangePrompt  stated = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false, "Apple //e", ChangeAuthor::CassoExplorer);
+
+
+
+        Assert::IsTrue (stated.message.find (L"Casso Explorer modified Game.dsk and inserted it into Drive 1.") != std::wstring::npos, stated.message.c_str());
+    }
+
+
+
     //  A reboot belongs to whoever caused it, and the sentence has to survive
     //  a machine with no name either way.
     TEST_METHOD (TheRebootIsReportedInBothVoices)

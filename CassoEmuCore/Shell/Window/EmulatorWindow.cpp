@@ -2167,7 +2167,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
                 m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
             }
 
-            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent);
+            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
             break;
     }
 
