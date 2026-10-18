@@ -166,9 +166,6 @@ hardware.
   icon and close button, and a + button after the tabs and scroll arrows.
   Navigation buttons sit left of the address bar on one row, and the
   command bar spans the window below it.
-- Q: Does a new disk image take the selected files? → A: Yes. New > Disk
-  image with host files selected copies them into the new image, folders
-  becoming ProDOS directories.
 - Q: How does the command-line tool reach ProDOS directories? → A: Every
   file verb takes a path, relative to the volume directory or a full
   ProDOS path from the volume name. `list` gains `--recurse` (`-r`, `-s`),
@@ -260,6 +257,13 @@ hardware.
 - Q: How does the user find the address a Wi-Fi modem dials? → A: The
   address is listed under the link's root, as the PC's name with .local and
   the port.
+
+### Session 2026-10-18
+
+- Q: Does a new disk image take the selected files? → A: No. New > Disk
+  image creates an empty image in the listed folder whatever is selected,
+  as File Explorer's New does. This replaces the 2026-09-14 answer, under
+  which the selected host files were copied onto the new image.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1282,11 +1286,7 @@ to Casso over TCP.
   folder, making a ProDOS subdirectory. A DOS 3.3 image, which has no
   folders, MUST show New disabled. A new item MUST take an unused default
   name and open for renaming at once, as Explorer's does. A new disk image
-  made while host files are selected MUST receive copies of them, by Put's
-  conversion rules: selected folders become ProDOS directories, a DOS 3.3
-  image refuses folders with a message rather than flattening them, and a
-  selected disk image goes in as a file, not unpacked. A selection too
-  large for the container MUST be refused before the image is created.
+  MUST be created empty, whatever is selected.
 - **FR-047**: The command bar MUST end in a See more menu. Buttons that no
   longer fit MUST move into it as the window narrows and come back as it
   widens. An item MUST be able to live in See more permanently, never
