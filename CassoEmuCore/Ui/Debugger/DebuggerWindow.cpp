@@ -89,6 +89,7 @@ static std::wstring Widen (const std::string & text)
 
 DebuggerWindow::DebuggerWindow() :
     m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this), static_cast<const ICodeViews &> (*this))),
+    m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
     m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); }))
 {
@@ -3687,157 +3688,37 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 //
 //  DebuggerWindow::UpdateTooltip
 //
-//  No tip shows while a menu is open, so none ever lies over its rows. A color tip
-//  put below the operand tip is recorded, so that it goes when that tip does.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::UpdateTooltip (POINT clientPx)
 {
-    RECT                 cell   = {};
-    int64_t              now    = (int64_t) GetTickCount64();
-    std::wstring         text;
-    std::wstring         colorTip;
-    RECT                 spot   = {};
-    const wchar_t      * barTip = nullptr;
-    DxuiTooltip        & tip    = GetRoutedTooltip();
+    m_tips->Update (clientPx);
+}
 
 
 
-    m_operandTips->SetColorTip (nullptr);
 
-    //  Only the P register's flags color their lines.
-    tip.SetLineColors ({});
 
-    if (IsAnyMenuOpen())
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCommandBarTip
+//
+//  Only for the window the command bar is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DebuggerWindow::GetCommandBarTip (POINT clientPx, RECT & anchor) const
+{
+    bool  isBarWindow = m_routingPane == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring());
+
+
+
+    if (!isBarWindow || m_commandBar == nullptr || !m_commandBar->IsVisible())
     {
-        tip.HideImmediate();
-        return;
+        return nullptr;
     }
 
-    //  The command bar's entries: what each does and its key in the scheme
-    //  in force.
-    if (m_routingPane == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring()) && m_commandBar != nullptr && m_commandBar->IsVisible())
-    {
-        barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  And each pane's on the pane interface.
-    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
-    {
-        if (barTip == nullptr || *barTip == L'\0')
-        {
-            barTip = pane->GetBarTip (clientPx, cell);
-        }
-    }
-
-    //  And the console's.
-    if (barTip == nullptr || *barTip == L'\0')
-    {
-        barTip = m_finds->GetTip (clientPx, cell);
-    }
-
-    if (barTip != nullptr && *barTip != L'\0')
-    {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, barTip, now);
-        return;
-    }
-
-    //  Over what a pane draws, such as the heat map or the profiler's
-    //  timeline: a control's tip, one at once following the pointer, or
-    //  none yet while what it lists is read, with a tip already up left up.
-    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
-    {
-        PaneTip  paneTip;
-
-
-
-        if (!pane->TryGetTip (clientPx, paneTip))
-        {
-            continue;
-        }
-
-        if (paneTip.kind == PaneTip::Kind::Pending)
-        {
-            return;
-        }
-
-        tip.SetMonospace (paneTip.isMonospace);
-
-        if (!paneTip.lineColors.empty())
-        {
-            tip.SetLineColors (std::move (paneTip.lineColors));
-        }
-
-        if (paneTip.kind == PaneTip::Kind::Control)
-        {
-            tip.RequestShow (paneTip.anchor, paneTip.text, now);
-        }
-        else
-        {
-            tip.RequestShowNow (GetPointerAnchor (clientPx), paneTip.text, now);
-        }
-
-        return;
-    }
-
-    if (TryGetBranchTip (clientPx, cell, text))
-    {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
-        return;
-    }
-
-    if (TryGetSymbolTip (clientPx, cell, text))
-    {
-        (void) TryGetCellTip (clientPx, spot, colorTip);
-        tip.SetMonospace (true);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
-        return;
-    }
-
-    //  Over anything else drawn in a color that means something, what it
-    //  means.
-    if (TryGetCellTip (clientPx, cell, text) || TryGetGraphicTip (clientPx, cell, text))
-    {
-        m_operandTips->SetColorTip (&tip);
-
-        //  A sector's hex dump in the Disk II log lines up in columns.
-        tip.SetMonospace (std::ranges::any_of (m_panes, [clientPx] (const std::unique_ptr<IDebuggerPane> & pane) { return pane->IsMonospaceTipAt (clientPx); }));
-
-        //  Under the operand tip when there is one, so the two stack.
-        if (m_operandTips->HasTip())
-        {
-            tip.RequestShow (m_operandTips->GetColorTipAnchor (cell), text, now, false);
-        }
-        else
-        {
-            tip.RequestShow  (cell, text, now);
-        }
-
-        return;
-    }
-
-    //  A tab's tip is a sentence, not a table, so it reads in the body face.
-    if (m_routingPane.empty() && !m_dockSite->GetTabAt (clientPx, cell, text).empty() && !text.empty())
-    {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
-        return;
-    }
-
-    //  A pane's title-bar buttons, in this window or a floating one.
-    text = GetTitleButtonTipAt (clientPx, cell);
-
-    if (!text.empty())
-    {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
-        return;
-    }
-
-    tip.RequestHide (now);
+    return m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
 }
 
 
@@ -4020,19 +3901,26 @@ void DebuggerWindow::EraseFloatTip (const std::wstring & key)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetTitleButtonTipAt
+//  DebuggerWindow::GetChromeTipAt
 //
-//  From the dock site of the window the mouse is in: this one's, or the
-//  floating window's the event was routed from.
+//  A tab's tip in this window, then a pane's title-bar buttons from the
+//  dock site of the window the mouse is in: this one's, or the floating
+//  window's the event was routed from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerWindow::GetTitleButtonTipAt (POINT clientPx, RECT & button) const
+std::wstring DebuggerWindow::GetChromeTipAt (POINT clientPx, RECT & anchor) const
 {
     const DxuiDockSite  * site  = m_dockSite;
     auto                  found = m_floats.find (m_routingPane);
+    std::wstring          text;
 
 
+
+    if (m_routingPane.empty() && m_dockSite != nullptr && !m_dockSite->GetTabAt (clientPx, anchor, text).empty() && !text.empty())
+    {
+        return text;
+    }
 
     if (!m_routingPane.empty())
     {
@@ -4044,7 +3932,7 @@ std::wstring DebuggerWindow::GetTitleButtonTipAt (POINT clientPx, RECT & button)
         return std::wstring();
     }
 
-    return site->GetTitleButtonTipAt (clientPx, button);
+    return site->GetTitleButtonTipAt (clientPx, anchor);
 }
 
 
@@ -4053,83 +3941,27 @@ std::wstring DebuggerWindow::GetTitleButtonTipAt (POINT clientPx, RECT & button)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::TryGetCellTip
+//  DebuggerWindow::GetTipLists
 //
-//  The tip of the cell under the point, which indicates what its color
-//  means, or the tip of the heading under it. Past the last column there is
-//  none.
+//  The lists in the window the event being routed came from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+std::vector<DxuiListView *> DebuggerWindow::GetTipLists() const
 {
-    const std::vector<DxuiListView::Cell>  * cells  = nullptr;
-    DxuiListView                           * list   = nullptr;
-    RECT                                     bounds = {};
-    int                                      row    = -1;
-    int                                      column = -1;
-    int                                      right  = 0;
+    std::vector<DxuiListView *>  lists;
 
 
 
     for (DxuiListView * each : GetLists())
     {
-        if (each != nullptr && IsRoutable (each) && each->IsVisible() && DxuiDockSite::Contains (each->GetBounds(), clientPx))
+        if (each != nullptr && IsRoutable (each))
         {
-            list = each;
+            lists.push_back (each);
         }
     }
 
-    if (list == nullptr)
-    {
-        return false;
-    }
-
-    bounds = list->GetBounds();
-    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    column = GetColumnAt (list, clientPx.x - bounds.left);
-    right  = list->GetPaneLeadPx() - list->GetLeftPx();
-
-    for (size_t c = 0; c < list->GetColumnCount(); c++)
-    {
-        right += list->GetColumnEffectiveWidthPx (c);
-    }
-
-    if (column < 0 || clientPx.x - bounds.left >= right)
-    {
-        return false;
-    }
-
-    if (clientPx.y - bounds.top < list->GetHeaderHeightPx())
-    {
-        text   = list->GetColumnAt ((size_t) column).tip;
-        anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-
-        return !text.empty();
-    }
-
-    if (row < 0 || row >= list->GetRowCount())
-    {
-        return false;
-    }
-
-    cells = &list->GetCellsOfRow (row);
-
-    if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
-    {
-        return false;
-    }
-
-    //  A cell with only an icon, such as a breakpoint's dot, has no text to
-    //  anchor on, so the tip goes by the pointer.
-    if (!list->GetCellTextRectPx (row, (size_t) column, anchor))
-    {
-        anchor = RECT { clientPx.x - bounds.left, clientPx.y - bounds.top, clientPx.x - bounds.left + 1, clientPx.y - bounds.top + 1 };
-    }
-
-    OffsetRect (&anchor, bounds.left, bounds.top);
-    text = (*cells)[(size_t) column].tip;
-    return true;
+    return lists;
 }
 
 

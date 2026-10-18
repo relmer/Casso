@@ -50,6 +50,7 @@
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/TooltipCoordinator.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 class DebuggerCommands;
@@ -106,7 +107,7 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources
 {
 public:
     DebuggerWindow();
@@ -442,7 +443,7 @@ protected:
     //  A pane's info button, and the color key it opens.
     ColorKeyButton *       GetColorKey      (const std::wstring & pane) const;
     const ColorKeyPopup &  GetColorKeyPopup () const { return m_colorKeyPopup; }
-    bool                 IsAnyMenuOpen () const;
+    bool                 IsAnyMenuOpen () const override;
 
     //  Protected so a test can read the status bar as a frame leaves it, and
     //  work its zoom popup as a click does.
@@ -463,9 +464,9 @@ protected:
     //  Protected so a test can read the tip that says what a color means where
     //  the pointer rests: over a list's cell, the PC's branch arrow, the disk
     //  head or the history meter. And the colors the legend shows.
-    bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const { return m_tips->TryGetCellTip (clientPx, anchor, text); }
+    bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
+    bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const override;
     ColorLegend::Palette  GetColorPalette  () const;
 
     //  Protected so a test can lay out the tip over a disassembly row's
@@ -680,7 +681,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiWindow * GetPaneHost    (const std::wstring & pane);
     std::wstring GetBarRoutingPane (const std::wstring & pane) const;
     DxuiHwndSource * GetMenuHost () const;
-    DxuiTooltip &    GetRoutedTooltip ();
+    DxuiTooltip &    GetRoutedTooltip () override;
     void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
     void     NoteViewFocus      (bool isSource) override;
@@ -711,8 +712,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                   EraseFloatTip        (const std::wstring & key);
     static bool            Meets                (const RECT & over, POINT clientPx, const RECT & tipRect);
 
-    std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
-    bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    //  The tip sources (ITooltipSources).
+    const std::vector<std::unique_ptr<IDebuggerPane>> &  GetTipPanes () const override { return m_panes; }
+    OperandTipController &       GetOperandTips   () override { return *m_operandTips; }
+    const wchar_t *              GetCommandBarTip (POINT clientPx, RECT & anchor) const override;
+    const wchar_t *              GetFindTip       (POINT clientPx, RECT & anchor) const override { return GetFindBarTip (clientPx, anchor); }
+    std::wstring                 GetChromeTipAt   (POINT clientPx, RECT & anchor) const override;
+    std::vector<DxuiListView *>  GetTipLists      () const override;
+    bool                         TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT  GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
@@ -794,6 +801,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  A disassembly row's operand and result that the pane cuts off, shown
     //  whole over their cell.
     std::unique_ptr<OperandTipController>   m_operandTips;
+
+    //  The tip at the pointer.
+    std::unique_ptr<TooltipCoordinator>     m_tips;
 
     //  The disassembly views' breakpoint column and the PC's arrow in it.
     std::unique_ptr<DisassemblyGutter>      m_gutter;
