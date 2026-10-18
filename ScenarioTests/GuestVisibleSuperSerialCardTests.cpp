@@ -5,6 +5,8 @@
 #include "TextScreenScraper.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Acia6551.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -41,32 +43,38 @@ public:
     //  listing is written to the file on the connector and to the screen.
     TEST_METHOD (ListingInPrinterModeIsWrittenToTheFileAndTheScreen)
     {
-        std::vector<Byte>          master = GuestSession::RequireDos33Master();
-        std::filesystem::path      output = MakeOutputPath (L"printer-screen-on.txt");
-        std::string                sent;
-        std::vector<std::string>   rows;
+        std::vector<Byte>  master = GuestSession::RequireDos33Master();
 
+
+
+        for (const char * machineId : kMachines)
         {
-            TestMachine  machine ("Apple2e", [&] (MachineConfig & config)
+            std::filesystem::path      output = MakeOutputPath (Widen (std::string ("printer-screen-on-") + machineId + ".txt").c_str());
+            std::string                sent;
+            std::vector<std::string>   rows;
+
             {
-                ConfigureCard (config, kPrinterSw1, kPrinterScreenOnSw2, kpszSerialFileOut, output);
-            });
+                TestMachine  machine (machineId, [&] (MachineConfig & config)
+                {
+                    ConfigureCard (config, kPrinterSw1, kPrinterScreenOnSw2, kpszSerialFileOut, output);
+                });
 
-            GuestSession::BootToPrompt (machine, master);
-            EnterProgram (machine);
-            TypeLine (machine, "PR#2");
-            TypeLine (machine, "LIST");
-            TypeLine (machine, "PR#0");
+                GuestSession::BootToPrompt (machine, master);
+                EnterProgram (machine);
+                TypeLine (machine, "PR#2");
+                TypeLine (machine, "LIST");
+                TypeLine (machine, "PR#0");
 
-            rows = ReadScreen (machine);
+                rows = ReadScreen (machine);
+            }
+
+            sent = ReadSentText (output);
+
+            Assert::IsTrue (sent.find (kListingLine10) != std::string::npos, Widen (std::string (machineId) + ": line 10 is in the file: " + sent).c_str());
+            Assert::IsTrue (sent.find (kListingLine20) != std::string::npos, Widen (std::string (machineId) + ": line 20 is in the file: " + sent).c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine10), Widen (std::string (machineId) + ": and on the screen, which is on at this line width").c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine20), Widen (machineId).c_str());
         }
-
-        sent = ReadSentText (output);
-
-        Assert::IsTrue (sent.find (kListingLine10) != std::string::npos, Widen ("line 10 is in the file: " + sent).c_str());
-        Assert::IsTrue (sent.find (kListingLine20) != std::string::npos, Widen ("line 20 is in the file: " + sent).c_str());
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine10), L"and on the screen, which is on at this line width");
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine20));
     }
 
 
@@ -109,23 +117,27 @@ public:
     //  what Applesoft reads.
     TEST_METHOD (LineTypedInCommunicationsModeComesBackThroughALoopbackPlug)
     {
-        std::vector<Byte>          master  = GuestSession::RequireDos33Master();
-        TestMachine                machine ("Apple2e", [] (MachineConfig & config)
+        std::vector<Byte>  master = GuestSession::RequireDos33Master();
+
+
+
+        for (const char * machineId : kMachines)
         {
-            ConfigureCard (config, kCommunicationsSw1, kShippedSw2, kpszSerialLoopback, {});
-        });
-        std::vector<std::string>   rows;
+            TestMachine                machine (machineId, [] (MachineConfig & config)
+            {
+                ConfigureCard (config, kCommunicationsSw1, kShippedSw2, kpszSerialLoopback, {});
+            });
+            std::vector<std::string>   rows;
 
+            GuestSession::BootToPrompt (machine, master);
+            TypeLine (machine, "IN#2");
+            TypeLine (machine, "PRINT 6*7");
 
+            rows = ReadScreen (machine);
 
-        GuestSession::BootToPrompt (machine, master);
-        TypeLine (machine, "IN#2");
-        TypeLine (machine, "PRINT 6*7");
-
-        rows = ReadScreen (machine);
-
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, "]PRINT 6*7"), L"the line came back through the plug");
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, "42"),         L"and Applesoft ran it");
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, "]PRINT 6*7"), Widen (std::string (machineId) + ": the line came back through the plug").c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, "42"),         Widen (std::string (machineId) + ": and Applesoft ran it").c_str());
+        }
     }
 
 
@@ -140,7 +152,7 @@ public:
 
 
 
-        WriteFile (input, "10 PRINT \"FROM A FILE\"\r20 END\rIN#0\r");
+        WriteFile (input, kProgramFile);
 
         {
             TestMachine  machine ("Apple2e", [&] (MachineConfig & config)
@@ -159,7 +171,51 @@ public:
     }
 
 
+    //  The firmware's own commands, sent from Applesoft through PR#2: the
+    //  command character (Ctrl-I in printer mode, Ctrl-A in communications
+    //  mode), then a number and a letter. B sets the baud rate, D the data
+    //  format and P the parity, in the 6551's control and command registers.
+    TEST_METHOD (FirmwareCommandsSetTheBaudRateDataFormatAndParity)
+    {
+        std::vector<Byte>  master = GuestSession::RequireDos33Master();
+
+
+
+        for (const char * machineId : kMachines)
+        for (bool isPrinter : { true, false })
+        {
+            TestMachine     machine (machineId, [&] (MachineConfig & config)
+            {
+                ConfigureCard (config, isPrinter ? kPrinterSw1 : kCommunicationsSw1, kShippedSw2, "", {});
+            });
+            Acia6551      & acia    = machine.GetRefs().superSerialCard->GetAcia();
+            std::string     command = isPrinter ? "PRINT CHR$(9)\"" : "PRINT CHR$(1)\"";
+            std::wstring    mode    = Widen (std::string (machineId) + (isPrinter ? ", printer mode" : ", communications mode"));
+
+            GuestSession::BootToPrompt (machine, master);
+            TypeLine (machine, "PR#2");
+            Assert::AreEqual<int> (kBaud9600, acia.GetControl() & kBaudBits, mode.c_str());
+
+            TypeLine (machine, (command + "6B\"").c_str());
+            Assert::AreEqual<int> (kBaud300, acia.GetControl() & kBaudBits, mode.c_str());
+
+            TypeLine (machine, (command + "1D\"").c_str());
+            Assert::AreEqual<int> (kSevenDataBits, acia.GetControl() & kWordLengthBits, mode.c_str());
+
+            TypeLine (machine, (command + "3P\"").c_str());
+            Assert::AreEqual<int> (kEvenParity, acia.GetCommand() & kParityBits, mode.c_str());
+
+            TypeLine (machine, "PR#0");
+        }
+    }
+
+
 private:
+
+    //  The machines the card is checked on with Apple's firmware. The ][ is
+    //  left out: it boots to Integer BASIC's > prompt, which GuestSession does
+    //  not recognize, and its slot decoding is the ][+'s.
+    static constexpr const char *  kMachines[] = { "Apple2e", "Apple2Plus" };
 
     //  Apple's switch settings as the card ships, but in printer or
     //  communications mode (SW1-5), at 9,600 baud.
@@ -175,6 +231,22 @@ private:
     //  In printer mode: no delay after a carriage return (SW2-2 off), 40
     //  characters with the Apple screen on (SW2-3 and SW2-4 on).
     static constexpr const char *  kPrinterScreenOnSw2 = "on off on on off off off";
+
+    //  A program and a line returning input to the keyboard, sent into the
+    //  connector.
+    static constexpr const char *  kProgramFile       = "10 PRINT \"FROM A FILE\"\r20 END\rIN#0\r";
+
+    //  The 6551's baud-rate field (control bits 0-3).
+    static constexpr Byte    kBaudBits         = 0x0F;
+    static constexpr Byte    kBaud9600         = 0x0E;
+    static constexpr Byte    kBaud300          = 0x06;
+
+    //  The 6551's word length (control bits 5-6) and parity (command bits
+    //  5-7) fields.
+    static constexpr Byte    kWordLengthBits   = 0x60;
+    static constexpr Byte    kSevenDataBits    = 0x20;
+    static constexpr Byte    kParityBits       = 0xE0;
+    static constexpr Byte    kEvenParity       = 0x60;
 
     //  How LIST prints the program EnterProgram types.
     static constexpr const char *  kListingLine10 = "10  PRINT \"HELLO\"";
