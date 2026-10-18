@@ -164,7 +164,6 @@ public:
 
         img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"mounted image must be retrievable");
-        machine.GetRefs().diskController->SetExternalDisk (0, img);   // drive 1 = internal
 
         // Cold-boot: memory test (~14M cycles) then the IWM boot read. 20M is
         // ample -- ColdBootsToCheckDiskDrive reaches the post-read state in 15M.
@@ -209,7 +208,6 @@ public:
         AssertSucceeded (hrMount, L"external MountFromBytes must succeed");
         img = machine.GetDiskStore().GetImage (6, 1);
         Assert::IsNotNull (img, L"external image must be retrievable");
-        machine.GetRefs().diskController->SetExternalDisk (1, img);   // drive 2 = external
 
         // Pump the engine via Tick(N) rather than CPU cycles (the read path's
         // catch-up needs a live, advancing CPU counter we are not providing).
@@ -312,6 +310,32 @@ public:
             L"$C800 serves internal firmware");
         Assert::AreEqual<Byte> ((Byte) rom[0x0FFF], machine.GetMemoryBus().ReadByte (0xCFFF),
             L"$CFFF serves internal firmware");
+    }
+
+
+    // A probe of the empty slot 4 reads the floating bus: the byte the video
+    // scanner is fetching, here a space on the text screen. Reading the 0 it
+    // had just written instead hung ProDOS 2.4.2 on ADTPro's client disk.
+    TEST_METHOD (AnEmptySlotReadsTheVideoScannersByte)
+    {
+        TestMachine  machine ("Apple2c");
+        Byte         value = 0;
+
+
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.PowerCycle();
+
+        for (Word address = 0x0400; address < 0x0800; address++)
+        {
+            machine.GetMemoryBus().WriteByte (address, 0xA0);
+        }
+
+        machine.GetMemoryBus().WriteByte (0xC0C0, 0x00);
+        machine.GetMemoryBus().WriteByte (0xC0C3, 0x00);
+        value = machine.GetMemoryBus().ReadByte (0xC0C1);
+
+        Assert::AreEqual<Byte> (0xA0, value);
     }
 
 

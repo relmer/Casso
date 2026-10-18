@@ -164,8 +164,9 @@ public:
     bool   IsMotorOn() const { return m_motorOn; }
     bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
     uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
-    int    GetQuarterTrack() const { return m_quarterTrack; }
-    int    GetCurrentTrack() const { return m_quarterTrack / 4; }
+    // Head position of the selected drive; each drive has its own head.
+    int    GetQuarterTrack() const { return m_quarterTrack[m_activeDrive]; }
+    int    GetCurrentTrack() const { return m_quarterTrack[m_activeDrive] / 4; }
     bool   IsQ6() const { return m_q6; }
     bool   IsQ7() const { return m_q7; }
     Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
@@ -187,9 +188,12 @@ private:
     Word                 m_ioStart;
     Word                 m_ioEnd;
 
-    uint8_t              m_phases       = 0;
-    int                  m_phase        = 0;
-    int                  m_quarterTrack = 0;
+    // The phase lines are per controller; the stepper cog and the head are
+    // per drive. A phase change moves only the selected drive's head, so an
+    // unselected drive's head stays where it was.
+    uint8_t              m_phases                    = 0;
+    int                  m_phase[kDriveCount]        = { 0, 0 };
+    int                  m_quarterTrack[kDriveCount] = { 0, 0 };
 
     bool                 m_motorOn      = false;
 

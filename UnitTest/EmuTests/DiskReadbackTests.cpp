@@ -159,8 +159,6 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
 
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
-
         // DiskReadbackTests drive the controller via direct bus reads
         // + manual Tick(N) pumping, without running the CPU. The
         // catch-up-on-read path needs a live, advancing CPU cycle
@@ -728,7 +726,6 @@ public:
 
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
-        machine.GetRefs().diskController->SetExternalDisk (kDrive1, external);
 
         // Drive the catch-up path from a live, mutable cycle source so
         // the test can rewind it the way a power cycle does.

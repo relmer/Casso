@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -98,8 +98,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -265,6 +265,26 @@
     re-baked. When a model DOES change, Casso.rc is touched, because the
     resource compiler tracks the .rc file and not the RCDATA payloads it
     names, so without that the build would embed the previous blob.
+
+    MeshCreator.exe IS ONE OF THE INPUTS, so a change to the baker re-bakes
+    every blob. It has to be built in a target of its own ahead of this one
+    to be any use as an input: a target's Inputs are stamped when the target
+    is reached, so building the tool inside the body would compare against
+    the PREVIOUS exe and skip the re-bake until some later build happened to
+    want it. The cost of hoisting it is that an up-to-date MeshCreator is
+    now built on every Casso build rather than only when a model changed,
+    which is about a second of msbuild saying there is nothing to do.
+
+    On a from-scratch build the exe does not exist when the stamp is taken.
+    A missing input makes a target out of date, which is the safe direction:
+    the bake runs, and BuildMeshCreator has produced the tool by then.
+
+    CleanBakedMeshes exists because Clean would otherwise leave the blobs.
+    The C++ Clean is the CppClean task sweeping $(IntDir) by file pattern
+    plus whatever the last build recorded in its tlogs; a bare Exec records
+    nothing and .dmesh is not a pattern it sweeps, so 40 MB of baked mesh
+    survived every Clean. Deleting them here keeps "Clean" honest, and
+    keeps a stale blob from outliving the baker that wrote it.
   -->
   <ItemGroup>
     <BakedMesh Include="Monitor2" />
@@ -275,15 +295,24 @@
     <BakedMesh Include="CassetteRecorder" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
-  <Target Name="BakeMeshes"
-          BeforeTargets="ResourceCompile"
-          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl')"
-          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
+  <PropertyGroup>
+    <MeshCreatorExe>$(SolutionDir)x64\$(Configuration)$(CassoBuildFlavor)\MeshCreator.exe</MeshCreatorExe>
+  </PropertyGroup>
+  <Target Name="BuildMeshCreator" BeforeTargets="BakeMeshes">
     <MSBuild Projects="..\MeshCreator\MeshCreator.vcxproj"
              Properties="Configuration=$(Configuration);Platform=x64" />
+  </Target>
+  <Target Name="BakeMeshes"
+          BeforeTargets="ResourceCompile"
+          Inputs="@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mesh');@(BakedMesh->'..\Resources\Models\%(Identity)\%(Identity).mtl');$(MeshCreatorExe)"
+          Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
     <MakeDir Directories="$(IntDir)Models" />
-    <Exec Command="&quot;$(SolutionDir)x64\$(Configuration)\MeshCreator.exe&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
+    <Exec Command="&quot;$(MeshCreatorExe)&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
     <Touch Files="Casso.rc" />
+  </Target>
+  <Target Name="CleanBakedMeshes" AfterTargets="Clean">
+    <Delete Files="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')" />
+    <RemoveDir Directories="$(IntDir)Models" Condition="Exists('$(IntDir)Models')" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

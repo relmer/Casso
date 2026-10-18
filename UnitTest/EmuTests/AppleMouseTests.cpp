@@ -678,7 +678,6 @@ public:
 
             machine.PowerCycle();
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
-            machine.GetRefs().diskController->SetExternalDisk (0, machine.GetDiskStore().GetImage (6, 0));
 
             MachineIdle::RunUntilIdle (machine, 60'000'000);                       // boot DOS 3.3 to ]
             auto dump = [&] (const char * tag)
