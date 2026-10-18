@@ -835,6 +835,34 @@ int UserConfigStore::FindSlotByNumber (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UserConfigStore::IsSlotCard
+//
+//  Whether a slot entry has a card: a device, a ROM, or both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UserConfigStore::IsSlotCard (const JsonValue & entry)
+{
+    std::string  device;
+    std::string  rom;
+
+
+
+    if (entry.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    return (TryGetStringField (entry, "device", device) && !device.empty()) ||
+           (TryGetStringField (entry, "rom",    rom)    && !rom.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::MergeHardwareArray
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -934,11 +962,15 @@ JsonValue UserConfigStore::MergeHardwareArray (
     //  cannot be added to it by editing a file, which is exactly how a //c
     //  came to have an original keyboard.
     //
+    //  A slot entry with no card of its own, such as an enablement for a card
+    //  the shipped config no longer has, is dropped: it has no device or ROM,
+    //  and the machine would fail to load.
+    //
     if (slotArray)
     {
         for (size_t i = 0; i < userArr.GetArraySize(); ++i)
         {
-            if (!userMatched[i])
+            if (!userMatched[i] && IsSlotCard (userArr.GetArrayElement (i)))
             {
                 merged.emplace_back (userArr.GetArrayElement (i));
             }

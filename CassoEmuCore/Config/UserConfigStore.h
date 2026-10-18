@@ -218,6 +218,7 @@ private:
 
     static int  FindInternalByType (const JsonValue & arr, const std::string & type);
     static int  FindSlotByNumber   (const JsonValue & arr, int slot);
+    static bool IsSlotCard         (const JsonValue & entry);
 
     static JsonValue  MergeHardwareArray (
         const JsonValue & defaultArr,
