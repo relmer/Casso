@@ -422,24 +422,43 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual (-1, window.GetCodeLineOfRow (0, 0), L"the first row is source");
             Assert::AreEqual (0,  window.GetCodeLineOfRow (0, 1));
 
+            //  The line has no label, so its opcode starts in the instruction
+            //  column, aligned with the disassembly's.
             for (const DxuiListView::Cell & cell : window.GetCodeList (0)->GetCellsOfRow (0))
             {
                 text += cell.text;
             }
 
-            Assert::AreEqual (std::wstring (L"        lda #$41"), text);
+            Assert::AreEqual (std::wstring (L"lda #$41"), text);
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
 
             window.GetCodeGroup().ToggleOption (Option::LineNumbers);
-            text.clear();
 
-            for (const DxuiListView::Cell & cell : window.GetCodeList (0)->GetCellsOfRow (0))
-            {
-                text += cell.text;
-            }
-
-            Assert::AreEqual (std::wstring (L"    2          lda #$41"), text, L"the line number leads");
+            Assert::AreEqual (std::wstring (L"2"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text, L"the line number is in the address column");
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
         }
 
+
+
+        //  A source line's label is in the label column and its opcode and
+        //  operand start in the instruction column, so the branch arrow, which
+        //  is drawn left of that column, is never over the source's text.
+        TEST_METHOD (ASourceLinesLabelAndOpcodeAreInTheirColumns)
+        {
+            DxuiListView                     list;
+            std::vector<DxuiListView::Cell>  cells (DisassemblyCells::kColumnCount);
+            DebuggerTextColors::Set          colors = DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);
+
+
+
+            DisassemblyCells::Configure     (list);
+            DisassemblyCells::FillSourceRow (cells, list, 11, L"LOOP    LDA (PTR),Y", true, colors, 0xFF808080);
+
+            Assert::AreEqual (std::wstring (L"11"),          cells[DisassemblyCells::kAddressColumn].text);
+            Assert::AreEqual (std::wstring (L"LOOP"),        cells[DisassemblyCells::kLabelColumn].text);
+            Assert::AreEqual (std::wstring (L"LDA (PTR),Y"), cells[DisassemblyCells::kInstructionColumn].text);
+            Assert::IsTrue   (cells[DisassemblyCells::kInstructionColumn].spansRow, L"the rest of the line runs to the row's end");
+        }
 
 
         TEST_METHOD (TheGutterShowsAGrayBreakpointOnlyOnAnInstructionUnderThePointer)
