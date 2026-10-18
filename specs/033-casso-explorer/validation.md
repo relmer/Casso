@@ -201,6 +201,41 @@ on both builds at every step.
 | FR-068 | The command bar ends with Theme and the Preview toggle, with no Monitor drop-down |
 | FR-067, Release | With PICTURE selected, Amber monochrome picked on the options dialog's Display page turned the preview amber before OK: the lit pixels' mean went from R 118 G 121 B 121 to R 151 G 124 B 33. Cancel was then pressed |
 
+### Quickstart 1, 2026-10-18
+
+x64 Debug at commit `9fd4f138`, driven with posted clicks, against
+`CassoCli` from the same build. Each operation ran on its own copy of
+`UnitTest/Fixtures/CassoExplorer/dos33.dsk` or `prodos.po`, once in Casso
+Explorer and once in the CLI, and the resulting files or images were compared
+with `fc /b`.
+
+| Operation | Casso Explorer | CLI | `fc /b` |
+|---|---|---|---|
+| Get as a listing | HELLO, Copy as Descriptive, pasted in a folder | `get HELLO --basic` | no differences |
+| Get raw | PICTURE, Copy as CiderPress: `PICTURE#062000` | `get PICTURE` | no differences |
+| Put text | `MEMO.txt` with Put file, stored as a T file with no dialog | `put MEMO.txt --text --as MEMO` | no differences |
+| Put binary at an address | `BLOB.Binary.$6000.bin` with Put file, stored as B at $6000 with no dialog | `put --type B --load $6000 --as BLOB` | no differences |
+| Delete | BLOB, Delete, Yes | `delete BLOB` | no differences |
+| Create, defaults | New, Disk image: WOZ, DOS 3.3, volume 254 | `create D1.woz` | no differences |
+| Create, bootable | The same with Bootable | `create D2.woz --bootable` | no differences |
+| Create, ProDOS | ProDOS order, ProDOS, volume NEWDISK | `create D3.po --format prodos` | no differences |
+| Init | Format disk image, DOS 3.3, Yes | `init` | no differences |
+| Sector read | Track 17, sector 0, 3 logical sectors | `sectorread --logical --track 17 --sector 0 --count 3` | no differences |
+| Sector write | A 512-byte file at track 20, sector 5, Overwrite | `sectorwrite --logical --track 20 --sector 5` | no differences |
+| Block read | Blocks 2 to 5 of the ProDOS image | `blockread --block 2 --count 4` | no differences |
+| Block write | A 512-byte file at block 100, Overwrite | `blockwrite --block 100` | no differences |
+
+Notes from the walk:
+
+- A Put of `MEMO.txt` stores the entry as `MEMO`, as `.txt` is the text
+  form's suffix; the CLI's `put` with no `--as` stores it as `MEMO.TXT`. The
+  row above passes `--as` so that both entries are `MEMO`.
+- Copy as CiderPress on an Applesoft program copies its listing, as FR-017a
+  applies the host file name setting only to raw copies.
+- New, Disk image with an image selected in the list took the selection as
+  the files to copy onto the new disk, and reported that it did not fit;
+  File Explorer's New takes no account of the selection.
+
 ### Quickstart 7b steps 1 to 4, 2026-10-17 and 18
 
 x64 Release, then x64 Debug at commit `64741e1d`, driven with posted clicks and
