@@ -277,6 +277,28 @@ Defects found and fixed in the walk:
 - The tree did not open to a CassoLink connection or drive open in the list, and
   highlighted `Documents\ADTPro` for a tab in the ADTPro folder.
 
+### File Explorer's menus beside Casso Explorer's, 2026-10-18
+
+x64 Debug, the working tree after commit `0ff8f5ff`. Each menu was opened with a
+real right click, File Explorer's in `C:\LinkTest\menus` and Casso Explorer's on
+the same items, and both were captured from the screen.
+
+| Check | Result |
+|---|---|
+| SC-023: a .png file | The same icon row and items in the same order, with two exceptions: AI actions, and Share with. The apps' commands follow File Explorer's order, which is by each app's own display name, `Photos` rather than the package's `Microsoft Photos` |
+| SC-023: a folder | The same items in the same order, with Paste in the icon row while the clipboard has files |
+| SC-023: two files | The same items in the same order, except Share with |
+| SC-023: the background | Paste; View, Sort by, Group by; Undo with the step it reverses, New, Properties; then the apps' commands: the same items in the same order |
+| SC-023: a tree node | Icon row Cut, Copy, Paste, Rename, Delete; Collapse, with no Open; then the same items in the same order. Rename edits the node's label in place and renamed the folder; Paste copied a file into it |
+| Not offered | Share with: ntshrui.dll, the shell's handler for it, faults inside Casso Explorer, so it is left out. AI actions is not among the commands Casso Explorer reads: packaged apps' manifests, the shell's command store and the file type's static verbs |
+| Casso's own | Add to Casso, on a folder and the background, which File Explorer does not have |
+| SC-025: the drag | `src.txt` dragged with a real mouse from a File Explorer window, the pointer resting 1.5 s on each target in Casso Explorer, then over the same kinds of item in File Explorer; Escape ended each drag, and nothing was dropped |
+| SC-025: a folder | Both: the row lit, `Move to Folder` |
+| SC-025: an archive | Both: the zip's row lit, `Copy` |
+| SC-025: a program | Both: the row lit, `Open with tool.exe` |
+| SC-025: a drive | Both: the tree node lit, `Copy to Micron 2TB SSD (F:)`. File Explorer opened the collapsed node after the drag rested on it 970 to 1,086 ms; Casso Explorer did not, and now opens one after a second, measured at 900 to 1,017 ms |
+| SC-025: a disk image | Casso Explorer: the tree node lit, `Copy to dos33.dsk`. Not compared: the File Explorer pass had no disk image among its targets |
+| Tabs | A drag over a tab opens it in both programs |
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
