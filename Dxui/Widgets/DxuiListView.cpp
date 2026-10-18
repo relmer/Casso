@@ -601,7 +601,8 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            wpx = std::max (wpx, (int) std::ceil (w) + std::max (0, m_scaler.ToPx (s_kHeaderPadMinDip) - padPx));
+            wpx = std::max (wpx, (int) std::ceil (w) + std::max (0, m_scaler.ToPx (s_kHeaderPadMinDip) - padPx) +
+                                 (m_columns[c].isFiltered ? (int) std::ceil (m_scaler.ToPxf (s_kFilterGlyphDip)) : 0));
         }
 
         for (const auto & row : m_rows)
@@ -3113,6 +3114,28 @@ DxuiListView::Palette DxuiListView::MakePalette() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetColumnFiltered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetColumnFiltered (size_t idx, bool isFiltered)
+{
+    if (idx >= m_columns.size() || m_columns[idx].isFiltered == isFiltered)
+    {
+        return;
+    }
+
+    m_columns[idx].isFiltered = isFiltered;
+    m_measureDirty            = true;
+    m_measuredWPx.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintHeader
 //
 //  Paints the header background, the column titles, the active sort
@@ -3144,8 +3167,8 @@ void DxuiListView::PaintHeader (
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         bool   hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
-        float  sortReserve = 0.0f;
-        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - sortReserve;
+        float  filterW     = m_columns[c].isFiltered ? m_scaler.ToPxf (s_kFilterGlyphDip) : 0.0f;
+        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - filterW;
 
         if (!m_columns[c].visible || colWPx[c] <= 0)
         {
@@ -3183,6 +3206,26 @@ void DxuiListView::PaintHeader (
 
             painter.DrawLine (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
             painter.DrawLine (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
+        }
+
+        //  A funnel at the right end of the heading, right of the title: a
+        //  wide top narrowing to a short stem.
+        if (m_columns[c].isFiltered)
+        {
+            float  thick = m_scaler.ToPxf (1.0f);
+            float  halfW = m_scaler.ToPxf (4.0f);
+            float  stemW = m_scaler.ToPxf (1.0f);
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) - cellPadR;
+            float  cx    = right - halfW;
+            float  top   = y + headerH / 2.0f - m_scaler.ToPxf (4.0f);
+            float  mid   = top + m_scaler.ToPxf (4.0f);
+            float  foot  = top + m_scaler.ToPxf (8.0f);
+
+            painter.DrawLine (cx - halfW, top, cx + halfW, top, thick, pal.hdrFg);
+            painter.DrawLine (cx - halfW, top, cx - stemW, mid, thick, pal.hdrFg);
+            painter.DrawLine (cx + halfW, top, cx + stemW, mid, thick, pal.hdrFg);
+            painter.DrawLine (cx - stemW, mid, cx - stemW, foot, thick, pal.hdrFg);
+            painter.DrawLine (cx + stemW, mid, cx + stemW, foot, thick, pal.hdrFg);
         }
     }
 

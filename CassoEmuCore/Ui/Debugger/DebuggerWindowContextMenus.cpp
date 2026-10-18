@@ -261,16 +261,20 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 //  DebuggerWindow::ShowColumnMenu
 //
 //  On the headings of a list whose columns can be chosen, a check for each
-//  column. False when the point is not on the headings or the list has no
-//  such menu.
+//  column, then the Filter cascade of the column under the point when it has
+//  one. False when the point is not on the headings or the list has no such
+//  menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
 {
     std::vector<std::shared_ptr<DxuiCommand>>  commands;
+    std::vector<std::shared_ptr<DxuiCommand>>  filterCommands;
     std::vector<DxuiPopupMenuItem>             menu;
+    std::vector<DxuiPopupMenuItem>             filter;
     RECT                                       bounds   = list->GetBounds();
+    int                                        column   = GetColumnAt (list, clientPx.x - bounds.left);
 
 
 
@@ -282,9 +286,14 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         (void) pane->AddColumnMenuItems (list, commands);
+
+        if (filter.empty() && column >= 0)
+        {
+            filter = pane->GetColumnFilterItems (list, (size_t) column, filterCommands);
+        }
     }
 
-    if (commands.empty())
+    if (commands.empty() && filter.empty())
     {
         return false;
     }
@@ -296,6 +305,19 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
     {
         m_menuCommands.push_back (command);
         menu.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    if (!filter.empty())
+    {
+        std::ranges::copy (filterCommands, std::back_inserter (m_menuCommands));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Filter", false, [] {}));
+
+        if (!menu.empty())
+        {
+            menu.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        menu.push_back (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (filter)));
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));

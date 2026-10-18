@@ -474,6 +474,11 @@ public:
     //  A list's menu on its headings, false for a list not the pane's.
     virtual bool                         AddColumnMenuItems  (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) { (void) list; (void) commands; return false; }
 
+    //  The rows of a column's Filter cascade on the headings' menu, none for
+    //  a column with no filter; each row's command is added to `commands`.
+    virtual std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
+                                         { (void) list; (void) column; (void) commands; return {}; }
+
 protected:
     IDebuggerPaneHost  & m_host;
 };

@@ -18,8 +18,6 @@
 static constexpr int  s_kDiskEvents        = 1;
 static constexpr int  s_kDiskDrive         = 2;
 static constexpr int  s_kDiskSeverity      = 3;
-static constexpr int  s_kInputGuest        = 6;
-static constexpr int  s_kInputHost         = 7;
 static constexpr int  s_kInputPair0        = 8;
 static constexpr int  s_kInputPair1        = 9;
 
@@ -989,8 +987,8 @@ std::vector<IDxuiControl *> InputLogController::GetControls() const
 //
 //  InputLogController::SetBarEntries
 //
-//  The guest's and the host's input, and each pair's view. The columns are
-//  chosen from the heading's menu.
+//  Each pair's view, each drop-down reading the view chosen. The columns,
+//  and the guest's and the host's input, are chosen from the headings' menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1002,10 +1000,8 @@ void InputLogController::SetBarEntries()
 
     m_commands.clear();
 
-    AddEntry (entries, s_kInputGuest, L"Emulator input",   L"Choose the guest's reads in this log",                 DxuiToolbar::Kind::DropDown, 0);
-    AddEntry (entries, s_kInputHost,  L"Host input",       L"Choose the host's input in this log",                  DxuiToolbar::Kind::DropDown, 0);
-    AddEntry (entries, s_kInputPair0, L"PADDL0-PADDL1 as", L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
-    AddEntry (entries, s_kInputPair1, L"PADDL2-PADDL3 as", L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
+    AddEntry (entries, s_kInputPair0, GetPairLabel (0).c_str(), L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
+    AddEntry (entries, s_kInputPair1, GetPairLabel (1).c_str(), L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -1022,38 +1018,10 @@ void InputLogController::SetBarEntries()
 
 void InputLogController::SetMenus()
 {
-    std::vector<DxuiPopupMenuItem>  guest;
-    std::vector<DxuiPopupMenuItem>  host;
     std::vector<DxuiPopupMenuItem>  pair0;
     std::vector<DxuiPopupMenuItem>  pair1;
-    std::shared_ptr<DxuiCommand>    item;
 
 
-
-    for (InputLogPane::Lane lane : { InputLogPane::kGuestKeyboard, InputLogPane::kJoystick, InputLogPane::kPaddle, InputLogPane::kHostKeyboard, InputLogPane::kHostMouse })
-    {
-        bool  isGuest = lane == InputLogPane::kGuestKeyboard || lane == InputLogPane::kJoystick || lane == InputLogPane::kPaddle;
-
-        item      = DebuggerMenuCommand::Make (InputLogPane::GetLaneLabel (lane), m_model->IsLaneShown (lane), [this, lane]
-        {
-            m_model->SetLaneShown (lane, !m_model->IsLaneShown (lane));
-            SaveOptions();
-        });
-        item->tip = InputLogPane::GetLaneTip (lane);
-
-        //  Joystick applies while a pair is viewed as one, Paddle while a pair
-        //  is viewed as paddles.
-        if (lane == InputLogPane::kJoystick)
-        {
-            item->isEnabled = [this] { return m_model->IsPairJoystick (0) || m_model->IsPairJoystick (1); };
-        }
-        else if (lane == InputLogPane::kPaddle)
-        {
-            item->isEnabled = [this] { return !m_model->IsPairJoystick (0) || !m_model->IsPairJoystick (1); };
-        }
-
-        (isGuest ? guest : host).push_back (DxuiPopupMenuItem::ForCommand (item));
-    }
 
     for (int pair = 0; pair < 2; pair++)
     {
@@ -1067,12 +1035,11 @@ void InputLogController::SetMenus()
             {
                 m_model->SetPairJoystick (pair, isJoystick);
                 SaveOptions();
+                SetBarEntries();
             })));
         }
     }
 
-    m_bar.GetBar()->SetDropDownItems (s_kInputGuest, std::move (guest));
-    m_bar.GetBar()->SetDropDownItems (s_kInputHost,  std::move (host));
     m_bar.GetBar()->SetDropDownItems (s_kInputPair0, std::move (pair0));
     m_bar.GetBar()->SetDropDownItems (s_kInputPair1, std::move (pair1));
 }
@@ -1098,11 +1065,115 @@ void InputLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isW
         m_model->Apply (delta);
     }
 
+    ShowSourceFilter();
+
     m_model->SetShown             (isWindowVisible && m_host.IsPaneOpen (m_id));
     m_model->SetShownBefore       (m_shownBefore);
     m_model->SetMouseButtonAtC063 (m_isTwoC);
     m_model->Refresh();
     m_model->FollowScroll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputLogController::GetColumnFilterItems
+//
+//  Joystick applies while a pair is viewed as one, Paddle while a pair is
+//  viewed as paddles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> InputLogController::GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::shared_ptr<DxuiCommand>    item;
+
+
+
+    if (list != m_list || column != InputLogPane::kSource)
+    {
+        return items;
+    }
+
+    for (InputLogPane::Lane lane : { InputLogPane::kGuestKeyboard, InputLogPane::kJoystick, InputLogPane::kPaddle, InputLogPane::kHostKeyboard, InputLogPane::kHostMouse })
+    {
+        bool          isHost = lane == InputLogPane::kHostKeyboard || lane == InputLogPane::kHostMouse;
+        std::wstring  name   = InputLogPane::GetLaneLabel (lane);
+
+        name[0] = towlower (name[0]);
+        item    = DebuggerMenuCommand::Make (std::format (L"{} {}", isHost ? L"Host" : L"Guest", name), m_model->IsLaneShown (lane), [this, lane]
+        {
+            m_model->SetLaneShown (lane, !m_model->IsLaneShown (lane));
+            SaveOptions();
+            ShowSourceFilter();
+        });
+        item->tip = InputLogPane::GetLaneTip (lane);
+
+        if (lane == InputLogPane::kJoystick)
+        {
+            item->isEnabled = [this] { return m_model->IsPairJoystick (0) || m_model->IsPairJoystick (1); };
+        }
+        else if (lane == InputLogPane::kPaddle)
+        {
+            item->isEnabled = [this] { return !m_model->IsPairJoystick (0) || !m_model->IsPairJoystick (1); };
+        }
+
+        if (lane == InputLogPane::kHostKeyboard)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        commands.push_back (item);
+        items.push_back (DxuiPopupMenuItem::ForCommand (item));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputLogController::ShowSourceFilter
+//
+//  The Source column's heading has the filter funnel while any input is left
+//  out of the log.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputLogController::ShowSourceFilter()
+{
+    bool  isFiltered = false;
+
+
+
+    for (size_t lane = 0; lane < InputLogPane::kLaneCount; lane++)
+    {
+        isFiltered = isFiltered || !m_model->IsLaneShown ((InputLogPane::Lane) lane);
+    }
+
+    m_list->SetColumnFiltered (InputLogPane::kSource, isFiltered);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputLogController::GetPairLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputLogController::GetPairLabel (int pair) const
+{
+    return m_model->IsPairJoystick (pair) ? std::format (L"Joystick {}", pair) : std::format (L"Paddles {}, {}", pair * 2, pair * 2 + 1);
 }
 
 

@@ -182,6 +182,10 @@ public:
     std::vector<IDxuiControl *>   GetControls    () const override;
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
 
+    //  The guest's and the host's input, chosen on the Source column's Filter
+    //  cascade.
+    std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
+
 protected:
     std::wstring                  GetModelText   (bool isSelectedOnly) const override;
     std::string                   GetOptionsText () const override;
@@ -191,7 +195,9 @@ protected:
     void                          SetMenus       () override;
 
 private:
-    void  SetBarEntries ();
+    void          SetBarEntries   ();
+    void          ShowSourceFilter ();
+    std::wstring  GetPairLabel    (int pair) const;
 
     std::unique_ptr<InputLogPane>   m_model;
 };

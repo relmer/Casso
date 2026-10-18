@@ -8,6 +8,8 @@
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/EventLogControllers.h"
+#include "Ui/Debugger/Panes/InputLogPane.h"
 
 #include "CppUnitTest.h"
 
@@ -424,6 +426,40 @@ namespace DebuggerToolPanesTests
             return labels;
         }
 
+
+
+        //  The input log's guest and host input are chosen on the Source
+        //  column's Filter cascade, and the heading has a funnel while any of
+        //  it is left out; another column has no filter.
+        TEST_METHOD (TheInputLogsSourceColumnHasTheFilterCascade)
+        {
+            CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                          host;
+            ToolWindow                                 window (theme, host);
+            InputLogController                         log    (window.GetPaneHostForTest());
+            std::vector<std::shared_ptr<DxuiCommand>>  commands;
+            std::vector<DxuiPopupMenuItem>             items;
+            DxuiListView                             * list   = nullptr;
+
+
+
+            window.OnCreate();
+            log.CreateControls();
+            log.Configure();
+            list = log.GetLists().front();
+
+            items = log.GetColumnFilterItems (list, InputLogPane::kSource, commands);
+            Assert::AreEqual ((size_t) 6, items.size(), L"three guest inputs, a separator and two host inputs");
+            Assert::AreEqual ((size_t) 5, commands.size());
+            Assert::AreEqual (std::wstring (L"Guest keyboard"), commands[0]->label);
+            Assert::IsTrue   (log.GetColumnFilterItems (list, InputLogPane::kMeaning, commands).empty(), L"the meaning has a filter");
+
+            log.ApplyLogDeltas ({}, false);
+            Assert::IsFalse  (list->IsColumnFiltered (InputLogPane::kSource), L"a funnel with every input shown");
+
+            commands[0]->dispatch();
+            Assert::IsTrue   (list->IsColumnFiltered (InputLogPane::kSource), L"no funnel with the guest's keyboard left out");
+        }
 
 
         //  A symbol's row has Go to and Remove over its table's commands; a
