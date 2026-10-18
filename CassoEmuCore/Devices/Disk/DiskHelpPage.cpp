@@ -77,7 +77,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Write a file from the host to the disk",
         "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
         "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
-        "  %Las <name>             Store the file as <name> on the disk\n"
+        "  %Las <name>             Store the file as <name> on the disk. Without it, the file is stored under its host name;"
+                                   " a name Casso Explorer writes, such as HELLO.Applesoft BASIC.txt, PROG.Binary.$6000.bin or PROG#062000,"
+                                   " is stored under the part before the suffix, with the type, load address and conversion in the suffix\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
                                    " TXT, BIN, BAS and SYS. A file it cannot identify is stored as a binary\n"

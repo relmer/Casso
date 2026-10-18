@@ -3718,6 +3718,111 @@ public:
             L"and carries none of the host's directories with it");
     }
 
+    //  Casso Explorer copies a file out under a name with its type and address,
+    //  and put with no --as reads that name back, so a file goes out of one
+    //  program and back in through the other as the same entry.
+    TEST_METHOD (Put_ACassoExplorerListingName_GoesInAsTheProgramUnderItsBareName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\HELLO.Applesoft BASIC.txt", nullptr);
+        DiskCommandResult   result;
+        std::string         listing;
+        std::string         text    = "10 PRINT \"HI\"\n";
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\HELLO.Applesoft BASIC.txt", vector<Byte> (text.begin(), text.end()));
+
+        result  = runner.Run (options);
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (listing.find (" A 002 HELLO\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+    }
+
+
+    TEST_METHOD (Put_ACassoExplorerBinaryName_TakesItsTypeAndLoadAddress)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PROG.Binary.$6000.bin", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PROG.Binary.$6000.bin", MakePayload());
+
+        result   = runner.Run (options);
+        listing  = ListCommittedImage (io, kBlankImage);
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (listing.find (" B 004 PROG\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (readBack.diagnostics.find ("loads at $6000") != std::string::npos, TextEncoding::NarrowToWide (readBack.diagnostics).c_str());
+    }
+
+
+    TEST_METHOD (Put_ACiderPressName_TakesItsTypeAndLoadAddress)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PIC#062000", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PIC#062000", MakePayload());
+
+        result   = runner.Run (options);
+        readBack = GetFromCommittedImage (io, kBlankImage, "PIC");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PIC\n") != std::string::npos);
+        Assert::IsTrue (readBack.diagnostics.find ("loads at $2000") != std::string::npos, TextEncoding::NarrowToWide (readBack.diagnostics).c_str());
+    }
+
+
+    //  Every other host name goes in as written, and --as takes precedence
+    //  over a name in Casso Explorer's form.
+    TEST_METHOD (Put_ANameInNoCassoExplorerForm_OrAnAsName_IsUsedAsWritten)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  plain   = MakePutOptions (kBlankImage, "C:\\out\\MEMO.txt", nullptr);
+        CommandLineOptions  renamed = MakePutOptions (kBlankImage, "C:\\out\\PROG.Binary.$6000.bin", "OTHER");
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\MEMO.txt", MakePayload());
+        SeedFile (io, "C:\\out\\PROG.Binary.$6000.bin", MakePayload());
+
+        plain.disk.typeName         = "B";
+        plain.disk.hasLoadAddress   = true;
+        plain.disk.loadAddress      = kLoadAddress;
+        renamed.disk.typeName       = "B";
+        renamed.disk.hasLoadAddress = true;
+        renamed.disk.loadAddress    = kLoadAddress;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (plain).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (renamed).exitStatus);
+
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::IsTrue (listing.find ("MEMO.txt\n") != std::string::npos || listing.find ("MEMO.TXT\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" OTHER\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" PROG\n") == std::string::npos);
+    }
+
+
     TEST_METHOD (Put_OntoAProDosVolume_RecordsTheLoadAddressAsTheAuxiliaryType)
     {
         // Where a binary's load address lives is the one thing the two

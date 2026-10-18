@@ -26,6 +26,7 @@ enum class DiskFormat;
 enum class BlankDiskContents;
 struct BlankDiskSpec;
 struct BootPayload;
+struct ParsedHostName;
 
 
 
@@ -363,6 +364,14 @@ private:
     //  What the file is called on the disk: --as when given, otherwise the host
     //  file's own last component, which is the name the caller already chose.
     static std::string  GetOnDiskName (const CommandLineOptions & options);
+
+    //  With no --as, a host name in one of Casso Explorer's forms sets the
+    //  entry's name and, with no --text or --basic, its conversion. False for any
+    //  other host name, and the options are then left as they were.
+    static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
+
+    //  Set the payload's type and aux type from that form's name.
+    static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
 
 
 

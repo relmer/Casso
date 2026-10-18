@@ -17,6 +17,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
 #include "Utils.h"
 
 
@@ -1470,6 +1471,91 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyHostFileName
+//
+//  Read a host name in one of the forms Casso Explorer writes on Copy or a
+//  drag: `NAME.Applesoft BASIC.txt`, `NAME#062000`, `NAME.Binary.$2000.bin`
+//  and the rest. With no --as, the entry takes NAME, and a listing's form
+//  selects its conversion when the command line selects none. Any other host
+//  name is left as it is: `PROG.BIN` goes in as PROG.BIN.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed)
+{
+    size_t        lastSeparator = inOutOptions.disk.hostFile.find_last_of ("/\\");
+    std::string   leaf          = (lastSeparator == std::string::npos) ? inOutOptions.disk.hostFile
+                                                                       : inOutOptions.disk.hostFile.substr (lastSeparator + 1);
+    bool          unconverted   = inOutOptions.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim
+                               && inOutOptions.disk.typeName.empty();
+
+
+
+    if (!inOutOptions.disk.path.empty() || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
+    {
+        return false;
+    }
+
+    inOutOptions.disk.path = outParsed.catalogName;
+
+    if (unconverted && outParsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+    }
+    else if (unconverted && outParsed.converted != ParsedHostName::ConvertedKind::None)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyHostFileType
+//
+//  The ProDOS type in a host name, mapped to DOS 3.3's on a DOS 3.3 image,
+//  with the aux type as the load address of a binary file, as Casso Explorer
+//  puts the same file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload)
+{
+    HRESULT  hr      = S_OK;
+    bool     isDos   = kind == VolumeKind::Dos33;
+    Byte     dosType = 0;
+    bool     mapped  = false;
+
+
+
+    mapped = !isDos || HostFileNaming::TryMapProDosToDos33 (parsed.type, dosType);
+    CBREx (mapped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    inOutPayload.type = isDos ? dosType : parsed.type;
+
+    if (parsed.hasAux)
+    {
+        inOutPayload.hasAuxType     = !isDos;
+        inOutPayload.auxType        = parsed.aux;
+        inOutPayload.hasLoadAddress = inOutPayload.type == (isDos ? Dos33Volume::kTypeBinary : ProDosVolume::kTypeBinary);
+        inOutPayload.loadAddress    = parsed.aux;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunPut
 //
 //  Placing a file from the host on the disk: read it, convert it if asked, let the
@@ -1488,7 +1574,10 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 {
     HRESULT                        hr        = S_OK;
     bool                           named     = !options.disk.hostFile.empty();
-    std::string                    diskName  = GetOnDiskName (options);
+    CommandLineOptions             effective = options;
+    ParsedHostName                 parsed;
+    bool                           hostForm  = false;
+    std::string                    diskName;
     DiskImageSession::OpenedImage  opened;
     FilePayload                    payload;
     FilePath                       path;
@@ -1499,6 +1588,9 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<file>", result));
 
+    hostForm = ApplyHostFileName (effective, parsed);
+    diskName = GetOnDiskName (effective);
+
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
@@ -1506,8 +1598,17 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
 
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
 
-    hr = BuildPutPayload (options, opened.kind, hostBytes, payload, result);
+    hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
     CHR (hr);
+
+    //  The type and address in a name Casso Explorer wrote, unless the command
+    //  line has --type, --load, --text or --basic.
+    if (hostForm && parsed.hasType && effective.disk.typeName.empty() && !effective.disk.hasLoadAddress
+        && effective.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim)
+    {
+        hr = ApplyHostFileType (parsed, opened.kind, payload);
+        CHRF (hr, result.Fail (options.disk.imagePath, diskName, "has a ProDOS type DOS 3.3 has no file type for"));
+    }
 
     path = FilePath::Parse (diskName);
 
