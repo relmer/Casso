@@ -83,17 +83,17 @@ uint32_t InspectorMarquee::Dim (const DiskInspectorPalette & palette, uint32_t a
 //
 //  InspectorMarquee::GetShimmer
 //
-//  A narrow band of light on a faint glow. A point's place along the
-//  window's diagonal is (x + y) from its top left; the band's center sweeps
-//  from before the top left corner to past the bottom right one, so the
-//  band moves fully across the window, at 45 degrees.
+//  A band of light on a faint glow. A point's place along the object's
+//  diagonal is (x + y) from the top left of the object's box; the band's
+//  center sweeps from before the box's top left corner to past its bottom
+//  right one, at 45 degrees, in kSweepMs whatever the box's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx)
+uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const RECT & boxPx)
 {
-    double  place = (xPx - scenePx.left) + (yPx - scenePx.top);
-    double  alpha = kShimmerPeakAlpha * (kShimmerGlowShare + (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, scenePx)));
+    double  place = (xPx - boxPx.left) + (yPx - boxPx.top);
+    double  alpha = kShimmerPeakAlpha * (kShimmerGlowShare + (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, boxPx), boxPx));
 
 
 
@@ -110,10 +110,10 @@ uint32_t InspectorMarquee::GetShimmer (double nowMs, float xPx, float yPx, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t InspectorMarquee::GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & scenePx)
+uint32_t InspectorMarquee::GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & boxPx)
 {
-    double  place = (xPx - scenePx.left) + (yPx - scenePx.top);
-    double  alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, scenePx));
+    double  place = (xPx - boxPx.left) + (yPx - boxPx.top);
+    double  alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (place - GetBandCenter (nowMs, boxPx), boxPx);
 
 
 
@@ -126,17 +126,40 @@ uint32_t InspectorMarquee::GetShimmerBand (double nowMs, float xPx, float yPx, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorMarquee::GetBandPx
+//
+//  The band's width along (x + y): a share of the box's shorter side, so the
+//  band crosses a thin object as a narrow stripe at 45 degrees and a large
+//  one as a broad sheen, within limits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorMarquee::GetBandPx (const RECT & boxPx)
+{
+    double  shorter = std::min (boxPx.right - boxPx.left, boxPx.bottom - boxPx.top);
+
+
+
+    return std::clamp (kShimmerBandShare * shorter, kShimmerMinBandPx, kShimmerMaxBandPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorMarquee::GetBandCenter
 //
-//  Where the band's center is along the window's diagonal, in pixels of
+//  Where the band's center is along the box's diagonal, in pixels of
 //  (x + y) from its top left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double InspectorMarquee::GetBandCenter (double nowMs, const RECT & scenePx)
+double InspectorMarquee::GetBandCenter (double nowMs, const RECT & boxPx)
 {
-    double  span    = std::max (1.0, static_cast<double> ((scenePx.right - scenePx.left) + (scenePx.bottom - scenePx.top)));
-    double  overrun = kShimmerReach * kShimmerBandPx;
+    double  span    = std::max (1.0, static_cast<double> ((boxPx.right - boxPx.left) + (boxPx.bottom - boxPx.top)));
+    double  overrun = kShimmerReach * GetBandPx (boxPx);
 
 
 
@@ -152,13 +175,13 @@ double InspectorMarquee::GetBandCenter (double nowMs, const RECT & scenePx)
 //  InspectorMarquee::GetBand
 //
 //  The band's strength at a distance from its center along the diagonal:
-//  1 at the center, falling off as a bell curve.
+//  1 at the center, falling off as a bell curve as wide as the box's band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double InspectorMarquee::GetBand (double distance)
+double InspectorMarquee::GetBand (double distance, const RECT & boxPx)
 {
-    return std::exp (-std::pow (distance / kShimmerBandPx, 2.0));
+    return std::exp (-std::pow (distance / GetBandPx (boxPx), 2.0));
 }
 
 
@@ -169,20 +192,18 @@ double InspectorMarquee::GetBand (double distance)
 //
 //  InspectorMarquee::PaintShimmer
 //
-//  The shimmer over a rectangle: the glow across it, then the band as
-//  diagonal stripes two pixels apart along (x + y), each its part of the
-//  bell curve, clipped to the rectangle.
+//  The shimmer over a rectangle of an object whose box is given: the glow
+//  across the rectangle, then the band as diagonal stripes along (x + y),
+//  each its part of the bell curve, clipped to the rectangle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorMarquee::PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & scenePx)
+void InspectorMarquee::PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & boxPx)
 {
-    static constexpr float  kStripePx = 2.0f;
-
-
-
-    double    center   = GetBandCenter (nowMs, scenePx) + scenePx.left + scenePx.top;
-    double    reach    = kShimmerReach * kShimmerBandPx;
+    double    bandPx   = GetBandPx (boxPx);
+    double    stripePx = std::clamp (bandPx / 12.0, 1.0, 4.0);
+    double    center   = GetBandCenter (nowMs, boxPx) + boxPx.left + boxPx.top;
+    double    reach    = kShimmerReach * bandPx;
     double    alpha    = 0;
     RECT      prior    = {};
     RECT      box      = { static_cast<LONG> (std::floor (x)), static_cast<LONG> (std::floor (y)), static_cast<LONG> (std::ceil (x + w)), static_cast<LONG> (std::ceil (y + h)) };
@@ -201,14 +222,14 @@ void InspectorMarquee::PaintShimmer (IDxuiPainter & painter, float x, float y, f
     {
         painter.SetClipRect (&clip);
 
-        for (double k = center - reach; k < center + reach; k += kStripePx)
+        for (double k = center - reach; k < center + reach; k += stripePx)
         {
-            alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (k + kStripePx / 2 - center);
+            alpha = kShimmerPeakAlpha * (1.0 - kShimmerGlowShare) * GetBand (k + stripePx / 2 - center, boxPx);
 
-            painter.FillConvexQuad (static_cast<float> (k - y),                  y,
-                                    static_cast<float> (k + kStripePx - y),      y,
-                                    static_cast<float> (k + kStripePx - y - h),  y + h,
-                                    static_cast<float> (k - y - h),              y + h,
+            painter.FillConvexQuad (static_cast<float> (k - y),                 y,
+                                    static_cast<float> (k + stripePx - y),      y,
+                                    static_cast<float> (k + stripePx - y - h),  y + h,
+                                    static_cast<float> (k - y - h),             y + h,
                                     (static_cast<uint32_t> (std::clamp (alpha, 0.0, 255.0)) << 24) | white);
         }
 

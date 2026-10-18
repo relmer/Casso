@@ -529,10 +529,14 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, m_scaler.ToPxf (s_kOutlineDip), m_context.palette.colors.difference);
     }
 
-    //  The selected cell lit by the window's shimmer (FR-038).
+    //  The selected cell lit by the shimmer (FR-038), whose band crosses the
+    //  cell's part in view.
     if (cell == m_selectedCell)
     {
-        InspectorMarquee::PaintShimmer (painter, x, y, w, h, InspectorMarquee::GetClockMs(), m_context.scenePx);
+        RECT  box = { static_cast<LONG> (std::max (x, g.cellsLeft)), static_cast<LONG> (std::max (y, g.cellsTop)),
+                      static_cast<LONG> (std::min (x + w, static_cast<float> (m_boundsDip.right))), static_cast<LONG> (std::min (y + h, static_cast<float> (m_boundsDip.bottom))) };
+
+        InspectorMarquee::PaintShimmer (painter, x, y, w, h, InspectorMarquee::GetClockMs(), box);
     }
 
     //  The cell under the pointer lit faintly and outlined, so the tooltip's

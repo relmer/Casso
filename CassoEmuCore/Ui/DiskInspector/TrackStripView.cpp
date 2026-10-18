@@ -1045,6 +1045,7 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
     float                        height = static_cast<float> (bar.bottom - bar.top);
     int                          count  = 0;
     int                          nibble = -1;
+    RECT                         box    = { bar.right, bar.top, bar.left, bar.bottom };
 
 
 
@@ -1054,9 +1055,17 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
         count = g.GetSegments (start, end - start, parts);
     }
 
+    //  The band crosses the selection's part in view, however wide the zoom
+    //  makes it, in the same time as any other object.
     for (int k = 0; k < count; k++)
     {
-        InspectorMarquee::PaintShimmer (painter, parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, height, now, m_context.scenePx);
+        box.left  = std::min (box.left,  static_cast<LONG> (std::max (parts[k].x0, static_cast<float> (bar.left))));
+        box.right = std::max (box.right, static_cast<LONG> (std::min (parts[k].x1, static_cast<float> (bar.right))));
+    }
+
+    for (int k = 0; k < count; k++)
+    {
+        InspectorMarquee::PaintShimmer (painter, parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, height, now, box);
     }
 
     if (PtInRect (&bar, m_context.hoverPx) && !m_isPanning && m_context.GetTrack() != nullptr)

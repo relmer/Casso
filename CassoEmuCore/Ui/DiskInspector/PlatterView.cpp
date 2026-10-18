@@ -32,8 +32,8 @@ static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
 static constexpr float    s_kMarqueeStepDip = 8.0f;
 static constexpr float    s_kShadeStepDip   = 24.0f;
 static constexpr int      s_kMaxPieces      = 4096;
+static constexpr int      s_kMaxRings       = 16;
 static constexpr float    s_kMinMarkDip     = 8.0f;
-static constexpr float    s_kShimmerHaloDip = 6.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
@@ -896,6 +896,8 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     double    now    = InspectorMarquee::GetClockMs();
     double    r0     = 0;
     double    r1     = 0;
+    int       rings  = 1;
+    RECT      box    = {};
     float     thick  = isSelected ? m_scaler.ToPxf (s_kSelectOutlineDip) : 1.0f;
     uint32_t  ink    = isSelected ? m_context.palette.colors.selection : InspectorMarquee::GetHoverLine();
     uint32_t  edge   = DiskInspectorPalette::GetTextColorOn (m_context.palette.colors.selection);
@@ -936,8 +938,12 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     }
 
     end = (end <= start) ? end + 1.0 : end;
+    box = GetArcBox (view, start, end, r0, r1);
+    rings = isSelected ? std::clamp (static_cast<int> (std::ceil ((r1 - r0) / m_scaler.ToPxf (s_kShimmerStepDip))), 1, s_kMaxRings) : 1;
 
-    //  The fill, in steps a few pixels long so the shimmer moves smoothly.
+    //  The fill, in steps a few pixels long and, for the selection, a few
+    //  pixels deep, so the shimmer's band crosses the whole mark at 45
+    //  degrees and moves smoothly.
     for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
     {
         pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kShimmerStepDip))), 1, s_kMaxPieces);
@@ -948,22 +954,21 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
             b = part.first + (part.second - part.first) * (k + 1) / pieces;
             m = (a + b) / 2;
 
-            ShadeArc (painter, view, a, b, r0, r1, isSelected ? InspectorMarquee::GetShimmer (now, getX (m, (r0 + r1) / 2), getY (m, (r0 + r1) / 2), m_context.scenePx)
-                                                              : InspectorMarquee::GetHoverFill());
+            for (int j = 0; j < rings; j++)
+            {
+                double  ra = r0 + (r1 - r0) * j / rings;
+                double  rb = r0 + (r1 - r0) * (j + 1) / rings;
+
+                ShadeArc (painter, view, a, b, ra, rb, isSelected ? InspectorMarquee::GetShimmer (now, getX (m, (ra + rb) / 2), getY (m, (ra + rb) / 2), box)
+                                                                  : InspectorMarquee::GetHoverFill());
+            }
         }
     }
 
-    //  The outline. For the selection: the band's light, wide and soft,
-    //  under the edge; the edge, wider than the line; the selection color;
-    //  then the band's light over the line.
+    //  The outline: for the selection, the edge wider than the line, the
+    //  selection color, then the band's light over the line.
     if (isSelected)
     {
-        drawOutline (thick + m_scaler.ToPxf (s_kShimmerHaloDip), [&] (float x, float y)
-                     {
-                         uint32_t  band = InspectorMarquee::GetShimmerBand (now, x, y, m_context.scenePx);
-
-                         return ((band >> 25) << 24) | (band & 0x00FFFFFFu);
-                     });
         drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
     }
 
@@ -971,8 +976,59 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
 
     if (isSelected)
     {
-        drawOutline (thick, [&] (float x, float y) { return InspectorMarquee::GetShimmerBand (now, x, y, m_context.scenePx); });
+        drawOutline (thick, [&] (float x, float y) { return InspectorMarquee::GetShimmerBand (now, x, y, box); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetArcBox
+//
+//  The box around a mark's part in view: every point of its edges at the
+//  marquee's steps, clipped to the view, for the shimmer's sweep.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT PlatterView::GetArcBox (const PlatterPlacement & view, double start, double end, double r0, double r1) const
+{
+    RECT    box    = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
+    int     pieces = 0;
+    double  t      = 0;
+    double  x      = 0;
+    double  y      = 0;
+
+
+
+    for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
+    {
+        pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * r1 / m_scaler.ToPxf (s_kMarqueeStepDip))), 1, s_kMaxPieces);
+
+        for (int k = 0; k <= pieces; k++)
+        {
+            t = (part.first + (part.second - part.first) * k / pieces + view.rotation) * s_kTwoPi;
+
+            for (double r : { r0, r1 })
+            {
+                x          = view.centerXPx + r * std::sin (t);
+                y          = view.centerYPx - r * std::cos (t);
+                box.left   = std::min (box.left,   static_cast<LONG> (std::floor (x)));
+                box.top    = std::min (box.top,    static_cast<LONG> (std::floor (y)));
+                box.right  = std::max (box.right,  static_cast<LONG> (std::ceil (x)));
+                box.bottom = std::max (box.bottom, static_cast<LONG> (std::ceil (y)));
+            }
+        }
+    }
+
+    box.left   = std::max (box.left,   m_boundsDip.left);
+    box.top    = std::max (box.top,    m_boundsDip.top);
+    box.right  = std::min (box.right,  m_boundsDip.right);
+    box.bottom = std::min (box.bottom, m_boundsDip.bottom);
+
+    return box;
 }
 
 

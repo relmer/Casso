@@ -24,14 +24,19 @@ class InspectorMarquee
 public:
     static constexpr float  kDashDip     = 4.0f;
     static constexpr int    kStepMs      = 80;
-    static constexpr int    kSweepMs     = 2500;
+    //  The time the shimmer's band takes to cross any object, small or
+    //  large, from its top left to its bottom right.
+    static constexpr int    kSweepMs     = 2000;
 
-    //  The shimmer: its peak alpha, the share of it the glow outside the band
-    //  has, the band's width along (x + y) in pixels, and how many widths on
-    //  each side of the band's center its stripes span.
+    //  The shimmer: its peak alpha; the share of it the glow outside the band
+    //  has; the band's width along (x + y), a share of the object's shorter
+    //  side within limits in pixels; and how many widths on each side of the
+    //  band's center its stripes span.
     static constexpr double  kShimmerPeakAlpha = 150.0;
     static constexpr double  kShimmerGlowShare = 0.2;
-    static constexpr double  kShimmerBandPx    = 24.0;
+    static constexpr double  kShimmerBandShare = 0.6;
+    static constexpr double  kShimmerMinBandPx = 12.0;
+    static constexpr double  kShimmerMaxBandPx = 160.0;
     static constexpr double  kShimmerReach     = 3.0;
 
     //  One device pixel at any scale, as thin as the platter's and the grid's
@@ -57,23 +62,24 @@ public:
     //  end, so a polyline's next segment continues the pattern.
     float  DrawLine (IDxuiPainter & painter, float x0, float y0, float x1, float y1, float startPx) const;
 
-    //  The light the selected sector shimmers with at a point of the window:
-    //  white, brightest in a band at 45 degrees that sweeps across the whole
-    //  window from its top left to its bottom right every kSweepMs, so every
-    //  map's selection lights up as the band crosses it.
-    static uint32_t  GetShimmer (double nowMs, float xPx, float yPx, const RECT & scenePx);
+    //  The light a selected object shimmers with at a point: white,
+    //  brightest in a band at 45 degrees that sweeps across the object's box
+    //  from its top left to its bottom right every kSweepMs.
+    static uint32_t  GetShimmer (double nowMs, float xPx, float yPx, const RECT & boxPx);
 
     //  The band alone, with none of the glow: clear away from it, for light
     //  laid over a line.
-    static uint32_t  GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & scenePx);
+    static uint32_t  GetShimmerBand (double nowMs, float xPx, float yPx, const RECT & boxPx);
 
-    //  The shimmer painted over a rectangle, the band a stripe at 45 degrees.
-    static void  PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & scenePx);
+    //  The shimmer painted over a rectangle of an object with the given box,
+    //  the band a stripe at 45 degrees.
+    static void  PaintShimmer (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & boxPx);
 
-    //  The band: its center along the window's diagonal, and its strength at
-    //  a distance from that center.
-    static double  GetBandCenter (double nowMs, const RECT & scenePx);
-    static double  GetBand       (double distance);
+    //  The band for an object's box: its width, its center along the box's
+    //  diagonal, and its strength at a distance from that center.
+    static double  GetBandPx     (const RECT & boxPx);
+    static double  GetBandCenter (double nowMs, const RECT & boxPx);
+    static double  GetBand       (double distance, const RECT & boxPx);
 
     //  A clock in milliseconds fine enough that the shimmer moves a little
     //  every frame; GetTickCount64 advances only every 15.6 ms or so.
