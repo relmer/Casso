@@ -577,7 +577,7 @@ void CassoLinkHost::ReportRequest (const CassoLinkPacket & packet, HRESULT resul
             break;
 
         case CassoLinkCodec::kGet:
-            name = ReadName (packet.payload, end);
+            name = ResolveName (packet.payload, end);
             text = std::format ("ADTPro: sent {} to the Apple", name);
             break;
 

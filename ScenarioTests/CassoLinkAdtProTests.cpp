@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkCaptures.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -111,6 +112,67 @@ public:
             }
         }
 
+        //  A screen row, without the spaces after its text.
+        std::string  Row (int row)
+        {
+            std::string  text = TextScreenScraper::Scrape (machine)[(size_t) row];
+
+            text.erase (text.find_last_not_of (' ') + 1);
+            return text;
+        }
+
+        //  The chooser's highlighted row. The client inverts it by clearing
+        //  bit 6 as well as bit 7, which the scraper reads 0x40 higher for
+        //  anything but a letter.
+        std::string  Highlighted (int row)
+        {
+            std::string  text = Row (row);
+
+            for (char & c : text)
+            {
+                c = (c >= '`') ? (char) (c - 0x40) : c;
+            }
+
+            text.erase (text.find_last_not_of (' ') + 1);
+            return text;
+        }
+
+        //  Files the listing pages through, one block each.
+        void  AddFiles (const std::string & prefix, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                folder.files[std::format ("{}{:02}.DSK", prefix, i)] = std::vector<Byte> (512, 0);
+            }
+        }
+
+        //  The client's configuration screen, with Enable nibbles set to Yes:
+        //  the fifth parameter, changed with the arrow keys.
+        void  EnableNibbles()
+        {
+            Start ('G');
+            Assert::IsTrue (RunUntil ("ENABLE NIBBLES", 10'000'000), L"the configuration screen");
+            Type ("\x0A\x0A\x0A\x0A");
+
+            for (int press = 0; press < 2 && Row (7).find ("YES") == std::string::npos; press++)
+            {
+                Type ("\x15");
+            }
+
+            Assert::IsTrue (Row (7).find ("YES") != std::string::npos, L"nibbles are enabled");
+            Type ("\r");
+            Assert::IsTrue (RunUntil ("ECEIVE", 10'000'000), L"and the menu is back");
+        }
+
+        //  Choose from the main menu once it is up. The last item chosen is
+        //  highlighted, which the scraper misreads, so the wait is on a word
+        //  that reads the same either way.
+        void  Choose (char command)
+        {
+            Assert::IsTrue (RunUntil ("ECEIVE", 40'000'000), TextEncoding::NarrowToWide ("the main menu, not:\n" + Screen()).c_str());
+            Type (std::string (1, command));
+        }
+
         //  Boot, choose the serial connection, and start the command.
         void  Start (char command)
         {
@@ -164,5 +226,174 @@ public:
 
         AssertSucceeded (rig.machine.GetDiskStore().GetImage (6, 0)->Serialize (written));
         Assert::IsTrue (written == rig.folder.files["VDRIVE-2.1.0.DSK"], L"drive 1 now has the image, sector for sector");
+    }
+
+
+    //  DIR as the client draws it: the header, a blank row and the dashes,
+    //  a full page of files on rows 3 to 20, and Z for the next page, which
+    //  the client requests from the host.
+    TEST_METHOD (DirectoryPages_AreDrawnAndPagedByTheClient)
+    {
+        Rig  rig;
+
+        rig.folder.path = "C:\\DISKS\\";
+        rig.AddFiles ("A", 20);
+
+        rig.Start ('D');
+        rig.Type ("\r");
+        Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 40'000'000), L"the listing arrives");
+
+        Assert::AreEqual (std::string ("DIRECTORY OF: C:\\DISKS\\"), rig.Row (0));
+        Assert::AreEqual (std::string(),                              rig.Row (1));
+        Assert::AreEqual (std::string (40, '-'),                      rig.Row (2));
+        Assert::AreEqual (std::string ("A00.DSK"),                    rig.Highlighted (3));
+        Assert::AreEqual (std::string ("A17.DSK"),                    rig.Row (20));
+
+        rig.Type ("Z");
+        Assert::IsTrue (rig.RunUntil ("A19.DSK", 40'000'000), L"Z brings the second page");
+
+        Assert::AreEqual (std::string ("A18.DSK"), rig.Highlighted (3));
+        Assert::AreEqual (std::string ("A19.DSK"), rig.Row (4));
+        Assert::AreEqual (std::string(),           rig.Row (5));
+    }
+
+
+    TEST_METHOD (AFilespec_NarrowsTheListing)
+    {
+        Rig  rig;
+
+        rig.folder.files["A.DSK"] = std::vector<Byte> (512, 0);
+        rig.folder.files["B.PO"]  = std::vector<Byte> (512, 0);
+        rig.folder.files["C.PO"]  = std::vector<Byte> (512, 0);
+
+        rig.Start ('D');
+        rig.Type ("*.PO\r");
+        Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 40'000'000), L"the listing arrives");
+
+        Assert::AreEqual (std::string ("B.PO"), rig.Highlighted (3));
+        Assert::AreEqual (std::string ("C.PO"), rig.Row (4));
+        Assert::IsTrue (rig.Screen().find ("A.DSK") == std::string::npos);
+    }
+
+
+    //  Receive with no name opens the chooser; Return on a name sends its
+    //  page and row, which the host resolves from the listing it sent.
+    TEST_METHOD (TheReceiveChooser_FetchesTheHighlightedFile)
+    {
+        Rig                rig;
+        std::vector<Byte>  written;
+
+        rig.AddFiles ("A", 19);
+        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), rig.folder.files["VDRIVE-2.1.0.DSK"]);
+
+        rig.Start ('R');
+        rig.Type ("\r");
+        Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 40'000'000), L"the chooser");
+
+        rig.Type ("Z");
+        Assert::IsTrue (rig.RunUntil ("VDRIVE-2.1.0.DSK", 40'000'000), L"the second page");
+        Assert::AreEqual (std::string ("VDRIVE-2.1.0.DSK"), rig.Row (4));
+
+        rig.Type ("\x0A\r");
+        rig.PickDriveOne();
+
+        Assert::IsTrue (rig.RunUntil ("COMPLETE", 600'000'000), L"the receive completes");
+
+        AssertSucceeded (rig.machine.GetDiskStore().GetImage (6, 0)->Serialize (written));
+        Assert::IsTrue (written == rig.folder.files["VDRIVE-2.1.0.DSK"], L"the file on page 2, row 4, now in drive 1");
+    }
+
+
+    //  Each track of the .nib is one revolution of drive 1: 16 address
+    //  fields, every one for that track.
+    TEST_METHOD (ANibbleSend_WritesEachTrackOfTheDisk)
+    {
+        Rig  rig;
+
+        rig.EnableNibbles();
+        rig.Choose ('S');
+        rig.Type ("GAME\r");
+        rig.PickDriveOne();
+        Assert::IsTrue (rig.RunUntil ("IBBLE?", 40'000'000), L"the client offers a nibble send");
+        rig.Type ("N");
+
+        Assert::IsTrue (rig.RunUntil ("COMPLETE", 2'000'000'000), L"the nibble send completes");
+        rig.machine.RunCycles (2'000'000);
+
+        const std::vector<Byte> &  nib = rig.folder.files["GAME.nib"];
+
+        Assert::AreEqual (CassoLinkHost::kNibbleTracks * CassoLinkHost::kNibbleTrackSize, nib.size());
+
+        for (size_t track = 0; track < CassoLinkHost::kNibbleTracks; track++)
+        {
+            const Byte *  bytes  = nib.data() + track * CassoLinkHost::kNibbleTrackSize;
+            int           fields = 0;
+
+            for (size_t i = 0; i + 8 < CassoLinkHost::kNibbleTrackSize; i++)
+            {
+                bool  field = bytes[i] == 0xD5 && bytes[i + 1] == 0xAA && bytes[i + 2] == 0x96;
+
+                if (field)
+                {
+                    Assert::AreEqual<size_t> (track, (size_t) (((bytes[i + 5] << 1) | 1) & bytes[i + 6]), L"an address field for this track");
+                    fields++;
+                }
+            }
+
+            Assert::AreEqual (16, fields, std::format (L"one revolution of track {}", track).c_str());
+        }
+    }
+
+
+    //  Each disk of a batch takes the prefix and the next free number.
+    TEST_METHOD (ABatchSend_NumbersEachDiskFromThePrefix)
+    {
+        Rig                   rig;
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  source;
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", source));
+        rig.folder.files["DISK0001.dsk"] = std::vector<Byte> (512, 0);
+
+        rig.Start ('B');
+        rig.Type ("DISK\r");
+        rig.PickDriveOne();
+        Assert::IsTrue (rig.RunUntil ("PRESS A KEY", 40'000'000), L"the client waits for the first disk");
+        rig.Type (" ");
+
+        Assert::IsTrue (rig.RunUntil ("COMPLETE", 400'000'000), L"the first disk is sent");
+        Assert::IsTrue (rig.RunUntil ("PRESS A KEY", 40'000'000), L"and the client waits for the next");
+        rig.Type ("\x1B");
+        rig.machine.RunCycles (2'000'000);
+
+        Assert::IsTrue (rig.folder.files["DISK0002.dsk"] == std::vector<Byte> (source.begin(), source.end()), L"DISK0001 is taken, so DISK0002");
+    }
+
+
+    //  A failed send ends in the client's Home, and the client's next request
+    //  is served. The client also accepts a reply to Home, so this does not
+    //  separate a reply from none; the unit test Home_HasNoReply does.
+    TEST_METHOD (Home_AfterAFailedSend_LeavesTheNextRequestServed)
+    {
+        Rig  rig;
+
+        rig.folder.files["A.DSK"] = std::vector<Byte> (512, 0);
+        rig.folder.open = false;
+
+        rig.Start ('S');
+        rig.Type ("X.DSK\r");
+        rig.PickDriveOne();
+        Assert::IsTrue (rig.RunUntil ("PRESS A KEY", 40'000'000), L"the send fails with no folder");
+
+        //  The client's PAUSE clears the keyboard strobe before it waits, so
+        //  the key goes in once it is waiting.
+        rig.folder.open = true;
+        rig.machine.RunCycles (1'000'000);
+        rig.Type (" ");
+
+        rig.Choose ('D');
+        rig.Type ("\r");
+        Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 40'000'000), L"the next listing arrives");
+        Assert::AreEqual (std::string ("A.DSK"), rig.Highlighted (3));
     }
 };
