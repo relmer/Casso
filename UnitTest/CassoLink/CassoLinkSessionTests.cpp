@@ -633,6 +633,8 @@ public:
 
 
 
+    //  The Apple comes up on the line that is open already: the line stays
+    //  open between attempts, so its Ready is read there.
     TEST_METHOD (ALinkStartedBeforeItsApple_ConnectsOnItsOwn_WhenTheAppleAnswers)
     {
         Rig  rig;
@@ -643,7 +645,8 @@ public:
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected), L"no Apple yet");
 
-        rig.factory.answer = true;
+        rig.apple.Attach (rig.factory.GetUnansweredEnd());
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"connected with no request made");
+        Assert::AreEqual (1, rig.factory.connections.load(), L"on the line opened first");
     }
 };

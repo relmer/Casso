@@ -7,6 +7,9 @@
 #include "CassoLink/CassoLinkCaptures.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/CassoLinkSession.h"
+#include "EmuTests/FakeDiskFileIo.h"
+#include "Seams/IByteStreamFactory.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
@@ -39,6 +42,59 @@ TEST_CLASS (CassoLinkAdtProTests)
 {
 public:
 
+    //  The line for a session: each connection is a new handle, and the
+    //  bytes from the Apple while no handle is open are discarded, as on a
+    //  COM port that is closed.
+    struct ReopeningFactory : IByteStreamFactory
+    {
+        std::shared_ptr<InProcessByteStream>  pcEnd;
+        std::atomic<int>                      connects { 0 };
+
+        struct Handle : IByteStream
+        {
+            std::shared_ptr<InProcessByteStream>  end;
+            std::atomic<bool>                     closed { false };
+
+            explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
+
+            HRESULT  Write            (const Byte * data, size_t count) override                                   { return closed ? E_HANDLE : end->Write (data, count); }
+            HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { outRead = 0; return closed ? E_HANDLE : end->Read (buffer, capacity, timeoutMs, outRead); }
+            size_t   GetReadableCount() override                                                                  { return closed ? 0 : end->GetReadableCount(); }
+            bool     IsClosed() const override                                                                    { return closed; }
+            void     Close() override                                                                             { closed = true; }
+        };
+
+        HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
+        HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND); }
+        HRESULT  ListenTcp    (uint16_t, LinkTransport, std::unique_ptr<IByteStream> &) override                  { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+
+        HRESULT  ConnectTcp (const std::string &, uint16_t, std::unique_ptr<IByteStream> & outStream) override
+        {
+            Byte     discard[256];
+            size_t   got = 0;
+            HRESULT  hr  = S_OK;
+
+            while (pcEnd->GetReadableCount() > 0 && SUCCEEDED (hr))
+            {
+                hr = pcEnd->Read (discard, sizeof (discard), 0, got);
+            }
+
+            connects++;
+            outStream = std::make_unique<Handle> (pcEnd);
+            return S_OK;
+        }
+    };
+
+    //  Counts the connection attempts that found no Apple.
+    struct QuietSink : ICassoLinkSessionSink
+    {
+        std::atomic<int>  misses { 0 };
+
+        void  OnStateChanged (LinkState state) override { misses += (state == LinkState::Disconnected) ? 1 : 0; }
+        void  OnProgress     (const std::shared_ptr<LinkOperation> &) override {}
+        void  OnDone         (const std::shared_ptr<LinkOperation> &) override {}
+    };
+
     struct Rig
     {
         TestMachine                           machine { "Apple2c" };
@@ -48,7 +104,8 @@ public:
         std::unique_ptr<CassoLinkHost>        host;
         std::jthread                          serving;
 
-        Rig()
+        //  Without the host, the line is left for a test's own session.
+        explicit Rig (bool serve = true)
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  client;
@@ -64,6 +121,11 @@ public:
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
+            if (!serve)
+            {
+                return;
+            }
+
             host    = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
             serving = std::jthread ([this] (std::stop_token stop)
             {
@@ -78,8 +140,11 @@ public:
 
         ~Rig()
         {
-            serving.request_stop();
-            serving.join();
+            if (serving.joinable())
+            {
+                serving.request_stop();
+                serving.join();
+            }
         }
 
         std::string  Screen()
@@ -395,5 +460,47 @@ public:
         rig.Type ("\r");
         Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 40'000'000), L"the next listing arrives");
         Assert::AreEqual (std::string ("A.DSK"), rig.Highlighted (3));
+    }
+
+
+    //  With no Casso program on the line, the session makes attempt after
+    //  attempt while ADTPro's client boots; the line stays open across the
+    //  attempts, and the client's request between them is served.
+    TEST_METHOD (ASessionWithNoAppleAnswering_KeepsTheLineOpen_AndServesAdtPro)
+    {
+        Rig                 rig (false);
+        ReopeningFactory    factory;
+        FakeDiskFileIo      fileIo;
+        QuietSink           sink;
+        CassoLinkSettings   settings;
+
+        factory.pcEnd = rig.hostEnd;
+        rig.folder.files["A.DSK"] = std::vector<Byte> (512, 0);
+
+        CassoLinkSession  session (factory, rig.folder, fileIo, sink);
+
+        settings.name      = "//c";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+
+        session.SetConnectTimeout (200);
+        session.SetRetryInterval (200);
+        AssertSucceeded (session.Start (settings));
+
+        rig.Start ('D');
+
+        auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (10);
+
+        while (sink.misses < 3 && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (50));
+        }
+
+        Assert::IsTrue (sink.misses >= 3, L"more than one attempt");
+
+        rig.Type ("\r");
+        Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 400'000'000), L"the listing arrives");
+        Assert::AreEqual (std::string ("A.DSK"), rig.Highlighted (3));
+        Assert::AreEqual (1, factory.connects.load(), L"the line was opened once");
     }
 };

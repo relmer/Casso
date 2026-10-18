@@ -134,12 +134,13 @@ public:
 //  queue of operations, run one at a time on the session's own thread
 //  (FR-098). Every request returns at once with its queued operation.
 //
-//  The stream is opened when the session starts. With no Apple answering,
-//  or after the line drops, it is opened again every kRetryMs, and at once
-//  when a request arrives. Opening waits for the Apple's
-//  Ready at the bootstrap speed, loads the program when its version
-//  differs, and switches to the link's speed. While nothing is queued, Idle
-//  is sent in reply to each Ready.
+//  The stream is opened when the session starts. With no Apple on it, the
+//  line stays open and is served until the next attempt, kRetryMs later or
+//  at once when a request or the Apple's Ready arrives, so ADTPro's client
+//  is served between attempts; a line that drops is opened again at the
+//  next attempt. Opening waits for the Apple's Ready at the bootstrap speed,
+//  loads the program when its version differs, and switches to the link's
+//  speed. While nothing is queued, Idle is sent in reply to each Ready.
 //
 //  A write first reads the catalog again, and fails when it differs from
 //  the last listing of the drive, so a disk changed since it was listed is
@@ -152,7 +153,7 @@ class CassoLinkSession
 public:
     static constexpr DWORD  kConnectTimeoutMs = 20000;
     static constexpr DWORD  kIdlePollMs       = 100;
-    static constexpr DWORD  kPromptMs         = 2000;
+
     static constexpr DWORD  kRetryMs          = 5000;
 
     //  The program sends Ready every 100 ms while idle; this long with no
@@ -257,6 +258,8 @@ private:
     HRESULT  Connect       (std::stop_token stop, DWORD openAt = 0);
     HRESULT  RunBootstrap  (std::stop_token stop, LinkOperation & operation);
     HRESULT  OpenStream    (DWORD baud);
+    void     ServeUntilRetry (std::stop_token stop);
+    bool     IsLineOpen    () const;
     HRESULT  AwaitProgram  (std::stop_token stop, DWORD timeoutMs, bool & outReady);
     void     Disconnect    ();
     bool     IsPeerGone    ();
@@ -298,6 +301,8 @@ private:
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
     DWORD                                       m_retryMs          = kRetryMs;
     bool                                        m_peerSeen         = false;
+    DWORD                                       m_openBaud         = 0;
+    bool                                        m_prompted         = false;
     std::wstring                                m_modelName;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;

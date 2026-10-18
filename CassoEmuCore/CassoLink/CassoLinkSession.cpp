@@ -578,11 +578,12 @@ void CassoLinkSession::Run (std::stop_token stop)
                 }
 
                 m_queue.clear();
-
-                //  Connecting again after a while, or at once when a request arrives, so a
-                //  link started before its Apple is ready connects when it is.
-                m_wake.wait_for (lock, stop, std::chrono::milliseconds (m_retryMs), [this] () { return !m_queue.empty(); });
             }
+
+            //  Connecting again after a while, or at once when a request
+            //  arrives, so a link started before its Apple is ready connects
+            //  when it is.
+            ServeUntilRetry (stop);
 
             hr = stop.stop_requested() ? S_OK : Connect (stop);
             continue;
@@ -786,11 +787,20 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
 
 
     //  After a bootstrap the line is open already, at the bootstrap speed.
+    //  A line that read the Apple's Ready between attempts stays at its
+    //  speed. The bootstrap speed is added only on a line just opened, for
+    //  a shim typed in that is waiting at it; on a line open already, and
+    //  once ADTPro's client has made a request, an attempt at the bootstrap
+    //  speed would garble ADTPro's requests at the link's speed.
     if (openAt != 0)
     {
         speeds = { openAt };
     }
-    else if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud)
+    else if (m_host && (m_host->HasClient() || m_host->HasAdtProClient()))
+    {
+        speeds = { m_openBaud };
+    }
+    else if (m_settings.transport == LinkTransport::Serial && m_settings.baud != m_settings.bootstrapBaud && !m_adtPro && !IsLineOpen())
     {
         speeds.insert (speeds.begin(), m_settings.bootstrapBaud);
     }
@@ -863,12 +873,84 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     SetState (LinkState::Ready);
 
 Error:
-    if (FAILED (hr))
+    //  With no Apple on it, the line stays open, and the wait before the
+    //  next attempt serves it.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) && IsLineOpen())
+    {
+        SetState (LinkState::Disconnected);
+    }
+    else if (FAILED (hr))
     {
         Disconnect();
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::IsLineOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkSession::IsLineOpen() const
+{
+    return m_host && m_stream && !m_stream->IsClosed();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::ServeUntilRetry
+//
+//  The line, while it is open, is served until the next attempt is due, a
+//  request is queued or the Apple's Ready arrives; with no line open, the
+//  wait is only for the next attempt or a request.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::ServeUntilRetry (std::stop_token stop)
+{
+    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_retryMs);
+    bool     queued   = false;
+    bool     ready    = false;
+    HRESULT  hr       = S_OK;
+
+
+
+    while (!stop.stop_requested() && !queued && !ready && std::chrono::steady_clock::now() < deadline)
+    {
+        if (!m_host)
+        {
+            std::unique_lock<std::mutex>  lock (m_lock);
+
+            m_wake.wait_until (lock, stop, deadline, [this] () { return !m_queue.empty(); });
+            break;
+        }
+
+        hr = m_host->ServeOne (kIdlePollMs);
+
+        if (FAILED (hr))
+        {
+            Disconnect();
+            continue;
+        }
+
+        ready = m_host->HasClient();
+
+        {
+            std::lock_guard<std::mutex>  lock (m_lock);
+
+            queued = !m_queue.empty();
+        }
+    }
 }
 
 
@@ -894,8 +976,13 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
     uint16_t                      port      = 0;
     size_t                        colon     = m_settings.address.rfind (':');
     bool                          addressed = false;
+    bool                          reusable  = IsLineOpen() && (m_settings.transport != LinkTransport::Serial || m_openBaud == baud);
 
 
+
+    //  A line open already at the speed is used as it is, so no byte from
+    //  the Apple is dropped while the line is closed and opened again.
+    BAIL_OUT_IF (reusable, S_OK);
 
     {
         std::lock_guard<std::mutex>  lock (m_lock);
@@ -950,6 +1037,8 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
         });
 
         m_host->SetActivitySink ([this] (const std::string & text) { m_sink.OnActivity (text); });
+        m_openBaud = baud;
+        m_prompted = false;
     }
 
 Error:
@@ -973,7 +1062,6 @@ HRESULT CassoLinkSession::AwaitProgram (std::stop_token stop, DWORD timeoutMs, b
 {
     HRESULT  hr       = S_OK;
     auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
-    auto     prompt   = std::chrono::steady_clock::now();
 
 
 
@@ -983,13 +1071,15 @@ HRESULT CassoLinkSession::AwaitProgram (std::stop_token stop, DWORD timeoutMs, b
     while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
     {
         //  An Apple that sent its Ready before the line was open is waiting
-        //  for a reply, and is prompted for another.
-        if (!m_host->HasClient() && !m_host->HasAdtProClient() && std::chrono::steady_clock::now() >= prompt)
+        //  for a reply, and is prompted for another, once for each line
+        //  opened. A prompt is an envelope, which ADTPro's client, idle on
+        //  the same line, would read as the start of its next reply.
+        if (!m_prompted && !m_host->HasClient() && !m_host->HasAdtProClient())
         {
             hr = m_host->PromptReady();
             CHR (hr);
 
-            prompt = std::chrono::steady_clock::now() + std::chrono::milliseconds (kPromptMs);
+            m_prompted = true;
         }
 
         hr = m_host->ServeOne (kIdlePollMs);
