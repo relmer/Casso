@@ -8317,13 +8317,26 @@ void CassoExplorerWindow::ShowDropTarget (int tag, POINT screen, bool accepted)
         }
     }
 
+    //  A collapsed node the drag rests on for a second opens, as in File
+    //  Explorer's navigation pane, so the drop can go into one of its folders.
+    if (treeRow >= 0 && treeRow == m_treeDropRow && GetTickCount64() - m_treeDropSinceMs >= kTreeDropExpandMs)
+    {
+        const DxuiTreeNode  * node = m_tree->GetNodeAt (treeRow);
+
+        if (node != nullptr && !node->expanded && (!node->childrenLoaded || !node->children.empty()) && m_tree->SetRowExpanded (treeRow, true))
+        {
+            Invalidate();
+        }
+    }
+
     if (listRow == m_list->GetDropRow() && treeRow == m_treeDropRow)
     {
         return;
     }
 
     m_list->SetDropRow (listRow);
-    m_treeDropRow = treeRow;
+    m_treeDropRow     = treeRow;
+    m_treeDropSinceMs = GetTickCount64();
     m_tree->SetDropRow (treeRow);
 
     Invalidate();
@@ -10125,7 +10138,8 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         hasLocation = false;
     }
 
-    //  A folder on the disk has Explorer's row of Cut, Copy and Delete.
+    //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
+    //  Delete.
     if (hasLocation && ((location.kind == Location::Kind::HostFolder && location.path.size() > 3) || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path, id);

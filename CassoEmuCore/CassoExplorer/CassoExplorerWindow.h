@@ -316,6 +316,10 @@ public:
     //  so the refresh can be seen.
     static constexpr UINT  kRefreshBlankMs        = 100;
 
+    //  How long a drag rests on a collapsed tree node before it opens,
+    //  measured against File Explorer's: between 970 and 1,090 ms.
+    static constexpr UINT  kTreeDropExpandMs      = 1000;
+
     //  File Explorer's Quick access, pinned and frequent folders alike, is the
     //  jump list of this application id, in the Recent folder's
     //  AutomaticDestinations.
@@ -1001,6 +1005,7 @@ private:
     PendingDrop                                  m_pendingDrop;
 
     int                                          m_treeDropRow       = -1;
+    ULONGLONG                                    m_treeDropSinceMs   = 0;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
     BrowserModel::AddressRoot                    m_addressRoot;
 
