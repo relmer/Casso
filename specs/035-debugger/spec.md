@@ -211,6 +211,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Does the profiler count cycles by routine? -> A: Yes. While profiling is on, each instruction's cycles go to the routine running it. A JSR, a BRK or an interrupt starts a routine at the address it lands on, and the routine ends when the stack pointer rises back to where it was before the call, so RTS, RTI and stack tricks such as PLA PLA RTS end it; code outside any call is Top level. The profile has a call tree (each routine under its caller, with self cycles, total cycles and calls), the routines (self, total, calls and cycles per call, each counted once per call chain) and a timeline of the last 600 video frames with each frame's cycles by routine. `PROFILE LIST ROUTINES` and `PROFILE LIST TREE` list them, `PROFILE SAVE` writes them, and the debug channel's profile reply has them (FR-243, FR-244).
 - Q: How does the Profiler pane present the routines? -> A: Its view drop-down chooses Opcodes, Addresses, Routines, Call tree or Flame graph. A timeline of frames runs across the top, each frame a bar of its cycles stacked by routine, with a tip listing the frame's routines. The flame graph draws each routine as a bar as wide as its total, under its caller, with a tip giving its self, total and calls; a click zooms into a routine and a click on Top level zooms out. Activating a routine in any view moves the disassembly to it (FR-193, FR-245).
 - Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
+- Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3155,6 +3156,33 @@ run something, switch back to the //e: it is where it was left.
   byte by its heat. Every heat column MUST follow the heat map's fade or
   cumulative mode and read the CPU's address space, and the heat map MUST
   record while any heat column is shown.
+- **FR-249**: Each debug pane MUST be its own controller class behind one
+  pane interface that creates and configures its controls, adds itself to
+  the dock, applies a snapshot, places its bar, routes a mouse event and a
+  key, returns its tip at a point, adds its context menu rows, lists its
+  controls, and saves and restores its state. A pane MUST call the window
+  only through a pane host interface: run an action, go to an address, the
+  theme and the heat palette, the popup host, the scaler and a repaint
+  request.
+- **FR-250**: The window MUST contain the dock, the menus, the command bar,
+  the timeline, the status bar and the list of panes; its mouse, key, tip,
+  snapshot and placement code MUST be loops over the panes, with no pane
+  referenced by its id.
+- **FR-251**: Tooltip coordination, the mouse and key routing for floating
+  and slid-out panes, the View menu's rows, and the placing, routing and tips
+  of a pane's bar MUST each be a class of their own; one bar helper MUST
+  serve every pane's bar.
+- **FR-252**: A pane class larger than about 1,500 lines MUST be split
+  further, with pure logic out of its controller; the split of each pane is
+  settled when its task comes up, from what is in it. The Disk II and input
+  event logs MUST share one base class.
+- **FR-253**: The debugger's behavior, look and saved settings MUST match the
+  build before the refactor: every debugger test MUST pass after each step,
+  no test is deleted to make a step pass, tests that read the window's
+  internals move to the pane classes, and the moved panes are exercised on
+  screen, docked, floating and slid out, after each step.
+- **FR-254**: `/bigobj` MUST be removed from `DebuggerWindow.cpp` once the
+  last pane has moved.
 
 ### Key Entities
 
@@ -3412,6 +3440,13 @@ run something, switch back to the //e: it is where it was left.
   that release saved for each machine kind is in the test suite, and every
   later build loads each one and runs it for one second of emulated time
   without error.
+
+- **SC-060**: The project builds with `/bigobj` on no file.
+- **SC-061**: No debugger window source file is over about 3,000 lines, and
+  no pane class is over about 1,500.
+- **SC-062**: Adding a pane takes its class and one line in the pane list,
+  with no other edit to the window, as a unit test with a trivial test pane
+  demonstrates.
 
 **Out of scope for the automatic states**: a state picker or browser, more than
 one automatic state per machine kind, and states saved on a timer.
