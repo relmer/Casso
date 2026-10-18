@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -85,8 +86,7 @@ namespace DebuggerBreakpointPaneContentTests
         }
 
         using DebuggerWindow::OnCreate;
-        using DebuggerWindow::GetBreakpointList;
-        using DebuggerWindow::GetBreakpointBar;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::GetPaneContentForTest;
     };
 
@@ -124,9 +124,9 @@ namespace DebuggerBreakpointPaneContentTests
             Assert::IsNotNull (content);
 
             content->Layout (RECT { 0, 0, 400, 300 }, scaler);
-            list = window.GetBreakpointList()->GetBounds();
+            list = window.GetBreakpointsPane().GetList()->GetBounds();
 
-            Assert::IsTrue (window.GetBreakpointList()->IsVisible());
+            Assert::IsTrue (window.GetBreakpointsPane().GetList()->IsVisible());
             Assert::AreEqual (300L, list.bottom);
             Assert::IsTrue (list.top > 0 && list.top < 100);
         }

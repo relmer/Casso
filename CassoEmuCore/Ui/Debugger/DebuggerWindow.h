@@ -154,46 +154,17 @@ protected:
     void     PaintDragLayer  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasDragLayer    () const override;
     void     OnWindowFocusChanged (bool focused) override;
-    void     PaintBranchArrow (IDxuiPainter & painter, int view);
-    bool     GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom = false) const;
-    bool     ClickBranchArrow (POINT pointPx);
 
     //  Protected so a test can apply one as the keys do.
     void     ApplyTextZoom   (float zoom);
     void     StepTextZoom    (int steps);
     float    GetTextZoom     () const { return m_textZoom; }
 
-    //  Protected so a test can submit the Address box as Enter does.
-    void             SubmitMemoryBox ();
-    DxuiTextInput  * GetMemoryBox    () const;
-
     //  Protected so a test can focus a control as a click does.
-    DxuiTextInput  * GetCommandBox   () const { return m_consolePane->GetCommandLine().GetBox(); }
     void             FocusControl    (IDxuiControl * control) override { SetFocusedControl (control); }
 
-    //  Protected so a test can write to the console as the host's lines do,
-    //  and search it as the find bar does.
+    //  Protected so a test can write to the console as the host's lines do.
     void             AppendConsole   (const std::vector<std::string> & lines) override;
-    void             OpenFind        ();
-    void             OpenFindIn      (const std::wstring & pane);
-    void             CloseFind       ();
-    void             FindInPane      (bool forward);
-    std::wstring     GetFindPane     () const { return m_finds->GetActivePane(); }
-    DxuiTextView   * GetSourceView   (int slot) const;
-    bool             IsFindOpen      () const { return m_finds->IsOpen(); }
-    bool             IsFindOpenIn    (const std::wstring & pane) const;
-    DxuiTextInput  * GetFindBoxOf    (const std::wstring & pane) const;
-    DxuiTextView   * GetConsoleView  () const { return m_consolePane->GetOutput().GetView(); }
-    DxuiTextInput  * GetFindBox      () const { return m_finds->GetBox(); }
-    DxuiButton     * GetFindWordButton () const { return m_finds->GetWordButton(); }
-    void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
-    void             RefocusFindBox  ();
-    std::wstring     GetFindStatus   () const { return m_finds->GetStatus(); }
-    void             SetFindInSelection (bool on);
-    bool             IsFindInSelection  () const { return m_finds->IsInSelection(); }
-    std::vector<std::wstring>  GetFindHistory (const std::wstring & pane) const;
-    bool             StepFindHistory (int step);
-    RECT             GetFindWidgetBounds () const { return m_finds->GetBounds(); }
 
     //  Protected so a test can choose a scheme as the Keys menu does, and
     //  read the drop-down rows it leaves.
@@ -216,85 +187,26 @@ protected:
     //  Protected so a test can hand the window a snapshot as a frame does.
     void             TakeSnapshot    (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
 
-    void             ShowDroppedSource (const std::wstring & path);
     static bool      IsSymbolFile      (const std::wstring & path);
 
-    //  Protected so a test can open a source file as File > Open source file
-    //  does and press a document's Load symbols button.
-    void                OpenSourcePath      (const std::wstring & path);
-    void                LoadSymbolsFor      (int slot);
-    bool                IsLooseSource       (int slot) const;
-    const SourcePane &  GetSourcePane       (int slot) const;
-
-    //  Protected so a test can see which pane the watch editor goes with.
+    //  Protected so a test can see which pane a control is in.
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
-    DxuiTextInput  * GetWatchEditor   () const;
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const override;
 
-    //  Protected so a test can read and run a code row's menu entries.
-    std::optional<std::pair<Word, Word>>  GetCodeSelection (int view, int row) const;
-    void                   AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row,
-                                             std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    void                   EditInstruction  (int view, const DebuggerViewSnapshot::CodeLine & line);
-    void                   ReplaceWithNops  (int view, std::pair<Word, Word> range);
-    void                   UndoCodeEdit     (bool redo);
-    bool                   TryGetCodeBytes  (int view, Word first, Word last, std::vector<Byte> & bytes) const;
-
-    //  Protected so a test can switch a disassembly viewing option as its
-    //  check box does, read the rows a view shows, and hover its gutter.
-    void                         ToggleCodeOption    (DisassemblyOptions::Option option);
-    bool                         IsCodeOptionEnabled (DisassemblyOptions::Option option) const;
-    const DisassemblyOptions  &  GetCodeOptions      () const;
-    DxuiToolbar               *  GetCodeBar          (int view) const;
+    //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;
-    void                         HoverGutter         (POINT atDip);
 
-    //  Protected so a test can press the gutter and drag the PC's arrow to
-    //  another line, which sets the next statement there.
-    bool                         ClickGutter         (const DxuiMouseEvent & ev);
-    void                         DragPcMarker        (POINT atDip);
-    bool                         DropPcMarker        (const DxuiMouseEvent & ev);
-    void                         SetNextStatement    (Word address);
-
-    //  Protected so a test can edit a watch as F2 and Enter do, and see where
-    //  the keys go.
-    void            BeginWatchEdit (int row, int column);
-    void            EndWatchEdit   (bool commit);
-
-    //  Renaming a breakpoint in place (FR-172), as F2, a double-click on its
-    //  Name or Rename does; protected so a test can do the same.
-    void            BeginNameEdit  (int row);
-    void            EndNameEdit    (bool commit);
+    //  Protected so a test can see where the keys go.
     IDxuiControl  * GetFocused     () const;
-    DxuiListView  * GetWatchList   () const;
-
-    //  Protected so a test can edit a stack byte or a register in place as a
-    //  click, F2 and Enter do.
-    DxuiTextInput * GetStackEditor    () const;
-    DxuiTextInput * GetRegisterEditor () const;
-    DxuiListView  * GetStackList      () const;
-    DxuiListView  * GetRegisterList   () const;
 
     //  Protected so a test can see which pane has the focus border.
     std::wstring    GetPaneOfFocus () const;
 
     //  Protected so a test can press Shift+Esc's close.
     bool            ClosePaneOfFocus ();
-
-    //  Protected so a test can work the memory bar as a click does, and see
-    //  which of its entries a narrow pane moves into its overflow menu.
-    DxuiToolbar *                      GetMemoryBar         () const;
-    const std::vector<std::wstring> &  GetMemoryHistory     () const;
-    void                               RunMemoryBarEntry    (int id);
-    void                               ChooseMemoryColumns  (int columns);
-    void                               ChooseMemoryGrouping (int grouping);
-
-    //  Protected so a test can see that every find bar control has a tip.
-    const wchar_t *              GetFindBarTip   (POINT clientPx, RECT & anchor) const;
-    std::vector<IDxuiControl *>  GetFindControls () const;
 
     //  Protected so a test can close a floating pane as its close button
     //  does, and see the layout it leaves.
@@ -309,12 +221,8 @@ protected:
     void                       ClosePane        (const std::wstring & pane) override;
     bool                       IsPaneShown      (const std::wstring & pane) const override;
 
-    //  The heat map pane, whether the host was last told to record for it, and
-    //  the step that keeps the recording current. The rest forward to the
-    //  pane, protected so a test can work its bar.
-    HeatMapView              * GetHeatMapView       () const;
-    DxuiToolbar              * GetHeatMapBar        () const;
-    DxuiToolbar              * GetHeatViewBar       () const;
+    //  Whether the host was last told to record the heat map, and the step
+    //  that brings the recording up to date.
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
 
@@ -324,43 +232,11 @@ protected:
     bool                       IsAnyHeatColumnOn    () const;
 
     void                       ApplyHeatMap         ();
-    void                       SetHeatMapBarMenus   ();
-    void                       SetHeatMapOptions    (const HeatMapOptions & options);
-    bool                       IsHeatMapBarEnabled  (int id) const;
-    bool                       IsHeatMapBarChecked  (int id) const;
-    std::wstring               GetHeatMapBarLabel   (int id) const;
-    void                       AddHeatMapAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items);
-
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapFadeCommands () const;
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatViewCommands    () const;
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetHeatMapBankCommands () const;
-
-    //  The heat map's sets of ranges and the pane that edits them, protected
-    //  so a test can work them as the bars, the list and the edit box do:
-    //  the set the map shows and the set the pane edits, the pane's entries,
-    //  an edit in place over a cell or the set's name, and a range's check.
-    const HeatMapRangeSets &   GetHeatRanges          () const;
-    const std::string &        GetEditedRangeSet      () const;
-    DxuiEditableGrid *         GetHeatRangeList       () const;
-    DxuiTextInput *            GetHeatRangeEditor     () const;
-    std::wstring               GetHeatRangeError      () const;
-    bool                       IsEditingHeatRange     () const;
-    void                       ShowRangeSet           (const std::string & name);
-    void                       EditRangeSet           (const std::string & name);
-    void                       RunHeatRangeBarEntry   (int id);
 
     //  Protected so a test can add a pane of its own ahead of OnCreate, as
     //  CreatePanes adds the window's, over the window's pane host.
     void                 AddPane            (std::unique_ptr<IDebuggerPane> pane) { m_panes.push_back (std::move (pane)); }
     IDebuggerPaneHost  & GetPaneHostForTest () { return *this; }
-
-    //  The profiler bar's commands, protected so a test can work the bar.
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetProfilerCommands () const;
-    bool                       IsHeatRangeBarEnabled  (int id) const;
-    void                       BeginHeatRangeEdit     (int row, HeatMapRangeSets::Field field);
-    void                       EndHeatRangeEdit       (bool commit);
-    void                       ToggleHeatRange        (int row, bool included);
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const;
 
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
@@ -391,31 +267,21 @@ protected:
     static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating, int64_t nowMs, int64_t paintedAtMs);
     void                       RequestPaint           ();
 
-    //  Protected so a test can read the breakpoints pane's columns (FR-117)
-    //  and the breakpoint each row shows once sorted.
+    //  Protected so a test can apply the breakpoints and the open views as a
+    //  snapshot does, set a snapshot without applying it, and read a pane's
+    //  content.
     void                                          ApplyBreakpoints       ();
-    const DebuggerViewSnapshot::BreakpointLine *  GetBreakpointOfRow     (int row) const;
-    void                                          ToggleBreakpointColumn (BreakpointColumns::Column column);
-    void                                          SortBreakpoints        (BreakpointColumns::Column column);
     void                                          KeepOpenViews          ();
-    DxuiListView *                                GetBreakpointList      () const;
     void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
     IDxuiControl *                                GetPaneContentForTest  (const std::wstring & pane) const { return GetPaneContent (pane); }
 
-    //  Protected so a test can work the breakpoints pane's toolbar (FR-119)
-    //  as a click does, and see which of its buttons can act.
-    DxuiToolbar *                                      GetBreakpointBar       () const;
-    bool                                               IsBreakpointBarEnabled (int id) const;
-    void                                               RunBreakpointBarEntry  (int id);
+    //  Protected so a test can open the zero-page pointer dialog as Add
+    //  zero-page pointer... does.
     void                                               AddZeroPagePointer     () override;
 
     //  Protected so a test can work the registers, stack and watch panes'
     //  Undo and Redo bars as a click does.
     DxuiToolbar *  GetUndoBar (const std::wstring & pane) const;
-
-    //  Protected so a test can read whether the memory bar's entries,
-    //  Undo and Redo among them, are enabled.
-    bool  IsMemoryBarEnabled (int id) const;
 
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
@@ -424,13 +290,9 @@ protected:
 
     void                                  SetWindowMenus     ();
     void                                  Detach             ();
-    void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
-    DxuiToolbar *                         GetConsoleBar      () const { return m_consolePane->GetModeBar().GetSlot().GetBar(); }
-    std::wstring                          GetModeText        () const { return m_consolePane->GetModeBar().GetModeText(); }
     static std::wstring                   GetModeLabel       (const wchar_t * mode);
-    DxuiToolbar *                         GetSourceBar       (int slot) const;
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
     //  The console's modes in its drop-down's order: alphabetical by label,
@@ -443,9 +305,7 @@ protected:
     //  and that none shows while a menu is open.
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
 
-    //  A pane's info button, and the color key it opens.
-    ColorKeyButton *       GetColorKey      (const std::wstring & pane) const { return m_colorKeys->Find (pane); }
-    const ColorKeyPopup &  GetColorKeyPopup () const { return m_colorKeys->GetPopup(); }
+    //  Protected so a test can see whether a menu is open.
     bool                 IsAnyMenuOpen () const override;
 
     //  Protected so a test can read the status bar as a frame leaves it, and
@@ -465,36 +325,18 @@ protected:
     void             FitHistoryField     (IDxuiTextRenderer & text);
 
     //  Protected so a test can read the tip that says what a color means where
-    //  the pointer rests: over a list's cell, the PC's branch arrow, the disk
-    //  head or the history meter. And the colors the legend shows.
-    bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const { return m_tips->TryGetCellTip (clientPx, anchor, text); }
+    //  the pointer rests: over the PC's branch arrow, the disk head or the
+    //  history meter. And the colors the legend shows.
     bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
     bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const override;
     ColorLegend::Palette  GetColorPalette  () const override;
 
-    //  Protected so a test can lay out the tip over a disassembly row's
-    //  operand and result where the pane cuts them off, measured by a
-    //  renderer of its own on a screen of its own, and see the tip the
-    //  pointer's moves, presses and keys, new rows and new layouts leave up:
-    //  the window keeps it whether or not a popup draws it.
+    //  The screen and cell of the tip over a disassembly row's operand and
+    //  result, as a test passes them to the OperandTipController.
     using OperandTipCell   = ::OperandTipCell;
     using OperandTipScreen = ::OperandTipScreen;
 
-    bool  TryGetOperandTip       (POINT clientPx, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
-                                  OperandResultTip::Layout & out, OperandTipCell & outCell) const
-                                 { return m_operandTips->TryGet (clientPx, scaler, text, screen, out, outCell); }
-    void  PlaceOperandTip        (const DxuiMouseEvent & ev, bool isPressed, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen)
-                                 { m_operandTips->Place (ev, isPressed, scaler, text, screen); }
     void  CheckOperandTip        (int view) override { m_operandTips->Check (view); }
-    void  CheckOperandTipPointer (POINT clientPx) { m_operandTips->CheckPointer (clientPx); }
-    bool  HasOperandTip          () const { return m_operandTips->HasTip(); }
-
-    const OperandResultTip::Layout &  GetOperandTipLayout () const { return m_operandTips->GetLayout(); }
-    const OperandTipCell &            GetOperandTipCell   () const { return m_operandTips->GetCell(); }
-
-    //  The renderer and screen the tip is measured with in a window that has
-    //  no HWND, as a test builds it.
-    void  SetOperandTipDeviceForTest (IDxuiTextRenderer * text, const OperandTipScreen & screen) { m_operandTips->SetDeviceForTest (text, screen); }
 
     //  Protected so a test can slide out an auto-hidden pane, as a press on
     //  its tab does.
@@ -514,6 +356,26 @@ protected:
 
     //  The text colors for m_theme, which GetTextColors reads every frame.
     mutable DebuggerTextColors::Cache  m_textColors;
+
+    //  Protected so a test can work each pane and group through its own
+    //  class, as the window does.
+    BreakpointsPane        & GetBreakpointsPane () const { return *m_breakpointsPane; }
+    CodeEditCommands       & GetCodeEdits       () const { return *m_codeEdits; }
+    DisassemblyGroup       & GetCodeGroup       () const { return *m_code; }
+    DisassemblyGutter      & GetCodeGutter      () const { return *m_gutter; }
+    PaneColorKeys          & GetColorKeys       () const { return *m_colorKeys; }
+    ConsolePane            & GetConsolePane     () const { return *m_consolePane; }
+    FindWidgetSet          & GetFindWidgets     () const { return *m_finds; }
+    HeatMapPane            & GetHeatMapPane     () const { return *m_heatMapPane; }
+    HeatRangesPane         & GetHeatRangesPane  () const { return *m_heatRangesPane; }
+    MemoryWindowGroup      & GetMemoryGroup     () const { return *m_memoryGroup; }
+    ProfilerPane           & GetProfilerPane    () const { return *m_profilerPane; }
+    RegistersPane          & GetRegistersPane   () const { return *m_registersPane; }
+    SourceDocumentGroup    & GetSourceGroup     () const { return *m_sources; }
+    StackPane              & GetStackPane       () const { return *m_stackPane; }
+    TooltipCoordinator     & GetTipCoordinator  () const { return *m_tips; }
+    WatchesPane            & GetWatchesPane     () const { return *m_watchesPane; }
+    OperandTipController   & GetOperandTips     () override { return *m_operandTips; }
 
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
@@ -719,9 +581,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The tip sources (ITooltipSources).
     const std::vector<std::unique_ptr<IDebuggerPane>> &  GetTipPanes () const override { return m_panes; }
-    OperandTipController &       GetOperandTips   () override { return *m_operandTips; }
     const wchar_t *              GetCommandBarTip (POINT clientPx, RECT & anchor) const override;
-    const wchar_t *              GetFindTip       (POINT clientPx, RECT & anchor) const override { return GetFindBarTip (clientPx, anchor); }
+    const wchar_t *              GetFindTip       (POINT clientPx, RECT & anchor) const override { return m_finds->GetTip (clientPx, anchor); }
     std::wstring                 GetChromeTipAt   (POINT clientPx, RECT & anchor) const override;
     std::vector<DxuiListView *>  GetTipLists      () const override;
     bool                         TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;

@@ -92,7 +92,7 @@ namespace DebuggerBasicFollowTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
     };
 
@@ -185,7 +185,7 @@ namespace DebuggerBasicFollowTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
             window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.TakeSnapshot (MakeSnapshot (true, 0xD81D, 10));
 
             Assert::AreEqual (std::wstring (DebuggerLayout::kBasicProgram), window.GetPaneOfFocus());

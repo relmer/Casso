@@ -80,15 +80,10 @@ namespace DebuggerFindWidgetInputTests
             m_host  = &host;
         }
 
-        using DebuggerWindow::GetConsoleView;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetCursorForPoint;
-        using DebuggerWindow::GetFindBarTip;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindControls;
-        using DebuggerWindow::GetFindStatus;
-        using DebuggerWindow::GetFindWidgetBounds;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::AppendConsole;
-        using DebuggerWindow::OpenFindIn;
 
         void  Build()
         {
@@ -144,7 +139,7 @@ namespace DebuggerFindWidgetInputTests
 
         //  In GetFindControls' order: the box, the three toggles, previous,
         //  next, find in selection and Close.
-        IDxuiControl *  GetFindControl (size_t i) const { return GetFindControls()[i]; }
+        IDxuiControl *  GetFindControl (size_t i) const { return GetFindWidgets().GetActiveControls()[i]; }
     };
 
 
@@ -173,14 +168,14 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
-            window.GetFindBox()->SetText (L"$");
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+            window.GetFindWidgets().GetBox()->SetText (L"$");
 
             window.Click (window.GetFindControl (5));
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus(), L"the first press finds the first");
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(), L"the first press finds the first");
 
             window.Click (window.GetFindControl (5));
-            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus(), L"the next press the second");
+            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindWidgets().GetStatus(), L"the next press the second");
         }
 
 
@@ -193,13 +188,13 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
-            window.GetFindBox()->SetText (L"lda");
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+            window.GetFindWidgets().GetBox()->SetText (L"lda");
 
             window.Click (window.GetFindControl (1));
             window.Press (VK_RETURN);
 
-            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"match case is on, so LDA is not lda");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindWidgets().GetStatus(), L"match case is on, so LDA is not lda");
         }
 
 
@@ -214,11 +209,11 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
 
-            for (size_t i = 0; i < window.GetFindControls().size(); i++)
+            for (size_t i = 0; i < window.GetFindWidgets().GetActiveControls().size(); i++)
             {
-                const wchar_t * tip = window.GetFindBarTip (InputWindow::GetCenter (window.GetFindControl (i)), anchor);
+                const wchar_t * tip = window.GetFindWidgets().GetTip (InputWindow::GetCenter (window.GetFindControl (i)), anchor);
 
                 Assert::IsNotNull (tip);
                 Assert::IsTrue    (seen.insert (tip).second, (std::wstring (L"a tip of its own: ") + tip).c_str());
@@ -236,10 +231,10 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
-            box = window.GetFindBox()->GetBounds();
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+            box = window.GetFindWidgets().GetBox()->GetBounds();
 
-            for (size_t i = 1; i < window.GetFindControls().size(); i++)
+            for (size_t i = 1; i < window.GetFindWidgets().GetActiveControls().size(); i++)
             {
                 Assert::IsTrue (window.GetCursorForPoint (InputWindow::GetCenter (window.GetFindControl (i))) == IDC_ARROW, L"the arrow over a button");
             }
@@ -257,9 +252,9 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
 
-            for (size_t i = 1; i < window.GetFindControls().size(); i++)
+            for (size_t i = 1; i < window.GetFindWidgets().GetActiveControls().size(); i++)
             {
                 const DxuiButton * button = dynamic_cast<const DxuiButton *> (window.GetFindControl (i));
 
@@ -281,10 +276,10 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             box    = window.GetFindControl (0)->GetBounds();
             prev   = window.GetFindControl (4)->GetBounds();
-            widget = window.GetFindWidgetBounds();
+            widget = window.GetFindWidgets().GetBounds();
 
             Assert::IsTrue (box.right < prev.left,                       L"the box ends before the arrows");
             Assert::IsTrue (prev.left - box.right >= 40,                 L"with room for the count between them");
@@ -301,14 +296,14 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"$");
 
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus(),                 L"found with no Return");
-            Assert::AreEqual ((size_t) 2, window.GetConsoleView()->GetFindHighlights().size(), L"and both highlighted");
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(),                 L"found with no Return");
+            Assert::AreEqual ((size_t) 2, window.GetConsolePane().GetOutput().GetView()->GetFindHighlights().size(), L"and both highlighted");
 
             window.Press (VK_BACK);
-            Assert::AreEqual ((size_t) 0, window.GetConsoleView()->GetFindHighlights().size(), L"an empty box highlights nothing");
+            Assert::AreEqual ((size_t) 0, window.GetConsolePane().GetOutput().GetView()->GetFindHighlights().size(), L"an empty box highlights nothing");
         }
 
 
@@ -323,7 +318,7 @@ namespace DebuggerFindWidgetInputTests
 
 
             window.Build();
-            view = window.GetConsoleView();
+            view = window.GetConsolePane().GetOutput().GetView();
             view->SetCellSize (8, 16);
 
             for (int i = 0; i < 400; i++)
@@ -332,13 +327,13 @@ namespace DebuggerFindWidgetInputTests
             }
 
             window.AppendConsole (lines);
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             view->ScrollLines (-1000);
             Assert::AreEqual (0, view->GetTopLine());
 
             window.Type (L"zzz");
 
-            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus());
             Assert::IsTrue   (view->GetTopLine() > 250, L"scrolled down to the match");
             Assert::AreEqual (std::wstring (L"zzz"), view->GetSelectionText(), L"and the match selected");
         }

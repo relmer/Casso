@@ -8,6 +8,8 @@
 #include "CppUnitTest.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
 #include "Ui/Debugger/HeatMapRangeBarCommands.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
+#include "Ui/Debugger/Panes/HeatRangesPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -98,26 +100,10 @@ namespace HeatMapRangesPaneTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetHeatMapView;
-        using DebuggerWindow::GetHeatMapBar;
-        using DebuggerWindow::GetHeatMapBarLabel;
+        using DebuggerWindow::GetHeatMapPane;
         using DebuggerWindow::ApplyHeatMap;
         using DebuggerWindow::SetSnapshotForTest;
-        using DebuggerWindow::GetHeatRanges;
-        using DebuggerWindow::GetEditedRangeSet;
-        using DebuggerWindow::GetHeatRangeList;
-        using DebuggerWindow::GetHeatRangeEditor;
-        using DebuggerWindow::GetHeatRangeError;
-        using DebuggerWindow::IsEditingHeatRange;
-        using DebuggerWindow::ShowRangeSet;
-        using DebuggerWindow::EditRangeSet;
-        using DebuggerWindow::RunHeatRangeBarEntry;
-        using DebuggerWindow::IsHeatRangeBarEnabled;
-        using DebuggerWindow::BeginHeatRangeEdit;
-        using DebuggerWindow::EndHeatRangeEdit;
-        using DebuggerWindow::ToggleHeatRange;
-        using DebuggerWindow::GetRangeSetCommands;
-        using DebuggerWindow::GetHeatViewBar;
+        using DebuggerWindow::GetHeatRangesPane;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::IsFramePaintDue;
         using DebuggerWindow::kIdlePaintMs;
@@ -193,23 +179,23 @@ namespace HeatMapRangesPaneTests
             window.ShowPane (DebuggerLayout::kHeatRanges);
             Relayout (window);
 
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kNewSet);
-            window.GetHeatRangeEditor()->SetText (name);
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kNewSet);
+            window.GetHeatRangesPane().GetEditor()->SetText (name);
+            window.GetHeatRangesPane().EndEdit (true);
         }
 
         //  A new range typed into the start of the hint row.
         static void AddRange (RangesWindow & window, const std::wstring & text)
         {
-            window.BeginHeatRangeEdit (window.GetHeatRangeList()->GetDataRowCount(), Field::Start);
-            window.GetHeatRangeEditor()->SetText (text);
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().BeginEdit (window.GetHeatRangesPane().GetList()->GetDataRowCount(), Field::Start);
+            window.GetHeatRangesPane().GetEditor()->SetText (text);
+            window.GetHeatRangesPane().EndEdit (true);
         }
 
         //  The row of the list whose name cell reads a name.
         static int FindRow (RangesWindow & window, const std::wstring & name)
         {
-            DxuiEditableGrid  * list = window.GetHeatRangeList();
+            DxuiEditableGrid  * list = window.GetHeatRangesPane().GetList();
 
 
 
@@ -226,7 +212,7 @@ namespace HeatMapRangesPaneTests
 
         static std::wstring GetCell (RangesWindow & window, int row, size_t column)
         {
-            return window.GetHeatRangeList()->GetCellsOfRow (row)[column + 1].text;
+            return window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[column + 1].text;
         }
 
 
@@ -275,11 +261,11 @@ namespace HeatMapRangesPaneTests
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, kWideWindow, 900 }, scaler);
 
-            Assert::IsTrue   (window.GetHeatViewBar()->TryGetEntryRect (HeatMapBarCommands::kRangeSet, entry), L"the sets' drop-down is beside the tabs");
-            Assert::IsTrue   (entry.bottom <= window.GetHeatMapView()->GetMapRect().top, L"in the row of views, over the map");
-            Assert::AreEqual (std::wstring (L"Edit ranges..."), window.GetRangeSetCommands().back()->label);
+            Assert::IsTrue   (window.GetHeatMapPane().GetViewBar()->TryGetEntryRect (HeatMapBarCommands::kRangeSet, entry), L"the sets' drop-down is beside the tabs");
+            Assert::IsTrue   (entry.bottom <= window.GetHeatMapPane().GetView()->GetMapRect().top, L"in the row of views, over the map");
+            Assert::AreEqual (std::wstring (L"Edit ranges..."), window.GetHeatRangesPane().GetRangeSetCommands().back()->label);
 
-            window.GetRangeSetCommands().back()->dispatch();
+            window.GetHeatRangesPane().GetRangeSetCommands().back()->dispatch();
 
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kHeatRanges));
         }
@@ -297,24 +283,24 @@ namespace HeatMapRangesPaneTests
             window.ShowPane (DebuggerLayout::kHeatRanges);
             Relayout (window);
 
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kNewSet);
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kNewSet);
 
-            Assert::IsTrue   (window.IsEditingHeatRange(), L"its name opens for typing");
-            Assert::AreEqual (std::wstring (L"Set 1"), window.GetHeatRangeEditor()->GetText());
+            Assert::IsTrue   (window.GetHeatRangesPane().IsEditing(), L"its name opens for typing");
+            Assert::AreEqual (std::wstring (L"Set 1"), window.GetHeatRangesPane().GetEditor()->GetText());
 
-            window.GetHeatRangeEditor()->SetText (L"All memory");
-            window.EndHeatRangeEdit (true);
-            Assert::IsTrue   (window.IsEditingHeatRange(), L"a name the drop-down uses is refused, the box left open");
-            Assert::IsTrue   (window.GetHeatRangeError().starts_with (L"Invalid set name: "), window.GetHeatRangeError().c_str());
+            window.GetHeatRangesPane().GetEditor()->SetText (L"All memory");
+            window.GetHeatRangesPane().EndEdit (true);
+            Assert::IsTrue   (window.GetHeatRangesPane().IsEditing(), L"a name the drop-down uses is refused, the box left open");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetError().starts_with (L"Invalid set name: "), window.GetHeatRangesPane().GetError().c_str());
 
-            window.GetHeatRangeEditor()->SetText (L"Game");
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().GetEditor()->SetText (L"Game");
+            window.GetHeatRangesPane().EndEdit (true);
 
-            Assert::IsFalse  (window.IsEditingHeatRange());
-            Assert::IsTrue   (window.GetHeatRangeError().empty(), L"the reason goes with the edit");
-            Assert::AreEqual (std::string ("Game"), window.GetEditedRangeSet());
+            Assert::IsFalse  (window.GetHeatRangesPane().IsEditing());
+            Assert::IsTrue   (window.GetHeatRangesPane().GetError().empty(), L"the reason goes with the edit");
+            Assert::AreEqual (std::string ("Game"), window.GetHeatRangesPane().GetEditedSetName());
             Assert::IsTrue   (host.ranges.find ("set \"Game\"") != std::string::npos, L"kept");
-            Assert::AreEqual (HeatMapRangeSets::GetPresets().size() - 1, (size_t) window.GetHeatRangeList()->GetDataRowCount(),
+            Assert::AreEqual (HeatMapRangeSets::GetPresets().size() - 1, (size_t) window.GetHeatRangesPane().GetList()->GetDataRowCount(),
                               L"every built-in range listed, My program aside with no symbols");
         }
 
@@ -332,22 +318,22 @@ namespace HeatMapRangesPaneTests
             BuildWithSet (window, L"Game");
             AddRange (window, L"$6000-$95FF");
 
-            row = window.GetHeatRangeList()->GetDataRowCount() - 1;
+            row = window.GetHeatRangesPane().GetList()->GetDataRowCount() - 1;
 
-            Assert::IsFalse  (window.IsEditingHeatRange());
+            Assert::IsFalse  (window.GetHeatRangesPane().IsEditing());
             Assert::AreEqual (std::wstring (L"$6000"), GetCell (window, row, 1));
             Assert::AreEqual (std::wstring (L"$95FF"), GetCell (window, row, 2));
             Assert::AreEqual (std::wstring (L"$3600"), GetCell (window, row, 3));
             Assert::AreEqual (std::wstring (L""),      GetCell (window, row, 4), L"not built in");
 
-            window.BeginHeatRangeEdit (row, Field::Name);
-            window.GetHeatRangeEditor()->SetText (L"Sprites");
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().BeginEdit (row, Field::Name);
+            window.GetHeatRangesPane().GetEditor()->SetText (L"Sprites");
+            window.GetHeatRangesPane().EndEdit (true);
             Assert::AreEqual (row, FindRow (window, L"Sprites"), L"named in place");
 
-            window.BeginHeatRangeEdit (row, Field::Size);
-            window.GetHeatRangeEditor()->SetText (L"$100");
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().BeginEdit (row, Field::Size);
+            window.GetHeatRangesPane().GetEditor()->SetText (L"$100");
+            window.GetHeatRangesPane().EndEdit (true);
             Assert::AreEqual (std::wstring (L"$60FF  +$100"), GetCell (window, row, 2), L"a size, its length shown beside the end");
 
             Assert::IsTrue   (host.ranges.find ("range on \"Sprites\" \"$6000\" \"+$100\"") != std::string::npos, L"kept as typed");
@@ -365,24 +351,24 @@ namespace HeatMapRangesPaneTests
 
 
             BuildWithSet (window, L"Game");
-            rows = window.GetHeatRangeList()->GetDataRowCount();
+            rows = window.GetHeatRangesPane().GetList()->GetDataRowCount();
 
-            window.BeginHeatRangeEdit (rows, Field::Start);
-            window.GetHeatRangeEditor()->SetText (L"NOSUCH..+4");
-            window.EndHeatRangeEdit (true);
+            window.GetHeatRangesPane().BeginEdit (rows, Field::Start);
+            window.GetHeatRangesPane().GetEditor()->SetText (L"NOSUCH..+4");
+            window.GetHeatRangesPane().EndEdit (true);
 
-            Assert::IsTrue   (window.IsEditingHeatRange(), L"the box stays open over what was typed");
-            Assert::AreEqual (std::wstring (L"NOSUCH..+4"), window.GetHeatRangeEditor()->GetText());
-            Assert::IsTrue   (window.GetHeatRangeError().starts_with (L"Invalid range: "), window.GetHeatRangeError().c_str());
+            Assert::IsTrue   (window.GetHeatRangesPane().IsEditing(), L"the box stays open over what was typed");
+            Assert::AreEqual (std::wstring (L"NOSUCH..+4"), window.GetHeatRangesPane().GetEditor()->GetText());
+            Assert::IsTrue   (window.GetHeatRangesPane().GetError().starts_with (L"Invalid range: "), window.GetHeatRangesPane().GetError().c_str());
 
-            window.GetHeatRangeEditor()->SetText (L"$2000-$1000");
-            window.EndHeatRangeEdit (true);
-            Assert::IsTrue   (window.GetHeatRangeError().find (L"before its start") != std::wstring::npos, window.GetHeatRangeError().c_str());
+            window.GetHeatRangesPane().GetEditor()->SetText (L"$2000-$1000");
+            window.GetHeatRangesPane().EndEdit (true);
+            Assert::IsTrue   (window.GetHeatRangesPane().GetError().find (L"before its start") != std::wstring::npos, window.GetHeatRangesPane().GetError().c_str());
 
-            window.EndHeatRangeEdit (false);
-            Assert::IsFalse  (window.IsEditingHeatRange());
-            Assert::AreEqual (rows, window.GetHeatRangeList()->GetDataRowCount(), L"Escape takes the new row away");
-            Assert::IsTrue   (window.GetHeatRangeError().empty());
+            window.GetHeatRangesPane().EndEdit (false);
+            Assert::IsFalse  (window.GetHeatRangesPane().IsEditing());
+            Assert::AreEqual (rows, window.GetHeatRangesPane().GetList()->GetDataRowCount(), L"Escape takes the new row away");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetError().empty());
         }
 
 
@@ -401,25 +387,25 @@ namespace HeatMapRangesPaneTests
 
             Assert::IsTrue   (row >= 0);
             Assert::AreEqual (std::wstring (L"Yes"), GetCell (window, row, 4));
-            Assert::IsFalse  (window.GetHeatRangeList()->GetCellsOfRow (row)[1].check.value_or (true), L"left out to start");
+            Assert::IsFalse  (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (true), L"left out to start");
 
-            window.GetHeatRangeList()->SetSelectedRow (row);
-            Assert::IsFalse  (window.IsHeatRangeBarEnabled (HeatMapRangeBarCommands::kRemove), L"no Remove");
-            Assert::IsFalse  (window.IsHeatRangeBarEnabled (HeatMapRangeBarCommands::kEdit),   L"no Edit");
-            Assert::IsTrue   (window.IsHeatRangeBarEnabled (HeatMapRangeBarCommands::kUp),     L"but it moves");
+            window.GetHeatRangesPane().GetList()->SetSelectedRow (row);
+            Assert::IsFalse  (window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kRemove), L"no Remove");
+            Assert::IsFalse  (window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kEdit),   L"no Edit");
+            Assert::IsTrue   (window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kUp),     L"but it moves");
 
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kRemove);
-            window.BeginHeatRangeEdit (row, Field::Start);
-            Assert::IsFalse  (window.IsEditingHeatRange(), L"no box opens over it");
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kRemove);
+            window.GetHeatRangesPane().BeginEdit (row, Field::Start);
+            Assert::IsFalse  (window.GetHeatRangesPane().IsEditing(), L"no box opens over it");
             Assert::AreEqual (row, FindRow (window, L"Hi-res page 1"), L"still there");
 
-            window.ToggleHeatRange (row, true);
-            Assert::IsTrue   (window.GetHeatRangeList()->GetCellsOfRow (row)[1].check.value_or (false), L"checked in");
+            window.GetHeatRangesPane().ToggleRange (row, true);
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"checked in");
             Assert::IsTrue   (host.ranges.find ("preset hires1 on") != std::string::npos);
 
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kUp);
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kUp);
             Assert::AreEqual (row - 1, FindRow (window, L"Hi-res page 1"), L"Move up");
-            Assert::AreEqual (row - 1, window.GetHeatRangeList()->GetSelectedRow(), L"the selection goes with it");
+            Assert::AreEqual (row - 1, window.GetHeatRangesPane().GetList()->GetSelectedRow(), L"the selection goes with it");
         }
 
 
@@ -437,27 +423,27 @@ namespace HeatMapRangesPaneTests
             BuildWithSet (window, L"Game");
             AddRange (window, L"$6000-$95FF");
             row = FindRow (window, L"Text page 1");
-            window.ToggleHeatRange (row, true);
+            window.GetHeatRangesPane().ToggleRange (row, true);
 
-            for (const std::shared_ptr<DxuiCommand> & command : window.GetRangeSetCommands())
+            for (const std::shared_ptr<DxuiCommand> & command : window.GetHeatRangesPane().GetRangeSetCommands())
             {
                 labels.push_back (command->label);
             }
 
             Assert::IsTrue   ((std::vector<std::wstring> { L"All memory", L"Default", L"Game", L"Edit ranges..." }) == labels, L"the sets, then Edit ranges");
-            Assert::AreEqual (std::wstring (L"All memory"), window.GetHeatMapBarLabel (HeatMapBarCommands::kRangeSet));
-            Assert::IsFalse  (window.GetHeatMapView()->HasRanges());
+            Assert::AreEqual (std::wstring (L"All memory"), window.GetHeatMapPane().GetBarLabel (HeatMapBarCommands::kRangeSet));
+            Assert::IsFalse  (window.GetHeatMapPane().GetView()->HasRanges());
 
-            window.GetRangeSetCommands()[2]->dispatch();
+            window.GetHeatRangesPane().GetRangeSetCommands()[2]->dispatch();
 
-            Assert::IsTrue   (window.GetHeatMapView()->HasRanges(), L"the map shows the set");
-            Assert::AreEqual (std::wstring (L"Game"), window.GetHeatMapBarLabel (HeatMapBarCommands::kRangeSet));
-            Assert::IsTrue   (window.GetHeatMapView()->GetCellRect (0x0400).bottom < window.GetHeatMapView()->GetCellRect (0x6000).top,
+            Assert::IsTrue   (window.GetHeatMapPane().GetView()->HasRanges(), L"the map shows the set");
+            Assert::AreEqual (std::wstring (L"Game"), window.GetHeatMapPane().GetBarLabel (HeatMapBarCommands::kRangeSet));
+            Assert::IsTrue   (window.GetHeatMapPane().GetView()->GetCellRect (0x0400).bottom < window.GetHeatMapPane().GetView()->GetCellRect (0x6000).top,
                               L"Text page 1 over the range added at the set's end, in the set's order");
             Assert::IsTrue   (host.ranges.starts_with ("show \"Game\""), L"kept");
 
-            window.GetRangeSetCommands()[0]->dispatch();
-            Assert::IsFalse  (window.GetHeatMapView()->HasRanges(), L"All memory again");
+            window.GetHeatRangesPane().GetRangeSetCommands()[0]->dispatch();
+            Assert::IsFalse  (window.GetHeatMapPane().GetView()->HasRanges(), L"All memory again");
         }
 
 
@@ -473,13 +459,13 @@ namespace HeatMapRangesPaneTests
 
             BuildWithSet (window, L"Game");
             AddRange (window, L"$6000-$95FF");
-            window.ShowRangeSet ("Game");
+            window.GetHeatRangesPane().ShowRangeSet ("Game");
 
             Build (*again);
 
-            Assert::IsTrue   (again->GetHeatRanges() == window.GetHeatRanges(), L"every set and the set shown");
-            Assert::IsTrue   (again->GetHeatMapView()->HasRanges(), L"the map opens on the set it showed");
-            Assert::AreEqual (std::string ("Game"), again->GetEditedRangeSet());
+            Assert::IsTrue   (again->GetHeatRangesPane().GetSets() == window.GetHeatRangesPane().GetSets(), L"every set and the set shown");
+            Assert::IsTrue   (again->GetHeatMapPane().GetView()->HasRanges(), L"the map opens on the set it showed");
+            Assert::AreEqual (std::string ("Game"), again->GetHeatRangesPane().GetEditedSetName());
         }
 
 
@@ -512,23 +498,23 @@ namespace HeatMapRangesPaneTests
             kept = host.ranges;
 
             window.answer = IDNO;
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kDeleteSet);
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kDeleteSet);
 
             Assert::AreEqual ((size_t) 1, window.questions.size(), L"asked before deleting");
             Assert::AreEqual (std::wstring (L"Delete set"), window.captions[0]);
             Assert::IsTrue   (window.questions[0].find (L"\"Game\"") != std::wstring::npos, L"the question gives the set");
             Assert::AreEqual ((int) MB_YESNO, (int) (window.types[0] & MB_TYPEMASK));
             Assert::AreEqual ((int) MB_DEFBUTTON2, (int) (window.types[0] & MB_DEFMASK), L"No is the default");
-            Assert::AreEqual ((size_t) 2, window.GetHeatRanges().sets.size(), L"No: the set is not deleted");
-            Assert::AreEqual (std::string ("Game"), window.GetEditedRangeSet());
+            Assert::AreEqual ((size_t) 2, window.GetHeatRangesPane().GetSets().sets.size(), L"No: the set is not deleted");
+            Assert::AreEqual (std::string ("Game"), window.GetHeatRangesPane().GetEditedSetName());
             Assert::AreEqual (kept, host.ranges, L"and saves nothing");
 
             window.answer = IDYES;
-            window.RunHeatRangeBarEntry (HeatMapRangeBarCommands::kDeleteSet);
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kDeleteSet);
 
             Assert::AreEqual ((size_t) 2, window.questions.size());
-            Assert::AreEqual ((size_t) 1, window.GetHeatRanges().sets.size(), L"Yes deletes it");
-            Assert::AreEqual (std::string ("Default"), window.GetEditedRangeSet());
+            Assert::AreEqual ((size_t) 1, window.GetHeatRangesPane().GetSets().sets.size(), L"Yes deletes it");
+            Assert::AreEqual (std::string ("Default"), window.GetHeatRangesPane().GetEditedSetName());
             Assert::AreNotEqual (kept, host.ranges, L"and saves that");
         }
 
@@ -547,18 +533,18 @@ namespace HeatMapRangesPaneTests
 
 
             BuildWithSet (window, L"Game");
-            rows = window.GetHeatRangeList()->GetDataRowCount();
+            rows = window.GetHeatRangesPane().GetList()->GetDataRowCount();
 
             symbols->Add ("ZP_VARS", 0x0083, 0x0010, true);
             snapshot->heatMapSymbols = symbols;
             window.SetSnapshotForTest (snapshot);
             window.ApplyHeatMap();
 
-            Assert::AreEqual (rows + 1, window.GetHeatRangeList()->GetDataRowCount(), L"My program, with a program loaded");
+            Assert::AreEqual (rows + 1, window.GetHeatRangesPane().GetList()->GetDataRowCount(), L"My program, with a program loaded");
             Assert::IsTrue   (FindRow (window, L"My program") >= 0);
 
             AddRange (window, L"ZP_VARS");
-            row = window.GetHeatRangeList()->GetDataRowCount() - 1;
+            row = window.GetHeatRangesPane().GetList()->GetDataRowCount() - 1;
 
             Assert::AreEqual (std::wstring (L"$0083  ZP_VARS"), GetCell (window, row, 1), L"a symbol's own size");
             Assert::AreEqual (std::wstring (L"$0092"),          GetCell (window, row, 2));
@@ -578,23 +564,23 @@ namespace HeatMapRangesPaneTests
 
             BuildWithSet (window, L"Game");
             AddRange (window, L"$300:$3FF");
-            rows = window.GetHeatRangeList()->GetDataRowCount();
+            rows = window.GetHeatRangesPane().GetList()->GetDataRowCount();
 
-            window.GetHeatRangeList()->SetSelectedRow (rows - 1);
-            window.FocusControl (window.GetHeatRangeList());
+            window.GetHeatRangesPane().GetList()->SetSelectedRow (rows - 1);
+            window.FocusControl (window.GetHeatRangesPane().GetList());
 
             key.kind = DxuiKeyEventKind::Down;
             key.vk   = VK_F2;
             (void) window.OnKey (key);
-            Assert::IsTrue  (window.IsEditingHeatRange(), L"F2 edits");
+            Assert::IsTrue  (window.GetHeatRangesPane().IsEditing(), L"F2 edits");
 
             key.vk = VK_ESCAPE;
             (void) window.OnKey (key);
-            Assert::IsFalse (window.IsEditingHeatRange(), L"Escape leaves it");
+            Assert::IsFalse (window.GetHeatRangesPane().IsEditing(), L"Escape leaves it");
 
             key.vk = VK_DELETE;
             (void) window.OnKey (key);
-            Assert::AreEqual (rows - 1, window.GetHeatRangeList()->GetDataRowCount(), L"Delete removes it");
+            Assert::AreEqual (rows - 1, window.GetHeatRangesPane().GetList()->GetDataRowCount(), L"Delete removes it");
         }
 
 
@@ -614,19 +600,19 @@ namespace HeatMapRangesPaneTests
             window.ShowPane (DebuggerLayout::kHeatRanges);
             Relayout (window);
 
-            rows = window.GetHeatRangeList()->GetDataRowCount();
+            rows = window.GetHeatRangesPane().GetList()->GetDataRowCount();
             AddRange (window, L"$6000-$95FF");
-            Assert::AreEqual (rows + 1, window.GetHeatRangeList()->GetDataRowCount());
+            Assert::AreEqual (rows + 1, window.GetHeatRangesPane().GetList()->GetDataRowCount());
 
             //  Saving can paint the window, and the toolbar's enabled state
             //  reads the selected row's range as the paint draws it.
-            host.onSave = [&window] { (void) window.IsHeatRangeBarEnabled (HeatMapRangeBarCommands::kRemove); };
+            host.onSave = [&window] { (void) window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kRemove); };
 
-            window.GetHeatRangeList()->SetSelectedRow (rows);
-            window.GetHeatRangeList()->DeleteRow (rows);
+            window.GetHeatRangesPane().GetList()->SetSelectedRow (rows);
+            window.GetHeatRangesPane().GetList()->DeleteRow (rows);
             Relayout (window);
 
-            Assert::AreEqual (rows, window.GetHeatRangeList()->GetDataRowCount());
+            Assert::AreEqual (rows, window.GetHeatRangesPane().GetList()->GetDataRowCount());
         }
 
 
@@ -647,15 +633,15 @@ namespace HeatMapRangesPaneTests
             window.ShowPane (DebuggerLayout::kHeatRanges);
             Relayout (window);
 
-            Assert::AreEqual (std::string ("Default"), window.GetEditedRangeSet());
+            Assert::AreEqual (std::string ("Default"), window.GetHeatRangesPane().GetEditedSetName());
             row = FindRow (window, L"Hi-res page 1");
             Assert::IsTrue   (row >= 0);
-            Assert::IsTrue   (window.GetHeatRangeList()->GetCellsOfRow (row)[1].check.value_or (false), L"included");
-            Assert::IsTrue   (window.GetHeatRangeList()->IsAddRow (window.GetHeatRangeList()->GetDataRowCount()));
-            Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangeList()->GetCellsOfRow (window.GetHeatRangeList()->GetDataRowCount())[1].text);
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"included");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->IsAddRow (window.GetHeatRangesPane().GetList()->GetDataRowCount()));
+            Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangesPane().GetList()->GetCellsOfRow (window.GetHeatRangesPane().GetList()->GetDataRowCount())[1].text);
 
             AddRange (window, L"$6000-$95FF");
-            Assert::IsTrue   (FindRow (window, L"$6000..$95FF") >= 0, window.GetHeatRangeError().c_str());
+            Assert::IsTrue   (FindRow (window, L"$6000..$95FF") >= 0, window.GetHeatRangesPane().GetError().c_str());
         }
     };
 }

@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -85,10 +86,7 @@ namespace DebuggerBreakpointBarTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::ApplyBreakpoints;
-        using DebuggerWindow::GetBreakpointList;
-        using DebuggerWindow::GetBreakpointBar;
-        using DebuggerWindow::IsBreakpointBarEnabled;
-        using DebuggerWindow::RunBreakpointBarEntry;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::SetSnapshotForTest;
 
         //  Three breakpoints at $0300 to $0302, the last disabled.
@@ -150,11 +148,11 @@ namespace DebuggerBreakpointBarTests
 
             window.OnCreate();
 
-            for (int i = 0; i < window.GetBreakpointBar()->GetEntryCount(); i++)
+            for (int i = 0; i < window.GetBreakpointsPane().GetBar()->GetEntryCount(); i++)
             {
-                if (window.GetBreakpointBar()->GetEntryCommandId (i) != DxuiToolbar::kSeeMoreId)
+                if (window.GetBreakpointsPane().GetBar()->GetEntryCommandId (i) != DxuiToolbar::kSeeMoreId)
                 {
-                    ids.push_back (window.GetBreakpointBar()->GetEntryCommandId (i));
+                    ids.push_back (window.GetBreakpointsPane().GetBar()->GetEntryCommandId (i));
                 }
             }
 
@@ -184,7 +182,7 @@ namespace DebuggerBreakpointBarTests
             {
                 bool  expected = id == BreakpointBarCommands::kNew || id == BreakpointBarCommands::kImport;
 
-                Assert::AreEqual (expected, window.IsBreakpointBarEnabled (id), std::format (L"entry {}", id).c_str());
+                Assert::AreEqual (expected, window.GetBreakpointsPane().IsBarEntryEnabled (id), std::format (L"entry {}", id).c_str());
             }
         }
 
@@ -199,18 +197,18 @@ namespace DebuggerBreakpointBarTests
 
             window.Build (true);
 
-            Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDelete),     L"nothing selected");
-            Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kGoToCode),   L"nothing selected");
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDeleteAll));
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDisableAll), L"two are enabled");
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kUndo));
-            Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kRedo));
+            Assert::IsFalse (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kDelete),     L"nothing selected");
+            Assert::IsFalse (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kGoToCode),   L"nothing selected");
+            Assert::IsTrue  (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kDeleteAll));
+            Assert::IsTrue  (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kDisableAll), L"two are enabled");
+            Assert::IsTrue  (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kUndo));
+            Assert::IsFalse (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kRedo));
 
-            window.GetBreakpointList()->SetSelectedRow (0);
+            window.GetBreakpointsPane().GetList()->SetSelectedRow (0);
 
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDelete));
-            Assert::IsTrue  (window.IsBreakpointBarEnabled (BreakpointBarCommands::kGoToCode));
-            Assert::IsFalse (window.IsBreakpointBarEnabled (BreakpointBarCommands::kGoToSource), L"no debug file, so no source line");
+            Assert::IsTrue  (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kDelete));
+            Assert::IsTrue  (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kGoToCode));
+            Assert::IsFalse (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kGoToSource), L"no debug file, so no source line");
         }
 
 
@@ -223,8 +221,8 @@ namespace DebuggerBreakpointBarTests
 
 
             window.Build();
-            window.GetBreakpointList()->SetSelectedRows ({ 0, 2 }, 0);
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kDelete);
+            window.GetBreakpointsPane().GetList()->SetSelectedRows ({ 0, 2 }, 0);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDelete);
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].breakpointStep.has_value());
@@ -244,8 +242,8 @@ namespace DebuggerBreakpointBarTests
 
 
             window.Build();
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kDisableAll);
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kDeleteAll);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDisableAll);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDeleteAll);
 
             Assert::AreEqual ((size_t) 2, host.actions.size());
             Assert::AreEqual (std::string ("BPD *"), host.actions[0].breakpointStep->actions.at (0).echo);
@@ -264,8 +262,8 @@ namespace DebuggerBreakpointBarTests
 
 
             window.Build (true);
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kRedo);
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kUndo);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kRedo);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kUndo);
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"Redo has nothing to redo");
             Assert::IsTrue   (host.actions[0].breakpointStep->kind == BreakpointStep::Kind::Undo);
@@ -282,7 +280,7 @@ namespace DebuggerBreakpointBarTests
 
             window.Build();
             host.dialogs.path = L"C:\\Work\\my bps.txt";
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kExport);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kExport);
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::AreEqual (std::string ("BPSAVE C:\\Work\\my bps.txt"), host.actions[0].echo);
@@ -301,10 +299,10 @@ namespace DebuggerBreakpointBarTests
 
             window.Build();
             host.dialogs.path = L"C:\\Work\\bp.txt";
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kImport);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kImport);
 
             host.dialogs.picks = false;
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kImport);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kImport);
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"backing out of the picker imports nothing");
             Assert::IsTrue   (host.actions[0].breakpointStep->kind == BreakpointStep::Kind::Import);

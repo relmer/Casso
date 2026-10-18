@@ -97,7 +97,7 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::EditStepFilters;
         using DebuggerWindow::OnMappedCommand;
         using DebuggerWindow::IsPaneShown;
-        using DebuggerWindow::GetProfilerCommands;
+        using DebuggerWindow::GetProfilerPane;
         using DebuggerWindow::GetPaneHostForTest;
 
         std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
@@ -261,7 +261,7 @@ namespace DebuggerToolPanesTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerCommands())
+            for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerPane().GetCommands())
             {
                 if (command->label == L"Profile")   { profile = command; }
                 if (command->label == L"Opcodes")   { view    = command; }

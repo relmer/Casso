@@ -12,6 +12,7 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/DisassemblyGutter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -99,9 +100,7 @@ namespace DisassemblyPcDragTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
-        using DebuggerWindow::ClickGutter;
-        using DebuggerWindow::DropPcMarker;
-        using DebuggerWindow::DragPcMarker;
+        using DebuggerWindow::GetCodeGutter;
     };
 
 
@@ -184,8 +183,8 @@ namespace DisassemblyPcDragTests
             down.button      = DxuiMouseButton::Left;
             down.positionDip = GetGutterPoint (*list, 0);
 
-            Assert::IsTrue (window.ClickGutter (down));
-            window.DragPcMarker (GetGutterPoint (*list, 1));
+            Assert::IsTrue (window.GetCodeGutter().Click (down));
+            window.GetCodeGutter().Drag (GetGutterPoint (*list, 1));
 
             Assert::IsTrue    (list->GetCellsOfRow (1)[0].icon != nullptr, L"the arrow shows on the row under the pointer");
             Assert::IsTrue    (list->GetCellsOfRow (0)[0].icon == nullptr, L"and leaves the PC's row");
@@ -196,7 +195,7 @@ namespace DisassemblyPcDragTests
             up.button      = DxuiMouseButton::Left;
             up.positionDip = POINT { -10, -10 };
 
-            Assert::IsTrue  (window.DropPcMarker (up));
+            Assert::IsTrue  (window.GetCodeGutter().Drop (up));
             Assert::IsTrue  (list->GetCellsOfRow (0)[0].icon != nullptr, L"dropped off the view, the arrow returns to the PC");
         }
 

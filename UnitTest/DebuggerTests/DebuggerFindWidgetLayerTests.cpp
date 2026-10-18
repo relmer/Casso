@@ -80,10 +80,8 @@ namespace DebuggerFindWidgetLayerTests
         }
 
         using DebuggerWindow::AppendConsole;
-        using DebuggerWindow::CloseFind;
-        using DebuggerWindow::GetFindBox;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::HasTopLayer;
-        using DebuggerWindow::OpenFindIn;
 
         void  Build()
         {
@@ -126,10 +124,10 @@ namespace DebuggerFindWidgetLayerTests
             window.Build();
             Assert::IsFalse (window.HasTopLayer(), L"nothing floats before find opens");
 
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             Assert::IsTrue (window.HasTopLayer(), L"the open widget paints over the pane's text");
 
-            window.CloseFind();
+            window.GetFindWidgets().Close();
             Assert::IsFalse (window.HasTopLayer(), L"a closed widget leaves the top layer");
         }
     };

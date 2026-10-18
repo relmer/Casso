@@ -5,6 +5,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -35,11 +36,11 @@ namespace DebuggerFocusAccentTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::OnWindowFocusChanged;
         using DebuggerWindow::OnMouse;
-        using DebuggerWindow::GetHeatMapView;
+        using DebuggerWindow::GetHeatMapPane;
         using DebuggerWindow::ShowPane;
 
         DxuiDockSite * FindDockSite()
@@ -147,7 +148,7 @@ namespace DebuggerFocusAccentTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             Assert::IsNotNull (window.FindDockSite(),                                       L"the dock site is one of the window's controls");
             Assert::AreEqual  (std::wstring (DebuggerLayout::kConsole), window.GetPaneOfFocus(), L"the console has the focus");
@@ -179,10 +180,10 @@ namespace DebuggerFocusAccentTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ShowPane     (DebuggerLayout::kHeatMap);
             window.Layout       (RECT { 0, 0, 1400, 900 }, scaler);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
-            map = window.GetHeatMapView()->GetBounds();
-            Assert::IsTrue (window.GetHeatMapView()->IsVisible() && map.right > map.left, L"the heat map is open");
+            map = window.GetHeatMapPane().GetView()->GetBounds();
+            Assert::IsTrue (window.GetHeatMapPane().GetView()->IsVisible() && map.right > map.left, L"the heat map is open");
 
             press.kind        = DxuiMouseEventKind::Down;
             press.button      = DxuiMouseButton::Left;

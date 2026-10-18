@@ -15,6 +15,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -90,16 +91,13 @@ namespace DebuggerReviewPolishTests
         }
 
         using DebuggerWindow::AppendConsole;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindControls;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetFindStatus;
         using DebuggerWindow::GetModeChoices;
         using DebuggerWindow::GetModeLabel;
         using DebuggerWindow::ModeChoice;
-        using DebuggerWindow::GetWatchList;
-        using DebuggerWindow::OpenFindIn;
+        using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
 
         void  Build()
@@ -202,7 +200,7 @@ namespace DebuggerReviewPolishTests
             DebuggerViewState::AddCommandGap (lines);
             window.AppendConsole (lines);
 
-            const std::vector<DxuiTextView::Row> & rows = window.GetConsoleView()->GetRows();
+            const std::vector<DxuiTextView::Row> & rows = window.GetConsolePane().GetOutput().GetView()->GetRows();
 
             Assert::AreEqual ((size_t) 5, rows.size());
             Assert::AreEqual (0.75f,          rows[2].height, L"the gap row is short");
@@ -412,16 +410,16 @@ namespace DebuggerReviewPolishTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"ld");
-            before = window.GetFindStatus();
+            before = window.GetFindWidgets().GetStatus();
 
-            window.FocusControl (window.GetFindControls()[2]);
+            window.FocusControl (window.GetFindWidgets().GetActiveControls()[2]);
             window.Type (L" ");
 
-            Assert::AreEqual (std::wstring (L"ld"),         window.GetFindBox()->GetText(), L"no space typed into the box");
+            Assert::AreEqual (std::wstring (L"ld"),         window.GetFindWidgets().GetBox()->GetText(), L"no space typed into the box");
             Assert::AreEqual (std::wstring (L"1 of 1"),     before);
-            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"whole word is on, so ld no longer matches");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindWidgets().GetStatus(), L"whole word is on, so ld no longer matches");
         }
 
 
@@ -435,9 +433,9 @@ namespace DebuggerReviewPolishTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"lda");
-            box = window.GetFindBox();
+            box = window.GetFindWidgets().GetBox();
 
             window.Chord ('A', true, false);
             Assert::AreEqual ((size_t) 0, box->GetSelectionStart(), L"Ctrl+A selects from the start");
@@ -523,11 +521,11 @@ namespace DebuggerReviewPolishTests
             window.Build();
             window.TakeSnapshot (snapshot);
 
-            const DxuiListView::Cell & heading = window.GetWatchList()->GetCellsOfRow (0)[0];
+            const DxuiListView::Cell & heading = window.GetWatchesPane().GetList()->GetCellsOfRow (0)[0];
 
-            last = window.GetWatchList()->GetRowCount() - 1;
+            last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
 
-            const DxuiListView::Cell & add = window.GetWatchList()->GetCellsOfRow (last)[0];
+            const DxuiListView::Cell & add = window.GetWatchesPane().GetList()->GetCellsOfRow (last)[0];
 
             Assert::AreEqual (std::wstring (L"Automatic"), heading.text);
             Assert::IsTrue   (heading.face != nullptr && std::wstring (heading.face) == DxuiTheme::kBodyFace, L"the heading in the body face");
@@ -620,17 +618,17 @@ namespace DebuggerReviewPolishTests
 
             window.Build();
             window.TakeSnapshot (snapshot);
-            window.FocusControl (window.GetWatchList());
-            window.GetWatchList()->SetSelectedRow (1);
+            window.FocusControl (window.GetWatchesPane().GetList());
+            window.GetWatchesPane().GetList()->SetSelectedRow (1);
 
-            before = window.GetWatchList()->GetSelectedRow();
+            before = window.GetWatchesPane().GetList()->GetSelectedRow();
             window.Chord (VK_DOWN, false, false);
 
-            Assert::AreEqual (before + 1, window.GetWatchList()->GetSelectedRow(), L"Down selects the next row");
+            Assert::AreEqual (before + 1, window.GetWatchesPane().GetList()->GetSelectedRow(), L"Down selects the next row");
 
             window.Chord (VK_UP, false, false);
 
-            Assert::AreEqual (before, window.GetWatchList()->GetSelectedRow(), L"Up selects the row above");
+            Assert::AreEqual (before, window.GetWatchesPane().GetList()->GetSelectedRow(), L"Up selects the row above");
         }
     };
 }

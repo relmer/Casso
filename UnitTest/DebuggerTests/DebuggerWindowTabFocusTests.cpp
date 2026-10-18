@@ -85,7 +85,7 @@ namespace DebuggerTabFocusTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
 
         DxuiDockSite * FindDockSite()
@@ -146,7 +146,7 @@ namespace DebuggerTabFocusTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             site = window.FindDockSite();
             Assert::IsNotNull (site, L"the dock site is one of the window's controls");

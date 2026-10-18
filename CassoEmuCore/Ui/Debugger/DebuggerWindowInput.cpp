@@ -431,13 +431,13 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     //  Find acts on the window, not the machine.
     if (action == DebuggerKeySchemes::Action::Find)
     {
-        OpenFind();
+        m_finds->Open (m_finds->GetTarget());
         return true;
     }
 
     if (action == DebuggerKeySchemes::Action::FindNext || action == DebuggerKeySchemes::Action::FindPrevious)
     {
-        FindInPane (action == DebuggerKeySchemes::Action::FindNext);
+        m_finds->Find (action == DebuggerKeySchemes::Action::FindNext);
         return true;
     }
 
@@ -791,7 +791,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  A click on a branch arrow goes to where it points, and the next back.
     if (m_floating->GetRoutingPane().empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
-        ClickBranchArrow (ev.positionDip))
+        m_code->ClickBranchArrow (ev.positionDip))
     {
         return true;
     }

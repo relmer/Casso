@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -84,14 +85,11 @@ namespace DebuggerPaneFindTests
             m_host  = &host;
         }
 
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindPane;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetSourceView;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::IsFindOpen;
 
         void  Build()
         {
@@ -114,7 +112,7 @@ namespace DebuggerPaneFindTests
                 rows.push_back (std::move (row));
             }
 
-            GetSourceView (0)->SetRows (std::move (rows));
+            GetSourceGroup().GetDocument (0).GetView()->SetRows (std::move (rows));
         }
 
         //  A key as the window's message handling delivers it: to the window
@@ -166,23 +164,23 @@ namespace DebuggerPaneFindTests
 
 
             window.Build();
-            window.FocusControl (window.GetSourceView (0));
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
 
             Assert::IsTrue   (window.Press ('F', true), L"Ctrl+F");
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (0), window.GetFindPane(), L"the bar opens in the source document");
-            Assert::IsTrue   (window.GetFindBox()->IsFocused(), L"the keys go to the find box");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (0), window.GetFindWidgets().GetActivePane(), L"the bar opens in the source document");
+            Assert::IsTrue   (window.GetFindWidgets().GetBox()->IsFocused(), L"the keys go to the find box");
 
             window.Type (L"sta");
 
-            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceView (0)->GetSelectionText(), L"typing finds the first match in the document");
-            Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"the console is not searched");
+            Assert::AreEqual (std::wstring (L"STA"), window.GetSourceGroup().GetDocument (0).GetView()->GetSelectionText(), L"typing finds the first match in the document");
+            Assert::IsFalse  (window.GetConsolePane().GetOutput().GetView()->HasSelection(), L"the console is not searched");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"and nothing runs");
 
             Assert::IsTrue   (window.Press (VK_ESCAPE), L"Escape");
-            Assert::IsFalse  (window.IsFindOpen(), L"hides the bar");
-            Assert::IsFalse  (window.GetFindBox()->IsVisible());
-            Assert::IsTrue   (window.GetFocused() == window.GetSourceView (0), L"and the keys go back to the document");
+            Assert::IsFalse  (window.GetFindWidgets().IsOpen(), L"hides the bar");
+            Assert::IsFalse  (window.GetFindWidgets().GetBox()->IsVisible());
+            Assert::IsTrue   (window.GetFocused() == window.GetSourceGroup().GetDocument (0).GetView(), L"and the keys go back to the document");
         }
 
 
@@ -195,20 +193,20 @@ namespace DebuggerPaneFindTests
 
 
             window.Build();
-            window.FocusControl (window.GetSourceView (0));
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
             window.Press ('F', true);
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             Assert::IsTrue   (window.Press ('F', true));
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetFindPane(), L"the console's own widget");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetFindWidgets().GetActivePane(), L"the console's own widget");
 
             window.Type (L"sta");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText());
-            Assert::IsFalse  (window.GetSourceView (0)->HasSelection());
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText());
+            Assert::IsFalse  (window.GetSourceGroup().GetDocument (0).GetView()->HasSelection());
         }
     };
 }

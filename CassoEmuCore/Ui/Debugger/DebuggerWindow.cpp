@@ -1198,7 +1198,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     {
         m_menuState = GetMenuState();
         SetWindowMenus();
-        SetConsoleBarMenus();
+        m_consolePane->GetModeBar().SetMenus();
     }
 }
 

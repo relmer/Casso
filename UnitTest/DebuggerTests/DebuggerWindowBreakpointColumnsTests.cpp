@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -96,11 +97,8 @@ namespace DebuggerBreakpointColumnsTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyBreakpoints;
-        using DebuggerWindow::GetBreakpointOfRow;
-        using DebuggerWindow::GetBreakpointList;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::SetSnapshotForTest;
-        using DebuggerWindow::ToggleBreakpointColumn;
-        using DebuggerWindow::SortBreakpoints;
         using DebuggerWindow::KeepOpenViews;
     };
 
@@ -162,14 +160,14 @@ namespace DebuggerBreakpointColumnsTests
 
             window.OnCreate();
 
-            Assert::AreEqual (BreakpointColumns::kCount, window.GetBreakpointList()->GetColumnCount());
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Name));
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::HitCount));
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind));
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Trigger));
-            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol));
-            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
+            Assert::AreEqual (BreakpointColumns::kCount, window.GetBreakpointsPane().GetList()->GetColumnCount());
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Name));
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Condition));
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::HitCount));
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Kind));
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Trigger));
+            Assert::IsFalse  (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Symbol));
+            Assert::IsFalse  (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Data));
         }
 
 
@@ -185,11 +183,11 @@ namespace DebuggerBreakpointColumnsTests
             window.SetSnapshotForTest (MakeSnapshot());
             window.KeepOpenViews();
 
-            window.ToggleBreakpointColumn (Column::Data);
-            window.ToggleBreakpointColumn (Column::Name);
+            window.GetBreakpointsPane().ToggleColumn (Column::Data);
+            window.GetBreakpointsPane().ToggleColumn (Column::Name);
 
-            Assert::IsTrue (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
-            Assert::IsTrue (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Name), L"Name cannot be hidden");
+            Assert::IsTrue (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Data));
+            Assert::IsTrue (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Name), L"Name cannot be hidden");
             Assert::IsTrue (BreakpointColumns::ParseShown (host.written)[(size_t) Column::Data], L"the choice is saved");
         }
 
@@ -211,8 +209,8 @@ namespace DebuggerBreakpointColumnsTests
             window.SetSnapshotForTest (MakeSnapshot());
             window.KeepOpenViews();
 
-            Assert::IsFalse (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
-            Assert::IsTrue  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Address));
+            Assert::IsFalse (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Condition));
+            Assert::IsTrue  (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Address));
         }
 
 
@@ -231,13 +229,13 @@ namespace DebuggerBreakpointColumnsTests
             window.SetSnapshotForTest (MakeSnapshot());
             window.KeepOpenViews();
 
-            Assert::AreEqual (BreakpointColumns::kCount, window.GetBreakpointList()->GetColumnCount());
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Symbol),    L"Labels shows as Symbol");
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Data));
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Kind),      L"Kind is new");
-            Assert::IsTrue   (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Trigger),   L"so is Trigger");
-            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::Condition));
-            Assert::IsFalse  (window.GetBreakpointList()->IsColumnVisible ((size_t) Column::WhenHit),   L"Filter's choice goes nowhere");
+            Assert::AreEqual (BreakpointColumns::kCount, window.GetBreakpointsPane().GetList()->GetColumnCount());
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Symbol),    L"Labels shows as Symbol");
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Data));
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Kind),      L"Kind is new");
+            Assert::IsTrue   (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Trigger),   L"so is Trigger");
+            Assert::IsFalse  (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::Condition));
+            Assert::IsFalse  (window.GetBreakpointsPane().GetList()->IsColumnVisible ((size_t) Column::WhenHit),   L"Filter's choice goes nowhere");
         }
 
 
@@ -253,14 +251,14 @@ namespace DebuggerBreakpointColumnsTests
             window.SetSnapshotForTest (MakeSnapshot());
             window.ApplyBreakpoints();
 
-            Assert::AreEqual (1, window.GetBreakpointOfRow (0)->id, L"the engine's order before any sort");
+            Assert::AreEqual (1, window.GetBreakpointsPane().GetBreakpointOfRow (0)->id, L"the engine's order before any sort");
 
-            window.SortBreakpoints (Column::HitCount);
-            Assert::AreEqual (2, window.GetBreakpointOfRow (0)->id, L"fewest hits first");
-            Assert::AreEqual (1, window.GetBreakpointOfRow (2)->id);
+            window.GetBreakpointsPane().Sort (Column::HitCount);
+            Assert::AreEqual (2, window.GetBreakpointsPane().GetBreakpointOfRow (0)->id, L"fewest hits first");
+            Assert::AreEqual (1, window.GetBreakpointsPane().GetBreakpointOfRow (2)->id);
 
-            window.SortBreakpoints (Column::HitCount);
-            Assert::AreEqual (1, window.GetBreakpointOfRow (0)->id, L"a second click turns it around");
+            window.GetBreakpointsPane().Sort (Column::HitCount);
+            Assert::AreEqual (1, window.GetBreakpointsPane().GetBreakpointOfRow (0)->id, L"a second click turns it around");
         }
     };
 }

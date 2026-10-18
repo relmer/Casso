@@ -9,6 +9,8 @@
 #include "resource.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,12 +105,12 @@ namespace DebuggerStartupStateTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::ClosePane;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetMemoryGroup;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::OnWindowClose;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetRegisterList;
+        using DebuggerWindow::GetRegistersPane;
     };
 
 
@@ -310,7 +312,7 @@ namespace DebuggerStartupStateTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
+            Assert::IsTrue (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the console's command line has the focus");
         }
 
 
@@ -358,8 +360,8 @@ namespace DebuggerStartupStateTests
         static void  AssertConsoleHasTheFocus (StartupWindow & window)
         {
             Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the console tab is in front");
-            Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
-            Assert::IsTrue   (window.GetCommandBox()->IsVisible(),          L"the command line shows");
+            Assert::IsTrue   (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the console's command line has the focus");
+            Assert::IsTrue   (window.GetConsolePane().GetCommandLine().GetBox()->IsVisible(),          L"the command line shows");
         }
 
 
@@ -479,7 +481,7 @@ namespace DebuggerStartupStateTests
 
             OpenWindow (window);
 
-            window.FocusControl (window.GetRegisterList());
+            window.FocusControl (window.GetRegistersPane().GetList());
             window.OnWindowClose();
 
             Assert::AreEqual (std::string ("registers"), host.focusedPane);

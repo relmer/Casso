@@ -199,7 +199,7 @@ void DebuggerWindow::SetWindowMenus()
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
     row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
-    row->isEnabled = [this] { return IsBreakpointBarEnabled (BreakpointBarCommands::kExport); };
+    row->isEnabled = [this] { return m_breakpointsPane->IsBarEntryEnabled (BreakpointBarCommands::kExport); };
     add (file, row);
     add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { m_tracePane->Save(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
@@ -654,7 +654,7 @@ void DebuggerWindow::OpenSourceFile()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    OpenSourcePath (chosen.wstring());
+    m_sources->OpenSourcePath (chosen.wstring());
 
 Error:
     return;
@@ -867,7 +867,7 @@ DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
     command->label    = L"Find";
     command->glyph    = s_kpszMdl2Search;
     command->tip      = L"Find (Ctrl+F)\nFind text in this pane";
-    command->dispatch = [this, pane] { OpenFindIn (pane); };
+    command->dispatch = [this, pane] { m_finds->Open (pane); };
 
     entry.command = command;
     entry.kind    = DxuiToolbar::Kind::Command;

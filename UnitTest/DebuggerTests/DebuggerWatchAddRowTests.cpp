@@ -5,6 +5,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -88,9 +89,7 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::RouteMappedKey;
-        using DebuggerWindow::BeginWatchEdit;
-        using DebuggerWindow::EndWatchEdit;
-        using DebuggerWindow::GetWatchList;
+        using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
 
         void  Type (const std::wstring & text)
@@ -148,16 +147,16 @@ namespace DebuggerWatchAddRowTests
 
             //  The window sizes the Watch column to its text as it draws; with
             //  nothing drawn here it is given a width so its cell has a place.
-            window.GetWatchList()->SetColumns ({ { L"Watch", 120, false, DxuiTextHAlign::Left },
+            window.GetWatchesPane().GetList()->SetColumns ({ { L"Watch", 120, false, DxuiTextHAlign::Left },
                                                  { L"Value", 120, false, DxuiTextHAlign::Left } });
 
-            Assert::AreEqual (2, window.GetWatchList()->GetRowCount(), L"the watch, then the add row");
-            last = window.GetWatchList()->GetRowCount() - 1;
-            Assert::AreEqual (std::wstring (L"Add item to watch"), window.GetWatchList()->GetCellsOfRow (last)[0].text);
+            Assert::AreEqual (2, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, then the add row");
+            last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
+            Assert::AreEqual (std::wstring (L"Add item to watch"), window.GetWatchesPane().GetList()->GetCellsOfRow (last)[0].text);
 
-            window.BeginWatchEdit (last, 0);
+            window.GetWatchesPane().BeginEdit (last, 0);
             window.Type (L"400");
-            window.EndWatchEdit (true);
+            window.GetWatchesPane().EndEdit (true);
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::IsTrue   (host.commands.front().find ("400") != std::string::npos, L"the typed expression is watched");
@@ -186,28 +185,28 @@ namespace DebuggerWatchAddRowTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
             window.TakeSnapshot (snapshot);
-            window.GetWatchList()->SetColumns ({ { L"Watch", 160, false, DxuiTextHAlign::Left },
+            window.GetWatchesPane().GetList()->SetColumns ({ { L"Watch", 160, false, DxuiTextHAlign::Left },
                                                  { L"Value", 200, false, DxuiTextHAlign::Left } });
 
-            Assert::AreEqual (4, window.GetWatchList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
-            Assert::IsTrue   (window.GetWatchList()->GetCellsOfRow (0)[0].check.value_or (false), L"the watch is on");
-            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchList()->GetCellsOfRow (2)[0].text);
-            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchList()->GetCellsOfRow (2)[1].text);
-            Assert::IsFalse  (window.GetWatchList()->GetCellsOfRow (2)[0].check.value_or (true), L"the pointer is off");
+            Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[0].check.value_or (false), L"the watch is on");
+            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[0].text);
+            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[0].check.value_or (true), L"the pointer is off");
 
-            Assert::IsTrue   (window.GetWatchList()->GetCheckRectPx (0, 0, check), L"the watch's check is in view");
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (0, 0, check), L"the watch's check is in view");
             press.kind        = DxuiMouseEventKind::Down;
             press.button      = DxuiMouseButton::Left;
             press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
-            (void) window.GetWatchList()->OnMouse (press);
+            (void) window.GetWatchesPane().GetList()->OnMouse (press);
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::IsTrue   (host.commands.back().starts_with ("WD 0"), L"its check disables the watch");
 
-            window.GetWatchList()->EnsureVisible (2);
-            Assert::IsTrue   (window.GetWatchList()->GetCheckRectPx (2, 0, check), L"the pointer's check is in view");
+            window.GetWatchesPane().GetList()->EnsureVisible (2);
+            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (2, 0, check), L"the pointer's check is in view");
             press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
-            (void) window.GetWatchList()->OnMouse (press);
+            (void) window.GetWatchesPane().GetList()->OnMouse (press);
 
             Assert::IsTrue   (host.commands.back().starts_with ("ZPE 1"), L"and the pointer's enables it");
         }

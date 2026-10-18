@@ -10,6 +10,7 @@
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
 #include "Ui/Debugger/ColorKeyButton.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -91,10 +92,9 @@ namespace DebuggerColorKeyTests
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetHeatMapBar;
-        using DebuggerWindow::GetColorKey;
-        using DebuggerWindow::GetColorKeyPopup;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetHeatMapPane;
+        using DebuggerWindow::GetColorKeys;
         using DebuggerWindow::GetPaneOfControl;
     };
 
@@ -189,7 +189,7 @@ namespace DebuggerColorKeyTests
                                                  std::pair { std::wstring (DebuggerLayout::kHeatMap),     ColorLegend::Pane::HeatMap     },
                                                  std::pair { std::wstring (DebuggerLayout::kBreakpoints), ColorLegend::Pane::Breakpoints } })
             {
-                ColorKeyButton  * key = window.GetColorKey (pane);
+                ColorKeyButton  * key = window.GetColorKeys().Find (pane);
 
                 Assert::IsNotNull (key, pane.c_str());
                 Assert::IsTrue    (key->GetLegend() == legend, pane.c_str());
@@ -197,8 +197,8 @@ namespace DebuggerColorKeyTests
                 Assert::AreEqual  (pane, window.GetPaneOfControl (key), L"the button would not go with its pane into a floating window");
             }
 
-            Assert::IsNull (window.GetColorKey (DebuggerLayout::kConsole), L"the console has no colors to explain");
-            Assert::IsNull (window.GetColorKey (DebuggerLayout::kCallStack), L"the call stack's rows say what their colors mean");
+            Assert::IsNull (window.GetColorKeys().Find (DebuggerLayout::kConsole), L"the console has no colors to explain");
+            Assert::IsNull (window.GetColorKeys().Find (DebuggerLayout::kCallStack), L"the call stack's rows say what their colors mean");
         }
 
 
@@ -217,9 +217,9 @@ namespace DebuggerColorKeyTests
 
             Build (window);
 
-            key    = window.GetColorKey (DebuggerLayout::kHeatMap);
+            key    = window.GetColorKeys().Find (DebuggerLayout::kHeatMap);
             button = key->GetBounds();
-            bar    = window.GetHeatMapBar()->GetBounds();
+            bar    = window.GetHeatMapPane().GetBar()->GetBounds();
 
             Assert::IsTrue   (key->IsVisible(), L"the heat map's button is not shown");
             Assert::IsTrue   (button.bottom <= bar.top, L"in the title bar, above the toolbar");
@@ -237,23 +237,23 @@ namespace DebuggerColorKeyTests
 
 
             Build (window);
-            key = window.GetColorKey (DebuggerLayout::kHeatMap);
+            key = window.GetColorKeys().Find (DebuggerLayout::kHeatMap);
 
             Send (window, DxuiMouseEventKind::Move, GetCenter (key->GetBounds()));
 
-            Assert::IsTrue   (window.GetColorKeyPopup().IsShown(), L"no key over the button");
-            Assert::IsFalse  (window.GetColorKeyPopup().IsHeld(), L"a resting pointer holds nothing");
-            Assert::IsTrue   (window.GetColorKeyPopup().GetPane() == ColorLegend::Pane::HeatMap);
-            Assert::AreEqual (ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMap).size(), window.GetColorKeyPopup().GetRows().size(), L"another pane's lines in the key");
+            Assert::IsTrue   (window.GetColorKeys().GetPopup().IsShown(), L"no key over the button");
+            Assert::IsFalse  (window.GetColorKeys().GetPopup().IsHeld(), L"a resting pointer holds nothing");
+            Assert::IsTrue   (window.GetColorKeys().GetPopup().GetPane() == ColorLegend::Pane::HeatMap);
+            Assert::AreEqual (ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMap).size(), window.GetColorKeys().GetPopup().GetRows().size(), L"another pane's lines in the key");
 
             Send (window, DxuiMouseEventKind::Move, POINT { 5, kHeight / 2 });
-            Assert::IsFalse  (window.GetColorKeyPopup().IsShown(), L"the key stayed after the pointer left");
+            Assert::IsFalse  (window.GetColorKeys().GetPopup().IsShown(), L"the key stayed after the pointer left");
 
-            key = window.GetColorKey (DebuggerLayout::kBreakpoints);
+            key = window.GetColorKeys().Find (DebuggerLayout::kBreakpoints);
             Assert::IsTrue   (key->IsVisible(), L"the breakpoints' button is not shown");
 
             Send (window, DxuiMouseEventKind::Move, GetCenter (key->GetBounds()));
-            Assert::IsTrue   (window.GetColorKeyPopup().GetPane() == ColorLegend::Pane::Breakpoints);
+            Assert::IsTrue   (window.GetColorKeys().GetPopup().GetPane() == ColorLegend::Pane::Breakpoints);
         }
 
 
@@ -268,22 +268,22 @@ namespace DebuggerColorKeyTests
 
 
             Build (window);
-            key = window.GetColorKey (DebuggerLayout::kBreakpoints);
+            key = window.GetColorKeys().Find (DebuggerLayout::kBreakpoints);
             at  = GetCenter (key->GetBounds());
 
             Send (window, DxuiMouseEventKind::Move, at);
             Send (window, DxuiMouseEventKind::Down, at);
             Send (window, DxuiMouseEventKind::Up,   at);
 
-            Assert::IsTrue  (window.GetColorKeyPopup().IsHeld(), L"a click does not hold the key");
+            Assert::IsTrue  (window.GetColorKeys().GetPopup().IsHeld(), L"a click does not hold the key");
 
             Send (window, DxuiMouseEventKind::Move, POINT { 5, kHeight / 2 });
-            Assert::IsTrue  (window.GetColorKeyPopup().IsShown(), L"a held key went with the pointer");
+            Assert::IsTrue  (window.GetColorKeys().GetPopup().IsShown(), L"a held key went with the pointer");
 
             Send (window, DxuiMouseEventKind::Move, at);
             Send (window, DxuiMouseEventKind::Down, at);
             Send (window, DxuiMouseEventKind::Up,   at);
-            Assert::IsFalse (window.GetColorKeyPopup().IsHeld(), L"a second click left it held");
+            Assert::IsFalse (window.GetColorKeys().GetPopup().IsHeld(), L"a second click left it held");
         }
 
 
@@ -297,27 +297,27 @@ namespace DebuggerColorKeyTests
 
 
             Build (window);
-            key = window.GetColorKey (DebuggerLayout::kWatches);
+            key = window.GetColorKeys().Find (DebuggerLayout::kWatches);
 
             window.FocusControl (key);
             Assert::IsTrue  (key->IsFocused(), L"the button cannot take the focus");
 
             Press (window, VK_SPACE);
-            Assert::IsTrue  (window.GetColorKeyPopup().IsShown() && window.GetColorKeyPopup().IsHeld(), L"Space does not open the key");
-            Assert::IsTrue  (window.GetColorKeyPopup().GetPane() == ColorLegend::Pane::Watch);
+            Assert::IsTrue  (window.GetColorKeys().GetPopup().IsShown() && window.GetColorKeys().GetPopup().IsHeld(), L"Space does not open the key");
+            Assert::IsTrue  (window.GetColorKeys().GetPopup().GetPane() == ColorLegend::Pane::Watch);
 
             Press (window, VK_SPACE);
-            Assert::IsFalse (window.GetColorKeyPopup().IsShown(), L"Space again does not close it");
+            Assert::IsFalse (window.GetColorKeys().GetPopup().IsShown(), L"Space again does not close it");
 
             Press (window, VK_RETURN);
-            Assert::IsTrue  (window.GetColorKeyPopup().IsShown(), L"Enter does not open the key");
+            Assert::IsTrue  (window.GetColorKeys().GetPopup().IsShown(), L"Enter does not open the key");
 
             Press (window, VK_ESCAPE);
-            Assert::IsFalse (window.GetColorKeyPopup().IsShown(), L"Escape does not close it");
+            Assert::IsFalse (window.GetColorKeys().GetPopup().IsShown(), L"Escape does not close it");
 
             Press (window, VK_RETURN);
-            window.FocusControl (window.GetCommandBox());
-            Assert::IsFalse (window.GetColorKeyPopup().IsShown(), L"the key stayed after the focus moved on");
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
+            Assert::IsFalse (window.GetColorKeys().GetPopup().IsShown(), L"the key stayed after the focus moved on");
         }
 
 

@@ -93,7 +93,7 @@ namespace ColorLegendTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
-        using DebuggerWindow::TryGetCellTip;
+        using DebuggerWindow::GetTipCoordinator;
         using DebuggerWindow::GetColorPalette;
         using DebuggerWindow::GetMenuBarItems;
     };
@@ -183,7 +183,7 @@ namespace ColorLegendTests
                 cell = RECT { 2, list.GetHeaderHeightPx() + row * list.GetRowHeightDip(), 4, list.GetHeaderHeightPx() + (row + 1) * list.GetRowHeightDip() };
             }
 
-            (void) window.TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, anchor, text);
+            (void) window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, anchor, text);
             return text;
         }
 
@@ -446,7 +446,7 @@ namespace ColorLegendTests
             bounds = list->GetBounds();
 
             Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
-            Assert::IsTrue (window.TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
+            Assert::IsTrue (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
             Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip, L"the operand's heading");
 
             right = list->GetPaneLeadPx() - list->GetLeftPx();
@@ -457,7 +457,7 @@ namespace ColorLegendTests
             }
 
             Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
-            Assert::IsFalse (window.TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, anchor, tip), L"past the PC's row's last column");
+            Assert::IsFalse (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, anchor, tip), L"past the PC's row's last column");
         }
     };
 }

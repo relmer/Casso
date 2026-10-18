@@ -9,6 +9,7 @@
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -257,11 +258,10 @@ namespace BreakpointNameTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
-        using DebuggerWindow::BeginNameEdit;
-        using DebuggerWindow::EndNameEdit;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::TakeSnapshot;
 
-        DxuiListView * GetList() const { return GetBreakpointList(); }
+        DxuiListView * GetList() const { return GetBreakpointsPane().GetList(); }
 
         void  Type (const std::wstring & text)
         {
@@ -304,18 +304,18 @@ namespace BreakpointNameTests
             window.TakeSnapshot (snapshot);
             window.GetList()->SetColumns ({ { L"Name", 160, false, DxuiTextHAlign::Left } });
 
-            window.BeginNameEdit (0);
-            window.EndNameEdit (true);
+            window.GetBreakpointsPane().BeginNameEdit (0);
+            window.GetBreakpointsPane().EndNameEdit (true);
             Assert::IsTrue (host.actions.empty(), L"the name as it opened renames nothing");
 
-            window.BeginNameEdit (0);
+            window.GetBreakpointsPane().BeginNameEdit (0);
             window.Type (L"Loop");
-            window.EndNameEdit (false);
+            window.GetBreakpointsPane().EndNameEdit (false);
             Assert::IsTrue (host.actions.empty(), L"Escape renames nothing");
 
-            window.BeginNameEdit (0);
+            window.GetBreakpointsPane().BeginNameEdit (0);
             window.Type (L"Loop top");
-            window.EndNameEdit (true);
+            window.GetBreakpointsPane().EndNameEdit (true);
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].breakpointStep.has_value(), L"a step the pane can undo");

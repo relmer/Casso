@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DroppedFiles.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -116,10 +117,7 @@ namespace DebuggerLooseSourceTests
         }
 
         using DebuggerWindow::OnFilesDropped;
-        using DebuggerWindow::OpenSourcePath;
-        using DebuggerWindow::LoadSymbolsFor;
-        using DebuggerWindow::IsLooseSource;
-        using DebuggerWindow::GetSourcePane;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::IsPaneShown;
 
 
@@ -148,9 +146,9 @@ namespace DebuggerLooseSourceTests
 
 
             Assert::IsTrue  (slot >= 0, L"a document is shown");
-            Assert::IsFalse (GetSourcePane (slot).GetView()->GetRows().empty(), L"the document has rows");
+            Assert::IsFalse (GetSourceGroup().GetDocument (slot).GetModel().GetView()->GetRows().empty(), L"the document has rows");
 
-            for (const std::wstring & cell : GetSourcePane (slot).GetView()->GetRows().front().cells)
+            for (const std::wstring & cell : GetSourceGroup().GetDocument (slot).GetModel().GetView()->GetRows().front().cells)
             {
                 text += cell;
             }
@@ -218,14 +216,14 @@ namespace DebuggerLooseSourceTests
 
             host.files[L"C:\\Work\\main.a65"] = "start   lda #$41\n";
 
-            window.OpenSourcePath (L"C:\\Work\\main.a65");
+            window.GetSourceGroup().OpenSourcePath (L"C:\\Work\\main.a65");
             slot = window.GetShownSlot();
 
             Assert::IsTrue    (slot >= 0);
-            Assert::IsTrue    (window.IsLooseSource (slot));
-            Assert::AreEqual  (std::wstring (SourcePane::kpszNoSymbolsText), window.GetSourcePane (slot).GetBanner()->GetText());
-            Assert::IsNotNull (window.GetSourcePane (slot).GetBanner()->GetAction (0));
-            Assert::AreEqual  (std::wstring (SourcePane::kpszLoadSymbols), window.GetSourcePane (slot).GetBanner()->GetAction (0)->GetAccessibleName());
+            Assert::IsTrue    (window.GetSourceGroup().IsLoose (slot));
+            Assert::AreEqual  (std::wstring (SourcePane::kpszNoSymbolsText), window.GetSourceGroup().GetDocument (slot).GetModel().GetBanner()->GetText());
+            Assert::IsNotNull (window.GetSourceGroup().GetDocument (slot).GetModel().GetBanner()->GetAction (0));
+            Assert::AreEqual  (std::wstring (SourcePane::kpszLoadSymbols), window.GetSourceGroup().GetDocument (slot).GetModel().GetBanner()->GetAction (0)->GetAccessibleName());
         }
 
 
@@ -240,8 +238,8 @@ namespace DebuggerLooseSourceTests
             host.files[L"C:\\Work\\main.a65"] = "start   lda #$41\n";
             host.dialogs.path                 = L"C:\\Elsewhere\\main.dbg";
 
-            window.OpenSourcePath (L"C:\\Work\\main.a65");
-            window.LoadSymbolsFor (window.GetShownSlot());
+            window.GetSourceGroup().OpenSourcePath (L"C:\\Work\\main.a65");
+            window.GetSourceGroup().LoadSymbolsFor (window.GetShownSlot());
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Elsewhere\\main.dbg\""), host.commands[0]);
@@ -259,7 +257,7 @@ namespace DebuggerLooseSourceTests
             host.files[L"C:\\Work\\main.a65"] = "start   lda #$41\n";
             host.files[L"C:\\Work\\main.dbg"] = "version\tmajor=2,minor=0\n";
 
-            window.OpenSourcePath (L"C:\\Work\\main.a65");
+            window.GetSourceGroup().OpenSourcePath (L"C:\\Work\\main.a65");
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\main.dbg\""), host.commands[0]);
@@ -295,7 +293,7 @@ namespace DebuggerLooseSourceTests
             Assert::IsTrue   (window.OnFilesDropped ({ L"C:\\Work\\notes.txt" }));
             Assert::IsTrue   (host.commands.empty(), L"text is not loaded as symbols");
             Assert::IsTrue   (window.GetFirstRow().find (L"Remember the stack") != std::wstring::npos, window.GetFirstRow().c_str());
-            Assert::IsTrue   (window.GetSourcePane (window.GetShownSlot()).GetBanner()->GetText().empty(), L"only a source offers symbols");
+            Assert::IsTrue   (window.GetSourceGroup().GetDocument (window.GetShownSlot()).GetModel().GetBanner()->GetText().empty(), L"only a source offers symbols");
         }
 
 

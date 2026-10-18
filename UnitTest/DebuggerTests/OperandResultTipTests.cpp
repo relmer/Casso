@@ -50,19 +50,12 @@ namespace OperandResultTipTests
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
-        using DebuggerWindow::TryGetOperandTip;
-        using DebuggerWindow::PlaceOperandTip;
-        using DebuggerWindow::CheckOperandTipPointer;
+        using DebuggerWindow::GetOperandTips;
         using DebuggerWindow::GetTooltip;
-        using DebuggerWindow::HasOperandTip;
-        using DebuggerWindow::GetOperandTipLayout;
-        using DebuggerWindow::GetOperandTipCell;
-        using DebuggerWindow::SetOperandTipDeviceForTest;
         using DebuggerWindow::GetDockSite;
         using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::IsPaneShown;
-        using DebuggerWindow::GetColorKey;
-        using DebuggerWindow::GetColorKeyPopup;
+        using DebuggerWindow::GetColorKeys;
         using DebuggerWindow::GetStatusBar;
         using DebuggerWindow::IsZoomPopupOpen;
         using DebuggerWindow::GetZoomPopupRect;
@@ -533,7 +526,7 @@ namespace OperandResultTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
-            window.SetOperandTipDeviceForTest (&text, MakeScreen());
+            window.GetOperandTips().SetDeviceForTest (&text, MakeScreen());
 
             //  A paint fits the columns to their text, which places the cells.
             window.GetCodeList (0)->Paint (painter, text, theme);
@@ -628,7 +621,7 @@ namespace OperandResultTipTests
 
             scaler.SetDpi (96);
 
-            return window.TryGetOperandTip (at, scaler, text, MakeScreen(), layout, cell);
+            return window.GetOperandTips().TryGet (at, scaler, text, MakeScreen(), layout, cell);
         }
 
 
@@ -654,7 +647,7 @@ namespace OperandResultTipTests
             bounds = list->GetBounds();
 
             Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell), L"the long row's operand is in view");
-            Assert::IsTrue (window.TryGetOperandTip (GetOperandPoint (window, 0), scaler, text, MakeScreen(), layout, tipCell),
+            Assert::IsTrue (window.GetOperandTips().TryGet (GetOperandPoint (window, 0), scaler, text, MakeScreen(), layout, tipCell),
                             L"the pane cuts the long operand off");
 
             Assert::AreEqual (0, tipCell.view);
@@ -665,7 +658,7 @@ namespace OperandResultTipTests
             Assert::AreEqual (bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0), layout.rect.right,
                               L"the tip covers the cell to the pane's edge");
 
-            Assert::IsFalse (window.TryGetOperandTip (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
+            Assert::IsFalse (window.GetOperandTips().TryGet (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
                              L"a short operand fits");
         }
 
@@ -685,31 +678,31 @@ namespace OperandResultTipTests
             at = GetOperandPoint (window, 0);
 
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue   (window.HasOperandTip(), L"a move onto the cut-off operand shows the tip");
-            Assert::AreEqual (0, window.GetOperandTipCell().view);
-            Assert::AreEqual (0, window.GetOperandTipCell().row);
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"a move onto the cut-off operand shows the tip");
+            Assert::AreEqual (0, window.GetOperandTips().GetCell().view);
+            Assert::AreEqual (0, window.GetOperandTips().GetCell().row);
 
             Send (window, DxuiMouseEventKind::Wheel, at);
-            Assert::IsFalse (window.HasOperandTip(), L"the wheel leaves the tip up");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the wheel leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue  (window.HasOperandTip());
+            Assert::IsTrue  (window.GetOperandTips().HasTip());
 
             (void) window.OnKey (key);
-            Assert::IsFalse (window.HasOperandTip(), L"a key leaves the tip up");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a key leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue  (window.HasOperandTip());
+            Assert::IsTrue  (window.GetOperandTips().HasTip());
 
             Send (window, DxuiMouseEventKind::Down, at);
-            Assert::IsFalse (window.HasOperandTip(), L"a press leaves the tip up");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a press leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Up, at);
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue  (window.HasOperandTip());
+            Assert::IsTrue  (window.GetOperandTips().HasTip());
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
-            Assert::IsFalse (window.HasOperandTip(), L"a move onto an operand that fits leaves the tip up");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a move onto an operand that fits leaves the tip up");
         }
 
 
@@ -730,20 +723,20 @@ namespace OperandResultTipTests
             move.kind        = DxuiMouseEventKind::Move;
             move.positionDip = GetOperandPoint (window, 0);
 
-            window.PlaceOperandTip (move, false, scaler, text, MakeScreen());
-            Assert::IsTrue  (window.HasOperandTip());
+            window.GetOperandTips().Place (move, false, scaler, text, MakeScreen());
+            Assert::IsTrue  (window.GetOperandTips().HasTip());
 
-            window.PlaceOperandTip (move, true, scaler, text, MakeScreen());
-            Assert::IsFalse (window.HasOperandTip(), L"a drag over the cell leaves the tip up");
+            window.GetOperandTips().Place (move, true, scaler, text, MakeScreen());
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a drag over the cell leaves the tip up");
 
             //  As the window gets it: a move made with the left button down.
             (void) window.OnMouse (move);
-            Assert::IsTrue  (window.HasOperandTip());
+            Assert::IsTrue  (window.GetOperandTips().HasTip());
 
             move.button = DxuiMouseButton::Left;
 
             (void) window.OnMouse (move);
-            Assert::IsFalse (window.HasOperandTip(), L"a move with the button down leaves the tip up");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a move with the button down leaves the tip up");
         }
 
 
@@ -763,15 +756,15 @@ namespace OperandResultTipTests
             list = window.GetCodeList (0);
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            first = window.GetOperandTipLayout();
+            first = window.GetOperandTips().GetLayout();
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 2));
-            Assert::IsTrue   (window.HasOperandTip());
-            Assert::AreEqual (2, window.GetOperandTipCell().row);
-            Assert::IsFalse  (OperandResultTip::IsSame (first, window.GetOperandTipLayout()), L"the tip still shows the first row's");
+            Assert::IsTrue   (window.GetOperandTips().HasTip());
+            Assert::AreEqual (2, window.GetOperandTips().GetCell().row);
+            Assert::IsFalse  (OperandResultTip::IsSame (first, window.GetOperandTips().GetLayout()), L"the tip still shows the first row's");
 
             Assert::IsTrue   (list->GetCellTextRectPx (2, DisassemblyCells::kOperandColumn, cell));
-            Assert::AreEqual (list->GetBounds().top + cell.top, window.GetOperandTipLayout().textOrigin.y, L"over the third row");
+            Assert::AreEqual (list->GetBounds().top + cell.top, window.GetOperandTips().GetLayout().textOrigin.y, L"over the third row");
         }
 
 
@@ -789,17 +782,17 @@ namespace OperandResultTipTests
             at = GetOperandPoint (window, 0);
 
             Send (window, DxuiMouseEventKind::Move, at);
-            window.CheckOperandTipPointer (POINT { at.x + 50, at.y });
-            Assert::IsTrue (window.HasOperandTip(), L"a pointer still on the cell keeps the tip");
+            window.GetOperandTips().CheckPointer (POINT { at.x + 50, at.y });
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"a pointer still on the cell keeps the tip");
 
             //  Off the window's client area, as a pointer leaving across the
             //  frame or the caption is, with no move reaching the window.
-            window.CheckOperandTipPointer (POINT { at.x, -1 });
-            Assert::IsFalse (window.HasOperandTip(), L"a pointer off the window leaves the tip up");
+            window.GetOperandTips().CheckPointer (POINT { at.x, -1 });
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer off the window leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Move, at);
-            window.CheckOperandTipPointer (GetOperandPoint (window, 2));
-            Assert::IsFalse (window.HasOperandTip(), L"a pointer on another row leaves the tip up");
+            window.GetOperandTips().CheckPointer (GetOperandPoint (window, 2));
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer on another row leaves the tip up");
         }
 
 
@@ -833,9 +826,9 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, at);
             cellFill = list->GetCellsOfRow (2)[DisassemblyCells::kOperandColumn].background;
 
-            Assert::IsTrue   (window.HasOperandTip());
+            Assert::IsTrue   (window.GetOperandTips().HasTip());
             Assert::AreEqual (DxuiColor::Composite (cellFill, DxuiColor::Composite (theme.ContentSelection(), theme.ContentBackground())),
-                              window.GetOperandTipLayout().fill, L"the tip is not in the selected row's fill");
+                              window.GetOperandTips().GetLayout().fill, L"the tip is not in the selected row's fill");
         }
 
 
@@ -892,7 +885,7 @@ namespace OperandResultTipTests
 
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
 
-            Assert::IsTrue (window.HasOperandTip(), L"the same rows again take the tip down");
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"the same rows again take the tip down");
         }
 
 
@@ -908,7 +901,7 @@ namespace OperandResultTipTests
 
             Build (window, theme, text);
             Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            Assert::IsTrue (window.HasOperandTip());
+            Assert::IsTrue (window.GetOperandTips().HasTip());
 
             //  The tip's own row is as it was; another's instruction is wider,
             //  which widens its column and moves the operand along.
@@ -917,7 +910,7 @@ namespace OperandResultTipTests
 
             window.ApplyCodeSnapshot (snapshot, 0);
 
-            Assert::IsFalse (window.HasOperandTip(), L"the tip stays where the cell was");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip stays where the cell was");
         }
 
 
@@ -933,7 +926,7 @@ namespace OperandResultTipTests
 
             Build (window, theme, text);
             Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            Assert::IsTrue (window.HasOperandTip());
+            Assert::IsTrue (window.GetOperandTips().HasTip());
 
             //  The text is the same; only the PC's row fill leaves the row.
             snapshot->codeViews[0][0].isCurrent = false;
@@ -943,7 +936,7 @@ namespace OperandResultTipTests
 
             window.ApplyCodeSnapshot (snapshot, 0);
 
-            Assert::IsFalse (window.HasOperandTip(), L"the tip keeps the PC's row fill");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip keeps the PC's row fill");
         }
 
 
@@ -960,11 +953,11 @@ namespace OperandResultTipTests
             scaler.SetDpi (96);
             Build (window, theme, text);
             Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            Assert::IsTrue (window.HasOperandTip());
+            Assert::IsTrue (window.GetOperandTips().HasTip());
 
             window.Layout (RECT { 0, 0, kWindowWidth - kNarrowerPx, kWindowHeight }, scaler);
 
-            Assert::IsFalse (window.HasOperandTip(), L"the tip keeps the width of a pane that has narrowed");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip keeps the width of a pane that has narrowed");
         }
 
 
@@ -985,15 +978,15 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             under = window.GetTooltip().GetPendingAnchor();
 
-            Assert::IsTrue (window.HasOperandTip());
+            Assert::IsTrue (window.GetOperandTips().HasTip());
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"the operand's color tip is not on its way");
-            Assert::IsTrue (EqualRect (&under, &window.GetOperandTipLayout().rect) != FALSE, L"the color tip is placed by its cell, under the operand tip");
+            Assert::IsTrue (EqualRect (&under, &window.GetOperandTips().GetLayout().rect) != FALSE, L"the color tip is placed by its cell, under the operand tip");
 
             //  A plain row's operand has neither tip: the operand's colors are
             //  on the column's heading.
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
 
-            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"a color tip over a plain row's operand");
         }
 
@@ -1019,16 +1012,16 @@ namespace OperandResultTipTests
 
             (void) window.OnKey (key);
 
-            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"after a key, the color tip still comes up below a tip no longer there");
 
             //  The pointer leaving the cell with no move reaching the window.
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue (window.GetTooltip().WantsTick());
 
-            window.CheckOperandTipPointer (POINT { at.x, -1 });
+            window.GetOperandTips().CheckPointer (POINT { at.x, -1 });
 
-            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"after the pointer leaves, the color tip still comes up below a tip no longer there");
 
             //  New rows that move the cell.
@@ -1040,7 +1033,7 @@ namespace OperandResultTipTests
 
             window.ApplyCodeSnapshot (snapshot, 0);
 
-            Assert::IsFalse (window.HasOperandTip());
+            Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"after new rows, the color tip still comes up below a tip no longer there");
         }
 
@@ -1062,11 +1055,11 @@ namespace OperandResultTipTests
             Assert::IsTrue (list->IsCellTextSelected (0, DisassemblyCells::kOperandColumn), L"the drag selects part of the operand");
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            Assert::IsFalse (window.HasOperandTip(), L"the tip lies over the selection");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip lies over the selection");
 
             //  A row whose tip reaches nowhere near the selection still has one.
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 2));
-            Assert::IsTrue (window.HasOperandTip(), L"a selection in one row takes every row's tip away");
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"a selection in one row takes every row's tip away");
         }
 
 
@@ -1088,7 +1081,7 @@ namespace OperandResultTipTests
             Assert::IsTrue (list->IsCellTextSelected (1, DisassemblyCells::kOperandColumn), L"the drag selects part of the operand");
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
-            Assert::IsFalse (window.HasOperandTip(), L"the tip of the row above lies over the selection");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip of the row above lies over the selection");
         }
 
 
@@ -1112,17 +1105,17 @@ namespace OperandResultTipTests
             //  clear of the pointer and of the cell.
             screen.overWindows.push_back (RECT { layout.rect.left + kOverGapPx, layout.rect.bottom - kOverGapPx,
                                                  layout.rect.left + kOverSizePx, layout.rect.bottom + kOverSizePx });
-            window.SetOperandTipDeviceForTest (&text, screen);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
 
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsFalse (window.HasOperandTip(), L"the tip shows over the floating window");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip shows over the floating window");
 
             //  The same window clear of the tip.
             OffsetRect (&screen.overWindows[0], 0, kOverSizePx);
-            window.SetOperandTipDeviceForTest (&text, screen);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
 
             Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue (window.HasOperandTip(), L"a window clear of the tip takes it away");
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"a window clear of the tip takes it away");
         }
 
 
@@ -1156,24 +1149,24 @@ namespace OperandResultTipTests
             split            = start + kSplitIntoTextPx;
             at               = POINT { (split + visible) / 2, GetOperandPoint (window, 0).y };
             screen.workAreas = { RECT { 0, 0, split, kScreenBelow }, RECT { split, 0, kScreenRight, kScreenBelow } };
-            window.SetOperandTipDeviceForTest (&text, screen);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
 
             Send (window, DxuiMouseEventKind::Move, at);
 
-            Assert::IsTrue   (window.HasOperandTip(), L"a pointer on the second monitor has no tip");
-            Assert::AreEqual (start,   window.GetOperandTipLayout().textOrigin.x, L"the text starts where the cell's does, on the first monitor");
-            Assert::AreEqual (visible, window.GetOperandTipLayout().rect.right,   L"the tip stops at the first monitor's edge, and the cut text shows beside it");
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"a pointer on the second monitor has no tip");
+            Assert::AreEqual (start,   window.GetOperandTips().GetLayout().textOrigin.x, L"the text starts where the cell's does, on the first monitor");
+            Assert::AreEqual (visible, window.GetOperandTips().GetLayout().rect.right,   L"the tip stops at the first monitor's edge, and the cut text shows beside it");
 
             //  A gap between them, as a taskbar down the first one's right side
             //  leaves: the tip keeps to the first monitor, with the pointer on
             //  the second.
             screen.workAreas[0].right = split - kGapPx;
-            window.SetOperandTipDeviceForTest (&text, screen);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
 
             Send (window, DxuiMouseEventKind::Move, at);
 
-            Assert::IsTrue (window.HasOperandTip(), L"a pointer on the second monitor has no tip");
-            Assert::IsTrue (window.GetOperandTipLayout().rect.right <= split - kGapPx, L"the tip runs into the gap");
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"a pointer on the second monitor has no tip");
+            Assert::IsTrue (window.GetOperandTips().GetLayout().rect.right <= split - kGapPx, L"the tip runs into the gap");
         }
 
 
@@ -1195,15 +1188,15 @@ namespace OperandResultTipTests
             at = GetOperandPoint (window, 0);
             Assert::IsTrue (TryGetTip (window, at, text, layout));
 
-            button = window.GetColorKey (DebuggerLayout::GetCodePaneId (0));
+            button = window.GetColorKeys().Find (DebuggerLayout::GetCodePaneId (0));
             Assert::IsNotNull (button);
             Assert::IsTrue    (button->IsVisible(), L"the disassembly's info button shows");
 
             Send (window, DxuiMouseEventKind::Down, GetCenter (button->GetBounds()));
             Send (window, DxuiMouseEventKind::Up,   GetCenter (button->GetBounds()));
-            key = window.GetColorKeyPopup().GetRect();
+            key = window.GetColorKeys().GetPopup().GetRect();
 
-            Assert::IsTrue (window.GetColorKeyPopup().IsHeld(), L"the click holds the key open");
+            Assert::IsTrue (window.GetColorKeys().GetPopup().IsHeld(), L"the click holds the key open");
             Assert::IsTrue (IntersectRect (&both, &key, &layout.rect) != FALSE, L"the key hangs over the tip's cell");
 
             Assert::IsFalse (TryGetTip (window, at, text, layout), L"the tip shows over the key");

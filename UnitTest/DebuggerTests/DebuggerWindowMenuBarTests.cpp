@@ -102,7 +102,7 @@ namespace DebuggerMenuBarTests
         using DebuggerWindow::SetWindowMenus;
         using DebuggerWindow::GetMenuBarItems;
         using DebuggerWindow::GetCommandBar;
-        using DebuggerWindow::GetConsoleBar;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
         using DebuggerWindow::GetPaneLayout;
@@ -566,8 +566,8 @@ namespace DebuggerMenuBarTests
 
             window.OnCreate();
 
-            Assert::IsNotNull (window.GetConsoleBar());
-            Assert::AreEqual  (MenuBarWindow::kDialectEntry, window.GetConsoleBar()->GetEntryCommandId (1), L"after the Mode: label");
+            Assert::IsNotNull (window.GetConsolePane().GetModeBar().GetSlot().GetBar());
+            Assert::AreEqual  (MenuBarWindow::kDialectEntry, window.GetConsolePane().GetModeBar().GetSlot().GetBar()->GetEntryCommandId (1), L"after the Mode: label");
         }
 
 
@@ -584,8 +584,8 @@ namespace DebuggerMenuBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetPaneOfControl (window.GetConsoleBar()));
-            Assert::IsTrue   (window.GetConsoleBar()->IsVisible(), L"the bar shows with the console");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetPaneOfControl (window.GetConsolePane().GetModeBar().GetSlot().GetBar()));
+            Assert::IsTrue   (window.GetConsolePane().GetModeBar().GetSlot().GetBar()->IsVisible(), L"the bar shows with the console");
         }
     };
 }
