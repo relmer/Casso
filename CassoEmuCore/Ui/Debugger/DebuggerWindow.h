@@ -44,6 +44,7 @@
 #include "Ui/Debugger/ToolbarBoxEntry.h"
 #include "Ui/Debugger/Panes/FindWidgetPlate.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/Panes/ICodeViews.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
@@ -73,6 +74,7 @@ class StackPane;
 class WatchesPane;
 class SymbolsPane;
 class BreakpointsPane;
+class CodeEditCommands;
 class SourceDocumentGroup;
 class MemoryPane;
 class TracePaneController;
@@ -100,7 +102,7 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews
 {
 public:
     DebuggerWindow();
@@ -222,7 +224,7 @@ protected:
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
-    DxuiListView  * GetCodeList       (int view) const { return m_codeLists[(size_t) view]; }
+    DxuiListView  * GetCodeList       (int view) const override { return m_codeLists[(size_t) view]; }
 
     //  Protected so a test can read and run a code row's menu entries.
     std::optional<std::pair<Word, Word>>  GetCodeSelection (int view, int row) const;
@@ -239,7 +241,7 @@ protected:
     bool                         IsCodeOptionEnabled (DisassemblyOptions::Option option) const;
     const DisassemblyOptions  &  GetCodeOptions      () const { return m_codeOptions; }
     DxuiToolbar               *  GetCodeBar          (int view) const { return m_codeBars[(size_t) view]; }
-    int                          GetCodeLineOfRow    (int view, int row) const;
+    int                          GetCodeLineOfRow    (int view, int row) const override;
     void                         HoverGutter         (POINT atDip);
 
     //  Protected so a test can press the gutter and drag the PC's arrow to
@@ -780,8 +782,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ConfigureCodeList (int view);
     int      GetCodeViewOf    (const IDxuiControl * control) const;
     int      GetOpenCodeViewCount () const;
-    const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const;
-    void                                                 AddSymbolAt  (Word address);
+    const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const override;
     void     ApplyCodeView    (int view);
     void     UpdateTooltip    (POINT clientPx) override;
     void     UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed);
@@ -1163,21 +1164,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::set<std::wstring>                                                           m_closedPanes;
     std::wstring                                                                     m_pendingShowPane;
 
-    //  Where Start stopwatch here was chosen, until Stop stopwatch here.
-    std::optional<Word>                                                              m_stopwatchStart;
-
-    //  The code pane's edits of instructions, each the bytes before and
-    //  after, to undo and redo (FR-185, FR-186).
-    struct CodeEdit
-    {
-        Word               address = 0;
-        std::vector<Byte>  before;
-        std::vector<Byte>  after;
-        std::wstring       text;
-    };
-
-    std::vector<CodeEdit>                                                            m_codeUndo;
-    std::vector<CodeEdit>                                                            m_codeRedo;
+    //  The disassembly views' menu entries that change a line.
+    std::unique_ptr<CodeEditCommands>                                                m_codeEdits;
 
     //  The command bar and the history timeline, laid out together in bands
     //  along the window's edges. Declared ahead of their hosts, which leave

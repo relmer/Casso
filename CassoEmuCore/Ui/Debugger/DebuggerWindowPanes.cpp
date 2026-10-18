@@ -10,6 +10,7 @@
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
@@ -53,7 +54,8 @@ void DebuggerWindow::CreatePanes()
 
 
 
-    m_sources = std::make_unique<SourceDocumentGroup> (host);
+    m_codeEdits = std::make_unique<CodeEditCommands> (host, static_cast<const ICodeViews &> (*this));
+    m_sources   = std::make_unique<SourceDocumentGroup> (host);
 
     for (std::unique_ptr<IDebuggerPane> & document : m_sources->CreateDocuments())
     {
@@ -1002,6 +1004,96 @@ DxuiTextView * DebuggerWindow::GetSourceView (int slot) const
 DxuiToolbar * DebuggerWindow::GetSourceBar (int slot) const
 {
     return m_sources->GetDocument (slot).GetBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<Word, Word>> DebuggerWindow::GetCodeSelection (int view, int row) const
+{
+    return m_codeEdits->GetSelection (view, row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddCodeEditItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddCodeEditItems (int view, const DebuggerViewSnapshot::CodeLine & line, int row, PaneMenuItems & items)
+{
+    m_codeEdits->AddItems (view, line, row, items);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditInstruction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditInstruction (int view, const DebuggerViewSnapshot::CodeLine & line)
+{
+    m_codeEdits->EditInstruction (view, line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ReplaceWithNops
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ReplaceWithNops (int view, std::pair<Word, Word> range)
+{
+    m_codeEdits->ReplaceWithNops (view, range);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UndoCodeEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UndoCodeEdit (bool redo)
+{
+    m_codeEdits->Undo (redo);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetCodeBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetCodeBytes (int view, Word first, Word last, std::vector<Byte> & bytes) const
+{
+    return m_codeEdits->TryGetBytes (view, first, last, bytes);
 }
 
 
