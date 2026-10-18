@@ -208,8 +208,12 @@ public:
     //  and by instruction for the disassembly.
     virtual void                   NoteViewFocus    (bool isSource) = 0;
 
-    //  Builds the window's menus again, after what they list changes.
+    //  Builds the window's menus again, after what they list changes; a
+    //  menu of rows at a point in the window; and a pane's tab marked for
+    //  new output while the pane is out of sight.
     virtual void                   UpdateWindowMenus () = 0;
+    virtual void                   ShowPopupMenu    (const PaneMenuItems & items, POINT clientPx) = 0;
+    virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;
 
     //  The Find entry for a pane's toolbar, which opens the pane's find
     //  widget.

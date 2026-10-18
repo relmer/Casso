@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
@@ -207,7 +208,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         lines.push_back (line);
     }
 
-    m_consoleHistory.SetLines (std::move (lines));
+    m_consolePane->GetCommandLine().GetHistory().SetLines (std::move (lines));
 
     m_finds->LoadSaved (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
 
@@ -341,33 +342,6 @@ void DebuggerWindow::SaveUndoHistories()
 
     m_undoSavedMs = now;
     m_host->SetDebuggerWindowState ("undo", GetUndoHistoriesText());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveConsoleHistory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveConsoleHistory()
-{
-    std::wstring  text;
-
-
-
-    for (const std::wstring & line : m_consoleHistory.GetLines())
-    {
-        text += line + L"\n";
-    }
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerWindowState ("console", SourcePathList::WideToUtf8 (text));
-    }
 }
 
 

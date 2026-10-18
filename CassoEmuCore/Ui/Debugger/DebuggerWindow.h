@@ -42,6 +42,7 @@
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/ToolbarBoxEntry.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/ICodeViews.h"
@@ -163,7 +164,7 @@ protected:
     DxuiTextInput  * GetMemoryBox    () const;
 
     //  Protected so a test can focus a control as a click does.
-    DxuiTextInput  * GetCommandBox   () const { return m_commandBox; }
+    DxuiTextInput  * GetCommandBox   () const { return m_consolePane->GetCommandLine().GetBox(); }
     void             FocusControl    (IDxuiControl * control) override { SetFocusedControl (control); }
 
     //  Protected so a test can write to the console as the host's lines do,
@@ -178,7 +179,7 @@ protected:
     bool             IsFindOpen      () const { return m_finds->IsOpen(); }
     bool             IsFindOpenIn    (const std::wstring & pane) const;
     DxuiTextInput  * GetFindBoxOf    (const std::wstring & pane) const;
-    DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
+    DxuiTextView   * GetConsoleView  () const { return m_consolePane->GetOutput().GetView(); }
     DxuiTextInput  * GetFindBox      () const { return m_finds->GetBox(); }
     DxuiButton     * GetFindWordButton () const { return m_finds->GetWordButton(); }
     void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
@@ -423,15 +424,15 @@ protected:
     void                                  SetConsoleBarMenus ();
     const std::vector<DxuiMenuBarItem> &  GetMenuBarItems    () const { return m_menuBarItems; }
     DxuiToolbar *                         GetCommandBar      () const { return m_commandBar; }
-    DxuiToolbar *                         GetConsoleBar      () const { return m_consoleBar; }
-    std::wstring                          GetModeText        () const { return m_dialectCommand->label; }
+    DxuiToolbar *                         GetConsoleBar      () const { return m_consolePane->GetModeBar().GetSlot().GetBar(); }
+    std::wstring                          GetModeText        () const { return m_consolePane->GetModeBar().GetModeText(); }
     static std::wstring                   GetModeLabel       (const wchar_t * mode);
     DxuiToolbar *                         GetSourceBar       (int slot) const;
     DxuiMenuBar *                         GetMenuBar         () const { return m_menuBar; }
 
     //  The console's modes in its drop-down's order: alphabetical by label,
     //  without regard to case.
-    using ModeChoice = std::pair<CommandMode, const wchar_t *>;
+    using ModeChoice = ConsoleModeBar::ModeChoice;
 
     static const std::vector<ModeChoice> &  GetModeChoices ();
 
@@ -516,8 +517,6 @@ private:
     static constexpr int    kPreferredHeightDip = 840;
     static constexpr int    kMinWidthDip        = 760;
     static constexpr int    kMinHeightDip       = 520;
-    static constexpr int    kConsoleLineLimit   = 2000;
-    static constexpr float  kConsoleLineSpacing = 1.2f;
 
     //  Pane metrics (FR-026a): the monospace face at a size whose line height
     //  a row barely exceeds, small cell padding, and eight rows owed to every
@@ -553,8 +552,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr float  kMaxTextZoom           = 3.0f;
     static constexpr float  kTextZoomStep          = 0.1f;
 
-    static std::wstring  GetPromptText  (CommandMode mode);
-    static std::wstring  GetHelpCommand (CommandMode mode);
 
     void     ConfigureWidgets ();
     void     LayoutWidgets    ();
@@ -566,15 +563,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     PaintZoomPopup   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void     ApplySnapshot    ();
     void     UpdateChanges    ();
-    void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
     void     RunAction        (const DebuggerAction & action) override;
     CommandMode  GetMode      () const override;
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
-    bool     RouteCompletionKey (const DxuiKeyEvent & ev);
-    void     RefreshCommandGhost ();
-    void     ShowHistoryList  ();
     void     UpdateTopLayer   ();
     void     SearchAsTyped    ();
     void     ConfigureDockSite  ();
@@ -615,16 +608,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  widths of the columns the user sized. A project's switch brings back
     //  the rest of its settings too.
     void     RestoreWindowState   (bool isProjectSwitch);
-    void     SaveConsoleHistory   ();
     void     SaveColumnWidths     ();
     void     ApplyColumnWidths    ();
     void     SaveUndoHistories    ();
     std::string  GetUndoHistoriesText () const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
-    void     ConfigureConsoleBar  ();
-    void     PlaceConsoleBar      ();
-    bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;
@@ -695,7 +684,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiTooltip &    GetRoutedTooltip ();
     void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
-    bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource) override;
     void     NoteTabFocus       (POINT pointDip);
     static IDxuiControl * FindFirstFocusable (IDxuiControl * node);
@@ -817,6 +805,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The searchable panes' find widgets.
     std::unique_ptr<FindWidgetSet>          m_finds;
 
+    //  The console, on the pane list.
+    ConsolePane                           * m_consolePane = nullptr;
+
     //  The window's parts the find widgets reach (IFindWidgetHost).
     DxuiTextView         * GetFindView      (const std::wstring & pane) const override;
     DebuggerPaneFrame    * GetFindFrame     (const std::wstring & pane) const override;
@@ -828,7 +819,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                   FocusInPane      (const std::wstring & pane, IDxuiControl * control) override;
     IDxuiControl         * GetFindFocus     () const override { return GetFocused(); }
     std::wstring           GetFocusPane     () const override { return GetPaneOfFocus(); }
-    IDxuiControl         * GetCommandLine   () const override { return m_commandBox; }
+    IDxuiControl         * GetCommandLine   () const override { return m_consolePane->GetCommandLine().GetBox(); }
     void                   BringPaneForward (const std::wstring & pane) override;
     void                   UpdateFindLayer  () override { UpdateTopLayer(); }
 
@@ -866,18 +857,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t                              m_pcIconArgb          = 0;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
-    std::vector<std::string>                        m_console;
-    ConsoleHistory                                  m_consoleHistory;
-    CommandCompletion                               m_completion;
-    uint32_t                                        m_offeredSuggestionSerial = 0;
 
     DxuiToolbar                                                                    * m_commandBar         = nullptr;
     DxuiMenuBar                                                                    * m_menuBar            = nullptr;
     std::vector<DxuiMenuBarItem>                                                     m_menuBarItems;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_consoleBarSlot;
-    DxuiToolbar                                                                    * m_consoleBar         = nullptr;
-    std::shared_ptr<DxuiCommand>                                                     m_dialectCommand;
-    std::unique_ptr<ToolbarLabelEntry>                                               m_modeLabel;
     std::unique_ptr<DebuggerCommands>                                                m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
     DxuiDockSite                                                                   * m_dockSite           = nullptr;
@@ -893,7 +876,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     OpeningFocusDeferral                                                             m_openingFocus;
     StopFocus                                                                        m_stopFocus;
     std::wstring                                                                     m_tornOffPane;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     uint32_t                                                                         m_shownPaneSerial    = 0;
     bool                                                                             m_isHeatMapRecording = false;
     bool                                                                             m_isHeatColumnsRecording = false;
@@ -927,7 +909,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     IDebuggerWindowHost * GetWindowHost         () override { return m_host; }
     bool                 IsPaneOpen             (const std::wstring & pane) const override { return IsPaneShown (pane); }
     IDxuiControl       * GetFocusedControl      () const override { return m_focusMgr.GetFocusedControl(); }
-    void                 FocusDefault           () override { m_focusMgr.SetFocused (m_commandBox); }
+    void                 FocusDefault           () override { m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox()); }
     void                 HideTooltip            () override { GetRoutedTooltip().HideImmediate(); }
     void                 ShowPcCode             () override { ShowCode (std::nullopt); }
     void                 GoToMemory             (Word address) override;
@@ -961,6 +943,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 SetPaneTitle           (const std::wstring & pane, const std::wstring & title) override { m_dockSite->SetTitle (pane, title); }
     void                 SetPaneTabMark         (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
     void                 UpdateWindowMenus      () override { SetWindowMenus(); }
+    void                 ShowPopupMenu          (const PaneMenuItems & items, POINT clientPx) override;
+    void                 MarkPaneTab            (const std::wstring & pane) override;
     DxuiToolbar::Entry   GetFindEntry           (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }
     std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
@@ -1009,8 +993,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void  ToggleColorKey      (ColorKeyButton * button);
     void  HideColorKey        ();
     std::string                                                   m_machine;
-    DxuiTextView                                                * m_consoleView         = nullptr;
-    DxuiTextInput                                               * m_commandBox          = nullptr;
     std::wstring                                                  m_slidPane;
     std::unique_ptr<SourceDocumentGroup>                          m_sources;
     MemoryFileDialog::Fields                                      m_loadFileFields;

@@ -25,6 +25,7 @@
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
@@ -184,9 +185,6 @@ void DebuggerWindow::OnCreate()
     m_menuBar           = CreateChild<DxuiMenuBar>   ();
     m_commandBar        = CreateChild<DxuiToolbar>   ();
     m_timelineBar       = CreateChild<DxuiToolbar>   ();
-    m_consoleView       = CreateChild<DxuiTextView>  ();
-    m_commandBox       = CreateChild<DxuiTextInput> ();
-    m_consoleBar        = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
     CreatePanes();
@@ -232,7 +230,6 @@ void DebuggerWindow::ConfigureWidgets()
 {
     ConfigureMenuBar();
     ConfigureCommandBar();
-    ConfigureConsoleBar();
 
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -241,14 +238,6 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
     SetAcceptsDroppedFiles  (true);
-
-    //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
-    //  selection that runs through the text as an editor's does, and Ctrl+C
-    //  to copy it.
-    m_consoleView->SetOwnerWindow   (GetHwnd());
-    m_consoleView->SetFollowEnd     (true);
-    m_consoleView->SetLineSpacing   (kConsoleLineSpacing);
-    m_consoleView->SetPaneTextInset (true);
 
     for (DxuiListView * list : GetLists())
     {
@@ -274,20 +263,14 @@ void DebuggerWindow::ConfigureWidgets()
     }
 
 
-    m_commandBox->SetHwnd      (GetHwnd());
-    m_commandBox->SetMaxLength (256);
-
     //  The console's find widget is made now; a source document's the first
     //  time find opens there. Hidden until find opens.
     (void) m_finds->Activate (DebuggerLayout::kConsole);
 
-    m_commandBox->SetPrompt      (GetPromptText (CommandMode::AppleWin));
-    m_commandBox->SetPlaceholder (L"Command (Enter to run, HELP for help)");
-
     m_focusMgr.Attach   (this);
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
-    m_focusMgr.SetFocused (m_commandBox);
+    m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
 
     //  A list's column widths, once the user sizes one, are saved with the
     //  project; the event logs' are in their own options.
@@ -554,52 +537,6 @@ std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetPromptText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetPromptText (CommandMode mode)
-{
-    switch (mode)
-    {
-    case CommandMode::Monitor:   return L"Monitor>";
-    case CommandMode::GSSquared: return L"GSSquared>";
-    case CommandMode::WinDbg:    return L"WinDbg>";
-    case CommandMode::Casso:     return L"Casso>";
-    default:                     return L"AppleWin>";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetHelpCommand
-//
-//  How each dialect asks for help: Monitor mode reaches HELP through its
-//  slash, as it reaches every AppleWin command.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetHelpCommand (CommandMode mode)
-{
-    switch (mode)
-    {
-    case CommandMode::Monitor:   return L"/HELP";
-    case CommandMode::GSSquared: return L"help";
-    case CommandMode::WinDbg:    return L".help";
-    default:                     return L"HELP";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::MakeDense
 //
 //  One setting for every pane, so the panes read as one listing rather than
@@ -698,7 +635,6 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
         pane->SetTextZoom (m_textZoom);
     }
 
-    m_consoleView->SetZoom (m_textZoom);
 
     //  The status bar's zoom and its slider follow a change from the keys or
     //  the wheel as well as from the slider itself.
@@ -727,7 +663,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.push_back (m_commandBox);
+    targets.push_back (m_consolePane->GetCommandLine().GetBox());
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -799,50 +735,6 @@ int DebuggerWindow::GetSourceSlotOf (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteConsoleMouse
-//
-//  The console's text takes a press or the wheel inside it, and everything
-//  while a selection drag or its scrollbar is under way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteConsoleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_consoleView->IsVisible() || !IsRoutable (m_consoleView))
-    {
-        return false;
-    }
-
-    if (m_consoleView->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
-    {
-        (void) m_consoleView->OnMouse (ev);
-        return true;
-    }
-
-    if (!DxuiDockSite::Contains (m_consoleView->GetBounds(), ev.positionDip) ||
-        (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel) ||
-        (ev.kind == DxuiMouseEventKind::Down && ev.button != DxuiMouseButton::Left))
-    {
-        return false;
-    }
-
-    //  A press still selects in the output, but typing goes to the command
-    //  line, as it does in a terminal.
-    if (ev.kind == DxuiMouseEventKind::Down)
-    {
-        SetFocusedControl (m_commandBox);
-    }
-
-    (void) m_consoleView->OnMouse (ev);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::NoteViewFocus
 //
 //  Steps follow the view: the source pane steps by source line, the
@@ -895,7 +787,7 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
 
     if (GetPaneOfFocus() != pane)
     {
-        target = (pane == DebuggerLayout::kConsole) ? m_commandBox : nullptr;
+        target = (pane == DebuggerLayout::kConsole) ? m_consolePane->GetCommandLine().GetBox() : nullptr;
 
         for (IDxuiControl * part : GetPaneControls (pane))
         {
@@ -1051,9 +943,9 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    if (focused != nullptr && focused == m_commandBox)
+    if (focused != nullptr && focused == m_consolePane->GetCommandLine().GetBox())
     {
-        return m_commandBox;
+        return m_consolePane->GetCommandLine().GetBox();
     }
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -1405,23 +1297,23 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 
     //  While the line assembler takes the box's lines, Return and Space are
     //  the box's, so an empty line ends the assembly.
-    if (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox &&
+    if (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_consolePane->GetCommandLine().GetBox() &&
         DebuggerViewState::DoesAssemblerKeepKey (m_snapshot.get(), ev.vk, ev.ctrl, ev.alt))
     {
         return false;
     }
 
-    consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_commandBox)
+    consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_consolePane->GetCommandLine().GetBox())
                   ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
                   : std::nullopt;
 
     //  Only the command line steps from an empty line; the Address box is no
     //  command line, so it keeps Space and Return however empty it is.
-    boxEmpty = box != nullptr && box == m_commandBox && box->GetText().empty() &&
+    boxEmpty = box != nullptr && box == m_consolePane->GetCommandLine().GetBox() && box->GetText().empty() &&
                !DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt);
 
     boxKeeps = DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty,
-                                                   box != nullptr && box == m_commandBox && mode == CommandMode::Monitor);
+                                                   box != nullptr && box == m_consolePane->GetCommandLine().GetBox() && mode == CommandMode::Monitor);
 
     if (consoleAction.has_value())
     {
@@ -1637,7 +1529,6 @@ void DebuggerWindow::LayoutWidgets()
         pane->PlaceBar();
     }
 
-    PlaceConsoleBar();
     PlaceColorKeys();
     m_finds->Place();
     ClipPaneControls();
@@ -1816,7 +1707,7 @@ IDxuiControl * DebuggerWindow::GetMainControl (const std::wstring & pane) const
 
     if (pane == DebuggerLayout::kConsole)
     {
-        return m_commandBox;
+        return m_consolePane->GetCommandLine().GetBox();
     }
 
     for (IDxuiControl * each : controls)
@@ -2145,22 +2036,6 @@ void DebuggerWindow::ConfigureDockSite()
     InputFilter     dragFilter;
 
 
-
-    m_consoleFrame = std::make_unique<DebuggerPaneFrame> (L"Console");
-    //  The console's toolbar, which holds its dialect, is a place held at the
-    //  pane's top, which PlaceConsoleBar fills.
-    m_consoleBarSlot = std::make_unique<DebuggerPaneFrame> (L"Console commands");
-    m_consoleFrame->AddPart (m_consoleBarSlot.get(), barHeight);
-
-    m_consoleFrame->AddPart (m_consoleView);
-    m_consoleFrame->AddPart (m_commandBox, boxHeight);
-    m_consoleFrame->SetBottomMarginDip (kPanePadDip + 2);
-
-    //  The command box's prompt, a pad inside its border, starts where the
-    //  console's text and the pane's title do.
-    m_consoleFrame->SetPartTextAligned (m_commandBox, DxuiTextInput::kPadLeftDip);
-
-    m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -2715,7 +2590,7 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         return L"";
     }
 
-    if (focused == m_consoleView || focused == m_commandBox || GetPaneOfControl (focused) == DebuggerLayout::kConsole)
+    if (focused == m_consolePane->GetOutput().GetView() || focused == m_consolePane->GetCommandLine().GetBox() || GetPaneOfControl (focused) == DebuggerLayout::kConsole)
     {
         return DebuggerLayout::kConsole;
     }
@@ -2865,16 +2740,16 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     //  The console's two parts are text: the command line edits, the output
     //  only copies.
-    if (GetPaneOfControl (m_consoleView) == pane && m_commandBox->IsVisible() && DxuiDockSite::Contains (m_commandBox->GetBounds(), clientPx))
+    if (GetPaneOfControl (m_consolePane->GetOutput().GetView()) == pane && m_consolePane->GetCommandLine().GetBox()->IsVisible() && DxuiDockSite::Contains (m_consolePane->GetCommandLine().GetBox()->GetBounds(), clientPx))
     {
-        SetFocusedControl (m_commandBox);
-        ShowEditMenu (m_commandBox, clientPx, {});
+        SetFocusedControl (m_consolePane->GetCommandLine().GetBox());
+        ShowEditMenu (m_consolePane->GetCommandLine().GetBox(), clientPx, {});
         return true;
     }
 
-    if (GetPaneOfControl (m_consoleView) == pane && m_consoleView->IsVisible() && DxuiDockSite::Contains (m_consoleView->GetBounds(), clientPx))
+    if (GetPaneOfControl (m_consolePane->GetOutput().GetView()) == pane && m_consolePane->GetOutput().GetView()->IsVisible() && DxuiDockSite::Contains (m_consolePane->GetOutput().GetView()->GetBounds(), clientPx))
     {
-        ShowEditMenu (m_consoleView, clientPx, { { L"Clear", [this] { m_console.clear(); m_consoleView->SetRows ({}); } } });
+        ShowEditMenu (m_consolePane->GetOutput().GetView(), clientPx, { { L"Clear", [this] { m_consolePane->GetOutput().Clear(); } } });
         return true;
     }
 
@@ -3174,7 +3049,7 @@ void DebuggerWindow::RenderFrame()
         AppendConsole (console);
     }
 
-    RefreshCommandGhost();
+    m_consolePane->GetCommandLine().RefreshGhost();
     UpdateStatusBar();
 
     for (DxuiListView * list : GetLists())
@@ -3198,7 +3073,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_consoleBar })
+    for (DxuiToolbar * strip : { m_commandBar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -3263,7 +3138,6 @@ void DebuggerWindow::RenderFrame()
         pane->PlaceBar();
     }
 
-    PlaceConsoleBar();
     PlaceColorKeys();
     m_finds->Place();
     ClipPaneControls();
@@ -3541,22 +3415,6 @@ void DebuggerWindow::ApplySnapshot()
 
     UpdateChanges();
 
-    //  The console reads as a command prompt in the dialect in force, with
-    //  that dialect's own help command in its hint.
-    m_commandBox->SetPrompt      (GetPromptText (m_snapshot->mode));
-    m_commandBox->SetPlaceholder (std::format (L"Command (Enter to run, {} for help)", GetHelpCommand (m_snapshot->mode)));
-
-    //  A reply's suggestion is offered once, against the box as it stands.
-    m_completion.SetMode (m_snapshot->mode);
-
-    if (m_snapshot->suggestionSerial != m_offeredSuggestionSerial)
-    {
-        m_offeredSuggestionSerial = m_snapshot->suggestionSerial;
-        m_completion.OfferSuggestion (Widen (m_snapshot->suggestion), m_commandBox->GetText());
-    }
-
-
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->Apply (*m_snapshot);
@@ -3582,9 +3440,9 @@ void DebuggerWindow::ApplySnapshot()
         m_shownPaneSerial = m_snapshot->showPaneSerial;
         m_dockSite->ActivatePane (m_snapshot->showPane);
 
-        if (m_snapshot->showPane == DebuggerLayout::kConsole && IsRoutable (m_commandBox))
+        if (m_snapshot->showPane == DebuggerLayout::kConsole && IsRoutable (m_consolePane->GetCommandLine().GetBox()))
         {
-            SetFocusedControl (m_commandBox);
+            SetFocusedControl (m_consolePane->GetCommandLine().GetBox());
         }
     }
 }
@@ -3793,127 +3651,11 @@ bool DebuggerWindow::IsRestoringViews() const
 //
 //  DebuggerWindow::AppendConsole
 //
-//  Bounded, so a long session does not grow the list without limit; the
-//  oldest lines go first.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 {
-    std::vector<DxuiTextView::Row>  rows;
-    bool                            atEnd   = m_consoleView->IsAtEnd();
-    int                             top     = m_consoleView->GetTopLine();
-    int                             dropped = 0;
-    auto                            first   = lines.begin();
-
-
-
-    //  A command's gap sets it apart from the one before, so the console
-    //  does not open on one.
-    while (m_console.empty() && first != lines.end() && (first->empty() || DebuggerViewState::IsCommandGap (*first)))
-    {
-        ++first;
-    }
-
-    if (first == lines.end())
-    {
-        return;
-    }
-
-    m_console.insert (m_console.end(), first, lines.end());
-
-    if ((int) m_console.size() > kConsoleLineLimit)
-    {
-        dropped = (int) m_console.size() - kConsoleLineLimit;
-        m_console.erase (m_console.begin(), m_console.begin() + dropped);
-    }
-
-    for (const std::string & line : m_console)
-    {
-        DxuiTextView::Row  row;
-
-        if (DebuggerViewState::IsCommandGap (line))
-        {
-            row.cells  = { std::wstring() };
-            row.height = DebuggerViewState::kCommandGapHeight;
-        }
-        else
-        {
-            row.cells = { Widen (line) };
-        }
-
-        rows.push_back (std::move (row));
-    }
-
-    m_consoleView->SetRows (std::move (rows));
-
-    //  A console scrolled back to read stays on the same text, even as the
-    //  oldest lines go; one at its end follows the output.
-    m_consoleView->SetTopLine (atEnd ? m_consoleView->GetLineCount() : top - dropped);
-
-    //  Output to a console out of sight marks its tab (FR-041).
-    if (m_dockSite != nullptr && !m_consoleView->IsVisible())
-    {
-        m_dockSite->SetIndicator (DebuggerLayout::kConsole, true);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SubmitCommandBox
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SubmitCommandBox()
-{
-    HRESULT                   hr      = S_OK;
-    std::wstring              typed   = m_commandBox->GetText();
-    std::string               line    = TextEncoding::WideToNarrow (typed);
-    std::optional<DebugVerb>  fileVerb;
-    FileDialogSpec            spec;
-    std::filesystem::path     chosen;
-    bool                      picked  = false;
-
-
-
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
-
-    //  The mode comes from the last snapshot; one built before a mode change
-    //  can only miss a prompt, and the handler then reports the missing name.
-    fileVerb = DebuggerViewState::GetMissingFileVerb (line,
-                                                      m_snapshot != nullptr ? m_snapshot->mode : CommandMode::AppleWin,
-                                                      m_snapshot != nullptr && m_snapshot->isAssembling);
-
-    if (fileVerb.has_value())
-    {
-        spec.filters = { { L"All files", L"*.*" } };
-
-        hr = (*fileVerb == DebugVerb::ReadFile) ? m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked)
-                                                : m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
-        CHR (hr);
-
-        //  Backing out of the picker keeps the line in the box, unrun.
-        BAIL_OUT_IF (!picked, S_OK);
-
-        line = DebuggerViewState::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
-    }
-
-    m_consoleHistory.Add (typed);
-    SaveConsoleHistory();
-
-    //  Running a command shows its output, however far back the console was
-    //  scrolled.
-    m_consoleView->SetTopLine (m_consoleView->GetLineCount());
-
-    m_host->RunDebuggerCommand (line);
-    m_commandBox->SetText (L"");
-
-Error:
-    return;
+    m_consolePane->GetOutput().Append (lines);
 }
 
 
@@ -3965,7 +3707,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_consoleBar })
+    for (const DxuiToolbar * bar : { m_commandBar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -4041,11 +3783,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     }
 
     //  And the console's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_consoleBar != nullptr && m_consoleBar->IsVisible())
-    {
-        barTip = m_consoleBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
     if (barTip == nullptr || *barTip == L'\0')
     {
         barTip = m_finds->GetTip (clientPx, cell);
@@ -5131,12 +4868,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  And the console's.
-    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kConsole) && RouteConsoleBarMouse (ev))
-    {
-        return true;
-    }
-
     //  A press on a disassembly or source tab sets the step mode as a press
     //  inside that pane does.
     if (m_routingPane.empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
@@ -5187,7 +4918,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  The find widget floats over its pane's text, so a press on it is the
     //  widget's, not the text's.
     if (!m_finds->IsOverPlate (ev.positionDip) &&
-        (m_sources->RouteMouse (ev) || RouteConsoleMouse (ev)))
+        (m_sources->RouteMouse (ev) || m_consolePane->GetOutput().RouteMouse (ev, m_consolePane->GetCommandLine().GetBox())))
     {
         return true;
     }
@@ -5226,9 +4957,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         m_gutter->Hover (ev.positionDip);
         m_gutter->Drag  (ev.positionDip);
 
-        if (IsRoutable (m_commandBox))
+        if (IsRoutable (m_consolePane->GetCommandLine().GetBox()))
         {
-            m_commandBox->SetMouseHover (x, y);
+            m_consolePane->GetCommandLine().GetBox()->SetMouseHover (x, y);
         }
 
         for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
@@ -5392,7 +5123,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPaneControls (const std::wstring 
 
 std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring & pane) const
 {
-    if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
 
     if (FindPane (pane) != nullptr)
     {
@@ -5420,11 +5150,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     std::vector<IDxuiControl *>  controls;
 
 
-
-    if (pane == DebuggerLayout::kConsole)
-    {
-        return m_consoleFrame.get();
-    }
 
     if (FindPane (pane) != nullptr)
     {
@@ -5914,7 +5639,7 @@ void DebuggerWindow::SyncFloats()
 
         if (focused == nullptr || !IsRoutable (focused))
         {
-            m_focusMgr.SetFocused (IsRoutable (m_commandBox) ? (IDxuiControl *) m_commandBox : m_code->GetCodeList (0));
+            m_focusMgr.SetFocused (IsRoutable (m_consolePane->GetCommandLine().GetBox()) ? (IDxuiControl *) m_consolePane->GetCommandLine().GetBox() : m_code->GetCodeList (0));
         }
     }
 
@@ -6686,151 +6411,6 @@ bool DebuggerWindow::RouteDockKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteCompletionKey
-//
-//  The command line's completion keys (FR-128, FR-131): Tab takes the gray
-//  suggestion, or completes the command word and cycles through the matches,
-//  Shift+Tab backward; Right arrow at the end of the line takes the gray
-//  earlier line; F8 steps back through earlier lines starting with the typed
-//  text; F7 lists the earlier lines to pick from. Tab in an empty box with
-//  nothing to offer still moves the focus. Returns true when the key was
-//  used here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
-{
-    std::wstring  text      = m_commandBox->GetText();
-    std::wstring  result;
-    bool          atEnd     = m_commandBox->GetSelectionStart() == text.size() && m_commandBox->GetSelectionEnd() == text.size();
-    bool          isChanged = false;
-
-
-
-    switch (ev.vk)
-    {
-    case VK_TAB:
-        isChanged = (!ev.shift && m_completion.TryAcceptSuggestion (text, result)) || m_completion.TryComplete (text, !ev.shift, result);
-
-        if (!isChanged && text.empty())
-        {
-            return false;
-        }
-
-        break;
-
-    case VK_RIGHT:
-        if (ev.shift || !atEnd || !m_completion.TryAcceptHistory (text, m_consoleHistory.GetLines(), result))
-        {
-            return false;
-        }
-
-        isChanged = true;
-        break;
-
-    case VK_F8:
-        isChanged = !ev.shift && m_completion.TrySearchHistory (text, m_consoleHistory.GetLines(), result);
-        break;
-
-    case VK_F7:
-        ShowHistoryList();
-        return true;
-
-    default:
-        return false;
-    }
-
-    if (isChanged)
-    {
-        m_commandBox->SetText (result);
-        m_commandBox->SetSelection (result.size(), result.size());
-    }
-
-    RefreshCommandGhost();
-    Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RefreshCommandGhost
-//
-//  The gray text after the caret: the last reply's suggestion while the box
-//  is as it was when offered, otherwise the newest earlier line that starts
-//  with what is typed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RefreshCommandGhost()
-{
-    const std::wstring &  text  = m_commandBox->GetText();
-    bool                  atEnd = m_commandBox->GetSelectionStart() == text.size() && m_commandBox->GetSelectionEnd() == text.size();
-
-
-
-    m_commandBox->SetGhostText (m_completion.GetGhost (text, atEnd, m_consoleHistory.GetLines()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowHistoryList
-//
-//  The earlier lines, newest first, in a menu over the command line; picking
-//  one puts it in the box to edit or run.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowHistoryList()
-{
-    static constexpr size_t           s_kMaxRows = 30;
-    const std::vector<std::wstring> & lines      = m_consoleHistory.GetLines();
-    std::vector<DxuiPopupMenuItem>    menu;
-    RECT                              box        = m_commandBox->GetBounds();
-
-
-
-    if (lines.empty())
-    {
-        return;
-    }
-
-    m_menuCommands.clear();
-    SetWindowMenus();
-
-    for (auto it = lines.rbegin(); it != lines.rend() && menu.size() < s_kMaxRows; ++it)
-    {
-        std::wstring  line = *it;
-
-
-
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (line, false, [this, line]
-        {
-            m_commandBox->SetText (line);
-            m_commandBox->SetSelection (line.size(), line.size());
-            SetFocusedControl (m_commandBox);
-            RefreshCommandGhost();
-            Invalidate();
-        }));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    DxuiContextMenu::Show (*GetMenuHost(), box.left, box.top, std::move (menu));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::OnKey
 //
 //  Enter in a box submits it. The text input has no submit event of its own,
@@ -6936,37 +6516,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  Ctrl+C with nothing selected in the command line copies what is
-    //  selected in the output above it, where a click leaves the focus.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && ev.ctrl && !ev.alt && ev.vk == 'C' &&
-        m_commandBox->GetSelectionStart() == m_commandBox->GetSelectionEnd() && m_consoleView->HasSelection())
-    {
-        m_consoleView->CopySelection();
-        return true;
-    }
-
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && !ev.ctrl && !ev.alt && RouteCompletionKey (ev))
-    {
-        return true;
-    }
-
-    //  Up and Down in the command line walk the lines run before.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_commandBox && !ev.ctrl && !ev.alt && (ev.vk == VK_UP || ev.vk == VK_DOWN))
-    {
-        std::optional<std::wstring>  recalled = (ev.vk == VK_UP) ? m_consoleHistory.GetOlder (m_commandBox->GetText()) : m_consoleHistory.GetNewer (m_commandBox->GetText());
-
-
-
-        if (recalled.has_value())
-        {
-            m_commandBox->SetText (*recalled);
-            m_commandBox->SetSelection (recalled->size(), recalled->size());
-            Invalidate();
-        }
-
-        return true;
-    }
-
     if (m_finds->RouteKey (ev, handled))
     {
         return handled;
@@ -6984,12 +6533,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
     {
-        if (focused == m_commandBox)
-        {
-            SubmitCommandBox();
-            return true;
-        }
-
         for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
         {
             if (each->SubmitTextBox (dynamic_cast<DxuiTextInput *> (focused)))

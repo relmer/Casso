@@ -10,7 +10,9 @@
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
@@ -70,6 +72,13 @@ void DebuggerWindow::CreatePanes()
     for (std::unique_ptr<IDebuggerPane> & document : m_sources->CreateDocuments())
     {
         m_panes.push_back (std::move (document));
+    }
+
+    {
+        std::unique_ptr<ConsolePane>  console = std::make_unique<ConsolePane> (host);
+
+        m_consolePane = console.get();
+        m_panes.push_back (std::move (console));
     }
 
     m_profilerPane    = profiler.get();
@@ -239,7 +248,7 @@ bool DebuggerWindow::IsTextBox (const IDxuiControl * control) const
         return false;
     }
 
-    if (control == m_commandBox)
+    if (control == m_consolePane->GetCommandLine().GetBox())
     {
         return true;
     }
@@ -309,7 +318,7 @@ void DebuggerWindow::MoveSharedControls (const std::vector<IDxuiControl *> & con
 
     if (std::ranges::count (controls, m_focusMgr.GetFocusedControl()) > 0)
     {
-        m_focusMgr.SetFocused (m_commandBox);
+        m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
     }
 
     for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
@@ -1640,7 +1649,7 @@ DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
         return m_sources->GetDocument (slot).GetView();
     }
 
-    return (pane == DebuggerLayout::kConsole) ? m_consoleView : nullptr;
+    return (pane == DebuggerLayout::kConsole) ? m_consolePane->GetOutput().GetView() : nullptr;
 }
 
 
@@ -1664,7 +1673,7 @@ DebuggerPaneFrame * DebuggerWindow::GetFindFrame (const std::wstring & pane) con
         return m_sources->GetDocument (slot).GetFrame();
     }
 
-    return (pane == DebuggerLayout::kConsole) ? m_consoleFrame.get() : nullptr;
+    return (pane == DebuggerLayout::kConsole) ? m_consolePane->GetFrame() : nullptr;
 }
 
 
@@ -1681,7 +1690,7 @@ void DebuggerWindow::ReleaseFocusOf (IDxuiControl * control)
 {
     if (m_focusMgr.GetFocusedControl() == control)
     {
-        m_focusMgr.SetFocused (m_commandBox);
+        m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
     }
 
     for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
@@ -1782,6 +1791,97 @@ void DebuggerWindow::BringPaneForward (const std::wstring & pane)
     if (m_dockSite != nullptr)
     {
         m_dockSite->ActivatePane (pane);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetConsoleBarMenus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetConsoleBarMenus()
+{
+    m_consolePane->GetModeBar().SetMenus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetModeChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DebuggerWindow::ModeChoice> & DebuggerWindow::GetModeChoices()
+{
+    return ConsoleModeBar::GetModeChoices();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetModeLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
+{
+    return ConsoleModeBar::GetModeLabel (mode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPopupMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+
+
+
+    m_menuCommands.clear();
+    SetWindowMenus();
+
+    for (const auto & [label, action] : items)
+    {
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MarkPaneTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MarkPaneTab (const std::wstring & pane)
+{
+    if (m_dockSite != nullptr)
+    {
+        m_dockSite->SetIndicator (pane, true);
     }
 }
 
