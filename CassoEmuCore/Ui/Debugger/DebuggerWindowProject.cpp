@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
+#include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
@@ -208,50 +209,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
     m_consoleHistory.SetLines (std::move (lines));
 
-    m_savedFinds.clear();
-    finds.str (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
-
-    while (std::getline (finds, line))
-    {
-        std::vector<std::wstring>  parts;
-        size_t                     at = 0;
-        SavedFind                  saved;
-
-        for (size_t next = line.find (L'\x1F'); ; next = line.find (L'\x1F', at))
-        {
-            parts.push_back (line.substr (at, (next == std::wstring::npos) ? std::wstring::npos : next - at));
-
-            if (next == std::wstring::npos)
-            {
-                break;
-            }
-
-            at = next + 1;
-        }
-
-        if (parts.size() < 2 || parts[0].empty())
-        {
-            continue;
-        }
-
-        saved.matchCase = parts[1].find (L'C') != std::wstring::npos;
-        saved.wholeWord = parts[1].find (L'W') != std::wstring::npos;
-        saved.isRegex   = parts[1].find (L'R') != std::wstring::npos;
-        saved.history.assign (parts.begin() + 2, parts.end());
-        std::erase (saved.history, std::wstring());
-
-        m_savedFinds[parts[0]] = std::move (saved);
-    }
-
-    for (auto & [pane, state] : m_findStates)
-    {
-        ApplySavedFind (pane, state);
-    }
-
-    if (m_findBox != nullptr)
-    {
-        LoadFindState();
-    }
+    m_finds->LoadSaved (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
 
     m_columnWidths.clear();
     columns.str (m_host->GetDebuggerWindowState ("columns"));
@@ -391,33 +349,6 @@ void DebuggerWindow::SaveUndoHistories()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ApplySavedFind
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplySavedFind (const std::wstring & pane, FindState & state) const
-{
-    auto  saved = m_savedFinds.find (pane);
-
-
-
-    if (saved == m_savedFinds.end())
-    {
-        return;
-    }
-
-    state.matchCase = saved->second.matchCase;
-    state.wholeWord = saved->second.wholeWord;
-    state.isRegex   = saved->second.isRegex;
-    state.history   = saved->second.history;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::SaveConsoleHistory
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -436,54 +367,6 @@ void DebuggerWindow::SaveConsoleHistory()
     if (m_host != nullptr)
     {
         m_host->SetDebuggerWindowState ("console", SourcePathList::WideToUtf8 (text));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveFindStates
-//
-//  Every pane's, with those a project brought back for widgets not built
-//  yet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveFindStates()
-{
-    std::map<std::wstring, SavedFind>  all = m_savedFinds;
-    std::wstring                       text;
-
-
-
-    if (m_findBox != nullptr)
-    {
-        SaveFindState();
-    }
-
-    for (const auto & [pane, state] : m_findStates)
-    {
-        all[pane] = SavedFind { state.matchCase, state.wholeWord, state.isRegex, state.history };
-    }
-
-    for (const auto & [pane, saved] : all)
-    {
-        text += pane + L"\x1F" + (saved.matchCase ? L"C" : L"") + (saved.wholeWord ? L"W" : L"") + (saved.isRegex ? L"R" : L"");
-
-        for (const std::wstring & each : saved.history)
-        {
-            text += L"\x1F" + each;
-        }
-
-        text += L"\n";
-    }
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerWindowState ("find", SourcePathList::WideToUtf8 (text));
     }
 }
 

@@ -13,6 +13,7 @@
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
+#include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
@@ -57,6 +58,7 @@ void DebuggerWindow::CreatePanes()
 
 
     m_codeEdits = std::make_unique<CodeEditCommands> (host, static_cast<const ICodeViews &> (*this));
+    m_finds     = std::make_unique<FindWidgetSet> (host, static_cast<IFindWidgetHost &> (*this));
     m_sources   = std::make_unique<SourceDocumentGroup> (host);
     m_code      = std::make_unique<DisassemblyGroup> (host, *m_gutter, *m_codeEdits, *m_sources);
 
@@ -1417,6 +1419,370 @@ bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstrin
 bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstring & text) const
 {
     return m_code->TryGetSymbolTip (clientPx, anchor, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenFind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenFind()
+{
+    m_finds->Open (m_finds->GetTarget());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenFindIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenFindIn (const std::wstring & pane)
+{
+    m_finds->Open (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::CloseFind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::CloseFind()
+{
+    m_finds->Close();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FindInPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FindInPane (bool forward)
+{
+    m_finds->Find (forward);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsFindOpenIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsFindOpenIn (const std::wstring & pane) const
+{
+    return m_finds->IsOpenIn (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindBoxOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetFindBoxOf (const std::wstring & pane) const
+{
+    return m_finds->GetBoxOf (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetFindOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFindOptions (bool matchCase, bool wholeWord, bool isRegex)
+{
+    m_finds->SetOptions (matchCase, wholeWord, isRegex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefocusFindBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefocusFindBox()
+{
+    m_finds->RefocusBox();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetFindInSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetFindInSelection (bool on)
+{
+    m_finds->SetInSelection (on);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerWindow::GetFindHistory (const std::wstring & pane) const
+{
+    return m_finds->GetHistory (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::StepFindHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::StepFindHistory (int step)
+{
+    return m_finds->StepHistory (step);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindBarTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) const
+{
+    return m_finds->GetTip (clientPx, anchor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindControls
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
+{
+    return m_finds->GetActiveControls();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindView
+//
+//  The text a pane's find widget searches: the console's, or a source
+//  document's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
+{
+    int  slot = GetSourceSlotOf (pane);
+
+
+
+    if (slot >= 0)
+    {
+        return m_sources->GetDocument (slot).GetView();
+    }
+
+    return (pane == DebuggerLayout::kConsole) ? m_consoleView : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetFindFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerPaneFrame * DebuggerWindow::GetFindFrame (const std::wstring & pane) const
+{
+    int  slot = GetSourceSlotOf (pane);
+
+
+
+    if (slot >= 0)
+    {
+        return m_sources->GetDocument (slot).GetFrame();
+    }
+
+    return (pane == DebuggerLayout::kConsole) ? m_consoleFrame.get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ReleaseFocusOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ReleaseFocusOf (IDxuiControl * control)
+{
+    if (m_focusMgr.GetFocusedControl() == control)
+    {
+        m_focusMgr.SetFocused (m_commandBox);
+    }
+
+    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
+    {
+        if (it->second == control)
+        {
+            control->OnFocusChanged (false);
+            it = m_floatFocus.erase (it);
+            continue;
+        }
+
+        ++it;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::KeepDockLast
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::KeepDockLast()
+{
+    std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
+
+
+
+    (void) AttachChild (std::move (site));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::KeepOverlaysLast
+//
+//  The site's strips and drop zones paint over the panes, and a box being
+//  edited in place over the site, so both are last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::KeepOverlaysLast()
+{
+    for (IDxuiControl * last : GetLastChildren())
+    {
+        std::unique_ptr<IDxuiControl>  owned = (last != nullptr) ? DetachChild (last) : nullptr;
+
+        if (owned != nullptr)
+        {
+            (void) AttachChild (std::move (owned));
+        }
+    }
+
+    m_focusMgr.Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::FocusInPane
+//
+//  A floating pane has its own focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::FocusInPane (const std::wstring & pane, IDxuiControl * control)
+{
+    std::wstring  saved = m_routingPane;
+
+
+
+    m_routingPane = m_floats.contains (pane) ? pane : std::wstring();
+    SetFocusedControl (control);
+    m_routingPane = saved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BringPaneForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BringPaneForward (const std::wstring & pane)
+{
+    if (m_dockSite != nullptr)
+    {
+        m_dockSite->ActivatePane (pane);
+    }
 }
 
 

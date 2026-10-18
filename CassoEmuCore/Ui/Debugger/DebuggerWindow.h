@@ -42,7 +42,7 @@
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/ToolbarBoxEntry.h"
-#include "Ui/Debugger/Panes/FindWidgetPlate.h"
+#include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/ICodeViews.h"
 #include "Ui/Debugger/Panes/OperandTipController.h"
@@ -105,7 +105,7 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost
 {
 public:
     DebuggerWindow();
@@ -173,22 +173,22 @@ protected:
     void             OpenFindIn      (const std::wstring & pane);
     void             CloseFind       ();
     void             FindInPane      (bool forward);
-    std::wstring     GetFindPane     () const { return m_findPane; }
+    std::wstring     GetFindPane     () const { return m_finds->GetActivePane(); }
     DxuiTextView   * GetSourceView   (int slot) const;
-    bool             IsFindOpen      () const { return m_findOpen; }
+    bool             IsFindOpen      () const { return m_finds->IsOpen(); }
     bool             IsFindOpenIn    (const std::wstring & pane) const;
     DxuiTextInput  * GetFindBoxOf    (const std::wstring & pane) const;
     DxuiTextView   * GetConsoleView  () const { return m_consoleView; }
-    DxuiTextInput  * GetFindBox      () const { return m_findBox; }
-    DxuiButton     * GetFindWordButton () const { return m_findWordButton; }
+    DxuiTextInput  * GetFindBox      () const { return m_finds->GetBox(); }
+    DxuiButton     * GetFindWordButton () const { return m_finds->GetWordButton(); }
     void             SetFindOptions  (bool matchCase, bool wholeWord, bool isRegex);
     void             RefocusFindBox  ();
-    std::wstring     GetFindStatus   () const { return m_findStatusText; }
+    std::wstring     GetFindStatus   () const { return m_finds->GetStatus(); }
     void             SetFindInSelection (bool on);
-    bool             IsFindInSelection  () const { return m_findInSelection; }
+    bool             IsFindInSelection  () const { return m_finds->IsInSelection(); }
     std::vector<std::wstring>  GetFindHistory (const std::wstring & pane) const;
     bool             StepFindHistory (int step);
-    RECT             GetFindWidgetBounds () const { return m_findPlate->GetBounds(); }
+    RECT             GetFindWidgetBounds () const { return m_finds->GetBounds(); }
 
     //  Protected so a test can choose a scheme as the Keys menu does, and
     //  read the drop-down rows it leaves.
@@ -512,39 +512,6 @@ protected:
     mutable DebuggerTextColors::Cache  m_textColors;
 
 private:
-    //  Each searchable pane's own find widget: its controls, whether it is
-    //  open, its options, its count and its history. The m_find members
-    //  hold a copy of the active one's.
-    struct FindState
-    {
-        FindWidgetPlate          * plate       = nullptr;
-        DxuiButton               * chevron     = nullptr;
-        DxuiTextInput            * box         = nullptr;
-        DxuiButton               * caseButton  = nullptr;
-        DxuiButton               * wordButton  = nullptr;
-        DxuiButton               * regexButton = nullptr;
-        DxuiLabel                * status      = nullptr;
-        DxuiButton               * prevButton  = nullptr;
-        DxuiButton               * nextButton  = nullptr;
-        DxuiButton               * selButton   = nullptr;
-        DxuiButton               * closeButton = nullptr;
-        DxuiWindow               * host        = nullptr;
-        bool                       open        = false;
-        bool                       matchCase   = false;
-        bool                       wholeWord   = false;
-        bool                       isRegex     = false;
-        bool                       inSelection = false;
-        int                        historyAt   = -1;
-        std::wstring               statusText;
-        std::vector<std::wstring>  history;
-    };
-
-    static constexpr size_t  kFindHistoryMax      = 20;
-    static constexpr int     kFindWidgetWidthDip  = 460;
-    static constexpr int     kFindWidgetHeightDip = 34;
-    static constexpr int     kFindWidgetScrollDip = 18;
-    static constexpr int     kFindCountDip        = 74;
-
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
     static constexpr int    kMinWidthDip        = 760;
@@ -605,28 +572,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     CommandMode  GetMode      () const override;
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
-    bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);
     bool     RouteCompletionKey (const DxuiKeyEvent & ev);
     void     RefreshCommandGhost ();
     void     ShowHistoryList  ();
-    void     ConfigureFindBar ();
-    void     PlaceFindBar     ();
-    void     PlaceActiveFindBar ();
-    void     SetFindBarVisible (bool shown);
     void     UpdateTopLayer   ();
-    void     MoveFindBar      (DxuiWindow * to);
-    std::wstring        GetFindTarget () const;
-    DxuiTextView      * GetFindView   () const;
-    void     SaveFindState    ();
-    void     LoadFindState    ();
-    void     ActivateFind     (const std::wstring & pane);
-    void     CreateFindWidget (const std::wstring & pane);
-    std::wstring  GetFindPaneOfControl (const IDxuiControl * control) const;
-    void     RecordFindHistory ();
     void     SearchAsTyped    ();
-    void     RefindAfterOptionChange ();
-    DebuggerPaneFrame * GetFindFrame  () const;
-    static std::wstring  GetFindStatusText (DxuiTextView::FindResult result, int index, int count);
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     std::string  GetMenuState   () const;
@@ -666,12 +616,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  the rest of its settings too.
     void     RestoreWindowState   (bool isProjectSwitch);
     void     SaveConsoleHistory   ();
-    void     SaveFindStates       ();
     void     SaveColumnWidths     ();
     void     ApplyColumnWidths    ();
     void     SaveUndoHistories    ();
     std::string  GetUndoHistoriesText () const;
-    void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
     void     ConfigureConsoleBar  ();
@@ -830,17 +778,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                    m_swallowChordChar   = false;
 
 
-    //  Find histories and options a project brought back for panes whose find
-    //  widgets are not built yet, and the column widths in dips by pane.
-    struct SavedFind
-    {
-        bool                       matchCase = false;
-        bool                       wholeWord = false;
-        bool                       isRegex   = false;
-        std::vector<std::wstring>  history;
-    };
-
-    std::map<std::wstring, SavedFind>         m_savedFinds;
     std::map<std::wstring, std::vector<int>>  m_columnWidths;
     uint64_t                                  m_undoSavedMs = 0;
 
@@ -876,6 +813,24 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The disassembly views and what they share.
     std::unique_ptr<DisassemblyGroup>       m_code;
+
+    //  The searchable panes' find widgets.
+    std::unique_ptr<FindWidgetSet>          m_finds;
+
+    //  The window's parts the find widgets reach (IFindWidgetHost).
+    DxuiTextView         * GetFindView      (const std::wstring & pane) const override;
+    DebuggerPaneFrame    * GetFindFrame     (const std::wstring & pane) const override;
+    DxuiWindow           * GetFindWindow    (const std::wstring & pane) override { return GetPaneHost (pane); }
+    DxuiWindow           & GetMainWindow    () override { return *this; }
+    void                   ReleaseFocusOf   (IDxuiControl * control) override;
+    void                   KeepDockLast     () override;
+    void                   KeepOverlaysLast () override;
+    void                   FocusInPane      (const std::wstring & pane, IDxuiControl * control) override;
+    IDxuiControl         * GetFindFocus     () const override { return GetFocused(); }
+    std::wstring           GetFocusPane     () const override { return GetPaneOfFocus(); }
+    IDxuiControl         * GetCommandLine   () const override { return m_commandBox; }
+    void                   BringPaneForward (const std::wstring & pane) override;
+    void                   UpdateFindLayer  () override { UpdateTopLayer(); }
 
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
@@ -1056,29 +1011,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::string                                                   m_machine;
     DxuiTextView                                                * m_consoleView         = nullptr;
     DxuiTextInput                                               * m_commandBox          = nullptr;
-    bool                                                          m_findOpen            = false;
-    std::wstring                                                  m_findPane;
     std::wstring                                                  m_slidPane;
-    DxuiWindow                                                  * m_findBarHost         = nullptr;
-    std::wstring                                                  m_findStatusText;
-    DxuiTextInput                                               * m_findBox             = nullptr;
-    DxuiButton                                                  * m_findCaseButton      = nullptr;
-    DxuiButton                                                  * m_findWordButton      = nullptr;
-    DxuiButton                                                  * m_findRegexButton     = nullptr;
-    bool                                                          m_findMatchCase       = false;
-    bool                                                          m_findWholeWord       = false;
-    bool                                                          m_findRegex           = false;
-    bool                                                          m_findKeyClick        = false;
-    DxuiButton                                                  * m_findPrevButton      = nullptr;
-    DxuiButton                                                  * m_findNextButton      = nullptr;
-    DxuiButton                                                  * m_findCloseButton     = nullptr;
-    DxuiLabel                                                   * m_findStatus          = nullptr;
-    FindWidgetPlate                                             * m_findPlate           = nullptr;
-    DxuiButton                                                  * m_findChevronButton   = nullptr;
-    DxuiButton                                                  * m_findSelectionButton = nullptr;
-    bool                                                          m_findInSelection     = false;
-    int                                                           m_findHistoryAt       = -1;
-    std::map<std::wstring, FindState>                             m_findStates;
     std::unique_ptr<SourceDocumentGroup>                          m_sources;
     MemoryFileDialog::Fields                                      m_loadFileFields;
     MemoryFileDialog::Fields                                      m_saveFileFields;
