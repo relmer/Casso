@@ -82,13 +82,14 @@ protected:
     void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes             (Word initialPC, Byte opcode);
+    static bool ReadsTarget            (const Microcode & microcode);
     void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
-    void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsoluteX       (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, const Microcode & microcode);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
