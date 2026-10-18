@@ -164,11 +164,12 @@ void Win32PackagedCommands::ReadAll()
         RegCloseKey (packages);
     }
 
-    //  File Explorer lists apps' commands by the app's name.
+    //  File Explorer lists apps' commands by the app's name, the one on its
+    //  tile: "Photos" for the package displayed as "Microsoft Photos".
     std::stable_sort (found.begin(), found.end(), [] (const Registration & a, const Registration & b)
     {
-        const std::wstring &  nameA = a.appName.empty() ? a.package : a.appName;
-        const std::wstring &  nameB = b.appName.empty() ? b.package : b.appName;
+        const std::wstring &  nameA = !a.sortName.empty() ? a.sortName : a.appName.empty() ? a.package : a.appName;
+        const std::wstring &  nameB = !b.sortName.empty() ? b.sortName : b.appName.empty() ? b.package : b.appName;
 
         return _wcsicmp (nameA.c_str(), nameB.c_str()) < 0;
     });
@@ -359,11 +360,19 @@ HRESULT Win32PackagedCommands::ReadManifest (IStream * stream, const wchar_t * f
         element   = node == XmlNodeType_Element;
         inAppName = element && inProperties && wcscmp (local, L"DisplayName") == 0;
 
-        //  The first application's small logo, the icon of an app's group.
+        //  The first application's small logo, the icon of an app's group, and
+        //  its display name, which orders the app's commands. A name that does
+        //  not resolve comes back as the package's, and is not used.
         if (element && registration.logo.empty() && wcscmp (local, L"VisualElements") == 0)
         {
+            std::wstring  package = std::wstring (fullName).substr (0, std::wstring (fullName).find (L'_'));
+
             hr                = GetAttribute (reader.Get(), L"Square44x44Logo", value);
             registration.logo = SUCCEEDED (hr) ? FindLogoFile (fullName, value) : std::wstring();
+
+            hr                    = GetAttribute (reader.Get(), L"DisplayName", value);
+            registration.sortName = SUCCEEDED (hr) ? LoadAppName (fullName, value) : std::wstring();
+            registration.sortName = (registration.sortName == package) ? std::wstring() : registration.sortName;
             continue;
         }
 

@@ -95,6 +95,7 @@ private:
         CLSID         clsid = {};
         std::wstring  package;      // the package's full name
         std::wstring  appName;      // the package's display name
+        std::wstring  sortName;     // the first application's display name, or empty
         std::wstring  logo;         // the package's small logo file, or empty
     };
 
