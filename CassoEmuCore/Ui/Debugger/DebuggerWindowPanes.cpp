@@ -11,6 +11,7 @@
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
@@ -1094,6 +1095,96 @@ void DebuggerWindow::UndoCodeEdit (bool redo)
 bool DebuggerWindow::TryGetCodeBytes (int view, Word first, Word last, std::vector<Byte> & bytes) const
 {
     return m_codeEdits->TryGetBytes (view, first, last, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HoverGutter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HoverGutter (POINT atDip)
+{
+    m_gutter->Hover (atDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClickGutter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
+{
+    return m_gutter->Click (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DragPcMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::DragPcMarker (POINT atDip)
+{
+    m_gutter->Drag (atDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::DropPcMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::DropPcMarker (const DxuiMouseEvent & ev)
+{
+    return m_gutter->Drop (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SetNextStatement
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SetNextStatement (Word address)
+{
+    m_gutter->SetNextStatement (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTipBlocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTipBlocked() const
+{
+    return m_gutter->IsDragging() || IsAnyMenuOpen();
 }
 
 

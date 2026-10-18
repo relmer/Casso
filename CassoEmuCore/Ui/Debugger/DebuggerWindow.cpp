@@ -25,6 +25,7 @@
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
@@ -83,7 +84,9 @@ static std::wstring Widen (const std::string & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerWindow::DebuggerWindow() :
-    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this), static_cast<const ICodeViews &> (*this)))
+    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this), static_cast<const ICodeViews &> (*this))),
+    m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
+                                                        [this] (int view) { ApplyCodeView (view); }))
 {
 }
 
@@ -4700,7 +4703,7 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
         if (s.isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
         {
-            items.push_back ({ L"Set next statement", [this, at] { SetNextStatement (at); } });
+            items.push_back ({ L"Set next statement", [this, at] { m_gutter->SetNextStatement (at); } });
         }
 
         items.push_back ({ L"Show next statement", [this]     { ShowCode (std::nullopt); } });
@@ -5019,7 +5022,7 @@ void DebuggerWindow::ApplyCodeView (int view)
             cells[kCodeGutterColumn].icon = GetBreakpointIcon (line->isEnabled);
             cells[kCodeGutterColumn].tip  = ColorLegend::GetText (line->isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
         }
-        else if (view == m_gutterHoverView && (int) rows.size() == m_gutterHoverRow && DisassemblyOptions::CanTakeBreakpoint (*line))
+        else if ((int) rows.size() == m_gutter->GetHoverRow (view) && DisassemblyOptions::CanTakeBreakpoint (*line))
         {
             cells[kCodeGutterColumn].icon = GetHoverBreakpointIcon();
             cells[kCodeGutterColumn].tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
@@ -5029,7 +5032,7 @@ void DebuggerWindow::ApplyCodeView (int view)
         //  the line under the pointer instead.
         current = line->isCurrent ? (int) rows.size() : current;
 
-        if ((view == m_pcDragView && m_pcDragOverRow >= 0) ? (int) rows.size() == m_pcDragOverRow : line->isCurrent)
+        if ((m_gutter->GetDragRow (view) >= 0) ? (int) rows.size() == m_gutter->GetDragRow (view) : line->isCurrent)
         {
             cells[kCodeGutterColumn].icon = GetPcIcon (cells[kCodeGutterColumn].icon);
             cells[kCodeGutterColumn].tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), cells[kCodeGutterColumn].tip });
@@ -6658,7 +6661,7 @@ void DebuggerWindow::ConfigureCodeList (int view)
 
     DisassemblyCells::Configure (*list);
 
-    //  A breakpoint is set from the gutter (see ClickGutter), as in an editor.
+    //  A breakpoint is set from the gutter (DisassemblyGutter), as in an editor.
     //  The rest of the pane is TEXT (FR-076): a drag selects characters, a
     //  double-click selects the word under the pointer, and Ctrl+C copies
     //  what is selected -- a double-click never touches a breakpoint.
@@ -6766,264 +6769,6 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
     {
         m_host->SetDebuggerCodeAddress (address, view);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ClickGutter
-//
-//  A press on the first column of the code pane sets or clears the
-//  breakpoint on that row. The breakpoints pane turns one on or off with its
-//  checkbox instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::ClickGutter (const DxuiMouseEvent & ev)
-{
-    int   row = -1;
-    RECT  bounds;
-    int   lx  = 0;
-    int   ly  = 0;
-
-
-
-    if (m_snapshot == nullptr)
-    {
-        return false;
-    }
-
-    for (DxuiListView * list : { m_codeLists[0], m_codeLists[1], m_codeLists[2], m_codeLists[3] })
-    {
-        bounds = list->GetBounds();
-        lx     = ev.positionDip.x - bounds.left;
-        ly     = ev.positionDip.y - bounds.top;
-
-        if (!IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || ev.positionDip.x >= bounds.right || ev.positionDip.y >= bounds.bottom)
-        {
-            continue;
-        }
-
-        if (lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (kCodeGutterColumn))
-        {
-            return false;
-        }
-
-        row = list->HitTestRow (lx, ly);
-
-        //  A press on the PC's line may start a drag of its arrow, settled
-        //  when the button comes up (see DropPcMarker).
-        if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0 && m_snapshot->isPaused &&
-            GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].isCurrent)
-        {
-            m_pcDragView    = GetCodeViewOf (list);
-            m_pcDragRow     = row;
-            m_pcDragOverRow = -1;
-            return true;
-        }
-
-        if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
-        {
-            RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (GetCodeViewOf (list))[(size_t) GetCodeLineOfRow (GetCodeViewOf (list), row)].address, GetMode()));
-            return true;
-        }
-
-        return false;
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::DragPcMarker
-//
-//  The pointer moving while the PC's arrow is held: the arrow and the PC's
-//  row color follow it to the instruction under it. Rows are rebuilt only
-//  when that row changes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::DragPcMarker (POINT atDip)
-{
-    DxuiListView  * list = nullptr;
-    RECT            box  = {};
-    int             row  = -1;
-
-
-
-    if (m_pcDragView < 0 || m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    list = m_codeLists[(size_t) m_pcDragView];
-    box  = list->GetBounds();
-
-    if (DxuiDockSite::Contains (box, atDip))
-    {
-        row = list->HitTestRow (atDip.x - box.left, atDip.y - box.top);
-        row = (GetCodeLineOfRow (m_pcDragView, row) >= 0) ? row : m_pcDragOverRow;
-    }
-
-    if (row == m_pcDragOverRow)
-    {
-        return;
-    }
-
-    m_pcDragOverRow = row;
-    ApplyCodeView (m_pcDragView);
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::DropPcMarker
-//
-//  The button up after a press on the PC's line in the gutter. Released on
-//  another instruction of the same view, the PC's arrow was dragged there,
-//  so that line becomes the next statement, as in Visual Studio. Released
-//  on the line it was pressed on, it was a click, which sets or clears the
-//  breakpoint there as on any other line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::DropPcMarker (const DxuiMouseEvent & ev)
-{
-    int             view = m_pcDragView;
-    int             from = m_pcDragRow;
-    DxuiListView  * list = nullptr;
-    RECT            box  = {};
-    int             row  = -1;
-    int             line = -1;
-
-
-
-    if (view < 0 || m_snapshot == nullptr)
-    {
-        return false;
-    }
-
-    m_pcDragView    = -1;
-    m_pcDragRow     = -1;
-    m_pcDragOverRow = -1;
-    list            = m_codeLists[(size_t) view];
-    box             = list->GetBounds();
-
-    ApplyCodeView (view);
-
-    if (DxuiDockSite::Contains (box, ev.positionDip))
-    {
-        row  = list->HitTestRow (ev.positionDip.x - box.left, ev.positionDip.y - box.top);
-        line = GetCodeLineOfRow (view, row);
-    }
-
-    if (line < 0)
-    {
-        return true;
-    }
-
-    if (row == from)
-    {
-        RunAction (DebuggerActions::GetToggleBreakpoint (*m_snapshot, GetCodeLines (view)[(size_t) line].address, GetMode()));
-    }
-    else if (DisassemblyOptions::CanTakeBreakpoint (GetCodeLines (view)[(size_t) line]))
-    {
-        SetNextStatement (GetCodeLines (view)[(size_t) line].address);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SetNextStatement
-//
-//  The PC moved to a line without running anything, as Visual Studio's Set
-//  Next Statement does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SetNextStatement (Word address)
-{
-    RunAction (DebuggerActions::GetSetRegister ("PC", std::format ("{:04X}", address), GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::HoverGutter
-//
-//  The pointer over a disassembly view's breakpoint column: the row under it
-//  shows a gray breakpoint where a click would set one. Rows are rebuilt only
-//  when the row under the pointer changes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::HoverGutter (POINT atDip)
-{
-    int   view   = -1;
-    int   row    = -1;
-    int   was    = m_gutterHoverView;
-    RECT  bounds = {};
-    int   lx     = 0;
-    int   ly     = 0;
-
-
-
-    for (int each = 0; each < DebuggerViewState::kMaxCodeViews && view < 0; each++)
-    {
-        DxuiListView  * list = m_codeLists[(size_t) each];
-
-        bounds = list->GetBounds();
-        lx     = atDip.x - bounds.left;
-        ly     = atDip.y - bounds.top;
-
-        if (!IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || atDip.x >= bounds.right || atDip.y >= bounds.bottom ||
-            lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0))
-        {
-            continue;
-        }
-
-        view = each;
-        row  = (GetCodeLineOfRow (each, list->HitTestRow (lx, ly)) >= 0) ? list->HitTestRow (lx, ly) : -1;
-    }
-
-    if (view == m_gutterHoverView && row == m_gutterHoverRow)
-    {
-        return;
-    }
-
-    m_gutterHoverView = view;
-    m_gutterHoverRow  = row;
-
-    for (int each : { was, view })
-    {
-        if (each >= 0 && m_snapshot != nullptr)
-        {
-            ApplyCodeView (each);
-        }
-    }
-
-    Invalidate();
 }
 
 
@@ -7760,8 +7505,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Move:
         //  A floating window's tips show from its own tooltip.
         UpdateTooltip (ev.positionDip);
-        HoverGutter   (ev.positionDip);
-        DragPcMarker  (ev.positionDip);
+        m_gutter->Hover (ev.positionDip);
+        m_gutter->Drag  (ev.positionDip);
 
         if (IsRoutable (m_commandBox))
         {
@@ -7804,7 +7549,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             return true;
         }
 
-        if (ClickGutter (ev))
+        if (m_gutter->Click (ev))
         {
             return true;
         }
@@ -7835,7 +7580,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left && DropPcMarker (ev))
+        if (ev.button == DxuiMouseButton::Left && m_gutter->Drop (ev))
         {
             return true;
         }

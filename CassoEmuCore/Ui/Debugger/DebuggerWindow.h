@@ -76,6 +76,7 @@ class WatchesPane;
 class SymbolsPane;
 class BreakpointsPane;
 class CodeEditCommands;
+class DisassemblyGutter;
 class SourceDocumentGroup;
 class MemoryPane;
 class TracePaneController;
@@ -772,7 +773,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const DxuiDpiScaler  & GetTipScaler         () const override { return m_scaler; }
     const DxuiTheme      * GetTipTheme          () const override { return m_theme; }
     HWND                   GetTipOwner          () const override { return GetHwnd(); }
-    bool                   IsTipBlocked         () const override { return m_pcDragView >= 0 || IsAnyMenuOpen(); }
+    bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
     bool                   IsTipCovered         (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const override
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
@@ -884,6 +885,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  whole over their cell.
     std::unique_ptr<OperandTipController>   m_operandTips;
 
+    //  The disassembly views' breakpoint column and the PC's arrow in it.
+    std::unique_ptr<DisassemblyGutter>      m_gutter;
+
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
     static constexpr int                  kZoomPopupWidthDip    = 240;
@@ -956,11 +960,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::array<std::vector<DisassemblyOptions::Row>, DebuggerViewState::kMaxCodeViews> m_codeRows;
     std::wstring                                                                     m_codeSourceKey;
     std::map<int, std::vector<std::wstring>>                                         m_codeSourceText;
-    int                                                                              m_gutterHoverView    = -1;
-    int                                                                              m_gutterHoverRow     = -1;
-    int                                                                              m_pcDragView         = -1;
-    int                                                                              m_pcDragRow          = -1;
-    int                                                                              m_pcDragOverRow      = -1;
     std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
     uint32_t                                                                         m_shownPaneSerial    = 0;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
