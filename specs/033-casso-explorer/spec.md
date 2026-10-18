@@ -264,6 +264,14 @@ hardware.
   image creates an empty image in the listed folder whatever is selected,
   as File Explorer's New does. This replaces the 2026-09-14 answer, under
   which the selected host files were copied onto the new image.
+- Q: Does put on the command line take a file's type and entry from the
+  suffixes Casso Explorer adds to a host file?
+  → A: Yes. With no `--as`, a host name in one of Casso Explorer's forms,
+  such as `HELLO.Applesoft BASIC.txt`, `PROG.Binary.$6000.bin` or
+  `PROG#062000`, is stored under the part before the suffix, with the type,
+  load address and conversion in the suffix unless `--type`, `--load`,
+  `--text` or `--basic` is given. Any other host name is stored as written,
+  so `MEMO.txt` is stored as `MEMO.TXT`.
 
 ## User Scenarios & Testing *(mandatory)*
 
