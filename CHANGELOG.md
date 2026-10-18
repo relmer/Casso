@@ -15,10 +15,17 @@ Entries before versioning was introduced use dates only.
   what the image declares and marks whether the running machine meets each
   requirement. In the flat themes, on the desk and on the fullscreen drive
   strip.
+- Apple's Super Serial Card, in slot 2 of the ][, ][+ and //e. It is turned on
+  under Settings > Machine, and a new Serial card page sets its DIP switches
+  and what is plugged into its serial connector: a loopback plug, a file that
+  collects what the card sends, or a file to send into it. Casso downloads the
+  firmware for the card when the card is first turned on.
 
 ### Changed
 
 - Changed the drive strip's hotkey from Ctrl+D to F8.
+- The //c's serial ports send and receive bytes at the selected baud rate, not
+  instantly.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
   window. The shell owns them, routes window messages and runs the CPU
