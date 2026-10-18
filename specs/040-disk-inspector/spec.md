@@ -1805,7 +1805,9 @@ legend, and tilt the platter and back.
   recorded", with a note that the drive reads random bits there. A tooltip
   MUST NOT appear during a drag.
 - **FR-028**: The ring under the pointer MUST be outlined, and the selected
-  ring outlined more strongly. A click MUST select the quarter track and the
+  ring outlined more strongly. While the pointer is on the selected sector or
+  nibbles, neither the ring nor the sector under it MUST be marked, so
+  nothing is drawn over the selection. A click MUST select the quarter track and the
   sector whose field is under the pointer, not the first sector with the
   same number.
 - **FR-029**: With focus on the platter, Up and Page Up MUST move toward
@@ -1886,7 +1888,8 @@ legend, and tilt the platter and back.
   can be centered. The platter MUST
   outline the selected sector or nibbles in the selection color on a
   contrasting edge, at least 8 DIP across at any zoom, and the selection MUST
-  shimmer continuously in the platter, the strip and the File map grid, lit
+  shimmer continuously in the platter, the strip and the File map grid, on
+  the platter along the selection's outline as well as over it, lit
   by a narrow band of light at 45 degrees, its angle the same in a short
   strip as in a tall cell, that sweeps across the whole window from its top
   left to its bottom right. On a new track, the
