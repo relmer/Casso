@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Core/Prng.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Shell/MachineHost.h"
@@ -187,6 +189,50 @@ public:
         Assert::IsTrue (rows[0].find ("Apple //e") != std::string::npos,
             std::format (L"row 0 must show the banner, got '{}'",
                          TextEncoding::NarrowToWide (rows[0])).c_str());
+    }
+
+
+    //  A store flush updates the bay's identity with the file's new size and
+    //  time. A reset that wrote a dirty disk past the store left the file
+    //  looking changed by another program, and the next flush saved the
+    //  guest's disk as a spare copy beside it.
+    TEST_METHOD (ASoftResetFlushesADirtyDiskThroughTheStore)
+    {
+        static constexpr const char *  kPath = "Z:\\casso-no-such-folder\\reset.dsk";
+
+        TestMachine        machine ("Apple2e");
+        DiskImageStore &   store   = machine.GetDiskStore();
+        std::vector<Byte>  disk (143360, 0);
+        int                writes  = 0;
+        ImageIdentity      identity;
+
+
+
+        identity.recorded           = true;
+        identity.stamp.sizeBytes    = disk.size();
+        identity.stamp.modifiedUnix = 1;
+
+        store.SetImageReader    ([&disk] (const std::string &, std::vector<Byte> & bytes) -> HRESULT { bytes = disk; return S_OK; });
+        store.SetIdentityReader ([&identity] (const std::string &) -> ImageIdentity { return identity; });
+        store.SetFlushSink      ([&writes, &identity] (const std::string & path, const std::vector<Byte> &) -> HRESULT
+        {
+            Assert::AreEqual (std::string (kPath), path);
+            writes++;
+            identity.stamp.modifiedUnix++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.Mount (6, 0, kPath));
+
+        store.GetImage (6, 0)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        store.GetImage (6, 0)->SetLoadedForTest (true, true);
+
+        machine.SoftReset();
+
+        Assert::AreEqual (1, writes, L"the reset's write goes through the store");
+        Assert::IsFalse (store.GetImage (6, 0)->IsDirty());
+        Assert::IsTrue (store.GetSharedState (6, 0)->GetIdentity().Matches (identity),
+                        L"and the bay's identity matches the file it wrote");
     }
 
 

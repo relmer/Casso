@@ -554,9 +554,24 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 
 void MachineHost::SoftReset()
 {
+    HRESULT  hrFlush = S_OK;
+
+
+
     // A reset stops the recorder, as pressing reset mid-load would leave a real
     // one running into a guest that is no longer listening. The tape stays in.
     StopTape();
+
+    // Dirty disks are flushed through the store before the controller's reset
+    // flushes them itself. A store flush updates the file's size and time in
+    // the bay's identity; a write by the controller alone left them stale, so
+    // the file was taken as changed by another program and the next flush
+    // saved the guest's disk as a spare copy beside it.
+    if (m_diskStore != nullptr)
+    {
+        hrFlush = m_diskStore->FlushAll();
+        IGNORE_RETURN_VALUE (hrFlush, S_OK);
+    }
 
     m_memoryBus->SoftResetAll();
 
